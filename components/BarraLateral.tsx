@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -22,6 +22,12 @@ export default function BarraLateral({
   const [abierta, setAbierta] = useState(false);
   const pathname = usePathname();
   const esAdmin = rol === "admin";
+
+  // El layout no se remonta entre navegaciones (RSC), así que sin esto el
+  // menú se queda abierto tapando la página nueva después de tocar un link.
+  useEffect(() => {
+    setAbierta(false);
+  }, [pathname]);
 
   const contenido = (
     <div className="flex h-full flex-col">

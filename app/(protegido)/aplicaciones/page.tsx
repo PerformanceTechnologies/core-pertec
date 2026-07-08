@@ -27,8 +27,8 @@ export default async function AplicacionesPage() {
         </div>
       </details>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-borde bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-borde bg-white">
+        <table className="w-full min-w-[560px] text-left text-sm">
           <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
             <tr>
               <th className="px-4 py-3">Aplicación</th>
