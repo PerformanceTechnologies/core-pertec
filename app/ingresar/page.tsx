@@ -9,11 +9,11 @@ export default function IngresarPage({
   return (
     <div className="flex min-h-screen flex-1 flex-col items-center justify-center px-6">
       <Image
-        src="/logo-pertec.png"
-        alt="Performance Technologies — PERTEC"
-        width={280}
-        height={217}
-        className="h-24 w-auto object-contain"
+        src="/logo-core.png"
+        alt="Core de Aplicaciones — PERTEC"
+        width={1453}
+        height={469}
+        className="h-16 w-auto object-contain"
         priority
       />
 
@@ -42,6 +42,14 @@ export default function IngresarPage({
 
         <ErrorAcceso searchParams={searchParams} />
       </div>
+
+      <Image
+        src="/logo-pertec.png"
+        alt="Performance Technologies — PERTEC"
+        width={280}
+        height={217}
+        className="mt-8 h-10 w-auto object-contain opacity-70"
+      />
     </div>
   );
 }
