@@ -56,7 +56,14 @@ export default function BarraLateral({
           {apps.map((app) => {
             const Icono = obtenerIcono(app.icono);
             const deshabilitada = app.estado === "mantenimiento";
-            const href = app.url.startsWith("http") ? app.url : `https://${app.url}`;
+            const href =
+              app.tipo === "interna"
+                ? app.url
+                : app.url.startsWith("http")
+                  ? app.url
+                  : `https://${app.url}`;
+            const clases =
+              "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-tinta/75 transition hover:bg-naranjo/10 hover:text-naranjo";
 
             if (deshabilitada) {
               return (
@@ -70,12 +77,17 @@ export default function BarraLateral({
               );
             }
 
+            if (app.tipo === "interna") {
+              return (
+                <Link key={app.id} href={href} className={clases}>
+                  <Icono size={17} stroke={1.75} aria-hidden />
+                  {app.nombre}
+                </Link>
+              );
+            }
+
             return (
-              <a
-                key={app.id}
-                href={href}
-                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-tinta/75 transition hover:bg-naranjo/10 hover:text-naranjo"
-              >
+              <a key={app.id} href={href} className={clases}>
                 <Icono size={17} stroke={1.75} aria-hidden />
                 {app.nombre}
               </a>

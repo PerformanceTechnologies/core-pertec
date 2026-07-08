@@ -4,6 +4,8 @@ export type EstadoApp = "activa" | "en_desarrollo" | "mantenimiento";
 
 export type ColorApp = "naranjo" | "teal" | "gris";
 
+export type TipoApp = "interna" | "externa";
+
 export interface Usuario {
   id: string;
   correo: string;
@@ -18,6 +20,7 @@ export interface Aplicacion {
   nombre: string;
   slug: string;
   url: string;
+  tipo: TipoApp;
   icono: string;
   color: ColorApp;
   descripcion: string | null;

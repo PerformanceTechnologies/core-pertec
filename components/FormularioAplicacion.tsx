@@ -24,13 +24,25 @@ export default function FormularioAplicacion({
         />
       </div>
 
-      <div className="sm:col-span-2">
+      <div>
+        <label className="block text-xs font-medium text-tinta/70">Tipo</label>
+        <select
+          name="tipo"
+          defaultValue={valoresPorDefecto?.tipo ?? "externa"}
+          className="mt-1 w-full rounded-lg border border-borde bg-white px-3 py-2 text-sm outline-none focus:border-naranjo/50"
+        >
+          <option value="externa">Externa (otro sitio/dominio)</option>
+          <option value="interna">Interna (una página del propio core)</option>
+        </select>
+      </div>
+
+      <div>
         <label className="block text-xs font-medium text-tinta/70">URL</label>
         <input
           name="url"
           required
           defaultValue={valoresPorDefecto?.url}
-          placeholder="licitaciones.pertec.cl"
+          placeholder="licitaciones.pertec.cl o /reclutamiento"
           className="mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50"
         />
       </div>

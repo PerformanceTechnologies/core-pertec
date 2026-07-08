@@ -56,7 +56,12 @@ export default async function DashboardPage() {
             {apps.map((app, indice) => {
               const Icono = obtenerIcono(app.icono);
               const deshabilitada = app.estado === "mantenimiento";
-              const href = app.url.startsWith("http") ? app.url : `https://${app.url}`;
+              const href =
+                app.tipo === "interna"
+                  ? app.url
+                  : app.url.startsWith("http")
+                    ? app.url
+                    : `https://${app.url}`;
 
               return (
                 <div

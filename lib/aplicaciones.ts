@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./supabase-admin";
-import type { Aplicacion, ColorApp, EstadoApp } from "./tipos";
+import type { Aplicacion, ColorApp, EstadoApp, TipoApp } from "./tipos";
 
 export async function listarAplicaciones(): Promise<Aplicacion[]> {
   const { data } = await supabaseAdmin
@@ -16,6 +16,15 @@ export async function obtenerAplicacionPorId(id: string): Promise<Aplicacion | n
   return (data as Aplicacion) ?? null;
 }
 
+export async function obtenerAplicacionPorSlug(slug: string): Promise<Aplicacion | null> {
+  const { data } = await supabaseAdmin
+    .from("aplicaciones")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+  return (data as Aplicacion) ?? null;
+}
+
 function generarSlug(nombre: string): string {
   return nombre
     .toLowerCase()
@@ -25,19 +34,23 @@ function generarSlug(nombre: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-export async function crearAplicacion(datos: {
+interface DatosAplicacion {
   nombre: string;
   url: string;
+  tipo: TipoApp;
   icono: string;
   color: ColorApp;
   descripcion: string;
   estado: EstadoApp;
   orden: number;
-}): Promise<void> {
+}
+
+export async function crearAplicacion(datos: DatosAplicacion): Promise<void> {
   const { error } = await supabaseAdmin.from("aplicaciones").insert({
     nombre: datos.nombre.trim(),
     slug: generarSlug(datos.nombre),
     url: datos.url.trim(),
+    tipo: datos.tipo,
     icono: datos.icono,
     color: datos.color,
     descripcion: datos.descripcion.trim() || null,
@@ -48,24 +61,14 @@ export async function crearAplicacion(datos: {
   if (error) throw new Error(error.message);
 }
 
-export async function actualizarAplicacion(
-  id: string,
-  datos: {
-    nombre: string;
-    url: string;
-    icono: string;
-    color: ColorApp;
-    descripcion: string;
-    estado: EstadoApp;
-    orden: number;
-  }
-): Promise<void> {
+export async function actualizarAplicacion(id: string, datos: DatosAplicacion): Promise<void> {
   const { error } = await supabaseAdmin
     .from("aplicaciones")
     .update({
       nombre: datos.nombre.trim(),
       slug: generarSlug(datos.nombre),
       url: datos.url.trim(),
+      tipo: datos.tipo,
       icono: datos.icono,
       color: datos.color,
       descripcion: datos.descripcion.trim() || null,
