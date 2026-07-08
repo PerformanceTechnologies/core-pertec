@@ -62,11 +62,14 @@ export async function crearAplicacion(datos: DatosAplicacion): Promise<void> {
 }
 
 export async function actualizarAplicacion(id: string, datos: DatosAplicacion): Promise<void> {
+  // El slug no se toca al editar: es el identificador estable que usan las
+  // páginas nativas (como /reclutamiento) para saber a qué app corresponden.
+  // Si se regenerara con cada cambio de nombre, renombrar una app rompería
+  // el acceso de los usuarios sin rol admin, sin ningún aviso visible.
   const { error } = await supabaseAdmin
     .from("aplicaciones")
     .update({
       nombre: datos.nombre.trim(),
-      slug: generarSlug(datos.nombre),
       url: datos.url.trim(),
       tipo: datos.tipo,
       icono: datos.icono,
