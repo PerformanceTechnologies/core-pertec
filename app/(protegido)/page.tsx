@@ -63,13 +63,8 @@ export default async function DashboardPage() {
                     ? app.url
                     : `https://${app.url}`;
 
-              return (
-                <div
-                  key={app.id}
-                  className={`flex items-center gap-3 px-4 py-3 ${
-                    indice > 0 ? "border-t border-borde" : ""
-                  }`}
-                >
+              const contenido = (
+                <>
                   <Icono size={18} stroke={1.75} className="text-tinta/60" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-tinta">{app.nombre}</p>
@@ -83,11 +78,27 @@ export default async function DashboardPage() {
                     {etiquetaEstado(app.estado)}
                   </span>
                   {!deshabilitada && (
-                    <Link href={href} className="text-xs font-medium text-tinta/60 hover:text-naranjo">
-                      Abrir
-                    </Link>
+                    <span className="text-xs font-medium text-tinta/60">Abrir</span>
                   )}
-                </div>
+                </>
+              );
+
+              const clasesFila = `flex items-center gap-3 px-4 py-3 ${
+                indice > 0 ? "border-t border-borde" : ""
+              }`;
+
+              if (deshabilitada) {
+                return (
+                  <div key={app.id} className={clasesFila}>
+                    {contenido}
+                  </div>
+                );
+              }
+
+              return (
+                <Link key={app.id} href={href} className={`${clasesFila} transition hover:bg-crema/60`}>
+                  {contenido}
+                </Link>
               );
             })}
           </div>

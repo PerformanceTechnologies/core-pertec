@@ -5,7 +5,14 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconMenu2, IconX, IconLayoutDashboard, IconUsers, IconSettings2 } from "@tabler/icons-react";
+import {
+  IconMenu2,
+  IconX,
+  IconLayoutDashboard,
+  IconUsers,
+  IconSettings2,
+  IconArrowLeft,
+} from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import type { Aplicacion, Rol } from "@/lib/tipos";
@@ -146,16 +153,23 @@ export default function BarraLateral({
   return (
     <>
       <div className="flex items-center justify-between border-b border-borde bg-crema/95 px-4 py-3 backdrop-blur-sm lg:hidden">
-        <div className="flex items-center gap-2">
-          <Image
-            src="/logo-pertec.png"
-            alt="Performance Technologies — PERTEC"
-            width={220}
-            height={170}
-            className="h-8 w-auto object-contain"
-          />
-          <span className="font-condensed text-sm font-bold uppercase text-tinta">Core PERTEC</span>
-        </div>
+        {pathname === "/" ? (
+          <div className="flex items-center gap-2">
+            <Image
+              src="/logo-pertec.png"
+              alt="Performance Technologies — PERTEC"
+              width={220}
+              height={170}
+              className="h-8 w-auto object-contain"
+            />
+            <span className="font-condensed text-sm font-bold uppercase text-tinta">Core PERTEC</span>
+          </div>
+        ) : (
+          <Link href="/" className="flex items-center gap-1.5 text-sm font-semibold text-tinta">
+            <IconArrowLeft size={18} stroke={2} />
+            Volver al Core
+          </Link>
+        )}
         <button
           type="button"
           onClick={() => setAbierta(true)}

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import BarraLateral from "@/components/BarraLateral";
+import BotonSubir from "@/components/BotonSubir";
 
 // Sin caché: cada navegación vuelve a consultar Supabase, así que si el
 // admin borra o desactiva a alguien, esa persona queda fuera en la
@@ -30,6 +31,7 @@ export default async function LayoutProtegido({
     <div className="lg:flex lg:min-h-screen">
       <BarraLateral correo={usuario.correo} rol={usuario.rol} apps={apps} />
       <main className="flex-1 px-6 py-8 lg:px-10">{children}</main>
+      <BotonSubir />
     </div>
   );
 }
