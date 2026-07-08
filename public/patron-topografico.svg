@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <pattern id="topo" width="90" height="90" patternUnits="userSpaceOnUse">
+      <polyline points="0,90 22,35 45,68 67,15 90,90" fill="none" stroke="#171411" stroke-opacity="0.045" stroke-width="1.4" />
+      <polyline points="0,60 22,10 45,42 67,-8 90,60" fill="none" stroke="#c85217" stroke-opacity="0.04" stroke-width="1.2" />
+    </pattern>
+  </defs>
+  <rect width="180" height="180" fill="url(#topo)" />
+</svg>

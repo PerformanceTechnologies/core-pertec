@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Misma paleta que postular.pertec.cl, extraída de pertec.cl */
+  --color-crema: #faf8f5;
+  --color-tinta: #171411;
+  --color-naranjo: #c85217;
+  --color-naranjo-suave: #e07a3d;
+  --color-teal: #00a080;
+  --color-teal-suave: #35b89b;
+  --color-gris: #8c8578;
+  --color-gris-suave: #b8b2a4;
+  --color-borde: #e7e1d8;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-crema: var(--color-crema);
+  --color-tinta: var(--color-tinta);
+  --color-naranjo: var(--color-naranjo);
+  --color-naranjo-suave: var(--color-naranjo-suave);
+  --color-teal: var(--color-teal);
+  --color-teal-suave: var(--color-teal-suave);
+  --color-gris: var(--color-gris);
+  --color-gris-suave: var(--color-gris-suave);
+  --color-borde: var(--color-borde);
+  --font-sans: var(--font-barlow);
+  --font-condensed: var(--font-barlow-condensed);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--color-crema);
+  background-image: url("/patron-topografico.svg");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+  background-attachment: fixed;
+}
+
+.font-condensed {
+  font-family: var(--font-barlow-condensed), var(--font-barlow), sans-serif;
+}
+
+.etiqueta-seccion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--color-naranjo);
+}
+.etiqueta-seccion::before {
+  content: "";
+  display: inline-block;
+  width: 1.5rem;
+  height: 2px;
+  background: var(--color-naranjo);
+}
+
+input,
+select,
+textarea {
+  color-scheme: light;
+}
+
+input:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: var(--color-tinta);
 }
