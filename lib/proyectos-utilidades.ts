@@ -48,3 +48,47 @@ export function fmtMes(d: Date): string {
 export function fmtFechaCorta(d: Date): string {
   return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
 }
+
+export function fmtCLP(n: number | null | undefined): string {
+  if (n == null || isNaN(n)) return "—";
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(n));
+}
+
+// Categorías y tags de gasto — igual que el panel original. La key se guarda
+// en el jsonb; el label es lo que se muestra. Tags vacío => entrada libre.
+export const GASTO_CATEGORIAS = [
+  { v: "alimentacion", l: "Alimentación", tags: ["Desayuno", "Almuerzo", "Cena", "Mixta"] },
+  { v: "traslados", l: "Traslados", tags: ["Pasajes terrestres", "Vuelos", "Combustible", "Tag y peajes"] },
+  { v: "alojamiento", l: "Alojamiento", tags: ["Hotel", "Arriendo pieza"] },
+  { v: "operacionales", l: "Gastos operacionales", tags: ["Compra de suministros"] },
+  { v: "horas_hombre", l: "Horas/Hombre", tags: ["Día", "Semana", "Mes"] },
+  { v: "urgencias", l: "Urgencias e imprevistos", tags: [] as string[] },
+] as const;
+
+export function catLabel(v: string | null): string {
+  return GASTO_CATEGORIAS.find((c) => c.v === v)?.l || v || "Sin categoría";
+}
+
+export function catTags(v: string | null): readonly string[] {
+  return GASTO_CATEGORIAS.find((c) => c.v === v)?.tags ?? [];
+}
+
+// Color de la paleta de proyectos (cobre/teal/acero/amarillo/violeta) para
+// cada categoría de gasto — mismo mapeo que el panel original.
+export const CAT_COLOR: Record<string, string> = {
+  alimentacion: "cobre",
+  traslados: "teal",
+  alojamiento: "acero",
+  operacionales: "amarillo",
+  horas_hombre: "violeta",
+  urgencias: "cobre",
+  sin_categoria: "cobre",
+};
+
+export function costoConcepto(g: { categoria: string | null; tag: string | null; label: string | null }): string {
+  const partes = [];
+  if (g.categoria) partes.push(catLabel(g.categoria));
+  if (g.tag) partes.push(g.tag);
+  if (partes.length === 0) return (g.label || "").trim() || "Sin concepto";
+  return partes.join(" · ");
+}

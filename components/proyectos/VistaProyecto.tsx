@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Objetivo, Proyecto } from "@/lib/proyectos";
-import { puedeEnPanel, type RolPanel } from "@/lib/permisos-panel";
+import { puedeEnPanel, puedeVerGastos, puedeEditarGastos, type RolPanel } from "@/lib/permisos-panel";
 import { colorDe, diasEntre, parseFecha } from "@/lib/proyectos-utilidades";
 import AnilloProgreso from "./AnilloProgreso";
 import Gantt from "./Gantt";
 import TableroObjetivos from "./TableroObjetivos";
 import FormularioObjetivoModal from "./FormularioObjetivoModal";
+import GastosProyecto from "./GastosProyecto";
+import GastosHeroMini from "./GastosHeroMini";
 
 export default function VistaProyecto({
   proyectoId,
@@ -23,6 +25,8 @@ export default function VistaProyecto({
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<"gantt" | "checklist">("gantt");
   const [editando, setEditando] = useState<Objetivo | "nuevo" | null>(null);
+  const [seccion, setSeccion] = useState<"objetivos" | "gastos">("objetivos");
+  const puedeVerGastosProyecto = puedeVerGastos(rolPanel);
 
   const cargar = useCallback(async () => {
     try {
@@ -145,7 +149,33 @@ export default function VistaProyecto({
             </>
           )}
         </div>
+
+        {puedeVerGastosProyecto && (
+          <div className="flex gap-1 rounded-full border border-borde bg-white p-1">
+            <button
+              onClick={() => setSeccion("objetivos")}
+              className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
+                seccion === "objetivos" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
+              }`}
+            >
+              Objetivos
+            </button>
+            <button
+              onClick={() => setSeccion("gastos")}
+              className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
+                seccion === "gastos" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
+              }`}
+            >
+              Gastos
+            </button>
+          </div>
+        )}
       </div>
+
+      {seccion === "gastos" && proyecto ? (
+        <GastosProyecto proyecto={proyecto} puedeEditar={puedeEditarGastos(rolPanel)} onActualizado={cargar} />
+      ) : (
+        <>
 
       <div className="animar-revelar relative overflow-hidden border-b border-borde py-6">
         <div
@@ -156,50 +186,54 @@ export default function VistaProyecto({
               "radial-gradient(ellipse at 80% 10%, rgba(200,82,23,.10), transparent 50%), radial-gradient(ellipse at 8% 95%, rgba(0,160,128,.08), transparent 55%)",
           }}
         />
-        <div className="relative mx-auto max-w-sm overflow-hidden bg-white px-6 py-5 shadow-[0_20px_40px_rgba(12,10,9,.08)]">
-          <span
-            aria-hidden
-            className="absolute inset-y-0 left-0 w-1"
-            style={{ background: "linear-gradient(180deg, #C85217 0%, #E67E3F 50%, #00A080 100%)" }}
-          />
-          <div className="flex items-baseline justify-between border-b border-borde pb-3.5">
-            <span className="etiqueta-seccion">Progreso global</span>
-            <span className="text-xs font-medium tracking-wide text-tinta/50">
-              {hechos}/{total}
-            </span>
-          </div>
+        <div className={`relative ${puedeVerGastosProyecto ? "flex flex-col items-center justify-center gap-8 lg:flex-row lg:justify-center" : "mx-auto max-w-sm"}`}>
+          {puedeVerGastosProyecto && proyecto && <GastosHeroMini proyecto={proyecto} onVerDetalle={() => setSeccion("gastos")} />}
 
-          <div className="flex justify-center py-5">
-            <div className="relative flex items-center justify-center">
-              <AnilloProgreso pct={pct} size={104} stroke={8} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[26px] font-medium leading-none tracking-tight text-tinta">
-                  {pct}
-                  <span className="text-xs font-normal text-tinta/50">%</span>
-                </span>
-                <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[.18em] text-tinta/50">completado</span>
+          <div className="relative mx-auto w-full max-w-sm overflow-hidden bg-white px-6 py-5 shadow-[0_20px_40px_rgba(12,10,9,.08)]">
+            <span
+              aria-hidden
+              className="absolute inset-y-0 left-0 w-1"
+              style={{ background: "linear-gradient(180deg, #C85217 0%, #E67E3F 50%, #00A080 100%)" }}
+            />
+            <div className="flex items-baseline justify-between border-b border-borde pb-3.5">
+              <span className="etiqueta-seccion">Progreso global</span>
+              <span className="text-xs font-medium tracking-wide text-tinta/50">
+                {hechos}/{total}
+              </span>
+            </div>
+
+            <div className="flex justify-center py-5">
+              <div className="relative flex items-center justify-center">
+                <AnilloProgreso pct={pct} size={104} stroke={8} />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-[26px] font-medium leading-none tracking-tight text-tinta">
+                    {pct}
+                    <span className="text-xs font-normal text-tinta/50">%</span>
+                  </span>
+                  <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[.18em] text-tinta/50">completado</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-3 gap-0 border-t border-borde pt-4">
-            <div className="flex flex-col items-center gap-1.5">
-              <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Activos</span>
-              <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#C85217" }}>
-                {total - hechos}
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5 border-x border-borde">
-              <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Completados</span>
-              <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#00A080" }}>
-                {hechos}
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Vencen ≤7d</span>
-              <span className="text-lg font-medium leading-none tracking-tight" style={{ color: vencen > 0 ? "#b58900" : "var(--color-tinta)" }}>
-                {vencen}
-              </span>
+            <div className="grid grid-cols-3 gap-0 border-t border-borde pt-4">
+              <div className="flex flex-col items-center gap-1.5">
+                <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Activos</span>
+                <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#C85217" }}>
+                  {total - hechos}
+                </span>
+              </div>
+              <div className="flex flex-col items-center gap-1.5 border-x border-borde">
+                <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Completados</span>
+                <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#00A080" }}>
+                  {hechos}
+                </span>
+              </div>
+              <div className="flex flex-col items-center gap-1.5">
+                <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Vencen ≤7d</span>
+                <span className="text-lg font-medium leading-none tracking-tight" style={{ color: vencen > 0 ? "#b58900" : "var(--color-tinta)" }}>
+                  {vencen}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -289,6 +323,8 @@ export default function VistaProyecto({
               : null
           }
         />
+      )}
+        </>
       )}
     </div>
   );

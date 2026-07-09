@@ -29,3 +29,15 @@ export function puedeEnPanel(rol: RolPanel, accion: AccionPanel): boolean {
   if (rol === "usuario") return ACCIONES_USUARIO.includes(accion);
   return false;
 }
+
+// Gastos es la excepción a la regla general: "usuario" no tiene ningún
+// acceso (ni siquiera ver), mientras que "visualizador" sí puede ver
+// (solo lectura) — al revés de como se comportan Objetivos y Mantención.
+// Por eso no usa puedeEnPanel/ACCIONES_USUARIO.
+export function puedeVerGastos(rol: RolPanel): boolean {
+  return rol === "admin" || rol === "visualizador";
+}
+
+export function puedeEditarGastos(rol: RolPanel): boolean {
+  return rol === "admin";
+}

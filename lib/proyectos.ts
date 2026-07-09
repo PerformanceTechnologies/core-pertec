@@ -3,7 +3,7 @@ import { pertecWebSupabase } from "./pertec-web-supabase";
 import type { RolPanel } from "./permisos-panel";
 
 export type { RolPanel, AccionPanel } from "./permisos-panel";
-export { puedeEnPanel } from "./permisos-panel";
+export { puedeEnPanel, puedeVerGastos, puedeEditarGastos } from "./permisos-panel";
 
 // Sin fila en app_roles, el usuario queda como visualizador (solo lectura) —
 // igual que en el panel original.
@@ -27,6 +27,13 @@ export async function resolverRolPanel(usuarioCore: { rol: string; correo: strin
   return obtenerRolPanel(usuarioCore.correo);
 }
 
+export interface GastoItem {
+  categoria: string | null;
+  tag: string | null;
+  label: string | null;
+  monto: number;
+}
+
 export interface Proyecto {
   id: string;
   nombre: string;
@@ -37,6 +44,7 @@ export interface Proyecto {
   fecha_inicio: string | null;
   fecha_fin: string | null;
   presupuesto_inicial: number;
+  gastos: GastoItem[];
 }
 
 export interface Objetivo {
@@ -128,6 +136,17 @@ export async function actualizarProyecto(
 
 export async function eliminarProyecto(id: string): Promise<void> {
   const { error } = await pertecWebSupabase.from("proyectos").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function actualizarGastosProyecto(
+  id: string,
+  datos: { presupuesto_inicial: number; gastos: GastoItem[] }
+): Promise<void> {
+  const { error } = await pertecWebSupabase
+    .from("proyectos")
+    .update({ presupuesto_inicial: datos.presupuesto_inicial, gastos: datos.gastos })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 }
 
