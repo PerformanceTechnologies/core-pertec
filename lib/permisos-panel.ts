@@ -12,7 +12,8 @@ export type AccionPanel =
   | "edit_objetivo"
   | "toggle_objetivo"
   | "delete_objetivo"
-  | "comentar";
+  | "comentar"
+  | "run_checklist";
 
 const ACCIONES_USUARIO: AccionPanel[] = [
   "create_objetivo",
@@ -20,6 +21,7 @@ const ACCIONES_USUARIO: AccionPanel[] = [
   "toggle_objetivo",
   "delete_objetivo",
   "comentar",
+  "run_checklist",
 ];
 
 export function puedeEnPanel(rol: RolPanel, accion: AccionPanel): boolean {
