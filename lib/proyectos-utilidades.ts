@@ -92,3 +92,17 @@ export function costoConcepto(g: { categoria: string | null; tag: string | null;
   if (partes.length === 0) return (g.label || "").trim() || "Sin concepto";
   return partes.join(" · ");
 }
+
+export const ESTADOS_PROYECTO = ["no_iniciado", "en_curso", "terminado"] as const;
+
+export const ESTADO_PROYECTO_LABEL: Record<string, string> = {
+  no_iniciado: "No iniciado",
+  en_curso: "En curso",
+  terminado: "Terminado",
+};
+
+export const ESTADO_PROYECTO_COLOR: Record<string, { bg: string; texto: string; borde: string }> = {
+  no_iniciado: { bg: "rgba(140,133,120,.12)", texto: "#716f6d", borde: "rgba(140,133,120,.3)" },
+  en_curso: { bg: "rgba(200,82,23,.10)", texto: "#C85217", borde: "rgba(200,82,23,.3)" },
+  terminado: { bg: "rgba(0,160,128,.10)", texto: "#007a62", borde: "rgba(0,160,128,.3)" },
+};

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Proyecto } from "@/lib/proyectos";
 import { puedeEnPanel, type RolPanel } from "@/lib/permisos-panel";
-import { colorDe, diasEntre, mesAnio, parseFecha } from "@/lib/proyectos-utilidades";
+import { colorDe, diasEntre, mesAnio, parseFecha, ESTADO_PROYECTO_COLOR, ESTADO_PROYECTO_LABEL } from "@/lib/proyectos-utilidades";
 import FormularioProyectoModal from "./FormularioProyectoModal";
 
 interface ResumenObjetivo {
@@ -183,6 +183,17 @@ export default function SelectorProyectos({
                   </span>
                 )}
               </div>
+
+              <span
+                className="self-start rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
+                style={{
+                  background: ESTADO_PROYECTO_COLOR[p.estado].bg,
+                  color: ESTADO_PROYECTO_COLOR[p.estado].texto,
+                  border: `1px solid ${ESTADO_PROYECTO_COLOR[p.estado].borde}`,
+                }}
+              >
+                {ESTADO_PROYECTO_LABEL[p.estado]}
+              </span>
 
               <div className="flex items-center gap-2.5">
                 <span className="text-[22px] font-medium leading-none tracking-tight text-tinta [font-variant-numeric:tabular-nums]">

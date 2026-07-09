@@ -44,6 +44,7 @@ export async function POST(request: Request) {
       color: body.color || "cobre",
       fecha_inicio: body.fecha_inicio || null,
       fecha_fin: body.fecha_fin || null,
+      estado: body.estado || "en_curso",
     });
     return NextResponse.json({ proyecto });
   } catch (error) {

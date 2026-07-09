@@ -6,6 +6,19 @@ import { exigirAdmin } from "@/lib/autorizacion";
 import { crearUsuario, actualizarUsuario, eliminarUsuario } from "@/lib/usuarios";
 import type { Rol } from "@/lib/tipos";
 
+// Los selectores de rol interno (uno por app que lo soporte) llegan como
+// campos "rol_extra_<aplicacionId>" — así no hace falta que esta Server
+// Action conozca el catálogo de apps para leerlos.
+function leerRolesExtra(form: FormData): Record<string, string> {
+  const roles: Record<string, string> = {};
+  for (const [clave, valor] of form.entries()) {
+    if (clave.startsWith("rol_extra_") && typeof valor === "string" && valor) {
+      roles[clave.replace("rol_extra_", "")] = valor;
+    }
+  }
+  return roles;
+}
+
 export async function crearUsuarioAction(form: FormData) {
   await exigirAdmin();
   await crearUsuario({
@@ -13,6 +26,7 @@ export async function crearUsuarioAction(form: FormData) {
     nombre: String(form.get("nombre") ?? ""),
     rol: String(form.get("rol") ?? "usuario") as Rol,
     aplicacionIds: form.getAll("aplicaciones").map(String),
+    rolesExtra: leerRolesExtra(form),
   });
   revalidatePath("/usuarios");
 }
@@ -24,6 +38,7 @@ export async function actualizarUsuarioAction(id: string, form: FormData) {
     rol: String(form.get("rol") ?? "usuario") as Rol,
     activo: form.get("activo") === "on",
     aplicacionIds: form.getAll("aplicaciones").map(String),
+    rolesExtra: leerRolesExtra(form),
   });
   revalidatePath("/usuarios");
   revalidatePath("/");

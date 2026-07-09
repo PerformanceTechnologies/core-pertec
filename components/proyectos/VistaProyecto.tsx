@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Objetivo, Proyecto } from "@/lib/proyectos";
 import { puedeEnPanel, puedeVerGastos, puedeEditarGastos, type RolPanel } from "@/lib/permisos-panel";
-import { colorDe, diasEntre, parseFecha } from "@/lib/proyectos-utilidades";
+import { colorDe, diasEntre, parseFecha, ESTADO_PROYECTO_COLOR, ESTADO_PROYECTO_LABEL } from "@/lib/proyectos-utilidades";
 import AnilloProgreso from "./AnilloProgreso";
 import Gantt from "./Gantt";
 import TableroObjetivos from "./TableroObjetivos";
 import FormularioObjetivoModal from "./FormularioObjetivoModal";
 import GastosProyecto from "./GastosProyecto";
 import GastosHeroMini from "./GastosHeroMini";
+import SeccionMantencion from "@/components/mantencion/SeccionMantencion";
 
 export default function VistaProyecto({
   proyectoId,
@@ -25,8 +26,14 @@ export default function VistaProyecto({
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<"gantt" | "checklist">("gantt");
   const [editando, setEditando] = useState<Objetivo | "nuevo" | null>(null);
-  const [seccion, setSeccion] = useState<"objetivos" | "gastos">("objetivos");
+  const [seccion, setSeccion] = useState<"objetivos" | "gastos" | "mantencion">("objetivos");
   const puedeVerGastosProyecto = puedeVerGastos(rolPanel);
+
+  // Si el rol cambia dentro de la misma sesión del navegador (sin recargar)
+  // y pierde acceso a Gastos, que no se quede mostrando esa sección.
+  useEffect(() => {
+    if (!puedeVerGastosProyecto) setSeccion("objetivos");
+  }, [puedeVerGastosProyecto]);
 
   const cargar = useCallback(async () => {
     try {
@@ -150,16 +157,24 @@ export default function VistaProyecto({
           )}
         </div>
 
-        {puedeVerGastosProyecto && (
-          <div className="flex gap-1 rounded-full border border-borde bg-white p-1">
-            <button
-              onClick={() => setSeccion("objetivos")}
-              className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
-                seccion === "objetivos" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
-              }`}
-            >
-              Objetivos
-            </button>
+        <div className="flex gap-1 rounded-full border border-borde bg-white p-1">
+          <button
+            onClick={() => setSeccion("objetivos")}
+            className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
+              seccion === "objetivos" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
+            }`}
+          >
+            Objetivos
+          </button>
+          <button
+            onClick={() => setSeccion("mantencion")}
+            className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
+              seccion === "mantencion" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
+            }`}
+          >
+            Mantención
+          </button>
+          {puedeVerGastosProyecto && (
             <button
               onClick={() => setSeccion("gastos")}
               className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
@@ -168,12 +183,14 @@ export default function VistaProyecto({
             >
               Gastos
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {seccion === "gastos" && proyecto ? (
+      {seccion === "gastos" && puedeVerGastosProyecto && proyecto ? (
         <GastosProyecto proyecto={proyecto} puedeEditar={puedeEditarGastos(rolPanel)} onActualizado={cargar} />
+      ) : seccion === "mantencion" ? (
+        <SeccionMantencion rolPanel={rolPanel} />
       ) : (
         <>
 
@@ -197,9 +214,23 @@ export default function VistaProyecto({
             />
             <div className="flex items-baseline justify-between border-b border-borde pb-3.5">
               <span className="etiqueta-seccion">Progreso global</span>
-              <span className="text-xs font-medium tracking-wide text-tinta/50">
-                {hechos}/{total}
-              </span>
+              <div className="flex items-center gap-2">
+                {proyecto && (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
+                    style={{
+                      background: ESTADO_PROYECTO_COLOR[proyecto.estado].bg,
+                      color: ESTADO_PROYECTO_COLOR[proyecto.estado].texto,
+                      border: `1px solid ${ESTADO_PROYECTO_COLOR[proyecto.estado].borde}`,
+                    }}
+                  >
+                    {ESTADO_PROYECTO_LABEL[proyecto.estado]}
+                  </span>
+                )}
+                <span className="text-xs font-medium tracking-wide text-tinta/50">
+                  {hechos}/{total}
+                </span>
+              </div>
             </div>
 
             <div className="flex justify-center py-5">

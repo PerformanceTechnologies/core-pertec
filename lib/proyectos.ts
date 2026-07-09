@@ -1,30 +1,27 @@
 import "server-only";
 import { pertecWebSupabase } from "./pertec-web-supabase";
+import { obtenerAplicacionPorSlug } from "./aplicaciones";
 import type { RolPanel } from "./permisos-panel";
+import type { UsuarioConAcceso } from "./tipos";
 
 export type { RolPanel, AccionPanel } from "./permisos-panel";
 export { puedeEnPanel, puedeVerGastos, puedeEditarGastos } from "./permisos-panel";
 
-// Sin fila en app_roles, el usuario queda como visualizador (solo lectura) —
-// igual que en el panel original.
-export async function obtenerRolPanel(email: string | null | undefined): Promise<RolPanel> {
-  if (!email) return "visualizador";
-  const { data } = await pertecWebSupabase
-    .from("app_roles")
-    .select("role")
-    .eq("email", email.toLowerCase())
-    .maybeSingle();
-  return (data?.role as RolPanel) ?? "visualizador";
-}
+const SLUG_APP_PROYECTOS = "proyectos";
 
 // El admin del core ya significa "control total" (así se definió desde el
 // diseño inicial, y es lo mismo que hace exigirAccesoApp con el catálogo de
-// apps) — así que también es admin dentro de este panel, sin depender de
-// que exista una fila suya en app_roles. Un usuario normal del core sigue
-// usando lo que diga app_roles (o visualizador si no tiene fila ahí).
-export async function resolverRolPanel(usuarioCore: { rol: string; correo: string }): Promise<RolPanel> {
-  if (usuarioCore.rol === "admin") return "admin";
-  return obtenerRolPanel(usuarioCore.correo);
+// apps) — así que también es admin dentro de este panel. Un usuario normal
+// del core usa el rol_extra que el admin le haya asignado para la app
+// Proyectos (tabla usuario_aplicaciones), o "visualizador" si no le asignó
+// ninguno. Esto vive enteramente en el Supabase del core — ya no depende de
+// la tabla app_roles del Supabase de pertec-web (que sigue usando el panel
+// viejo, pero core-pertec no la toca más).
+export async function resolverRolPanel(usuario: UsuarioConAcceso): Promise<RolPanel> {
+  if (usuario.rol === "admin") return "admin";
+  const app = await obtenerAplicacionPorSlug(SLUG_APP_PROYECTOS);
+  if (!app) return "visualizador";
+  return (usuario.rolesExtra[app.id] as RolPanel) ?? "visualizador";
 }
 
 export interface GastoItem {
@@ -33,6 +30,8 @@ export interface GastoItem {
   label: string | null;
   monto: number;
 }
+
+export type EstadoProyecto = "no_iniciado" | "en_curso" | "terminado";
 
 export interface Proyecto {
   id: string;
@@ -45,6 +44,7 @@ export interface Proyecto {
   fecha_fin: string | null;
   presupuesto_inicial: number;
   gastos: GastoItem[];
+  estado: EstadoProyecto;
 }
 
 export interface Objetivo {
@@ -101,6 +101,7 @@ export async function crearProyecto(datos: {
   color: string;
   fecha_inicio: string | null;
   fecha_fin: string | null;
+  estado: EstadoProyecto;
 }): Promise<Proyecto> {
   const { data, error } = await pertecWebSupabase
     .from("proyectos")
@@ -110,6 +111,7 @@ export async function crearProyecto(datos: {
       color: datos.color,
       fecha_inicio: datos.fecha_inicio || null,
       fecha_fin: datos.fecha_fin || null,
+      estado: datos.estado,
     })
     .select("*")
     .single();
@@ -119,12 +121,20 @@ export async function crearProyecto(datos: {
 
 export async function actualizarProyecto(
   id: string,
-  datos: { nombre: string; descripcion: string | null; color: string; fecha_inicio: string | null; fecha_fin: string | null }
+  datos: {
+    nombre: string;
+    descripcion: string | null;
+    color: string;
+    fecha_inicio: string | null;
+    fecha_fin: string | null;
+    estado: EstadoProyecto;
+  }
 ): Promise<void> {
   const { error } = await pertecWebSupabase
     .from("proyectos")
     .update({
       nombre: datos.nombre.trim(),
+      estado: datos.estado,
       descripcion: datos.descripcion?.trim() || null,
       color: datos.color,
       fecha_inicio: datos.fecha_inicio || null,

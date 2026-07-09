@@ -53,6 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       color: body.color || "cobre",
       fecha_inicio: body.fecha_inicio || null,
       fecha_fin: body.fecha_fin || null,
+      estado: body.estado || "en_curso",
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

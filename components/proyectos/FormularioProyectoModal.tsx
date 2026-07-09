@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import type { Proyecto } from "@/lib/proyectos";
-import { COLOR_OPTS, colorDe } from "@/lib/proyectos-utilidades";
+import { COLOR_OPTS, colorDe, ESTADOS_PROYECTO, ESTADO_PROYECTO_COLOR, ESTADO_PROYECTO_LABEL } from "@/lib/proyectos-utilidades";
+import type { EstadoProyecto } from "@/lib/proyectos";
 
 const inputClase =
   "mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50";
@@ -20,6 +21,7 @@ export default function FormularioProyectoModal({
   const [nombre, setNombre] = useState(proyecto?.nombre ?? "");
   const [descripcion, setDescripcion] = useState(proyecto?.descripcion ?? "");
   const [color, setColor] = useState(proyecto?.color ?? "cobre");
+  const [estado, setEstado] = useState<EstadoProyecto>(proyecto?.estado ?? "en_curso");
   const [fechaInicio, setFechaInicio] = useState(proyecto?.fecha_inicio ?? "");
   const [fechaFin, setFechaFin] = useState(proyecto?.fecha_fin ?? "");
   const [guardando, setGuardando] = useState(false);
@@ -40,6 +42,7 @@ export default function FormularioProyectoModal({
           color,
           fecha_inicio: fechaInicio || null,
           fecha_fin: fechaFin || null,
+          estado,
         }),
       });
       const cuerpo = await respuesta.json();
@@ -112,6 +115,32 @@ export default function FormularioProyectoModal({
               <span className="block text-xs font-medium text-tinta/70">Fin</span>
               <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className={inputClase} />
             </label>
+          </div>
+
+          <div>
+            <span className="block text-xs font-medium text-tinta/70">Estado</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {ESTADOS_PROYECTO.map((es) => {
+                const colorEstado = ESTADO_PROYECTO_COLOR[es];
+                const activo = estado === es;
+                return (
+                  <button
+                    key={es}
+                    type="button"
+                    onClick={() => setEstado(es)}
+                    className="rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.08em] transition"
+                    style={{
+                      background: colorEstado.bg,
+                      color: colorEstado.texto,
+                      border: `1px solid ${colorEstado.borde}`,
+                      boxShadow: activo ? `inset 0 0 0 2px ${colorEstado.texto}` : "none",
+                    }}
+                  >
+                    {ESTADO_PROYECTO_LABEL[es]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>

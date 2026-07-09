@@ -30,4 +30,7 @@ export interface Aplicacion {
 
 export interface UsuarioConAcceso extends Usuario {
   aplicacionIds: string[];
+  // Rol interno opcional por app (aplicacion_id -> rol), para apps que
+  // manejan sus propios permisos mas finos que admin/usuario (ej: Proyectos).
+  rolesExtra: Record<string, string>;
 }

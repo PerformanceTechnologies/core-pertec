@@ -14,6 +14,7 @@ export default function FormularioUsuario({
   correoBloqueado?: boolean;
 }) {
   const appsAsignadas = new Set(valoresPorDefecto?.aplicacionIds ?? []);
+  const rolesExtra = valoresPorDefecto?.rolesExtra ?? {};
 
   return (
     <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -76,16 +77,30 @@ export default function FormularioUsuario({
             </p>
           )}
           {todasLasApps.map((app) => (
-            <label key={app.id} className="flex items-center gap-2 text-sm text-tinta/80">
-              <input
-                type="checkbox"
-                name="aplicaciones"
-                value={app.id}
-                defaultChecked={appsAsignadas.has(app.id)}
-                className="h-4 w-4 rounded border-borde"
-              />
-              {app.nombre}
-            </label>
+            <div key={app.id} className="flex flex-col gap-1">
+              <label className="flex items-center gap-2 text-sm text-tinta/80">
+                <input
+                  type="checkbox"
+                  name="aplicaciones"
+                  value={app.id}
+                  defaultChecked={appsAsignadas.has(app.id)}
+                  className="h-4 w-4 rounded border-borde"
+                />
+                {app.nombre}
+              </label>
+              {app.slug === "proyectos" && (
+                <select
+                  name={`rol_extra_${app.id}`}
+                  defaultValue={rolesExtra[app.id] ?? "visualizador"}
+                  className="ml-6 rounded-md border border-borde bg-white px-2 py-1 text-xs outline-none focus:border-naranjo/50"
+                  title="Rol interno dentro de Proyectos (solo aplica si la app está asignada arriba)"
+                >
+                  <option value="visualizador">Proyectos: Visualizador</option>
+                  <option value="usuario">Proyectos: Usuario</option>
+                  <option value="admin">Proyectos: Admin</option>
+                </select>
+              )}
+            </div>
           ))}
         </div>
       </div>
