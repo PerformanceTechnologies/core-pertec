@@ -73,7 +73,10 @@ export default function TarjetaPlantilla({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={onNuevoEquipo}
+              onClick={() => {
+                setAbierto(true);
+                onNuevoEquipo();
+              }}
               className="rounded-full bg-naranjo px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.1em] text-white shadow-[0_4px_14px_rgba(200,82,23,.25)] transition hover:bg-[#b14614]"
             >
               + Registrar {noun}
