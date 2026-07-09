@@ -4,6 +4,18 @@ import { obtenerUsuarioActivo } from "./usuarios";
 import { obtenerAplicacionPorSlug } from "./aplicaciones";
 import type { UsuarioConAcceso } from "./tipos";
 
+export interface AccesoApiDenegado {
+  usuario: null;
+  status: 401 | 403;
+  error: string;
+}
+
+export interface AccesoApiConcedido {
+  usuario: UsuarioConAcceso;
+  status: null;
+  error: null;
+}
+
 // Se llama tanto en las páginas de administración como en cada Server Action
 // de esas páginas: oculta la navegación no alcanza, porque una Server Action
 // se puede invocar directo sin pasar por la UI.
@@ -26,4 +38,19 @@ export async function exigirAccesoApp(slug: string): Promise<UsuarioConAcceso> {
   const app = await obtenerAplicacionPorSlug(slug);
   if (!app || !usuario.aplicacionIds.includes(app.id)) redirect("/");
   return usuario;
+}
+
+// Misma verificación que exigirAccesoApp, pero para Route Handlers: en vez
+// de redirigir devuelve un resultado que la ruta traduce a un status HTTP.
+export async function verificarAccesoAppApi(slug: string): Promise<AccesoApiDenegado | AccesoApiConcedido> {
+  const session = await auth();
+  const usuario = await obtenerUsuarioActivo(session?.user?.email);
+  if (!usuario) return { usuario: null, status: 401, error: "No autorizado" };
+  if (usuario.rol === "admin") return { usuario, status: null, error: null };
+
+  const app = await obtenerAplicacionPorSlug(slug);
+  if (!app || !usuario.aplicacionIds.includes(app.id)) {
+    return { usuario: null, status: 403, error: "No autorizado" };
+  }
+  return { usuario, status: null, error: null };
 }

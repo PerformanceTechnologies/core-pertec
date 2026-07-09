@@ -59,6 +59,20 @@ body {
   background: var(--color-naranjo);
 }
 
+@keyframes revelar {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animar-revelar {
+  animation: revelar 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
 input,
 select,
 textarea {
