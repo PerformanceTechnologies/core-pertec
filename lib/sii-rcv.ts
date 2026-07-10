@@ -143,6 +143,12 @@ function parsearCsvRcv(
 
 async function lanzarNavegador() {
   if (process.env.VERCEL) {
+    // @sparticuz/chromium-min solo extrae las librerias de sistema que le
+    // faltan al runtime de Vercel (libnss3.so y otras, empaquetadas en
+    // al2023.tar.br) si detecta que corre "en AWS Lambda" via esta variable
+    // — Vercel no la setea sola, aunque su runtime este basado en Lambda.
+    process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
+
     const chromium = (await import("@sparticuz/chromium-min")).default;
     const { chromium: playwrightChromium } = await import("playwright-core");
     const executablePath = await chromium.executablePath(
