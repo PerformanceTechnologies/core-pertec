@@ -32,15 +32,15 @@ export async function listarFacturasSii(limite = 300): Promise<FacturaSiiFila[]>
   return (data ?? []) as FacturaSiiFila[];
 }
 
-export async function obtenerUltimaEjecucion(): Promise<{
+// Solo la ultima corrida EXITOSA: los fallos se avisan por correo a
+// soporte@pertec.cl, nunca se muestran en el dashboard.
+export async function obtenerUltimaEjecucionExitosa(): Promise<{
   ejecutado_en: string;
-  exito: boolean;
-  documentos_nuevos: number;
-  mensaje_error: string | null;
 } | null> {
   const { data } = await supabaseAdmin
     .from("finanzas_sii_ejecuciones")
-    .select("*")
+    .select("ejecutado_en")
+    .eq("exito", true)
     .order("ejecutado_en", { ascending: false })
     .limit(1)
     .maybeSingle();
