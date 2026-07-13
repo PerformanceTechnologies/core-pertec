@@ -178,7 +178,11 @@ async function login(page: import("playwright-core").Page, creds: CredencialesSi
   await page.locator("#rutcntr").blur();
   await page.locator("#clave").fill(creds.claveTributaria);
   await page.locator("#bt_ingresar").click();
-  await page.waitForLoadState("networkidle", { timeout: 30000 });
+  // No esperamos "networkidle": el destino inmediato despues del login (la
+  // pagina del RCV) se navega explicitamente con goto() en consultarPeriodo,
+  // asi que solo necesitamos tiempo suficiente para que, si el login fallo,
+  // el mensaje de error ya este en el HTML.
+  await page.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
 
   const body = (await page.innerText("body")).toLowerCase();
   if (["clave incorrecta", "rut incorrecto", "acceso no autorizado"].some((s) => body.includes(s))) {
@@ -190,8 +194,10 @@ async function irATab(page: import("playwright-core").Page, texto: string): Prom
   const tab = page.locator("a, li").filter({ hasText: new RegExp(`^${texto}$`, "i") }).first();
   await tab.scrollIntoViewIfNeeded();
   await tab.click({ timeout: 10000 });
-  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
-  await page.waitForTimeout(800);
+  // Es una SPA: el clic solo cambia estado local (no hay navegacion ni
+  // llamadas de red que "idle-ar"), así que un delay corto y fijo alcanza
+  // para que Angular vuelva a renderizar.
+  await page.waitForTimeout(500);
 }
 
 async function descargarDetalle(
@@ -223,8 +229,11 @@ async function consultarPeriodo(
   periodoAnio: string
 ): Promise<FacturaSii[]> {
   await page.goto("https://www4.sii.cl/consdcvinternetui/#/index", { timeout: 40000 });
-  await page.waitForLoadState("networkidle", { timeout: 30000 });
-  await page.waitForTimeout(1500);
+  // Esta SPA nunca llega a "networkidle" (sigue con llamadas de fondo), asi
+  // que esperamos directo al elemento que necesitamos en vez de quemar el
+  // presupuesto de tiempo de la funcion serverless esperando algo que no va
+  // a pasar.
+  await page.waitForSelector("select[name='rut']", { timeout: 30000 });
 
   await page.locator("select[name='rut']").selectOption(limpiarRut(rutEmpresa));
   await page.locator("select#periodoMes").selectOption(periodoMes);
@@ -232,8 +241,12 @@ async function consultarPeriodo(
 
   const btnConsultar = page.locator("button, input[type='submit']").filter({ hasText: /consultar/i });
   await btnConsultar.first().click();
-  await page.waitForLoadState("networkidle", { timeout: 30000 });
-  await page.waitForTimeout(1200);
+  await page
+    .locator("a, li")
+    .filter({ hasText: /^COMPRA$/i })
+    .first()
+    .waitFor({ timeout: 25000 });
+  await page.waitForTimeout(500);
 
   const periodo = `${periodoAnio}${periodoMes}`;
   const filas: FacturaSii[] = [];
