@@ -49,13 +49,36 @@ export async function listarFacturasVenta(filtros: FiltrosFacturaVenta = {}, lim
   return (data ?? []) as FacturaVentaFila[];
 }
 
+// Paginado explicito: Supabase/PostgREST limita cada respuesta a 1000 filas
+// por defecto -- sin esto, con mas de 1000 documentos ya indexados el set
+// queda incompleto y el indexador vuelve a descargar y procesar archivos que
+// ya estaban guardados en cada corrida.
+async function obtenerColumnaCompleta(tabla: string, columna: string): Promise<string[]> {
+  const valores: string[] = [];
+  const tamanoPagina = 1000;
+  let desde = 0;
+
+  for (;;) {
+    const { data, error } = await supabaseAdmin
+      .from(tabla)
+      .select(columna)
+      .range(desde, desde + tamanoPagina - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+
+    for (const fila of data) valores.push((fila as unknown as Record<string, string>)[columna]);
+    if (data.length < tamanoPagina) break;
+    desde += tamanoPagina;
+  }
+
+  return valores;
+}
+
 // IDs ya indexados: el backfill/cron los usa para no volver a descargar y
 // parsear un XML que ya esta en la tabla (los archivos de este historico no
 // se modifican una vez archivados).
 export async function obtenerDriveItemIdsIndexados(): Promise<Set<string>> {
-  const { data, error } = await supabaseAdmin.from("facturas_venta_historico").select("drive_item_id");
-  if (error) throw new Error(error.message);
-  return new Set((data ?? []).map((f) => f.drive_item_id as string));
+  return new Set(await obtenerColumnaCompleta("facturas_venta_historico", "drive_item_id"));
 }
 
 export interface ArchivoVentaAIndexar {
@@ -140,9 +163,7 @@ export interface ResultadoBusquedaCompra {
 }
 
 export async function obtenerDriveItemIdsIndexadosCompra(): Promise<Set<string>> {
-  const { data, error } = await supabaseAdmin.from("facturas_compra_historico").select("drive_item_id");
-  if (error) throw new Error(error.message);
-  return new Set((data ?? []).map((f) => f.drive_item_id as string));
+  return new Set(await obtenerColumnaCompleta("facturas_compra_historico", "drive_item_id"));
 }
 
 export interface ArchivoCompraAIndexar {

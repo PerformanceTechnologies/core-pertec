@@ -1,5 +1,5 @@
 import "server-only";
-import { PDFParse } from "pdf-parse";
+import pdfParse from "pdf-parse";
 import {
   listarCarpetasAnioMes,
   listarArchivosDeCarpeta,
@@ -67,10 +67,8 @@ export async function indexarFacturasCompra(
       const buffer = await descargarBinarioArchivo(archivo.id);
       let texto = "";
       try {
-        const parser = new PDFParse({ data: buffer });
-        const resultado = await parser.getText();
+        const resultado = await pdfParse(buffer);
         texto = resultado.text;
-        await parser.destroy();
       } catch (err) {
         // PDF corrupto o no legible: se omite, no frena el resto -- pero se
         // deja rastro en el log del servidor para poder diagnosticar.
