@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { IconArrowLeft } from "@tabler/icons-react";
 import type { FacturaSiiFila } from "@/lib/finanzas";
 import TarjetaHoy from "./TarjetaHoy";
 import ModalFactura from "./ModalFactura";
@@ -132,7 +134,15 @@ export default function PanelFinanzas({
 
   return (
     <div>
-      <span className="etiqueta-seccion">Panel Finanzas</span>
+      <Link
+        href="/finanzas"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-tinta/60 hover:text-naranjo"
+      >
+        <IconArrowLeft size={14} stroke={2} aria-hidden />
+        Volver a Finanzas
+      </Link>
+
+      <span className="mt-3 block etiqueta-seccion">Panel Finanzas</span>
       <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
         Facturas SII
       </h1>
