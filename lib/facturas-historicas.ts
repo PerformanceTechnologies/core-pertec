@@ -203,18 +203,34 @@ export async function guardarFacturasCompra(archivos: ArchivoCompraAIndexar[]): 
   return count ?? archivos.length;
 }
 
+export interface FiltrosFacturaCompra {
+  termino?: string; // texto libre (RUT, proveedor, folio) contra el texto extraido del PDF
+  tiposDocumento?: string[]; // valores exactos de tipo_documento_detectado
+}
+
 // Busqueda de texto libre (ILIKE, no tsvector): un RUT o folio se escribe
 // siempre igual, y con ~5 mil filas una sub-busqueda de substring es rapida
 // sin depender de como el diccionario "spanish" de Postgres tokenice numeros
 // con puntos y guiones.
-export async function buscarFacturasCompraIndexadas(termino: string, limite = 100): Promise<ResultadoBusquedaCompra[]> {
-  const patron = `%${termino.replace(/[%_]/g, "\\$&")}%`;
-  const { data, error } = await supabaseAdmin
+export async function buscarFacturasCompraIndexadas(
+  filtros: FiltrosFacturaCompra,
+  limite = 100
+): Promise<ResultadoBusquedaCompra[]> {
+  let consulta = supabaseAdmin
     .from("facturas_compra_historico")
     .select(
       "drive_item_id, nombre_archivo, web_url, creado_en, folio, tipo_documento_detectado, rut_emisor, razon_social_emisor, fecha_emision, monto_total"
-    )
-    .or(`texto_extraido.ilike.${patron},nombre_archivo.ilike.${patron}`)
+    );
+
+  if (filtros.termino) {
+    const patron = `%${filtros.termino.replace(/[%_]/g, "\\$&")}%`;
+    consulta = consulta.or(`texto_extraido.ilike.${patron},nombre_archivo.ilike.${patron}`);
+  }
+  if (filtros.tiposDocumento && filtros.tiposDocumento.length > 0) {
+    consulta = consulta.in("tipo_documento_detectado", filtros.tiposDocumento);
+  }
+
+  const { data, error } = await consulta
     .order("fecha_emision", { ascending: false, nullsFirst: false })
     .order("anio", { ascending: false })
     .order("mes", { ascending: false })

@@ -29,11 +29,12 @@ export default function ModalFacturaCompra({
     return () => window.removeEventListener("keydown", alPresionarTecla);
   }, [onCerrar]);
 
-  // embed=1 le pide a SharePoint el visor de Office Online sin la barra de
-  // navegacion completa, mas comodo para un iframe chico.
-  const urlEmbed = archivo.webUrl
-    ? `${archivo.webUrl}${archivo.webUrl.includes("?") ? "&" : "?"}action=embedview`
-    : null;
+  // No se embebe el webUrl de SharePoint directo: el navegador del usuario
+  // no tiene sesion en ese tenant, asi que el iframe termina redirigiendo a
+  // login.microsoftonline.com, que rechaza mostrarse dentro de un iframe.
+  // Este endpoint trae el PDF via Graph (con las credenciales de la app) y
+  // lo sirve el mismo dominio, sin pasar por ningun login.
+  const urlPreview = `/api/finanzas/facturas-compra/archivo?id=${encodeURIComponent(archivo.id)}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onCerrar}>
@@ -61,13 +62,7 @@ export default function ModalFacturaCompra({
           </button>
         </div>
 
-        {urlEmbed ? (
-          <iframe src={urlEmbed} className="flex-1 rounded-b-xl" title={archivo.nombre} />
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-tinta/50">
-            No hay vista previa disponible para este archivo.
-          </div>
-        )}
+        <iframe src={urlPreview} className="flex-1 rounded-b-xl" title={archivo.nombre} />
 
         {archivo.webUrl && (
           <div className="border-t border-borde p-3 text-right">

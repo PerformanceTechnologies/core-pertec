@@ -28,6 +28,16 @@ const GRUPOS_TIPO_DTE: Record<string, { etiqueta: string; tipos: number[] | null
 
 type ClaveGrupoTipoDte = keyof typeof GRUPOS_TIPO_DTE;
 
+const GRUPOS_TIPO_COMPRA: Record<string, { etiqueta: string; tipos: string[] | null }> = {
+  todos: { etiqueta: "Todos los documentos", tipos: null },
+  facturas: { etiqueta: "Facturas", tipos: ["Factura", "Boleta"] },
+  notas_credito: { etiqueta: "Notas de crédito", tipos: ["Nota de Crédito"] },
+  notas_debito: { etiqueta: "Notas de débito", tipos: ["Nota de Débito"] },
+  guias: { etiqueta: "Guías de despacho", tipos: ["Guía de Despacho"] },
+};
+
+type ClaveGrupoTipoCompra = keyof typeof GRUPOS_TIPO_COMPRA;
+
 function formatearMonto(valor: number | null): string {
   if (valor === null) return "-";
   return valor.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -169,7 +179,7 @@ function TablaCompras({
           {!buscado && !cargando && (
             <tr>
               <td colSpan={6} className="px-4 py-6 text-center text-tinta/50">
-                Escribe un RUT, proveedor o folio para buscar en las facturas de compra.
+                Escribe un RUT, proveedor o folio, o elige un tipo de documento, para buscar en las facturas de compra.
               </td>
             </tr>
           )}
@@ -214,22 +224,29 @@ export default function PanelFacturasHistoricas({
     return [...filtradas].sort((a, b) => compararFechas(a.fecha_emision, b.fecha_emision, ordenFecha));
   }, [ventas, busqueda, grupoTipoDte, ordenFecha]);
 
+  const [grupoTipoCompra, setGrupoTipoCompra] = useState<ClaveGrupoTipoCompra>("todos");
   const [resultadosCompra, setResultadosCompra] = useState<ResultadoBusquedaCompra[]>([]);
   const [cargandoCompra, setCargandoCompra] = useState(false);
   const [errorCompra, setErrorCompra] = useState<string | null>(null);
   const [buscadoCompra, setBuscadoCompra] = useState(false);
 
   const terminoValidoCompra = busqueda.trim().length >= 2;
+  const debeBuscarCompra = terminoValidoCompra || grupoTipoCompra !== "todos";
 
   useEffect(() => {
-    if (tipo !== "compra" || !terminoValidoCompra) return;
+    if (tipo !== "compra" || !debeBuscarCompra) return;
     const termino = busqueda.trim();
+    const tiposSeleccionados = GRUPOS_TIPO_COMPRA[grupoTipoCompra].tipos;
 
     const idTimeout = setTimeout(async () => {
       setCargandoCompra(true);
       setErrorCompra(null);
       try {
-        const resp = await fetch(`/api/finanzas/facturas-compra/buscar?q=${encodeURIComponent(termino)}`);
+        const params = new URLSearchParams();
+        if (termino.length >= 2) params.set("q", termino);
+        (tiposSeleccionados ?? []).forEach((t) => params.append("tipo", t));
+
+        const resp = await fetch(`/api/finanzas/facturas-compra/buscar?${params.toString()}`);
         const json = await resp.json();
         if (!resp.ok) throw new Error(json.error ?? "Error al buscar");
         setResultadosCompra(json.resultados ?? []);
@@ -242,7 +259,7 @@ export default function PanelFacturasHistoricas({
     }, 400);
 
     return () => clearTimeout(idTimeout);
-  }, [tipo, busqueda, terminoValidoCompra]);
+  }, [tipo, busqueda, debeBuscarCompra, grupoTipoCompra]);
 
   const resultadosCompraOrdenados = useMemo(
     () => [...resultadosCompra].sort((a, b) => compararFechas(a.fechaEmision, b.fechaEmision, ordenFecha)),
@@ -313,13 +330,25 @@ export default function PanelFacturasHistoricas({
           />
         </div>
 
-        {tipo === "venta" && (
+        {tipo === "venta" ? (
           <select
             value={grupoTipoDte}
             onChange={(e) => setGrupoTipoDte(e.target.value as ClaveGrupoTipoDte)}
             className="rounded-lg border border-borde bg-white px-3 py-2 text-sm text-tinta focus:border-naranjo focus:outline-none"
           >
             {Object.entries(GRUPOS_TIPO_DTE).map(([clave, { etiqueta }]) => (
+              <option key={clave} value={clave}>
+                {etiqueta}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select
+            value={grupoTipoCompra}
+            onChange={(e) => setGrupoTipoCompra(e.target.value as ClaveGrupoTipoCompra)}
+            className="rounded-lg border border-borde bg-white px-3 py-2 text-sm text-tinta focus:border-naranjo focus:outline-none"
+          >
+            {Object.entries(GRUPOS_TIPO_COMPRA).map(([clave, { etiqueta }]) => (
               <option key={clave} value={clave}>
                 {etiqueta}
               </option>
@@ -337,10 +366,10 @@ export default function PanelFacturasHistoricas({
         />
       ) : (
         <TablaCompras
-          resultados={terminoValidoCompra ? resultadosCompraOrdenados : []}
-          cargando={terminoValidoCompra && cargandoCompra}
-          error={terminoValidoCompra ? errorCompra : null}
-          buscado={terminoValidoCompra && buscadoCompra}
+          resultados={debeBuscarCompra ? resultadosCompraOrdenados : []}
+          cargando={debeBuscarCompra && cargandoCompra}
+          error={debeBuscarCompra ? errorCompra : null}
+          buscado={debeBuscarCompra && buscadoCompra}
           ordenFecha={ordenFecha}
           onToggleOrden={alternarOrden}
           onSeleccionar={setCompraSeleccionada}

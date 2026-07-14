@@ -15,12 +15,23 @@ export async function GET(request: NextRequest) {
   }
 
   const termino = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  if (termino.length < 2) {
+  const tiposDocumento = request.nextUrl.searchParams.getAll("tipo").filter(Boolean);
+
+  if (termino.length < 2 && tiposDocumento.length === 0) {
+    return NextResponse.json(
+      { error: "Escribe al menos 2 caracteres o elige un tipo de documento para buscar." },
+      { status: 400 }
+    );
+  }
+  if (termino.length > 0 && termino.length < 2) {
     return NextResponse.json({ error: "Escribe al menos 2 caracteres para buscar." }, { status: 400 });
   }
 
   try {
-    const resultados = await buscarFacturasCompraIndexadas(termino);
+    const resultados = await buscarFacturasCompraIndexadas({
+      termino: termino || undefined,
+      tiposDocumento: tiposDocumento.length > 0 ? tiposDocumento : undefined,
+    });
     return NextResponse.json({ resultados });
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "Error desconocido";
