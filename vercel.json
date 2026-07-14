@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/finanzas-sii",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/finanzas-historico",
+      "schedule": "15 9 * * *"
+    },
+    {
+      "path": "/api/cron/finanzas-historico?tipo=compra",
+      "schedule": "20 9 * * *"
     }
   ]
 }

@@ -18,4 +18,11 @@ export const SUBPANELES_FINANZAS: SubpanelFinanzas[] = [
     href: "/finanzas/sii",
     icono: "file-invoice",
   },
+  {
+    slug: "facturas-historicas",
+    nombre: "Facturas Históricas",
+    descripcion: "Buscador de las facturas de compra y venta archivadas en SharePoint, con vista previa del documento original.",
+    href: "/finanzas/facturas-historicas",
+    icono: "folder",
+  },
 ];
