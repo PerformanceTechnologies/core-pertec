@@ -101,7 +101,7 @@ export default function EditorCotizacion({ cotizacion }: { cotizacion: Cotizacio
         </div>
       )}
 
-      <div className="mt-5 flex gap-0.5 overflow-x-auto border-b-2 border-tinta">
+      <div className="mt-5 flex flex-wrap gap-0.5 border-b-2 border-tinta">
         {TABS.map((t) => {
           const activo = tab === t.key;
           return (

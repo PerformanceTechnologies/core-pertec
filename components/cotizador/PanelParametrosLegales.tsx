@@ -16,7 +16,13 @@ export default function PanelParametrosLegales({
 
   return (
     <div>
-      <span className="etiqueta-seccion">Cotizador · Administración</span>
+      <Link href="/cotizador" className="text-xs font-medium text-tinta/50 hover:text-naranjo">
+        ← Cotizaciones
+      </Link>
+
+      <div className="mt-2">
+        <span className="etiqueta-seccion">Cotizador · Administración</span>
+      </div>
       <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">Parámetros legales y tributarios</h1>
       <p className="mt-1 max-w-2xl text-sm text-tinta/60">
         UF, UTM, tasas AFP/salud/cesantía y tramos de impuesto único que usa el motor de cálculo del Cotizador.

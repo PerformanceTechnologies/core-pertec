@@ -37,21 +37,27 @@ export default function PanelCotizador({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
+      <Link href="/" className="text-xs font-medium text-tinta/50 hover:text-naranjo">
+        ← Volver al inicio
+      </Link>
+
+      <div className="mt-2 flex items-start justify-between gap-4">
         <div>
           <span className="etiqueta-seccion">Cotizador</span>
           <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
             Cotizaciones — servicios de vulcanización
           </h1>
         </div>
-        {esAdmin && (
-          <Link
-            href="/cotizador/parametros"
-            className="mt-1 whitespace-nowrap text-xs font-medium text-tinta/60 hover:text-naranjo"
-          >
-            Parámetros legales →
+        <div className="mt-1 flex flex-col items-end gap-1 whitespace-nowrap text-xs font-medium">
+          <Link href="/cotizador/catalogos" className="text-tinta/60 hover:text-naranjo">
+            Catálogos →
           </Link>
-        )}
+          {esAdmin && (
+            <Link href="/cotizador/parametros" className="text-tinta/60 hover:text-naranjo">
+              Parámetros legales →
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
