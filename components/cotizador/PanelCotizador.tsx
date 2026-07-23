@@ -90,10 +90,11 @@ export default function PanelCotizador({
       </details>
 
       <div className="mt-6 overflow-x-auto rounded-xl border border-borde bg-white">
-        <table className="w-full min-w-[820px] text-left text-sm">
+        <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
             <tr>
               <th className="px-4 py-3">Proyecto</th>
+              <th className="px-4 py-3">Empresa</th>
               <th className="px-4 py-3">Cliente</th>
               <th className="px-4 py-3">Faena</th>
               <th className="px-4 py-3">Tipo</th>
@@ -113,6 +114,7 @@ export default function PanelCotizador({
                     {c.nombre}
                   </Link>
                 </td>
+                <td className="px-4 py-3 text-xs text-tinta/60">{c.empresa}</td>
                 <td className="px-4 py-3 text-tinta/60">{c.cliente ?? "—"}</td>
                 <td className="px-4 py-3 text-tinta/60">{c.faena ?? "—"}</td>
                 <td className="px-4 py-3">
@@ -142,7 +144,7 @@ export default function PanelCotizador({
             ))}
             {cotizaciones.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-tinta/50">
+                <td colSpan={11} className="px-4 py-6 text-center text-tinta/50">
                   Aún no hay cotizaciones. Cree la primera con &ldquo;+ Nueva cotización&rdquo;.
                 </td>
               </tr>

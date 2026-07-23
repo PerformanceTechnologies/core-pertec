@@ -1,4 +1,5 @@
 import type { DatosNuevaCotizacion } from "@/lib/cotizador";
+import { EMPRESAS } from "@/lib/cotizador/empresas";
 
 export default function FormularioCotizacion({
   accion,
@@ -20,6 +21,21 @@ export default function FormularioCotizacion({
           placeholder="Servicio SPOT Vulcanización CV-01"
           className="mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50"
         />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-tinta/70">Empresa</label>
+        <select
+          name="empresa"
+          defaultValue={valoresPorDefecto?.empresa ?? EMPRESAS[0]}
+          className="mt-1 w-full rounded-lg border border-borde bg-white px-3 py-2 text-sm outline-none focus:border-naranjo/50"
+        >
+          {EMPRESAS.map((e) => (
+            <option key={e} value={e}>
+              {e}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

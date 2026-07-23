@@ -49,6 +49,9 @@ export default function EditorCotizacion({ cotizacion }: { cotizacion: Cotizacio
 
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="font-condensed text-2xl font-bold uppercase text-tinta">{cotizacion.nombre}</h1>
+        <span className="rounded-full bg-naranjo/10 px-2 py-0.5 text-[11px] font-semibold text-naranjo">
+          {cotizacion.empresa}
+        </span>
         <span className="rounded-full bg-gris/10 px-2 py-0.5 text-[11px] font-semibold uppercase text-gris">
           {quotation.tipoServicio === "spot" ? "SPOT" : "Permanente"}
         </span>

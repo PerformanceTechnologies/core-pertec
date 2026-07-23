@@ -1,5 +1,6 @@
 import type { QuotationInput } from "@/lib/cotizador/motor/types";
 import type { CotizacionCompleta } from "@/lib/cotizador";
+import { EMPRESAS } from "@/lib/cotizador/empresas";
 import { money, fechaCl } from "@/lib/cotizador/formato";
 import { NumInput } from "../campos/Campos";
 import { actualizarMetaCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
@@ -54,6 +55,21 @@ export default function ParametrosTab({
                 disabled={disabled}
                 className="mt-1 h-9 w-full rounded-md border border-borde px-2 text-sm outline-none focus:border-naranjo/50 disabled:bg-crema"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-tinta/70">Empresa</label>
+              <select
+                name="empresa"
+                defaultValue={cotizacion.empresa}
+                disabled={disabled}
+                className="mt-1 h-9 w-full rounded-md border border-borde bg-white px-2 text-sm outline-none focus:border-naranjo/50 disabled:bg-crema"
+              >
+                {EMPRESAS.map((e) => (
+                  <option key={e} value={e}>
+                    {e}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-tinta/70">Cliente</label>
