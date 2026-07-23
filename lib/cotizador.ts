@@ -3,15 +3,22 @@ import { supabaseAdmin } from "./supabase-admin";
 import { obtenerSetVigente } from "./parametros-legales";
 import { calcularCotizacion, type QuotationResult } from "./cotizador/motor/consolidacion";
 import type { LegalParameterSet, QuotationInput } from "./cotizador/motor/types";
+import type { Empresa } from "./cotizador/empresas";
 
 // Import directo de los archivos del motor (no del barrel `./cotizador/motor/index`):
 // el barrel usa `export *`, que en pruebas con el loader ESM nativo de Node
 // (no así con el bundler de Next) mostró un problema de resolución de módulos.
 // Importar directo evita cualquier riesgo de que ese comportamiento se repita.
+//
+// `EMPRESAS`/`Empresa`/`esEmpresaValida` viven en `./cotizador/empresas.ts`
+// (sin "server-only"): los formularios de creación/edición son parte del
+// árbol de Client Components del editor, y ese módulo debe poder importarse
+// ahí sin arrastrar este archivo server-only al bundle del navegador.
 
 export interface CotizacionResumen {
   id: string;
   nombre: string;
+  empresa: Empresa;
   cliente: string | null;
   faena: string | null;
   tipoServicio: string;
@@ -39,13 +46,14 @@ export interface ResumenCotizacion {
 }
 
 const COLUMNAS_RESUMEN = `
-  id, nombre, cliente, faena, tipo_servicio, rev, estado, emitida, actualizado_en, summary
+  id, nombre, empresa, cliente, faena, tipo_servicio, rev, estado, emitida, actualizado_en, summary
 `;
 const COLUMNAS_COMPLETA = `${COLUMNAS_RESUMEN}, creado_en, input, parametros_set_id, parametros_snapshot`;
 
 interface FilaResumen {
   id: string;
   nombre: string;
+  empresa: Empresa;
   cliente: string | null;
   faena: string | null;
   tipo_servicio: string;
@@ -67,6 +75,7 @@ function filaAResumen(f: FilaResumen): CotizacionResumen {
   return {
     id: f.id,
     nombre: f.nombre,
+    empresa: f.empresa,
     cliente: f.cliente,
     faena: f.faena,
     tipoServicio: f.tipo_servicio,
@@ -161,6 +170,7 @@ export async function obtenerCotizacion(id: string): Promise<CotizacionCompleta 
 
 export interface DatosNuevaCotizacion {
   nombre: string;
+  empresa: Empresa;
   cliente: string | null;
   faena: string | null;
   tipoServicio: QuotationInput["tipoServicio"];
@@ -187,6 +197,7 @@ export async function crearCotizacion(
     .from("cotizaciones")
     .insert({
       nombre: datos.nombre.trim() || "Nueva cotización",
+      empresa: datos.empresa,
       cliente: datos.cliente?.trim() || null,
       faena: datos.faena?.trim() || null,
       tipo_servicio: datos.tipoServicio,
@@ -208,6 +219,7 @@ export async function crearCotizacion(
 
 export interface DatosMetaCotizacion {
   nombre: string;
+  empresa: Empresa;
   cliente: string | null;
   faena: string | null;
   tipoServicio: QuotationInput["tipoServicio"];
@@ -218,6 +230,7 @@ export async function actualizarMetaCotizacion(id: string, datos: DatosMetaCotiz
     .from("cotizaciones")
     .update({
       nombre: datos.nombre.trim() || "Nueva cotización",
+      empresa: datos.empresa,
       cliente: datos.cliente?.trim() || null,
       faena: datos.faena?.trim() || null,
       tipo_servicio: datos.tipoServicio,
@@ -268,6 +281,7 @@ export async function crearNuevaVersion(id: string, creadoPor?: string): Promise
     .from("cotizaciones")
     .insert({
       nombre: original.nombre,
+      empresa: original.empresa,
       cliente: original.cliente,
       faena: original.faena,
       tipo_servicio: original.tipoServicio,

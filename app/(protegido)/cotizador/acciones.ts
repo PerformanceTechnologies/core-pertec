@@ -11,14 +11,17 @@ import {
   crearNuevaVersion,
   eliminarCotizacion,
 } from "@/lib/cotizador";
+import { esEmpresaValida, EMPRESAS } from "@/lib/cotizador/empresas";
 import type { QuotationInput } from "@/lib/cotizador/motor/types";
 
 const SLUG_APP = "cotizador";
 
 function leerDatosMeta(form: FormData) {
   const tipoServicio = String(form.get("tipoServicio") ?? "spot");
+  const empresa = String(form.get("empresa") ?? "");
   return {
     nombre: String(form.get("nombre") ?? ""),
+    empresa: esEmpresaValida(empresa) ? empresa : EMPRESAS[0],
     cliente: String(form.get("cliente") ?? "") || null,
     faena: String(form.get("faena") ?? "") || null,
     tipoServicio: tipoServicio === "contrato_permanente" ? ("contrato_permanente" as const) : ("spot" as const),
