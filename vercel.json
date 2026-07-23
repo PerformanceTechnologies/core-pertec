@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/cotizador-parametros",
+      "schedule": "0 6 * * *"
+    },
+    {
       "path": "/api/cron/finanzas-sii",
       "schedule": "0 9 * * *"
     },
