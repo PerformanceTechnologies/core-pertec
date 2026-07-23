@@ -27,6 +27,16 @@
   --font-condensed: var(--font-barlow-condensed);
 }
 
+html {
+  /* Reserva siempre el ancho de la barra de scroll vertical, la haya o no.
+     Sin esto, cambiar a una vista más alta que la anterior (ej. una pestaña
+     del Cotizador con un cargo expandido) hace aparecer la barra de scroll
+     recién ahí, angostando el viewport de golpe y corriendo TODO el layout
+     (sidebar incluido) — el clásico salto al pasar entre vistas de distinto
+     alto. */
+  scrollbar-gutter: stable;
+}
+
 body {
   font-family: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
   background-color: var(--color-crema);
