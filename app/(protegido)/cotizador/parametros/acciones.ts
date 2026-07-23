@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { exigirAdmin } from "@/lib/autorizacion";
+import { exigirAccesoCotizador } from "@/lib/cotizador";
 import {
   crearSetParametros,
   actualizarSetParametros,
@@ -51,14 +51,14 @@ function leerDatos(form: FormData): DatosSetParametros {
 }
 
 export async function crearSetParametrosAction(form: FormData) {
-  await exigirAdmin();
+  await exigirAccesoCotizador("administrar_parametros_legales");
   await crearSetParametros(leerDatos(form));
   revalidatePath("/cotizador/parametros");
   redirect("/cotizador/parametros");
 }
 
 export async function actualizarSetParametrosAction(id: string, form: FormData) {
-  await exigirAdmin();
+  await exigirAccesoCotizador("administrar_parametros_legales");
   await actualizarSetParametros(id, leerDatos(form));
   revalidatePath("/cotizador/parametros");
   revalidatePath(`/cotizador/parametros/${id}`);
@@ -66,7 +66,7 @@ export async function actualizarSetParametrosAction(id: string, form: FormData) 
 }
 
 export async function eliminarSetParametrosAction(form: FormData) {
-  await exigirAdmin();
+  await exigirAccesoCotizador("administrar_parametros_legales");
   const id = String(form.get("id"));
   await eliminarSetParametros(id);
   revalidatePath("/cotizador/parametros");

@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { exigirAdmin } from "@/lib/autorizacion";
+import { exigirAccesoCotizador } from "@/lib/cotizador";
 import { obtenerSetPorId } from "@/lib/parametros-legales";
 import FormularioParametrosLegales from "@/components/cotizador/FormularioParametrosLegales";
 import { actualizarSetParametrosAction } from "../acciones";
 
 export default async function EditarSetParametrosPage({ params }: { params: Promise<{ id: string }> }) {
-  await exigirAdmin();
+  await exigirAccesoCotizador("administrar_parametros_legales");
   const { id } = await params;
   const set = await obtenerSetPorId(id);
   if (!set) notFound();
