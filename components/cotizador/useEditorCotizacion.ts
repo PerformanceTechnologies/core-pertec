@@ -16,11 +16,13 @@ export type SaveState = "idle" | "saving" | "saved" | "error";
  * store de Zustand del Cotizador standalone, pero persistiendo vía
  * actualizarInputCotizacionAction en vez de un cliente Supabase directo.
  */
-export function useEditorCotizacion(cotizacion: CotizacionCompleta) {
+export function useEditorCotizacion(cotizacion: CotizacionCompleta, puedeEditar: boolean) {
   const [quotation, setQuotation] = useState<QuotationInput>(cotizacion.input);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const disabled = cotizacion.emitida;
+  // Emitida = snapshot congelado (nadie edita). Sin permiso de "editar_cotizacion"
+  // (rol visualizador) = de solo lectura aunque siga en borrador.
+  const disabled = cotizacion.emitida || !puedeEditar;
 
   const result: QuotationResult = useMemo(
     () => calcularCotizacion(quotation, cotizacion.parametrosSnapshot),

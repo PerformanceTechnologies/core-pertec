@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { exigirAccesoApp } from "@/lib/autorizacion";
 import {
+  exigirAccesoCotizador,
   crearCotizacion,
   actualizarInputCotizacion,
   actualizarMetaCotizacion,
@@ -13,8 +13,6 @@ import {
 } from "@/lib/cotizador";
 import { esEmpresaValida, EMPRESAS } from "@/lib/cotizador/empresas";
 import type { QuotationInput } from "@/lib/cotizador/motor/types";
-
-const SLUG_APP = "cotizador";
 
 function leerDatosMeta(form: FormData) {
   const tipoServicio = String(form.get("tipoServicio") ?? "spot");
@@ -29,14 +27,14 @@ function leerDatosMeta(form: FormData) {
 }
 
 export async function crearCotizacionAction(form: FormData) {
-  const usuario = await exigirAccesoApp(SLUG_APP);
+  const { usuario } = await exigirAccesoCotizador("crear_cotizacion");
   const cotizacion = await crearCotizacion(leerDatosMeta(form), usuario.id);
   revalidatePath("/cotizador");
   redirect(`/cotizador/${cotizacion.id}`);
 }
 
 export async function actualizarMetaCotizacionAction(id: string, form: FormData) {
-  await exigirAccesoApp(SLUG_APP);
+  await exigirAccesoCotizador("editar_cotizacion");
   await actualizarMetaCotizacion(id, leerDatosMeta(form));
   revalidatePath(`/cotizador/${id}`);
   revalidatePath("/cotizador");
@@ -48,7 +46,7 @@ export async function actualizarMetaCotizacionAction(id: string, form: FormData)
 // una función "use server" se puede invocar como cualquier async function
 // desde un Client Component.
 export async function actualizarInputCotizacionAction(id: string, input: QuotationInput) {
-  await exigirAccesoApp(SLUG_APP);
+  await exigirAccesoCotizador("editar_cotizacion");
   const summary = await actualizarInputCotizacion(id, input);
   revalidatePath(`/cotizador/${id}`);
   revalidatePath("/cotizador");
@@ -56,21 +54,21 @@ export async function actualizarInputCotizacionAction(id: string, input: Quotati
 }
 
 export async function marcarEmitidaAction(id: string) {
-  await exigirAccesoApp(SLUG_APP);
+  await exigirAccesoCotizador("marcar_emitida");
   await marcarEmitida(id);
   revalidatePath(`/cotizador/${id}`);
   revalidatePath("/cotizador");
 }
 
 export async function crearNuevaVersionAction(id: string) {
-  const usuario = await exigirAccesoApp(SLUG_APP);
+  const { usuario } = await exigirAccesoCotizador("crear_nueva_version");
   const nueva = await crearNuevaVersion(id, usuario.id);
   revalidatePath("/cotizador");
   redirect(`/cotizador/${nueva.id}`);
 }
 
 export async function eliminarCotizacionAction(form: FormData) {
-  await exigirAccesoApp(SLUG_APP);
+  await exigirAccesoCotizador("eliminar_cotizacion");
   const id = String(form.get("id"));
   await eliminarCotizacion(id);
   revalidatePath("/cotizador");

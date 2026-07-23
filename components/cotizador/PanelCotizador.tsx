@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CotizacionResumen } from "@/lib/cotizador";
 import { money, pct, fechaCl } from "@/lib/cotizador/formato";
+import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
 import BotonEliminar from "@/components/BotonEliminar";
 import FormularioCotizacion from "./FormularioCotizacion";
 import { crearCotizacionAction, eliminarCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
@@ -24,11 +25,15 @@ function etiquetaEstado(estado: string): string {
 
 export default function PanelCotizador({
   cotizaciones,
-  esAdmin,
+  rol,
 }: {
   cotizaciones: CotizacionResumen[];
-  esAdmin: boolean;
+  rol: RolCotizador;
 }) {
+  const puedeCrear = puedeEnCotizador(rol, "crear_cotizacion");
+  const puedeEliminar = puedeEnCotizador(rol, "eliminar_cotizacion");
+  const puedeAdministrarParametros = puedeEnCotizador(rol, "administrar_parametros_legales");
+
   const totalNeto = cotizaciones.reduce((acc, c) => acc + (c.summary?.ecoTotalNeto ?? 0), 0);
   const adjudicadas = cotizaciones.filter((c) => c.estado === "adjudicada" || c.estado === "emitida").length;
   const margenProm = cotizaciones.length
@@ -52,7 +57,7 @@ export default function PanelCotizador({
           <Link href="/cotizador/catalogos" className="text-tinta/60 hover:text-naranjo">
             Catálogos →
           </Link>
-          {esAdmin && (
+          {puedeAdministrarParametros && (
             <Link href="/cotizador/parametros" className="text-tinta/60 hover:text-naranjo">
               Parámetros legales →
             </Link>
@@ -80,14 +85,16 @@ export default function PanelCotizador({
         </div>
       </div>
 
-      <details className="mt-6 rounded-xl border border-borde bg-white p-4">
-        <summary className="cursor-pointer font-condensed text-sm font-bold uppercase text-tinta">
-          + Nueva cotización
-        </summary>
-        <div className="mt-4">
-          <FormularioCotizacion accion={crearCotizacionAction} textoBoton="Crear cotización" />
-        </div>
-      </details>
+      {puedeCrear && (
+        <details className="mt-6 rounded-xl border border-borde bg-white p-4">
+          <summary className="cursor-pointer font-condensed text-sm font-bold uppercase text-tinta">
+            + Nueva cotización
+          </summary>
+          <div className="mt-4">
+            <FormularioCotizacion accion={crearCotizacionAction} textoBoton="Crear cotización" />
+          </div>
+        </details>
+      )}
 
       <div className="mt-6 overflow-x-auto rounded-xl border border-borde bg-white">
         <table className="w-full min-w-[920px] text-left text-sm">
@@ -134,11 +141,13 @@ export default function PanelCotizador({
                 </td>
                 <td className="px-4 py-3 text-right text-tinta/50">{fechaCl(c.actualizadoEn)}</td>
                 <td className="px-4 py-3 text-right">
-                  <BotonEliminar
-                    accion={eliminarCotizacionAction}
-                    id={c.id}
-                    mensajeConfirmacion={`¿Eliminar "${c.nombre}"?`}
-                  />
+                  {puedeEliminar && (
+                    <BotonEliminar
+                      accion={eliminarCotizacionAction}
+                      id={c.id}
+                      mensajeConfirmacion={`¿Eliminar "${c.nombre}"?`}
+                    />
+                  )}
                 </td>
               </tr>
             ))}

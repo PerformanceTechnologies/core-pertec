@@ -1,9 +1,7 @@
-import { exigirAccesoApp } from "@/lib/autorizacion";
+import { exigirAccesoCotizador } from "@/lib/cotizador";
 import PanelCatalogos from "@/components/cotizador/PanelCatalogos";
 
-const SLUG_APP = "cotizador";
-
 export default async function CatalogosPage() {
-  await exigirAccesoApp(SLUG_APP);
+  await exigirAccesoCotizador();
   return <PanelCatalogos />;
 }

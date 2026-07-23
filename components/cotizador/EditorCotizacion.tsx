@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { CotizacionCompleta } from "@/lib/cotizador";
+import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
 import { marcarEmitidaAction, crearNuevaVersionAction } from "@/app/(protegido)/cotizador/acciones";
 import { useEditorCotizacion } from "./useEditorCotizacion";
 import ParametrosTab from "./tabs/ParametrosTab";
@@ -36,10 +37,21 @@ const ETIQUETA_GUARDADO: Record<string, string> = {
   error: "Error al guardar",
 };
 
-export default function EditorCotizacion({ cotizacion }: { cotizacion: CotizacionCompleta }) {
+export default function EditorCotizacion({
+  cotizacion,
+  rol,
+}: {
+  cotizacion: CotizacionCompleta;
+  rol: RolCotizador;
+}) {
   const [tab, setTab] = useState<QuoteTab>("parametros");
   const [pendiente, iniciarTransicion] = useTransition();
-  const { quotation, result, update, saveState, disabled } = useEditorCotizacion(cotizacion);
+
+  const puedeEditar = puedeEnCotizador(rol, "editar_cotizacion");
+  const puedeMarcarEmitida = puedeEnCotizador(rol, "marcar_emitida");
+  const puedeCrearNuevaVersion = puedeEnCotizador(rol, "crear_nueva_version");
+
+  const { quotation, result, update, saveState, disabled } = useEditorCotizacion(cotizacion, puedeEditar);
 
   return (
     <div>
@@ -60,17 +72,24 @@ export default function EditorCotizacion({ cotizacion }: { cotizacion: Cotizacio
         </span>
         <span
           className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-            disabled ? "bg-teal/10 text-teal" : "bg-gris/10 text-gris"
+            cotizacion.emitida ? "bg-teal/10 text-teal" : "bg-gris/10 text-gris"
           }`}
         >
-          {disabled ? "Emitida" : "Borrador"}
+          {cotizacion.emitida ? "Emitida" : "Borrador"}
         </span>
-        <span className={`flex items-center gap-1.5 text-[11px] font-medium ${ESTADO_GUARDADO[saveState]}`}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          {ETIQUETA_GUARDADO[saveState]}
-        </span>
+        {!puedeEditar && (
+          <span className="rounded-full bg-gris/10 px-2 py-0.5 text-[11px] font-semibold uppercase text-gris">
+            Solo lectura
+          </span>
+        )}
+        {puedeEditar && (
+          <span className={`flex items-center gap-1.5 text-[11px] font-medium ${ESTADO_GUARDADO[saveState]}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {ETIQUETA_GUARDADO[saveState]}
+          </span>
+        )}
         <div className="flex-1" />
-        {!disabled ? (
+        {!cotizacion.emitida && puedeMarcarEmitida && (
           <button
             type="button"
             disabled={pendiente}
@@ -79,7 +98,8 @@ export default function EditorCotizacion({ cotizacion }: { cotizacion: Cotizacio
           >
             Marcar como emitida
           </button>
-        ) : (
+        )}
+        {cotizacion.emitida && puedeCrearNuevaVersion && (
           <button
             type="button"
             disabled={pendiente}
@@ -97,10 +117,15 @@ export default function EditorCotizacion({ cotizacion }: { cotizacion: Cotizacio
         servicio · parámetros legales vigencia {cotizacion.parametrosSnapshot.vigenteDesde}
       </div>
 
-      {disabled && (
+      {cotizacion.emitida && (
         <div className="mt-4 rounded-xl bg-tinta px-4 py-3 text-sm text-white">
           Cotización <b>emitida</b> — solo lectura. Snapshot de parámetros congelado al{" "}
           {cotizacion.parametrosSnapshot.vigenteDesde}. Para modificar, cree una nueva versión.
+        </div>
+      )}
+      {!cotizacion.emitida && !puedeEditar && (
+        <div className="mt-4 rounded-xl bg-tinta px-4 py-3 text-sm text-white">
+          Solo lectura — su rol dentro del Cotizador no permite editar cotizaciones.
         </div>
       )}
 

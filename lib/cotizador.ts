@@ -1,9 +1,42 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import { supabaseAdmin } from "./supabase-admin";
+import { obtenerAplicacionPorSlug } from "./aplicaciones";
+import { exigirAccesoApp } from "./autorizacion";
 import { obtenerSetVigente } from "./parametros-legales";
 import { calcularCotizacion, type QuotationResult } from "./cotizador/motor/consolidacion";
 import type { LegalParameterSet, QuotationInput } from "./cotizador/motor/types";
 import type { Empresa } from "./cotizador/empresas";
+import { puedeEnCotizador, type AccionCotizador, type RolCotizador } from "./permisos-cotizador";
+import type { UsuarioConAcceso } from "./tipos";
+
+const SLUG_APP = "cotizador";
+
+// El admin del core ya significa "control total" (igual que resuelve
+// exigirAccesoApp con el catálogo de apps) — así que también es admin
+// dentro del Cotizador. Un usuario normal usa el rol_extra que el admin le
+// haya asignado para esta app (tabla usuario_aplicaciones), o "visualizador"
+// si no le asignó ninguno. Mismo patrón que resolverRolPanel de Proyectos.
+export async function resolverRolCotizador(usuario: UsuarioConAcceso): Promise<RolCotizador> {
+  if (usuario.rol === "admin") return "admin";
+  const app = await obtenerAplicacionPorSlug(SLUG_APP);
+  if (!app) return "visualizador";
+  return (usuario.rolesExtra[app.id] as RolCotizador) ?? "visualizador";
+}
+
+// Guard estándar para páginas y Server Actions del Cotizador: valida sesión +
+// acceso a la app (igual que exigirAccesoApp) y además resuelve el rol
+// interno. Si se pasa `accion`, redirige cuando el rol no alcanza — las
+// Server Actions SIEMPRE deben pasarla (ocultar un botón en la UI no es una
+// barrera de seguridad, ver server-actions.md del propio Next).
+export async function exigirAccesoCotizador(
+  accion?: AccionCotizador,
+): Promise<{ usuario: UsuarioConAcceso; rol: RolCotizador }> {
+  const usuario = await exigirAccesoApp(SLUG_APP);
+  const rol = await resolverRolCotizador(usuario);
+  if (accion && !puedeEnCotizador(rol, accion)) redirect("/cotizador");
+  return { usuario, rol };
+}
 
 // Import directo de los archivos del motor (no del barrel `./cotizador/motor/index`):
 // el barrel usa `export *`, que en pruebas con el loader ESM nativo de Node

@@ -100,6 +100,18 @@ export default function FormularioUsuario({
                   <option value="admin">Proyectos: Admin</option>
                 </select>
               )}
+              {app.slug === "cotizador" && (
+                <select
+                  name={`rol_extra_${app.id}`}
+                  defaultValue={rolesExtra[app.id] ?? "visualizador"}
+                  className="ml-6 rounded-md border border-borde bg-white px-2 py-1 text-xs outline-none focus:border-naranjo/50"
+                  title="Rol interno dentro del Cotizador (solo aplica si la app está asignada arriba)"
+                >
+                  <option value="visualizador">Cotizador: Visualizador</option>
+                  <option value="usuario">Cotizador: Usuario</option>
+                  <option value="admin">Cotizador: Admin</option>
+                </select>
+              )}
             </div>
           ))}
         </div>
