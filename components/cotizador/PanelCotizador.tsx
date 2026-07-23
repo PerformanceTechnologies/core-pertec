@@ -1,27 +1,10 @@
 import Link from "next/link";
 import type { CotizacionResumen } from "@/lib/cotizador";
-import { money, pct, fechaCl } from "@/lib/cotizador/formato";
+import { money, pct } from "@/lib/cotizador/formato";
 import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
-import BotonEliminar from "@/components/BotonEliminar";
 import FormularioCotizacion from "./FormularioCotizacion";
-import { crearCotizacionAction, eliminarCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
-
-const ESTADO_CLASES: Record<string, string> = {
-  borrador: "bg-gris/10 text-gris",
-  emitida: "bg-teal/10 text-teal",
-  adjudicada: "bg-teal/10 text-teal",
-  perdida: "bg-red-600/10 text-red-600",
-};
-
-function etiquetaEstado(estado: string): string {
-  const mapa: Record<string, string> = {
-    borrador: "Borrador",
-    emitida: "Emitida",
-    adjudicada: "Adjudicada",
-    perdida: "Perdida",
-  };
-  return mapa[estado] ?? estado;
-}
+import TablaCotizaciones from "./TablaCotizaciones";
+import { crearCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
 
 export default function PanelCotizador({
   cotizaciones,
@@ -96,71 +79,7 @@ export default function PanelCotizador({
         </details>
       )}
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-borde bg-white">
-        <table className="w-full min-w-[920px] text-left text-sm">
-          <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
-            <tr>
-              <th className="px-4 py-3">Proyecto</th>
-              <th className="px-4 py-3">Empresa</th>
-              <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3">Faena</th>
-              <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3">Rev.</th>
-              <th className="px-4 py-3 text-right">Monto neto/mes</th>
-              <th className="px-4 py-3 text-right">Margen</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3 text-right">Actualizado</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {cotizaciones.map((c) => (
-              <tr key={c.id} className="border-b border-borde last:border-0 hover:bg-crema/40">
-                <td className="px-4 py-3 font-medium text-tinta">
-                  <Link href={`/cotizador/${c.id}`} className="hover:text-naranjo">
-                    {c.nombre}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-xs text-tinta/60">{c.empresa}</td>
-                <td className="px-4 py-3 text-tinta/60">{c.cliente ?? "—"}</td>
-                <td className="px-4 py-3 text-tinta/60">{c.faena ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-gris/10 px-2 py-0.5 text-[11px] font-semibold text-gris">
-                    {c.tipoServicio === "spot" ? "SPOT" : "Permanente"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-tinta/50">{c.rev}</td>
-                <td className="px-4 py-3 text-right font-semibold text-tinta">{money(c.summary?.ecoTotalNeto ?? 0)}</td>
-                <td className="px-4 py-3 text-right text-teal">{pct(c.summary?.margenEfectivoTotal ?? 0)}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${ESTADO_CLASES[c.estado] ?? ESTADO_CLASES.borrador}`}
-                  >
-                    {etiquetaEstado(c.estado)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right text-tinta/50">{fechaCl(c.actualizadoEn)}</td>
-                <td className="px-4 py-3 text-right">
-                  {puedeEliminar && (
-                    <BotonEliminar
-                      accion={eliminarCotizacionAction}
-                      id={c.id}
-                      mensajeConfirmacion={`¿Eliminar "${c.nombre}"?`}
-                    />
-                  )}
-                </td>
-              </tr>
-            ))}
-            {cotizaciones.length === 0 && (
-              <tr>
-                <td colSpan={11} className="px-4 py-6 text-center text-tinta/50">
-                  Aún no hay cotizaciones. Cree la primera con &ldquo;+ Nueva cotización&rdquo;.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <TablaCotizaciones cotizaciones={cotizaciones} puedeEliminar={puedeEliminar} />
     </div>
   );
 }
