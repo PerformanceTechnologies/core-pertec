@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ParametrosLegalesSet } from "@/lib/parametros-legales";
 import { fechaCl } from "@/lib/cotizador/formato";
 import BotonEliminar from "@/components/BotonEliminar";
+import BotonActualizarIndicadores from "./BotonActualizarIndicadores";
 import FormularioParametrosLegales from "./FormularioParametrosLegales";
 import { crearSetParametrosAction, eliminarSetParametrosAction } from "@/app/(protegido)/cotizador/parametros/acciones";
 
@@ -30,7 +31,15 @@ export default function PanelParametrosLegales({
         una edición nunca cambia retroactivamente una cotización ya calculada.
       </p>
 
-      <details className="mt-6 rounded-xl border border-borde bg-white p-4">
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-crema/40 p-4">
+        <div className="text-xs text-tinta/60">
+          UF y UTM del set vigente se actualizan solas todos los días a las 6:00 AM (Chile) desde mindicador.cl.
+        </div>
+        <div className="flex-1" />
+        <BotonActualizarIndicadores />
+      </div>
+
+      <details className="mt-4 rounded-xl border border-borde bg-white p-4">
         <summary className="cursor-pointer font-condensed text-sm font-bold uppercase text-tinta">
           + Nuevo set
         </summary>

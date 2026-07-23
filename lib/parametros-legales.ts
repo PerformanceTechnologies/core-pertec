@@ -172,3 +172,43 @@ export async function eliminarSetParametros(id: string): Promise<void> {
   const { error } = await supabaseAdmin.from("parametros_legales_sets").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+export interface ResultadoActualizacionIndicadores {
+  actualizado: boolean;
+  setId?: string;
+  ufAnterior?: number;
+  ufNueva?: number;
+  utmAnterior?: number;
+  utmNueva?: number;
+  motivo?: string;
+}
+
+// Solo toca uf/utm del set VIGENTE (no crea uno nuevo, no toca ninguna otra
+// columna) — llamado por el cron diario que sincroniza con mindicador.cl.
+// Las cotizaciones ya creadas no se ven afectadas (usan su propio
+// parametros_snapshot); solo las cotizaciones NUEVAS usan el valor fresco.
+export async function actualizarUfUtmVigente(
+  uf: number,
+  utm: number,
+): Promise<ResultadoActualizacionIndicadores> {
+  const vigente = await obtenerSetVigente();
+  if (!vigente) {
+    return { actualizado: false, motivo: "No hay ningún set de parámetros legales vigente." };
+  }
+
+  const { error } = await supabaseAdmin
+    .from("parametros_legales_sets")
+    .update({ uf, utm })
+    .eq("id", vigente.id);
+
+  if (error) throw new Error(error.message);
+
+  return {
+    actualizado: true,
+    setId: vigente.id,
+    ufAnterior: vigente.valores.uf,
+    ufNueva: uf,
+    utmAnterior: vigente.valores.utm,
+    utmNueva: utm,
+  };
+}

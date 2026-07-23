@@ -7,8 +7,11 @@ import {
   crearSetParametros,
   actualizarSetParametros,
   eliminarSetParametros,
+  actualizarUfUtmVigente,
   type DatosSetParametros,
+  type ResultadoActualizacionIndicadores,
 } from "@/lib/parametros-legales";
+import { obtenerUfUtmVigentes } from "@/lib/cotizador/indicadores-mindicador";
 import type { TaxBracket } from "@/lib/cotizador/motor/types";
 
 // Editar/crear un set no afecta cotizaciones ya creadas (cada una guarda su
@@ -70,4 +73,14 @@ export async function eliminarSetParametrosAction(form: FormData) {
   const id = String(form.get("id"));
   await eliminarSetParametros(id);
   revalidatePath("/cotizador/parametros");
+}
+
+// Mismo fetch a mindicador.cl que usa el cron diario (app/api/cron/cotizador-parametros),
+// pero disparado a mano desde la UI — para no depender de esperar al cron.
+export async function actualizarUfUtmAction(): Promise<ResultadoActualizacionIndicadores> {
+  await exigirAccesoCotizador("administrar_parametros_legales");
+  const { uf, utm } = await obtenerUfUtmVigentes();
+  const resultado = await actualizarUfUtmVigente(uf, utm);
+  revalidatePath("/cotizador/parametros");
+  return resultado;
 }
