@@ -25,25 +25,6 @@ function etiquetaEstado(estado: string): string {
   return mapa[estado] ?? estado;
 }
 
-function LapizIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="flex-none text-tinta/30"
-      aria-hidden
-    >
-      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-    </svg>
-  );
-}
-
 export default function TablaCotizaciones({
   cotizaciones,
   puedeEliminar,
@@ -118,8 +99,7 @@ export default function TablaCotizaciones({
             {filtradas.map((c) => (
               <tr key={c.id} className="border-b border-borde last:border-0 hover:bg-crema/40">
                 <td className="px-4 py-3 font-medium text-tinta">
-                  <Link href={`/cotizador/${c.id}`} className="flex items-center gap-1.5 hover:text-naranjo" title="Abrir para editar">
-                    <LapizIcon />
+                  <Link href={`/cotizador/${c.id}`} className="hover:text-naranjo">
                     {c.nombre}
                   </Link>
                 </td>
