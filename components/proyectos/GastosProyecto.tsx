@@ -4,9 +4,17 @@ import { useMemo, useState } from "react";
 import type { GastoItem, Proyecto } from "@/lib/proyectos";
 import { CAT_COLOR, catLabel, colorDe, costoConcepto, fmtCLP } from "@/lib/proyectos-utilidades";
 import FormularioGastosModal from "./FormularioGastosModal";
+import PopoverAdjuntosGasto from "./PopoverAdjuntosGasto";
 
 interface Categoria {
   categoria: string;
+  total: number;
+  count: number;
+  items: GastoItem[];
+}
+
+interface Partida {
+  label: string;
   total: number;
   count: number;
   items: GastoItem[];
@@ -22,6 +30,7 @@ export default function GastosProyecto({
   onActualizado: () => void;
 }) {
   const [configAbierto, setConfigAbierto] = useState(false);
+  const [popover, setPopover] = useState<{ titulo: string; gastos: GastoItem[] } | null>(null);
   const gastos = proyecto.gastos ?? [];
   const presupuesto = Number(proyecto.presupuesto_inicial) || 0;
   const gastado = gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
@@ -46,14 +55,15 @@ export default function GastosProyecto({
   const maxCategoria = porCategoria[0]?.total || 1;
 
   const porPartida = useMemo(() => {
-    const mapa = new Map<string, { label: string; total: number; count: number }>();
+    const mapa = new Map<string, Partida>();
     gastos.forEach((g) => {
       const k = costoConcepto(g);
       const monto = Number(g.monto) || 0;
       if (monto === 0) return;
-      const actual = mapa.get(k) ?? { label: k, total: 0, count: 0 };
+      const actual = mapa.get(k) ?? { label: k, total: 0, count: 0, items: [] };
       actual.total += monto;
       actual.count += 1;
+      actual.items.push(g);
       mapa.set(k, actual);
     });
     return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
@@ -66,6 +76,7 @@ export default function GastosProyecto({
         <p className="text-xs text-tinta/50">
           {presupuesto > 0 ? `Presupuesto ${fmtCLP(presupuesto)} · ` : ""}
           {gastos.length} partida{gastos.length === 1 ? "" : "s"} · {porCategoria.length} categoría{porCategoria.length === 1 ? "" : "s"}
+          {" · haz clic en una partida para ver sus adjuntos"}
         </p>
         {puedeEditar && (
           <button
@@ -133,16 +144,27 @@ export default function GastosProyecto({
                     </div>
                     <ul className="ml-2.5 flex flex-col gap-1 border-l border-dashed border-borde pl-3">
                       {c.items.map((g, i) => (
-                        <li key={i} className="flex justify-between gap-3 text-xs text-tinta/50">
-                          <span>
-                            {[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}
-                            {g.archivos && g.archivos.length > 0 && (
-                              <span className="ml-1.5 text-tinta/35" title={`${g.archivos.length} adjunto(s)`}>
-                                📎 {g.archivos.length}
-                              </span>
-                            )}
-                          </span>
-                          <span className="font-medium text-tinta">{fmtCLP(g.monto)}</span>
+                        <li key={i}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPopover({
+                                titulo: `${catLabel(c.categoria)} · ${[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}`,
+                                gastos: [g],
+                              })
+                            }
+                            className="flex w-full justify-between gap-3 rounded px-1 py-0.5 text-left text-xs text-tinta/50 hover:bg-crema hover:text-tinta"
+                          >
+                            <span>
+                              {[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}
+                              {g.archivos && g.archivos.length > 0 && (
+                                <span className="ml-1.5 text-tinta/35" title={`${g.archivos.length} adjunto(s)`}>
+                                  📎 {g.archivos.length}
+                                </span>
+                              )}
+                            </span>
+                            <span className="font-medium text-tinta">{fmtCLP(g.monto)}</span>
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -159,15 +181,21 @@ export default function GastosProyecto({
             </div>
             <ul className="flex flex-col gap-3">
               {porPartida.map((t) => (
-                <li key={t.label} className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="flex-1 truncate text-[13px] font-medium text-tinta">{t.label}</span>
-                    <span className="text-[13px] font-semibold text-tinta">{fmtCLP(t.total)}</span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-crema">
-                    <div className="h-full rounded-full bg-naranjo" style={{ width: `${(t.total / maxPartida) * 100}%` }} />
-                  </div>
-                  {t.count > 1 && <p className="text-[11px] text-tinta/40">{t.count} entradas</p>}
+                <li key={t.label}>
+                  <button
+                    type="button"
+                    onClick={() => setPopover({ titulo: t.label, gastos: t.items })}
+                    className="flex w-full flex-col gap-1.5 rounded px-1 py-1 text-left hover:bg-crema"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 truncate text-[13px] font-medium text-tinta">{t.label}</span>
+                      <span className="text-[13px] font-semibold text-tinta">{fmtCLP(t.total)}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-crema">
+                      <div className="h-full rounded-full bg-naranjo" style={{ width: `${(t.total / maxPartida) * 100}%` }} />
+                    </div>
+                    {t.count > 1 && <p className="text-[11px] text-tinta/40">{t.count} entradas</p>}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -184,6 +212,10 @@ export default function GastosProyecto({
             onActualizado();
           }}
         />
+      )}
+
+      {popover && (
+        <PopoverAdjuntosGasto titulo={popover.titulo} gastos={popover.gastos} onClose={() => setPopover(null)} />
       )}
     </div>
   );
