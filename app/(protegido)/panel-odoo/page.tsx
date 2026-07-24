@@ -3,7 +3,6 @@ import { COMPANIAS_ODOO, COMPANIA_ODOO_DEFECTO } from "@/lib/panel-odoo/compania
 import { obtenerUltimasEjecuciones } from "@/lib/panel-odoo/sync-ejecuciones";
 import SelectorEmpresa from "@/components/panel-odoo/SelectorEmpresa";
 import BotonActualizarOdoo from "@/components/panel-odoo/BotonActualizarOdoo";
-import EstadoSincronizacion from "@/components/panel-odoo/EstadoSincronizacion";
 import TarjetaFacturas from "@/components/panel-odoo/TarjetaFacturas";
 import TarjetaContabilidad from "@/components/panel-odoo/TarjetaContabilidad";
 import TarjetaCrm from "@/components/panel-odoo/TarjetaCrm";
@@ -33,16 +32,9 @@ export default async function PanelOdooPage({
         <h1 className="font-condensed text-2xl font-bold uppercase text-tinta">Panel Odoo</h1>
         {rol === "admin" && <BotonActualizarOdoo />}
       </div>
-      <p className="mt-1 text-sm text-tinta/60">
-        Resumen ejecutivo de Odoo — se actualiza automáticamente cada 30 minutos.
-      </p>
 
-      <div className="mt-6">
+      <div className="mt-5">
         <SelectorEmpresa companias={COMPANIAS_ODOO} companyIdActual={companyId} />
-      </div>
-
-      <div className="mt-3">
-        <EstadoSincronizacion ejecuciones={ejecuciones} modulosVisibles={modulosVisibles} />
       </div>
 
       {modulosVisibles.length === 0 ? (
@@ -51,11 +43,17 @@ export default async function PanelOdooPage({
           asigne acceso.
         </p>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-          {modulosVisibles.includes("facturas") && <TarjetaFacturas companyId={companyId} />}
-          {modulosVisibles.includes("contabilidad") && <TarjetaContabilidad companyId={companyId} />}
-          {modulosVisibles.includes("crm") && <TarjetaCrm companyId={companyId} />}
-          {modulosVisibles.includes("gastos") && <TarjetaGastos companyId={companyId} />}
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+          {modulosVisibles.includes("facturas") && (
+            <TarjetaFacturas companyId={companyId} ejecucion={ejecuciones.facturas} />
+          )}
+          {modulosVisibles.includes("contabilidad") && (
+            <TarjetaContabilidad companyId={companyId} ejecucion={ejecuciones.contabilidad} />
+          )}
+          {modulosVisibles.includes("crm") && <TarjetaCrm companyId={companyId} ejecucion={ejecuciones.crm} />}
+          {modulosVisibles.includes("gastos") && (
+            <TarjetaGastos companyId={companyId} ejecucion={ejecuciones.gastos} />
+          )}
         </div>
       )}
     </div>

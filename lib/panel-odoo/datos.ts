@@ -15,6 +15,16 @@ function hace6Meses(): string {
   return new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1).toISOString().slice(0, 10);
 }
 
+// "YYYY-MM" del mes actual (offset 0) o de N meses atras (offset negativo).
+// Se usa para leer un mes puntual de un Map<mes, valor> por clave exacta, en
+// vez de asumir que "la ultima entrada del array" es el mes actual -- si un
+// mes no tiene movimientos todavia, esa entrada simplemente no existe en el
+// Map, y asumir posicionalmente se corre y compara los meses equivocados.
+function claveMes(offsetMeses: number): string {
+  const hoy = new Date();
+  return new Date(hoy.getFullYear(), hoy.getMonth() + offsetMeses, 1).toISOString().slice(0, 7);
+}
+
 // ── Facturas ────────────────────────────────────────────────────────────
 
 export interface FilaFactura {
@@ -33,6 +43,7 @@ export interface FilaFactura {
 
 export interface KpisFacturas {
   facturadoVentasMes: number;
+  facturadoVentasMesAnterior: number;
   pendienteCobro: number;
   pendientePago: number;
   serieMensualVentas: { mes: string; monto: number }[];
@@ -83,6 +94,7 @@ export async function obtenerKpisFacturas(companyId: number): Promise<KpisFactur
 
   return {
     facturadoVentasMes: sumar(ventasMes, "monto_total"),
+    facturadoVentasMesAnterior: porMes.get(claveMes(-1)) ?? 0,
     pendienteCobro: sumar(pendienteCobro, "monto_pendiente"),
     pendientePago: sumar(pendientePago, "monto_pendiente"),
     serieMensualVentas: Array.from(porMes.entries())
@@ -113,6 +125,7 @@ export interface KpisContabilidad {
   ingresoMes: number;
   gastoMes: number;
   margenMes: number;
+  margenMesAnterior: number;
   serieMensual: SerieMensualContabilidad[];
 }
 
@@ -138,11 +151,13 @@ export async function obtenerKpisContabilidad(companyId: number): Promise<KpisCo
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([mes, v]) => ({ mes, ...v }));
 
-  const actual = serieMensual.at(-1) ?? { ingreso: 0, gasto: 0 };
+  const actual = porMes.get(claveMes(0)) ?? { ingreso: 0, gasto: 0 };
+  const anterior = porMes.get(claveMes(-1)) ?? { ingreso: 0, gasto: 0 };
   return {
     ingresoMes: actual.ingreso,
     gastoMes: actual.gasto,
     margenMes: actual.ingreso - actual.gasto,
+    margenMesAnterior: anterior.ingreso - anterior.gasto,
     serieMensual,
   };
 }
@@ -212,6 +227,7 @@ export interface FilaGasto {
 
 export interface KpisGastos {
   totalMes: number;
+  totalMesAnterior: number;
   pendientesAprobacion: number;
   serieMensual: { mes: string; monto: number }[];
 }
@@ -244,6 +260,7 @@ export async function obtenerKpisGastos(companyId: number): Promise<KpisGastos> 
 
   return {
     totalMes: (gastosMes ?? []).reduce((acc, f) => acc + f.monto_total, 0),
+    totalMesAnterior: porMes.get(claveMes(-1)) ?? 0,
     pendientesAprobacion: (pendientes ?? []).length,
     serieMensual: Array.from(porMes.entries())
       .sort(([a], [b]) => a.localeCompare(b))
