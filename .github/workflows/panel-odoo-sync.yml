@@ -1,0 +1,24 @@
+name: Sincronizar Panel Odoo
+
+# Vercel Hobby solo permite cron jobs nativos de 1x/dia, y Panel Odoo necesita
+# refrescar cada 30 min -- este workflow reemplaza al cron de Vercel para
+# este caso puntual, llamando al mismo endpoint protegido por CRON_SECRET.
+# Requiere el secret CRON_SECRET configurado en este repo de GitHub (Settings
+# -> Secrets and variables -> Actions), con el mismo valor que en Vercel.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        modulo: [facturas, contabilidad, crm, gastos]
+    steps:
+      - name: Sincronizar ${{ matrix.modulo }}
+        run: |
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://core.pertec.cl/api/cron/panel-odoo?modulo=${{ matrix.modulo }}"
