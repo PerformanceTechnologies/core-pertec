@@ -86,7 +86,7 @@ export async function crearUsuario(datos: {
   rol: Rol;
   aplicacionIds: string[];
   rolesExtra: Record<string, string>;
-}): Promise<void> {
+}): Promise<{ id: string }> {
   const { data: usuario, error } = await supabaseAdmin
     .from("usuarios")
     .insert({
@@ -100,6 +100,7 @@ export async function crearUsuario(datos: {
   if (error) throw new Error(error.message);
 
   await reemplazarAsignaciones(usuario.id, datos.aplicacionIds, datos.rolesExtra);
+  return { id: usuario.id };
 }
 
 export async function actualizarUsuario(

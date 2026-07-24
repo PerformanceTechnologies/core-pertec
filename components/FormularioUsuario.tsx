@@ -1,15 +1,31 @@
 import type { Aplicacion, UsuarioConAcceso } from "@/lib/tipos";
+import { MODULOS_PANEL_ODOO } from "@/lib/panel-odoo/modulos-usuario";
+
+const ETIQUETAS_MODULO_ODOO: Record<string, string> = {
+  facturas: "Facturas",
+  contabilidad: "Contabilidad",
+  crm: "CRM",
+  gastos: "Gastos",
+  ventas: "Ventas y Arriendo",
+  compras: "Compras",
+  flota: "Flota",
+  proyectos: "Proyectos",
+};
 
 export default function FormularioUsuario({
   accion,
   todasLasApps,
   valoresPorDefecto,
+  modulosOdooAsignados,
   textoBoton,
   correoBloqueado,
 }: {
   accion: (form: FormData) => void;
   todasLasApps: Aplicacion[];
   valoresPorDefecto?: Partial<UsuarioConAcceso>;
+  // undefined = sin restricción, ve todos los módulos (ver
+  // lib/panel-odoo/modulos-usuario.ts: sin filas guardadas = acceso total)
+  modulosOdooAsignados?: string[];
   textoBoton: string;
   correoBloqueado?: boolean;
 }) {
@@ -111,6 +127,37 @@ export default function FormularioUsuario({
                   <option value="usuario">Cotizador: Usuario</option>
                   <option value="admin">Cotizador: Admin</option>
                 </select>
+              )}
+              {app.slug === "panel-odoo" && (
+                <>
+                  <select
+                    name={`rol_extra_${app.id}`}
+                    defaultValue={rolesExtra[app.id] ?? "visualizador"}
+                    className="ml-6 rounded-md border border-borde bg-white px-2 py-1 text-xs outline-none focus:border-naranjo/50"
+                    title="Rol interno dentro de Panel Odoo (solo aplica si la app está asignada arriba)"
+                  >
+                    <option value="visualizador">Panel Odoo: Visualizador</option>
+                    <option value="usuario">Panel Odoo: Usuario</option>
+                    <option value="admin">Panel Odoo: Admin</option>
+                  </select>
+                  <div className="ml-6 flex flex-col gap-1">
+                    <span className="text-[11px] text-tinta/50">
+                      Módulos visibles (sin marcar ninguno = ve todos)
+                    </span>
+                    {MODULOS_PANEL_ODOO.map((modulo) => (
+                      <label key={modulo} className="flex items-center gap-2 text-xs text-tinta/70">
+                        <input
+                          type="checkbox"
+                          name="modulos_panel_odoo"
+                          value={modulo}
+                          defaultChecked={modulosOdooAsignados?.includes(modulo) ?? false}
+                          className="h-3.5 w-3.5 rounded border-borde"
+                        />
+                        {ETIQUETAS_MODULO_ODOO[modulo]}
+                      </label>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           ))}
