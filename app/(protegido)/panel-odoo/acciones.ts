@@ -6,6 +6,10 @@ import { sincronizarFacturas } from "@/lib/panel-odoo/sincronizar-facturas";
 import { sincronizarContabilidad } from "@/lib/panel-odoo/sincronizar-contabilidad";
 import { sincronizarCrm } from "@/lib/panel-odoo/sincronizar-crm";
 import { sincronizarGastos } from "@/lib/panel-odoo/sincronizar-gastos";
+import { sincronizarFlota } from "@/lib/panel-odoo/sincronizar-flota";
+import { sincronizarProyectos } from "@/lib/panel-odoo/sincronizar-proyectos";
+import { sincronizarVentas } from "@/lib/panel-odoo/sincronizar-ventas";
+import { sincronizarCompras } from "@/lib/panel-odoo/sincronizar-compras";
 import { registrarEjecucionOdoo, type ModuloOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
 
 const SINCRONIZADORES: Record<ModuloOdoo, () => Promise<number>> = {
@@ -13,6 +17,10 @@ const SINCRONIZADORES: Record<ModuloOdoo, () => Promise<number>> = {
   contabilidad: sincronizarContabilidad,
   crm: sincronizarCrm,
   gastos: sincronizarGastos,
+  flota: sincronizarFlota,
+  proyectos: sincronizarProyectos,
+  ventas: sincronizarVentas,
+  compras: sincronizarCompras,
 };
 
 export interface ResultadoSincronizacionManual {

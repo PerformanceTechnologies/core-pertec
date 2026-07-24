@@ -1,7 +1,15 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-export type ModuloOdoo = "facturas" | "contabilidad" | "crm" | "gastos";
+export type ModuloOdoo =
+  | "facturas"
+  | "contabilidad"
+  | "crm"
+  | "gastos"
+  | "flota"
+  | "proyectos"
+  | "ventas"
+  | "compras";
 
 export interface EjecucionOdoo {
   modulo: ModuloOdoo;
@@ -41,6 +49,10 @@ export async function obtenerUltimasEjecuciones(): Promise<Record<ModuloOdoo, Ej
     contabilidad: null,
     crm: null,
     gastos: null,
+    flota: null,
+    proyectos: null,
+    ventas: null,
+    compras: null,
   };
   for (const fila of filas) {
     if (!ultimaPorModulo[fila.modulo]) ultimaPorModulo[fila.modulo] = fila;

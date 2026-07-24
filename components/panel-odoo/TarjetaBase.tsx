@@ -11,6 +11,8 @@ const ACENTOS = {
   teal: { bg: "bg-teal/[0.06]", border: "border-teal/20", titulo: "text-teal" },
   naranjoSuave: { bg: "bg-naranjo-suave/[0.08]", border: "border-naranjo-suave/25", titulo: "text-naranjo-suave" },
   tealSuave: { bg: "bg-teal-suave/[0.08]", border: "border-teal-suave/25", titulo: "text-teal-suave" },
+  gris: { bg: "bg-gris/[0.08]", border: "border-gris/25", titulo: "text-gris" },
+  grisSuave: { bg: "bg-gris-suave/[0.1]", border: "border-gris-suave/30", titulo: "text-gris" },
 } as const;
 
 export type AcentoTarjeta = keyof typeof ACENTOS;

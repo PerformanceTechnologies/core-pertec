@@ -6,6 +6,10 @@ const ETIQUETAS_MODULO_ODOO: Record<string, string> = {
   contabilidad: "Contabilidad",
   crm: "CRM",
   gastos: "Gastos",
+  ventas: "Ventas y Arriendo",
+  compras: "Compras",
+  flota: "Flota",
+  proyectos: "Proyectos",
 };
 
 export default function FormularioUsuario({

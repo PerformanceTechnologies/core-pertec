@@ -1,7 +1,16 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-export const MODULOS_PANEL_ODOO = ["facturas", "contabilidad", "crm", "gastos"] as const;
+export const MODULOS_PANEL_ODOO = [
+  "facturas",
+  "contabilidad",
+  "crm",
+  "gastos",
+  "flota",
+  "proyectos",
+  "ventas",
+  "compras",
+] as const;
 export type ModuloVisiblePanelOdoo = (typeof MODULOS_PANEL_ODOO)[number];
 
 // Filas guardadas tal cual, sin default -- lo usa el formulario de admin

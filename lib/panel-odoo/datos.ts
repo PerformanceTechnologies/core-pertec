@@ -277,3 +277,224 @@ export async function listarGastosRecientes(companyId: number, limite = 5): Prom
     .limit(limite);
   return (data ?? []) as FilaGasto[];
 }
+
+// ── Flota ───────────────────────────────────────────────────────────────
+
+export interface FilaVehiculo {
+  odoo_id: number;
+  nombre: string;
+  patente: string | null;
+  modelo: string | null;
+  marca: string | null;
+  conductor: string | null;
+  estado: string | null;
+  categoria: string | null;
+  odometro: number | null;
+}
+
+export interface KpisFlota {
+  totalVehiculos: number;
+  porEstado: { etapa: string; cantidad: number }[];
+}
+
+export async function obtenerKpisFlota(companyId: number): Promise<KpisFlota> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_flota")
+    .select("estado")
+    .eq("company_id", companyId);
+
+  const filas = data ?? [];
+  const porEstadoMapa = new Map<string, number>();
+  for (const fila of filas) {
+    const estado = fila.estado ?? "Sin estado";
+    porEstadoMapa.set(estado, (porEstadoMapa.get(estado) ?? 0) + 1);
+  }
+
+  return {
+    totalVehiculos: filas.length,
+    porEstado: Array.from(porEstadoMapa.entries()).map(([etapa, cantidad]) => ({ etapa, cantidad })),
+  };
+}
+
+export async function listarVehiculosRecientes(companyId: number, limite = 5): Promise<FilaVehiculo[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_flota")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("nombre", { ascending: true })
+    .limit(limite);
+  return (data ?? []) as FilaVehiculo[];
+}
+
+// ── Proyectos (Odoo) ─────────────────────────────────────────────────────
+// Sin filtro de empresa a proposito: project.project/project.task no usan
+// multi-empresa en este Odoo (ver lib/panel-odoo/sincronizar-proyectos.ts).
+
+export interface FilaTarea {
+  odoo_id: number;
+  proyecto_nombre: string | null;
+  nombre: string;
+  etapa: string | null;
+  estado: string;
+  fecha_limite: string | null;
+  asignados: string | null;
+}
+
+export interface KpisProyectos {
+  proyectosActivos: number;
+  tareasAbiertas: number;
+  tareasCompletadas: number;
+}
+
+const ESTADOS_TAREA_CERRADA = ["1_done", "1_canceled"];
+
+export async function obtenerKpisProyectos(): Promise<KpisProyectos> {
+  const [{ data: proyectos }, { data: tareas }] = await Promise.all([
+    supabaseAdmin.from("panel_odoo_proyectos").select("activo").eq("activo", true),
+    supabaseAdmin.from("panel_odoo_tareas").select("estado"),
+  ]);
+
+  const filasTareas = tareas ?? [];
+  return {
+    proyectosActivos: (proyectos ?? []).length,
+    tareasAbiertas: filasTareas.filter((t) => !ESTADOS_TAREA_CERRADA.includes(t.estado)).length,
+    tareasCompletadas: filasTareas.filter((t) => t.estado === "1_done").length,
+  };
+}
+
+export async function listarTareasRecientes(limite = 5): Promise<FilaTarea[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_tareas")
+    .select("*")
+    .not("estado", "in", `(${ESTADOS_TAREA_CERRADA.join(",")})`)
+    .order("fecha_limite", { ascending: true, nullsFirst: false })
+    .limit(limite);
+  return (data ?? []) as FilaTarea[];
+}
+
+// ── Ventas y Arriendo ────────────────────────────────────────────────────
+
+export interface FilaVenta {
+  odoo_id: number;
+  numero: string | null;
+  partner_nombre: string | null;
+  fecha_orden: string | null;
+  monto_total: number;
+  estado: string;
+  es_arriendo: boolean;
+  estado_arriendo: string | null;
+  fecha_fin_arriendo: string | null;
+}
+
+export interface KpisVentas {
+  ventasMes: number;
+  ventasMesAnterior: number;
+  arriendosActivos: number;
+  montoArriendosActivos: number;
+  serieMensualVentas: { mes: string; monto: number }[];
+}
+
+export async function obtenerKpisVentas(companyId: number): Promise<KpisVentas> {
+  const { data: ultimos6Meses } = await supabaseAdmin
+    .from("panel_odoo_ventas")
+    .select("fecha_orden, monto_total")
+    .eq("company_id", companyId)
+    .eq("es_arriendo", false)
+    .eq("estado", "sale")
+    .gte("fecha_orden", hace6Meses());
+
+  const { data: arriendosActivos } = await supabaseAdmin
+    .from("panel_odoo_ventas")
+    .select("monto_total")
+    .eq("company_id", companyId)
+    .eq("es_arriendo", true)
+    .eq("estado_arriendo", "confirmed");
+
+  const porMes = new Map<string, number>();
+  for (const fila of ultimos6Meses ?? []) {
+    if (!fila.fecha_orden) continue;
+    const mes = fila.fecha_orden.slice(0, 7);
+    porMes.set(mes, (porMes.get(mes) ?? 0) + fila.monto_total);
+  }
+
+  return {
+    ventasMes: porMes.get(claveMes(0)) ?? 0,
+    ventasMesAnterior: porMes.get(claveMes(-1)) ?? 0,
+    arriendosActivos: (arriendosActivos ?? []).length,
+    montoArriendosActivos: (arriendosActivos ?? []).reduce((acc, f) => acc + f.monto_total, 0),
+    serieMensualVentas: Array.from(porMes.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, monto]) => ({ mes, monto })),
+  };
+}
+
+export async function listarVentasRecientes(companyId: number, limite = 5): Promise<FilaVenta[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_ventas")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("fecha_orden", { ascending: false, nullsFirst: false })
+    .limit(limite);
+  return (data ?? []) as FilaVenta[];
+}
+
+// ── Compras ─────────────────────────────────────────────────────────────
+
+export interface FilaCompra {
+  odoo_id: number;
+  numero: string | null;
+  partner_nombre: string | null;
+  fecha_orden: string | null;
+  monto_total: number;
+  estado: string;
+  estado_facturacion: string;
+  fecha_entrega_esperada: string | null;
+}
+
+export interface KpisCompras {
+  compradoMes: number;
+  compradoMesAnterior: number;
+  pendientesFacturar: number;
+  serieMensual: { mes: string; monto: number }[];
+}
+
+export async function obtenerKpisCompras(companyId: number): Promise<KpisCompras> {
+  const { data: ultimos6Meses } = await supabaseAdmin
+    .from("panel_odoo_compras")
+    .select("fecha_orden, monto_total")
+    .eq("company_id", companyId)
+    .eq("estado", "purchase")
+    .gte("fecha_orden", hace6Meses());
+
+  const { data: pendientes } = await supabaseAdmin
+    .from("panel_odoo_compras")
+    .select("odoo_id")
+    .eq("company_id", companyId)
+    .eq("estado_facturacion", "to invoice");
+
+  const porMes = new Map<string, number>();
+  for (const fila of ultimos6Meses ?? []) {
+    if (!fila.fecha_orden) continue;
+    const mes = fila.fecha_orden.slice(0, 7);
+    porMes.set(mes, (porMes.get(mes) ?? 0) + fila.monto_total);
+  }
+
+  return {
+    compradoMes: porMes.get(claveMes(0)) ?? 0,
+    compradoMesAnterior: porMes.get(claveMes(-1)) ?? 0,
+    pendientesFacturar: (pendientes ?? []).length,
+    serieMensual: Array.from(porMes.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, monto]) => ({ mes, monto })),
+  };
+}
+
+export async function listarComprasRecientes(companyId: number, limite = 5): Promise<FilaCompra[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_compras")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("fecha_orden", { ascending: false, nullsFirst: false })
+    .limit(limite);
+  return (data ?? []) as FilaCompra[];
+}

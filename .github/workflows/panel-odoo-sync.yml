@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        modulo: [facturas, contabilidad, crm, gastos]
+        modulo: [facturas, contabilidad, crm, gastos, flota, proyectos, ventas, compras]
     steps:
       - name: Sincronizar ${{ matrix.modulo }}
         run: |

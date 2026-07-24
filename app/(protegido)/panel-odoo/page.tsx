@@ -7,6 +7,10 @@ import TarjetaFacturas from "@/components/panel-odoo/TarjetaFacturas";
 import TarjetaContabilidad from "@/components/panel-odoo/TarjetaContabilidad";
 import TarjetaCrm from "@/components/panel-odoo/TarjetaCrm";
 import TarjetaGastos from "@/components/panel-odoo/TarjetaGastos";
+import TarjetaFlota from "@/components/panel-odoo/TarjetaFlota";
+import TarjetaProyectos from "@/components/panel-odoo/TarjetaProyectos";
+import TarjetaVentas from "@/components/panel-odoo/TarjetaVentas";
+import TarjetaCompras from "@/components/panel-odoo/TarjetaCompras";
 
 // Sin cache: cada carga vuelve a leer la cache de Supabase (no Odoo en vivo,
 // ver lib/panel-odoo/datos.ts), asi que un sync recien terminado o un cambio
@@ -54,6 +58,14 @@ export default async function PanelOdooPage({
           {modulosVisibles.includes("gastos") && (
             <TarjetaGastos companyId={companyId} ejecucion={ejecuciones.gastos} />
           )}
+          {modulosVisibles.includes("ventas") && (
+            <TarjetaVentas companyId={companyId} ejecucion={ejecuciones.ventas} />
+          )}
+          {modulosVisibles.includes("compras") && (
+            <TarjetaCompras companyId={companyId} ejecucion={ejecuciones.compras} />
+          )}
+          {modulosVisibles.includes("flota") && <TarjetaFlota companyId={companyId} ejecucion={ejecuciones.flota} />}
+          {modulosVisibles.includes("proyectos") && <TarjetaProyectos ejecucion={ejecuciones.proyectos} />}
         </div>
       )}
     </div>
