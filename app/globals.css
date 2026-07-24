@@ -38,6 +38,12 @@ html {
 }
 
 body {
+  /* Respaldo: si algún componente con contenido muy ancho (tablas, grillas)
+     no queda bien contenido, que se recorte/scrollee ahí adentro y nunca
+     abra el documento completo hacia los lados. Cada contenedor que
+     necesita scroll horizontal propio (ej. el Gantt de Proyectos) ya usa
+     overflow-x-auto en su propia caja. */
+  overflow-x: hidden;
   font-family: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
   background-color: var(--color-crema);
   background-image: url("/patron-topografico.svg");

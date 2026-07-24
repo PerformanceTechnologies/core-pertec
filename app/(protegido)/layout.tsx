@@ -30,7 +30,12 @@ export default async function LayoutProtegido({
   return (
     <div className="lg:flex lg:min-h-screen">
       <BarraLateral correo={usuario.correo} rol={usuario.rol} apps={apps} />
-      <main className="flex-1 px-6 py-8 lg:px-10">{children}</main>
+      {/* min-w-0: sin esto, un ítem flex-1 no se achica más allá del ancho
+          mínimo de su contenido — si algo adentro es muy ancho (ej. la
+          grilla del Gantt de Proyectos, con muchas columnas de día de ancho
+          fijo), en vez de scrollear internamente empuja TODO el layout
+          (sidebar incluida) más ancho que el viewport. */}
+      <main className="min-w-0 flex-1 px-6 py-8 lg:px-10">{children}</main>
       <BotonSubir />
     </div>
   );
