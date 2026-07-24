@@ -132,13 +132,26 @@ export default function GastosProyecto({
             <ul className="flex flex-col gap-3.5">
               {porCategoria.map((c) => {
                 const color = colorDe(CAT_COLOR[c.categoria] ?? "cobre");
+                const totalArchivos = c.items.reduce((s, g) => s + (g.archivos?.length ?? 0), 0);
                 return (
                   <li key={c.categoria} className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPopover({ titulo: `${catLabel(c.categoria)} · todos los gastos`, gastos: c.items })}
+                      className="flex items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-crema"
+                      title="Ver todos los adjuntos de esta categoría"
+                    >
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color.bg }} />
-                      <span className="flex-1 truncate text-[13px] font-medium text-tinta">{catLabel(c.categoria)}</span>
+                      <span className="flex-1 truncate text-[13px] font-medium text-tinta">
+                        {catLabel(c.categoria)}
+                        {totalArchivos > 0 && (
+                          <span className="ml-1.5 text-tinta/35" title={`${totalArchivos} adjunto(s) en total`}>
+                            📎 {totalArchivos}
+                          </span>
+                        )}
+                      </span>
                       <span className="text-[13px] font-semibold text-tinta">{fmtCLP(c.total)}</span>
-                    </div>
+                    </button>
                     <div className="h-1.5 overflow-hidden rounded-full bg-crema">
                       <div className="h-full rounded-full" style={{ width: `${(c.total / maxCategoria) * 100}%`, background: color.bg }} />
                     </div>
