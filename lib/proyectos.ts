@@ -24,11 +24,19 @@ export async function resolverRolPanel(usuario: UsuarioConAcceso): Promise<RolPa
   return (usuario.rolesExtra[app.id] as RolPanel) ?? "visualizador";
 }
 
+export interface ArchivoGasto {
+  url: string;
+  path: string;
+  nombre: string;
+  tipo: string; // mime type — decide si se muestra preview de imagen o ícono de documento
+}
+
 export interface GastoItem {
   categoria: string | null;
   tag: string | null;
   label: string | null;
   monto: number;
+  archivos?: ArchivoGasto[];
 }
 
 export type EstadoProyecto = "no_iniciado" | "en_curso" | "terminado";
@@ -158,6 +166,27 @@ export async function actualizarGastosProyecto(
     .update({ presupuesto_inicial: datos.presupuesto_inicial, gastos: datos.gastos })
     .eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+// Sube un documento o foto de respaldo de un gasto al bucket público "gastos"
+// del Supabase de pertec-web (mismo proyecto donde vive la data de
+// Proyectos — ver nota de pertecWebSupabase arriba). Mismo patrón que
+// subirFotoEvidencia de Mantención, pero sin restringir el tipo de archivo
+// (acá se suben tanto fotos como documentos — boletas, facturas, etc).
+export async function subirArchivoGasto(archivo: File): Promise<ArchivoGasto> {
+  const extension = archivo.name.split(".").pop() || "bin";
+  const nombreArchivo = `${crypto.randomUUID()}.${extension}`;
+  const { error } = await pertecWebSupabase.storage.from("gastos").upload(nombreArchivo, archivo, {
+    contentType: archivo.type || "application/octet-stream",
+  });
+  if (error) throw new Error(error.message);
+  const { data } = pertecWebSupabase.storage.from("gastos").getPublicUrl(nombreArchivo);
+  return {
+    url: data.publicUrl,
+    path: nombreArchivo,
+    nombre: archivo.name,
+    tipo: archivo.type || "application/octet-stream",
+  };
 }
 
 export async function listarObjetivos(proyectoId: string): Promise<Objetivo[]> {

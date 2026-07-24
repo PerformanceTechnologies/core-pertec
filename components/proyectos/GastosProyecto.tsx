@@ -134,7 +134,14 @@ export default function GastosProyecto({
                     <ul className="ml-2.5 flex flex-col gap-1 border-l border-dashed border-borde pl-3">
                       {c.items.map((g, i) => (
                         <li key={i} className="flex justify-between gap-3 text-xs text-tinta/50">
-                          <span>{[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}</span>
+                          <span>
+                            {[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}
+                            {g.archivos && g.archivos.length > 0 && (
+                              <span className="ml-1.5 text-tinta/35" title={`${g.archivos.length} adjunto(s)`}>
+                                📎 {g.archivos.length}
+                              </span>
+                            )}
+                          </span>
                           <span className="font-medium text-tinta">{fmtCLP(g.monto)}</span>
                         </li>
                       ))}
