@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { QuotationInput, StaffInput, Turno } from "@/lib/cotizador/motor/types";
+import type { PersonalSpotContratoInput, QuotationInput, StaffInput, Turno } from "@/lib/cotizador/motor/types";
 import type { QuotationResult } from "@/lib/cotizador/motor/consolidacion";
 import { money } from "@/lib/cotizador/formato";
 import { nextId } from "@/lib/cotizador/ids";
+import type { CatalogoCargo } from "@/lib/cotizador/catalogo-cargos-tipos";
+import { cargoCatalogoAStaffInput } from "@/lib/cotizador/catalogo-cargos-tipos";
 import { NumInput, TextInput, SelectInput, DeleteButton } from "../campos/Campos";
 
 const TURNO_OPTS: { value: Turno; label: string }[] = [
@@ -40,11 +42,13 @@ export default function DotacionTab({
   result,
   update,
   disabled,
+  catalogoCargos,
 }: {
   quotation: QuotationInput;
   result: QuotationResult;
   update: (fn: (q: QuotationInput) => QuotationInput) => void;
   disabled: boolean;
+  catalogoCargos: CatalogoCargo[];
 }) {
   const [expandido, setExpandido] = useState<string | null>(quotation.staff[0]?.id ?? null);
 
@@ -80,6 +84,12 @@ export default function DotacionTab({
       ],
     }));
 
+  const addStaffDesdeCatalogo = (catalogoId: string) => {
+    const cargo = catalogoCargos.find((c) => c.id === catalogoId);
+    if (!cargo) return;
+    update((q) => ({ ...q, staff: [...q.staff, cargoCatalogoAStaffInput(cargo, nextId("cargo"))] }));
+  };
+
   const removeStaff = (id: string) => update((q) => ({ ...q, staff: q.staff.filter((s) => s.id !== id) }));
 
   const addBono = (staffId: string) =>
@@ -102,6 +112,39 @@ export default function DotacionTab({
       staff: q.staff.map((s) => (s.id === staffId ? { ...s, bonos: s.bonos.filter((_, i) => i !== index) } : s)),
     }));
 
+  const personalSpotContrato = quotation.personalSpotContrato ?? [];
+
+  const updateSpotContrato = (id: string, patch: Partial<PersonalSpotContratoInput>) =>
+    update((q) => ({
+      ...q,
+      personalSpotContrato: (q.personalSpotContrato ?? []).map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    }));
+
+  const addSpotContrato = () =>
+    update((q) => ({
+      ...q,
+      personalSpotContrato: [
+        ...(q.personalSpotContrato ?? []),
+        {
+          id: nextId("spotc"),
+          cargo: "Nuevo cargo",
+          clasificacion: "directo",
+          tipoContrato: "plazo_fijo",
+          modoSueldo: "base",
+          base: 800000,
+          bonos: [],
+          asigMovilizacion: 100000,
+          asigColacion: 100000,
+          trabajaFestivos: false,
+          pctTrabajoPesado: 0,
+          horasEstimadasMes: 20,
+        },
+      ],
+    }));
+
+  const removeSpotContrato = (id: string) =>
+    update((q) => ({ ...q, personalSpotContrato: (q.personalSpotContrato ?? []).filter((s) => s.id !== id) }));
+
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center gap-3">
@@ -110,6 +153,25 @@ export default function DotacionTab({
           <span className="rounded bg-crema px-1.5 py-0.5">grises</span> calculadas
         </div>
         <div className="flex-1" />
+        {!disabled && catalogoCargos.length > 0 && (
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) addStaffDesdeCatalogo(e.target.value);
+              e.target.value = "";
+            }}
+            className="h-8 rounded-md border border-borde bg-white px-2 text-xs text-tinta outline-none focus:border-naranjo/50"
+          >
+            <option value="" disabled>
+              + Desde catálogo…
+            </option>
+            {catalogoCargos.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.cargo}
+              </option>
+            ))}
+          </select>
+        )}
         {!disabled && (
           <button
             type="button"
@@ -422,6 +484,102 @@ export default function DotacionTab({
           </span>
         </div>
       </div>
+
+      {quotation.tipoServicio === "contrato_permanente" && (
+        <div className="mt-6">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="etiqueta-seccion">Personal SPOT del contrato — refuerzo por hora-hombre</span>
+            <div className="flex-1" />
+            {!disabled && (
+              <button
+                type="button"
+                onClick={addSpotContrato}
+                className="rounded-md border border-borde bg-white px-3 py-1.5 text-xs font-semibold text-tinta transition hover:border-naranjo/50"
+              >
+                + Agregar refuerzo SPOT
+              </button>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-borde bg-white">
+            <div className="grid grid-cols-[minmax(160px,1.5fr)_100px_112px_100px_100px_100px_112px_112px_28px] items-center gap-x-2 border-b-2 border-tinta px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/40">
+              <span>Cargo</span>
+              <span>Clasificación</span>
+              <span>Contrato</span>
+              <span className="text-right">Sueldo base</span>
+              <span className="text-right">Movilización</span>
+              <span className="text-right">Colación</span>
+              <span className="text-right">HH estimadas/mes</span>
+              <span className="text-right">Costo mensual</span>
+              <span />
+            </div>
+            {personalSpotContrato.length === 0 && (
+              <div className="px-4 py-3 text-xs text-tinta/40">Sin personal SPOT del contrato agregado.</div>
+            )}
+            {personalSpotContrato.map((input) => {
+              const r = result.personalSpotContrato.find((s) => s.id === input.id);
+              return (
+                <div
+                  key={input.id}
+                  className="grid grid-cols-[minmax(160px,1.5fr)_100px_112px_100px_100px_100px_112px_112px_28px] items-center gap-x-2 border-b border-borde px-4 py-2 text-sm"
+                >
+                  <TextInput value={input.cargo} onChange={(v) => updateSpotContrato(input.id, { cargo: v })} disabled={disabled} />
+                  <SelectInput
+                    value={input.clasificacion}
+                    onChange={(v) => updateSpotContrato(input.id, { clasificacion: v })}
+                    options={[
+                      { value: "directo", label: "Directo" },
+                      { value: "indirecto", label: "Indirecto" },
+                    ]}
+                    disabled={disabled}
+                  />
+                  <SelectInput
+                    value={input.tipoContrato}
+                    onChange={(v) => updateSpotContrato(input.id, { tipoContrato: v })}
+                    options={[
+                      { value: "indefinido", label: "Indefinido" },
+                      { value: "plazo_fijo", label: "Plazo fijo" },
+                    ]}
+                    disabled={disabled}
+                  />
+                  <NumInput value={input.base ?? 0} onChange={(v) => updateSpotContrato(input.id, { base: v })} disabled={disabled} />
+                  <NumInput
+                    value={input.asigMovilizacion}
+                    onChange={(v) => updateSpotContrato(input.id, { asigMovilizacion: v })}
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={input.asigColacion}
+                    onChange={(v) => updateSpotContrato(input.id, { asigColacion: v })}
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={input.horasEstimadasMes}
+                    onChange={(v) => updateSpotContrato(input.id, { horasEstimadasMes: v })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums text-tinta">
+                    {money(r?.costoMensual ?? 0)}
+                  </span>
+                  <DeleteButton onClick={() => removeSpotContrato(input.id)} disabled={disabled} />
+                </div>
+              );
+            })}
+            {personalSpotContrato.length > 0 && (
+              <div className="flex items-center gap-4 bg-tinta px-4 py-3 text-white">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+                  Costo total personal SPOT del contrato/mes
+                </span>
+                <div className="flex-1" />
+                <span className="text-sm font-bold tabular-nums text-naranjo-suave">
+                  {money(result.personalSpotContrato.reduce((a, s) => a + s.costoMensual, 0))}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

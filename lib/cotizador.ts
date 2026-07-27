@@ -154,6 +154,7 @@ function cotizacionVacia(tipoServicio: QuotationInput["tipoServicio"]): Quotatio
     factorContingencia: 1,
     divisorMovilizacion: 17,
     staff: [],
+    personalSpotContrato: [],
     diasAlimentacionMes: 20,
     tarifasAlimentacion: { desayuno: 2100, almuerzo: 3800, cena: 3100, colacion: 1000 },
     costItems: [],
