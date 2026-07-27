@@ -298,7 +298,9 @@ export default function DotacionTab({
                 <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums text-tinta">
                   {money(r.costoMensualCargo)}
                 </span>
-                <span className="text-right text-sm tabular-nums text-tinta/60">{money(r.hh70)}</span>
+                <span className="rounded-md bg-crema px-2 py-1 text-right text-sm tabular-nums text-tinta/70">
+                  {money(r.hh70)}
+                </span>
                 <svg
                   width="14"
                   height="14"
