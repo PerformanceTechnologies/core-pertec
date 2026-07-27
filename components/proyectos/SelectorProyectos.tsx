@@ -155,13 +155,27 @@ export default function SelectorProyectos({
           const s = stats[p.id] ?? { total: 0, hechos: 0, vencen: 0, minIni: null, maxFin: null };
           const pct = s.total > 0 ? Math.round((s.hechos / s.total) * 100) : 0;
           const color = colorDe(p.color);
+          const terminado = p.estado === "terminado";
           return (
             <button
               key={p.id}
               onClick={() => onElegir(p.id)}
-              className="animar-revelar group relative flex flex-col gap-4 border border-borde bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(12,10,9,.08)]"
+              className={`animar-revelar group relative flex flex-col gap-4 overflow-hidden border border-borde bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(12,10,9,.08)] ${
+                terminado ? "opacity-60 grayscale-[35%] hover:opacity-80" : ""
+              }`}
               style={{ animationDelay: `${Math.min(i, 8) * 70}ms`, borderTopColor: color.bg, borderTopWidth: 3 }}
             >
+              {terminado && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+                >
+                  <span className="-rotate-[18deg] select-none whitespace-nowrap rounded border-[3px] border-tinta/30 px-4 py-1 text-lg font-black uppercase tracking-[.2em] text-tinta/35">
+                    Terminado
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-start gap-2.5">
                 <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color.bg }} />
                 <div className="min-w-0 flex-1">
