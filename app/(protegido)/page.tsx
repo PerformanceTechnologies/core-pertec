@@ -3,8 +3,32 @@ import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import { obtenerIcono } from "@/lib/iconos";
-import { clasesInsigniaEstado, etiquetaEstado } from "@/lib/colores";
-import TarjetaMetrica from "@/components/TarjetaMetrica";
+import { clasesInsigniaColor, clasesInsigniaEstado, etiquetaEstado } from "@/lib/colores";
+import WidgetCalendario from "@/components/WidgetCalendario";
+
+const ZONA_HORARIA = "America/Santiago";
+
+function fechaDeHoy(): string {
+  const formateada = new Intl.DateTimeFormat("es-CL", {
+    timeZone: ZONA_HORARIA,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
+  return formateada.charAt(0).toUpperCase() + formateada.slice(1);
+}
+
+function formatearUltimoIngreso(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const formateada = new Intl.DateTimeFormat("es-CL", {
+    timeZone: ZONA_HORARIA,
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+  return `Tu último ingreso fue el ${formateada} hrs.`;
+}
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -16,93 +40,102 @@ export default async function DashboardPage() {
     usuario.rol === "admin"
       ? todasLasApps
       : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id));
-
-  const activas = apps.filter((a) => a.estado === "activa").length;
-  const enDesarrollo = apps.filter((a) => a.estado === "en_desarrollo").length;
-  const mantenimiento = apps.filter((a) => a.estado === "mantenimiento").length;
   const primerNombre = usuario.nombre?.split(" ")[0];
+  const ultimoIngreso = formatearUltimoIngreso(session?.ultimoIngresoAnterior);
 
   return (
     <div>
-      <span className="etiqueta-seccion">Resumen</span>
-      <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
-        Dashboard
+      <span className="etiqueta-seccion">{fechaDeHoy()}</span>
+      <h1 className="mt-2 font-condensed text-4xl font-bold uppercase leading-none text-tinta sm:text-5xl">
+        Hola{primerNombre ? `, ${primerNombre}` : ""}
       </h1>
-      <p className="mt-1 text-sm text-tinta/60">
-        Hola{primerNombre ? `, ${primerNombre}` : ""}. Este es el estado general de tus
-        herramientas — encuéntralas también en el panel de la izquierda.
+      <p className="mt-3 max-w-lg text-sm text-tinta/55">
+        Este es tu panel de acceso a Core PERTEC. Tus herramientas están también en el menú de la
+        izquierda.
+        {ultimoIngreso && <span className="block text-tinta/40">{ultimoIngreso}</span>}
       </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <TarjetaMetrica etiqueta="Aplicaciones" valor={apps.length} />
-        <TarjetaMetrica etiqueta="Activas" valor={activas} color="teal" />
-        <TarjetaMetrica etiqueta="En desarrollo" valor={enDesarrollo} color="naranjo" />
-        <TarjetaMetrica etiqueta="Mantención" valor={mantenimiento} color="gris" />
-      </div>
-
-      <div className="mt-8">
-        <span className="etiqueta-seccion">Detalle</span>
-        <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">
-          Tus aplicaciones
-        </h2>
-
-        {apps.length === 0 ? (
-          <p className="mt-4 text-sm text-tinta/60">
-            Todavía no tienes aplicaciones asignadas. Pídele a un administrador que te dé
-            acceso.
-          </p>
-        ) : (
-          <div className="mt-4 overflow-hidden rounded-xl border border-borde bg-white">
-            {apps.map((app, indice) => {
-              const Icono = obtenerIcono(app.icono);
-              const deshabilitada = app.estado === "mantenimiento";
-              const href =
-                app.tipo === "interna"
-                  ? app.url
-                  : app.url.startsWith("http")
-                    ? app.url
-                    : `https://${app.url}`;
-
-              const contenido = (
-                <>
-                  <Icono size={18} stroke={1.75} className="text-tinta/60" aria-hidden />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-tinta">{app.nombre}</p>
-                    {app.descripcion && (
-                      <p className="truncate text-xs text-tinta/50">{app.descripcion}</p>
-                    )}
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${clasesInsigniaEstado(app.estado)}`}
-                  >
-                    {etiquetaEstado(app.estado)}
-                  </span>
-                  {!deshabilitada && (
-                    <span className="text-xs font-medium text-tinta/60">Abrir</span>
-                  )}
-                </>
-              );
-
-              const clasesFila = `flex items-center gap-3 px-4 py-3 ${
-                indice > 0 ? "border-t border-borde" : ""
-              }`;
-
-              if (deshabilitada) {
-                return (
-                  <div key={app.id} className={clasesFila}>
-                    {contenido}
-                  </div>
-                );
-              }
-
-              return (
-                <Link key={app.id} href={href} className={`${clasesFila} transition hover:bg-crema/60`}>
-                  {contenido}
-                </Link>
-              );
-            })}
+      <div className="mt-8 lg:flex lg:items-start lg:gap-10">
+        <div className="lg:w-[264px] lg:shrink-0">
+          <span className="etiqueta-seccion">Hoy</span>
+          <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">Tu calendario</h2>
+          <div className="mt-4">
+            <WidgetCalendario />
           </div>
-        )}
+        </div>
+
+        <div className="mt-10 lg:mt-0 lg:min-w-0 lg:flex-1">
+          <span className="etiqueta-seccion">Accesos</span>
+          <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">
+            Tus aplicaciones
+          </h2>
+
+          {apps.length === 0 ? (
+            <p className="mt-4 text-sm text-tinta/60">
+              Todavía no tienes aplicaciones asignadas. Pídele a un administrador que te dé
+              acceso.
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {apps.map((app) => {
+                const Icono = obtenerIcono(app.icono);
+                const deshabilitada = app.estado === "mantenimiento";
+                const href =
+                  app.tipo === "interna"
+                    ? app.url
+                    : app.url.startsWith("http")
+                      ? app.url
+                      : `https://${app.url}`;
+
+                const contenido = (
+                  <>
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${clasesInsigniaColor(app.color)}`}
+                    >
+                      <Icono size={20} stroke={1.75} aria-hidden />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-tinta">{app.nombre}</p>
+                        {app.estado !== "activa" && (
+                          <span
+                            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${clasesInsigniaEstado(app.estado)}`}
+                          >
+                            {etiquetaEstado(app.estado)}
+                          </span>
+                        )}
+                      </div>
+                      {app.descripcion && (
+                        <p className="mt-0.5 truncate text-xs text-tinta/50">{app.descripcion}</p>
+                      )}
+                    </div>
+                  </>
+                );
+
+                if (deshabilitada) {
+                  return (
+                    <div
+                      key={app.id}
+                      className="flex cursor-not-allowed items-center gap-3.5 rounded-xl border border-borde bg-white/60 p-4 opacity-60"
+                    >
+                      {contenido}
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={app.id}
+                    href={href}
+                    className="group flex items-center gap-3.5 rounded-xl border border-borde bg-white p-4 transition hover:-translate-y-0.5 hover:border-naranjo/30 hover:shadow-md"
+                  >
+                    {contenido}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

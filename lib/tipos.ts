@@ -13,6 +13,7 @@ export interface Usuario {
   rol: Rol;
   activo: boolean;
   creado_en: string;
+  ultimo_ingreso: string | null;
 }
 
 export interface Aplicacion {

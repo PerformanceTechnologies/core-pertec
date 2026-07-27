@@ -72,6 +72,29 @@ export async function obtenerUsuarioPorId(id: string): Promise<UsuarioConAcceso 
   };
 }
 
+// Se llama en cada login (ver callback jwt en auth.ts). Devuelve el valor
+// ANTERIOR de ultimo_ingreso (antes de sobreescribirlo con el de ahora), para
+// que el dashboard pueda mostrar "tu último ingreso fue..." -- si se
+// devolviera el valor recién escrito, siempre mostraría "ahora mismo".
+export async function registrarIngreso(correo: string): Promise<string | null> {
+  const correoNormalizado = correo.toLowerCase();
+
+  const { data: usuario } = await supabaseAdmin
+    .from("usuarios")
+    .select("id, ultimo_ingreso")
+    .eq("correo", correoNormalizado)
+    .maybeSingle();
+
+  if (!usuario) return null;
+
+  await supabaseAdmin
+    .from("usuarios")
+    .update({ ultimo_ingreso: new Date().toISOString() })
+    .eq("id", usuario.id);
+
+  return usuario.ultimo_ingreso as string | null;
+}
+
 function mapaRolesExtra(asignaciones: { aplicacion_id: string; rol_extra: string | null }[]): Record<string, string> {
   const mapa: Record<string, string> = {};
   asignaciones.forEach((a) => {
