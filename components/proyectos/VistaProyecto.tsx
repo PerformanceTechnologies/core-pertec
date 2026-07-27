@@ -70,6 +70,21 @@ export default function VistaProyecto({
     return m;
   }, [objetivos]);
 
+  // Resumen de gastos por objetivo (gastado + cantidad de partidas), para el
+  // tooltip del Gantt y el mini-gráfico del hero — evita recorrer el array de
+  // gastos en cada componente hijo por separado.
+  const gastosPorObjetivo = useMemo(() => {
+    const mapa: Record<string, { gastado: number; count: number }> = {};
+    (proyecto?.gastos ?? []).forEach((g) => {
+      if (!g.objetivo_id) return;
+      const actual = mapa[g.objetivo_id] ?? { gastado: 0, count: 0 };
+      actual.gastado += Number(g.monto) || 0;
+      actual.count += 1;
+      mapa[g.objetivo_id] = actual;
+    });
+    return mapa;
+  }, [proyecto]);
+
   const total = objetivosTop.length;
   const hechos = objetivosTop.filter((o) => o.hecho).length;
   const pct = total > 0 ? Math.round((hechos / total) * 100) : 0;
@@ -209,7 +224,13 @@ export default function VistaProyecto({
           }}
         />
         <div className={`relative ${puedeVerGastosProyecto ? "flex flex-col items-center justify-center gap-8 lg:flex-row lg:justify-center" : "mx-auto max-w-sm"}`}>
-          {puedeVerGastosProyecto && proyecto && <GastosHeroMini proyecto={proyecto} onVerDetalle={() => setSeccion("gastos")} />}
+          {puedeVerGastosProyecto && proyecto && (
+            <GastosHeroMini
+              proyecto={proyecto}
+              objetivos={objetivosTop}
+              onVerDetalle={() => setSeccion("gastos")}
+            />
+          )}
 
           <div className="relative mx-auto w-full max-w-sm overflow-hidden bg-white px-6 py-5 shadow-[0_20px_40px_rgba(12,10,9,.08)]">
             <span
@@ -321,6 +342,7 @@ export default function VistaProyecto({
       ) : vista === "gantt" ? (
         <Gantt
           objetivos={objetivosTop}
+          gastosPorObjetivo={gastosPorObjetivo}
           puedeEditar={puedeEditar}
           puedeAlternar={puedeAlternar}
           onAlternar={alternarHecho}
