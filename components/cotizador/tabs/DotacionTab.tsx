@@ -20,8 +20,10 @@ const TURNO_OPTS: { value: Turno; label: string }[] = [
   { value: "14x14", label: "14x14" },
 ];
 
+// Anchos ajustados para que las 13 columnas quepan sin scroll horizontal en
+// la mayoría de las pantallas (antes ~1.230px de contenido, ahora ~1.100px).
 const GRID =
-  "grid grid-cols-[minmax(160px,1.5fr)_70px_40px_40px_46px_100px_104px_112px_112px_92px_112px_84px_28px] gap-x-2 items-center";
+  "grid grid-cols-[minmax(140px,1.3fr)_56px_36px_36px_40px_88px_92px_108px_108px_76px_104px_80px_24px] gap-x-1.5 items-center";
 
 // Opciones del selector de Cargo: nombres del catálogo + el valor actual (si
 // no está en el catálogo, ej. cargos ya creados antes de que existiera esta
@@ -212,7 +214,7 @@ export default function DotacionTab({
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-borde bg-white">
-        <div className={`${GRID} border-b-2 border-tinta px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/40`}>
+        <div className={`${GRID} border-b-2 border-tinta px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/40`}>
           <span>Cargo</span>
           <span>Turno</span>
           <span className="text-center">A</span>
@@ -238,7 +240,7 @@ export default function DotacionTab({
             <div key={input.id}>
               <div
                 onClick={() => setExpandido(abierto ? null : input.id)}
-                className={`${GRID} cursor-pointer border-b border-borde px-4 py-2 ${abierto ? "bg-crema/50" : ""}`}
+                className={`${GRID} cursor-pointer border-b border-borde px-3 py-2 ${abierto ? "bg-crema/50" : ""}`}
               >
                 <span className="font-medium text-tinta">{input.cargo}</span>
                 <span onClick={(e) => e.stopPropagation()}>
