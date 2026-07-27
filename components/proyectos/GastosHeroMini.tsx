@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { GastoItem, Objetivo, Proyecto } from "@/lib/proyectos";
 import { CAT_COLOR, catLabel, colorDe, fmtCLP, mesAnio } from "@/lib/proyectos-utilidades";
+import AnilloProgreso from "./AnilloProgreso";
 
 interface Categoria {
   categoria: string;
@@ -29,6 +30,7 @@ export default function GastosHeroMini({
   const gastado = gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const disponible = presupuesto - gastado;
   const pctUsado = presupuesto > 0 ? Math.min(100, Math.round((gastado / presupuesto) * 100)) : 0;
+  const sobrePresupuesto = disponible < 0;
 
   const porCategoria = useMemo(() => {
     const mapa = new Map<string, Categoria>();
@@ -61,31 +63,55 @@ export default function GastosHeroMini({
   const maxObjetivo = porObjetivo[0]?.total || 1;
 
   return (
-    <div className="flex max-w-[340px] flex-col">
-      <span className="etiqueta-seccion">Gastos · {mesAnio()}</span>
-      <p className="mt-2.5 text-[9px] font-semibold uppercase tracking-[.14em] text-tinta/45">Presupuesto inicial</p>
-      <p className="mt-1 text-[26px] font-medium leading-none tracking-tight text-tinta">{fmtCLP(presupuesto)}</p>
+    <div className="relative mx-auto w-full max-w-sm overflow-hidden bg-white px-6 py-5 shadow-[0_20px_40px_rgba(12,10,9,.08)]">
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-1"
+        style={{ background: "linear-gradient(180deg, #C85217 0%, #E67E3F 50%, #00A080 100%)" }}
+      />
+      <div className="flex items-baseline justify-between border-b border-borde pb-3.5">
+        <span className="etiqueta-seccion">Gastos · {mesAnio()}</span>
+        <span className="text-xs font-medium tracking-wide text-tinta/50">
+          {fmtCLP(gastado)}
+          {presupuesto > 0 && ` / ${fmtCLP(presupuesto)}`}
+        </span>
+      </div>
 
-      {presupuesto > 0 && (
-        <div className="mt-3">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-crema">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${pctUsado}%`, background: "linear-gradient(90deg, #C85217, #00A080)" }}
-            />
-          </div>
-          <div className="mt-1.5 flex items-center justify-between text-[10px] text-tinta/50">
-            <span>
-              Gastado <strong className="text-tinta">{fmtCLP(gastado)}</strong> · {pctUsado}%
+      <div className="flex justify-center py-5">
+        <div className="relative flex items-center justify-center">
+          <AnilloProgreso pct={pctUsado} size={104} stroke={8} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={`text-[26px] font-medium leading-none tracking-tight ${sobrePresupuesto ? "text-red-600" : "text-tinta"}`}>
+              {pctUsado}
+              <span className="text-xs font-normal text-tinta/50">%</span>
             </span>
-            <span>
-              Disponible <strong className={disponible < 0 ? "text-red-600" : "text-tinta"}>{fmtCLP(disponible)}</strong>
+            <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[.18em] text-tinta/50">
+              {presupuesto === 0 ? "sin presupuesto" : "usado"}
             </span>
           </div>
         </div>
-      )}
+      </div>
 
-      <div className="mt-2.5 flex items-center justify-between">
+      <div className="grid grid-cols-3 gap-0 border-t border-borde pt-4">
+        <div className="flex flex-col items-center gap-1.5">
+          <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Presupuesto</span>
+          <span className="text-lg font-medium leading-none tracking-tight text-tinta">{fmtCLP(presupuesto)}</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 border-x border-borde">
+          <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Gastado</span>
+          <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#C85217" }}>
+            {fmtCLP(gastado)}
+          </span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5">
+          <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Disponible</span>
+          <span className="text-lg font-medium leading-none tracking-tight" style={{ color: sobrePresupuesto ? "#dc2626" : "#00A080" }}>
+            {fmtCLP(disponible)}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-borde pt-3.5">
         <p className="text-[10px] text-tinta/45">
           {vista === "categoria"
             ? `${porCategoria.length} categoría${porCategoria.length === 1 ? "" : "s"} con gasto`
