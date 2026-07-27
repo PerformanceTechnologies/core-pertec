@@ -183,7 +183,7 @@ export default function DotacionTab({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-borde bg-white">
+      <div className="overflow-x-auto rounded-xl border border-borde bg-white">
         <div className={`${GRID} border-b-2 border-tinta px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/40`}>
           <span>Cargo</span>
           <span>Turno</span>
@@ -501,7 +501,7 @@ export default function DotacionTab({
             )}
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-borde bg-white">
+          <div className="overflow-x-auto rounded-xl border border-borde bg-white">
             <div className="grid grid-cols-[minmax(160px,1.5fr)_100px_112px_100px_100px_100px_112px_112px_28px] items-center gap-x-2 border-b-2 border-tinta px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/40">
               <span>Cargo</span>
               <span>Clasificación</span>

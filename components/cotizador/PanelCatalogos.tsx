@@ -142,7 +142,7 @@ export default function PanelCatalogos({
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_.85fr] lg:items-start">
-        <div className="overflow-hidden rounded-xl border border-borde bg-white">
+        <div className="overflow-x-auto rounded-xl border border-borde bg-white">
           <div className="flex items-center justify-between border-b border-borde px-4 py-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-tinta/50">
               Cargos — sueldos referenciales
