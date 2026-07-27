@@ -18,6 +18,14 @@ const nextConfig: NextConfig = {
       "./node_modules/@sparticuz/chromium-min/**/*",
     ],
     "/api/cron/finanzas-historico": ["./node_modules/pdf-parse/**/*"],
+    // Las claves son route globs (picomatch) contra el pathname, no rutas de
+    // archivo -- un segmento dinamico como [id] hay que escaparlo (\\[id\\])
+    // o picomatch lo interpreta como una clase de caracteres del glob y la
+    // ruta nunca hace match, dejando la funcion sin estos archivos igual.
+    "/api/cotizador/\\[id\\]/eco-pdf": [
+      "./node_modules/playwright-core/**/*",
+      "./node_modules/@sparticuz/chromium-min/**/*",
+    ],
   },
 };
 
