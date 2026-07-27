@@ -28,6 +28,7 @@ export default function FormularioObjetivoModal({
   const [fechaFin, setFechaFin] = useState(objetivo?.fecha_fin ?? hoy);
   const [color, setColor] = useState(objetivo?.color ?? "cobre");
   const [hecho, setHecho] = useState(objetivo?.hecho ?? false);
+  const [presupuesto, setPresupuesto] = useState(objetivo?.presupuesto != null ? String(objetivo.presupuesto) : "");
   const [responsables, setResponsables] = useState<string[]>(objetivo?.responsables ?? []);
   const [borradorResp, setBorradorResp] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -61,6 +62,7 @@ export default function FormularioObjetivoModal({
           hecho,
           responsables,
           parent_id: objetivo?.parent_id ?? null,
+          presupuesto: Number(presupuesto) || 0,
         }),
       });
       const cuerpo = await respuesta.json();
@@ -119,6 +121,19 @@ export default function FormularioObjetivoModal({
               <input required type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className={inputClase} />
             </label>
           </div>
+
+          <label>
+            <span className="block text-xs font-medium text-tinta/70">Presupuesto (CLP)</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={presupuesto}
+              onChange={(e) => setPresupuesto(e.target.value)}
+              placeholder="Ej: 500000"
+              className={inputClase}
+            />
+          </label>
 
           <div>
             <span className="block text-xs font-medium text-tinta/70">Color</span>

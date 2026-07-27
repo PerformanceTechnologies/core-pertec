@@ -188,7 +188,12 @@ export default function VistaProyecto({
       </div>
 
       {seccion === "gastos" && puedeVerGastosProyecto && proyecto ? (
-        <GastosProyecto proyecto={proyecto} puedeEditar={puedeEditarGastos(rolPanel)} onActualizado={cargar} />
+        <GastosProyecto
+          proyecto={proyecto}
+          objetivos={objetivos ?? []}
+          puedeEditar={puedeEditarGastos(rolPanel)}
+          onActualizado={cargar}
+        />
       ) : seccion === "mantencion" ? (
         <SeccionMantencion rolPanel={rolPanel} />
       ) : (

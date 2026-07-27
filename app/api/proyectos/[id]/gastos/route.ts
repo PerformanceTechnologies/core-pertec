@@ -34,15 +34,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await request.json();
   const presupuesto = Number(body.presupuesto_inicial) || 0;
+  const saldoGlobalAsignado = Number(body.saldo_global_asignado) || 0;
   const gastos = Array.isArray(body.gastos)
     ? body.gastos
-        .map((g: { categoria?: string; tag?: string; label?: string; monto?: string | number; archivos?: unknown }) => ({
-          categoria: g.categoria || null,
-          tag: (g.tag || "").toString().trim() || null,
-          label: (g.label || "").toString().trim() || null,
-          monto: g.monto === "" || g.monto == null ? 0 : Number(g.monto),
-          archivos: leerArchivos(g.archivos),
-        }))
+        .map(
+          (g: {
+            categoria?: string;
+            tag?: string;
+            label?: string;
+            monto?: string | number;
+            archivos?: unknown;
+            objetivo_id?: string | null;
+          }) => ({
+            categoria: g.categoria || null,
+            tag: (g.tag || "").toString().trim() || null,
+            label: (g.label || "").toString().trim() || null,
+            monto: g.monto === "" || g.monto == null ? 0 : Number(g.monto),
+            archivos: leerArchivos(g.archivos),
+            objetivo_id: g.objetivo_id || null,
+          }),
+        )
         .filter(
           (g: { categoria: string | null; tag: string | null; label: string | null; monto: number; archivos: ArchivoGasto[] }) =>
             g.categoria || g.tag || g.label || g.monto > 0 || g.archivos.length > 0,
@@ -50,7 +61,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     : [];
 
   try {
-    await actualizarGastosProyecto(id, { presupuesto_inicial: presupuesto, gastos });
+    await actualizarGastosProyecto(id, {
+      presupuesto_inicial: presupuesto,
+      saldo_global_asignado: saldoGlobalAsignado,
+      gastos,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[proyectos] Error al actualizar gastos:", error);
