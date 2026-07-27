@@ -19,6 +19,16 @@ const TURNO_OPTS: { value: Turno; label: string }[] = [
 const GRID =
   "grid grid-cols-[minmax(160px,1.5fr)_70px_40px_40px_46px_100px_104px_112px_112px_92px_112px_84px_28px] gap-x-2 items-center";
 
+// Opciones del selector de Cargo: nombres del catálogo + el valor actual (si
+// no está en el catálogo, ej. cargos ya creados antes de que existiera esta
+// tabla) — así nunca se pierde ni se fuerza a cambiar un nombre existente.
+function opcionesCargo(catalogoCargos: CatalogoCargo[], valorActual: string): { value: string; label: string }[] {
+  const nombres = new Set(catalogoCargos.map((c) => c.cargo));
+  const opciones = catalogoCargos.map((c) => ({ value: c.cargo, label: c.cargo }));
+  if (valorActual && !nombres.has(valorActual)) opciones.unshift({ value: valorActual, label: valorActual });
+  return opciones;
+}
+
 function DetailColumn({ titulo, filas }: { titulo: string; filas: { k: string; n?: string; v: string; fuerte?: boolean }[] }) {
   return (
     <div>
@@ -307,7 +317,12 @@ export default function DotacionTab({
                     <div className="col-span-2">
                       <div className="text-[10px] font-semibold uppercase text-tinta/40">Cargo</div>
                       <div className="mt-1">
-                        <TextInput value={input.cargo} onChange={(v) => updateStaff(input.id, { cargo: v })} disabled={disabled} />
+                        <SelectInput
+                          value={input.cargo}
+                          onChange={(v) => updateStaff(input.id, { cargo: v })}
+                          options={opcionesCargo(catalogoCargos, input.cargo)}
+                          disabled={disabled}
+                        />
                       </div>
                     </div>
                     <div>
@@ -523,7 +538,12 @@ export default function DotacionTab({
                   key={input.id}
                   className="grid grid-cols-[minmax(160px,1.5fr)_100px_112px_100px_100px_100px_112px_112px_28px] items-center gap-x-2 border-b border-borde px-4 py-2 text-sm"
                 >
-                  <TextInput value={input.cargo} onChange={(v) => updateSpotContrato(input.id, { cargo: v })} disabled={disabled} />
+                  <SelectInput
+                    value={input.cargo}
+                    onChange={(v) => updateSpotContrato(input.id, { cargo: v })}
+                    options={opcionesCargo(catalogoCargos, input.cargo)}
+                    disabled={disabled}
+                  />
                   <SelectInput
                     value={input.clasificacion}
                     onChange={(v) => updateSpotContrato(input.id, { clasificacion: v })}
