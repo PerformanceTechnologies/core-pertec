@@ -23,7 +23,7 @@ export default function IndicadorVariacion({
   const esBueno = esGasto ? !sube : sube;
   return (
     <span
-      className={`ml-1.5 inline-flex items-center text-[10px] font-semibold ${esBueno ? "text-teal" : "text-red-600"}`}
+      className={`inline-flex shrink-0 items-center text-[10px] font-semibold ${esBueno ? "text-teal" : "text-red-600"}`}
       title="vs. mes anterior"
     >
       {sube ? "▲" : "▼"} {Math.abs(Math.round(variacion.pct))}%

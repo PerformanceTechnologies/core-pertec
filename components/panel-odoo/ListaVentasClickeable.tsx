@@ -15,21 +15,24 @@ export default function ListaVentasClickeable({ ventas }: { ventas: FilaVenta[] 
   return (
     <>
       <div className="mt-3 divide-y divide-borde">
-        {ventas.map((v) => (
-          <button
-            key={v.odoo_id}
-            type="button"
-            onClick={() => setSeleccionada(v)}
-            className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
-          >
-            <span className="min-w-0 flex-1 truncate text-tinta/70">
-              {v.partner_nombre ?? v.numero ?? `#${v.odoo_id}`}
-              {v.es_arriendo && <span className="ml-1 text-naranjo">(arriendo)</span>}
-            </span>
-            <span className="ml-3 shrink-0 text-tinta/45">{v.fecha_orden ? fechaCl(v.fecha_orden) : "-"}</span>
-            <span className="ml-3 shrink-0 font-semibold text-tinta">{money(v.monto_total)}</span>
-          </button>
-        ))}
+        {ventas.map((v) => {
+          const nombre = v.partner_nombre ?? v.numero ?? `#${v.odoo_id}`;
+          return (
+            <button
+              key={v.odoo_id}
+              type="button"
+              onClick={() => setSeleccionada(v)}
+              className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
+            >
+              <span title={nombre} className="min-w-0 flex-1 truncate text-tinta/70">
+                {nombre}
+                {v.es_arriendo && <span className="ml-1 text-naranjo">(arriendo)</span>}
+              </span>
+              <span className="ml-3 shrink-0 text-tinta/45">{v.fecha_orden ? fechaCl(v.fecha_orden) : "-"}</span>
+              <span className="ml-3 shrink-0 font-semibold text-tinta">{money(v.monto_total)}</span>
+            </button>
+          );
+        })}
       </div>
       {seleccionada && <ModalDetalleVenta venta={seleccionada} onCerrar={() => setSeleccionada(null)} />}
     </>

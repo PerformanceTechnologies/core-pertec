@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -16,6 +16,8 @@ import {
   IconChevronRight,
   IconLogout,
   IconSearch,
+  IconSun,
+  IconMoon,
 } from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
@@ -43,6 +45,27 @@ function leerColapsada() {
 }
 function leerColapsadaServidor() {
   return false;
+}
+
+const CLAVE_TEMA = "core-tema";
+const EVENTO_TEMA = "core-tema-cambio";
+
+// Mismo patrón que colapsada: localStorage no avisa a la misma pestaña que
+// escribe, así que se dispara un evento propio para que useSyncExternalStore
+// vuelva a leer acá mismo.
+function suscribirseTema(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(EVENTO_TEMA, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(EVENTO_TEMA, callback);
+  };
+}
+function leerTema(): "light" | "dark" {
+  return localStorage.getItem(CLAVE_TEMA) === "dark" ? "dark" : "light";
+}
+function leerTemaServidor(): "light" | "dark" {
+  return "light";
 }
 
 function suscribirseDesktop(callback: () => void) {
@@ -91,10 +114,34 @@ export default function BarraLateral({
   rol: Rol;
   apps: Aplicacion[];
 }) {
-  const [abierta, setAbierta] = useState(false);
-  const [buscadorAbierto, setBuscadorAbierto] = useState(false);
+  // "Abierta desde" en vez de un booleano + efecto que lo resetea: al
+  // guardar el pathname vigente cuando se abre, "abierta"/"buscadorAbierto"
+  // se derivan comparando contra el pathname actual en cada render, así que
+  // se cierran solos apenas cambia la ruta (por cualquier vía: un link del
+  // nav, una tarjeta del dashboard, un resultado del buscador, atrás/adelante
+  // del navegador) sin necesitar un useEffect que llame setState.
+  const [abiertaDesde, setAbiertaDesde] = useState<string | null>(null);
+  const [buscadorAbiertoDesde, setBuscadorAbiertoDesde] = useState<string | null>(null);
   const pathname = usePathname();
   const esAdmin = rol === "admin";
+  const abierta = abiertaDesde === pathname;
+  const buscadorAbierto = buscadorAbiertoDesde === pathname;
+
+  function abrirMenu() {
+    setAbiertaDesde(pathname);
+  }
+  function cerrarMenu() {
+    setAbiertaDesde(null);
+  }
+  // useCallback (no una función plana) porque el atajo Ctrl+K la usa dentro
+  // de un efecto: así su referencia solo cambia junto con "pathname" y ese
+  // efecto no tiene que re-registrar el listener en cada render.
+  const abrirBuscador = useCallback(() => {
+    setBuscadorAbiertoDesde(pathname);
+  }, [pathname]);
+  function cerrarBuscador() {
+    setBuscadorAbiertoDesde(null);
+  }
 
   // Ambas usan useSyncExternalStore (no useState+useEffect) para que el
   // snapshot del servidor (siempre false) coincida con el primer render del
@@ -102,48 +149,64 @@ export default function BarraLateral({
   // el montaje sin que el componente dispare un setState manual.
   const colapsada = useSyncExternalStore(suscribirseColapsada, leerColapsada, leerColapsadaServidor);
   const esDesktop = useSyncExternalStore(suscribirseDesktop, leerEsDesktop, leerEsDesktopServidor);
+  const tema = useSyncExternalStore(suscribirseTema, leerTema, leerTemaServidor);
   // El colapso es una preferencia de desktop; en el drawer mobile siempre se
   // ve expandido aunque quede guardada como colapsada.
   const colapsado = colapsada && esDesktop;
 
-  // El layout no se remonta entre navegaciones (RSC), así que sin esto el
-  // menú se queda abierto tapando la página nueva después de tocar un link.
+  // Sincroniza el atributo que globals.css usa para pintar el tema oscuro.
+  // No guarda estado de React, solo refleja "tema" hacia afuera -- uso
+  // legítimo de efecto (el script sin-flash de app/layout.tsx ya deja esto
+  // bien en el primer paint; esto solo lo mantiene al cambiar en caliente).
   useEffect(() => {
-    setAbierta(false);
-    setBuscadorAbierto(false);
-  }, [pathname]);
+    if (tema === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    else document.documentElement.removeAttribute("data-theme");
+  }, [tema]);
 
   // Atajo global Ctrl+K / Cmd+K para abrir el buscador desde cualquier
-  // página del área protegida (BarraLateral se monta una sola vez).
+  // página del área protegida.
   useEffect(() => {
     function alTeclado(evento: KeyboardEvent) {
       if ((evento.metaKey || evento.ctrlKey) && evento.key.toLowerCase() === "k") {
         evento.preventDefault();
-        setBuscadorAbierto(true);
+        abrirBuscador();
       }
     }
     document.addEventListener("keydown", alTeclado);
     return () => document.removeEventListener("keydown", alTeclado);
-  }, []);
+  }, [abrirBuscador]);
 
   function alternarColapsada() {
     localStorage.setItem(CLAVE_COLAPSADA, colapsada ? "0" : "1");
     window.dispatchEvent(new Event(EVENTO_COLAPSADA));
   }
 
+  function alternarTema() {
+    localStorage.setItem(CLAVE_TEMA, tema === "dark" ? "light" : "dark");
+    window.dispatchEvent(new Event(EVENTO_TEMA));
+  }
+
   const contenido = (
     <div className="flex h-full flex-col">
-      <div className={`flex items-center gap-3 px-5 py-5 ${colapsado ? "lg:justify-center lg:px-3" : ""}`}>
-        <Image
-          src="/logo-pertec.png"
-          alt="Performance Technologies — PERTEC"
-          width={220}
-          height={170}
-          className="h-10 w-auto object-contain"
-          priority
-        />
-        {!colapsado && (
-          <span className="font-condensed text-base font-bold uppercase text-tinta">Core PERTEC</span>
+      <div className={`flex items-center px-5 py-5 ${colapsado ? "lg:justify-center lg:px-3" : ""}`}>
+        {colapsado ? (
+          <Image
+            src="/logo-pertec.png"
+            alt="Performance Technologies — PERTEC"
+            width={220}
+            height={170}
+            className="h-10 w-auto object-contain"
+            priority
+          />
+        ) : (
+          <Image
+            src="/corepertec.png"
+            alt="Core PERTEC"
+            width={927}
+            height={324}
+            className="h-8 w-auto object-contain"
+            priority
+          />
         )}
       </div>
 
@@ -260,11 +323,19 @@ export default function BarraLateral({
           <div className="flex flex-col items-center gap-2">
             <button
               type="button"
-              onClick={() => setBuscadorAbierto(true)}
+              onClick={abrirBuscador}
               title="Buscar"
               className="rounded-lg p-2 text-tinta/45 transition hover:bg-naranjo/10 hover:text-naranjo"
             >
               <IconSearch size={16} stroke={1.75} />
+            </button>
+            <button
+              type="button"
+              onClick={alternarTema}
+              title={tema === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              className="rounded-lg p-2 text-tinta/45 transition hover:bg-naranjo/10 hover:text-naranjo"
+            >
+              {tema === "dark" ? <IconSun size={16} stroke={1.75} /> : <IconMoon size={16} stroke={1.75} />}
             </button>
             <div
               title={correo}
@@ -285,18 +356,28 @@ export default function BarraLateral({
           </div>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={() => setBuscadorAbierto(true)}
-              title="Buscar"
-              className="mb-3 flex w-full items-center gap-2.5 rounded-lg border border-borde px-2.5 py-2 text-tinta/45 transition hover:border-naranjo/30 hover:text-naranjo"
-            >
-              <IconSearch size={16} stroke={1.75} className="shrink-0" />
-              <span className="flex-1 text-left text-sm">Buscar</span>
-              <span className="shrink-0 rounded border border-borde px-1.5 py-0.5 text-[10px] font-semibold text-tinta/35">
-                Ctrl K
-              </span>
-            </button>
+            <div className="mb-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={abrirBuscador}
+                title="Buscar"
+                className="flex flex-1 items-center gap-2.5 rounded-lg border border-borde px-2.5 py-2 text-tinta/45 transition hover:border-naranjo/30 hover:text-naranjo"
+              >
+                <IconSearch size={16} stroke={1.75} className="shrink-0" />
+                <span className="flex-1 text-left text-sm">Buscar</span>
+                <span className="shrink-0 rounded border border-borde px-1.5 py-0.5 text-[10px] font-semibold text-tinta/35">
+                  Ctrl K
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={alternarTema}
+                title={tema === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+                className="shrink-0 rounded-lg border border-borde p-2 text-tinta/45 transition hover:border-naranjo/30 hover:text-naranjo"
+              >
+                {tema === "dark" ? <IconSun size={16} stroke={1.75} /> : <IconMoon size={16} stroke={1.75} />}
+              </button>
+            </div>
 
             <div className="flex items-center gap-2.5 rounded-lg px-1 py-1">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo">
@@ -329,16 +410,13 @@ export default function BarraLateral({
     <>
       <div className="flex items-center justify-between border-b border-borde bg-crema/95 px-4 py-3 backdrop-blur-sm lg:hidden">
         {pathname === "/" ? (
-          <div className="flex items-center gap-2">
-            <Image
-              src="/logo-pertec.png"
-              alt="Performance Technologies — PERTEC"
-              width={220}
-              height={170}
-              className="h-8 w-auto object-contain"
-            />
-            <span className="font-condensed text-sm font-bold uppercase text-tinta">Core PERTEC</span>
-          </div>
+          <Image
+            src="/corepertec.png"
+            alt="Core PERTEC"
+            width={927}
+            height={324}
+            className="h-7 w-auto object-contain"
+          />
         ) : (
           <Link href="/" className="flex items-center gap-1.5 text-sm font-semibold text-tinta">
             <IconArrowLeft size={18} stroke={2} />
@@ -347,7 +425,7 @@ export default function BarraLateral({
         )}
         <button
           type="button"
-          onClick={() => setAbierta(true)}
+          onClick={abrirMenu}
           aria-label="Abrir menú"
           className="rounded-lg border border-borde p-2 text-tinta/70"
         >
@@ -358,7 +436,7 @@ export default function BarraLateral({
       {abierta && (
         <div
           className="fixed inset-0 z-50 bg-black/40 lg:hidden"
-          onClick={() => setAbierta(false)}
+          onClick={cerrarMenu}
         />
       )}
 
@@ -370,7 +448,7 @@ export default function BarraLateral({
       >
         <button
           type="button"
-          onClick={() => setAbierta(false)}
+          onClick={cerrarMenu}
           aria-label="Cerrar menú"
           className="absolute right-3 top-3 rounded-lg p-1.5 text-tinta/50 lg:hidden"
         >
@@ -391,7 +469,7 @@ export default function BarraLateral({
       </aside>
 
       {buscadorAbierto && (
-        <BuscadorGlobal alCerrar={() => setBuscadorAbierto(false)} apps={apps} esAdmin={esAdmin} />
+        <BuscadorGlobal alCerrar={cerrarBuscador} apps={apps} esAdmin={esAdmin} />
       )}
     </>
   );

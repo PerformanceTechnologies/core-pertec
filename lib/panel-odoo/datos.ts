@@ -180,6 +180,7 @@ export interface KpisCrm {
   oportunidadesAbiertas: number;
   montoEsperadoTotal: number;
   porEtapa: { etapa: string; cantidad: number }[];
+  montoPorEtapa: { etapa: string; cantidad: number; monto: number }[];
 }
 
 export async function obtenerKpisCrm(companyId: number): Promise<KpisCrm> {
@@ -190,16 +191,24 @@ export async function obtenerKpisCrm(companyId: number): Promise<KpisCrm> {
     .eq("tipo", "opportunity");
 
   const filas = data ?? [];
-  const porEtapaMapa = new Map<string, number>();
+  const porEtapaMapa = new Map<string, { cantidad: number; monto: number }>();
   for (const fila of filas) {
     const etapa = fila.etapa ?? "Sin etapa";
-    porEtapaMapa.set(etapa, (porEtapaMapa.get(etapa) ?? 0) + 1);
+    const actual = porEtapaMapa.get(etapa) ?? { cantidad: 0, monto: 0 };
+    actual.cantidad += 1;
+    actual.monto += fila.monto_esperado ?? 0;
+    porEtapaMapa.set(etapa, actual);
   }
+
+  const montoPorEtapa = Array.from(porEtapaMapa.entries())
+    .map(([etapa, v]) => ({ etapa, ...v }))
+    .sort((a, b) => b.monto - a.monto);
 
   return {
     oportunidadesAbiertas: filas.length,
     montoEsperadoTotal: filas.reduce((acc, f) => acc + (f.monto_esperado ?? 0), 0),
-    porEtapa: Array.from(porEtapaMapa.entries()).map(([etapa, cantidad]) => ({ etapa, cantidad })),
+    porEtapa: montoPorEtapa.map(({ etapa, cantidad }) => ({ etapa, cantidad })),
+    montoPorEtapa,
   };
 }
 
@@ -386,13 +395,24 @@ export interface FilaVenta {
   fecha_fin_arriendo: string | null;
 }
 
+export interface ArriendoPorVencer {
+  odoo_id: number;
+  numero: string | null;
+  partner_nombre: string | null;
+  fecha_fin_arriendo: string;
+  monto_total: number;
+}
+
 export interface KpisVentas {
   ventasMes: number;
   ventasMesAnterior: number;
   arriendosActivos: number;
   montoArriendosActivos: number;
+  arriendosPorVencer: ArriendoPorVencer[];
   serieMensualVentas: { mes: string; monto: number }[];
 }
+
+const DIAS_ALERTA_ARRIENDO = 15;
 
 export async function obtenerKpisVentas(companyId: number): Promise<KpisVentas> {
   const { data: ultimos6Meses } = await supabaseAdmin
@@ -410,6 +430,20 @@ export async function obtenerKpisVentas(companyId: number): Promise<KpisVentas> 
     .eq("es_arriendo", true)
     .eq("estado_arriendo", "confirmed");
 
+  const hoy = new Date();
+  const limiteAlerta = new Date(hoy);
+  limiteAlerta.setDate(limiteAlerta.getDate() + DIAS_ALERTA_ARRIENDO);
+  const { data: porVencer } = await supabaseAdmin
+    .from("panel_odoo_ventas")
+    .select("odoo_id, numero, partner_nombre, fecha_fin_arriendo, monto_total")
+    .eq("company_id", companyId)
+    .eq("es_arriendo", true)
+    .eq("estado_arriendo", "confirmed")
+    .not("fecha_fin_arriendo", "is", null)
+    .gte("fecha_fin_arriendo", hoy.toISOString().slice(0, 10))
+    .lte("fecha_fin_arriendo", limiteAlerta.toISOString().slice(0, 10))
+    .order("fecha_fin_arriendo", { ascending: true });
+
   const porMes = new Map<string, number>();
   for (const fila of ultimos6Meses ?? []) {
     if (!fila.fecha_orden) continue;
@@ -422,6 +456,7 @@ export async function obtenerKpisVentas(companyId: number): Promise<KpisVentas> 
     ventasMesAnterior: porMes.get(claveMes(-1)) ?? 0,
     arriendosActivos: (arriendosActivos ?? []).length,
     montoArriendosActivos: (arriendosActivos ?? []).reduce((acc, f) => acc + f.monto_total, 0),
+    arriendosPorVencer: (porVencer ?? []) as ArriendoPorVencer[],
     serieMensualVentas: Array.from(porMes.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, monto]) => ({ mes, monto })),

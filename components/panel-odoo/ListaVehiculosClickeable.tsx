@@ -21,7 +21,7 @@ export default function ListaVehiculosClickeable({ vehiculos }: { vehiculos: Fil
             onClick={() => setSeleccionado(v)}
             className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
           >
-            <span className="min-w-0 flex-1 truncate text-tinta/70">{v.nombre}</span>
+            <span title={v.nombre} className="min-w-0 flex-1 truncate text-tinta/70">{v.nombre}</span>
             <span className="ml-3 shrink-0 text-tinta/45">{v.patente ?? "-"}</span>
             <span className="ml-3 shrink-0 font-semibold text-tinta">{v.estado ?? "-"}</span>
           </button>

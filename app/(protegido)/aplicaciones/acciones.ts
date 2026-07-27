@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { exigirAdmin } from "@/lib/autorizacion";
-import { crearAplicacion, actualizarAplicacion, eliminarAplicacion } from "@/lib/aplicaciones";
+import { crearAplicacion, actualizarAplicacion, eliminarAplicacion, moverAplicacion } from "@/lib/aplicaciones";
 import type { ColorApp, EstadoApp, TipoApp } from "@/lib/tipos";
 
 function leerDatosFormulario(form: FormData) {
@@ -38,6 +38,15 @@ export async function eliminarAplicacionAction(form: FormData) {
   await exigirAdmin();
   const id = String(form.get("id"));
   await eliminarAplicacion(id);
+  revalidatePath("/aplicaciones");
+  revalidatePath("/");
+}
+
+export async function moverAplicacionAction(form: FormData) {
+  await exigirAdmin();
+  const id = String(form.get("id"));
+  const direccion = form.get("direccion") === "abajo" ? "abajo" : "arriba";
+  await moverAplicacion(id, direccion);
   revalidatePath("/aplicaciones");
   revalidatePath("/");
 }

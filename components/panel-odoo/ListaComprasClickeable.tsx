@@ -15,18 +15,21 @@ export default function ListaComprasClickeable({ compras }: { compras: FilaCompr
   return (
     <>
       <div className="mt-3 divide-y divide-borde">
-        {compras.map((c) => (
-          <button
-            key={c.odoo_id}
-            type="button"
-            onClick={() => setSeleccionada(c)}
-            className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
-          >
-            <span className="min-w-0 flex-1 truncate text-tinta/70">{c.partner_nombre ?? c.numero ?? `#${c.odoo_id}`}</span>
-            <span className="ml-3 shrink-0 text-tinta/45">{c.fecha_orden ? fechaCl(c.fecha_orden) : "-"}</span>
-            <span className="ml-3 shrink-0 font-semibold text-tinta">{money(c.monto_total)}</span>
-          </button>
-        ))}
+        {compras.map((c) => {
+          const nombre = c.partner_nombre ?? c.numero ?? `#${c.odoo_id}`;
+          return (
+            <button
+              key={c.odoo_id}
+              type="button"
+              onClick={() => setSeleccionada(c)}
+              className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
+            >
+              <span title={nombre} className="min-w-0 flex-1 truncate text-tinta/70">{nombre}</span>
+              <span className="ml-3 shrink-0 text-tinta/45">{c.fecha_orden ? fechaCl(c.fecha_orden) : "-"}</span>
+              <span className="ml-3 shrink-0 font-semibold text-tinta">{money(c.monto_total)}</span>
+            </button>
+          );
+        })}
       </div>
       {seleccionada && <ModalDetalleCompra compra={seleccionada} onCerrar={() => setSeleccionada(null)} />}
     </>

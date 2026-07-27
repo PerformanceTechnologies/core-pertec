@@ -15,22 +15,25 @@ export default function ListaFacturasClickeable({ facturas }: { facturas: FilaFa
   return (
     <>
       <div className="mt-3 divide-y divide-borde">
-        {facturas.map((f) => (
-          <button
-            key={f.odoo_id}
-            type="button"
-            onClick={() => setSeleccionada(f)}
-            className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
-          >
-            <span className="min-w-0 flex-1 truncate text-tinta/70">
-              {f.partner_nombre ?? f.numero ?? `#${f.odoo_id}`}
-            </span>
-            <span className="ml-3 shrink-0 text-tinta/45">
-              {f.fecha_factura ? fechaCl(f.fecha_factura) : "-"}
-            </span>
-            <span className="ml-3 shrink-0 font-semibold text-tinta">{money(f.monto_total)}</span>
-          </button>
-        ))}
+        {facturas.map((f) => {
+          const nombre = f.partner_nombre ?? f.numero ?? `#${f.odoo_id}`;
+          return (
+            <button
+              key={f.odoo_id}
+              type="button"
+              onClick={() => setSeleccionada(f)}
+              className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
+            >
+              <span title={nombre} className="min-w-0 flex-1 truncate text-tinta/70">
+                {nombre}
+              </span>
+              <span className="ml-3 shrink-0 text-tinta/45">
+                {f.fecha_factura ? fechaCl(f.fecha_factura) : "-"}
+              </span>
+              <span className="ml-3 shrink-0 font-semibold text-tinta">{money(f.monto_total)}</span>
+            </button>
+          );
+        })}
       </div>
       {seleccionada && <ModalDetalleFactura factura={seleccionada} onCerrar={() => setSeleccionada(null)} />}
     </>

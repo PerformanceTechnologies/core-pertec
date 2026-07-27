@@ -15,18 +15,21 @@ export default function ListaGastosClickeable({ gastos }: { gastos: FilaGasto[] 
   return (
     <>
       <div className="mt-3 divide-y divide-borde">
-        {gastos.map((g) => (
-          <button
-            key={g.odoo_id}
-            type="button"
-            onClick={() => setSeleccionado(g)}
-            className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
-          >
-            <span className="min-w-0 flex-1 truncate text-tinta/70">{g.descripcion ?? g.empleado ?? `#${g.odoo_id}`}</span>
-            <span className="ml-3 shrink-0 text-tinta/45">{g.fecha ? fechaCl(g.fecha) : "-"}</span>
-            <span className="ml-3 shrink-0 font-semibold text-tinta">{money(g.monto_total)}</span>
-          </button>
-        ))}
+        {gastos.map((g) => {
+          const nombre = g.descripcion ?? g.empleado ?? `#${g.odoo_id}`;
+          return (
+            <button
+              key={g.odoo_id}
+              type="button"
+              onClick={() => setSeleccionado(g)}
+              className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
+            >
+              <span title={nombre} className="min-w-0 flex-1 truncate text-tinta/70">{nombre}</span>
+              <span className="ml-3 shrink-0 text-tinta/45">{g.fecha ? fechaCl(g.fecha) : "-"}</span>
+              <span className="ml-3 shrink-0 font-semibold text-tinta">{money(g.monto_total)}</span>
+            </button>
+          );
+        })}
       </div>
       {seleccionado && <ModalDetalleGasto gasto={seleccionado} onCerrar={() => setSeleccionado(null)} />}
     </>

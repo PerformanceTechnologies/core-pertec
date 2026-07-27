@@ -29,6 +29,17 @@ export default function RootLayout({
       lang="es"
       className={`${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}
     >
+      <head>
+        {/* Sin esto, el tema oscuro guardado recién se aplicaría después de
+            hidratar React -- un parpadeo visible de claro a oscuro en cada
+            carga. Corre antes del primer paint, sincrónico, fuera de React. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('core-tema')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}",
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-crema text-tinta">{children}</body>
     </html>
   );

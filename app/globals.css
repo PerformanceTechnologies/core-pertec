@@ -11,6 +11,22 @@
   --color-gris: #8c8578;
   --color-gris-suave: #b8b2a4;
   --color-borde: #e7e1d8;
+  --color-superficie: #ffffff;
+}
+
+/* Oscuro derivado de la misma paleta (no negro puro): naranjo/teal se
+   mantienen -- ya tienen luminancia suficiente para leerse bien sobre
+   fondo oscuro -- y solo se ajusta la escala neutra (fondo, texto, bordes,
+   grises, superficie de tarjetas). Se activa stampeando data-theme="dark"
+   en <html> (ver alternarTema en BarraLateral.tsx y el script sin-flash de
+   app/layout.tsx). */
+:root[data-theme="dark"] {
+  --color-crema: #1c1a17;
+  --color-tinta: #f2ede4;
+  --color-gris: #a89e8d;
+  --color-gris-suave: #6b6459;
+  --color-borde: #37322b;
+  --color-superficie: #262320;
 }
 
 @theme inline {
@@ -23,8 +39,20 @@
   --color-gris: var(--color-gris);
   --color-gris-suave: var(--color-gris-suave);
   --color-borde: var(--color-borde);
+  --color-superficie: var(--color-superficie);
   --font-sans: var(--font-barlow);
   --font-condensed: var(--font-barlow-condensed);
+}
+
+/* Fuera de @layer a propósito (ver nota de ancho colapsado en BarraLateral):
+   las reglas sin layer siempre le ganan a las utilidades de Tailwind, así
+   que esto retiñe TODO lo que ya usa bg-white/bg-white/60 en el proyecto
+   (127 usos en 62 archivos) sin tener que tocar cada componente uno por uno. */
+[data-theme="dark"] .bg-white {
+  background-color: var(--color-superficie);
+}
+[data-theme="dark"] .bg-white\/60 {
+  background-color: color-mix(in srgb, var(--color-superficie) 60%, transparent);
 }
 
 html {
@@ -50,6 +78,11 @@ body {
   background-repeat: repeat;
   background-size: 180px 180px;
   background-attachment: fixed;
+}
+[data-theme="dark"] body {
+  /* Los trazos del patrón claro (tinta casi negra) se perderían contra un
+     fondo oscuro -- variante con trazos claros a la misma opacidad baja. */
+  background-image: url("/patron-topografico-oscuro.svg");
 }
 
 .font-condensed {
@@ -94,9 +127,19 @@ select,
 textarea {
   color-scheme: light;
 }
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  color-scheme: dark;
+}
 
 input:-webkit-autofill,
 select:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: var(--color-tinta);
+}
+[data-theme="dark"] input:-webkit-autofill,
+[data-theme="dark"] select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-superficie) inset;
   -webkit-text-fill-color: var(--color-tinta);
 }

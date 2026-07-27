@@ -21,8 +21,10 @@ export default function ListaTareasClickeable({ tareas }: { tareas: FilaTarea[] 
             onClick={() => setSeleccionada(t)}
             className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
           >
-            <span className="min-w-0 flex-1 truncate text-tinta/70">{t.nombre}</span>
-            <span className="ml-3 shrink-0 truncate text-tinta/45">{t.proyecto_nombre ?? "-"}</span>
+            <span title={t.nombre} className="min-w-0 flex-1 truncate text-tinta/70">{t.nombre}</span>
+            <span title={t.proyecto_nombre ?? undefined} className="ml-3 max-w-[35%] shrink-0 truncate text-tinta/45">
+              {t.proyecto_nombre ?? "-"}
+            </span>
           </button>
         ))}
       </div>

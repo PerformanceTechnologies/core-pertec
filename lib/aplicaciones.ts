@@ -11,6 +11,29 @@ export async function listarAplicaciones(): Promise<Aplicacion[]> {
   return (data ?? []) as Aplicacion[];
 }
 
+// Sube o baja una app un puesto en la lista y renumera el orden de TODAS
+// (0, 1, 2...) según la posición resultante. Renumerar siempre en vez de
+// solo intercambiar el campo "orden" de las dos apps movidas evita quedar
+// pisado por empates (dos apps con el mismo "orden", desempatadas hoy por
+// nombre) que harían que "subir" no cambiara nada visualmente.
+export async function moverAplicacion(id: string, direccion: "arriba" | "abajo"): Promise<void> {
+  const apps = await listarAplicaciones();
+  const indice = apps.findIndex((a) => a.id === id);
+  if (indice === -1) return;
+
+  const destino = direccion === "arriba" ? indice - 1 : indice + 1;
+  if (destino < 0 || destino >= apps.length) return; // ya está en el extremo
+
+  const reordenadas = [...apps];
+  [reordenadas[indice], reordenadas[destino]] = [reordenadas[destino], reordenadas[indice]];
+
+  const resultados = await Promise.all(
+    reordenadas.map((app, i) => supabaseAdmin.from("aplicaciones").update({ orden: i }).eq("id", app.id))
+  );
+  const error = resultados.find((r) => r.error)?.error;
+  if (error) throw new Error(error.message);
+}
+
 export async function obtenerAplicacionPorId(id: string): Promise<Aplicacion | null> {
   const { data } = await supabaseAdmin.from("aplicaciones").select("*").eq("id", id).maybeSingle();
   return (data as Aplicacion) ?? null;

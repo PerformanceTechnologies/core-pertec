@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { IconChevronUp, IconChevronDown } from "@tabler/icons-react";
 import { exigirAdmin } from "@/lib/autorizacion";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import { clasesInsigniaEstado, etiquetaEstado } from "@/lib/colores";
 import { obtenerIcono } from "@/lib/iconos";
 import FormularioAplicacion from "@/components/FormularioAplicacion";
 import BotonEliminar from "@/components/BotonEliminar";
-import { crearAplicacionAction, eliminarAplicacionAction } from "./acciones";
+import { crearAplicacionAction, eliminarAplicacionAction, moverAplicacionAction } from "./acciones";
 
 export default async function AplicacionesPage() {
   await exigirAdmin();
@@ -31,6 +32,9 @@ export default async function AplicacionesPage() {
         <table className="w-full min-w-[560px] text-left text-sm">
           <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
             <tr>
+              <th className="px-2 py-3">
+                <span className="sr-only">Orden</span>
+              </th>
               <th className="px-4 py-3">Aplicación</th>
               <th className="px-4 py-3">URL</th>
               <th className="px-4 py-3">Estado</th>
@@ -38,10 +42,38 @@ export default async function AplicacionesPage() {
             </tr>
           </thead>
           <tbody>
-            {apps.map((app) => {
+            {apps.map((app, indice) => {
               const Icono = obtenerIcono(app.icono);
               return (
                 <tr key={app.id} className="border-b border-borde last:border-0">
+                  <td className="px-2 py-3">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <form action={moverAplicacionAction}>
+                        <input type="hidden" name="id" value={app.id} />
+                        <input type="hidden" name="direccion" value="arriba" />
+                        <button
+                          type="submit"
+                          disabled={indice === 0}
+                          aria-label={`Subir ${app.nombre}`}
+                          className="rounded p-0.5 text-tinta/40 transition hover:bg-tinta/5 hover:text-naranjo disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-tinta/40"
+                        >
+                          <IconChevronUp size={14} stroke={2} />
+                        </button>
+                      </form>
+                      <form action={moverAplicacionAction}>
+                        <input type="hidden" name="id" value={app.id} />
+                        <input type="hidden" name="direccion" value="abajo" />
+                        <button
+                          type="submit"
+                          disabled={indice === apps.length - 1}
+                          aria-label={`Bajar ${app.nombre}`}
+                          className="rounded p-0.5 text-tinta/40 transition hover:bg-tinta/5 hover:text-naranjo disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-tinta/40"
+                        >
+                          <IconChevronDown size={14} stroke={2} />
+                        </button>
+                      </form>
+                    </div>
+                  </td>
                   <td className="flex items-center gap-2 px-4 py-3 font-medium text-tinta">
                     <Icono size={16} stroke={1.75} aria-hidden />
                     {app.nombre}
@@ -74,7 +106,7 @@ export default async function AplicacionesPage() {
             })}
             {apps.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-tinta/50">
+                <td colSpan={5} className="px-4 py-6 text-center text-tinta/50">
                   Todavía no hay aplicaciones registradas.
                 </td>
               </tr>
