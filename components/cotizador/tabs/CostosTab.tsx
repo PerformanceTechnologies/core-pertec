@@ -154,7 +154,7 @@ export default function CostosTab({
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-borde bg-white">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-borde bg-white">
         <div className="flex items-center gap-3 border-b border-borde px-4 py-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-tinta">{chip.label}</span>
           <Badge>{nItems} ítems</Badge>
