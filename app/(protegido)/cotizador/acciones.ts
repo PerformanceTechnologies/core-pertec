@@ -12,6 +12,7 @@ import {
   eliminarCotizacion,
 } from "@/lib/cotizador";
 import { esEmpresaValida, EMPRESAS } from "@/lib/cotizador/empresas";
+import { crearClienteOdoo, type ClienteOdoo } from "@/lib/cotizador/clientes-odoo";
 import type { QuotationInput } from "@/lib/cotizador/motor/types";
 
 function leerDatosMeta(form: FormData) {
@@ -72,4 +73,13 @@ export async function eliminarCotizacionAction(form: FormData) {
   const id = String(form.get("id"));
   await eliminarCotizacion(id);
   revalidatePath("/cotizador");
+}
+
+// Llamada directa (no vía <form>) desde el autocompletado de cliente: se usa
+// tanto al crear una cotización nueva como al editar una existente, así que
+// se gatea con "crear_cotizacion" (mismo nivel que "editar_cotizacion" en
+// ACCIONES_USUARIO — admin/usuario sí, visualizador no).
+export async function crearClienteOdooAction(nombre: string): Promise<ClienteOdoo> {
+  await exigirAccesoCotizador("crear_cotizacion");
+  return crearClienteOdoo(nombre);
 }

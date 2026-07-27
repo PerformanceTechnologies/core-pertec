@@ -2,9 +2,12 @@ import "server-only";
 
 // Cliente JSON-RPC generico contra Odoo (mismo patron que el script
 // exploratorio scripts/probar-odoo.mjs, pero reutilizable desde lib/).
-// Solo lectura: este archivo no expone ningun metodo de escritura a
-// proposito, para que sea imposible que un sincronizador futuro escriba
-// por error en la instancia de Odoo que el equipo sigue desarrollando.
+// Por defecto solo lectura: no se expone un execute_kw generico, para que
+// sea imposible que un sincronizador futuro escriba por error en la
+// instancia de Odoo que el equipo sigue desarrollando. La unica excepcion es
+// odooCreate — necesaria para crear clientes (res.partner) desde el
+// Cotizador (ver lib/cotizador/clientes-odoo.ts) — expuesta a proposito y de
+// forma acotada (un solo metodo, "create"), no un wildcard de escritura.
 
 interface ConfigOdoo {
   url: string;
@@ -76,4 +79,21 @@ export async function odooSearchRead<T = Record<string, unknown>>(
     { fields, limit: opciones.limit, order: opciones.order },
   ]);
   return resultado as T[];
+}
+
+// Unica excepcion de escritura del archivo (ver comentario arriba) — crea un
+// registro y devuelve su id. Acotado a un solo metodo ("create"), no un
+// execute_kw generico.
+export async function odooCreate(model: string, valores: Record<string, unknown>): Promise<number> {
+  const config = leerConfig();
+  const uid = await obtenerUid(config);
+  const resultado = await llamarJsonRpc(config.url, "object", "execute_kw", [
+    config.db,
+    uid,
+    config.apiKey,
+    model,
+    "create",
+    [valores],
+  ]);
+  return resultado as number;
 }

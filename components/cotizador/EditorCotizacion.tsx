@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { CotizacionCompleta } from "@/lib/cotizador";
+import type { CatalogoCargo } from "@/lib/cotizador/catalogo-cargos-tipos";
 import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
 import { marcarEmitidaAction, crearNuevaVersionAction } from "@/app/(protegido)/cotizador/acciones";
 import { useEditorCotizacion } from "./useEditorCotizacion";
@@ -40,9 +41,13 @@ const ETIQUETA_GUARDADO: Record<string, string> = {
 export default function EditorCotizacion({
   cotizacion,
   rol,
+  catalogoCargos,
+  preparadoPor,
 }: {
   cotizacion: CotizacionCompleta;
   rol: RolCotizador;
+  catalogoCargos: CatalogoCargo[];
+  preparadoPor: { nombre: string; correo: string };
 }) {
   const [tab, setTab] = useState<QuoteTab>("parametros");
   const [pendiente, iniciarTransicion] = useTransition();
@@ -150,7 +155,15 @@ export default function EditorCotizacion({
       {tab === "parametros" && (
         <ParametrosTab cotizacion={cotizacion} quotation={quotation} update={update} disabled={disabled} />
       )}
-      {tab === "dotacion" && <DotacionTab quotation={quotation} result={result} update={update} disabled={disabled} />}
+      {tab === "dotacion" && (
+        <DotacionTab
+          quotation={quotation}
+          result={result}
+          update={update}
+          disabled={disabled}
+          catalogoCargos={catalogoCargos}
+        />
+      )}
       {tab === "alimentacion" && (
         <AlimentacionTab quotation={quotation} result={result} update={update} disabled={disabled} />
       )}
@@ -164,7 +177,7 @@ export default function EditorCotizacion({
         />
       )}
       {tab === "resumen" && <ResumenTab quotation={quotation} result={result} update={update} disabled={disabled} />}
-      {tab === "eco" && <EcoTab cotizacion={cotizacion} result={result} />}
+      {tab === "eco" && <EcoTab cotizacion={cotizacion} result={result} preparadoPor={preparadoPor} />}
     </div>
   );
 }

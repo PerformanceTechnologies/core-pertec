@@ -3,6 +3,7 @@ import type { CotizacionCompleta } from "@/lib/cotizador";
 import { EMPRESAS } from "@/lib/cotizador/empresas";
 import { money, fechaCl } from "@/lib/cotizador/formato";
 import { NumInput } from "../campos/Campos";
+import ClienteOdooInput from "../ClienteOdooInput";
 import { actualizarMetaCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
 
 export default function ParametrosTab({
@@ -73,12 +74,7 @@ export default function ParametrosTab({
             </div>
             <div>
               <label className="block text-xs font-medium text-tinta/70">Cliente</label>
-              <input
-                name="cliente"
-                defaultValue={cotizacion.cliente ?? ""}
-                disabled={disabled}
-                className="mt-1 h-9 w-full rounded-md border border-borde px-2 text-sm outline-none focus:border-naranjo/50 disabled:bg-crema"
-              />
+              <ClienteOdooInput name="cliente" defaultValue={cotizacion.cliente ?? ""} disabled={disabled} />
             </div>
             <div>
               <label className="block text-xs font-medium text-tinta/70">Faena / locación</label>

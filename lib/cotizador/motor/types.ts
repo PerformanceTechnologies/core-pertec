@@ -215,6 +215,38 @@ export interface VehiculoInput {
   asignacion: "directo" | "indirecto";
 }
 
+// Personal SPOT del contrato — solo aplica cuando tipoServicio es
+// "contrato_permanente": refuerzo puntual facturado por hora-hombre (HH25),
+// en paralelo al personal permanente de `staff` (facturado por costo mensual
+// × dotación). Arreglo separado y opcional a propósito: mantiene el cálculo
+// SPOT existente (staff + cuadrilla día/noche) completamente intacto.
+export interface PersonalSpotContratoInput {
+  id: string;
+  cargo: string;
+  clasificacion: "directo" | "indirecto";
+  tipoContrato: TipoContrato;
+  modoSueldo: ModoSueldo;
+  base?: number;
+  targetLiquido?: number;
+  bonos: Bono[];
+  asigMovilizacion: number;
+  asigColacion: number;
+  trabajaFestivos: boolean;
+  pctTrabajoPesado: number;
+  horasEstimadasMes: number;
+  provisiones?: ProvisionesConfig;
+  costosFijos?: CostosMensualesFijos;
+}
+
+export interface PersonalSpotContratoResult {
+  id: string;
+  cargo: string;
+  costoUnitarioMes: number;
+  costoHH25: number;
+  horasEstimadasMes: number;
+  costoMensual: number;
+}
+
 export interface QuotationInput {
   tipoServicio: TipoServicio;
   duracionMeses: number;
@@ -226,6 +258,7 @@ export interface QuotationInput {
   factorContingencia: number;
   divisorMovilizacion: number;
   staff: StaffInput[];
+  personalSpotContrato?: PersonalSpotContratoInput[];
   diasAlimentacionMes: number;
   tarifasAlimentacion: AlimentacionTarifas;
   costItems: CostItemInput[];
