@@ -148,25 +148,6 @@ export default function BarraLateral({
       </div>
 
       <nav className={`flex-1 overflow-y-auto pb-4 ${colapsado ? "lg:px-2" : "px-3"}`}>
-        <button
-          type="button"
-          onClick={() => setBuscadorAbierto(true)}
-          title="Buscar"
-          className={`mb-3 flex w-full items-center gap-2.5 rounded-lg border border-borde text-tinta/45 transition hover:border-naranjo/30 hover:text-naranjo ${
-            colapsado ? "justify-center px-0 py-2" : "px-2.5 py-2"
-          }`}
-        >
-          <IconSearch size={16} stroke={1.75} className="shrink-0" />
-          {!colapsado && (
-            <>
-              <span className="flex-1 text-left text-sm">Buscar</span>
-              <span className="shrink-0 rounded border border-borde px-1.5 py-0.5 text-[10px] font-semibold text-tinta/35">
-                Ctrl K
-              </span>
-            </>
-          )}
-        </button>
-
         <EnlaceNav
           href="/"
           activo={esRutaActiva("/", pathname)}
@@ -277,6 +258,14 @@ export default function BarraLateral({
       <div className="border-t border-borde px-3 py-3">
         {colapsado ? (
           <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBuscadorAbierto(true)}
+              title="Buscar"
+              className="rounded-lg p-2 text-tinta/45 transition hover:bg-naranjo/10 hover:text-naranjo"
+            >
+              <IconSearch size={16} stroke={1.75} />
+            </button>
             <div
               title={correo}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo"
@@ -295,27 +284,42 @@ export default function BarraLateral({
             </form>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-lg px-1 py-1">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo">
-              {iniciales(correo)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-tinta">{correo}</p>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-teal">
-                {esAdmin ? "Administrador" : "Usuario"}
+          <>
+            <button
+              type="button"
+              onClick={() => setBuscadorAbierto(true)}
+              title="Buscar"
+              className="mb-3 flex w-full items-center gap-2.5 rounded-lg border border-borde px-2.5 py-2 text-tinta/45 transition hover:border-naranjo/30 hover:text-naranjo"
+            >
+              <IconSearch size={16} stroke={1.75} className="shrink-0" />
+              <span className="flex-1 text-left text-sm">Buscar</span>
+              <span className="shrink-0 rounded border border-borde px-1.5 py-0.5 text-[10px] font-semibold text-tinta/35">
+                Ctrl K
               </span>
+            </button>
+
+            <div className="flex items-center gap-2.5 rounded-lg px-1 py-1">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo">
+                {iniciales(correo)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-tinta">{correo}</p>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-teal">
+                  {esAdmin ? "Administrador" : "Usuario"}
+                </span>
+              </div>
+              <form action={cerrarSesionAction}>
+                <button
+                  type="submit"
+                  title="Cerrar sesión"
+                  aria-label="Cerrar sesión"
+                  className="shrink-0 rounded-lg p-2 text-tinta/40 transition hover:bg-naranjo/10 hover:text-naranjo"
+                >
+                  <IconLogout size={16} stroke={1.75} />
+                </button>
+              </form>
             </div>
-            <form action={cerrarSesionAction}>
-              <button
-                type="submit"
-                title="Cerrar sesión"
-                aria-label="Cerrar sesión"
-                className="shrink-0 rounded-lg p-2 text-tinta/40 transition hover:bg-naranjo/10 hover:text-naranjo"
-              >
-                <IconLogout size={16} stroke={1.75} />
-              </button>
-            </form>
-          </div>
+          </>
         )}
       </div>
     </div>

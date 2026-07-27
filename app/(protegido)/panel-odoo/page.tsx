@@ -47,7 +47,7 @@ export default async function PanelOdooPage({
           asigne acceso.
         </p>
       ) : (
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {modulosVisibles.includes("facturas") && (
             <TarjetaFacturas companyId={companyId} ejecucion={ejecuciones.facturas} />
           )}
