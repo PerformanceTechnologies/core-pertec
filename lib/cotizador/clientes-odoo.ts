@@ -29,15 +29,18 @@ function filaACliente(fila: FilaResPartner): ClienteOdoo {
   };
 }
 
+// Sin término, devuelve un listado inicial (los primeros por nombre) en vez
+// de nada — así el desplegable muestra clientes de inmediato al hacer foco,
+// sin obligar a escribir primero para recién empezar a buscar.
 export async function buscarClientesOdoo(query: string): Promise<ClienteOdoo[]> {
   const termino = query.trim();
-  if (termino.length < 2) return [];
+  const domain = termino.length > 0 ? [["name", "ilike", termino]] : [];
 
   const filas = await odooSearchRead<FilaResPartner>(
     "res.partner",
-    [["name", "ilike", termino]],
+    domain,
     ["id", "name", "vat", "city"],
-    { limit: 8, order: "name asc" },
+    { limit: 20, order: "name asc" },
   );
   return filas.map(filaACliente);
 }

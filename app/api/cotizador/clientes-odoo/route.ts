@@ -11,9 +11,6 @@ export async function GET(request: NextRequest) {
   }
 
   const termino = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  if (termino.length < 2) {
-    return NextResponse.json({ error: "Escribe al menos 2 caracteres para buscar." }, { status: 400 });
-  }
 
   try {
     const clientes = await buscarClientesOdoo(termino);

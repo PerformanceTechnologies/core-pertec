@@ -28,12 +28,14 @@ export default function ClienteOdooInput({
   const [error, setError] = useState<string | null>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
 
+  // Busca de inmediato al hacer foco (incluso con el campo vacío, para
+  // mostrar un listado de partida) y con debounce corto mientras se escribe
+  // — no hay que esperar a terminar de tipear para ver resultados.
   useEffect(() => {
+    if (!abierto) return;
     const termino = valor.trim();
-    if (termino.length < 2) {
-      setResultados([]);
-      return;
-    }
+    const demora = termino.length === 0 ? 0 : 250;
+
     const idTimeout = setTimeout(async () => {
       setBuscando(true);
       setError(null);
@@ -48,10 +50,10 @@ export default function ClienteOdooInput({
       } finally {
         setBuscando(false);
       }
-    }, 400);
+    }, demora);
 
     return () => clearTimeout(idTimeout);
-  }, [valor]);
+  }, [valor, abierto]);
 
   useEffect(() => {
     const alHacerClicFuera = (e: MouseEvent) => {
@@ -101,7 +103,7 @@ export default function ClienteOdooInput({
         className="mt-1 h-9 w-full rounded-md border border-borde px-2 text-sm outline-none focus:border-naranjo/50 disabled:bg-crema"
       />
 
-      {abierto && !disabled && valor.trim().length >= 2 && (
+      {abierto && !disabled && (
         <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-borde bg-white shadow-md">
           {buscando && <div className="px-3 py-2 text-xs text-tinta/40">Buscando en Odoo…</div>}
           {!buscando && error && <div className="px-3 py-2 text-xs text-red-600">{error}</div>}
@@ -123,7 +125,9 @@ export default function ClienteOdooInput({
               </button>
             ))}
           {!buscando && !error && resultados.length === 0 && (
-            <div className="px-3 py-2 text-xs text-tinta/40">Sin coincidencias en Odoo.</div>
+            <div className="px-3 py-2 text-xs text-tinta/40">
+              {valor.trim().length === 0 ? "No hay clientes en Odoo." : "Sin coincidencias en Odoo."}
+            </div>
           )}
           {puedeCrear && (
             <button
