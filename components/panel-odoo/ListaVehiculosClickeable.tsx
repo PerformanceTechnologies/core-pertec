@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FilaVehiculo } from "@/lib/panel-odoo/datos";
 import ModalDetalleVehiculo from "./ModalDetalleVehiculo";
+import { traducir, ESTADOS_FLOTA } from "@/lib/panel-odoo/traducciones";
 
 export default function ListaVehiculosClickeable({ vehiculos }: { vehiculos: FilaVehiculo[] }) {
   const [seleccionado, setSeleccionado] = useState<FilaVehiculo | null>(null);
@@ -23,7 +24,7 @@ export default function ListaVehiculosClickeable({ vehiculos }: { vehiculos: Fil
           >
             <span title={v.nombre} className="min-w-0 flex-1 truncate text-tinta/70">{v.nombre}</span>
             <span className="ml-3 shrink-0 text-tinta/45">{v.patente ?? "-"}</span>
-            <span className="ml-3 shrink-0 font-semibold text-tinta">{v.estado ?? "-"}</span>
+            <span className="ml-3 shrink-0 font-semibold text-tinta">{traducir(ESTADOS_FLOTA, v.estado)}</span>
           </button>
         ))}
       </div>

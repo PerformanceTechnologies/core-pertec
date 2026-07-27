@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { traducir, ETAPAS_CRM, ESTADOS_FLOTA, CATEGORIAS_FLOTA } from "@/lib/panel-odoo/traducciones";
 
 // Todo lo que lee este archivo viene de la cache en Supabase -- nunca
 // consulta Odoo en vivo (ver plan: el panel siempre lee de la cache, la
@@ -181,27 +182,40 @@ export interface KpisCrm {
   montoEsperadoTotal: number;
   porEtapa: { etapa: string; cantidad: number }[];
   montoPorEtapa: { etapa: string; cantidad: number; monto: number }[];
+  porVendedor: { vendedor: string; cantidad: number }[];
+  montoPorVendedor: { vendedor: string; cantidad: number; monto: number }[];
 }
 
 export async function obtenerKpisCrm(companyId: number): Promise<KpisCrm> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_crm_leads")
-    .select("etapa, monto_esperado")
+    .select("etapa, monto_esperado, vendedor")
     .eq("company_id", companyId)
     .eq("tipo", "opportunity");
 
   const filas = data ?? [];
   const porEtapaMapa = new Map<string, { cantidad: number; monto: number }>();
+  const porVendedorMapa = new Map<string, { cantidad: number; monto: number }>();
   for (const fila of filas) {
-    const etapa = fila.etapa ?? "Sin etapa";
-    const actual = porEtapaMapa.get(etapa) ?? { cantidad: 0, monto: 0 };
-    actual.cantidad += 1;
-    actual.monto += fila.monto_esperado ?? 0;
-    porEtapaMapa.set(etapa, actual);
+    const etapa = traducir(ETAPAS_CRM, fila.etapa ?? "Sin etapa");
+    const actualEtapa = porEtapaMapa.get(etapa) ?? { cantidad: 0, monto: 0 };
+    actualEtapa.cantidad += 1;
+    actualEtapa.monto += fila.monto_esperado ?? 0;
+    porEtapaMapa.set(etapa, actualEtapa);
+
+    const vendedor = fila.vendedor ?? "Sin asignar";
+    const actualVendedor = porVendedorMapa.get(vendedor) ?? { cantidad: 0, monto: 0 };
+    actualVendedor.cantidad += 1;
+    actualVendedor.monto += fila.monto_esperado ?? 0;
+    porVendedorMapa.set(vendedor, actualVendedor);
   }
 
   const montoPorEtapa = Array.from(porEtapaMapa.entries())
     .map(([etapa, v]) => ({ etapa, ...v }))
+    .sort((a, b) => b.monto - a.monto);
+
+  const montoPorVendedor = Array.from(porVendedorMapa.entries())
+    .map(([vendedor, v]) => ({ vendedor, ...v }))
     .sort((a, b) => b.monto - a.monto);
 
   return {
@@ -209,6 +223,8 @@ export async function obtenerKpisCrm(companyId: number): Promise<KpisCrm> {
     montoEsperadoTotal: filas.reduce((acc, f) => acc + (f.monto_esperado ?? 0), 0),
     porEtapa: montoPorEtapa.map(({ etapa, cantidad }) => ({ etapa, cantidad })),
     montoPorEtapa,
+    porVendedor: montoPorVendedor.map(({ vendedor, cantidad }) => ({ vendedor, cantidad })),
+    montoPorVendedor,
   };
 }
 
@@ -252,7 +268,7 @@ export async function obtenerKpisGastos(companyId: number): Promise<KpisGastos> 
     .from("panel_odoo_gastos")
     .select("monto_total")
     .eq("company_id", companyId)
-    .in("estado", ["draft", "reported"]);
+    .in("estado", ["draft", "submitted"]);
 
   const { data: ultimos6Meses } = await supabaseAdmin
     .from("panel_odoo_gastos")
@@ -304,24 +320,30 @@ export interface FilaVehiculo {
 export interface KpisFlota {
   totalVehiculos: number;
   porEstado: { etapa: string; cantidad: number }[];
+  porCategoria: { categoria: string; cantidad: number }[];
 }
 
 export async function obtenerKpisFlota(companyId: number): Promise<KpisFlota> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_flota")
-    .select("estado")
+    .select("estado, categoria")
     .eq("company_id", companyId);
 
   const filas = data ?? [];
   const porEstadoMapa = new Map<string, number>();
+  const porCategoriaMapa = new Map<string, number>();
   for (const fila of filas) {
-    const estado = fila.estado ?? "Sin estado";
+    const estado = traducir(ESTADOS_FLOTA, fila.estado ?? "Sin estado");
     porEstadoMapa.set(estado, (porEstadoMapa.get(estado) ?? 0) + 1);
+
+    const categoria = traducir(CATEGORIAS_FLOTA, fila.categoria ?? "Sin categoría");
+    porCategoriaMapa.set(categoria, (porCategoriaMapa.get(categoria) ?? 0) + 1);
   }
 
   return {
     totalVehiculos: filas.length,
     porEstado: Array.from(porEstadoMapa.entries()).map(([etapa, cantidad]) => ({ etapa, cantidad })),
+    porCategoria: Array.from(porCategoriaMapa.entries()).map(([categoria, cantidad]) => ({ categoria, cantidad })),
   };
 }
 

@@ -3,20 +3,7 @@
 import { useEffect } from "react";
 import { money, fechaCl } from "@/lib/cotizador/formato";
 import type { FilaCompra } from "@/lib/panel-odoo/datos";
-
-const ETIQUETAS_ESTADO: Record<string, string> = {
-  draft: "Borrador",
-  sent: "Enviada",
-  "to approve": "Por aprobar",
-  purchase: "Confirmada",
-  cancel: "Cancelada",
-};
-
-const ETIQUETAS_FACTURACION: Record<string, string> = {
-  no: "Nada que facturar",
-  "to invoice": "Por facturar",
-  invoiced: "Facturada",
-};
+import { traducir, ESTADOS_COMPRA, ESTADOS_FACTURACION_COMPRA } from "@/lib/panel-odoo/traducciones";
 
 export default function ModalDetalleCompra({ compra, onCerrar }: { compra: FilaCompra; onCerrar: () => void }) {
   useEffect(() => {
@@ -29,8 +16,8 @@ export default function ModalDetalleCompra({ compra, onCerrar }: { compra: FilaC
 
   const filas: [string, string][] = [
     ["Proveedor", compra.partner_nombre ?? "-"],
-    ["Estado", ETIQUETAS_ESTADO[compra.estado] ?? compra.estado],
-    ["Facturación", ETIQUETAS_FACTURACION[compra.estado_facturacion] ?? compra.estado_facturacion],
+    ["Estado", traducir(ESTADOS_COMPRA, compra.estado)],
+    ["Facturación", traducir(ESTADOS_FACTURACION_COMPRA, compra.estado_facturacion)],
     ["Fecha orden", compra.fecha_orden ? fechaCl(compra.fecha_orden) : "-"],
     ["Entrega esperada", compra.fecha_entrega_esperada ? fechaCl(compra.fecha_entrega_esperada) : "-"],
     ["Monto total", money(compra.monto_total)],

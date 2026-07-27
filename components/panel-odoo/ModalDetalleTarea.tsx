@@ -2,15 +2,7 @@
 
 import { useEffect } from "react";
 import type { FilaTarea } from "@/lib/panel-odoo/datos";
-
-const ETIQUETAS_ESTADO: Record<string, string> = {
-  "01_in_progress": "En progreso",
-  "02_changes_requested": "Cambios solicitados",
-  "03_approved": "Aprobada",
-  "1_done": "Hecha",
-  "1_canceled": "Cancelada",
-  "04_waiting_normal": "En espera",
-};
+import { traducir, ESTADOS_TAREA } from "@/lib/panel-odoo/traducciones";
 
 export default function ModalDetalleTarea({ tarea, onCerrar }: { tarea: FilaTarea; onCerrar: () => void }) {
   useEffect(() => {
@@ -24,7 +16,7 @@ export default function ModalDetalleTarea({ tarea, onCerrar }: { tarea: FilaTare
   const filas: [string, string][] = [
     ["Proyecto", tarea.proyecto_nombre ?? "-"],
     ["Etapa", tarea.etapa ?? "-"],
-    ["Estado", ETIQUETAS_ESTADO[tarea.estado] ?? tarea.estado],
+    ["Estado", traducir(ESTADOS_TAREA, tarea.estado)],
     ["Asignados", tarea.asignados ?? "-"],
     ["Fecha límite", tarea.fecha_limite ? new Date(tarea.fecha_limite).toLocaleDateString("es-CL") : "-"],
   ];

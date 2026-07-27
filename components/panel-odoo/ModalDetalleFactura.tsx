@@ -3,21 +3,7 @@
 import { useEffect } from "react";
 import { money, fechaCl } from "@/lib/cotizador/formato";
 import type { FilaFactura } from "@/lib/panel-odoo/datos";
-
-const ETIQUETAS_TIPO: Record<string, string> = {
-  out_invoice: "Factura de venta",
-  out_refund: "Nota de crédito de venta",
-  in_invoice: "Factura de compra",
-  in_refund: "Nota de crédito de compra",
-};
-
-const ETIQUETAS_PAGO: Record<string, string> = {
-  not_paid: "No pagada",
-  in_payment: "En proceso de pago",
-  paid: "Pagada",
-  partial: "Pago parcial",
-  reversed: "Reversada",
-};
+import { traducir, TIPOS_FACTURA, ESTADOS_FACTURA, ESTADOS_PAGO_FACTURA } from "@/lib/panel-odoo/traducciones";
 
 export default function ModalDetalleFactura({
   factura,
@@ -35,10 +21,10 @@ export default function ModalDetalleFactura({
   }, [onCerrar]);
 
   const filas: [string, string][] = [
-    ["Tipo", ETIQUETAS_TIPO[factura.move_type] ?? factura.move_type],
+    ["Tipo", traducir(TIPOS_FACTURA, factura.move_type)],
     ["Contraparte", factura.partner_nombre ?? "-"],
-    ["Estado", factura.state === "posted" ? "Contabilizada" : factura.state === "draft" ? "Borrador" : factura.state],
-    ["Estado de pago", factura.payment_state ? (ETIQUETAS_PAGO[factura.payment_state] ?? factura.payment_state) : "-"],
+    ["Estado", traducir(ESTADOS_FACTURA, factura.state)],
+    ["Estado de pago", traducir(ESTADOS_PAGO_FACTURA, factura.payment_state)],
     ["Fecha", factura.fecha_factura ? fechaCl(factura.fecha_factura) : "-"],
     ["Vencimiento", factura.fecha_vencimiento ? fechaCl(factura.fecha_vencimiento) : "-"],
     ["Diario", factura.diario ?? "-"],

@@ -1,7 +1,7 @@
 import { obtenerKpisCrm, listarLeadsRecientes } from "@/lib/panel-odoo/datos";
 import { money } from "@/lib/cotizador/formato";
 import type { EjecucionOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
-import { GraficoDona } from "./graficos";
+import { GraficoDona, GraficoBarrasRanking } from "./graficos";
 import ListaLeadsClickeable from "./ListaLeadsClickeable";
 import TarjetaBase from "./TarjetaBase";
 
@@ -47,6 +47,21 @@ export default async function TarjetaCrm({
             </div>
           </div>
 
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">Pipeline por vendedor</p>
+          <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-center">
+            <GraficoBarrasRanking datos={kpis.porVendedor} dataKey="cantidad" nameKey="vendedor" expandido />
+            <div className="divide-y divide-borde">
+              {kpis.montoPorVendedor.map((fila) => (
+                <div key={fila.vendedor} className="flex items-center justify-between py-1.5 text-xs">
+                  <span className="min-w-0 truncate text-tinta/70">
+                    {fila.vendedor} <span className="text-tinta/40">({fila.cantidad})</span>
+                  </span>
+                  <span className="ml-3 shrink-0 font-semibold text-tinta">{money(fila.monto)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">
             Últimas {recientes.length} oportunidades
           </p>
@@ -65,8 +80,15 @@ export default async function TarjetaCrm({
         </div>
       </div>
 
-      <div className="mt-2.5">
-        <GraficoDona datos={kpis.porEtapa} />
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
+        <div>
+          <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Por etapa</p>
+          <GraficoDona datos={kpis.porEtapa} />
+        </div>
+        <div>
+          <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Por vendedor</p>
+          <GraficoBarrasRanking datos={kpis.porVendedor} dataKey="cantidad" nameKey="vendedor" />
+        </div>
       </div>
 
       <ListaLeadsClickeable leads={recientes.slice(0, 5)} />

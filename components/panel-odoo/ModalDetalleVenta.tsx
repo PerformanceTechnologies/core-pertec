@@ -3,28 +3,7 @@
 import { useEffect } from "react";
 import { money, fechaCl } from "@/lib/cotizador/formato";
 import type { FilaVenta } from "@/lib/panel-odoo/datos";
-
-const ETIQUETAS_ESTADO: Record<string, string> = {
-  draft: "Cotización",
-  sent: "Enviada",
-  sale: "Confirmada",
-  cancel: "Cancelada",
-};
-
-const ETIQUETAS_ARRIENDO: Record<string, string> = {
-  draft: "Borrador",
-  quotation: "Cotización",
-  to_approve: "Por aprobar",
-  confirmed: "Confirmado",
-  reserved: "Reservado",
-  preparation: "En preparación",
-  delivered: "Entregado",
-  returned: "Devuelto",
-  available: "Disponible",
-  repair: "En reparación",
-  dispute: "En disputa",
-  invoiced: "Facturado",
-};
+import { traducir, ESTADOS_VENTA, ESTADOS_ARRIENDO } from "@/lib/panel-odoo/traducciones";
 
 export default function ModalDetalleVenta({ venta, onCerrar }: { venta: FilaVenta; onCerrar: () => void }) {
   useEffect(() => {
@@ -38,14 +17,14 @@ export default function ModalDetalleVenta({ venta, onCerrar }: { venta: FilaVent
   const filas: [string, string][] = [
     ["Tipo", venta.es_arriendo ? "Arriendo" : "Venta"],
     ["Cliente", venta.partner_nombre ?? "-"],
-    ["Estado", ETIQUETAS_ESTADO[venta.estado] ?? venta.estado],
+    ["Estado", traducir(ESTADOS_VENTA, venta.estado)],
     ["Fecha", venta.fecha_orden ? fechaCl(venta.fecha_orden) : "-"],
     ["Monto total", money(venta.monto_total)],
   ];
 
   if (venta.es_arriendo) {
     filas.push(
-      ["Estado arriendo", venta.estado_arriendo ? (ETIQUETAS_ARRIENDO[venta.estado_arriendo] ?? venta.estado_arriendo) : "-"],
+      ["Estado arriendo", traducir(ESTADOS_ARRIENDO, venta.estado_arriendo)],
       ["Fin de arriendo", venta.fecha_fin_arriendo ? fechaCl(venta.fecha_fin_arriendo) : "-"]
     );
   }

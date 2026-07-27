@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { money } from "@/lib/cotizador/formato";
 import type { FilaLead } from "@/lib/panel-odoo/datos";
+import { traducir, ETAPAS_CRM } from "@/lib/panel-odoo/traducciones";
 import ModalDetalleLead from "./ModalDetalleLead";
 
 export default function ListaLeadsClickeable({ leads }: { leads: FilaLead[] }) {
@@ -23,7 +24,7 @@ export default function ListaLeadsClickeable({ leads }: { leads: FilaLead[] }) {
             className="flex w-full items-center justify-between py-2 text-left text-xs transition hover:bg-crema/60"
           >
             <span title={l.nombre} className="min-w-0 flex-1 truncate text-tinta/70">{l.nombre}</span>
-            <span className="ml-3 shrink-0 text-tinta/45">{l.etapa ?? "-"}</span>
+            <span className="ml-3 shrink-0 text-tinta/45">{traducir(ETAPAS_CRM, l.etapa)}</span>
             <span className="ml-3 shrink-0 font-semibold text-tinta">{money(l.monto_esperado)}</span>
           </button>
         ))}

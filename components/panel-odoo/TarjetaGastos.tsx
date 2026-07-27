@@ -1,7 +1,7 @@
 import { obtenerKpisGastos, listarGastosRecientes } from "@/lib/panel-odoo/datos";
 import { money } from "@/lib/cotizador/formato";
 import type { EjecucionOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
-import { GraficoAreaSimple } from "./graficos";
+import { GraficoAreaSimple, GraficoDona } from "./graficos";
 import ListaGastosClickeable from "./ListaGastosClickeable";
 import TarjetaBase from "./TarjetaBase";
 import IndicadorVariacion from "./IndicadorVariacion";
@@ -55,13 +55,16 @@ export default async function TarjetaGastos({
               <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">
                 Por empleado (últimos {recientes.length})
               </p>
-              <div className="mt-2 divide-y divide-borde">
-                {porEmpleado.map((fila) => (
-                  <div key={fila.empleado} className="flex items-center justify-between py-1.5 text-xs">
-                    <span className="min-w-0 truncate text-tinta/70">{fila.empleado}</span>
-                    <span className="ml-3 shrink-0 font-semibold text-tinta">{money(fila.monto)}</span>
-                  </div>
-                ))}
+              <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-center">
+                <GraficoDona datos={porEmpleado} dataKey="monto" nameKey="empleado" formato="dinero" expandido />
+                <div className="divide-y divide-borde">
+                  {porEmpleado.map((fila) => (
+                    <div key={fila.empleado} className="flex items-center justify-between py-1.5 text-xs">
+                      <span className="min-w-0 truncate text-tinta/70">{fila.empleado}</span>
+                      <span className="ml-3 shrink-0 font-semibold text-tinta">{money(fila.monto)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}
@@ -90,6 +93,13 @@ export default async function TarjetaGastos({
       <div className="mt-2.5">
         <GraficoAreaSimple datos={kpis.serieMensual} />
       </div>
+
+      {porEmpleado.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Por empleado</p>
+          <GraficoDona datos={porEmpleado} dataKey="monto" nameKey="empleado" formato="dinero" />
+        </div>
+      )}
 
       <ListaGastosClickeable gastos={recientes.slice(0, 5)} />
     </TarjetaBase>

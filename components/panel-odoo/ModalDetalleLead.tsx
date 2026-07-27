@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { money, pct, fechaCl } from "@/lib/cotizador/formato";
 import type { FilaLead } from "@/lib/panel-odoo/datos";
+import { traducir, ETAPAS_CRM } from "@/lib/panel-odoo/traducciones";
 
 export default function ModalDetalleLead({
   lead,
@@ -22,7 +23,7 @@ export default function ModalDetalleLead({
   const filas: [string, string][] = [
     ["Tipo", lead.tipo === "opportunity" ? "Oportunidad" : "Lead"],
     ["Cliente/contacto", lead.partner_nombre ?? "-"],
-    ["Etapa", lead.etapa ?? "-"],
+    ["Etapa", traducir(ETAPAS_CRM, lead.etapa)],
     ["Vendedor", lead.vendedor ?? "-"],
     ["Monto esperado", money(lead.monto_esperado)],
     ["Probabilidad", pct(lead.probabilidad / 100)],

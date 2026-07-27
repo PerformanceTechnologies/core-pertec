@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type { FilaVehiculo } from "@/lib/panel-odoo/datos";
+import { traducir, ESTADOS_FLOTA, CATEGORIAS_FLOTA } from "@/lib/panel-odoo/traducciones";
 
 export default function ModalDetalleVehiculo({
   vehiculo,
@@ -22,9 +23,9 @@ export default function ModalDetalleVehiculo({
     ["Patente", vehiculo.patente ?? "-"],
     ["Marca", vehiculo.marca ?? "-"],
     ["Modelo", vehiculo.modelo ?? "-"],
-    ["Categoría", vehiculo.categoria ?? "-"],
+    ["Categoría", traducir(CATEGORIAS_FLOTA, vehiculo.categoria)],
     ["Conductor", vehiculo.conductor ?? "-"],
-    ["Estado", vehiculo.estado ?? "-"],
+    ["Estado", traducir(ESTADOS_FLOTA, vehiculo.estado)],
     ["Odómetro", vehiculo.odometro !== null ? `${vehiculo.odometro.toLocaleString("es-CL")} km` : "-"],
   ];
 
