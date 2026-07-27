@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirAccesoPanelOdoo } from "@/lib/panel-odoo";
+import { exigirAdmin } from "@/lib/autorizacion";
+import { moverModulo } from "@/lib/panel-odoo/orden-modulos";
+import type { ModuloVisiblePanelOdoo } from "@/lib/panel-odoo/modulos-usuario";
 import { sincronizarFacturas } from "@/lib/panel-odoo/sincronizar-facturas";
 import { sincronizarContabilidad } from "@/lib/panel-odoo/sincronizar-contabilidad";
 import { sincronizarCrm } from "@/lib/panel-odoo/sincronizar-crm";
@@ -54,4 +57,16 @@ export async function sincronizarAhoraAction(): Promise<ResultadoSincronizacionM
 
   revalidatePath("/panel-odoo");
   return resultados;
+}
+
+// Reordenar tarjetas es una decision estructural global (afecta a todos los
+// usuarios), no un permiso interno de Panel Odoo -- por eso usa exigirAdmin()
+// (rol admin del core), igual que moverAplicacionAction, y no
+// exigirAccesoPanelOdoo (pensado para el rol interno de esta app).
+export async function moverModuloOrdenAction(form: FormData) {
+  await exigirAdmin();
+  const modulo = String(form.get("modulo")) as ModuloVisiblePanelOdoo;
+  const direccion = form.get("direccion") === "abajo" ? "abajo" : "arriba";
+  await moverModulo(modulo, direccion);
+  revalidatePath("/panel-odoo");
 }
