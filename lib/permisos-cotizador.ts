@@ -14,7 +14,8 @@ export type AccionCotizador =
   | "eliminar_cotizacion"
   | "marcar_emitida"
   | "crear_nueva_version"
-  | "administrar_parametros_legales";
+  | "administrar_parametros_legales"
+  | "administrar_catalogo_cargos";
 
 const ACCIONES_USUARIO: AccionCotizador[] = [
   "crear_cotizacion",
@@ -22,6 +23,7 @@ const ACCIONES_USUARIO: AccionCotizador[] = [
   "eliminar_cotizacion",
   "marcar_emitida",
   "crear_nueva_version",
+  "administrar_catalogo_cargos",
 ];
 
 export function puedeEnCotizador(rol: RolCotizador, accion: AccionCotizador): boolean {

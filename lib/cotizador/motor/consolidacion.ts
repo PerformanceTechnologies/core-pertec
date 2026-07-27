@@ -1,5 +1,6 @@
-import type { LegalParameterSet, QuotationInput, StaffResult } from "./types";
+import type { LegalParameterSet, PersonalSpotContratoResult, QuotationInput, StaffResult } from "./types";
 import { calcularStaffResult } from "./remuneraciones";
+import { calcularPersonalSpotContratoResult } from "./personal-spot-contrato";
 import {
   calcularAlimentacionPorCargo,
   calcularCostoVehiculo,
@@ -27,6 +28,7 @@ export interface EcoLineItem {
 
 export interface QuotationResult {
   staff: StaffResult[];
+  personalSpotContrato: PersonalSpotContratoResult[];
   tarifaCuadrillaDia: number;
   costoPersonalSpot: number;
   alimentacionTotal: number;
@@ -41,6 +43,7 @@ export interface QuotationResult {
   ventaMensual: number;
   costoTotalServicio: number;
   ecoItems: EcoLineItem[];
+  ecoItemsPersonalSpotContrato: EcoLineItem[];
   ecoBase: number;
   ggEco: number;
   utilidadEco: number;
@@ -56,6 +59,15 @@ export interface QuotationResult {
 
 export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet): QuotationResult {
   const staff = input.staff.map((s) => calcularStaffResult(s, P, input.horasBaseMes));
+
+  // Personal SPOT del contrato — solo aparece en cotizaciones contrato_permanente
+  // (input.personalSpotContrato ?? [] mantiene esto en blanco para SPOT y para
+  // filas jsonb antiguas sin esta clave). Facturación por HH25, en paralelo al
+  // personal permanente de `staff`; nunca modifica tarifaCuadrillaDia/ecoItems.
+  const personalSpotContrato = (input.personalSpotContrato ?? []).map((p) =>
+    calcularPersonalSpotContratoResult(p, P, input.horasBaseMes),
+  );
+  const costoPersonalSpotContratoTotal = personalSpotContrato.reduce((acc, p) => acc + p.costoMensual, 0);
 
   const tarifaCuadrillaDia = staff.reduce((acc, s) => acc + s.costoCargoServicio, 0);
   const costoPersonalSpot = tarifaCuadrillaDia * input.diasServicio * input.factorContingencia;
@@ -99,6 +111,16 @@ export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet):
 
   const categorias: CategoriaCostoResult[] = [
     { categoria: "personal_spot", nombre: "Personal SPOT", monto: costoPersonalSpot, asignacion: "directo" },
+    ...(personalSpotContrato.length > 0
+      ? [
+          {
+            categoria: "personal_spot_contrato",
+            nombre: "Personal SPOT del Contrato",
+            monto: costoPersonalSpotContratoTotal,
+            asignacion: "directo" as const,
+          },
+        ]
+      : []),
     { categoria: "alimentacion", nombre: "Alimentación", monto: alimentacionTotal, asignacion: "directo" },
     {
       categoria: "insumo_material",
@@ -200,6 +222,18 @@ export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet):
     },
   ];
 
+  // Tabla ECO separada para personal SPOT del contrato — refleja la estructura
+  // real de un contrato_permanente (dos secciones de facturación distintas),
+  // sin mezclarse con ecoTotalNeto/margenEfectivoTotal del personal permanente.
+  const ecoItemsPersonalSpotContrato: EcoLineItem[] = personalSpotContrato.map((p, idx) => ({
+    item: String(idx + 1),
+    descripcion: p.cargo,
+    unidad: "HH",
+    cantidad: p.horasEstimadasMes,
+    precioUnitario: p.costoHH25,
+    total: p.costoMensual,
+  }));
+
   const ecoTotalNeto = ecoItems.reduce((acc, i) => acc + i.total, 0);
   const ecoIva = ecoTotalNeto * input.margenes.ivaPct;
   const ecoConIva = ecoTotalNeto + ecoIva;
@@ -211,6 +245,7 @@ export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet):
 
   return {
     staff,
+    personalSpotContrato,
     tarifaCuadrillaDia,
     costoPersonalSpot,
     alimentacionTotal,
@@ -225,6 +260,7 @@ export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet):
     ventaMensual,
     costoTotalServicio,
     ecoItems,
+    ecoItemsPersonalSpotContrato,
     ecoBase,
     ggEco,
     utilidadEco,
