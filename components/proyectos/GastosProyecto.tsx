@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { GastoItem, Proyecto } from "@/lib/proyectos";
+import type { GastoItem, Objetivo, Proyecto } from "@/lib/proyectos";
 import { CAT_COLOR, catLabel, colorDe, costoConcepto, fmtCLP } from "@/lib/proyectos-utilidades";
 import FormularioGastosModal from "./FormularioGastosModal";
 import PopoverAdjuntosGasto from "./PopoverAdjuntosGasto";
@@ -20,12 +20,21 @@ interface Partida {
   items: GastoItem[];
 }
 
+interface ResumenObjetivo {
+  objetivo: Objetivo;
+  gastado: number;
+  count: number;
+  items: GastoItem[];
+}
+
 export default function GastosProyecto({
   proyecto,
+  objetivos,
   puedeEditar,
   onActualizado,
 }: {
   proyecto: Proyecto;
+  objetivos: Objetivo[];
   puedeEditar: boolean;
   onActualizado: () => void;
 }) {
@@ -37,6 +46,10 @@ export default function GastosProyecto({
   const disponible = presupuesto - gastado;
   const pctUsado = presupuesto > 0 ? Math.min(100, Math.round((gastado / presupuesto) * 100)) : 0;
   const sobrePresupuesto = disponible < 0;
+
+  const saldoGlobalAsignado = Number(proyecto.saldo_global_asignado) || 0;
+  const sumaPresupuestosObjetivos = objetivos.reduce((s, o) => s + (Number(o.presupuesto) || 0), 0);
+  const sobreasignado = saldoGlobalAsignado > 0 && sumaPresupuestosObjetivos > saldoGlobalAsignado;
 
   const porCategoria = useMemo(() => {
     const mapa = new Map<string, Categoria>();
@@ -69,6 +82,21 @@ export default function GastosProyecto({
     return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
   }, [gastos]);
   const maxPartida = porPartida[0]?.total || 1;
+
+  // Objetivos con presupuesto propio o con al menos un gasto vinculado —
+  // un gasto puede o no tener objetivo_id (los gastos generales del
+  // proyecto siguen sin objetivo, ver GastoItem.objetivo_id).
+  const porObjetivo = useMemo(() => {
+    const resultado: ResumenObjetivo[] = [];
+    objetivos.forEach((o) => {
+      const items = gastos.filter((g) => g.objetivo_id === o.id);
+      const gastadoObjetivo = items.reduce((s, g) => s + (Number(g.monto) || 0), 0);
+      if ((Number(o.presupuesto) || 0) > 0 || items.length > 0) {
+        resultado.push({ objetivo: o, gastado: gastadoObjetivo, count: items.length, items });
+      }
+    });
+    return resultado.sort((a, b) => (Number(b.objetivo.presupuesto) || 0) - (Number(a.objetivo.presupuesto) || 0));
+  }, [objetivos, gastos]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -109,6 +137,22 @@ export default function GastosProyecto({
           </p>
         </div>
       </div>
+
+      {(saldoGlobalAsignado > 0 || sumaPresupuestosObjetivos > 0) && (
+        <div
+          className={`flex flex-wrap items-center gap-2 rounded-lg border px-3.5 py-2.5 text-xs ${
+            sobreasignado ? "border-red-300 bg-red-50 text-red-700" : "border-borde bg-crema/60 text-tinta/70"
+          }`}
+        >
+          {sobreasignado && <span aria-hidden>⚠</span>}
+          <span>
+            Suma de presupuestos por objetivo{" "}
+            <strong className={sobreasignado ? "text-red-700" : "text-tinta"}>{fmtCLP(sumaPresupuestosObjetivos)}</strong> de{" "}
+            <strong className={sobreasignado ? "text-red-700" : "text-tinta"}>{fmtCLP(saldoGlobalAsignado)}</strong> asignados
+            {sobreasignado && " — supera el saldo global asignado"}
+          </span>
+        </div>
+      )}
 
       {gastos.length === 0 ? (
         <div className="rounded-2xl border border-borde bg-white p-8 text-center">
@@ -216,9 +260,54 @@ export default function GastosProyecto({
         </div>
       )}
 
+      {porObjetivo.length > 0 && (
+        <div className="border border-borde bg-white p-4">
+          <div className="mb-3 flex items-baseline justify-between border-b border-borde pb-2.5">
+            <span className="text-[15px] font-medium tracking-tight text-tinta">Por objetivo</span>
+            <em className="text-xs font-semibold not-italic text-tinta/45">{porObjetivo.length}</em>
+          </div>
+          <ul className="flex flex-col gap-3.5">
+            {porObjetivo.map((r) => {
+              const presupuestoObjetivo = Number(r.objetivo.presupuesto) || 0;
+              const pctObjetivo = presupuestoObjetivo > 0 ? Math.min(100, Math.round((r.gastado / presupuestoObjetivo) * 100)) : 0;
+              const sobreObjetivo = presupuestoObjetivo > 0 && r.gastado > presupuestoObjetivo;
+              return (
+                <li key={r.objetivo.id} className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPopover({ titulo: `${r.objetivo.titulo} · todos los gastos`, gastos: r.items })}
+                    className="flex items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-crema"
+                    title="Ver todos los adjuntos de este objetivo"
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colorDe(r.objetivo.color).bg }} />
+                    <span className="flex-1 truncate text-[13px] font-medium text-tinta">
+                      {r.objetivo.titulo}
+                      {r.count > 0 && <span className="ml-1.5 text-tinta/35">{r.count} gasto{r.count === 1 ? "" : "s"}</span>}
+                    </span>
+                    <span className={`text-[13px] font-semibold ${sobreObjetivo ? "text-red-600" : "text-tinta"}`}>
+                      {fmtCLP(r.gastado)}
+                      {presupuestoObjetivo > 0 && <span className="ml-1 font-normal text-tinta/40">de {fmtCLP(presupuestoObjetivo)}</span>}
+                    </span>
+                  </button>
+                  {presupuestoObjetivo > 0 && (
+                    <div className="h-1.5 overflow-hidden rounded-full bg-crema">
+                      <div
+                        className={`h-full rounded-full ${sobreObjetivo ? "bg-red-500" : ""}`}
+                        style={{ width: `${pctObjetivo}%`, background: sobreObjetivo ? undefined : colorDe(r.objetivo.color).bg }}
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {configAbierto && (
         <FormularioGastosModal
           proyecto={proyecto}
+          objetivos={objetivos}
           onClose={() => setConfigAbierto(false)}
           onGuardado={() => {
             setConfigAbierto(false);

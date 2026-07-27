@@ -49,6 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       hecho: !!body.hecho,
       responsables: Array.isArray(body.responsables) ? body.responsables : [],
       parent_id: body.parent_id || null,
+      presupuesto: Number(body.presupuesto) || 0,
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

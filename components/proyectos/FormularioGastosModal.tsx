@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { ArchivoGasto, Proyecto } from "@/lib/proyectos";
+import type { ArchivoGasto, Objetivo, Proyecto } from "@/lib/proyectos";
 import { GASTO_CATEGORIAS, catTags, fmtCLP } from "@/lib/proyectos-utilidades";
 
 interface FilaGasto {
@@ -10,14 +10,17 @@ interface FilaGasto {
   label: string;
   monto: string;
   archivos: ArchivoGasto[];
+  objetivoId: string | null;
 }
 
 function FilaGastoRow({
   fila,
+  objetivos,
   onChange,
   onRemove,
 }: {
   fila: FilaGasto;
+  objetivos: Objetivo[];
   onChange: (patch: Partial<FilaGasto>) => void;
   onRemove: () => void;
 }) {
@@ -75,6 +78,21 @@ function FilaGastoRow({
             </option>
           ))}
         </select>
+        {objetivos.length > 0 && (
+          <select
+            value={fila.objetivoId ?? ""}
+            onChange={(e) => onChange({ objetivoId: e.target.value || null })}
+            title="Objetivo al que pertenece este gasto (opcional)"
+            className="max-w-[140px] rounded-md border border-borde px-2 py-1.5 text-xs outline-none focus:border-naranjo/50"
+          >
+            <option value="">Objetivo (opcional)…</option>
+            {objetivos.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.titulo}
+              </option>
+            ))}
+          </select>
+        )}
         {tagEsPreset ? (
           <select
             value={fila.tag}
@@ -190,14 +208,19 @@ function FilaGastoRow({
 
 export default function FormularioGastosModal({
   proyecto,
+  objetivos,
   onClose,
   onGuardado,
 }: {
   proyecto: Proyecto;
+  objetivos: Objetivo[];
   onClose: () => void;
   onGuardado: () => void;
 }) {
   const [presupuesto, setPresupuesto] = useState(proyecto.presupuesto_inicial != null ? String(proyecto.presupuesto_inicial) : "");
+  const [saldoGlobalAsignado, setSaldoGlobalAsignado] = useState(
+    proyecto.saldo_global_asignado != null ? String(proyecto.saldo_global_asignado) : ""
+  );
   const [items, setItems] = useState<FilaGasto[]>(
     (proyecto.gastos ?? []).map((g) => ({
       categoria: g.categoria ?? "",
@@ -205,6 +228,7 @@ export default function FormularioGastosModal({
       label: g.label ?? "",
       monto: g.monto != null ? String(g.monto) : "",
       archivos: g.archivos ?? [],
+      objetivoId: g.objetivo_id ?? null,
     }))
   );
   const [guardando, setGuardando] = useState(false);
@@ -213,7 +237,8 @@ export default function FormularioGastosModal({
   const actualizarItem = (i: number, patch: Partial<FilaGasto>) =>
     setItems((s) => s.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   const quitarItem = (i: number) => setItems((s) => s.filter((_, idx) => idx !== i));
-  const agregarItem = () => setItems((s) => [...s, { categoria: "", tag: "", label: "", monto: "", archivos: [] }]);
+  const agregarItem = () =>
+    setItems((s) => [...s, { categoria: "", tag: "", label: "", monto: "", archivos: [], objetivoId: null }]);
 
   const totalGastado = items.reduce((s, it) => s + (Number(it.monto) || 0), 0);
   const presupNum = Number(presupuesto) || 0;
@@ -226,7 +251,11 @@ export default function FormularioGastosModal({
       const respuesta = await fetch(`/api/proyectos/${proyecto.id}/gastos`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ presupuesto_inicial: presupNum, gastos: items }),
+        body: JSON.stringify({
+          presupuesto_inicial: presupNum,
+          saldo_global_asignado: Number(saldoGlobalAsignado) || 0,
+          gastos: items.map((it) => ({ ...it, objetivo_id: it.objetivoId })),
+        }),
       });
       const cuerpo = await respuesta.json();
       if (!respuesta.ok) throw new Error(cuerpo.error ?? "Error desconocido");
@@ -264,6 +293,22 @@ export default function FormularioGastosModal({
             />
           </label>
 
+          <label>
+            <span className="block text-[10px] font-semibold uppercase tracking-[.1em] text-tinta/60">Saldo global asignado (CLP)</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={saldoGlobalAsignado}
+              onChange={(e) => setSaldoGlobalAsignado(e.target.value)}
+              placeholder="Ej: 2000000"
+              className="mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50"
+            />
+            <span className="mt-1 block text-[11px] text-tinta/45">
+              Total que se ha aprobado repartir entre los objetivos — independiente del presupuesto inicial.
+            </span>
+          </label>
+
           <div className="flex gap-6 rounded-lg border border-borde bg-crema/60 px-3.5 py-2.5 text-xs">
             <span>
               Gastado <strong className="text-tinta">{fmtCLP(totalGastado)}</strong>
@@ -281,6 +326,7 @@ export default function FormularioGastosModal({
                 <FilaGastoRow
                   key={i}
                   fila={it}
+                  objetivos={objetivos}
                   onChange={(patch) => actualizarItem(i, patch)}
                   onRemove={() => quitarItem(i)}
                 />

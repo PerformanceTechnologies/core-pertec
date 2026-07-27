@@ -37,6 +37,11 @@ export interface GastoItem {
   label: string | null;
   monto: number;
   archivos?: ArchivoGasto[];
+  // Objetivo al que pertenece este gasto — opcional, sigue habiendo gastos
+  // generales del proyecto sin objetivo. Una misma categoría puede repartirse
+  // entre varios objetivos (ej. "Traslado" ida ligado a un objetivo, vuelta a
+  // otro), por eso vive en el gasto individual, no en la categoría.
+  objetivo_id?: string | null;
 }
 
 export type EstadoProyecto = "no_iniciado" | "en_curso" | "terminado";
@@ -51,6 +56,10 @@ export interface Proyecto {
   fecha_inicio: string | null;
   fecha_fin: string | null;
   presupuesto_inicial: number;
+  // Total asignado a mano por el admin, comparado contra la suma de los
+  // presupuestos individuales de los objetivos (ver GastosProyecto.tsx) —
+  // campo independiente de presupuesto_inicial, no calculado.
+  saldo_global_asignado: number;
   gastos: GastoItem[];
   estado: EstadoProyecto;
 }
@@ -67,6 +76,7 @@ export interface Objetivo {
   color: string;
   orden: number;
   responsables: string[];
+  presupuesto: number;
 }
 
 export interface ObjetivoComentario {
@@ -86,6 +96,7 @@ export interface DatosObjetivo {
   hecho: boolean;
   responsables: string[];
   parent_id: string | null;
+  presupuesto: number;
 }
 
 export async function listarProyectos(): Promise<Proyecto[]> {
@@ -159,11 +170,15 @@ export async function eliminarProyecto(id: string): Promise<void> {
 
 export async function actualizarGastosProyecto(
   id: string,
-  datos: { presupuesto_inicial: number; gastos: GastoItem[] }
+  datos: { presupuesto_inicial: number; saldo_global_asignado: number; gastos: GastoItem[] }
 ): Promise<void> {
   const { error } = await pertecWebSupabase
     .from("proyectos")
-    .update({ presupuesto_inicial: datos.presupuesto_inicial, gastos: datos.gastos })
+    .update({
+      presupuesto_inicial: datos.presupuesto_inicial,
+      saldo_global_asignado: datos.saldo_global_asignado,
+      gastos: datos.gastos,
+    })
     .eq("id", id);
   if (error) throw new Error(error.message);
 }
@@ -226,6 +241,7 @@ export async function crearObjetivo(proyectoId: string, datos: DatosObjetivo): P
     color: datos.color,
     hecho: datos.hecho,
     responsables: datos.responsables,
+    presupuesto: datos.presupuesto,
   });
   if (error) throw new Error(error.message);
 }
@@ -242,6 +258,7 @@ export async function actualizarObjetivo(id: string, datos: DatosObjetivo): Prom
       color: datos.color,
       hecho: datos.hecho,
       responsables: datos.responsables,
+      presupuesto: datos.presupuesto,
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
