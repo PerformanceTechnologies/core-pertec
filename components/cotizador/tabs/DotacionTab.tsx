@@ -6,7 +6,11 @@ import type { QuotationResult } from "@/lib/cotizador/motor/consolidacion";
 import { money } from "@/lib/cotizador/formato";
 import { nextId } from "@/lib/cotizador/ids";
 import type { CatalogoCargo } from "@/lib/cotizador/catalogo-cargos-tipos";
-import { cargoCatalogoAStaffInput } from "@/lib/cotizador/catalogo-cargos-tipos";
+import {
+  cargoCatalogoAStaffInput,
+  patchCargoCatalogoEnStaff,
+  patchCargoCatalogoEnPersonalSpotContrato,
+} from "@/lib/cotizador/catalogo-cargos-tipos";
 import { NumInput, TextInput, SelectInput, DeleteButton } from "../campos/Campos";
 
 const TURNO_OPTS: { value: Turno; label: string }[] = [
@@ -67,6 +71,15 @@ export default function DotacionTab({
 
   const updateStaff = (id: string, patch: Partial<StaffInput>) =>
     update((q) => ({ ...q, staff: q.staff.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
+
+  // Al elegir un cargo del catálogo en el selector (no al agregar uno nuevo):
+  // si el nombre elegido corresponde a un cargo del catálogo, reaplica su
+  // sueldo/bonos/movilización/colación/turno de referencia — el resto de los
+  // campos (dotación, tipo de contrato, etc.) sigue igual y editable después.
+  const elegirCargoStaff = (id: string, nombreCargo: string) => {
+    const cargoCatalogo = catalogoCargos.find((c) => c.cargo === nombreCargo);
+    updateStaff(id, cargoCatalogo ? patchCargoCatalogoEnStaff(cargoCatalogo) : { cargo: nombreCargo });
+  };
 
   const addStaff = () =>
     update((q) => ({
@@ -129,6 +142,11 @@ export default function DotacionTab({
       ...q,
       personalSpotContrato: (q.personalSpotContrato ?? []).map((s) => (s.id === id ? { ...s, ...patch } : s)),
     }));
+
+  const elegirCargoSpotContrato = (id: string, nombreCargo: string) => {
+    const cargoCatalogo = catalogoCargos.find((c) => c.cargo === nombreCargo);
+    updateSpotContrato(id, cargoCatalogo ? patchCargoCatalogoEnPersonalSpotContrato(cargoCatalogo) : { cargo: nombreCargo });
+  };
 
   const addSpotContrato = () =>
     update((q) => ({
@@ -319,7 +337,7 @@ export default function DotacionTab({
                       <div className="mt-1">
                         <SelectInput
                           value={input.cargo}
-                          onChange={(v) => updateStaff(input.id, { cargo: v })}
+                          onChange={(v) => elegirCargoStaff(input.id, v)}
                           options={opcionesCargo(catalogoCargos, input.cargo)}
                           disabled={disabled}
                         />
@@ -540,7 +558,7 @@ export default function DotacionTab({
                 >
                   <SelectInput
                     value={input.cargo}
-                    onChange={(v) => updateSpotContrato(input.id, { cargo: v })}
+                    onChange={(v) => elegirCargoSpotContrato(input.id, v)}
                     options={opcionesCargo(catalogoCargos, input.cargo)}
                     disabled={disabled}
                   />
