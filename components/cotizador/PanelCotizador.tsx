@@ -49,19 +49,19 @@ export default function PanelCotizador({
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-borde bg-white p-4">
+        <div className="rounded-xl border border-naranjo/20 bg-naranjo/[0.06] p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Monto cotizado · neto/mes</div>
           <div className="mt-1 font-condensed text-2xl font-bold text-tinta">{money(totalNeto)}</div>
           <div className="mt-1 text-xs text-tinta/50">{cotizaciones.length} cotizaciones</div>
         </div>
-        <div className="rounded-xl border border-borde bg-white p-4">
+        <div className="rounded-xl border border-gris/25 bg-gris/[0.08] p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Tasa de adjudicación</div>
           <div className="mt-1 font-condensed text-2xl font-bold text-naranjo">
             {cotizaciones.length ? pct(adjudicadas / cotizaciones.length, 0) : "—"}
           </div>
           <div className="mt-1 text-xs text-tinta/50">{adjudicadas} de {cotizaciones.length} adjudicadas o emitidas</div>
         </div>
-        <div className="rounded-xl border border-borde bg-white p-4">
+        <div className="rounded-xl border border-teal/20 bg-teal/[0.06] p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Margen efectivo promedio</div>
           <div className="mt-1 font-condensed text-2xl font-bold text-teal">{pct(margenProm)}</div>
           <div className="mt-1 text-xs text-tinta/50">sobre costo mensual total</div>
@@ -69,11 +69,14 @@ export default function PanelCotizador({
       </div>
 
       {puedeCrear && (
-        <details className="mt-6 rounded-xl border border-borde bg-white p-4">
-          <summary className="cursor-pointer font-condensed text-sm font-bold uppercase text-tinta">
-            + Nueva cotización
+        <details className="group mt-6 rounded-xl border-2 border-naranjo bg-naranjo/5 open:bg-white">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 font-condensed text-base font-bold uppercase tracking-wide text-naranjo transition hover:bg-naranjo/10 group-open:hover:bg-transparent">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-naranjo text-sm font-black text-white">
+              +
+            </span>
+            Nueva cotización
           </summary>
-          <div className="mt-4">
+          <div className="px-5 pb-5">
             <FormularioCotizacion accion={crearCotizacionAction} textoBoton="Crear cotización" />
           </div>
         </details>

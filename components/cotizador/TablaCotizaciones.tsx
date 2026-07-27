@@ -34,11 +34,20 @@ export default function TablaCotizaciones({
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [empresaFiltro, setEmpresaFiltro] = useState<string>("todas");
+  const [tipoFiltro, setTipoFiltro] = useState<string>("todos");
+  const [estadoFiltro, setEstadoFiltro] = useState<string>("todos");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
 
   const filtradas = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
     return cotizaciones.filter((c) => {
       if (empresaFiltro !== "todas" && c.empresa !== empresaFiltro) return false;
+      if (tipoFiltro !== "todos" && c.tipoServicio !== tipoFiltro) return false;
+      if (estadoFiltro !== "todos" && c.estado !== estadoFiltro) return false;
+      const fechaActualizado = c.actualizadoEn.slice(0, 10);
+      if (fechaDesde && fechaActualizado < fechaDesde) return false;
+      if (fechaHasta && fechaActualizado > fechaHasta) return false;
       if (!texto) return true;
       return (
         c.nombre.toLowerCase().includes(texto) ||
@@ -46,9 +55,15 @@ export default function TablaCotizaciones({
         (c.faena ?? "").toLowerCase().includes(texto)
       );
     });
-  }, [cotizaciones, busqueda, empresaFiltro]);
+  }, [cotizaciones, busqueda, empresaFiltro, tipoFiltro, estadoFiltro, fechaDesde, fechaHasta]);
 
-  const hayFiltrosActivos = busqueda.trim() !== "" || empresaFiltro !== "todas";
+  const hayFiltrosActivos =
+    busqueda.trim() !== "" ||
+    empresaFiltro !== "todas" ||
+    tipoFiltro !== "todos" ||
+    estadoFiltro !== "todos" ||
+    fechaDesde !== "" ||
+    fechaHasta !== "";
 
   return (
     <div className="mt-6">
@@ -72,6 +87,60 @@ export default function TablaCotizaciones({
             </option>
           ))}
         </select>
+        <select
+          value={tipoFiltro}
+          onChange={(e) => setTipoFiltro(e.target.value)}
+          className="h-9 rounded-lg border border-borde bg-white px-3 text-sm outline-none focus:border-naranjo/50"
+        >
+          <option value="todos">Tipo: todos</option>
+          <option value="spot">SPOT</option>
+          <option value="contrato_permanente">Contrato permanente</option>
+        </select>
+        <select
+          value={estadoFiltro}
+          onChange={(e) => setEstadoFiltro(e.target.value)}
+          className="h-9 rounded-lg border border-borde bg-white px-3 text-sm outline-none focus:border-naranjo/50"
+        >
+          <option value="todos">Estado: todos</option>
+          <option value="borrador">Borrador</option>
+          <option value="emitida">Emitida</option>
+          <option value="adjudicada">Adjudicada</option>
+          <option value="perdida">Perdida</option>
+        </select>
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-tinta/50">Actualizado</label>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            title="Desde"
+            className="h-9 rounded-lg border border-borde bg-white px-2 text-sm outline-none focus:border-naranjo/50"
+          />
+          <span className="text-xs text-tinta/40">–</span>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            title="Hasta"
+            className="h-9 rounded-lg border border-borde bg-white px-2 text-sm outline-none focus:border-naranjo/50"
+          />
+        </div>
+        {hayFiltrosActivos && (
+          <button
+            type="button"
+            onClick={() => {
+              setBusqueda("");
+              setEmpresaFiltro("todas");
+              setTipoFiltro("todos");
+              setEstadoFiltro("todos");
+              setFechaDesde("");
+              setFechaHasta("");
+            }}
+            className="h-9 rounded-lg border border-borde bg-white px-3 text-xs font-semibold text-tinta/60 transition hover:border-naranjo/50 hover:text-naranjo"
+          >
+            Limpiar filtros
+          </button>
+        )}
         <div className="flex-1" />
         <span className="text-xs text-tinta/50">
           {filtradas.length} de {cotizaciones.length} cotizaciones
