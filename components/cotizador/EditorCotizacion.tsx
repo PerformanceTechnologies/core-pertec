@@ -42,10 +42,12 @@ export default function EditorCotizacion({
   cotizacion,
   rol,
   catalogoCargos,
+  preparadoPor,
 }: {
   cotizacion: CotizacionCompleta;
   rol: RolCotizador;
   catalogoCargos: CatalogoCargo[];
+  preparadoPor: { nombre: string; correo: string };
 }) {
   const [tab, setTab] = useState<QuoteTab>("parametros");
   const [pendiente, iniciarTransicion] = useTransition();
@@ -175,7 +177,7 @@ export default function EditorCotizacion({
         />
       )}
       {tab === "resumen" && <ResumenTab quotation={quotation} result={result} update={update} disabled={disabled} />}
-      {tab === "eco" && <EcoTab cotizacion={cotizacion} result={result} />}
+      {tab === "eco" && <EcoTab cotizacion={cotizacion} result={result} preparadoPor={preparadoPor} />}
     </div>
   );
 }

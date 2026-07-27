@@ -2,17 +2,26 @@ import type { QuotationResult } from "@/lib/cotizador/motor/consolidacion";
 import type { CotizacionCompleta } from "@/lib/cotizador";
 import { money, fechaCl } from "@/lib/cotizador/formato";
 
-export default function EcoTab({ cotizacion, result }: { cotizacion: CotizacionCompleta; result: QuotationResult }) {
+export default function EcoTab({
+  cotizacion,
+  result,
+  preparadoPor,
+}: {
+  cotizacion: CotizacionCompleta;
+  result: QuotationResult;
+  preparadoPor: { nombre: string; correo: string };
+}) {
   return (
     <div className="mt-6">
       <div className="mb-4 flex justify-center gap-2.5 print:hidden">
-        <button
-          type="button"
-          onClick={() => window.print()}
+        <a
+          href={`/api/cotizador/${cotizacion.id}/eco-pdf`}
+          target="_blank"
+          rel="noopener"
           className="rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50"
         >
-          ↓ Imprimir / PDF
-        </button>
+          ↓ Descargar PDF
+        </a>
       </div>
 
       <div className="mx-auto max-w-3xl rounded border border-borde bg-white p-9 shadow-sm">
@@ -130,11 +139,11 @@ export default function EcoTab({ cotizacion, result }: { cotizacion: CotizacionC
             Boleta de garantía según bases de licitación ({money(result.boletaGarantia)}).
           </div>
           <div className="text-center">
-            <div className="w-56 border-t border-tinta pt-1.5 text-sm font-medium">Cristián Riquelme Ossandón</div>
+            <div className="w-56 border-t border-tinta pt-1.5 text-sm font-medium">{preparadoPor.nombre}</div>
             <div className="text-xs text-tinta/60">
-              Representante Legal · Zeus Mining SpA
+              Preparado por · {cotizacion.empresa}
               <br />
-              RUT 12.845.302-6
+              {preparadoPor.correo}
             </div>
           </div>
         </div>

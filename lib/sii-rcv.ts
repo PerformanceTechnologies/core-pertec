@@ -1,4 +1,5 @@
 import "server-only";
+import { lanzarNavegador } from "./playwright-navegador";
 
 // Scraper del Registro de Compras y Ventas (RCV) del SII para PERTEC SpA.
 // No existe API publica para el RCV, asi que esto automatiza la misma
@@ -140,32 +141,7 @@ function parsearCsvRcv(
 }
 
 // --- Playwright: navegador segun entorno -----------------------------------
-
-async function lanzarNavegador() {
-  if (process.env.VERCEL) {
-    // @sparticuz/chromium-min solo extrae las librerias de sistema que le
-    // faltan al runtime de Vercel (libnss3.so y otras, empaquetadas en
-    // al2023.tar.br) si detecta que corre "en AWS Lambda" via esta variable
-    // — Vercel no la setea sola, aunque su runtime este basado en Lambda.
-    process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
-
-    const chromium = (await import("@sparticuz/chromium-min")).default;
-    const { chromium: playwrightChromium } = await import("playwright-core");
-    const executablePath = await chromium.executablePath(
-      process.env.CHROMIUM_PACK_URL ||
-        "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar"
-    );
-    return playwrightChromium.launch({
-      args: chromium.args,
-      executablePath,
-      headless: true,
-    });
-  }
-  // Desarrollo local: usa el paquete "playwright" completo (chromium ya
-  // instalado via `npx playwright install chromium`).
-  const { chromium: localChromium } = await import("playwright");
-  return localChromium.launch({ headless: true });
-}
+// (extraído a lib/playwright-navegador.ts para reutilizarlo fuera de este scraper)
 
 async function login(page: import("playwright-core").Page, creds: CredencialesSii): Promise<void> {
   await page.goto(
