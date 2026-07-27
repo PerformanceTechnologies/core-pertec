@@ -1,5 +1,6 @@
 import type { DatosNuevaCotizacion } from "@/lib/cotizador";
 import { EMPRESAS } from "@/lib/cotizador/empresas";
+import ClienteOdooInput from "./ClienteOdooInput";
 
 export default function FormularioCotizacion({
   accion,
@@ -40,11 +41,10 @@ export default function FormularioCotizacion({
 
       <div>
         <label className="block text-xs font-medium text-tinta/70">Cliente</label>
-        <input
+        <ClienteOdooInput
           name="cliente"
           defaultValue={valoresPorDefecto?.cliente ?? ""}
           placeholder="Antofagasta Minerals — AMSA"
-          className="mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50"
         />
       </div>
 
