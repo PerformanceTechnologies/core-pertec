@@ -1,24 +1,28 @@
 "use client";
 
+import { useState } from "react";
 import type { Objetivo } from "@/lib/proyectos";
-import { colorDe, diasEntre, fmtMes, parseFecha, sumarDias } from "@/lib/proyectos-utilidades";
+import { colorDe, diasEntre, fmtCLP, fmtMes, parseFecha, sumarDias } from "@/lib/proyectos-utilidades";
 
 const ANCHO_DIA = 28;
 const ANCHO_LABEL = 180;
 
 export default function Gantt({
   objetivos,
+  gastosPorObjetivo,
   puedeEditar,
   puedeAlternar,
   onAlternar,
   onEditar,
 }: {
   objetivos: Objetivo[];
+  gastosPorObjetivo: Record<string, { gastado: number; count: number }>;
   puedeEditar: boolean;
   puedeAlternar: boolean;
   onAlternar: (o: Objetivo) => void;
   onEditar: (o: Objetivo) => void;
 }) {
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   const starts = objetivos.map((o) => parseFecha(o.fecha_inicio).getTime());
@@ -132,24 +136,60 @@ export default function Gantt({
                   />
                 );
               })}
-              <button
-                type="button"
-                title={titulo}
-                onClick={() => onEditar(o)}
-                disabled={!puedeEditar}
-                style={{
-                  gridRow: fila,
-                  gridColumn: `${colInicio + 2} / span ${span}`,
-                  background: o.hecho ? color.soft : `linear-gradient(135deg, ${color.bg} 0%, ${color.bg} 65%, rgba(0,0,0,.18) 100%)`,
-                  borderColor: color.edge,
-                  color: o.hecho ? "var(--color-tinta)" : color.txt,
-                  opacity: o.hecho ? 0.7 : 1,
-                }}
-                className="z-[1] mx-0.5 my-1 flex h-6 items-center truncate rounded-[3px] border px-2.5 text-[10.5px] font-semibold tracking-wide transition hover:-translate-y-px hover:shadow-[0_6px_18px_rgba(12,10,9,.14)] hover:brightness-[1.06] disabled:cursor-default"
+              <div
+                style={{ gridRow: fila, gridColumn: `${colInicio + 2} / span ${span}` }}
+                className="relative z-[1] my-1"
+                onMouseEnter={() => setHoverId(o.id)}
+                onMouseLeave={() => setHoverId((id) => (id === o.id ? null : id))}
               >
-                <span className={o.hecho ? "truncate line-through" : "truncate"}>{o.titulo}</span>
-                {o.hecho && <span className="ml-1">✓</span>}
-              </button>
+                <button
+                  type="button"
+                  title={titulo}
+                  onClick={() => onEditar(o)}
+                  disabled={!puedeEditar}
+                  style={{
+                    background: o.hecho ? color.soft : `linear-gradient(135deg, ${color.bg} 0%, ${color.bg} 65%, rgba(0,0,0,.18) 100%)`,
+                    borderColor: color.edge,
+                    color: o.hecho ? "var(--color-tinta)" : color.txt,
+                    opacity: o.hecho ? 0.7 : 1,
+                  }}
+                  className="mx-0.5 flex h-6 w-[calc(100%-4px)] items-center truncate rounded-[3px] border px-2.5 text-[10.5px] font-semibold tracking-wide transition hover:-translate-y-px hover:shadow-[0_6px_18px_rgba(12,10,9,.14)] hover:brightness-[1.06] disabled:cursor-default"
+                >
+                  <span className={o.hecho ? "truncate line-through" : "truncate"}>{o.titulo}</span>
+                  {o.hecho && <span className="ml-1">✓</span>}
+                </button>
+
+                {hoverId === o.id && (() => {
+                  const gasto = gastosPorObjetivo[o.id];
+                  const presupuestoObjetivo = Number(o.presupuesto) || 0;
+                  if (!gasto && presupuestoObjetivo === 0) return null;
+                  const gastado = gasto?.gastado ?? 0;
+                  const disponible = presupuestoObjetivo - gastado;
+                  const sobre = presupuestoObjetivo > 0 && gastado > presupuestoObjetivo;
+                  return (
+                    <div className="pointer-events-none absolute left-0.5 top-full z-20 mt-1 w-52 rounded-lg border border-borde bg-white p-2.5 text-left shadow-[0_12px_28px_rgba(12,10,9,.16)]">
+                      <p className="truncate text-[11px] font-semibold text-tinta">{o.titulo}</p>
+                      <div className="mt-1.5 flex flex-col gap-0.5 text-[10px] text-tinta/60">
+                        {presupuestoObjetivo > 0 && (
+                          <span>
+                            Presupuesto <strong className="text-tinta">{fmtCLP(presupuestoObjetivo)}</strong>
+                          </span>
+                        )}
+                        <span>
+                          Gastado <strong className={sobre ? "text-red-600" : "text-tinta"}>{fmtCLP(gastado)}</strong>
+                          {gasto && ` · ${gasto.count} partida${gasto.count === 1 ? "" : "s"}`}
+                        </span>
+                        {presupuestoObjetivo > 0 && (
+                          <span>
+                            {sobre ? "Sobregiro" : "Disponible"}{" "}
+                            <strong className={sobre ? "text-red-600" : "text-tinta"}>{fmtCLP(Math.abs(disponible))}</strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           );
         })}
