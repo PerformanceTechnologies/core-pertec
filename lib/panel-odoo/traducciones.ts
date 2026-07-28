@@ -3,13 +3,13 @@
 // aca para que Tarjetas, Listas y Modales usen siempre el mismo mapeo en vez
 // de duplicar diccionarios locales que se desincronizan entre si.
 //
-// Los valores de cada selection se verificaron contra el Odoo real via
-// odoo_describe_model (crm.lead.stage_id, account.move, sale.order,
-// purchase.order, hr.expense) -- no son una adivinanza. fleet.vehicle y
-// project.task no estan en la lista de modelos permitidos por el MCP de
-// Odoo, asi que sus diccionarios son mejor esfuerzo con los nombres
-// default de Odoo; si el valor real no calza, el fallback deja ver el
-// texto crudo en vez de romper la UI.
+// Los valores de cada selection se verificaron contra el Odoo real (via
+// odoo_describe_model para crm.lead.stage_id/account.move/sale.order/
+// purchase.order/hr.expense, y via odooSearchRead sobre fleet.vehicle.state
+// para Flota) -- no son una adivinanza, salvo CATEGORIAS_FLOTA y el etapa
+// freeform de project.task, donde no hay una lista fija que verificar. Si
+// un valor real no calza igual, el fallback deja ver el texto crudo en vez
+// de romper la UI.
 
 // Si un valor no esta en el diccionario se muestra tal cual -- nunca se
 // rompe la UI por un valor nuevo o no contemplado.
@@ -121,17 +121,18 @@ export const ESTADOS_TAREA: Record<string, string> = {
   "04_waiting_normal": "En espera",
 };
 
-// fleet.vehicle.state_id.name -- nombres default de Odoo Fleet; mejor
-// esfuerzo (modelo no consultable via el MCP de Odoo para confirmar).
+// fleet.vehicle.state_id.name -- este Odoo tiene su propia lista custom de
+// estados (no la default de Fleet), verificada via odooSearchRead contra
+// fleet.vehicle.state: "To Order", "Registered", "En Mantencion",
+// "Downgraded". Se agrupan en las 3 categorias que el panel debe mostrar
+// siempre visibles ("Activo" / "En mantención" / "No operativo") -- "To
+// Order" (todavia no ingresa a la flota) y "Downgraded" (dado de baja)
+// cuentan igual como "No operativo".
 export const ESTADOS_FLOTA: Record<string, string> = {
-  "New Request": "Nueva solicitud",
-  "To Approve": "Por aprobar",
-  Confirmed: "Confirmado",
-  Registered: "Registrado",
-  "To Renew": "Por renovar",
-  Downgraded: "Dado de baja",
-  Reserve: "Reserva",
-  "Waiting List": "Lista de espera",
+  Registered: "Activo",
+  "En Mantencion": "En mantención",
+  Downgraded: "No operativo",
+  "To Order": "No operativo",
 };
 
 // fleet.vehicle.model_id.category_id.name -- categorias default de Odoo Fleet.

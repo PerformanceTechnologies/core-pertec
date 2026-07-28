@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { traducir, ETAPAS_CRM, ESTADOS_FLOTA, CATEGORIAS_FLOTA } from "@/lib/panel-odoo/traducciones";
+import { fechaCl } from "@/lib/cotizador/formato";
+import { traducir, ETAPAS_CRM, ESTADOS_FLOTA } from "@/lib/panel-odoo/traducciones";
 
 // Todo lo que lee este archivo viene de la cache en Supabase -- nunca
 // consulta Odoo en vivo (ver plan: el panel siempre lee de la cache, la
@@ -317,33 +318,84 @@ export interface FilaVehiculo {
   odometro: number | null;
 }
 
+export interface GrupoConDetalle {
+  etapa: string;
+  cantidad: number;
+  detalle: string[]; // items legibles para mostrar al pasar el mouse (nombre truncado en la UI, no aca)
+  // Indice de tipo para que se acepte donde GraficoDona pide
+  // Record<string, unknown>[] (dataKey/nameKey genericos leen por clave).
+  [key: string]: unknown;
+}
+
 export interface KpisFlota {
   totalVehiculos: number;
-  porEstado: { etapa: string; cantidad: number }[];
-  porCategoria: { categoria: string; cantidad: number }[];
+  vehiculosActivos: number;
+  porEstado: GrupoConDetalle[];
+  documentacion: {
+    vigentes: number;
+    vencidas: number;
+    porEstado: GrupoConDetalle[];
+  };
 }
 
 export async function obtenerKpisFlota(companyId: number): Promise<KpisFlota> {
-  const { data } = await supabaseAdmin
-    .from("panel_odoo_flota")
-    .select("estado, categoria")
-    .eq("company_id", companyId);
+  const [{ data: vehiculosData }, { data: documentosData }] = await Promise.all([
+    supabaseAdmin.from("panel_odoo_flota").select("estado, nombre, patente").eq("company_id", companyId),
+    supabaseAdmin
+      .from("panel_odoo_flota_documentos")
+      .select("vehiculo_nombre, nombre, fecha_vencimiento")
+      .eq("company_id", companyId),
+  ]);
 
-  const filas = data ?? [];
-  const porEstadoMapa = new Map<string, number>();
-  const porCategoriaMapa = new Map<string, number>();
-  for (const fila of filas) {
-    const estado = traducir(ESTADOS_FLOTA, fila.estado ?? "Sin estado");
-    porEstadoMapa.set(estado, (porEstadoMapa.get(estado) ?? 0) + 1);
+  const vehiculos = vehiculosData ?? [];
+  const porEstadoMapa = new Map<string, { cantidad: number; detalle: string[] }>();
+  for (const v of vehiculos) {
+    const estado = traducir(ESTADOS_FLOTA, v.estado ?? "Sin estado");
+    const actual = porEstadoMapa.get(estado) ?? { cantidad: 0, detalle: [] };
+    actual.cantidad += 1;
+    actual.detalle.push(v.patente ? `${v.nombre} (${v.patente})` : v.nombre);
+    porEstadoMapa.set(estado, actual);
+  }
+  // "Activo" es el bucket ya traducido (ver ESTADOS_FLOTA) que representa un
+  // vehiculo operando -- se lee de ahi en vez de comparar contra el valor
+  // crudo de Odoo, para no duplicar la regla de mapeo en dos lugares.
+  const vehiculosActivos = porEstadoMapa.get("Activo")?.cantidad ?? 0;
 
-    const categoria = traducir(CATEGORIAS_FLOTA, fila.categoria ?? "Sin categoría");
-    porCategoriaMapa.set(categoria, (porCategoriaMapa.get(categoria) ?? 0) + 1);
+  // Documentos sin fecha de vencimiento cargada todavia no se pueden
+  // clasificar como vigentes ni vencidos -- se excluyen del grafico en vez
+  // de adivinar.
+  const hoy = new Date().toISOString().slice(0, 10);
+  const porEstadoDocMapa = new Map<string, { cantidad: number; detalle: string[] }>();
+  let vigentes = 0;
+  let vencidas = 0;
+  for (const d of documentosData ?? []) {
+    if (!d.fecha_vencimiento) continue;
+    const vigente = d.fecha_vencimiento >= hoy;
+    const estado = vigente ? "Vigente" : "Vencida";
+    if (vigente) vigentes += 1;
+    else vencidas += 1;
+
+    const actual = porEstadoDocMapa.get(estado) ?? { cantidad: 0, detalle: [] };
+    actual.cantidad += 1;
+    actual.detalle.push(`${d.vehiculo_nombre} — ${d.nombre} (vence ${fechaCl(d.fecha_vencimiento)})`);
+    porEstadoDocMapa.set(estado, actual);
   }
 
   return {
-    totalVehiculos: filas.length,
-    porEstado: Array.from(porEstadoMapa.entries()).map(([etapa, cantidad]) => ({ etapa, cantidad })),
-    porCategoria: Array.from(porCategoriaMapa.entries()).map(([categoria, cantidad]) => ({ categoria, cantidad })),
+    totalVehiculos: vehiculos.length,
+    vehiculosActivos,
+    porEstado: Array.from(porEstadoMapa.entries())
+      .map(([etapa, v]) => ({ etapa, ...v }))
+      .sort((a, b) => b.cantidad - a.cantidad),
+    documentacion: {
+      vigentes,
+      vencidas,
+      // Orden fijo (Vencida primero, es lo que un admin quiere ver antes) en
+      // vez de ordenar por cantidad -- y se omite el bucket si quedo en 0.
+      porEstado: ["Vencida", "Vigente"]
+        .map((etapa) => ({ etapa, ...(porEstadoDocMapa.get(etapa) ?? { cantidad: 0, detalle: [] }) }))
+        .filter((g) => g.cantidad > 0),
+    },
   };
 }
 

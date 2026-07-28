@@ -25,6 +25,31 @@ interface VehiculoOdoo {
   company_id: TuplaOdoo;
 }
 
+// pertec.fleet.vehicle.document es un modelo custom de este Odoo (no viene
+// de serie con el modulo Fleet): guarda permiso de circulacion, SOAP,
+// revision tecnica, etc. por vehiculo, con fecha de vencimiento. No tiene
+// company_id propio -- se hereda del vehiculo (vehicle_id) al sincronizar.
+interface DocumentoVehiculoOdoo {
+  id: number;
+  name: string;
+  category: string | false;
+  document_type: string | false;
+  expiration_date: string | false;
+  vehicle_id: TuplaOdoo;
+}
+
+// Borra de la cache lo que Odoo ya no devuelve (vehiculo o documento
+// eliminado/dado de baja) -- upsert por si solo nunca limpia filas viejas,
+// y un vehiculo borrado en Odoo seguia apareciendo en el panel para
+// siempre. "sin ids vigentes" borra todo (odoo_id siempre es positivo, asi
+// que -1 nunca matchea nada real).
+async function eliminarNoVigentes(tabla: "panel_odoo_flota" | "panel_odoo_flota_documentos", idsVigentes: number[]) {
+  const query = supabaseAdmin.from(tabla).delete();
+  const { error } =
+    idsVigentes.length > 0 ? await query.not("odoo_id", "in", `(${idsVigentes.join(",")})`) : await query.neq("odoo_id", -1);
+  if (error) throw new Error(error.message);
+}
+
 export async function sincronizarFlota(): Promise<number> {
   const vehiculos = await odooSearchRead<VehiculoOdoo>(
     "fleet.vehicle",
@@ -44,10 +69,22 @@ export async function sincronizarFlota(): Promise<number> {
     { limit: 2000 }
   );
 
-  if (vehiculos.length === 0) return 0;
+  await eliminarNoVigentes(
+    "panel_odoo_flota",
+    vehiculos.map((v) => v.id)
+  );
 
-  const filas = vehiculos.map((v) => {
+  if (vehiculos.length === 0) {
+    await eliminarNoVigentes("panel_odoo_flota_documentos", []);
+    return 0;
+  }
+
+  const companyPorVehiculo = new Map<number, number>();
+  const nombrePorVehiculo = new Map<number, string>();
+  const filasVehiculos = vehiculos.map((v) => {
     const companyId = idDeTupla(v.company_id) ?? 1;
+    companyPorVehiculo.set(v.id, companyId);
+    nombrePorVehiculo.set(v.id, v.name);
     return {
       odoo_id: v.id,
       company_id: companyId,
@@ -65,10 +102,49 @@ export async function sincronizarFlota(): Promise<number> {
     };
   });
 
-  const { error, count } = await supabaseAdmin
+  const { error: errorVehiculos, count: countVehiculos } = await supabaseAdmin
     .from("panel_odoo_flota")
-    .upsert(filas, { onConflict: "odoo_id", count: "exact" });
+    .upsert(filasVehiculos, { onConflict: "odoo_id", count: "exact" });
+  if (errorVehiculos) throw new Error(errorVehiculos.message);
 
-  if (error) throw new Error(error.message);
-  return count ?? filas.length;
+  const documentos = await odooSearchRead<DocumentoVehiculoOdoo>(
+    "pertec.fleet.vehicle.document",
+    [],
+    ["name", "category", "document_type", "expiration_date", "vehicle_id"],
+    { limit: 5000 }
+  );
+
+  await eliminarNoVigentes(
+    "panel_odoo_flota_documentos",
+    documentos.map((d) => d.id)
+  );
+
+  let countDocumentos = 0;
+  if (documentos.length > 0) {
+    const filasDocumentos = documentos
+      .map((d) => {
+        const vehiculoId = idDeTupla(d.vehicle_id);
+        if (vehiculoId === null) return null;
+        return {
+          odoo_id: d.id,
+          company_id: companyPorVehiculo.get(vehiculoId) ?? 1,
+          vehiculo_odoo_id: vehiculoId,
+          vehiculo_nombre: nombrePorVehiculo.get(vehiculoId) ?? nombreDeTupla(d.vehicle_id) ?? "Vehículo",
+          nombre: d.name,
+          categoria: d.category || null,
+          tipo_documento: d.document_type || null,
+          fecha_vencimiento: d.expiration_date || null,
+          actualizado_en: new Date().toISOString(),
+        };
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null);
+
+    const { error: errorDocumentos, count } = await supabaseAdmin
+      .from("panel_odoo_flota_documentos")
+      .upsert(filasDocumentos, { onConflict: "odoo_id", count: "exact" });
+    if (errorDocumentos) throw new Error(errorDocumentos.message);
+    countDocumentos = count ?? filasDocumentos.length;
+  }
+
+  return (countVehiculos ?? filasVehiculos.length) + countDocumentos;
 }

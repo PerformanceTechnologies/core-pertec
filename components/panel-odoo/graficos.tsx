@@ -102,45 +102,111 @@ function TickCategoriaTruncado({
   );
 }
 
+// Tooltip que lista los items de "detalle" (string[]) del segmento con el
+// mouse encima, en vez de solo mostrar el numero agregado -- para graficos
+// tipo "vehiculos activos" o "documentacion vencida" donde lo util es ver
+// CUALES vehiculos/documentos caen en ese grupo, no solo cuantos.
+const LIMITE_DETALLE_TOOLTIP = 8;
+
+function crearTooltipConDetalle(nameKey: string, dataKey: string, formatear: (v: number) => string) {
+  // Recharts tipa "content" con un generico (TooltipContentProps<ValueType,
+  // NameType>) poco practico de calzar para un tooltip custom simple -- se
+  // usa "any" a proposito, como en los propios ejemplos de Recharts, en vez
+  // de pelear con esos tipos.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return function TooltipConDetalle({ active, payload }: any) {
+    if (!active || !payload?.length) return null;
+    const item = payload[0].payload as Record<string, unknown>;
+    const detalle = Array.isArray(item.detalle) ? (item.detalle as string[]) : [];
+    return (
+      <div className="max-w-[240px] rounded-lg border border-borde bg-white p-2.5 text-xs shadow-lg">
+        <p className="font-semibold text-tinta">
+          {String(item[nameKey] ?? "")} ({formatear(Number(item[dataKey] ?? 0))})
+        </p>
+        {detalle.length > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {detalle.slice(0, LIMITE_DETALLE_TOOLTIP).map((linea, i) => (
+              <li key={i} className="truncate text-tinta/70">
+                {linea}
+              </li>
+            ))}
+          </ul>
+        )}
+        {detalle.length > LIMITE_DETALLE_TOOLTIP && (
+          <p className="mt-1 text-tinta/40">+{detalle.length - LIMITE_DETALLE_TOOLTIP} más</p>
+        )}
+      </div>
+    );
+  };
+}
+
 export function GraficoDona({
   datos,
   dataKey = "cantidad",
   nameKey = "etapa",
   formato = "cantidad",
+  mostrarDetalle = false,
+  mostrarLeyenda = false,
   expandido = false,
 }: {
-  datos: Record<string, string | number>[];
+  datos: Record<string, unknown>[];
   dataKey?: string;
   nameKey?: string;
   // "dinero" formatea con money() -- se pasa el identificador y no la funcion
   // porque este es un Client Component: una funcion recibida como prop desde
   // un Server Component no es serializable a traves de ese limite.
   formato?: "cantidad" | "dinero";
+  // Si los items de "datos" traen un campo "detalle" (string[]), muestra esa
+  // lista en el tooltip en vez del formateo por defecto.
+  mostrarDetalle?: boolean;
+  // Fila de "nombre (cantidad)" siempre visible debajo del grafico -- para
+  // categorias que el usuario debe poder leer sin necesidad de pasar el
+  // mouse (ej. "Vigente"/"Vencida" en documentacion de Flota).
+  mostrarLeyenda?: boolean;
   expandido?: boolean;
 }) {
   const alto = expandido ? ALTO_GRAFICO_EXPANDIDO : ALTO_GRAFICO;
   if (datos.length === 0) return <SinDatos alto={alto} />;
   const formatear = (valor: number) => (formato === "dinero" ? money(valor) : String(valor));
   return (
-    <div className={`${alto} w-full`}>
-      <ResponsiveContainer>
-        <PieChart>
-          <Pie
-            data={datos}
-            dataKey={dataKey}
-            nameKey={nameKey}
-            innerRadius={expandido ? 56 : 26}
-            outerRadius={expandido ? 96 : 44}
-            paddingAngle={2}
-            label={expandido ? ({ name, value }) => `${name} (${formatear(value)})` : undefined}
-          >
-            {datos.map((_, i) => (
-              <Cell key={i} fill={COLORES_DONA[i % COLORES_DONA.length]} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v) => formatear(Number(v))} />
-        </PieChart>
-      </ResponsiveContainer>
+    <div className="w-full">
+      <div className={`${alto} w-full`}>
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie
+              data={datos}
+              dataKey={dataKey}
+              nameKey={nameKey}
+              innerRadius={expandido ? 56 : 26}
+              outerRadius={expandido ? 96 : 44}
+              paddingAngle={2}
+              label={expandido ? ({ name, value }) => `${name} (${formatear(value)})` : undefined}
+            >
+              {datos.map((_, i) => (
+                <Cell key={i} fill={COLORES_DONA[i % COLORES_DONA.length]} />
+              ))}
+            </Pie>
+            {mostrarDetalle ? (
+              <Tooltip content={crearTooltipConDetalle(nameKey, dataKey, formatear)} />
+            ) : (
+              <Tooltip formatter={(v) => formatear(Number(v))} />
+            )}
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      {mostrarLeyenda && (
+        <div className="mt-1.5 flex flex-wrap justify-center gap-x-2.5 gap-y-1 text-[10px] text-tinta/70">
+          {datos.map((item, i) => (
+            <span key={i} className="flex items-center gap-1">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: COLORES_DONA[i % COLORES_DONA.length] }}
+              />
+              {String(item[nameKey] ?? "")} ({formatear(Number(item[dataKey] ?? 0))})
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -153,12 +219,14 @@ export function GraficoBarrasRanking({
   dataKey = "cantidad",
   nameKey = "etapa",
   formato = "cantidad",
+  mostrarDetalle = false,
   expandido = false,
 }: {
-  datos: Record<string, string | number>[];
+  datos: Record<string, unknown>[];
   dataKey?: string;
   nameKey?: string;
   formato?: "cantidad" | "dinero";
+  mostrarDetalle?: boolean;
   expandido?: boolean;
 }) {
   const alto = expandido ? ALTO_GRAFICO_EXPANDIDO : ALTO_GRAFICO;
@@ -187,7 +255,11 @@ export function GraficoBarrasRanking({
             axisLine={false}
             tickLine={false}
           />
-          <Tooltip formatter={(v) => formatear(Number(v))} />
+          {mostrarDetalle ? (
+            <Tooltip content={crearTooltipConDetalle(nameKey, dataKey, formatear)} />
+          ) : (
+            <Tooltip formatter={(v) => formatear(Number(v))} />
+          )}
           <Bar
             dataKey={dataKey}
             radius={[0, 3, 3, 0]}

@@ -27,16 +27,25 @@ export default async function TarjetaFlota({
       ejecucion={ejecucion}
       contenidoExpandido={
         <div>
-          <div className="grid grid-cols-2 gap-4 sm:items-center">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat etiqueta="Vehículos" valor={String(kpis.totalVehiculos)} />
-            <div>
-              <p className="mb-1 text-[10px] uppercase text-tinta/45">Por estado</p>
-              <GraficoDona datos={kpis.porEstado} expandido />
-            </div>
+            <Stat etiqueta="Activos" valor={String(kpis.vehiculosActivos)} color="text-teal" />
+            <Stat etiqueta="Doc. vigentes" valor={String(kpis.documentacion.vigentes)} color="text-teal" />
+            <Stat etiqueta="Doc. vencidas" valor={String(kpis.documentacion.vencidas)} color="text-naranjo" />
           </div>
 
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">Por categoría</p>
-          <GraficoBarrasRanking datos={kpis.porCategoria} dataKey="cantidad" nameKey="categoria" expandido />
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-tinta/45">Vehículos activos</p>
+              <GraficoBarrasRanking datos={kpis.porEstado} mostrarDetalle expandido />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-tinta/45">
+                Documentación vigente / vencida
+              </p>
+              <GraficoDona datos={kpis.documentacion.porEstado} mostrarDetalle mostrarLeyenda expandido />
+            </div>
+          </div>
 
           <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">
             Vehículos ({recientes.length})
@@ -61,9 +70,8 @@ export default async function TarjetaFlota({
                       {v.nombre}
                     </td>
                     <td className="px-3 py-2 text-tinta/70">{v.patente ?? "-"}</td>
-                    <td className="px-3 py-2 text-tinta/70">
-                      {[v.marca, v.modelo].filter(Boolean).join(" ") || "-"}
-                    </td>
+                    {/* "modelo" ya viene de Odoo como "Marca/Modelo" -- concatenar marca de nuevo lo duplicaba. */}
+                    <td className="px-3 py-2 text-tinta/70">{v.modelo ?? "-"}</td>
                     <td className="max-w-[140px] truncate px-3 py-2 text-tinta/70" title={v.conductor ?? undefined}>
                       {v.conductor ?? "-"}
                     </td>
@@ -80,19 +88,25 @@ export default async function TarjetaFlota({
         </div>
       }
     >
-      <div className="mt-2">
-        <p className="text-[10px] uppercase text-tinta/45">Vehículos</p>
-        <p className="mt-0.5 font-condensed text-sm font-bold text-tinta">{kpis.totalVehiculos}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-[10px] uppercase text-tinta/45">Vehículos</p>
+          <p className="mt-0.5 truncate font-condensed text-sm font-bold text-tinta">{kpis.totalVehiculos}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[10px] uppercase text-tinta/45">Activos</p>
+          <p className="mt-0.5 truncate font-condensed text-sm font-bold text-teal">{kpis.vehiculosActivos}</p>
+        </div>
       </div>
 
       <div className="mt-2.5 grid grid-cols-2 gap-2">
         <div>
-          <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Por estado</p>
-          <GraficoDona datos={kpis.porEstado} />
+          <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Vehículos activos</p>
+          <GraficoBarrasRanking datos={kpis.porEstado} mostrarDetalle />
         </div>
         <div>
-          <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Por categoría</p>
-          <GraficoBarrasRanking datos={kpis.porCategoria} dataKey="cantidad" nameKey="categoria" />
+          <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Documentación</p>
+          <GraficoDona datos={kpis.documentacion.porEstado} mostrarDetalle mostrarLeyenda />
         </div>
       </div>
 
@@ -101,11 +115,11 @@ export default async function TarjetaFlota({
   );
 }
 
-function Stat({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+function Stat({ etiqueta, valor, color = "text-tinta" }: { etiqueta: string; valor: string; color?: string }) {
   return (
     <div className="min-w-0 rounded-lg bg-crema/60 px-3 py-2">
       <p className="truncate text-[10px] uppercase text-tinta/45">{etiqueta}</p>
-      <p className="mt-0.5 truncate font-condensed text-base font-bold text-tinta">{valor}</p>
+      <p className={`mt-0.5 truncate font-condensed text-base font-bold ${color}`}>{valor}</p>
     </div>
   );
 }
