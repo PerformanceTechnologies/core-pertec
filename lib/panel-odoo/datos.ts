@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { fechaCl } from "@/lib/cotizador/formato";
-import { traducir, ETAPAS_CRM, ESTADOS_FLOTA } from "@/lib/panel-odoo/traducciones";
+import { traducir, ETAPAS_CRM, ESTADOS_FLOTA, CATEGORIAS_GASTO, ESTADOS_FONDO } from "@/lib/panel-odoo/traducciones";
 
 // Todo lo que lee este archivo viene de la cache en Supabase -- nunca
 // consulta Odoo en vivo (ver plan: el panel siempre lee de la cache, la
@@ -249,19 +249,51 @@ export interface FilaGasto {
   estado: string;
   forma_pago: string | null;
   fecha: string | null;
+  categoria: string | null;
+}
+
+export interface GrupoMontoConDetalle {
+  categoria: string;
+  monto: number;
+  detalle: string[];
+  [key: string]: unknown;
+}
+
+export interface GrupoMontoPorEstado {
+  estado: string;
+  monto: number;
+  detalle: string[];
+  [key: string]: unknown;
 }
 
 export interface KpisGastos {
   totalMes: number;
   totalMesAnterior: number;
   pendientesAprobacion: number;
-  serieMensual: { mes: string; monto: number }[];
+  porCategoria: GrupoMontoConDetalle[];
+  // Del mes en curso, no de "los ultimos N gastos" -- a diferencia de
+  // porCategoria, mostrarLeyenda no aplica aca porque puede haber muchos
+  // empleados, se muestra como lista en vez de grafico (ver TarjetaGastos).
+  porEmpleado: { empleado: string; monto: number }[];
+  // "Entregado" a un empleado -- dinero que ya salio de la empresa como
+  // fondo por rendir, se cuenta aparte de "totalMes" (que es gasto ya
+  // rendido/justificado) para no duplicar el mismo peso dos veces.
+  fondosEntregadosMes: number;
+  // Suma de "saldo" de los fondos en estado "delivered" (entregados a un
+  // empleado y todavia no rendidos ni cerrados) -- plata que sigue afuera.
+  fondosSaldoDisponible: number;
+  // Composicion de TODOS los fondos (no solo el mes) por estado -- para el
+  // grafico combinado (total + estado) de la tarjeta.
+  fondosPorEstado: GrupoMontoPorEstado[];
 }
 
 export async function obtenerKpisGastos(companyId: number): Promise<KpisGastos> {
+  // Una sola consulta al mes en curso trae lo necesario para el total, el
+  // desglose por categoria y el desglose por empleado -- evita repetir el
+  // mismo rango de fechas en 3 queries distintas.
   const { data: gastosMes } = await supabaseAdmin
     .from("panel_odoo_gastos")
-    .select("monto_total")
+    .select("descripcion, monto_total, categoria, empleado")
     .eq("company_id", companyId)
     .gte("fecha", inicioMesActual());
 
@@ -277,6 +309,14 @@ export async function obtenerKpisGastos(companyId: number): Promise<KpisGastos> 
     .eq("company_id", companyId)
     .gte("fecha", hace6Meses());
 
+  // Una sola consulta a TODOS los fondos (no solo el mes, a diferencia de
+  // gastosMes) -- de aca salen los 3 indicadores de fondos: entregado en el
+  // mes, saldo abierto, y la composicion por estado.
+  const { data: fondosTodos } = await supabaseAdmin
+    .from("panel_odoo_fondos_gasto")
+    .select("referencia, empleado, fecha, monto_entregado, saldo, estado")
+    .eq("company_id", companyId);
+
   const porMes = new Map<string, number>();
   for (const fila of ultimos6Meses ?? []) {
     if (!fila.fecha) continue;
@@ -284,14 +324,76 @@ export async function obtenerKpisGastos(companyId: number): Promise<KpisGastos> 
     porMes.set(mes, (porMes.get(mes) ?? 0) + fila.monto_total);
   }
 
+  const porCategoriaMapa = new Map<string, { monto: number; detalle: string[] }>();
+  const porEmpleadoMapa = new Map<string, number>();
+  for (const g of gastosMes ?? []) {
+    const categoria = traducir(CATEGORIAS_GASTO, g.categoria ?? "Sin categoría");
+    const actual = porCategoriaMapa.get(categoria) ?? { monto: 0, detalle: [] };
+    actual.monto += g.monto_total;
+    actual.detalle.push(g.descripcion ?? "Gasto sin descripción");
+    porCategoriaMapa.set(categoria, actual);
+
+    const empleado = g.empleado ?? "Sin asignar";
+    porEmpleadoMapa.set(empleado, (porEmpleadoMapa.get(empleado) ?? 0) + g.monto_total);
+  }
+
+  const inicioMes = inicioMesActual();
+  const ESTADOS_FONDO_ENTREGADO = ["delivered", "settled", "closed"];
+  let fondosEntregadosMes = 0;
+  let fondosSaldoDisponible = 0;
+  const porEstadoFondoMapa = new Map<string, { monto: number; detalle: string[] }>();
+  for (const f of fondosTodos ?? []) {
+    if (ESTADOS_FONDO_ENTREGADO.includes(f.estado) && f.fecha && f.fecha >= inicioMes) {
+      fondosEntregadosMes += f.monto_entregado;
+    }
+    if (f.estado === "delivered") {
+      fondosSaldoDisponible += f.saldo;
+    }
+    const estado = traducir(ESTADOS_FONDO, f.estado);
+    const actual = porEstadoFondoMapa.get(estado) ?? { monto: 0, detalle: [] };
+    actual.monto += f.monto_entregado;
+    actual.detalle.push(f.empleado ? `${f.referencia} — ${f.empleado}` : f.referencia);
+    porEstadoFondoMapa.set(estado, actual);
+  }
+
   return {
     totalMes: (gastosMes ?? []).reduce((acc, f) => acc + f.monto_total, 0),
     totalMesAnterior: porMes.get(claveMes(-1)) ?? 0,
     pendientesAprobacion: (pendientes ?? []).length,
-    serieMensual: Array.from(porMes.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([mes, monto]) => ({ mes, monto })),
+    porCategoria: Array.from(porCategoriaMapa.entries())
+      .map(([categoria, v]) => ({ categoria, ...v }))
+      .sort((a, b) => b.monto - a.monto),
+    porEmpleado: Array.from(porEmpleadoMapa.entries())
+      .map(([empleado, monto]) => ({ empleado, monto }))
+      .sort((a, b) => b.monto - a.monto),
+    fondosEntregadosMes,
+    fondosSaldoDisponible,
+    fondosPorEstado: Array.from(porEstadoFondoMapa.entries())
+      .map(([estado, v]) => ({ estado, ...v }))
+      .sort((a, b) => b.monto - a.monto),
   };
+}
+
+export interface FilaFondo {
+  odoo_id: number;
+  referencia: string;
+  empleado: string | null;
+  descripcion: string | null;
+  fecha: string | null;
+  monto_entregado: number;
+  monto_rendido: number;
+  saldo: number;
+  estado: string;
+}
+
+export async function listarFondosRecientes(companyId: number, limite = 10): Promise<FilaFondo[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_fondos_gasto")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("fecha", { ascending: false, nullsFirst: false })
+    .limit(limite);
+  return (data ?? []) as FilaFondo[];
 }
 
 export async function listarGastosRecientes(companyId: number, limite = 5): Promise<FilaGasto[]> {

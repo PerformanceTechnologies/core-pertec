@@ -71,6 +71,26 @@ export const FORMAS_PAGO_GASTO: Record<string, string> = {
   company_account: "Pagado por la empresa",
 };
 
+// hr.expense.advance.state ("Fondo por Rendir", modelo custom de este Odoo).
+export const ESTADOS_FONDO: Record<string, string> = {
+  draft: "Borrador",
+  approved: "Aprobado",
+  delivered: "Entregado",
+  settled: "Rendido",
+  closed: "Cerrado",
+  cancel: "Cancelado",
+};
+
+// hr.expense.pertec_categoria -- campo custom (selection) de este Odoo.
+export const CATEGORIAS_GASTO: Record<string, string> = {
+  alimentacion: "Alimentación",
+  traslados: "Traslados",
+  alojamiento: "Alojamiento",
+  operacionales: "Operacionales",
+  horas_hombre: "Horas hombre",
+  urgencias: "Urgencias",
+};
+
 // sale.order.state.
 export const ESTADOS_VENTA: Record<string, string> = {
   draft: "Cotización",

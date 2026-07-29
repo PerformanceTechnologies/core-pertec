@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { money, fechaCl } from "@/lib/cotizador/formato";
 import type { FilaGasto } from "@/lib/panel-odoo/datos";
-import { traducir, ESTADOS_GASTO, FORMAS_PAGO_GASTO } from "@/lib/panel-odoo/traducciones";
+import { traducir, ESTADOS_GASTO, FORMAS_PAGO_GASTO, CATEGORIAS_GASTO } from "@/lib/panel-odoo/traducciones";
 
 export default function ModalDetalleGasto({
   gasto,
@@ -22,6 +22,7 @@ export default function ModalDetalleGasto({
 
   const filas: [string, string][] = [
     ["Empleado", gasto.empleado ?? "-"],
+    ["Categoría", traducir(CATEGORIAS_GASTO, gasto.categoria)],
     ["Estado", traducir(ESTADOS_GASTO, gasto.estado)],
     ["Forma de pago", traducir(FORMAS_PAGO_GASTO, gasto.forma_pago)],
     ["Fecha", gasto.fecha ? fechaCl(gasto.fecha) : "-"],

@@ -291,3 +291,70 @@ function PocoHistorial({ alto = ALTO_GRAFICO }: { alto?: string }) {
     </div>
   );
 }
+
+// Grafico combinado: una sola barra apilada horizontal que muestra el total
+// (suma de todos los segmentos) y su composicion por estado a la vez -- en
+// vez de una tendencia (que no aplica a los fondos, no son una serie
+// temporal) o un ranking de una barra por fila (que no deja ver el total de
+// un vistazo).
+export function GraficoBarraApilada({
+  datos,
+  dataKey = "monto",
+  nameKey = "estado",
+  formato = "dinero",
+  expandido = false,
+}: {
+  datos: Record<string, unknown>[];
+  dataKey?: string;
+  nameKey?: string;
+  formato?: "cantidad" | "dinero";
+  expandido?: boolean;
+}) {
+  const alto = expandido ? ALTO_GRAFICO_EXPANDIDO : ALTO_GRAFICO;
+  if (datos.length === 0) return <SinDatos alto={alto} />;
+  const formatear = (valor: number) => (formato === "dinero" ? money(valor) : String(valor));
+  const total = datos.reduce((acc, d) => acc + Number(d[dataKey] ?? 0), 0);
+
+  // Recharts apila barras por fila -- se arma una unica fila con una
+  // columna por segmento (seg0, seg1, ...) para que las N categorias de
+  // "datos" terminen dibujadas como una sola barra compuesta.
+  const fila: Record<string, unknown> = { total: "Total" };
+  datos.forEach((d, i) => {
+    fila[`seg${i}`] = d[dataKey];
+  });
+
+  return (
+    <div className="w-full">
+      <p className="mb-1 text-xs font-semibold text-tinta/70">Total: {formatear(total)}</p>
+      <div className={`${alto} w-full`}>
+        <ResponsiveContainer>
+          <BarChart data={[fila]} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+            <XAxis type="number" hide />
+            <YAxis type="category" dataKey="total" hide />
+            <Tooltip
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(valor: any, key: any) => {
+                const indice = Number(String(key).replace("seg", ""));
+                return [formatear(Number(valor)), String(datos[indice]?.[nameKey] ?? "")];
+              }}
+            />
+            {datos.map((_, i) => (
+              <Bar key={i} dataKey={`seg${i}`} stackId="unica" fill={COLORES_DONA[i % COLORES_DONA.length]} maxBarSize={expandido ? 40 : 26} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-1.5 flex flex-wrap justify-center gap-x-2.5 gap-y-1 text-[10px] text-tinta/70">
+        {datos.map((item, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: COLORES_DONA[i % COLORES_DONA.length] }}
+            />
+            {String(item[nameKey] ?? "")} ({formatear(Number(item[dataKey] ?? 0))})
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
