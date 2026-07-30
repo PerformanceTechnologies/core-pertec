@@ -29,6 +29,18 @@ function seccionAMenosDeMil(n: number): string {
   return out.trim();
 }
 
+/**
+ * Apócope de "uno" -> "un" ("veintiuno" -> "veintiún"): en la glosa el número
+ * siempre precede a un sustantivo masculino (mil, millones, pesos), así que
+ * nunca corresponde la forma plena. Sin esto la glosa salía como "trescientos
+ * cincuenta y UNO MIL pesos" en vez de "... y UN MIL pesos".
+ */
+function apocopar(texto: string): string {
+  if (texto.endsWith("veintiuno")) return texto.slice(0, -"veintiuno".length) + "veintiún";
+  if (texto.endsWith("uno")) return texto.slice(0, -"uno".length) + "un";
+  return texto;
+}
+
 /** Convierte un entero (CLP) a su glosa en palabras, es-CL, mayúsculas. */
 export function numeroATexto(valor: number): string {
   const n = Math.round(Math.abs(valor));
@@ -41,16 +53,18 @@ export function numeroATexto(valor: number): string {
 
   const partes: string[] = [];
   if (millones > 0) {
-    partes.push(millones === 1 ? "un millón" : `${seccionAMenosDeMil(millones)} millones`);
+    partes.push(millones === 1 ? "un millón" : `${apocopar(seccionAMenosDeMil(millones))} millones`);
   }
   if (miles > 0) {
-    partes.push(miles === 1 ? "mil" : `${seccionAMenosDeMil(miles)} mil`);
+    partes.push(miles === 1 ? "mil" : `${apocopar(seccionAMenosDeMil(miles))} mil`);
   }
   if (unidades > 0) {
-    partes.push(seccionAMenosDeMil(unidades));
+    partes.push(apocopar(seccionAMenosDeMil(unidades)));
   }
 
   const texto = partes.join(" ").trim() || "cero";
-  const sufijo = n === 1 ? "PESO" : "PESOS";
+  // "de pesos" solo cuando millón/millones es el último cuantificador hablado
+  // ("un millón DE pesos", pero "un millón veintiún mil pesos" — sin "de").
+  const sufijo = millones > 0 && miles === 0 && unidades === 0 ? "DE PESOS" : "PESOS";
   return `${texto.toUpperCase()} ${sufijo}`;
 }

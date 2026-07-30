@@ -69,23 +69,6 @@ export default function EcoTab({
           </div>
         ))}
 
-        <div className="flex justify-end pt-3">
-          <div className="w-72">
-            <div className="flex justify-between py-1 text-sm font-medium">
-              <span>TOTAL NETO MENSUAL</span>
-              <span className="tabular-nums">{money(result.ecoTotalNeto)}</span>
-            </div>
-            <div className="flex justify-between py-1 text-sm text-tinta/60">
-              <span>IVA 19%</span>
-              <span className="tabular-nums">{money(result.ecoIva)}</span>
-            </div>
-            <div className="mt-1 flex justify-between rounded-md bg-tinta px-3 py-2 text-sm font-bold text-white">
-              <span>TOTAL MENSUAL</span>
-              <span className="tabular-nums text-naranjo-suave">{money(result.ecoConIva)}</span>
-            </div>
-          </div>
-        </div>
-
         {cotizacion.input.tipoServicio === "contrato_permanente" && result.ecoItemsPersonalSpotContrato.length > 0 && (
           <div className="mt-6">
             <div className="border-b-2 border-tinta pb-1.5 text-xs font-bold uppercase tracking-wide text-tinta">
@@ -115,13 +98,28 @@ export default function EcoTab({
             <div className="flex justify-end pt-3">
               <div className="flex w-72 justify-between rounded-md bg-crema px-3 py-2 text-sm font-semibold text-tinta">
                 <span>SUBTOTAL PERSONAL SPOT</span>
-                <span className="tabular-nums">
-                  {money(result.ecoItemsPersonalSpotContrato.reduce((a, e) => a + e.total, 0))}
-                </span>
+                <span className="tabular-nums">{money(result.ecoSubtotalPersonalSpotContrato)}</span>
               </div>
             </div>
           </div>
         )}
+
+        <div className="mt-6 flex justify-end border-t-2 border-tinta pt-3">
+          <div className="w-72">
+            <div className="flex justify-between py-1 text-sm font-medium">
+              <span>TOTAL NETO MENSUAL</span>
+              <span className="tabular-nums">{money(result.ecoTotalNeto)}</span>
+            </div>
+            <div className="flex justify-between py-1 text-sm text-tinta/60">
+              <span>IVA 19%</span>
+              <span className="tabular-nums">{money(result.ecoIva)}</span>
+            </div>
+            <div className="mt-1 flex justify-between rounded-md bg-tinta px-3 py-2 text-sm font-bold text-white">
+              <span>TOTAL MENSUAL</span>
+              <span className="tabular-nums text-naranjo-suave">{money(result.ecoConIva)}</span>
+            </div>
+          </div>
+        </div>
 
         <div className="mt-4 rounded-md border border-borde bg-crema/60 p-3.5">
           <div className="text-[9px] font-semibold uppercase tracking-wide text-tinta/40">

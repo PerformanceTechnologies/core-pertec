@@ -59,7 +59,7 @@ export function construirHtmlEcoPdf(
       <div class="totales">
         <div class="fila strong">
           <span>SUBTOTAL PERSONAL SPOT</span>
-          <span>${money(result.ecoItemsPersonalSpotContrato.reduce((a, e) => a + e.total, 0))}</span>
+          <span>${money(result.ecoSubtotalPersonalSpotContrato)}</span>
         </div>
       </div>
     </div>`
@@ -162,6 +162,11 @@ export function construirHtmlEcoPdf(
         ${result.ecoItems.map(filaEcoItem).join("")}
       </tbody>
     </table>
+  </div>
+
+  ${bloqueSpotContrato}
+
+  <div class="seccion">
     <div class="totales">
       <div class="fila">
         <span>Total neto mensual</span>
@@ -179,8 +184,6 @@ export function construirHtmlEcoPdf(
       </div>
     </div>
   </div>
-
-  ${bloqueSpotContrato}
 
   <div class="glosa">
     <div class="etiqueta">Son (valor neto mensual)</div>

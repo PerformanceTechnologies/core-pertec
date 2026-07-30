@@ -44,6 +44,7 @@ export interface QuotationResult {
   costoTotalServicio: number;
   ecoItems: EcoLineItem[];
   ecoItemsPersonalSpotContrato: EcoLineItem[];
+  ecoSubtotalPersonalSpotContrato: number;
   ecoBase: number;
   ggEco: number;
   utilidadEco: number;
@@ -223,8 +224,12 @@ export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet):
   ];
 
   // Tabla ECO separada para personal SPOT del contrato — refleja la estructura
-  // real de un contrato_permanente (dos secciones de facturación distintas),
-  // sin mezclarse con ecoTotalNeto/margenEfectivoTotal del personal permanente.
+  // real de un contrato_permanente, que se factura en dos secciones distintas
+  // (personal permanente + refuerzo por hora-hombre). Es una tabla aparte solo
+  // a efectos de PRESENTACIÓN: su subtotal sí entra al total neto de la oferta
+  // (ecoTotalNeto) — es un ingreso más del servicio, y su costo ya está dentro
+  // de costoMensualTotal, así que dejarlo fuera subestimaba tanto el precio
+  // cobrado como el margen efectivo.
   const ecoItemsPersonalSpotContrato: EcoLineItem[] = personalSpotContrato.map((p, idx) => ({
     item: String(idx + 1),
     descripcion: p.cargo,
@@ -233,8 +238,9 @@ export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet):
     precioUnitario: p.costoHH25,
     total: p.costoMensual,
   }));
+  const ecoSubtotalPersonalSpotContrato = ecoItemsPersonalSpotContrato.reduce((acc, i) => acc + i.total, 0);
 
-  const ecoTotalNeto = ecoItems.reduce((acc, i) => acc + i.total, 0);
+  const ecoTotalNeto = ecoItems.reduce((acc, i) => acc + i.total, 0) + ecoSubtotalPersonalSpotContrato;
   const ecoIva = ecoTotalNeto * input.margenes.ivaPct;
   const ecoConIva = ecoTotalNeto + ecoIva;
 
@@ -261,6 +267,7 @@ export function calcularCotizacion(input: QuotationInput, P: LegalParameterSet):
     costoTotalServicio,
     ecoItems,
     ecoItemsPersonalSpotContrato,
+    ecoSubtotalPersonalSpotContrato,
     ecoBase,
     ggEco,
     utilidadEco,
