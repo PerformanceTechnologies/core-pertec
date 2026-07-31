@@ -159,8 +159,8 @@ export default function TablaCotizaciones({
             <col style={{ width: 108 }} />
             <col style={{ width: 64 }} />
             <col style={{ width: 84 }} />
-            <col style={{ width: 84 }} />
-            <col style={{ width: 130 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 140 }} />
           </colgroup>
           <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
             <tr>
@@ -173,13 +173,13 @@ export default function TablaCotizaciones({
               <th className="px-3 py-3 text-right">Monto neto/mes</th>
               <th className="px-3 py-3 text-right">Margen</th>
               <th className="px-3 py-3">Estado</th>
-              <th className="px-3 py-3 text-right">Actualizado</th>
-              <th className="px-3 py-3" />
+              <th className="whitespace-nowrap px-3 py-3 text-right">Actualizado</th>
+              <th className="sticky right-0 z-10 border-l border-borde bg-crema/60 px-3 py-3" />
             </tr>
           </thead>
           <tbody>
             {filtradas.map((c) => (
-              <tr key={c.id} className="border-b border-borde last:border-0 hover:bg-crema/40">
+              <tr key={c.id} className="group border-b border-borde last:border-0 hover:bg-crema/40">
                 <td className="px-3 py-3 font-medium text-tinta">
                   <Link href={`/cotizador/${c.id}`} title={c.nombre} className="block truncate hover:text-naranjo">
                     {c.nombre}
@@ -223,8 +223,8 @@ export default function TablaCotizaciones({
                     {etiquetaEstado(c.estado)}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-right text-tinta/50">{fechaCl(c.actualizadoEn)}</td>
-                <td className="px-3 py-3 text-right">
+                <td className="whitespace-nowrap px-3 py-3 text-right text-tinta/50">{fechaCl(c.actualizadoEn)}</td>
+                <td className="sticky right-0 z-10 border-l border-borde bg-white px-3 py-3 text-right group-hover:bg-crema/40">
                   <div className="flex items-center justify-end gap-2.5">
                     <Link href={`/cotizador/${c.id}`} className="text-xs font-medium text-tinta/70 hover:text-naranjo">
                       Editar
