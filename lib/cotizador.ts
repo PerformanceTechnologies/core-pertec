@@ -58,6 +58,10 @@ export interface CotizacionResumen {
   rev: string;
   estado: string;
   emitida: boolean;
+  // Cotización sembrada como ejemplo: sus cifras son ilustrativas y NO
+  // corresponden a un Excel real. Se rotula en la UI y se excluye de los KPI
+  // del dashboard — ver comentario de la columna es_demo en la DB.
+  esDemo: boolean;
   actualizadoEn: string;
   summary: ResumenCotizacion;
 }
@@ -79,7 +83,7 @@ export interface ResumenCotizacion {
 }
 
 const COLUMNAS_RESUMEN = `
-  id, nombre, empresa, cliente, faena, tipo_servicio, rev, estado, emitida, actualizado_en, summary
+  id, nombre, empresa, cliente, faena, tipo_servicio, rev, estado, emitida, es_demo, actualizado_en, summary
 `;
 const COLUMNAS_COMPLETA = `${COLUMNAS_RESUMEN}, creado_en, input, parametros_set_id, parametros_snapshot`;
 
@@ -93,6 +97,7 @@ interface FilaResumen {
   rev: string;
   estado: string;
   emitida: boolean;
+  es_demo: boolean;
   actualizado_en: string;
   summary: ResumenCotizacion;
 }
@@ -115,6 +120,7 @@ function filaAResumen(f: FilaResumen): CotizacionResumen {
     rev: f.rev,
     estado: f.estado,
     emitida: f.emitida,
+    esDemo: f.es_demo ?? false,
     actualizadoEn: f.actualizado_en,
     summary: f.summary,
   };
