@@ -15,7 +15,7 @@ export function NumInput({
   value,
   onChange,
   format = "money",
-  align = "right",
+  align = "left",
   disabled,
   className = "",
   title,
