@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { CotizacionResumen } from "@/lib/cotizador";
 import { EMPRESAS } from "@/lib/cotizador/empresas";
-import { money, pct, fechaCl } from "@/lib/cotizador/formato";
+import { money, pct } from "@/lib/cotizador/formato";
 import BotonEliminar from "@/components/BotonEliminar";
 import { eliminarCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
 
@@ -159,7 +159,6 @@ export default function TablaCotizaciones({
             <col style={{ width: 108 }} />
             <col style={{ width: 64 }} />
             <col style={{ width: 84 }} />
-            <col style={{ width: 100 }} />
             <col style={{ width: 140 }} />
           </colgroup>
           <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
@@ -173,7 +172,6 @@ export default function TablaCotizaciones({
               <th className="px-3 py-3 text-right">Monto neto/mes</th>
               <th className="px-3 py-3 text-right">Margen</th>
               <th className="px-3 py-3">Estado</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">Actualizado</th>
               <th className="sticky right-0 z-10 border-l border-borde bg-crema/60 px-3 py-3" />
             </tr>
           </thead>
@@ -223,7 +221,6 @@ export default function TablaCotizaciones({
                     {etiquetaEstado(c.estado)}
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-3 py-3 text-right text-tinta/50">{fechaCl(c.actualizadoEn)}</td>
                 <td className="sticky right-0 z-10 border-l border-borde bg-white px-3 py-3 text-right group-hover:bg-crema/40">
                   <div className="flex items-center justify-end gap-2.5">
                     <Link href={`/cotizador/${c.id}`} className="text-xs font-medium text-tinta/70 hover:text-naranjo">
@@ -242,7 +239,7 @@ export default function TablaCotizaciones({
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-6 text-center text-tinta/50">
+                <td colSpan={10} className="px-4 py-6 text-center text-tinta/50">
                   {cotizaciones.length === 0
                     ? <>Aún no hay cotizaciones. Cree la primera con &ldquo;+ Nueva cotización&rdquo;.</>
                     : hayFiltrosActivos
