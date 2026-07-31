@@ -171,6 +171,14 @@ export default function TablaCotizaciones({
                   <Link href={`/cotizador/${c.id}`} className="hover:text-naranjo">
                     {c.nombre}
                   </Link>
+                  {c.esDemo && (
+                    <span
+                      title="Cotización de ejemplo — cifras ilustrativas, no corresponden a un documento real"
+                      className="ml-2 rounded-full border border-naranjo/40 bg-naranjo/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-naranjo"
+                    >
+                      Ejemplo
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-xs text-tinta/60">{c.empresa}</td>
                 <td className="px-4 py-3 text-tinta/60">{c.cliente ?? "—"}</td>
