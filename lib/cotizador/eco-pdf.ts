@@ -78,6 +78,7 @@ export function construirHtmlEcoPdf(
   .subtitulo { margin-top: 4px; font-size: 10px; color: #6b6459; }
   .titulo-doc { text-align: right; font-size: 12px; font-weight: 700; text-transform: uppercase; }
   .meta-doc { margin-top: 4px; font-size: 10px; color: #6b6459; text-align: right; }
+  .aviso-demo { margin-top: 12px; border: 2px solid #c85217; border-radius: 6px; background: #fdf1ea; color: #8f3a10; padding: 8px 12px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; text-align: center; }
   .identificacion { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; border-bottom: 1px solid #ded6c8; padding: 12px 0; font-size: 11px; }
   .identificacion b { color: #6b6459; font-weight: 600; }
   .resumen-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
@@ -116,6 +117,14 @@ export function construirHtmlEcoPdf(
       <div class="meta-doc">Oferta económica · ${escapeHtml(cotizacion.rev)} · ${fechaCl(cotizacion.parametrosSnapshot.vigenteDesde)}</div>
     </div>
   </div>
+
+  ${
+    cotizacion.esDemo
+      ? `<div class="aviso-demo">
+    Documento de EJEMPLO — cifras ilustrativas, no corresponden a una oferta real. No distribuir.
+  </div>`
+      : ""
+  }
 
   <div class="identificacion">
     <span><b>Mandante:</b> ${escapeHtml(cotizacion.cliente ?? "—")}</span>

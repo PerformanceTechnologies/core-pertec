@@ -75,6 +75,11 @@ export default function EditorCotizacion({
         <span className="rounded-full border border-borde px-2 py-0.5 text-[11px] font-semibold text-tinta/70">
           {cotizacion.rev}
         </span>
+        {cotizacion.esDemo && (
+          <span className="rounded-full border border-naranjo/40 bg-naranjo/10 px-2 py-0.5 text-[11px] font-bold uppercase text-naranjo">
+            Ejemplo
+          </span>
+        )}
         <span
           className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
             cotizacion.emitida ? "bg-teal/10 text-teal" : "bg-gris/10 text-gris"
@@ -121,6 +126,15 @@ export default function EditorCotizacion({
         {quotation.duracionMeses} {quotation.duracionMeses === 1 ? "mes" : "meses"} · {quotation.diasServicio} días de
         servicio · parámetros legales vigencia {cotizacion.parametrosSnapshot.vigenteDesde}
       </div>
+
+      {cotizacion.esDemo && (
+        <div className="mt-4 rounded-xl border border-naranjo/30 bg-naranjo/5 px-4 py-3 text-sm text-tinta/80">
+          <b className="text-naranjo">Cotización de ejemplo.</b> Las cifras cargadas son ilustrativas, para mostrar
+          cómo funciona el Cotizador — <b>no corresponden a ningún documento real</b>, así que no sirven para
+          contrastarlas contra un Excel. Para validar el motor de cálculo, cree una cotización nueva con los datos
+          reales del proyecto.
+        </div>
+      )}
 
       {cotizacion.emitida && (
         <div className="mt-4 rounded-xl bg-tinta px-4 py-3 text-sm text-white">

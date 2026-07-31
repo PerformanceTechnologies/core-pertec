@@ -17,11 +17,18 @@ export default function PanelCotizador({
   const puedeEliminar = puedeEnCotizador(rol, "eliminar_cotizacion");
   const puedeAdministrarParametros = puedeEnCotizador(rol, "administrar_parametros_legales");
 
-  const totalNeto = cotizaciones.reduce((acc, c) => acc + (c.summary?.ecoTotalNeto ?? 0), 0);
-  const adjudicadas = cotizaciones.filter((c) => c.estado === "adjudicada" || c.estado === "emitida").length;
-  const margenProm = cotizaciones.length
-    ? cotizaciones.reduce((acc, c) => acc + (c.summary?.margenEfectivoTotal ?? 0), 0) / cotizaciones.length
+  // Los KPI se calculan SOLO sobre cotizaciones reales: una cotización de
+  // ejemplo (es_demo) tiene cifras ilustrativas, y dejarla dentro inflaba el
+  // monto cotizado del portafolio con plata que no existe.
+  const reales = cotizaciones.filter((c) => !c.esDemo);
+  const nDemos = cotizaciones.length - reales.length;
+
+  const totalNeto = reales.reduce((acc, c) => acc + (c.summary?.ecoTotalNeto ?? 0), 0);
+  const adjudicadas = reales.filter((c) => c.estado === "adjudicada" || c.estado === "emitida").length;
+  const margenProm = reales.length
+    ? reales.reduce((acc, c) => acc + (c.summary?.margenEfectivoTotal ?? 0), 0) / reales.length
     : 0;
+  const notaDemo = nDemos > 0 ? ` · ${nDemos} de ejemplo excluida${nDemos === 1 ? "" : "s"}` : "";
 
   return (
     <div>
@@ -52,7 +59,10 @@ export default function PanelCotizador({
         <div className="rounded-xl border border-naranjo/20 bg-naranjo/[0.06] p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Monto cotizado · neto/mes</div>
           <div className="mt-1 font-condensed text-2xl font-bold text-tinta">{money(totalNeto)}</div>
-          <div className="mt-1 text-xs text-tinta/50">{cotizaciones.length} cotizaciones</div>
+          <div className="mt-1 text-xs text-tinta/50">
+            {reales.length} cotizaci{reales.length === 1 ? "ón" : "ones"}
+            {notaDemo}
+          </div>
         </div>
         <div className="rounded-xl border border-gris/25 bg-gris/[0.08] p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Tasa de adjudicación</div>
