@@ -148,59 +148,84 @@ export default function TablaCotizaciones({
       </div>
 
       <div className="mt-3 overflow-x-auto rounded-xl border border-borde bg-white">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full table-fixed text-left text-sm">
+          <colgroup>
+            <col style={{ width: 210 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 150 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 56 }} />
+            <col style={{ width: 108 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 130 }} />
+          </colgroup>
           <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
             <tr>
-              <th className="px-4 py-3">Proyecto</th>
-              <th className="px-4 py-3">Empresa</th>
-              <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3">Faena</th>
-              <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3">Rev.</th>
-              <th className="px-4 py-3 text-right">Monto neto/mes</th>
-              <th className="px-4 py-3 text-right">Margen</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3 text-right">Actualizado</th>
-              <th className="px-4 py-3" />
+              <th className="px-3 py-3">Proyecto</th>
+              <th className="px-3 py-3">Empresa</th>
+              <th className="px-3 py-3">Cliente</th>
+              <th className="px-3 py-3">Faena</th>
+              <th className="px-3 py-3">Tipo</th>
+              <th className="px-3 py-3">Rev.</th>
+              <th className="px-3 py-3 text-right">Monto neto/mes</th>
+              <th className="px-3 py-3 text-right">Margen</th>
+              <th className="px-3 py-3">Estado</th>
+              <th className="px-3 py-3 text-right">Actualizado</th>
+              <th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
             {filtradas.map((c) => (
               <tr key={c.id} className="border-b border-borde last:border-0 hover:bg-crema/40">
-                <td className="px-4 py-3 font-medium text-tinta">
-                  <Link href={`/cotizador/${c.id}`} className="hover:text-naranjo">
+                <td className="px-3 py-3 font-medium text-tinta">
+                  <Link href={`/cotizador/${c.id}`} title={c.nombre} className="block truncate hover:text-naranjo">
                     {c.nombre}
                   </Link>
                   {c.esDemo && (
                     <span
                       title="Cotización de ejemplo — cifras ilustrativas, no corresponden a un documento real"
-                      className="ml-2 rounded-full border border-naranjo/40 bg-naranjo/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-naranjo"
+                      className="mt-1 inline-block rounded-full border border-naranjo/40 bg-naranjo/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-naranjo"
                     >
                       Ejemplo
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-xs text-tinta/60">{c.empresa}</td>
-                <td className="px-4 py-3 text-tinta/60">{c.cliente ?? "—"}</td>
-                <td className="px-4 py-3 text-tinta/60">{c.faena ?? "—"}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3 text-xs text-tinta/60">
+                  <span className="block truncate" title={c.empresa}>
+                    {c.empresa}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-tinta/60">
+                  <span className="block truncate" title={c.cliente ?? undefined}>
+                    {c.cliente ?? "—"}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-tinta/60">
+                  <span className="block truncate" title={c.faena ?? undefined}>
+                    {c.faena ?? "—"}
+                  </span>
+                </td>
+                <td className="px-3 py-3">
                   <span className="rounded-full bg-gris/10 px-2 py-0.5 text-[11px] font-semibold text-gris">
                     {c.tipoServicio === "spot" ? "SPOT" : "Permanente"}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-tinta/50">{c.rev}</td>
-                <td className="px-4 py-3 text-right font-semibold text-tinta">{money(c.summary?.ecoTotalNeto ?? 0)}</td>
-                <td className="px-4 py-3 text-right text-teal">{pct(c.summary?.margenEfectivoTotal ?? 0)}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3 text-tinta/50">{c.rev}</td>
+                <td className="px-3 py-3 text-right font-semibold text-tinta">{money(c.summary?.ecoTotalNeto ?? 0)}</td>
+                <td className="px-3 py-3 text-right text-teal">{pct(c.summary?.margenEfectivoTotal ?? 0)}</td>
+                <td className="px-3 py-3">
                   <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${ESTADO_CLASES[c.estado] ?? ESTADO_CLASES.borrador}`}
                   >
                     {etiquetaEstado(c.estado)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right text-tinta/50">{fechaCl(c.actualizadoEn)}</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-3">
+                <td className="px-3 py-3 text-right text-tinta/50">{fechaCl(c.actualizadoEn)}</td>
+                <td className="px-3 py-3 text-right">
+                  <div className="flex items-center justify-end gap-2.5">
                     <Link href={`/cotizador/${c.id}`} className="text-xs font-medium text-tinta/70 hover:text-naranjo">
                       Editar
                     </Link>
