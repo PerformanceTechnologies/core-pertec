@@ -52,37 +52,36 @@ export interface KpisFacturas {
 }
 
 export async function obtenerKpisFacturas(companyId: number): Promise<KpisFacturas> {
-  const { data: ventasMes } = await supabaseAdmin
-    .from("panel_odoo_facturas")
-    .select("monto_total")
-    .eq("company_id", companyId)
-    .eq("move_type", "out_invoice")
-    .eq("state", "posted")
-    .gte("fecha_factura", inicioMesActual());
-
-  const { data: pendienteCobro } = await supabaseAdmin
-    .from("panel_odoo_facturas")
-    .select("monto_pendiente")
-    .eq("company_id", companyId)
-    .eq("move_type", "out_invoice")
-    .eq("state", "posted")
-    .in("payment_state", ["not_paid", "partial"]);
-
-  const { data: pendientePago } = await supabaseAdmin
-    .from("panel_odoo_facturas")
-    .select("monto_pendiente")
-    .eq("company_id", companyId)
-    .eq("move_type", "in_invoice")
-    .eq("state", "posted")
-    .in("payment_state", ["not_paid", "partial"]);
-
-  const { data: ultimos6Meses } = await supabaseAdmin
-    .from("panel_odoo_facturas")
-    .select("fecha_factura, monto_total")
-    .eq("company_id", companyId)
-    .eq("move_type", "out_invoice")
-    .eq("state", "posted")
-    .gte("fecha_factura", hace6Meses());
+  const [{ data: ventasMes }, { data: pendienteCobro }, { data: pendientePago }, { data: ultimos6Meses }] = await Promise.all([
+    supabaseAdmin
+      .from("panel_odoo_facturas")
+      .select("monto_total")
+      .eq("company_id", companyId)
+      .eq("move_type", "out_invoice")
+      .eq("state", "posted")
+      .gte("fecha_factura", inicioMesActual()),
+    supabaseAdmin
+      .from("panel_odoo_facturas")
+      .select("monto_pendiente")
+      .eq("company_id", companyId)
+      .eq("move_type", "out_invoice")
+      .eq("state", "posted")
+      .in("payment_state", ["not_paid", "partial"]),
+    supabaseAdmin
+      .from("panel_odoo_facturas")
+      .select("monto_pendiente")
+      .eq("company_id", companyId)
+      .eq("move_type", "in_invoice")
+      .eq("state", "posted")
+      .in("payment_state", ["not_paid", "partial"]),
+    supabaseAdmin
+      .from("panel_odoo_facturas")
+      .select("fecha_factura, monto_total")
+      .eq("company_id", companyId)
+      .eq("move_type", "out_invoice")
+      .eq("state", "posted")
+      .gte("fecha_factura", hace6Meses()),
+  ]);
 
   const sumar = (filas: { monto_total?: number; monto_pendiente?: number }[] | null, campo: "monto_total" | "monto_pendiente") =>
     (filas ?? []).reduce((acc, f) => acc + (f[campo] ?? 0), 0);
@@ -288,34 +287,33 @@ export interface KpisGastos {
 }
 
 export async function obtenerKpisGastos(companyId: number): Promise<KpisGastos> {
-  // Una sola consulta al mes en curso trae lo necesario para el total, el
-  // desglose por categoria y el desglose por empleado -- evita repetir el
-  // mismo rango de fechas en 3 queries distintas.
-  const { data: gastosMes } = await supabaseAdmin
-    .from("panel_odoo_gastos")
-    .select("descripcion, monto_total, categoria, empleado")
-    .eq("company_id", companyId)
-    .gte("fecha", inicioMesActual());
-
-  const { data: pendientes } = await supabaseAdmin
-    .from("panel_odoo_gastos")
-    .select("monto_total")
-    .eq("company_id", companyId)
-    .in("estado", ["draft", "submitted"]);
-
-  const { data: ultimos6Meses } = await supabaseAdmin
-    .from("panel_odoo_gastos")
-    .select("fecha, monto_total")
-    .eq("company_id", companyId)
-    .gte("fecha", hace6Meses());
-
-  // Una sola consulta a TODOS los fondos (no solo el mes, a diferencia de
-  // gastosMes) -- de aca salen los 3 indicadores de fondos: entregado en el
-  // mes, saldo abierto, y la composicion por estado.
-  const { data: fondosTodos } = await supabaseAdmin
-    .from("panel_odoo_fondos_gasto")
-    .select("referencia, empleado, fecha, monto_entregado, saldo, estado")
-    .eq("company_id", companyId);
+  const [{ data: gastosMes }, { data: pendientes }, { data: ultimos6Meses }, { data: fondosTodos }] = await Promise.all([
+    // Una sola consulta al mes en curso trae lo necesario para el total, el
+    // desglose por categoria y el desglose por empleado -- evita repetir el
+    // mismo rango de fechas en 3 queries distintas.
+    supabaseAdmin
+      .from("panel_odoo_gastos")
+      .select("descripcion, monto_total, categoria, empleado")
+      .eq("company_id", companyId)
+      .gte("fecha", inicioMesActual()),
+    supabaseAdmin
+      .from("panel_odoo_gastos")
+      .select("monto_total")
+      .eq("company_id", companyId)
+      .in("estado", ["draft", "submitted"]),
+    supabaseAdmin
+      .from("panel_odoo_gastos")
+      .select("fecha, monto_total")
+      .eq("company_id", companyId)
+      .gte("fecha", hace6Meses()),
+    // Una sola consulta a TODOS los fondos (no solo el mes, a diferencia de
+    // gastosMes) -- de aca salen los 3 indicadores de fondos: entregado en el
+    // mes, saldo abierto, y la composicion por estado.
+    supabaseAdmin
+      .from("panel_odoo_fondos_gasto")
+      .select("referencia, empleado, fecha, monto_entregado, saldo, estado")
+      .eq("company_id", companyId),
+  ]);
 
   const porMes = new Map<string, number>();
   for (const fila of ultimos6Meses ?? []) {
@@ -591,34 +589,35 @@ export interface KpisVentas {
 const DIAS_ALERTA_ARRIENDO = 15;
 
 export async function obtenerKpisVentas(companyId: number): Promise<KpisVentas> {
-  const { data: ultimos6Meses } = await supabaseAdmin
-    .from("panel_odoo_ventas")
-    .select("fecha_orden, monto_total")
-    .eq("company_id", companyId)
-    .eq("es_arriendo", false)
-    .eq("estado", "sale")
-    .gte("fecha_orden", hace6Meses());
-
-  const { data: arriendosActivos } = await supabaseAdmin
-    .from("panel_odoo_ventas")
-    .select("monto_total")
-    .eq("company_id", companyId)
-    .eq("es_arriendo", true)
-    .eq("estado_arriendo", "confirmed");
-
   const hoy = new Date();
   const limiteAlerta = new Date(hoy);
   limiteAlerta.setDate(limiteAlerta.getDate() + DIAS_ALERTA_ARRIENDO);
-  const { data: porVencer } = await supabaseAdmin
-    .from("panel_odoo_ventas")
-    .select("odoo_id, numero, partner_nombre, fecha_fin_arriendo, monto_total")
-    .eq("company_id", companyId)
-    .eq("es_arriendo", true)
-    .eq("estado_arriendo", "confirmed")
-    .not("fecha_fin_arriendo", "is", null)
-    .gte("fecha_fin_arriendo", hoy.toISOString().slice(0, 10))
-    .lte("fecha_fin_arriendo", limiteAlerta.toISOString().slice(0, 10))
-    .order("fecha_fin_arriendo", { ascending: true });
+
+  const [{ data: ultimos6Meses }, { data: arriendosActivos }, { data: porVencer }] = await Promise.all([
+    supabaseAdmin
+      .from("panel_odoo_ventas")
+      .select("fecha_orden, monto_total")
+      .eq("company_id", companyId)
+      .eq("es_arriendo", false)
+      .eq("estado", "sale")
+      .gte("fecha_orden", hace6Meses()),
+    supabaseAdmin
+      .from("panel_odoo_ventas")
+      .select("monto_total")
+      .eq("company_id", companyId)
+      .eq("es_arriendo", true)
+      .eq("estado_arriendo", "confirmed"),
+    supabaseAdmin
+      .from("panel_odoo_ventas")
+      .select("odoo_id, numero, partner_nombre, fecha_fin_arriendo, monto_total")
+      .eq("company_id", companyId)
+      .eq("es_arriendo", true)
+      .eq("estado_arriendo", "confirmed")
+      .not("fecha_fin_arriendo", "is", null)
+      .gte("fecha_fin_arriendo", hoy.toISOString().slice(0, 10))
+      .lte("fecha_fin_arriendo", limiteAlerta.toISOString().slice(0, 10))
+      .order("fecha_fin_arriendo", { ascending: true }),
+  ]);
 
   const porMes = new Map<string, number>();
   for (const fila of ultimos6Meses ?? []) {
@@ -670,18 +669,19 @@ export interface KpisCompras {
 }
 
 export async function obtenerKpisCompras(companyId: number): Promise<KpisCompras> {
-  const { data: ultimos6Meses } = await supabaseAdmin
-    .from("panel_odoo_compras")
-    .select("fecha_orden, monto_total")
-    .eq("company_id", companyId)
-    .eq("estado", "purchase")
-    .gte("fecha_orden", hace6Meses());
-
-  const { data: pendientes } = await supabaseAdmin
-    .from("panel_odoo_compras")
-    .select("odoo_id")
-    .eq("company_id", companyId)
-    .eq("estado_facturacion", "to invoice");
+  const [{ data: ultimos6Meses }, { data: pendientes }] = await Promise.all([
+    supabaseAdmin
+      .from("panel_odoo_compras")
+      .select("fecha_orden, monto_total")
+      .eq("company_id", companyId)
+      .eq("estado", "purchase")
+      .gte("fecha_orden", hace6Meses()),
+    supabaseAdmin
+      .from("panel_odoo_compras")
+      .select("odoo_id")
+      .eq("company_id", companyId)
+      .eq("estado_facturacion", "to invoice"),
+  ]);
 
   const porMes = new Map<string, number>();
   for (const fila of ultimos6Meses ?? []) {

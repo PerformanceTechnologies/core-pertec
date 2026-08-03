@@ -7,6 +7,19 @@ import ModalPostulante from "./ModalPostulante";
 
 const INTERVALO_ACTUALIZACION_MS = 30_000;
 
+// "ahora" solo alimenta comparaciones contra ventanas de tiempo medidas en
+// horas o dias (el filtro por rango y el contador de ultimas 24h), pero se
+// guardaba con precision de milisegundos y se refrescaba cada segundo: como es
+// dependencia del useMemo de "filtradas", eso re-corria el filtro completo
+// sobre todas las postulaciones -- y con el las 3 agregaciones que dependen de
+// su resultado -- 60 veces por minuto, sin que ningun numero en pantalla
+// cambiara. Truncando al minuto, el valor de estado solo cambia cuando cambia
+// el minuto, asi que React descarta los renders intermedios (setState con un
+// valor identico no re-renderiza) y el filtro corre 1 vez por minuto en vez de
+// 60. El intervalo sigue en 1s a proposito: asi el primer valor real llega
+// enseguida tras montar, igual que antes.
+const minutoActual = () => Math.floor(Date.now() / 60_000) * 60_000;
+
 const RANGOS = [
   { valor: "todos", etiqueta: "Todo el periodo" },
   { valor: "24h", etiqueta: "Últimas 24 horas" },
@@ -114,7 +127,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   }, [actualizadoEn]);
 
   useEffect(() => {
-    const tick = setInterval(() => setAhora(Date.now()), 1000);
+    const tick = setInterval(() => setAhora(minutoActual()), 1000);
     return () => clearInterval(tick);
   }, []);
 

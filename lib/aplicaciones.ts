@@ -1,7 +1,10 @@
+import { cache } from "react";
 import { supabaseAdmin } from "./supabase-admin";
 import type { Aplicacion, ColorApp, EstadoApp, TipoApp } from "./tipos";
 
-export async function listarAplicaciones(): Promise<Aplicacion[]> {
+// Version sin cache, para los caminos que leen justo antes de escribir y por
+// tanto necesitan el estado real de la tabla (ver moverAplicacion).
+async function consultarAplicaciones(): Promise<Aplicacion[]> {
   const { data } = await supabaseAdmin
     .from("aplicaciones")
     .select("*")
@@ -11,13 +14,20 @@ export async function listarAplicaciones(): Promise<Aplicacion[]> {
   return (data ?? []) as Aplicacion[];
 }
 
+// El catalogo lo piden la barra lateral (en el layout protegido) y el
+// dashboard en el mismo request, asi que sin cache() se consultaba dos veces
+// por navegacion. Deduplica solo dentro de un pase de render, nunca entre
+// requests: un cambio en el catalogo se sigue viendo en la navegacion
+// siguiente, igual que antes.
+export const listarAplicaciones = cache(consultarAplicaciones);
+
 // Sube o baja una app un puesto en la lista y renumera el orden de TODAS
 // (0, 1, 2...) según la posición resultante. Renumerar siempre en vez de
 // solo intercambiar el campo "orden" de las dos apps movidas evita quedar
 // pisado por empates (dos apps con el mismo "orden", desempatadas hoy por
 // nombre) que harían que "subir" no cambiara nada visualmente.
 export async function moverAplicacion(id: string, direccion: "arriba" | "abajo"): Promise<void> {
-  const apps = await listarAplicaciones();
+  const apps = await consultarAplicaciones();
   const indice = apps.findIndex((a) => a.id === id);
   if (indice === -1) return;
 
@@ -39,14 +49,19 @@ export async function obtenerAplicacionPorId(id: string): Promise<Aplicacion | n
   return (data as Aplicacion) ?? null;
 }
 
-export async function obtenerAplicacionPorSlug(slug: string): Promise<Aplicacion | null> {
+// Lo consulta cada guard de app (verificarAccesoAppApi / exigirAccesoApp), y
+// en una pagina protegida corre tanto en el guard de la pagina como en los de
+// sus rutas anidadas dentro del mismo render: cache() colapsa esas repeticiones.
+export const obtenerAplicacionPorSlug = cache(async function obtenerAplicacionPorSlug(
+  slug: string
+): Promise<Aplicacion | null> {
   const { data } = await supabaseAdmin
     .from("aplicaciones")
     .select("*")
     .eq("slug", slug)
     .maybeSingle();
   return (data as Aplicacion) ?? null;
-}
+});
 
 function generarSlug(nombre: string): string {
   return nombre

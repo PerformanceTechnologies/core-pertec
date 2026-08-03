@@ -1,10 +1,19 @@
+import { cache } from "react";
 import { supabaseAdmin } from "./supabase-admin";
 import type { Rol, UsuarioConAcceso, Usuario } from "./tipos";
 
 // Se consulta en cada carga de página protegida (ver app/(protegido)/layout.tsx):
 // si el admin borra o desactiva a alguien, pierde el acceso de inmediato,
 // sin esperar a que expire su sesión.
-export async function obtenerUsuarioActivo(
+//
+// Envuelto en cache() de React porque el layout protegido Y la pagina que
+// renderiza dentro suelen pedir el mismo usuario en el mismo request (la
+// pagina lo pide via su guard, exigirAdmin/exigirAccesoApp), lo que costaba
+// 2 consultas duplicadas por navegacion. cache() deduplica SOLO dentro de un
+// mismo pase de render, nunca entre requests, asi que la garantia de frescura
+// del parrafo anterior se mantiene intacta. Fuera de un render (Route
+// Handlers, Server Actions) no deduplica ni falla: se comporta igual que antes.
+export const obtenerUsuarioActivo = cache(async function obtenerUsuarioActivo(
   correo: string | null | undefined
 ): Promise<UsuarioConAcceso | null> {
   if (!correo) return null;
@@ -29,17 +38,16 @@ export async function obtenerUsuarioActivo(
     aplicacionIds: (asignaciones ?? []).map((a) => a.aplicacion_id as string),
     rolesExtra: mapaRolesExtra(asignaciones ?? []),
   };
-}
+});
 
 export async function listarUsuarios(): Promise<UsuarioConAcceso[]> {
-  const { data: usuarios } = await supabaseAdmin
-    .from("usuarios")
-    .select("*")
-    .order("creado_en", { ascending: false });
-
-  const { data: asignaciones } = await supabaseAdmin
-    .from("usuario_aplicaciones")
-    .select("usuario_id, aplicacion_id, rol_extra");
+  // Las dos consultas son independientes (la de asignaciones no filtra por
+  // usuario, trae todas y despues se reparten en memoria), asi que van en
+  // paralelo en vez de una esperando a la otra.
+  const [{ data: usuarios }, { data: asignaciones }] = await Promise.all([
+    supabaseAdmin.from("usuarios").select("*").order("creado_en", { ascending: false }),
+    supabaseAdmin.from("usuario_aplicaciones").select("usuario_id, aplicacion_id, rol_extra"),
+  ]);
 
   return (usuarios ?? []).map((usuario) => {
     const propias = (asignaciones ?? []).filter((a) => a.usuario_id === usuario.id);
