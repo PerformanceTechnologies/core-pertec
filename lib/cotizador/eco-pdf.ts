@@ -3,6 +3,7 @@ import { lanzarNavegador } from "../playwright-navegador";
 import { money, fechaCl } from "./formato";
 import type { CotizacionCompleta } from "../cotizador";
 import type { QuotationResult } from "./motor/consolidacion";
+import { lineaIdentidadEmpresa, nombreMostrarEmpresa, type EmpresaIdentidad } from "./empresas";
 
 export interface PreparadoPor {
   nombre: string;
@@ -19,7 +20,7 @@ function filaEcoItem(e: QuotationResult["ecoItems"][number]): string {
       <td class="num-col">${escapeHtml(e.item)}</td>
       <td>${escapeHtml(e.descripcion)}</td>
       <td class="num-col">${escapeHtml(e.unidad)}</td>
-      <td class="num-col right">${e.cantidad}</td>
+      <td class="num-col right">${escapeHtml(String(e.cantidad))}</td>
       <td class="right">${money(e.precioUnitario)}</td>
       <td class="right strong">${money(e.total)}</td>
     </tr>`;
@@ -33,8 +34,13 @@ export function construirHtmlEcoPdf(
   cotizacion: CotizacionCompleta,
   result: QuotationResult,
   preparadoPor: PreparadoPor,
+  empresa: EmpresaIdentidad | null,
 ): string {
   const spot = cotizacion.input.tipoServicio === "spot";
+  // Linea "RUT X · Direccion, Ciudad · correo" de la empresa emisora. Queda
+  // vacia mientras no se carguen los datos legales reales, y en ese caso no se
+  // renderiza el div en vez de mostrar campos a medias.
+  const lineaEmpresa = lineaIdentidadEmpresa(empresa);
 
   const bloqueSpotContrato =
     !spot && result.ecoItemsPersonalSpotContrato.length > 0
@@ -75,6 +81,7 @@ export function construirHtmlEcoPdf(
   body { font-family: Arial, Helvetica, sans-serif; color: #1f1b16; font-size: 11px; margin: 0; }
   .encabezado { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1f1b16; padding-bottom: 10px; }
   .empresa { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+  .identidad-empresa { margin-top: 3px; font-size: 9.5px; color: #4a443c; }
   .subtitulo { margin-top: 4px; font-size: 10px; color: #6b6459; }
   .titulo-doc { text-align: right; font-size: 12px; font-weight: 700; text-transform: uppercase; }
   .meta-doc { margin-top: 4px; font-size: 10px; color: #6b6459; text-align: right; }
@@ -109,7 +116,8 @@ export function construirHtmlEcoPdf(
 <body>
   <div class="encabezado">
     <div>
-      <div class="empresa">${escapeHtml(cotizacion.empresa)}</div>
+      <div class="empresa">${escapeHtml(nombreMostrarEmpresa(cotizacion.empresa, empresa))}</div>
+      ${lineaEmpresa ? `<div class="identidad-empresa">${escapeHtml(lineaEmpresa)}</div>` : ""}
       <div class="subtitulo">Resumen ejecutivo de cotización</div>
     </div>
     <div>
@@ -130,9 +138,9 @@ export function construirHtmlEcoPdf(
     <span><b>Mandante:</b> ${escapeHtml(cotizacion.cliente ?? "—")}</span>
     <span><b>Servicio:</b> ${escapeHtml(cotizacion.nombre)}</span>
     <span><b>Faena:</b> ${escapeHtml(cotizacion.faena ?? "—")}</span>
-    <span><b>Plazo:</b> ${cotizacion.input.duracionMeses} ${cotizacion.input.duracionMeses === 1 ? "mes" : "meses"} · ${cotizacion.input.diasServicio} días de servicio</span>
+    <span><b>Plazo:</b> ${escapeHtml(String(cotizacion.input.duracionMeses))} ${cotizacion.input.duracionMeses === 1 ? "mes" : "meses"} · ${escapeHtml(String(cotizacion.input.diasServicio))} días de servicio</span>
     <span><b>Tipo de servicio:</b> ${spot ? "SPOT" : "Contrato permanente"}</span>
-    <span><b>Dotación total:</b> ${result.staff.reduce((a, s) => a + s.dotacionTotal, 0)} personas · ${result.staff.length} cargos</span>
+    <span><b>Dotación total:</b> ${escapeHtml(String(result.staff.reduce((a, s) => a + Number(s.dotacionTotal ?? 0), 0)))} personas · ${result.staff.length} cargos</span>
   </div>
 
   <div class="resumen-kpis">
@@ -221,8 +229,9 @@ export async function generarEcoPdf(
   cotizacion: CotizacionCompleta,
   result: QuotationResult,
   preparadoPor: PreparadoPor,
+  empresa: EmpresaIdentidad | null,
 ): Promise<Buffer> {
-  const html = construirHtmlEcoPdf(cotizacion, result, preparadoPor);
+  const html = construirHtmlEcoPdf(cotizacion, result, preparadoPor, empresa);
   const browser = await lanzarNavegador();
   try {
     const page = await browser.newPage();

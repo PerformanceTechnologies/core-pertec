@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { CotizacionCompleta } from "@/lib/cotizador";
 import type { CatalogoCargo } from "@/lib/cotizador/catalogo-cargos-tipos";
+import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
 import { marcarEmitidaAction, crearNuevaVersionAction } from "@/app/(protegido)/cotizador/acciones";
 import { useEditorCotizacion } from "./useEditorCotizacion";
@@ -43,11 +44,13 @@ export default function EditorCotizacion({
   rol,
   catalogoCargos,
   preparadoPor,
+  empresa,
 }: {
   cotizacion: CotizacionCompleta;
   rol: RolCotizador;
   catalogoCargos: CatalogoCargo[];
   preparadoPor: { nombre: string; correo: string };
+  empresa: EmpresaIdentidad | null;
 }) {
   const [tab, setTab] = useState<QuoteTab>("parametros");
   const [pendiente, iniciarTransicion] = useTransition();
@@ -191,7 +194,9 @@ export default function EditorCotizacion({
         />
       )}
       {tab === "resumen" && <ResumenTab quotation={quotation} result={result} update={update} disabled={disabled} />}
-      {tab === "eco" && <EcoTab cotizacion={cotizacion} result={result} preparadoPor={preparadoPor} />}
+      {tab === "eco" && (
+        <EcoTab cotizacion={cotizacion} result={result} preparadoPor={preparadoPor} empresa={empresa} />
+      )}
     </div>
   );
 }

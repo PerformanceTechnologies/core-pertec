@@ -1,16 +1,27 @@
 import type { QuotationResult } from "@/lib/cotizador/motor/consolidacion";
 import type { CotizacionCompleta } from "@/lib/cotizador";
 import { money, fechaCl } from "@/lib/cotizador/formato";
+import {
+  lineaIdentidadEmpresa,
+  nombreMostrarEmpresa,
+  type EmpresaIdentidad,
+} from "@/lib/cotizador/empresas";
 
 export default function EcoTab({
   cotizacion,
   result,
   preparadoPor,
+  empresa,
 }: {
   cotizacion: CotizacionCompleta;
   result: QuotationResult;
   preparadoPor: { nombre: string; correo: string };
+  // Identidad legal de la empresa emisora de ESTA cotización. Puede venir null
+  // (la empresa no está en la tabla) o con campos vacíos (aún sin cargar los
+  // datos reales): en ambos casos se muestra solo lo que haya, nunca relleno.
+  empresa: EmpresaIdentidad | null;
 }) {
+  const identidad = lineaIdentidadEmpresa(empresa);
   return (
     <div className="mt-6">
       <div className="mb-4 flex justify-center gap-2.5 print:hidden">
@@ -28,9 +39,16 @@ export default function EcoTab({
         <div className="flex items-start justify-between border-b-4 border-tinta pb-3.5">
           <div>
             <div className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
-              Zeus <span className="text-naranjo">Mining</span> SpA
+              {nombreMostrarEmpresa(cotizacion.empresa, empresa)}
             </div>
-            <div className="mt-1 text-xs text-tinta/60">RUT 76.543.210-8 · Av. Balmaceda 2472, Antofagasta · contacto@zeusmining.cl</div>
+            {identidad ? (
+              <div className="mt-1 text-xs text-tinta/60">{identidad}</div>
+            ) : (
+              <div className="mt-1 text-xs text-naranjo">
+                Falta cargar los datos legales de esta empresa (RUT, dirección, correo) en
+                Cotizador → Empresas.
+              </div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-sm font-bold uppercase tracking-wide text-tinta">Formulario ECO-1</div>

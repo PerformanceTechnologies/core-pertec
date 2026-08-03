@@ -47,6 +47,9 @@ export default function PanelCotizador({
           <Link href="/cotizador/catalogos" className="text-tinta/60 hover:text-naranjo">
             Catálogos →
           </Link>
+          <Link href="/cotizador/empresas" className="text-tinta/60 hover:text-naranjo">
+            Empresas →
+          </Link>
           {puedeAdministrarParametros && (
             <Link href="/cotizador/parametros" className="text-tinta/60 hover:text-naranjo">
               Parámetros legales →
