@@ -230,6 +230,20 @@ export async function adjuntarRespaldo(
   contenido: Buffer,
   mimeType: string,
 ): Promise<number> {
+  return adjuntarArchivoAGasto(expenseId, nombre, contenido, mimeType);
+}
+
+/**
+ * Adjunta cualquier archivo a un hr.expense. Es la misma via que
+ * `adjuntarRespaldo` — un ir.attachment directo, sin message_post — y se usa
+ * ademas para colgar la planilla consolidada de la rendicion.
+ */
+export async function adjuntarArchivoAGasto(
+  expenseId: number,
+  nombre: string,
+  contenido: Buffer,
+  mimeType: string,
+): Promise<number> {
   return odooCreate("ir.attachment", {
     name: nombre,
     datas: contenido.toString("base64"),

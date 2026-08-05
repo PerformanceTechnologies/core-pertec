@@ -22,10 +22,140 @@ interface ArchivoEnMemoria {
   archivo: File;
 }
 
+/**
+ * Lee la respuesta de un fetch tolerando que NO sea JSON.
+ *
+ * Cuando una función de Vercel se cae o se pasa del tiempo, la plataforma
+ * responde texto plano ("An error occurred with your deployment"), no JSON.
+ * Un `resp.json()` directo revienta ahí con "Unexpected token 'A'", que no le
+ * dice nada a quien rinde. Esto lo traduce al problema real.
+ */
+async function leerRespuesta(resp: Response): Promise<Record<string, unknown>> {
+  const texto = await resp.text();
+
+  try {
+    const json = JSON.parse(texto) as Record<string, unknown>;
+    if (!resp.ok) throw new Error((json.error as string) ?? `Error ${resp.status}`);
+    return json;
+  } catch (e) {
+    // Si el JSON parseó bien y el error viene del !resp.ok de arriba, se
+    // propaga tal cual: ya es un mensaje accionable del servidor.
+    if (e instanceof Error && !(e instanceof SyntaxError)) throw e;
+
+    if (resp.status === 504 || resp.status === 408) {
+      throw new Error(
+        "el análisis tardó más de lo que permite el servidor. Subilo solo, sin otros archivos, o reducí el tamaño de la foto.",
+      );
+    }
+    if (resp.status === 413) {
+      throw new Error("el archivo es demasiado grande para el servidor. Reducilo antes de subirlo.");
+    }
+    throw new Error(
+      `el servidor respondió ${resp.status} sin datos utilizables (${texto.slice(0, 80).trim() || "respuesta vacía"}).`,
+    );
+  }
+}
+
+// Las fotos de celular llegan a 4000 px y varios MB. La API de visión de todos
+// modos reescala a 1568 px en el lado largo, así que reducirlas acá no pierde
+// nada de calidad de lectura y sí baja mucho el peso del upload y el tiempo de
+// análisis — que es lo que hacía que la función se cayera por tiempo.
+const LADO_MAXIMO = 1568;
+
+async function reducirImagen(archivo: File): Promise<File> {
+  if (!archivo.type.startsWith("image/")) return archivo;
+
+  try {
+    const bitmap = await createImageBitmap(archivo);
+    const escala = Math.min(1, LADO_MAXIMO / Math.max(bitmap.width, bitmap.height));
+
+    // Ya es chica: no vale la pena recomprimirla (perdería calidad sin ganar nada).
+    if (escala === 1 && archivo.size <= 1_500_000) {
+      bitmap.close();
+      return archivo;
+    }
+
+    const lienzo = document.createElement("canvas");
+    lienzo.width = Math.round(bitmap.width * escala);
+    lienzo.height = Math.round(bitmap.height * escala);
+    const ctx = lienzo.getContext("2d");
+    if (!ctx) return archivo;
+    ctx.drawImage(bitmap, 0, 0, lienzo.width, lienzo.height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((res) => lienzo.toBlob(res, "image/jpeg", 0.85));
+    if (!blob || blob.size >= archivo.size) return archivo;
+
+    return new File([blob], archivo.name, { type: "image/jpeg" });
+  } catch {
+    // Si el navegador no puede decodificarla, que decida el servidor.
+    return archivo;
+  }
+}
+
+/**
+ * Versión chica y en escala de grises para embeber en el Excel.
+ *
+ * La skill fija un techo de 60 KB por respaldo (objetivo 35 KB) en escala de
+ * grises a 1400 px: medido ahí, una boleta A4 escaneada a 300 dpi baja de 339 KB
+ * a 30 KB y sigue perfectamente legible. Acá el motivo no es el costo en tokens
+ * sino que N respaldos viajan JUNTOS en un solo request para armar la planilla, y
+ * el body de Vercel tope ~4,5 MB: con 35 KB cada uno, entran más de 100.
+ */
+async function comprimirParaExcel(archivo: File): Promise<File | null> {
+  if (!archivo.type.startsWith("image/")) return archivo.type === "application/pdf" ? archivo : null;
+
+  try {
+    const bitmap = await createImageBitmap(archivo);
+    const lienzo = document.createElement("canvas");
+    const ctx = lienzo.getContext("2d");
+    if (!ctx) return archivo;
+
+    // Escalones decrecientes, igual que la skill: se corta en el primero que
+    // baja del objetivo, para no degradar más de lo necesario.
+    for (const [maxDim, calidad] of [
+      [1400, 0.65], [1200, 0.6], [1000, 0.55], [900, 0.5],
+    ] as const) {
+      const escala = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+      lienzo.width = Math.round(bitmap.width * escala);
+      lienzo.height = Math.round(bitmap.height * escala);
+      ctx.filter = "grayscale(1)";
+      ctx.drawImage(bitmap, 0, 0, lienzo.width, lienzo.height);
+
+      const blob = await new Promise<Blob | null>((res) => lienzo.toBlob(res, "image/jpeg", calidad));
+      if (!blob) break;
+      if (blob.size <= 35 * 1024 || maxDim === 900) {
+        bitmap.close();
+        return new File([blob], archivo.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+      }
+    }
+    bitmap.close();
+    return archivo;
+  } catch {
+    return archivo;
+  }
+}
+
 const money = (n: number) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
 
 type Paso = "subir" | "revisar" | "cargar";
+
+// Lo que devuelve /api/rendidor/analizar (espejo de ComprobanteLeido, que vive
+// en un módulo server-only y no se puede importar desde el cliente).
+interface ComprobanteLeidoUI {
+  fecha: string | null;
+  proveedor: string | null;
+  rutProveedor: string | null;
+  numeroDocumento: string | null;
+  tipoDocumento: TipoDocumento | null;
+  detalle: string | null;
+  categoria: CategoriaGasto | null;
+  neto: number | null;
+  iva: number | null;
+  total: number | null;
+  ilegibles: string[] | null;
+}
 
 interface CandidatoProveedor {
   id: number;
@@ -48,6 +178,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [generandoExcel, setGenerandoExcel] = useState(false);
 
   // Empleado de Odoo
   const [empleados, setEmpleados] = useState<{ id: number; name: string }[]>([]);
@@ -62,6 +193,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     creados: number;
     proveedoresCreados: number;
     problemas: string[];
+    excelEnOdoo: string | null;
   } | null>(null);
 
   const yaCargada = rendicion.estado === "cargada_odoo";
@@ -141,18 +273,18 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     const fallos: string[] = [];
 
     for (let i = 0; i < nuevos.length; i++) {
-      const archivo = nuevos[i];
       setAnalizando({ actual: i + 1, total: nuevos.length });
+
+      // Se sube (y después se adjunta a Odoo) la versión reducida, para que el
+      // respaldo sea exactamente el archivo que el modelo leyó.
+      const archivo = await reducirImagen(nuevos[i]);
 
       const fd = new FormData();
       fd.append("archivo", archivo);
 
       try {
         const resp = await fetch("/api/rendidor/analizar", { method: "POST", body: fd });
-        const json = await resp.json();
-        if (!resp.ok) throw new Error(json.error ?? "Error al analizar");
-
-        const l = json.leido;
+        const { leido: l } = (await leerRespuesta(resp)) as unknown as { leido: ComprobanteLeidoUI };
         const id = crypto.randomUUID();
         gastosNuevos.push({
           id,
@@ -193,6 +325,73 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     }
   };
 
+  // PASO 4 de la skill: armar el FormData con un respaldo comprimido por gasto.
+  // Los archivos viven en memoria del navegador, así que hay que mandarlos: el
+  // servidor no los tiene.
+  const formularioConRespaldos = async (): Promise<FormData> => {
+    const fd = new FormData();
+    for (const { gastoId, archivo } of archivos) {
+      const comprimido = await comprimirParaExcel(archivo);
+      if (comprimido) fd.append(`respaldo_${gastoId}`, comprimido);
+    }
+    return fd;
+  };
+
+  /**
+   * Persiste los gastos y lanza si falla.
+   *
+   * Es obligatorio antes de generar la planilla y antes de cargar a Odoo: las dos
+   * rutas leen los gastos DE LA BASE, no del body. Sin esto, una corrección hecha
+   * en la tabla que no se guardó a mano se perdería en silencio y a Odoo llegarían
+   * los datos que leyó el modelo, no los que confirmó quien rinde.
+   */
+  const persistirGastos = async () => {
+    const resp = await fetch(`/api/rendidor/${rendicion.id}/gastos`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gastos: rendicion.gastos }),
+    });
+    await leerRespuesta(resp);
+  };
+
+  const descargarExcel = async () => {
+    setGenerandoExcel(true);
+    setError(null);
+    setAviso(null);
+    try {
+      await persistirGastos();
+      const fd = await formularioConRespaldos();
+      const resp = await fetch(`/api/rendidor/${rendicion.id}/excel`, { method: "POST", body: fd });
+
+      if (!resp.ok) {
+        // El modo descarga devuelve binario; un error sí viene en JSON.
+        await leerRespuesta(resp);
+        throw new Error("No se pudo generar la planilla.");
+      }
+
+      const blob = await resp.blob();
+      const nombre =
+        resp.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? "rendicion.xlsx";
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = nombre;
+      enlace.click();
+      URL.revokeObjectURL(url);
+
+      const sinRespaldo = rendicion.gastos.length - archivos.length;
+      setAviso(
+        sinRespaldo > 0
+          ? `Planilla descargada. ${sinRespaldo} gasto(s) quedaron sin imagen embebida: sus archivos no están en esta sesión.`
+          : "Planilla descargada.",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar la planilla.");
+    } finally {
+      setGenerandoExcel(false);
+    }
+  };
+
   const guardar = async () => {
     setGuardando(true);
     setError(null);
@@ -203,7 +402,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gastos: rendicion.gastos }),
       });
-      if (!resp.ok) throw new Error((await resp.json()).error ?? "Error al guardar");
+      await leerRespuesta(resp);
       setAviso("Borrador guardado.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar.");
@@ -217,8 +416,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     setError(null);
     try {
       const resp = await fetch(`/api/rendidor/empleados?nombre=${encodeURIComponent(rendicion.nombreQuienRinde)}`);
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json.error);
+      const json = (await leerRespuesta(resp)) as unknown as { empleados: { id: number; name: string }[] };
       setEmpleados(json.empleados);
       if (json.empleados.length === 1) setEmployeeId(json.empleados[0].id);
       if (json.empleados.length === 0) {
@@ -238,6 +436,10 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     setResolviendo(true);
     setError(null);
     try {
+      // Antes de cualquier otra cosa: dejar en la base exactamente lo que se ve
+      // en la tabla, porque /cargar lee de ahí.
+      await persistirGastos();
+
       const resp = await fetch("/api/rendidor/proveedores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -249,8 +451,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
           })),
         }),
       });
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json.error);
+      const json = (await leerRespuesta(resp)) as unknown as {
+        resultados: { gastoId: string; candidatos: CandidatoProveedor[] }[];
+      };
 
       const estado: Record<string, EstadoProveedor> = {};
       for (const r of json.resultados) {
@@ -307,12 +510,14 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employeeId, proveedores: decisiones }),
       });
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json.error);
+      const json = (await leerRespuesta(resp)) as unknown as {
+        creados: { gastoId: string; expenseId: number }[];
+        proveedoresCreados: unknown[];
+      };
 
       // Adjuntar los respaldos de a uno (el body de Vercel no aguanta todos).
       const problemas: string[] = [];
-      for (const c of json.creados as { gastoId: string; expenseId: number }[]) {
+      for (const c of json.creados) {
         const enMemoria = archivos.find((a) => a.gastoId === c.gastoId);
         if (!enMemoria) {
           problemas.push(
@@ -328,16 +533,36 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
 
         try {
           const r = await fetch("/api/rendidor/adjuntar", { method: "POST", body: fd });
-          const j = await r.json();
-          if (!r.ok) problemas.push(`Gasto ${c.expenseId}: ${j.error}`);
-          else if (j.problemas?.length) problemas.push(...j.problemas.map((p: string) => `Gasto ${c.expenseId}: ${p}`));
-        } catch {
-          problemas.push(`Gasto ${c.expenseId}: falló el adjunto.`);
+          const j = (await leerRespuesta(r)) as unknown as { problemas?: string[] };
+          if (j.problemas?.length) problemas.push(...j.problemas.map((p) => `Gasto ${c.expenseId}: ${p}`));
+        } catch (e) {
+          problemas.push(`Gasto ${c.expenseId}: ${e instanceof Error ? e.message : "falló el adjunto."}`);
+        }
+      }
+
+      // La planilla consolidada se cuelga del PRIMER gasto creado: es un solo
+      // documento para toda la rendición, así que duplicarlo en los N gastos
+      // sería ruido para quien revisa en Odoo.
+      let excelEnOdoo: string | null = null;
+      const primero = json.creados[0];
+      if (primero) {
+        try {
+          const fd = await formularioConRespaldos();
+          fd.append("expenseId", String(primero.expenseId));
+          const r = await fetch(`/api/rendidor/${rendicion.id}/excel`, { method: "POST", body: fd });
+          const j = (await leerRespuesta(r)) as unknown as { nombre: string };
+          excelEnOdoo = `${j.nombre} (adjunta al gasto ${primero.expenseId})`;
+        } catch (e) {
+          problemas.push(
+            `La planilla no se pudo adjuntar a Odoo: ${e instanceof Error ? e.message : "error"}. ` +
+              "Descargala con el botón y súbila a mano.",
+          );
         }
       }
 
       setRendicion((prev) => ({ ...prev, estado: "cargada_odoo", odooEmployeeId: employeeId }));
       setResultado({
+        excelEnOdoo,
         creados: json.creados.length,
         proveedoresCreados: json.proveedoresCreados.length,
         problemas,
@@ -376,6 +601,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             {resultado.creados} gasto(s) creados
             {resultado.proveedoresCreados > 0 && ` · ${resultado.proveedoresCreados} proveedor(es) nuevos`}
           </p>
+          {resultado.excelEnOdoo && (
+            <p className="mt-1 text-sm text-tinta/70">Planilla en Odoo: {resultado.excelEnOdoo}</p>
+          )}
           {resultado.problemas.length > 0 && (
             <div className="mt-3 rounded-lg border border-naranjo/25 bg-naranjo/5 px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-naranjo">
@@ -587,8 +815,8 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             </div>
           </div>
 
-          {!yaCargada && (
-            <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
+            {!yaCargada && (
               <button
                 type="button"
                 onClick={guardar}
@@ -597,6 +825,16 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
               >
                 {guardando ? "Guardando..." : "Guardar borrador"}
               </button>
+            )}
+            <button
+              type="button"
+              onClick={descargarExcel}
+              disabled={generandoExcel || rendicion.gastos.length === 0}
+              className="rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:opacity-40"
+            >
+              {generandoExcel ? "Generando planilla..." : "Descargar Excel"}
+            </button>
+            {!yaCargada && (
               <button
                 type="button"
                 onClick={resolverProveedores}
@@ -605,7 +843,14 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
               >
                 {resolviendo ? "Buscando proveedores..." : "Continuar a Odoo →"}
               </button>
-            </div>
+            )}
+          </div>
+          {rendicion.gastos.length > archivos.length && (
+            <p className="mt-2 text-xs text-tinta/50">
+              La planilla embebe las imágenes de los comprobantes que estén en esta sesión (
+              {archivos.length} de {rendicion.gastos.length}). Los que falten quedan con un aviso en la
+              hoja Respaldos.
+            </p>
           )}
         </div>
       )}
