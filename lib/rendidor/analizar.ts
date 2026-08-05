@@ -62,9 +62,11 @@ const ESQUEMA = {
       type: ["string", "null"],
       description: "Folio de la boleta/factura, N° de ticket o código de transacción.",
     },
+    // Un enum nullable va con anyOf, NO con type: ["string", "null"] + enum:
+    // el validador de structured outputs rechaza esa combinación
+    // ("Enum value 'x' does not match declared type '['string','null']'").
     tipoDocumento: {
-      type: ["string", "null"],
-      enum: [...TIPOS_DOCUMENTO, null],
+      anyOf: [{ type: "string", enum: [...TIPOS_DOCUMENTO] }, { type: "null" }],
       description:
         "Clasificación tributaria del documento. Usar EXACTAMENTE uno de estos valores técnicos. null si no se puede determinar con certeza.",
     },
@@ -74,8 +76,7 @@ const ESQUEMA = {
         "Descripción del gasto. Incluir litros si es combustible, cantidad de personas si es alimentación, tramo y horario si es transporte.",
     },
     categoria: {
-      type: ["string", "null"],
-      enum: [...CATEGORIAS_GASTO, null],
+      anyOf: [{ type: "string", enum: [...CATEGORIAS_GASTO] }, { type: "null" }],
       description: "Categoría del gasto.",
     },
     neto: {
