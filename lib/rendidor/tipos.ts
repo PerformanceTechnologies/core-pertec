@@ -110,6 +110,15 @@ export interface GastoRendicion {
   neto: number;
   iva: number;
   total: number;
+  /**
+   * El documento se declara EXENTO o NO AFECTO a IVA (leyenda "FACTURA NO AFECTA
+   * O EXENTA", línea "VALOR EXENTO").
+   *
+   * Decide la afectación por encima del tipo de documento — ver la REGLA 0 en
+   * iva.ts. Es opcional para no romper los gastos guardados antes de que
+   * existiera este campo: undefined se trata como "sin indicio".
+   */
+  exentoDeclarado?: boolean | null;
   // Marca los campos que el modelo no pudo leer y que hay que confirmar a mano
   // antes de cargar. La skill es explícita: no inventar datos ilegibles.
   pendientes: string[];

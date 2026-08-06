@@ -39,6 +39,9 @@ export interface ComprobanteLeido {
   // El tramo solo aplica a pasaje_aereo, donde define la afectacion
   // (nacional afecto / internacional exento). null si no aplica o no se sabe.
   tramoNacional: boolean | null;
+  // El documento se declara exento / no afecto a IVA. Decisivo sobre el tipo:
+  // ver la REGLA 0 en iva.ts.
+  exentoDeclarado: boolean | null;
   // Campos que no se pudieron leer. La skill es explicita: no inventar datos.
   ilegibles: string[];
 }
@@ -99,6 +102,14 @@ const ESQUEMA = {
       description:
         "Solo para pasaje_aereo: true si el tramo es nacional (ej. Santiago-Calama), false si es internacional. null si no aplica o no se puede determinar.",
     },
+    exentoDeclarado: {
+      type: ["boolean", "null"],
+      description:
+        "true si el documento se declara a sí mismo EXENTO o NO AFECTO a IVA. Buscar leyendas como " +
+        '"FACTURA NO AFECTA O EXENTA", "FACTURA EXENTA", "DOCUMENTO EXENTO", o una línea de totales ' +
+        '"VALOR EXENTO" / "MONTO EXENTO" / "TOTAL EXENTO" con el monto del documento. ' +
+        "false si el documento es claramente afecto (desglosa IVA o dice AFECTO). null si no hay indicio.",
+    },
     ilegibles: {
       type: "array",
       items: { type: "string" },
@@ -118,6 +129,7 @@ const ESQUEMA = {
     "iva",
     "total",
     "tramoNacional",
+    "exentoDeclarado",
     "ilegibles",
   ],
   additionalProperties: false,
@@ -151,7 +163,16 @@ Extrae los datos del comprobante adjunto. Reglas que no puedes romper:
    - \`gasto_sin_respaldo_excepcional\`: solo si no hay comprobante real
    Si no puedes determinarlo con certeza, deja \`tipoDocumento\` en null y agrégalo a \`ilegibles\`.
 
-5. **El detalle tiene que ser útil para el contador.** Incluye litros si es combustible, cuántas
+5. **Si el documento se declara EXENTO o NO AFECTO, márcalo en \`exentoDeclarado\`.** Es el dato
+   tributario más importante después del total, porque manda sobre todo lo demás. Búscalo en el
+   recuadro del timbre electrónico ("FACTURA NO AFECTA O EXENTA ELECTRONICA", "FACTURA EXENTA") y
+   en el cuadro de totales ("VALOR EXENTO", "MONTO EXENTO", "TOTAL EXENTO").
+   Un pasaje aéreo puede ser exento aunque el tramo sea nacional: si el documento lo declara,
+   \`exentoDeclarado\` es true y no importa lo que digas en \`tramoNacional\`.
+   Pon false solo si el documento es claramente afecto (desglosa IVA, o dice AFECTO). Si no hay
+   ningún indicio en un sentido ni en el otro, null.
+
+6. **El detalle tiene que ser útil para el contador.** Incluye litros si es combustible, cuántas
    personas si es alimentación, el tramo si es transporte.`;
 
 type MediaTypeImagen = "image/jpeg" | "image/png" | "image/gif" | "image/webp";

@@ -196,13 +196,15 @@ export function armarPreview(
     }
 
     const tratamiento = TRATAMIENTO_DOCUMENTO[g.tipoDocumento];
-    // Para pasaje aéreo el tramo ya quedó resuelto al guardar (si no, calcularDesglose lanza).
+    // Para pasaje aéreo el tramo ya quedó resuelto al guardar (si no, calcularDesglose lanza),
+    // salvo que el documento se declare exento: eso manda y hace el tramo irrelevante.
     const desglose = calcularDesglose(
       g.total,
       g.tipoDocumento,
       g.iva > 0 ? g.neto : null,
       g.iva > 0 ? g.iva : null,
       tratamiento.afecto === null ? g.iva > 0 : undefined,
+      g.exentoDeclarado,
     );
 
     const mapeo = MAPEO_CATEGORIA_ODOO[g.categoria];

@@ -60,9 +60,26 @@ export function calcularDesglose(
   netoLeido: number | null,
   ivaLeido: number | null,
   afectoForzado?: boolean,
+  exentoDeclarado?: boolean | null,
 ): DesgloseIva {
   const advertencias: string[] = [];
   const tratamiento = TRATAMIENTO_DOCUMENTO[tipo];
+
+  // REGLA 0, por encima de todas las demas: si el documento se declara exento o
+  // no afecto, esta exento. Y punto.
+  //
+  // Una "FACTURA NO AFECTA O EXENTA ELECTRONICA" con la linea VALOR EXENTO es
+  // evidencia impresa y decisiva; mas fuerte todavia que un desglose, porque es
+  // el propio emisor declarando el tratamiento tributario ante el SII. Antes
+  // esto se decidia solo por TIPO de documento, y un pasaje aereo exento cuyo
+  // tramo pareciera nacional terminaba con IVA calculado hacia atras: IVA
+  // inventado sobre un documento que declara no tenerlo.
+  //
+  // Resuelve ademas el hueco de pasaje_aereo sin tramo confirmado, que antes
+  // lanzaba: si el documento dice exento, el tramo es irrelevante.
+  if (exentoDeclarado) {
+    return { neto: total, iva: 0, total, afecto: false, advertencias };
+  }
 
   // Regla 4 y 7: si el tipo no define la afectación (pasaje aéreo) hace falta
   // que alguien confirme. No se adivina.
