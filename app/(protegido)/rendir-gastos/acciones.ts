@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { crearRendicion, eliminarRendicion, obtenerRendicion } from "@/lib/rendidor/datos";
 import { obtenerEmpleado } from "@/lib/rendidor/odoo";
+import { borrarRespaldosDeRendicion } from "@/lib/rendidor/almacenamiento";
 
 const SLUG_APP = "rendir-gastos";
 
@@ -84,6 +85,10 @@ export async function eliminarRendicionAction(id: string): Promise<ResultadoBorr
         `Los hr.expense ${idsOdoo.join(", ")} siguen en Odoo.`,
     );
   }
+
+  // Los respaldos primero: si se borrara la fila antes, los archivos quedarian
+  // huerfanos en el bucket sin nada que los referencie.
+  await borrarRespaldosDeRendicion(id);
 
   await eliminarRendicion(id);
   revalidatePath("/rendir-gastos");

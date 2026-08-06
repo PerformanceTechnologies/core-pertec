@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { analizarComprobante } from "@/lib/rendidor/analizar";
+import { obtenerRendicion } from "@/lib/rendidor/datos";
+import { subirRespaldo } from "@/lib/rendidor/almacenamiento";
 
 const SLUG_APP = "rendir-gastos";
 
@@ -21,6 +23,21 @@ export async function POST(request: Request) {
   const archivo = formulario.get("archivo");
   if (!(archivo instanceof File)) {
     return NextResponse.json({ error: "No se recibió ningún archivo." }, { status: 400 });
+  }
+
+  // La rendición hace falta para agrupar el respaldo en el bucket, y se verifica
+  // que sea de quien la está subiendo: sin esto se podría escribir en la carpeta
+  // de la rendición de otra persona.
+  const rendicionId = String(formulario.get("rendicionId") ?? "");
+  if (!rendicionId) {
+    return NextResponse.json({ error: "Falta la rendición." }, { status: 400 });
+  }
+  const rendicion = await obtenerRendicion(rendicionId);
+  if (!rendicion) {
+    return NextResponse.json({ error: "No encontramos esa rendición." }, { status: 404 });
+  }
+  if (rendicion.creadoPor !== acceso.usuario.id && acceso.usuario.rol !== "admin") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
   const TIPOS_ACEPTADOS = [
@@ -51,8 +68,14 @@ export async function POST(request: Request) {
 
   try {
     const contenido = Buffer.from(await archivo.arrayBuffer());
+
+    // El respaldo se guarda ANTES de analizar. Si el análisis falla, el archivo
+    // ya está a salvo y el gasto se puede completar a mano sin volver a subirlo;
+    // al revés se perdería justo en el caso en que hay que reintentar.
+    const archivoPath = await subirRespaldo(rendicionId, contenido, archivo.type);
+
     const leido = await analizarComprobante(contenido, archivo.type, archivo.name);
-    return NextResponse.json({ leido });
+    return NextResponse.json({ leido, archivoPath });
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "Error desconocido";
     console.error("[rendidor] Error al analizar comprobante:", error);

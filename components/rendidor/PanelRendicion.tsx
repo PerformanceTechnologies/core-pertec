@@ -13,15 +13,6 @@ import {
 import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
 
-// Los archivos viven en memoria del navegador durante la sesión: se envían al
-// análisis y otra vez al adjuntar. En esta primera versión no hay bucket, así
-// que un borrador recuperado más tarde conserva los DATOS pero no los archivos
-// (hay que volver a subirlos para adjuntarlos a Odoo). Se avisa en la UI.
-interface ArchivoEnMemoria {
-  gastoId: string;
-  archivo: File;
-}
-
 /**
  * Lee la respuesta de un fetch tolerando que NO sea JSON.
  *
@@ -148,55 +139,6 @@ async function reducirImagen(archivo: File): Promise<ImagenPreparada> {
   }
 }
 
-/**
- * Versión chica y en escala de grises para embeber en el Excel.
- *
- * La skill fija un techo de 60 KB por respaldo (objetivo 35 KB) en escala de
- * grises a 1400 px: medido ahí, una boleta A4 escaneada a 300 dpi baja de 339 KB
- * a 30 KB y sigue perfectamente legible. Acá el motivo no es el costo en tokens
- * sino que N respaldos viajan JUNTOS en un solo request para armar la planilla, y
- * el body de Vercel tope ~4,5 MB: con 35 KB cada uno, entran más de 100.
- */
-async function comprimirParaExcel(archivo: File): Promise<File | null> {
-  if (!archivo.type.startsWith("image/")) return archivo.type === "application/pdf" ? archivo : null;
-
-  try {
-    const bitmap = await createImageBitmap(archivo);
-
-    // Escalones decrecientes, igual que la skill: se corta en el primero que
-    // baja del objetivo, para no degradar más de lo necesario.
-    for (const [maxDim, calidad] of [
-      [1400, 0.65], [1200, 0.6], [1000, 0.55], [900, 0.5],
-    ] as const) {
-      const escala = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-      const ancho = Math.round(bitmap.width * escala);
-      const alto = Math.round(bitmap.height * escala);
-
-      // El lienzo se rehace por escalón: cambiar width/height lo limpia a
-      // transparente, así que el relleno blanco tiene que volver a pintarse
-      // DESPUÉS de fijar el tamaño o se pierde. Acá el fondo importa el doble:
-      // sin él, la escala de grises deja el documento negro sobre negro.
-      const ctx = lienzoBlanco(ancho, alto);
-      if (!ctx) break;
-      ctx.filter = "grayscale(1)";
-      ctx.drawImage(bitmap, 0, 0, ancho, alto);
-
-      const blob = await new Promise<Blob | null>((res) =>
-        ctx.canvas.toBlob(res, "image/jpeg", calidad),
-      );
-      if (!blob) break;
-      if (blob.size <= 35 * 1024 || maxDim === 900) {
-        bitmap.close();
-        return new File([blob], archivo.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
-      }
-    }
-    bitmap.close();
-    return archivo;
-  } catch {
-    return archivo;
-  }
-}
-
 type Resultado<R> = { ok: true; valor: R } | { ok: false; error: unknown };
 
 /**
@@ -279,7 +221,6 @@ interface EstadoProveedor {
 export default function PanelRendicion({ rendicionInicial }: { rendicionInicial: Rendicion }) {
   const [rendicion, setRendicion] = useState(rendicionInicial);
   const [paso, setPaso] = useState<Paso>(rendicion.gastos.length > 0 ? "revisar" : "subir");
-  const [archivos, setArchivos] = useState<ArchivoEnMemoria[]>([]);
   const [analizando, setAnalizando] = useState<{ actual: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -358,10 +299,11 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
       gastos: prev.gastos.map((g) => (g.id === id ? { ...g, ...patch } : g)),
     }));
 
-  const quitarGasto = (id: string) => {
+  // El respaldo queda en el bucket. No se borra al quitar la fila: si alguien
+  // borra un gasto por error, volver a subir el archivo es lo mas molesto de
+  // rehacer. Los huerfanos se van con la rendicion cuando se borra.
+  const quitarGasto = (id: string) =>
     setRendicion((prev) => ({ ...prev, gastos: prev.gastos.filter((g) => g.id !== id) }));
-    setArchivos((prev) => prev.filter((a) => a.gastoId !== id));
-  };
 
   // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
   // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
@@ -382,11 +324,18 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
 
       const fd = new FormData();
       fd.append("archivo", archivo);
+      // La rendicion viaja para que el servidor agrupe el respaldo en su carpeta.
+      fd.append("rendicionId", rendicion.id);
 
       try {
         const resp = await fetch("/api/rendidor/analizar", { method: "POST", body: fd });
-        const { leido } = (await leerRespuesta(resp)) as unknown as { leido: ComprobanteLeidoUI };
-        return { archivo, leido, ancho, alto };
+        // El servidor guarda el archivo en el bucket y devuelve su ruta: es lo
+        // unico que hay que recordar del archivo.
+        const { leido, archivoPath } = (await leerRespuesta(resp)) as unknown as {
+          leido: ComprobanteLeidoUI;
+          archivoPath: string;
+        };
+        return { archivo, leido, archivoPath, ancho, alto };
       } finally {
         completados += 1;
         setAnalizando({ actual: completados, total: nuevos.length });
@@ -394,7 +343,6 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     });
 
     const gastosNuevos: GastoRendicion[] = [];
-    const archivosNuevos: ArchivoEnMemoria[] = [];
     const fallos: string[] = [];
     const pobres: string[] = [];
 
@@ -405,7 +353,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         fallos.push(`${nuevos[i].name}: ${r.error instanceof Error ? r.error.message : "error"}`);
         return;
       }
-      const { archivo, leido: l, ancho, alto } = r.valor;
+      const { archivo, leido: l, archivoPath, ancho, alto } = r.valor;
 
       // Si volvieron varios campos ilegibles Y el archivo era chico, la causa es
       // la resolución del origen, no el modelo — y no se arregla reintentando.
@@ -419,9 +367,8 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             `una captura más grande.`,
         );
       }
-      const id = crypto.randomUUID();
       gastosNuevos.push({
-        id,
+        id: crypto.randomUUID(),
         orden: rendicion.gastos.length + gastosNuevos.length + 1,
         fecha: l.fecha,
         proveedor: l.proveedor ?? "",
@@ -435,18 +382,16 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         total: l.total ?? 0,
         pendientes: l.ilegibles ?? [],
         archivoNombre: archivo.name,
-        archivoPath: "",
+        archivoPath,
         archivoTipo: archivo.type,
         odooExpenseId: null,
         odooPartnerId: null,
       });
-      archivosNuevos.push({ gastoId: id, archivo });
     });
 
     setAnalizando(null);
     if (gastosNuevos.length > 0) {
       setRendicion((prev) => ({ ...prev, gastos: [...prev.gastos, ...gastosNuevos] }));
-      setArchivos((prev) => [...prev, ...archivosNuevos]);
       setPaso("revisar");
     }
     if (fallos.length > 0) {
@@ -463,17 +408,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     }
   };
 
-  // PASO 4 de la skill: armar el FormData con un respaldo comprimido por gasto.
-  // Los archivos viven en memoria del navegador, así que hay que mandarlos: el
-  // servidor no los tiene.
-  const formularioConRespaldos = async (): Promise<FormData> => {
-    const fd = new FormData();
-    for (const { gastoId, archivo } of archivos) {
-      const comprimido = await comprimirParaExcel(archivo);
-      if (comprimido) fd.append(`respaldo_${gastoId}`, comprimido);
-    }
-    return fd;
-  };
+  // Cuantos gastos no tienen respaldo en el bucket. Con el flujo normal es 0;
+  // solo pasa con gastos agregados a mano, sin comprobante.
+  const sinRespaldo = rendicion.gastos.filter((g) => !g.archivoPath).length;
 
   /**
    * Persiste los gastos y lanza si falla.
@@ -498,8 +435,12 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     setAviso(null);
     try {
       await persistirGastos();
-      const fd = await formularioConRespaldos();
-      const resp = await fetch(`/api/rendidor/${rendicion.id}/excel`, { method: "POST", body: fd });
+      // Sin cuerpo: el servidor baja los respaldos del bucket por su cuenta.
+      const resp = await fetch(`/api/rendidor/${rendicion.id}/excel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
 
       if (!resp.ok) {
         // El modo descarga devuelve binario; un error sí viene en JSON.
@@ -517,10 +458,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
       enlace.click();
       URL.revokeObjectURL(url);
 
-      const sinRespaldo = rendicion.gastos.length - archivos.length;
       setAviso(
         sinRespaldo > 0
-          ? `Planilla descargada. ${sinRespaldo} gasto(s) quedaron sin imagen embebida: sus archivos no están en esta sesión.`
+          ? `Planilla descargada. ${sinRespaldo} gasto(s) no tienen comprobante, así que salen sin imagen.`
           : "Planilla descargada.",
       );
     } catch (e) {
@@ -653,16 +593,16 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         proveedoresCreados: unknown[];
       };
 
-      // Un respaldo por request (el body de Vercel no aguanta todos juntos),
-      // pero de a varios a la vez: cada adjunto hace además una verificación
-      // contra Odoo, así que en serie son 2N round-trips en fila.
+      // Un adjunto por request, de a varios a la vez: cada uno hace además una
+      // verificación contra Odoo, así que en serie son 2N round-trips en fila.
+      // El archivo ya no viaja — el servidor lo lee del bucket por su ruta.
       const problemas: string[] = [];
 
       const adjuntos = await mapaConTope(json.creados, ADJUNTOS_EN_PARALELO, async (c) => {
-        const enMemoria = archivos.find((a) => a.gastoId === c.gastoId);
-        if (!enMemoria) {
+        const gasto = rendicion.gastos.find((g) => g.id === c.gastoId);
+        if (!gasto?.archivoPath) {
           return [
-            `El gasto ${c.expenseId} quedó sin respaldo: el archivo no está en esta sesión. Subilo a mano en Odoo.`,
+            `El gasto ${c.expenseId} no tiene comprobante guardado. Subilo a mano en Odoo.`,
           ];
         }
         // El total esperado en Odoo es NETO + IVA, no el total impreso. Para un
@@ -670,12 +610,17 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         // el papel: comparar contra el impreso marcaría una falsa alarma en cada
         // pasaje. Se usa la fila, que ya tiene el desglose calculado.
         const fila = filas.find((f) => f.gasto.id === c.gastoId);
-        const fd = new FormData();
-        fd.append("archivo", enMemoria.archivo);
-        fd.append("expenseId", String(c.expenseId));
-        fd.append("totalEsperado", String(fila ? fila.neto + fila.iva : 0));
 
-        const r = await fetch("/api/rendidor/adjuntar", { method: "POST", body: fd });
+        const r = await fetch("/api/rendidor/adjuntar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expenseId: c.expenseId,
+            archivoPath: gasto.archivoPath,
+            nombre: gasto.archivoNombre,
+            totalEsperado: fila ? fila.neto + fila.iva : 0,
+          }),
+        });
         const j = (await leerRespuesta(r)) as unknown as { problemas?: string[] };
         return (j.problemas ?? []).map((p) => `Gasto ${c.expenseId}: ${p}`);
       });
@@ -696,9 +641,11 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
       const primero = json.creados[0];
       if (primero) {
         try {
-          const fd = await formularioConRespaldos();
-          fd.append("expenseId", String(primero.expenseId));
-          const r = await fetch(`/api/rendidor/${rendicion.id}/excel`, { method: "POST", body: fd });
+          const r = await fetch(`/api/rendidor/${rendicion.id}/excel`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expenseId: primero.expenseId }),
+          });
           const j = (await leerRespuesta(r)) as unknown as { nombre: string };
           excelEnOdoo = `${j.nombre} (adjunta al gasto ${primero.expenseId})`;
         } catch (e) {
@@ -777,9 +724,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             1 · Subir comprobantes
           </p>
           <p className="mt-1 text-xs text-tinta/55">
-            PDF o imagen. Se analizan de a uno y podés corregir todo después. Los archivos quedan en esta
-            pestaña: si cerrás la página antes de cargar a Odoo, los datos se guardan pero hay que volver a
-            subir los archivos para adjuntarlos.
+            PDF o imagen. Se analizan de a varios a la vez y podés corregir todo después. Los
+            comprobantes quedan guardados: si cerrás la página podés volver más tarde y seguir donde
+            estabas, sin subir nada de nuevo.
           </p>
           <input
             type="file"
@@ -1017,11 +964,10 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
               </button>
             )}
           </div>
-          {rendicion.gastos.length > archivos.length && (
+          {sinRespaldo > 0 && (
             <p className="mt-2 text-xs text-tinta/50">
-              La planilla embebe las imágenes de los comprobantes que estén en esta sesión (
-              {archivos.length} de {rendicion.gastos.length}). Los que falten quedan con un aviso en la
-              hoja Respaldos.
+              {sinRespaldo} de {rendicion.gastos.length} gasto(s) no tienen comprobante, así que en la
+              hoja Respaldos salen con un aviso en vez de la imagen.
             </p>
           )}
         </div>

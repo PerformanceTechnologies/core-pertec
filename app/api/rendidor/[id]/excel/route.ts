@@ -3,6 +3,7 @@ import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { construirLibroRendicion, nombreArchivoRendicion, type RespaldoParaExcel } from "@/lib/rendidor/excel";
 import { adjuntarArchivoAGasto } from "@/lib/rendidor/odoo";
+import { descargarRespaldo, miniaturaParaExcel } from "@/lib/rendidor/almacenamiento";
 
 const SLUG_APP = "rendir-gastos";
 
@@ -12,9 +13,11 @@ export const maxDuration = 60;
 // PASO 4 (y 7) de la skill: genera la planilla de 2 hojas con los respaldos
 // embebidos.
 //
-// Va por POST y no por GET porque los archivos viven en memoria del navegador
-// (no hay bucket en esta versión), así que el cliente tiene que mandarlos: uno
-// por gasto, en un campo llamado `respaldo_{gastoId}`.
+// Los respaldos se leen del bucket y se comprimen acá con sharp. Antes el cliente
+// los mandaba comprimidos por multipart —N imágenes en un solo request, rozando
+// el tope de ~4,5 MB del body de Vercel— y solo funcionaba si los archivos
+// seguían en memoria de esa pestaña. Ahora una rendición recuperada más tarde
+// exporta la planilla igual.
 //
 // Dos modos:
 //   sin `expenseId`  → devuelve el .xlsx para descargar
@@ -39,25 +42,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const formulario = await request.formData();
+    const cuerpo = (await request.json().catch(() => ({}))) as { expenseId?: number };
 
-    const respaldos: RespaldoParaExcel[] = [];
-    for (const gasto of rendicion.gastos) {
-      const archivo = formulario.get(`respaldo_${gasto.id}`);
-      if (archivo instanceof File) {
-        respaldos.push({
-          gastoId: gasto.id,
-          nombre: archivo.name,
-          mimeType: archivo.type,
-          contenido: Buffer.from(await archivo.arrayBuffer()),
-        });
-      }
-    }
+    // Los respaldos se bajan y comprimen en paralelo: son N descargas del bucket
+    // más N conversiones con sharp, y en serie una rendición de 16 comprobantes
+    // se pasaría del tiempo de la función.
+    const respaldos = (
+      await Promise.all(
+        rendicion.gastos
+          .filter((g) => g.archivoPath)
+          .map(async (g): Promise<RespaldoParaExcel | null> => {
+            const respaldo = await descargarRespaldo(g.archivoPath);
+            if (!respaldo) return null;
+
+            const mini = await miniaturaParaExcel(respaldo.contenido, respaldo.mimeType);
+            return {
+              gastoId: g.id,
+              nombre: g.archivoNombre || g.archivoPath.split("/").pop() || "respaldo",
+              // Sin miniatura (un PDF, o una conversión que falló) se pasa el
+              // original: construirLibroRendicion decide si lo embebe o pone el
+              // aviso, y así el motivo queda en un solo lugar.
+              mimeType: mini ? "image/jpeg" : respaldo.mimeType,
+              contenido: mini ?? respaldo.contenido,
+            };
+          }),
+      )
+    ).filter((r): r is RespaldoParaExcel => r !== null);
 
     const libro = await construirLibroRendicion(rendicion, respaldos);
     const nombre = nombreArchivoRendicion(rendicion);
 
-    const expenseId = Number(formulario.get("expenseId"));
+    const expenseId = Number(cuerpo.expenseId);
     if (expenseId) {
       const attachmentId = await adjuntarArchivoAGasto(
         expenseId,
