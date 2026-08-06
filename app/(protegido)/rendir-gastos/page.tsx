@@ -72,7 +72,12 @@ export default async function RendirGastosPage() {
         <p className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
           Nueva rendición
         </p>
-        <form action={crearRendicionAction} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* El botón NO va como una celda más de la grilla. Estaba en la columna de
+            al lado de Empresa con items-end, así que se alineaba al borde inferior
+            de una fila cuya altura la marca el campo MÁS su texto de ayuda: quedaba
+            colgado abajo, sin alinear con el select ni con nada. Ahora los campos
+            ocupan la grilla y la acción vive en su propia fila, separada. */}
+        <form action={crearRendicionAction} className="mt-3 grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
               Título o detalle de la rendición
@@ -116,10 +121,12 @@ export default async function RendirGastosPage() {
               Define el impuesto de IVA que se usa al cargar a Odoo.
             </p>
           </div>
-          <div className="flex items-end">
+          <div className="mt-1 flex justify-end border-t border-borde pt-4 sm:col-span-2">
+            {/* Ancho completo en una columna: a la derecha y solo, en pantalla
+                angosta queda huérfano. */}
             <button
               type="submit"
-              className="rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85"
+              className="w-full rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 sm:w-auto"
             >
               Crear y subir comprobantes →
             </button>
