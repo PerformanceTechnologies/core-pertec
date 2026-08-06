@@ -10,7 +10,7 @@ import {
   type Rendicion,
   type TipoDocumento,
 } from "@/lib/rendidor/tipos";
-import { calcularDesglose } from "@/lib/rendidor/iva";
+import { calcularDesglose, rutValido } from "@/lib/rendidor/iva";
 import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
 
 // Los archivos viven en memoria del navegador durante la sesión: se envían al
@@ -62,6 +62,26 @@ async function leerRespuesta(resp: Response): Promise<Record<string, unknown>> {
 // análisis — que es lo que hacía que la función se cayera por tiempo.
 const LADO_MAXIMO = 1568;
 
+/**
+ * Pinta el lienzo de BLANCO antes de dibujar. No es cosmético.
+ *
+ * Un canvas nace transparente-negro y el JPEG no tiene canal alfa, así que al
+ * codificar, cada píxel transparente del origen sale NEGRO. Una factura en PNG
+ * con fondo transparente — lo típico de un documento descargado de una web — se
+ * convertía en texto oscuro sobre negro: medido, el contraste caía de 242 a 25
+ * sobre 255. El modelo no leía nada y devolvía todos los campos como ilegibles.
+ */
+function lienzoBlanco(ancho: number, alto: number): CanvasRenderingContext2D | null {
+  const lienzo = document.createElement("canvas");
+  lienzo.width = ancho;
+  lienzo.height = alto;
+  const ctx = lienzo.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, ancho, alto);
+  return ctx;
+}
+
 async function reducirImagen(archivo: File): Promise<File> {
   if (!archivo.type.startsWith("image/")) return archivo;
 
@@ -69,24 +89,31 @@ async function reducirImagen(archivo: File): Promise<File> {
     const bitmap = await createImageBitmap(archivo);
     const escala = Math.min(1, LADO_MAXIMO / Math.max(bitmap.width, bitmap.height));
 
-    // Ya es chica: no vale la pena recomprimirla (perdería calidad sin ganar nada).
-    if (escala === 1 && archivo.size <= 1_500_000) {
+    // Solo un JPEG chico se devuelve sin tocar: no tiene alfa que aplanar y
+    // recomprimirlo perdería calidad sin ganar nada. Cualquier otro formato pasa
+    // igual por el lienzo blanco, porque puede traer transparencia.
+    if (escala === 1 && archivo.size <= 1_500_000 && archivo.type === "image/jpeg") {
       bitmap.close();
       return archivo;
     }
 
-    const lienzo = document.createElement("canvas");
-    lienzo.width = Math.round(bitmap.width * escala);
-    lienzo.height = Math.round(bitmap.height * escala);
-    const ctx = lienzo.getContext("2d");
-    if (!ctx) return archivo;
-    ctx.drawImage(bitmap, 0, 0, lienzo.width, lienzo.height);
+    const ancho = Math.round(bitmap.width * escala);
+    const alto = Math.round(bitmap.height * escala);
+    const ctx = lienzoBlanco(ancho, alto);
+    if (!ctx) {
+      bitmap.close();
+      return archivo;
+    }
+    ctx.drawImage(bitmap, 0, 0, ancho, alto);
     bitmap.close();
 
-    const blob = await new Promise<Blob | null>((res) => lienzo.toBlob(res, "image/jpeg", 0.85));
-    if (!blob || blob.size >= archivo.size) return archivo;
+    const blob = await new Promise<Blob | null>((res) => ctx.canvas.toBlob(res, "image/jpeg", 0.85));
+    if (!blob) return archivo;
 
-    return new File([blob], archivo.name, { type: "image/jpeg" });
+    // Antes se descartaba el resultado si no pesaba menos que el original. Eso
+    // devolvía el PNG con transparencia intacta justo en el caso que hay que
+    // aplanar, así que ahora el aplanado manda sobre el ahorro de bytes.
+    return new File([blob], archivo.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
   } catch {
     // Si el navegador no puede decodificarla, que decida el servidor.
     return archivo;
@@ -107,9 +134,6 @@ async function comprimirParaExcel(archivo: File): Promise<File | null> {
 
   try {
     const bitmap = await createImageBitmap(archivo);
-    const lienzo = document.createElement("canvas");
-    const ctx = lienzo.getContext("2d");
-    if (!ctx) return archivo;
 
     // Escalones decrecientes, igual que la skill: se corta en el primero que
     // baja del objetivo, para no degradar más de lo necesario.
@@ -117,12 +141,21 @@ async function comprimirParaExcel(archivo: File): Promise<File | null> {
       [1400, 0.65], [1200, 0.6], [1000, 0.55], [900, 0.5],
     ] as const) {
       const escala = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-      lienzo.width = Math.round(bitmap.width * escala);
-      lienzo.height = Math.round(bitmap.height * escala);
-      ctx.filter = "grayscale(1)";
-      ctx.drawImage(bitmap, 0, 0, lienzo.width, lienzo.height);
+      const ancho = Math.round(bitmap.width * escala);
+      const alto = Math.round(bitmap.height * escala);
 
-      const blob = await new Promise<Blob | null>((res) => lienzo.toBlob(res, "image/jpeg", calidad));
+      // El lienzo se rehace por escalón: cambiar width/height lo limpia a
+      // transparente, así que el relleno blanco tiene que volver a pintarse
+      // DESPUÉS de fijar el tamaño o se pierde. Acá el fondo importa el doble:
+      // sin él, la escala de grises deja el documento negro sobre negro.
+      const ctx = lienzoBlanco(ancho, alto);
+      if (!ctx) break;
+      ctx.filter = "grayscale(1)";
+      ctx.drawImage(bitmap, 0, 0, ancho, alto);
+
+      const blob = await new Promise<Blob | null>((res) =>
+        ctx.canvas.toBlob(res, "image/jpeg", calidad),
+      );
       if (!blob) break;
       if (blob.size <= 35 * 1024 || maxDim === 900) {
         bitmap.close();
@@ -778,6 +811,14 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                         onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
                         className="w-28"
                       />
+                      {/* Se avisa al escribirlo, no al cargar: Odoo valida el
+                          dígito verificador y rechaza el proveedor recién en la
+                          carga, cuando ya hay gastos creados. */}
+                      {g.rutProveedor?.trim() && !rutValido(g.rutProveedor) && (
+                        <p className="mt-0.5 w-28 text-[10px] leading-tight text-red-600">
+                          RUT inválido
+                        </p>
+                      )}
                     </td>
                     <td className="px-2 py-1.5">
                       <TextInput

@@ -40,8 +40,38 @@ async function llamarJsonRpc(url: string, service: string, method: string, args:
     cache: "no-store",
   });
   const json = await res.json();
-  if (json.error) throw new Error(`Odoo RPC error: ${JSON.stringify(json.error)}`);
+  if (json.error) throw new Error(mensajeDeErrorOdoo(json.error));
   return json.result;
+}
+
+interface ErrorRpcOdoo {
+  message?: string;
+  data?: { name?: string; message?: string; debug?: string };
+}
+
+/**
+ * Saca el mensaje util de un error RPC de Odoo.
+ *
+ * Antes se serializaba el objeto entero con JSON.stringify, y ese objeto incluye
+ * `data.debug`: el traceback completo de Python. El resultado eran ~40 lineas de
+ * rutas /home/odoo/src/... en pantalla, con el mensaje real —lo unico
+ * accionable— enterrado al final. Ademas exponia la estructura interna del
+ * servidor a cualquiera que viera la UI.
+ *
+ * `data.message` es el texto que Odoo escribe para leer (el de un ValidationError,
+ * por ejemplo). El traceback se conserva, pero en el log del servidor.
+ */
+function mensajeDeErrorOdoo(error: unknown): string {
+  const e = error as ErrorRpcOdoo;
+
+  if (e?.data?.debug) console.error("[odoo] Traceback del servidor:", e.data.debug);
+
+  const mensaje = (e?.data?.message ?? e?.message ?? "").trim();
+  if (!mensaje) return "Odoo devolvió un error sin mensaje. Revisá el log del servidor.";
+
+  // Odoo suele mandar el mensaje con saltos de linea y una "Nota:" al final; se
+  // deja en una sola linea para que quepa en un aviso de la UI.
+  return mensaje.replace(/\s*\n+\s*/g, " ");
 }
 
 // Cachea el uid dentro de la misma invocacion de funcion serverless -- cada

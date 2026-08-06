@@ -129,6 +129,41 @@ export function calcularDesglose(
   return { neto, iva: total - neto, total, afecto: true, advertencias };
 }
 
+/**
+ * Valida un RUT chileno con el dígito verificador (módulo 11).
+ *
+ * Odoo tiene esta misma validación en su localización chilena, pero del otro
+ * lado: crear un res.partner con un RUT malo devuelve un ValidationError con
+ * traceback completo, después de que ya se crearon los gastos anteriores de la
+ * tanda. Validar acá convierte eso en un aviso de una línea antes de escribir
+ * nada.
+ *
+ * Acepta con o sin puntos, con guion o sin él, y K o k como verificador.
+ */
+export function rutValido(rut: string): boolean {
+  const limpio = rut.replace(/[.\s-]/g, "").toUpperCase();
+  // 7 dígitos + verificador es el mínimo razonable (RUTs de empresa y de
+  // persona adulta); por debajo casi siempre es un folio mal leído.
+  if (!/^\d{7,8}[\dK]$/.test(limpio)) return false;
+
+  const cuerpo = limpio.slice(0, -1);
+  const verificador = limpio.slice(-1);
+
+  // Módulo 11: se recorre el cuerpo de derecha a izquierda con multiplicadores
+  // ciclicos 2..7.
+  let suma = 0;
+  let multiplicador = 2;
+  for (let i = cuerpo.length - 1; i >= 0; i--) {
+    suma += Number(cuerpo[i]) * multiplicador;
+    multiplicador = multiplicador === 7 ? 2 : multiplicador + 1;
+  }
+
+  const resto = 11 - (suma % 11);
+  const esperado = resto === 11 ? "0" : resto === 10 ? "K" : String(resto);
+
+  return verificador === esperado;
+}
+
 // Normaliza un RUT a 12345678-9 (sin puntos ni espacios) para poder buscarlo en
 // Odoo, que lo guarda con formato inconsistente. Devuelve ambas formas porque
 // hay registros como "77768291-1" y otros como "83.547.100-4".

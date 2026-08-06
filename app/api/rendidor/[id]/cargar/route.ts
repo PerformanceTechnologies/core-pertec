@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { obtenerRendicion, marcarCargadaOdoo } from "@/lib/rendidor/datos";
 import { armarPreview, crearGastoOdoo, crearProveedor } from "@/lib/rendidor/odoo";
+import { rutValido } from "@/lib/rendidor/iva";
 import type { GastoRendicion } from "@/lib/rendidor/tipos";
 
 const SLUG_APP = "rendir-gastos";
@@ -50,6 +51,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const cuerpo = (await request.json()) as Cuerpo;
   if (!cuerpo.employeeId) {
     return NextResponse.json({ error: "Falta el empleado de Odoo." }, { status: 400 });
+  }
+
+  // Los RUT de TODOS los proveedores a crear se validan antes de escribir nada.
+  // Odoo valida el digito verificador de su lado, pero recien al crear cada
+  // partner: con un RUT malo en el gasto 9 de 16, los 8 anteriores ya quedaron
+  // creados y la carga se corta a la mitad. Y el error que devuelve es un
+  // traceback de Python, no algo que quien rinde pueda accionar.
+  const rutsInvalidos = cuerpo.proveedores
+    .filter((d) => d.crear?.rut?.trim() && !rutValido(d.crear.rut!))
+    .map((d) => `${d.crear!.nombre || "sin nombre"} (${d.crear!.rut})`);
+
+  if (rutsInvalidos.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          `Estos RUT no son válidos (dígito verificador incorrecto) y hay que corregirlos ` +
+          `en la tabla antes de cargar: ${rutsInvalidos.join(", ")}. ` +
+          "Suele pasar cuando se leyó un folio o un número de documento como si fuera el RUT.",
+      },
+      { status: 400 },
+    );
   }
 
   try {

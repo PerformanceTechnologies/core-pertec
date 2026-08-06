@@ -1,6 +1,6 @@
 import "server-only";
 import { odooSearchRead, odooCreate } from "../panel-odoo/odoo-cliente";
-import { calcularDesglose, formasDeRut, taxIdsParaGasto } from "./iva";
+import { calcularDesglose, formasDeRut, rutValido, taxIdsParaGasto } from "./iva";
 import { MAPEO_CATEGORIA_ODOO, TRATAMIENTO_DOCUMENTO, type Rendicion } from "./tipos";
 
 // PASO 8 de la skill rendidor-gastos: subir los gastos a Odoo.
@@ -127,6 +127,17 @@ export async function crearProveedor(datos: {
   rut: string | null;
   esPersonaNatural: boolean;
 }): Promise<number> {
+  // Ultima linea de defensa. La localizacion chilena de Odoo valida el digito
+  // verificador y responde con un ValidationError, pero recien despues de que
+  // ya se crearon los proveedores y gastos anteriores de la tanda. Acotarlo aca
+  // evita dejar la carga a medias por un RUT que el modelo leyo mal.
+  if (datos.rut?.trim() && !rutValido(datos.rut)) {
+    throw new Error(
+      `El RUT "${datos.rut}" no es valido (digito verificador incorrecto), asi que no se ` +
+        `puede crear el proveedor "${datos.nombre}". Corregilo en la tabla de revision.`,
+    );
+  }
+
   return odooCreate("res.partner", {
     name: datos.nombre.trim(),
     vat: datos.rut?.trim() || false,
