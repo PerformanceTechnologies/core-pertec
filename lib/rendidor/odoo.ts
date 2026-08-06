@@ -234,22 +234,23 @@ export function armarPreview(
  * datos que ya vienen bien. Con extract_state en "done" el gasto ya no esta en
  * estado extraible y el auto-send lo saltea. El orden es esencial.
  *
- * En price_unit va el NETO, no el total.
+ * El monto va en `total_amount_currency`, y ES EL BRUTO (neto + IVA).
  *
- * El impuesto IVA 19% de compra de esta instancia tiene `price_include: false`,
- * o sea el IVA NO viene dentro del precio: Odoo lo agrega sobre price_unit y
- * deriva el total. Antes se mandaba el total impreso, con lo cual el 19% se
- * aplicaba sobre un monto que ya lo incluia. Mandando el neto los dos casos
- * quedan bien con la misma regla:
+ * Esto se aprendio a los golpes, asi que queda anotado. `total_amount_currency`
+ * es el campo que Odoo trata como "Total" del gasto y del que DERIVA el impuesto
+ * hacia atras: la ficha muestra "Total $X (incl. $Y impuesto)". No es el neto.
+ * En un intento anterior se mando solo `price_unit` con el neto, confiando en que
+ * Odoo sumaria el 19% encima porque el impuesto tiene `price_include: false`
+ * — y el gasto quedo con total 0. `price_unit` es obligatorio pero no manda.
  *
- *   boleta de consumo  $161.079 impresos (con IVA dentro)
- *     -> neto 135.361, Odoo deriva total 161.079  = lo que dice el papel
+ * Como el impuesto se deriva del bruto, el desglose ya calculado entra directo:
+ *
+ *   boleta de consumo  $161.079 impresos (el IVA ya viene dentro)
+ *     -> bruto 161.079 -> Odoo: total 161.079, impuesto 25.718
  *   pasaje aereo       $161.079 impresos (factura exenta, sin IVA dentro)
- *     -> neto 161.079, Odoo deriva total 191.684  = IVA agregado encima
+ *     -> bruto 191.684 -> Odoo: total 191.684, impuesto 30.605
  *
- * total_amount, tax_amount y untaxed_amount NO se envian: son campos calculados.
- * Tampoco total_amount_currency, que antes se forzaba al total impreso y pisaba
- * el calculo de Odoo.
+ * total_amount, tax_amount y untaxed_amount NO se envian: esos si son calculados.
  */
 export async function crearGastoOdoo(
   preview: PreviewGastoOdoo,
@@ -261,7 +262,11 @@ export async function crearGastoOdoo(
     name: preview.name,
     date: preview.date,
     quantity: 1,
-    price_unit: preview.neto,
+    // price_unit es obligatorio en el modelo, pero Odoo lo recalcula desde
+    // total_amount_currency: se manda el mismo bruto para que no queden
+    // inconsistentes si algo cambia del lado de Odoo.
+    price_unit: preview.total,
+    total_amount_currency: preview.total,
     payment_mode: "own_account",
     company_id: companyId,
     currency_id: CURRENCY_CLP,
