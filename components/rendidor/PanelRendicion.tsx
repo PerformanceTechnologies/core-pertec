@@ -12,6 +12,7 @@ import {
 } from "@/lib/rendidor/tipos";
 import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
+import RuedaCarga from "@/components/RuedaCarga";
 
 /**
  * Lee la respuesta de un fetch tolerando que NO sea JSON.
@@ -407,8 +408,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
       // Va como aviso, no como error: el gasto SÍ se creó, con los campos que se
       // pudieron leer, y el resto se completa a mano.
       setAviso(
-        `${pobres.length} comprobante(s) quedaron con campos sin leer por resolución:\n` +
-          pobres.join("\n"),
+        `${pobres.length} comprobante(s) quedaron con campos sin leer por resolución:\n` + pobres.join("\n"),
       );
     }
   };
@@ -498,7 +498,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     setBuscandoEmpleado(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/rendidor/empleados?nombre=${encodeURIComponent(rendicion.nombreQuienRinde)}`);
+      const resp = await fetch(
+        `/api/rendidor/empleados?nombre=${encodeURIComponent(rendicion.nombreQuienRinde)}`,
+      );
       const json = (await leerRespuesta(resp)) as unknown as { empleados: { id: number; name: string }[] };
       setEmpleados(json.empleados);
       if (json.empleados.length === 1) setEmployeeId(json.empleados[0].id);
@@ -606,9 +608,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
       const adjuntos = await mapaConTope(json.creados, ADJUNTOS_EN_PARALELO, async (c) => {
         const gasto = rendicion.gastos.find((g) => g.id === c.gastoId);
         if (!gasto?.archivoPath) {
-          return [
-            `El gasto ${c.expenseId} no tiene comprobante guardado. Subilo a mano en Odoo.`,
-          ];
+          return [`El gasto ${c.expenseId} no tiene comprobante guardado. Subilo a mano en Odoo.`];
         }
         // El total esperado en Odoo es NETO + IVA, no el total impreso. Para un
         // pasaje aéreo el IVA se agrega encima, así que Odoo va a tener más que
@@ -729,9 +729,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             1 · Subir comprobantes
           </p>
           <p className="mt-1 text-xs text-tinta/55">
-            PDF o imagen. Se analizan de a varios a la vez y podés corregir todo después. Los
-            comprobantes quedan guardados: si cerrás la página podés volver más tarde y seguir donde
-            estabas, sin subir nada de nuevo.
+            PDF o imagen. Se analizan de a varios a la vez y podés corregir todo después. Los comprobantes
+            quedan guardados: si cerrás la página podés volver más tarde y seguir donde estabas, sin subir
+            nada de nuevo.
           </p>
           <input
             type="file"
@@ -742,7 +742,8 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             className="mt-3 block w-full text-xs text-tinta/70 file:mr-3 file:rounded-md file:border file:border-borde file:bg-crema/60 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-tinta"
           />
           {analizando && (
-            <p className="mt-2 text-xs font-medium text-naranjo">
+            <p className="mt-2 flex items-center gap-2 text-xs font-medium text-naranjo">
+              <RuedaCarga />
               Analizando comprobante {analizando.actual} de {analizando.total}...
             </p>
           )}
@@ -817,9 +818,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                           dígito verificador y rechaza el proveedor recién en la
                           carga, cuando ya hay gastos creados. */}
                       {g.rutProveedor?.trim() && !rutValido(g.rutProveedor) && (
-                        <p className="mt-0.5 w-28 text-[10px] leading-tight text-red-600">
-                          RUT inválido
-                        </p>
+                        <p className="mt-0.5 w-28 text-[10px] leading-tight text-red-600">RUT inválido</p>
                       )}
                     </td>
                     <td className="px-2 py-1.5">
@@ -918,9 +917,13 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-wide text-tinta/45">
-                {totales.saldo >= 0 ? `A reembolsar a ${rendicion.nombreQuienRinde}` : "A reintegrar a la empresa"}
+                {totales.saldo >= 0
+                  ? `A reembolsar a ${rendicion.nombreQuienRinde}`
+                  : "A reintegrar a la empresa"}
               </p>
-              <p className={`font-condensed text-sm font-bold ${totales.saldo >= 0 ? "text-teal" : "text-naranjo"}`}>
+              <p
+                className={`font-condensed text-sm font-bold ${totales.saldo >= 0 ? "text-teal" : "text-naranjo"}`}
+              >
                 {money(Math.abs(totales.saldo))}
               </p>
             </div>
@@ -932,8 +935,10 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                 type="button"
                 onClick={guardar}
                 disabled={guardando}
-                className="rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:opacity-40"
+                aria-busy={guardando}
+                className="inline-flex items-center gap-2 rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40"
               >
+                {guardando && <RuedaCarga />}
                 {guardando ? "Guardando..." : "Guardar borrador"}
               </button>
             )}
@@ -941,8 +946,10 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
               type="button"
               onClick={descargarExcel}
               disabled={generandoExcel || rendicion.gastos.length === 0}
-              className="rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:opacity-40"
+              aria-busy={generandoExcel}
+              className="inline-flex items-center gap-2 rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40"
             >
+              {generandoExcel && <RuedaCarga />}
               {generandoExcel ? "Generando planilla..." : "Descargar Excel"}
             </button>
             {!yaCargada && (
@@ -950,16 +957,18 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                 type="button"
                 onClick={resolverProveedores}
                 disabled={resolviendo || rendicion.gastos.length === 0}
-                className="rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 disabled:opacity-40"
+                aria-busy={resolviendo}
+                className="inline-flex items-center gap-2 rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 disabled:cursor-progress disabled:opacity-40"
               >
+                {resolviendo && <RuedaCarga />}
                 {resolviendo ? "Buscando proveedores..." : "Continuar a Odoo →"}
               </button>
             )}
           </div>
           {sinRespaldo > 0 && (
             <p className="mt-2 text-xs text-tinta/50">
-              {sinRespaldo} de {rendicion.gastos.length} gasto(s) no tienen comprobante, así que en la
-              hoja Respaldos salen con un aviso en vez de la imagen.
+              {sinRespaldo} de {rendicion.gastos.length} gasto(s) no tienen comprobante, así que en la hoja
+              Respaldos salen con un aviso en vez de la imagen.
             </p>
           )}
         </div>
@@ -990,8 +999,10 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                   type="button"
                   onClick={buscarEmpleado}
                   disabled={buscandoEmpleado}
-                  className="rounded-md border border-borde bg-white px-3 py-1.5 text-xs font-medium text-tinta hover:border-naranjo/50 disabled:opacity-40"
+                  aria-busy={buscandoEmpleado}
+                  className="inline-flex items-center gap-2 rounded-md border border-borde bg-white px-3 py-1.5 text-xs font-medium text-tinta hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40"
                 >
+                  {buscandoEmpleado && <RuedaCarga />}
                   {buscandoEmpleado ? "Buscando..." : `Buscar "${rendicion.nombreQuienRinde}"`}
                 </button>
                 {empleados.length > 0 && (
@@ -1077,8 +1088,10 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             type="button"
             onClick={cargarAOdoo}
             disabled={guardando || !employeeId}
-            className="mt-4 rounded-md bg-teal px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-teal/85 disabled:opacity-40"
+            aria-busy={guardando}
+            className="mt-4 inline-flex items-center gap-2 rounded-md bg-teal px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-teal/85 disabled:cursor-progress disabled:opacity-40"
           >
+            {guardando && <RuedaCarga />}
             {guardando
               ? "Cargando a Odoo..."
               : `Confirmar y crear ${rendicion.gastos.length} gasto(s) en Odoo`}

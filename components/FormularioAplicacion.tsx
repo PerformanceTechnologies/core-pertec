@@ -1,6 +1,7 @@
 import { ICONOS_DISPONIBLES } from "@/lib/iconos";
 import { ESTADOS } from "@/lib/colores";
 import type { Aplicacion } from "@/lib/tipos";
+import BotonEnviar from "@/components/BotonEnviar";
 
 export default function FormularioAplicacion({
   accion,
@@ -111,12 +112,12 @@ export default function FormularioAplicacion({
       </div>
 
       <div className="sm:col-span-2">
-        <button
-          type="submit"
+        <BotonEnviar
+          cargando="Guardando..."
           className="rounded-lg bg-naranjo px-5 py-2.5 font-condensed text-sm font-bold uppercase tracking-wide text-white transition hover:bg-naranjo-suave"
         >
           {textoBoton}
-        </button>
+        </BotonEnviar>
       </div>
     </form>
   );

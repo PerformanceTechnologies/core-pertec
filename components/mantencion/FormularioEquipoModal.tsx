@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ChecklistPlantilla, EquipoMantenimiento, EstadoEquipo } from "@/lib/mantencion";
 import { ESTADOS_EQUIPO, ESTADO_EQUIPO_COLOR, ESTADO_EQUIPO_LABEL } from "@/lib/mantencion-utilidades";
+import RuedaCarga from "@/components/RuedaCarga";
 
 export default function FormularioEquipoModal({
   equipo,
@@ -24,8 +25,14 @@ export default function FormularioEquipoModal({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const obligatorias = useMemo(() => new Set(plantilla.secciones_obligatorias ?? []), [plantilla.secciones_obligatorias]);
-  const todasSecciones = useMemo(() => Array.from(new Set((plantilla.items ?? []).map((i) => i.seccion || "General"))), [plantilla.items]);
+  const obligatorias = useMemo(
+    () => new Set(plantilla.secciones_obligatorias ?? []),
+    [plantilla.secciones_obligatorias],
+  );
+  const todasSecciones = useMemo(
+    () => Array.from(new Set((plantilla.items ?? []).map((i) => i.seccion || "General"))),
+    [plantilla.items],
+  );
   const opcionales = todasSecciones.filter((s) => !obligatorias.has(s));
 
   const toggleSeccion = (s: string) =>
@@ -59,9 +66,14 @@ export default function FormularioEquipoModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg"
+      >
         <div className="flex items-start justify-between border-b border-borde px-6 py-4">
-          <h2 className="font-condensed text-xl font-bold text-tinta">{esNuevo ? `Nuevo ${noun}` : `Editar ${noun}`}</h2>
+          <h2 className="font-condensed text-xl font-bold text-tinta">
+            {esNuevo ? `Nuevo ${noun}` : `Editar ${noun}`}
+          </h2>
           <button onClick={onClose} className="text-tinta/40 hover:text-tinta" aria-label="Cerrar">
             ×
           </button>
@@ -128,7 +140,12 @@ export default function FormularioEquipoModal({
               ))}
               {opcionales.map((s) => (
                 <label key={s} className="flex items-center gap-2 text-sm text-tinta/70">
-                  <input type="checkbox" checked={seccionesActivas.includes(s)} onChange={() => toggleSeccion(s)} className="h-4 w-4 accent-naranjo" />
+                  <input
+                    type="checkbox"
+                    checked={seccionesActivas.includes(s)}
+                    onChange={() => toggleSeccion(s)}
+                    className="h-4 w-4 accent-naranjo"
+                  />
                   {s}
                 </label>
               ))}
@@ -138,10 +155,20 @@ export default function FormularioEquipoModal({
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
           <div className="mt-2 flex justify-end gap-2 border-t border-borde pt-4">
-            <button type="button" onClick={onClose} className="rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40"
+            >
               Cancelar
             </button>
-            <button type="submit" disabled={guardando} className="rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={guardando}
+              aria-busy={guardando}
+              className="inline-flex items-center gap-2 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:cursor-progress disabled:opacity-50"
+            >
+              {guardando && <RuedaCarga />}
               {guardando ? "Guardando…" : esNuevo ? `Registrar ${noun}` : "Guardar"}
             </button>
           </div>

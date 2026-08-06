@@ -2,8 +2,15 @@
 
 import { useState } from "react";
 import type { Proyecto } from "@/lib/proyectos";
-import { COLOR_OPTS, colorDe, ESTADOS_PROYECTO, ESTADO_PROYECTO_COLOR, ESTADO_PROYECTO_LABEL } from "@/lib/proyectos-utilidades";
+import {
+  COLOR_OPTS,
+  colorDe,
+  ESTADOS_PROYECTO,
+  ESTADO_PROYECTO_COLOR,
+  ESTADO_PROYECTO_LABEL,
+} from "@/lib/proyectos-utilidades";
 import type { EstadoProyecto } from "@/lib/proyectos";
+import RuedaCarga from "@/components/RuedaCarga";
 
 const inputClase =
   "mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50";
@@ -56,7 +63,12 @@ export default function FormularioProyectoModal({
 
   const eliminar = async () => {
     if (!proyecto) return;
-    if (!window.confirm(`¿Eliminar "${proyecto.nombre}" y TODOS sus objetivos? Esta acción no se puede deshacer.`)) return;
+    if (
+      !window.confirm(
+        `¿Eliminar "${proyecto.nombre}" y TODOS sus objetivos? Esta acción no se puede deshacer.`,
+      )
+    )
+      return;
     setEliminando(true);
     setError(null);
     try {
@@ -77,7 +89,9 @@ export default function FormularioProyectoModal({
         className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg"
       >
         <div className="flex items-start justify-between border-b border-borde px-6 py-4">
-          <h2 className="font-condensed text-xl font-bold text-tinta">{esNuevo ? "Nuevo proyecto" : "Editar proyecto"}</h2>
+          <h2 className="font-condensed text-xl font-bold text-tinta">
+            {esNuevo ? "Nuevo proyecto" : "Editar proyecto"}
+          </h2>
           <button onClick={onClose} className="text-tinta/40 hover:text-tinta" aria-label="Cerrar">
             ×
           </button>
@@ -109,11 +123,21 @@ export default function FormularioProyectoModal({
           <div className="grid grid-cols-2 gap-4">
             <label>
               <span className="block text-xs font-medium text-tinta/70">Inicio</span>
-              <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className={inputClase} />
+              <input
+                type="date"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                className={inputClase}
+              />
             </label>
             <label>
               <span className="block text-xs font-medium text-tinta/70">Fin</span>
-              <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className={inputClase} />
+              <input
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                className={inputClase}
+              />
             </label>
           </div>
 
@@ -189,8 +213,10 @@ export default function FormularioProyectoModal({
               <button
                 type="submit"
                 disabled={guardando}
-                className="rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:opacity-50"
+                aria-busy={guardando}
+                className="inline-flex items-center gap-2 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:cursor-progress disabled:opacity-50"
               >
+                {guardando && <RuedaCarga />}
                 {guardando ? "Guardando…" : esNuevo ? "Crear proyecto" : "Guardar"}
               </button>
             </div>

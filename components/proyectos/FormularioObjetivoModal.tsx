@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Objetivo } from "@/lib/proyectos";
 import { COLOR_OPTS, colorDe, isoFecha } from "@/lib/proyectos-utilidades";
+import RuedaCarga from "@/components/RuedaCarga";
 
 const inputClase =
   "mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50";
@@ -28,7 +29,9 @@ export default function FormularioObjetivoModal({
   const [fechaFin, setFechaFin] = useState(objetivo?.fecha_fin ?? hoy);
   const [color, setColor] = useState(objetivo?.color ?? "cobre");
   const [hecho, setHecho] = useState(objetivo?.hecho ?? false);
-  const [presupuesto, setPresupuesto] = useState(objetivo?.presupuesto != null ? String(objetivo.presupuesto) : "");
+  const [presupuesto, setPresupuesto] = useState(
+    objetivo?.presupuesto != null ? String(objetivo.presupuesto) : "",
+  );
   const [responsables, setResponsables] = useState<string[]>(objetivo?.responsables ?? []);
   const [borradorResp, setBorradorResp] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -81,7 +84,9 @@ export default function FormularioObjetivoModal({
         className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg"
       >
         <div className="flex items-start justify-between border-b border-borde px-6 py-4">
-          <h2 className="font-condensed text-xl font-bold text-tinta">{esNuevo ? "Nuevo objetivo" : objetivo!.titulo}</h2>
+          <h2 className="font-condensed text-xl font-bold text-tinta">
+            {esNuevo ? "Nuevo objetivo" : objetivo!.titulo}
+          </h2>
           <button onClick={onClose} className="text-tinta/40 hover:text-tinta" aria-label="Cerrar">
             ×
           </button>
@@ -114,11 +119,23 @@ export default function FormularioObjetivoModal({
           <div className="grid grid-cols-2 gap-4">
             <label>
               <span className="block text-xs font-medium text-tinta/70">Inicio</span>
-              <input required type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className={inputClase} />
+              <input
+                required
+                type="date"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                className={inputClase}
+              />
             </label>
             <label>
               <span className="block text-xs font-medium text-tinta/70">Fin</span>
-              <input required type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className={inputClase} />
+              <input
+                required
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                className={inputClase}
+              />
             </label>
           </div>
 
@@ -159,7 +176,10 @@ export default function FormularioObjetivoModal({
             <span className="block text-xs font-medium text-tinta/70">Responsables</span>
             <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-borde p-2">
               {responsables.map((r, i) => (
-                <span key={i} className="flex items-center gap-1 rounded-full bg-crema px-2.5 py-1 text-xs text-tinta/75">
+                <span
+                  key={i}
+                  className="flex items-center gap-1 rounded-full bg-crema px-2.5 py-1 text-xs text-tinta/75"
+                >
                   {r}
                   <button
                     type="button"
@@ -191,7 +211,12 @@ export default function FormularioObjetivoModal({
           </label>
 
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={hecho} onChange={(e) => setHecho(e.target.checked)} className="h-4 w-4 accent-naranjo" />
+            <input
+              type="checkbox"
+              checked={hecho}
+              onChange={(e) => setHecho(e.target.checked)}
+              className="h-4 w-4 accent-naranjo"
+            />
             <span className="text-sm text-tinta/75">Marcar como completado</span>
           </label>
 
@@ -199,7 +224,11 @@ export default function FormularioObjetivoModal({
 
           <div className="mt-2 flex items-center justify-between border-t border-borde pt-4">
             {onEliminar ? (
-              <button type="button" onClick={onEliminar} className="text-sm font-medium text-red-600 hover:underline">
+              <button
+                type="button"
+                onClick={onEliminar}
+                className="text-sm font-medium text-red-600 hover:underline"
+              >
                 Eliminar
               </button>
             ) : (
@@ -216,8 +245,10 @@ export default function FormularioObjetivoModal({
               <button
                 type="submit"
                 disabled={guardando}
-                className="rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:opacity-50"
+                aria-busy={guardando}
+                className="inline-flex items-center gap-2 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:cursor-progress disabled:opacity-50"
               >
+                {guardando && <RuedaCarga />}
                 {guardando ? "Guardando…" : esNuevo ? "Crear objetivo" : "Guardar"}
               </button>
             </div>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { ResultadoBorrado } from "@/app/(protegido)/rendir-gastos/acciones";
+import RuedaCarga from "@/components/RuedaCarga";
 
 /**
  * Borra una rendición, con confirmación en dos pasos.
@@ -97,8 +98,10 @@ export default function BotonBorrarRendicion({
               if (!r.ok) setError(r.error);
             })
           }
-          className="rounded-md bg-red-600 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white transition hover:bg-red-700 disabled:opacity-50"
+          aria-busy={enCurso}
+          className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white transition hover:bg-red-700 disabled:cursor-progress disabled:opacity-50"
         >
+          {enCurso && <RuedaCarga />}
           {enCurso ? "Borrando..." : cargada ? "Borrar igual" : "Sí, borrar"}
         </button>
         <button

@@ -1,4 +1,5 @@
 import type { ParametrosLegalesSet } from "@/lib/parametros-legales";
+import BotonEnviar from "@/components/BotonEnviar";
 
 const CAMPOS_TASA: { campo: string; etiqueta: string; ayuda?: string }[] = [
   { campo: "tasaAfp", etiqueta: "Tasa AFP (promedio)", ayuda: "decimal, ej. 0.1144 = 11,44%" },
@@ -156,12 +157,12 @@ export default function FormularioParametrosLegales({
       </div>
 
       <div className="sm:col-span-2 lg:col-span-3">
-        <button
-          type="submit"
+        <BotonEnviar
+          cargando="Guardando..."
           className="rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-naranjo-suave"
         >
           {textoBoton}
-        </button>
+        </BotonEnviar>
       </div>
     </form>
   );

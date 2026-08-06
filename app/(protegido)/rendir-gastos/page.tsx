@@ -5,6 +5,7 @@ import { listarRendiciones } from "@/lib/rendidor/datos";
 import { buscarEmpleadoPorCorreo } from "@/lib/rendidor/odoo";
 import SelectorEmpleado from "@/components/rendidor/SelectorEmpleado";
 import BotonBorrarRendicion from "@/components/rendidor/BotonBorrarRendicion";
+import BotonEnviar from "@/components/BotonEnviar";
 import { money, pct } from "@/lib/cotizador/formato";
 import { crearRendicionAction, eliminarRendicionAction } from "./acciones";
 
@@ -171,12 +172,15 @@ export default async function RendirGastosPage() {
             <div className="mt-1 flex justify-end border-t border-borde pt-4 sm:col-span-2">
               {/* Ancho completo en una columna: a la derecha y solo, en pantalla
                 angosta queda huérfano. */}
-              <button
-                type="submit"
+              {/* Crear la rendición toca Odoo y Supabase, así que puede tardar
+                  un par de segundos. Sin la rueda el botón parece no haber
+                  hecho nada y la gente lo aprieta de nuevo. */}
+              <BotonEnviar
+                cargando="Creando rendición..."
                 className="w-full rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 sm:w-auto"
               >
                 Crear y subir comprobantes →
-              </button>
+              </BotonEnviar>
             </div>
           </form>
         </div>

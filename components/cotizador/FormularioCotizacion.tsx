@@ -1,6 +1,7 @@
 import type { DatosNuevaCotizacion } from "@/lib/cotizador";
 import { EMPRESAS } from "@/lib/cotizador/empresas";
 import ClienteOdooInput from "./ClienteOdooInput";
+import BotonEnviar from "@/components/BotonEnviar";
 
 export default function FormularioCotizacion({
   accion,
@@ -71,12 +72,12 @@ export default function FormularioCotizacion({
       </div>
 
       <div className="sm:col-span-2">
-        <button
-          type="submit"
+        <BotonEnviar
+          cargando="Guardando..."
           className="rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-naranjo-suave"
         >
           {textoBoton}
-        </button>
+        </BotonEnviar>
       </div>
     </form>
   );

@@ -1,11 +1,8 @@
 import Image from "next/image";
 import { signIn } from "@/auth";
+import BotonEnviar from "@/components/BotonEnviar";
 
-export default function IngresarPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+export default function IngresarPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   return (
     <div className="flex min-h-screen flex-1 flex-col items-center justify-center px-6">
       <Image
@@ -32,12 +29,12 @@ export default function IngresarPage({
             await signIn("microsoft-entra-id", { redirectTo: "/" });
           }}
         >
-          <button
-            type="submit"
+          <BotonEnviar
+            cargando="Redirigiendo a Microsoft..."
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-naranjo px-5 py-3 font-condensed text-sm font-bold uppercase tracking-wide text-white transition hover:bg-naranjo-suave"
           >
             Iniciar sesión con Microsoft
-          </button>
+          </BotonEnviar>
         </form>
 
         <ErrorAcceso searchParams={searchParams} />
@@ -54,17 +51,13 @@ export default function IngresarPage({
   );
 }
 
-async function ErrorAcceso({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+async function ErrorAcceso({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   if (!error) return null;
   return (
     <p className="mt-4 text-xs font-medium text-red-600">
-      Tu cuenta no está autorizada para acceder al core. Contacta al administrador si crees
-      que deberías tener acceso.
+      Tu cuenta no está autorizada para acceder al core. Contacta al administrador si crees que deberías tener
+      acceso.
     </p>
   );
 }
