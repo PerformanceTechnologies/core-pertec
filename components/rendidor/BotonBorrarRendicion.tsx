@@ -38,7 +38,7 @@ export default function BotonBorrarRendicion({
 
   if (error) {
     return (
-      <div className="flex flex-col items-start gap-1">
+      <div className="flex w-full flex-col items-start gap-1">
         <p className="text-[10px] text-red-600">{error}</p>
         <button
           type="button"
@@ -73,7 +73,7 @@ export default function BotonBorrarRendicion({
     // derecho cae fuera de lo visible, así que un items-end mandaba el botón
     // justo a la parte cortada. Pegado a la izquierda aparece exactamente donde
     // estaba el "Borrar" que se acaba de apretar.
-    <div className="flex flex-col items-start gap-1">
+    <div className="flex w-full flex-col items-start gap-1">
       {cargada ? (
         <p className="text-[10px] leading-tight text-naranjo">
           Los gastos{" "}
