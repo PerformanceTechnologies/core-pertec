@@ -199,18 +199,19 @@ export default async function RendirGastosPage() {
               acá. Mismos estilos de cabecera y pastillas que la tabla del
               Cotizador. */}
           <div className="mt-2 overflow-x-auto rounded-2xl border border-borde bg-white shadow-sm">
-            <table className="w-full table-fixed text-left text-sm">
-              {/* La última columna es la más ancha porque al confirmar un
-                  borrado se despliega ahí el aviso de los ids de Odoo. */}
+            <table className="w-full min-w-[1000px] table-fixed text-left text-sm">
+              {/* Suman 1000, el mismo min-w de la tabla: así en una ventana
+                  angosta la tabla scrollea entera en vez de comprimir las
+                  columnas hasta que los montos se parten en dos líneas. */}
               <colgroup>
-                <col style={{ width: 240 }} />
-                <col style={{ width: 140 }} />
-                <col style={{ width: 110 }} />
+                <col style={{ width: 210 }} />
                 <col style={{ width: 120 }} />
-                <col style={{ width: 130 }} />
-                <col style={{ width: 130 }} />
-                <col style={{ width: 130 }} />
-                <col style={{ width: 240 }} />
+                <col style={{ width: 85 }} />
+                <col style={{ width: 105 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 170 }} />
               </colgroup>
               <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
                 <tr>

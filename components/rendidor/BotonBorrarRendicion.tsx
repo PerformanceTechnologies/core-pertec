@@ -37,8 +37,8 @@ export default function BotonBorrarRendicion({
 
   if (error) {
     return (
-      <div className="flex flex-col items-end gap-1">
-        <p className="text-right text-[10px] text-red-600">{error}</p>
+      <div className="flex flex-col items-start gap-1">
+        <p className="text-[10px] text-red-600">{error}</p>
         <button
           type="button"
           onClick={() => {
@@ -67,13 +67,14 @@ export default function BotonBorrarRendicion({
   }
 
   return (
-    // Sin shrink-0 ni max-w-*: esto vive dentro de una celda de ancho fijo
-    // (table-fixed), donde un hijo más ancho que su columna no la ensancha, se
-    // desborda por el costado y se lo come el overflow del contenedor. El bloque
-    // se ajusta al ancho de la celda y el texto largo baja de línea.
-    <div className="flex flex-col items-end gap-1">
+    // Alineado a la IZQUIERDA y sin shrink-0 ni max-w-*, a propósito. Esto vive
+    // en la última celda de una tabla más ancha que su contenedor: su borde
+    // derecho cae fuera de lo visible, así que un items-end mandaba el botón
+    // justo a la parte cortada. Pegado a la izquierda aparece exactamente donde
+    // estaba el "Borrar" que se acaba de apretar.
+    <div className="flex flex-col items-start gap-1">
       {cargada ? (
-        <p className="text-right text-[10px] leading-tight text-naranjo">
+        <p className="text-[10px] leading-tight text-naranjo">
           Los gastos{" "}
           <span className="font-semibold">{idsOdoo.length > 0 ? idsOdoo.join(", ") : "creados"}</span> NO se
           borran de Odoo. Anotalos si los vas a limpiar allá: al borrar esto se pierde el registro de cuáles
@@ -84,7 +85,7 @@ export default function BotonBorrarRendicion({
       )}
       {/* flex-wrap para que en la columna angosta el "Cancelar" caiga debajo en
           vez de salirse. */}
-      <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <button
           type="button"
           disabled={enCurso}
