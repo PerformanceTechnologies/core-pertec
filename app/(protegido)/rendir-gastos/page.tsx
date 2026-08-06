@@ -74,41 +74,38 @@ export default async function RendirGastosPage() {
         </div>
       )}
 
-      {/* Una sola cinta oscura en vez de tres tarjetas de color. El Cotizador
-          usa las tarjetas pastel; este módulo no tiene por qué verse igual, y
-          apretar los cuatro números en una banda deja la lista más arriba, que
-          es a lo que se entra. Los separadores son bordes entre celdas de la
-          grilla, no elementos aparte. */}
-      <dl className="mt-6 grid grid-cols-2 overflow-hidden rounded-2xl bg-tinta text-crema sm:grid-cols-4">
-        <div className="border-b border-crema/10 px-5 py-4 sm:border-b-0 sm:border-r">
-          <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-crema/45">
-            Total rendido
-          </dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums">{money(totalRendido)}</dd>
+      {/* La paleta es la del Cotizador —los mismos tintes naranjo / gris / teal
+          sobre crema— pero la forma no: en vez de tres tarjetas sueltas es UNA
+          cinta de cuatro segmentos separados por el borde de la grilla. Ocupa
+          menos alto y deja la lista más arriba, que es a lo que se entra. */}
+      <dl className="mt-6 grid grid-cols-2 overflow-hidden rounded-xl border border-borde sm:grid-cols-4">
+        <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Total rendido</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">
+            {money(totalRendido)}
+          </dd>
         </div>
-        <div className="border-b border-crema/10 px-5 py-4 sm:border-b-0 sm:border-r">
-          <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-crema/45">
-            Sin cargar a Odoo
-          </dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-naranjo-suave">
+        <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Sin cargar a Odoo</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-naranjo">
             {money(montoBorradores)}
           </dd>
-          <dd className="text-[11px] text-crema/40">
+          <dd className="text-[11px] text-tinta/45">
             en {borradores.length} borrador{borradores.length === 1 ? "" : "es"}
           </dd>
         </div>
-        <div className="border-crema/10 px-5 py-4 sm:border-r">
-          <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-crema/45">Cargadas</dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-teal-suave">
+        <div className="border-borde bg-teal/[0.06] px-5 py-4 sm:border-r">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Cargadas</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-teal">
             {cargadas.length}
-            <span className="text-base text-crema/30"> / {rendiciones.length}</span>
+            <span className="text-base text-tinta/30"> / {rendiciones.length}</span>
           </dd>
         </div>
-        <div className="px-5 py-4">
-          <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-crema/45">
-            Comprobantes
-          </dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums">{totalComprobantes}</dd>
+        <div className="bg-gris/[0.08] px-5 py-4">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Comprobantes</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">
+            {totalComprobantes}
+          </dd>
         </div>
       </dl>
 
@@ -119,7 +116,7 @@ export default async function RendirGastosPage() {
           El cuadrado naranjo gira 45 grados al abrirse, así que la cruz pasa a
           ser una equis y el mismo elemento sirve de "abrir" y de "cerrar". */}
       <details open={rendiciones.length === 0} className="group mt-4">
-        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl border border-borde bg-superficie px-4 py-3 transition hover:border-naranjo/50 group-open:rounded-b-none group-open:border-b-transparent">
+        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl border border-borde bg-crema/60 px-4 py-3 transition hover:border-naranjo/50 hover:bg-naranjo/[0.06] group-open:rounded-b-none group-open:border-b-transparent group-open:bg-superficie">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-naranjo text-base font-bold leading-none text-white transition-transform duration-200 group-open:rotate-45">
             +
           </span>

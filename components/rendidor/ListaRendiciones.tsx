@@ -108,7 +108,7 @@ export default function ListaRendiciones({
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por título o persona..."
             aria-label="Buscar rendiciones"
-            className="w-full rounded-full border border-borde bg-superficie py-2 pl-9 pr-9 text-sm text-tinta outline-none transition focus:border-naranjo/60"
+            className="h-9 w-full rounded-lg border border-borde bg-superficie pl-9 pr-9 text-sm text-tinta outline-none focus:border-naranjo/50"
           />
           {busqueda && (
             <button
@@ -125,7 +125,7 @@ export default function ListaRendiciones({
         <div className="flex flex-wrap items-center gap-2">
           {/* Segmentado, no pastillas sueltas: el recuadro que las agrupa deja
               claro que son excluyentes entre sí. */}
-          <div className="inline-flex rounded-full border border-borde bg-superficie p-0.5">
+          <div className="inline-flex h-9 items-center rounded-lg border border-borde bg-superficie p-0.5">
             {filtros.map((f) => {
               const activo = filtro === f.valor;
               return (
@@ -134,12 +134,12 @@ export default function ListaRendiciones({
                   type="button"
                   onClick={() => setFiltro(f.valor)}
                   aria-pressed={activo}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
-                    activo ? "bg-tinta text-crema" : "text-tinta/50 hover:text-tinta"
+                  className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${
+                    activo ? "bg-naranjo text-white" : "text-tinta/50 hover:text-naranjo"
                   }`}
                 >
                   {f.etiqueta}
-                  <span className={`ml-1.5 tabular-nums ${activo ? "text-crema/60" : "text-tinta/30"}`}>
+                  <span className={`ml-1.5 tabular-nums ${activo ? "text-white/60" : "text-tinta/30"}`}>
                     {f.cuenta}
                   </span>
                 </button>
@@ -151,7 +151,7 @@ export default function ListaRendiciones({
             value={orden}
             onChange={(e) => setOrden(e.target.value as Orden)}
             aria-label="Ordenar las rendiciones"
-            className="rounded-full border border-borde bg-superficie px-3 py-2 text-xs font-semibold uppercase tracking-wide text-tinta/70 outline-none transition focus:border-naranjo/60"
+            className="h-9 rounded-lg border border-borde bg-superficie px-3 text-xs font-semibold uppercase tracking-wide text-tinta/70 outline-none focus:border-naranjo/50"
           >
             {ORDENES.map((o) => (
               <option key={o.valor} value={o.valor}>
@@ -207,11 +207,11 @@ export default function ListaRendiciones({
                 return (
                   <li
                     key={r.id}
-                    // La barra de color a la izquierda es el estado: teal si ya
-                    // está en Odoo, naranjo si sigue en borrador. Se lee de un
-                    // vistazo recorriendo la columna, sin ir a buscar la pastilla.
-                    className={`grid grid-cols-[minmax(0,1fr)_130px_86px_112px_112px_120px_150px] items-center gap-x-4 rounded-lg border border-borde border-l-[3px] bg-superficie px-4 py-3 transition hover:border-naranjo/40 hover:shadow-sm ${
-                      cargada ? "border-l-teal" : "border-l-naranjo"
+                    // La barra de color a la izquierda repite el estado —los
+                    // mismos teal y gris de las pastillas del Cotizador— para
+                    // poder recorrer la columna de un vistazo.
+                    className={`grid grid-cols-[minmax(0,1fr)_130px_86px_112px_112px_120px_150px] items-center gap-x-4 rounded-lg border border-borde border-l-[3px] bg-superficie px-4 py-3 transition hover:bg-crema/40 ${
+                      cargada ? "border-l-teal" : "border-l-gris"
                     }`}
                   >
                     <div className="min-w-0">
@@ -222,11 +222,15 @@ export default function ListaRendiciones({
                       >
                         {r.tituloRendicion}
                       </Link>
-                      <p className="mt-0.5 text-[11px] text-tinta/40">
-                        {fechaCl(r.creadoEn)} ·{" "}
-                        <span className={cargada ? "text-teal" : "text-naranjo"}>
-                          {cargada ? "Cargada a Odoo" : "Borrador"}
+                      <p className="mt-1 flex items-center gap-2 text-[11px] text-tinta/40">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            cargada ? "bg-teal/10 text-teal" : "bg-gris/10 text-gris"
+                          }`}
+                        >
+                          {cargada ? "Cargada" : "Borrador"}
                         </span>
+                        {fechaCl(r.creadoEn)}
                       </p>
                     </div>
 
