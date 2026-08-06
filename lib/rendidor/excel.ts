@@ -340,13 +340,9 @@ export async function construirLibroRendicion(
     ["Total afecto a IVA (neto)", `SUM(I${PRIMERA}:I${ULTIMA})`],
     ["IVA total", `SUM(J${PRIMERA}:J${ULTIMA})`],
     ["Total exento", `SUMIF($J$${PRIMERA}:$J$${ULTIMA},0,$K$${PRIMERA}:$K$${ULTIMA})`],
-    // TOTAL RENDICIÓN es la plata que puso la persona: el total impreso.
-    ["TOTAL RENDICIÓN (lo pagado)", `K${FILA_TOTAL}`],
-    // Y este es el monto contable, que puede ser MAYOR. En un pasaje aéreo el
-    // IVA se agrega sobre el monto impreso, así que neto + IVA supera lo pagado
-    // y la resta de las dos filas es justamente el IVA agregado. Sin esta fila la
-    // planilla parece descuadrada y no hay con qué conciliar contra Odoo.
-    ["TOTAL RECONOCIDO EN ODOO (neto + IVA)", `SUM(I${PRIMERA}:I${ULTIMA})+SUM(J${PRIMERA}:J${ULTIMA})`],
+    // El IVA siempre viene dentro del total, así que neto + IVA = esta fila. Es
+    // el chequeo del PASO 6 de la skill: SUM(I) + SUM(J) = SUM(K).
+    ["TOTAL RENDICIÓN", `K${FILA_TOTAL}`],
   ];
 
   filasTrib.forEach(([concepto, formula], i) => {

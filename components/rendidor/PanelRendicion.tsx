@@ -866,20 +866,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                       />
                     </td>
                     <td className="px-2 py-1.5 text-right text-tinta/60">{money(neto)}</td>
-                    <td className="px-2 py-1.5 text-right text-tinta/60">
-                      {money(iva)}
-                      {/* En estos tipos el IVA se agrega SOBRE el total impreso, así
-                          que neto + IVA no suma la columna TOTAL. Sin este cartel
-                          la fila parece descuadrada. */}
-                      {g.tipoDocumento && TRATAMIENTO_DOCUMENTO[g.tipoDocumento].totalEsNeto && (
-                        <span
-                          className="mt-0.5 block text-[9px] font-semibold uppercase tracking-wide text-naranjo"
-                          title={`El documento viene exento, así que el 19% se agrega sobre el monto impreso. En Odoo queda ${money(neto + iva)}.`}
-                        >
-                          + sobre total
-                        </span>
-                      )}
-                    </td>
+                    <td className="px-2 py-1.5 text-right text-tinta/60">{money(iva)}</td>
                     <td className="px-2 py-1.5 text-right">
                       <NumInput
                         value={g.total}

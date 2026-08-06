@@ -123,19 +123,12 @@ export function calcularDesglose(
     return { neto: total, iva: 0, total, afecto: false, advertencias };
   }
 
-  // El sentido del cálculo depende de si el monto impreso trae el IVA dentro.
+  // El total impreso YA incluye el IVA, así que el neto se saca HACIA ATRÁS y el
+  // IVA solo se separa para mostrarlo. Nunca hacia arriba: agregar el 19% sobre
+  // un monto que ya lo trae inflaría la rendición y el reembolso.
   //
-  // Un pasaje aéreo viene en una factura exenta: el monto impreso es la BASE y el
-  // 19% se AGREGA encima, así que el total del gasto queda por encima de lo que
-  // dice el papel. Extraerlo hacia atrás dejaría la rendición corta y el crédito
-  // fiscal subdeclarado.
-  if (tratamiento.totalEsNeto) {
-    const iva = Math.round(total * 0.19);
-    return { neto: total, iva, total: total + iva, afecto: true, advertencias };
-  }
-
-  // El caso normal (boleta de consumo): el total impreso YA incluye el IVA, así
-  // que el neto se saca hacia atrás. Nunca hacia arriba, o se infla la rendición.
+  // Vale también para el pasaje aéreo, aunque LATAM lo emita como factura exenta:
+  // el criterio es reconocer el IVA que ya viene dentro del monto pagado.
   const neto = Math.round(total / 1.19);
   return { neto, iva: total - neto, total, afecto: true, advertencias };
 }

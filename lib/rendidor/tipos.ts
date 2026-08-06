@@ -40,17 +40,18 @@ export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
 // confirmarlo". Hoy ningun tipo lo usa; se mantiene en el tipo porque
 // calcularDesglose sabe manejarlo y evita tener que reintroducirlo si aparece
 // una categoria que si lo necesite.
-// `totalEsNeto` distingue los dos sentidos en que un total impreso puede
-// relacionarse con el IVA, y es la diferencia entre inflar una rendicion y
-// dejarla corta:
+// El TOTAL IMPRESO YA INCLUYE EL IVA, siempre. En un documento afecto el neto se
+// saca hacia atras desde ese total y el IVA solo se muestra por separado: nunca
+// se agrega nada encima, o se inflaria la rendicion.
 //
-//   sin la marca (boleta de consumo): el total impreso YA INCLUYE el IVA, asi que
-//     el neto se saca hacia atras. $50.000 -> neto 42.017 + IVA 7.983.
-//   con la marca (pasaje aereo): el total impreso es la BASE y el IVA se agrega
-//     encima. $161.079 -> neto 161.079 + IVA 30.605 = $191.684.
+//   $50.000 impresos -> neto 42.017 + IVA 7.983 = 50.000
+//
+// Vale para el pasaje aereo igual que para una boleta de consumo, aunque LATAM lo
+// emita como "factura no afecta o exenta": el criterio de PERTEC es reconocer el
+// IVA que ya viene dentro del monto.
 export const TRATAMIENTO_DOCUMENTO: Record<
   TipoDocumento,
-  { etiqueta: string; afecto: boolean | null; totalEsNeto?: boolean; nota?: string }
+  { etiqueta: string; afecto: boolean | null; nota?: string }
 > = {
   factura_electronica: { etiqueta: "Factura Electrónica", afecto: true },
   factura_exenta_no_afecta: { etiqueta: "Factura Exenta / No Afecta", afecto: false },
@@ -63,17 +64,13 @@ export const TRATAMIENTO_DOCUMENTO: Record<
   comprobante_peaje_tag: { etiqueta: "Comprobante Peaje / TAG", afecto: true },
   comprobante_estacionamiento: { etiqueta: "Comprobante Estacionamiento", afecto: true },
   // Criterio contable de PERTEC: el pasaje aereo va SIEMPRE afecto al 19%, sin
-  // importar el tramo ni que el documento venga marcado como exento.
-  //
-  // LATAM los emite como "FACTURA NO AFECTA O EXENTA" con linea VALOR EXENTO, o
-  // sea el monto impreso NO trae IVA dentro. Por eso lleva totalEsNeto: el 19%
-  // se AGREGA sobre ese monto, no se extrae de el. Extraerlo dejaria la
-  // rendicion corta y el credito fiscal subdeclarado.
+  // importar el tramo ni que el documento venga marcado como exento. El IVA ya
+  // esta dentro del total impreso, asi que se saca hacia atras como en cualquier
+  // otro documento afecto.
   pasaje_aereo: {
     etiqueta: "Pasaje Aéreo",
     afecto: true,
-    totalEsNeto: true,
-    nota: "Siempre afecto al 19%, agregado sobre el monto impreso (el documento viene exento)",
+    nota: "Siempre afecto al 19%, ya incluido en el total impreso",
   },
   pasaje_terrestre: {
     etiqueta: "Pasaje Terrestre",
