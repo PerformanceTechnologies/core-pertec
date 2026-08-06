@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { listarRendiciones } from "@/lib/rendidor/datos";
@@ -12,19 +13,41 @@ export const dynamic = "force-dynamic";
 const money = (n: number) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
 
+/**
+ * El campo "quién rinde", detrás de su propio límite de Suspense.
+ *
+ * La ficha se busca por el correo del usuario logueado, que es único y lo
+ * administra RRHH. Eso es un round-trip XML-RPC a Odoo, y la página es
+ * force-dynamic: si se esperara antes de renderizar, CADA carga de la lista
+ * pagaría esa latencia. Acá el resto de la página se manda enseguida y este
+ * campo entra cuando Odoo contesta.
+ *
+ * Si Odoo no responde no se cae nada: el selector queda en modo búsqueda por
+ * nombre.
+ */
+async function CampoEmpleado({ correo }: { correo: string }) {
+  const empleado = await buscarEmpleadoPorCorreo(correo).catch((e) => {
+    console.error("[rendidor] No se pudo buscar el empleado por correo:", e);
+    return null;
+  });
+  return <SelectorEmpleado inicial={empleado} />;
+}
+
+function CampoEmpleadoCargando() {
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
+        Quién rinde (empleado de Odoo)
+      </label>
+      <div className="mt-1 h-[38px] animate-pulse rounded-md border border-borde bg-tinta/5" />
+      <p className="mt-1 text-[10px] text-tinta/40">Buscando tu ficha en Odoo...</p>
+    </div>
+  );
+}
+
 export default async function RendirGastosPage() {
   const usuario = await exigirAccesoApp(SLUG_APP);
-
-  // La ficha de empleado se busca por el correo del usuario logueado, que es
-  // único y lo administra RRHH. Si Odoo no responde no se cae la página: el
-  // selector queda en modo búsqueda por nombre.
-  const [rendiciones, empleado] = await Promise.all([
-    listarRendiciones(usuario.id),
-    buscarEmpleadoPorCorreo(usuario.correo).catch((e) => {
-      console.error("[rendidor] No se pudo buscar el empleado por correo:", e);
-      return null;
-    }),
-  ]);
+  const rendiciones = await listarRendiciones(usuario.id);
 
   const faltaApiKey = !process.env.ANTHROPIC_API_KEY;
 
@@ -60,7 +83,9 @@ export default async function RendirGastosPage() {
               className="mt-1 w-full rounded-md border border-borde bg-white px-2.5 py-1.5 text-sm"
             />
           </div>
-          <SelectorEmpleado inicial={empleado} />
+          <Suspense fallback={<CampoEmpleadoCargando />}>
+            <CampoEmpleado correo={usuario.correo} />
+          </Suspense>
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
               Monto asignado (CLP)
@@ -107,7 +132,6 @@ export default async function RendirGastosPage() {
         ) : (
           <div className="space-y-2">
             {rendiciones.map((r) => {
-              const total = r.gastos.reduce((a, g) => a + g.total, 0);
               return (
                 <Link
                   key={r.id}
@@ -120,7 +144,8 @@ export default async function RendirGastosPage() {
                         {r.tituloRendicion}
                       </p>
                       <p className="mt-0.5 text-xs text-tinta/50">
-                        {r.nombreQuienRinde} · {r.gastos.length} comprobante(s) · {money(total)}
+                        {r.nombreQuienRinde} · {r.cantidadGastos} comprobante(s) ·{" "}
+                        {money(r.totalGastos)}
                       </p>
                     </div>
                     <span

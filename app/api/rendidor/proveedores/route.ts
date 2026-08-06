@@ -28,11 +28,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const resultados = [];
-    for (const g of gastos) {
-      const { candidatos, via } = await buscarProveedor(g.rut, g.proveedor);
-      resultados.push({ gastoId: g.gastoId, candidatos, via });
-    }
+    // En paralelo, no en fila: cada búsqueda son hasta 3 consultas XML-RPC
+    // (RUT exacto, RUT parcial, nombre), así que 16 gastos en serie eran ~48
+    // round-trips encadenados dentro de un solo request. Promise.all preserva
+    // el orden, que es lo que la UI usa para emparejar cada gasto.
+    const resultados = await Promise.all(
+      gastos.map(async (g) => {
+        const { candidatos, via } = await buscarProveedor(g.rut, g.proveedor);
+        return { gastoId: g.gastoId, candidatos, via };
+      }),
+    );
     return NextResponse.json({ resultados });
   } catch (error) {
     console.error("[rendidor] Error al buscar proveedores:", error);

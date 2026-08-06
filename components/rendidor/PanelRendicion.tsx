@@ -136,6 +136,51 @@ async function comprimirParaExcel(archivo: File): Promise<File | null> {
   }
 }
 
+type Resultado<R> = { ok: true; valor: R } | { ok: false; error: unknown };
+
+/**
+ * Corre `fn` sobre todos los items con un tope de tareas en vuelo.
+ *
+ * Los resultados vuelven EN EL ORDEN DE ENTRADA, no en el de finalización, y un
+ * item que falla no arrastra a los demás: cada posición trae su valor o su
+ * error. Las dos cosas importan acá — el orden define la numeración de los
+ * gastos, y una boleta ilegible no puede tumbar la tanda completa.
+ *
+ * El tope existe porque cada tarea es un request a una función serverless:
+ * mandar 16 de golpe se traduce en 16 invocaciones simultáneas y arriesga
+ * rate limits, sin ganar nada sobre unas pocas en paralelo.
+ */
+async function mapaConTope<T, R>(
+  items: T[],
+  tope: number,
+  fn: (item: T, indice: number) => Promise<R>,
+): Promise<Resultado<R>[]> {
+  const salida: Resultado<R>[] = new Array(items.length);
+  let siguiente = 0;
+
+  async function trabajador() {
+    for (;;) {
+      const i = siguiente++;
+      if (i >= items.length) return;
+      try {
+        salida[i] = { ok: true, valor: await fn(items[i], i) };
+      } catch (error) {
+        salida[i] = { ok: false, error };
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(tope, items.length) }, trabajador));
+  return salida;
+}
+
+// Comprobantes analizándose a la vez. Tres es el punto donde se nota la mejora
+// sin abrir demasiadas invocaciones en paralelo.
+const ANALISIS_EN_PARALELO = 3;
+// Adjuntos a Odoo a la vez. Más bajo porque cada uno hace dos llamadas XML-RPC
+// (adjuntar y verificar) contra la misma instancia.
+const ADJUNTOS_EN_PARALELO = 2;
+
 const money = (n: number) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
 
@@ -262,55 +307,71 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     setArchivos((prev) => prev.filter((a) => a.gastoId !== id));
   };
 
-  // PASO 1 y 2: subir y analizar, de a un comprobante (límite de 60s de Vercel).
+  // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
+  // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
+  // boletas de a una eran más de cinco minutos de espera.
   const subirYAnalizar = async (lista: FileList) => {
     setError(null);
     const nuevos = Array.from(lista);
     setAnalizando({ actual: 0, total: nuevos.length });
 
-    const gastosNuevos: GastoRendicion[] = [];
-    const archivosNuevos: ArchivoEnMemoria[] = [];
-    const fallos: string[] = [];
+    // El avance ya no puede ser "voy por el i-ésimo" porque terminan
+    // desordenados: se cuenta cuántos cerraron.
+    let completados = 0;
 
-    for (let i = 0; i < nuevos.length; i++) {
-      setAnalizando({ actual: i + 1, total: nuevos.length });
-
+    const resultados = await mapaConTope(nuevos, ANALISIS_EN_PARALELO, async (original) => {
       // Se sube (y después se adjunta a Odoo) la versión reducida, para que el
       // respaldo sea exactamente el archivo que el modelo leyó.
-      const archivo = await reducirImagen(nuevos[i]);
+      const archivo = await reducirImagen(original);
 
       const fd = new FormData();
       fd.append("archivo", archivo);
 
       try {
         const resp = await fetch("/api/rendidor/analizar", { method: "POST", body: fd });
-        const { leido: l } = (await leerRespuesta(resp)) as unknown as { leido: ComprobanteLeidoUI };
-        const id = crypto.randomUUID();
-        gastosNuevos.push({
-          id,
-          orden: rendicion.gastos.length + gastosNuevos.length + 1,
-          fecha: l.fecha,
-          proveedor: l.proveedor ?? "",
-          rutProveedor: l.rutProveedor,
-          numeroDocumento: l.numeroDocumento,
-          tipoDocumento: l.tipoDocumento,
-          detalle: l.detalle ?? "",
-          categoria: l.categoria,
-          neto: l.neto ?? 0,
-          iva: l.iva ?? 0,
-          total: l.total ?? 0,
-          pendientes: l.ilegibles ?? [],
-          archivoNombre: archivo.name,
-          archivoPath: "",
-          archivoTipo: archivo.type,
-          odooExpenseId: null,
-          odooPartnerId: null,
-        });
-        archivosNuevos.push({ gastoId: id, archivo });
-      } catch (e) {
-        fallos.push(`${archivo.name}: ${e instanceof Error ? e.message : "error"}`);
+        const { leido } = (await leerRespuesta(resp)) as unknown as { leido: ComprobanteLeidoUI };
+        return { archivo, leido };
+      } finally {
+        completados += 1;
+        setAnalizando({ actual: completados, total: nuevos.length });
       }
-    }
+    });
+
+    const gastosNuevos: GastoRendicion[] = [];
+    const archivosNuevos: ArchivoEnMemoria[] = [];
+    const fallos: string[] = [];
+
+    // Recién acá se numeran los gastos, recorriendo los resultados en el orden
+    // en que se eligieron los archivos.
+    resultados.forEach((r, i) => {
+      if (!r.ok) {
+        fallos.push(`${nuevos[i].name}: ${r.error instanceof Error ? r.error.message : "error"}`);
+        return;
+      }
+      const { archivo, leido: l } = r.valor;
+      const id = crypto.randomUUID();
+      gastosNuevos.push({
+        id,
+        orden: rendicion.gastos.length + gastosNuevos.length + 1,
+        fecha: l.fecha,
+        proveedor: l.proveedor ?? "",
+        rutProveedor: l.rutProveedor,
+        numeroDocumento: l.numeroDocumento,
+        tipoDocumento: l.tipoDocumento,
+        detalle: l.detalle ?? "",
+        categoria: l.categoria,
+        neto: l.neto ?? 0,
+        iva: l.iva ?? 0,
+        total: l.total ?? 0,
+        pendientes: l.ilegibles ?? [],
+        archivoNombre: archivo.name,
+        archivoPath: "",
+        archivoTipo: archivo.type,
+        odooExpenseId: null,
+        odooPartnerId: null,
+      });
+      archivosNuevos.push({ gastoId: id, archivo });
+    });
 
     setAnalizando(null);
     if (gastosNuevos.length > 0) {
@@ -515,15 +576,17 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         proveedoresCreados: unknown[];
       };
 
-      // Adjuntar los respaldos de a uno (el body de Vercel no aguanta todos).
+      // Un respaldo por request (el body de Vercel no aguanta todos juntos),
+      // pero de a varios a la vez: cada adjunto hace además una verificación
+      // contra Odoo, así que en serie son 2N round-trips en fila.
       const problemas: string[] = [];
-      for (const c of json.creados) {
+
+      const adjuntos = await mapaConTope(json.creados, ADJUNTOS_EN_PARALELO, async (c) => {
         const enMemoria = archivos.find((a) => a.gastoId === c.gastoId);
         if (!enMemoria) {
-          problemas.push(
+          return [
             `El gasto ${c.expenseId} quedó sin respaldo: el archivo no está en esta sesión. Subilo a mano en Odoo.`,
-          );
-          continue;
+          ];
         }
         const gasto = rendicion.gastos.find((g) => g.id === c.gastoId);
         const fd = new FormData();
@@ -531,14 +594,19 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         fd.append("expenseId", String(c.expenseId));
         fd.append("totalEsperado", String(gasto?.total ?? 0));
 
-        try {
-          const r = await fetch("/api/rendidor/adjuntar", { method: "POST", body: fd });
-          const j = (await leerRespuesta(r)) as unknown as { problemas?: string[] };
-          if (j.problemas?.length) problemas.push(...j.problemas.map((p) => `Gasto ${c.expenseId}: ${p}`));
-        } catch (e) {
-          problemas.push(`Gasto ${c.expenseId}: ${e instanceof Error ? e.message : "falló el adjunto."}`);
-        }
-      }
+        const r = await fetch("/api/rendidor/adjuntar", { method: "POST", body: fd });
+        const j = (await leerRespuesta(r)) as unknown as { problemas?: string[] };
+        return (j.problemas ?? []).map((p) => `Gasto ${c.expenseId}: ${p}`);
+      });
+
+      adjuntos.forEach((r, i) => {
+        const expenseId = json.creados[i].expenseId;
+        problemas.push(
+          ...(r.ok
+            ? r.valor
+            : [`Gasto ${expenseId}: ${r.error instanceof Error ? r.error.message : "falló el adjunto."}`]),
+        );
+      });
 
       // La planilla consolidada se cuelga del PRIMER gasto creado: es un solo
       // documento para toda la rendición, así que duplicarlo en los N gastos

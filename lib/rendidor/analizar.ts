@@ -187,10 +187,25 @@ export async function analizarComprobante(
 
   const respuesta = await cliente().messages.create({
     model: "claude-opus-5",
-    max_tokens: 4096,
+    // max_tokens es techo de THINKING + RESPUESTA juntos, no solo de la
+    // respuesta. Con 4096 y el razonamiento encendido, el JSON podía llegar
+    // cortado y JSON.parse fallaba con un error que no decía nada. El objeto
+    // que devolvemos son ~200 tokens, así que el resto es holgura de sobra.
+    max_tokens: 8192,
     thinking: { type: "adaptive" },
-    system: INSTRUCCIONES,
-    output_config: { format: { type: "json_schema", schema: ESQUEMA } },
+    // El prompt es fijo entre comprobantes: se marca para caché y las llamadas
+    // siguientes de la misma rendición leen ese prefijo al 0,1×. Ojo: el mínimo
+    // cacheable de Opus 5 son 512 tokens y las instrucciones rondan ese umbral,
+    // así que si quedan por debajo simplemente no cachea — sin error y sin
+    // aviso (se ve en usage.cache_creation_input_tokens === 0).
+    system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
+    output_config: {
+      // Leer una boleta no necesita el esfuerzo por defecto ("high"). En Opus 5
+      // "medium" rinde muy bien y es LA palanca de latencia: era la causa de
+      // fondo de los cortes por tiempo, más allá del tamaño de la imagen.
+      effort: "medium",
+      format: { type: "json_schema", schema: ESQUEMA },
+    },
     messages: [
       {
         role: "user",
@@ -207,6 +222,16 @@ export async function analizarComprobante(
   if (respuesta.stop_reason === "refusal") {
     throw new Error(
       `El modelo no pudo procesar "${nombreArchivo}". Cárgalo a mano en la tabla de revisión.`,
+    );
+  }
+
+  // Si se agotó el presupuesto de tokens, el JSON viene truncado y el
+  // JSON.parse de más abajo fallaría con "Unexpected end of JSON input", que no
+  // le dice nada a nadie. Mejor decir qué pasó.
+  if (respuesta.stop_reason === "max_tokens") {
+    throw new Error(
+      `El análisis de "${nombreArchivo}" quedó incompleto (se agotó el presupuesto de tokens). ` +
+        "Cargalo a mano en la tabla de revisión.",
     );
   }
 

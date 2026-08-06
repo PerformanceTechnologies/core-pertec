@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "../supabase-admin";
-import type { EstadoRendicion, GastoRendicion, Rendicion } from "./tipos";
+import type { EstadoRendicion, GastoRendicion, Rendicion, ResumenRendicion } from "./tipos";
 
 // Capa de datos de las rendiciones. Los gastos van como jsonb embebido porque
 // se editan siempre en bloque desde la tabla de revision (el rendidor corrige
@@ -16,6 +16,17 @@ interface FilaRendicion {
   odoo_employee_id: number | null;
   gastos: GastoRendicion[];
   creado_por: string | null;
+  creado_en: string;
+}
+
+interface FilaResumen {
+  id: string;
+  nombre_quien_rinde: string;
+  monto_asignado: number | string;
+  titulo_rendicion: string;
+  estado: EstadoRendicion;
+  cantidad_gastos: number | string;
+  total_gastos: number | string;
   creado_en: string;
 }
 
@@ -39,11 +50,20 @@ function filaARendicion(fila: FilaRendicion): Rendicion {
   };
 }
 
-/** Rendiciones de un usuario, mas recientes primero. */
-export async function listarRendiciones(usuarioId: string): Promise<Rendicion[]> {
+/**
+ * Rendiciones de un usuario para la pantalla de lista, mas recientes primero.
+ *
+ * Lee de la vista `rendiciones_resumen`, que calcula la cantidad de gastos y el
+ * total en Postgres. La lista solo muestra esos dos numeros, y traer el jsonb
+ * `gastos` completo para calcularlos en JS movia cientos de KB por carga.
+ */
+export async function listarRendiciones(usuarioId: string): Promise<ResumenRendicion[]> {
   const { data, error } = await supabaseAdmin
-    .from("rendiciones")
-    .select(COLUMNAS)
+    .from("rendiciones_resumen")
+    .select(
+      `id, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
+       cantidad_gastos, total_gastos, creado_en`,
+    )
     .eq("creado_por", usuarioId)
     .order("creado_en", { ascending: false });
 
@@ -52,7 +72,16 @@ export async function listarRendiciones(usuarioId: string): Promise<Rendicion[]>
   // alguien empiece una rendicion de cero sobre una que ya existia.
   if (error) throw new Error(`No pudimos cargar las rendiciones: ${error.message}`);
 
-  return ((data ?? []) as unknown as FilaRendicion[]).map(filaARendicion);
+  return ((data ?? []) as unknown as FilaResumen[]).map((f) => ({
+    id: f.id,
+    nombreQuienRinde: f.nombre_quien_rinde,
+    montoAsignado: Number(f.monto_asignado),
+    tituloRendicion: f.titulo_rendicion,
+    estado: f.estado,
+    cantidadGastos: Number(f.cantidad_gastos),
+    totalGastos: Number(f.total_gastos),
+    creadoEn: f.creado_en,
+  }));
 }
 
 export async function obtenerRendicion(id: string): Promise<Rendicion | null> {

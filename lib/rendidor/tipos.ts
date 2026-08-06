@@ -124,6 +124,23 @@ export interface GastoRendicion {
 
 export type EstadoRendicion = "borrador" | "cargada_odoo";
 
+/**
+ * Lo que necesita la pantalla de lista, y nada más.
+ *
+ * Deliberadamente NO trae `gastos`: la cantidad y el total vienen ya calculados
+ * desde la vista `rendiciones_resumen` en Postgres.
+ */
+export interface ResumenRendicion {
+  id: string;
+  nombreQuienRinde: string;
+  montoAsignado: number;
+  tituloRendicion: string;
+  estado: EstadoRendicion;
+  cantidadGastos: number;
+  totalGastos: number;
+  creadoEn: string;
+}
+
 export interface Rendicion {
   id: string;
   nombreQuienRinde: string;
