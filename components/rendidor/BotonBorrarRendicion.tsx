@@ -4,22 +4,29 @@ import { useState, useTransition } from "react";
 import type { ResultadoBorrado } from "@/app/(protegido)/rendir-gastos/acciones";
 
 /**
- * Borra una rendición en borrador, con confirmación en dos pasos.
+ * Borra una rendición, con confirmación en dos pasos.
  *
  * No usa `confirm()` del navegador: en algunos navegadores queda bloqueado y el
  * botón simplemente no haría nada. El segundo clic dentro del propio componente
  * es explícito y no depende de nada externo.
  *
- * El borrado no se deshace, así que el paso intermedio no es negociable —
- * la lista es una fila de tarjetas parecidas y el clic equivocado es fácil.
+ * Para una rendición YA CARGADA la confirmación es distinta y más explícita,
+ * porque lo que la gente espera no es lo que pasa: los gastos NO se borran de
+ * Odoo (el wrapper del core es create-only), y con la rendición se va la única
+ * traza local de cuáles fueron. Por eso se muestran los ids: son lo que hay que
+ * anotar para poder limpiarlos a mano allá.
  */
 export default function BotonBorrarRendicion({
   id,
   titulo,
+  cargada,
+  idsOdoo,
   borrar,
 }: {
   id: string;
   titulo: string;
+  cargada: boolean;
+  idsOdoo: number[];
   // La Server Action se recibe como prop desde el server component: así este
   // componente no importa nada del servidor.
   borrar: (id: string) => Promise<ResultadoBorrado>;
@@ -60,8 +67,20 @@ export default function BotonBorrarRendicion({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      <span className="text-[10px] text-tinta/60">¿Borrar?</span>
+    <div className="flex shrink-0 flex-col items-end gap-1">
+      {cargada ? (
+        <p className="max-w-sm text-right text-[10px] leading-tight text-naranjo">
+          Los gastos{" "}
+          <span className="font-semibold">
+            {idsOdoo.length > 0 ? idsOdoo.join(", ") : "creados"}
+          </span>{" "}
+          NO se borran de Odoo. Anotalos si los vas a limpiar allá: al borrar esto se pierde el
+          registro de cuáles fueron.
+        </p>
+      ) : (
+        <span className="text-[10px] text-tinta/60">¿Borrar?</span>
+      )}
+      <div className="flex items-center gap-2">
       <button
         type="button"
         disabled={enCurso}
@@ -75,7 +94,7 @@ export default function BotonBorrarRendicion({
         }
         className="rounded-md bg-red-600 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white transition hover:bg-red-700 disabled:opacity-50"
       >
-        {enCurso ? "Borrando..." : "Sí, borrar"}
+        {enCurso ? "Borrando..." : cargada ? "Borrar igual" : "Sí, borrar"}
       </button>
       <button
         type="button"
@@ -85,6 +104,7 @@ export default function BotonBorrarRendicion({
       >
         Cancelar
       </button>
+      </div>
     </div>
   );
 }

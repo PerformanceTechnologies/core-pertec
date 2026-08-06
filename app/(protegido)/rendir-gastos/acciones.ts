@@ -51,13 +51,13 @@ export async function crearRendicionAction(form: FormData) {
 export type ResultadoBorrado = { ok: true } | { ok: false; error: string };
 
 /**
- * Borra una rendición. SOLO en borrador.
+ * Borra una rendición, en cualquier estado.
  *
- * La restricción de estado no es cosmética: una rendición cargada guarda el
- * `odooExpenseId` de cada gasto, y esa es la única traza local de qué
- * hr.expense se crearon. Borrarla deja esos gastos vivos en Odoo sin forma de
- * saber de dónde vinieron — y el wrapper de Odoo del core es create-only, así
- * que tampoco se pueden deshacer desde acá.
+ * Una rendición cargada TAMBIÉN se puede borrar, pero conviene tener claro qué
+ * pasa y qué no: los hr.expense que se crearon en Odoo NO se borran — el wrapper
+ * de Odoo del core es create-only — y con la rendición se va la única traza local
+ * de cuáles fueron. Por eso la confirmación en la UI muestra los ids antes de
+ * borrar, para poder anotarlos y limpiarlos a mano en Odoo si hace falta.
  *
  * Devuelve el resultado en vez de lanzar: una excepción en una Server Action
  * llega al cliente como un digest opaco, y acá el motivo del rechazo es
@@ -74,12 +74,15 @@ export async function eliminarRendicionAction(id: string): Promise<ResultadoBorr
   if (rendicion.creadoPor !== usuario.id && usuario.rol !== "admin") {
     return { ok: false, error: "No podés borrar una rendición de otra persona." };
   }
-  if (rendicion.estado !== "borrador") {
-    return {
-      ok: false,
-      error:
-        "Esta rendición ya se cargó a Odoo y no se puede borrar: es la única traza de qué gastos se crearon allá.",
-    };
+
+  // Queda en el log del servidor: es lo unico que sobrevive al borrado y sirve
+  // para rastrear gastos huerfanos en Odoo despues.
+  const idsOdoo = rendicion.gastos.map((g) => g.odooExpenseId).filter(Boolean);
+  if (idsOdoo.length > 0) {
+    console.warn(
+      `[rendidor] Se borra la rendición "${rendicion.tituloRendicion}" (${id}), ya cargada. ` +
+        `Los hr.expense ${idsOdoo.join(", ")} siguen en Odoo.`,
+    );
   }
 
   await eliminarRendicion(id);

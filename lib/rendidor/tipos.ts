@@ -155,6 +155,14 @@ export interface ResumenRendicion {
   estado: EstadoRendicion;
   cantidadGastos: number;
   totalGastos: number;
+  /**
+   * Los hr.expense ya creados en Odoo, en orden.
+   *
+   * La lista los necesita para poder mostrarlos al confirmar un borrado: al
+   * borrar una rendicion cargada se va la unica traza local de que gastos se
+   * crearon, y esos gastos NO se borran de Odoo.
+   */
+  odooExpenseIds: number[];
   creadoEn: string;
 }
 

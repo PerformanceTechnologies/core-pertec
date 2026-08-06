@@ -27,6 +27,7 @@ interface FilaResumen {
   estado: EstadoRendicion;
   cantidad_gastos: number | string;
   total_gastos: number | string;
+  odoo_expense_ids: number[] | null;
   creado_en: string;
 }
 
@@ -62,7 +63,7 @@ export async function listarRendiciones(usuarioId: string): Promise<ResumenRendi
     .from("rendiciones_resumen")
     .select(
       `id, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
-       cantidad_gastos, total_gastos, creado_en`,
+       cantidad_gastos, total_gastos, odoo_expense_ids, creado_en`,
     )
     .eq("creado_por", usuarioId)
     .order("creado_en", { ascending: false });
@@ -80,6 +81,7 @@ export async function listarRendiciones(usuarioId: string): Promise<ResumenRendi
     estado: f.estado,
     cantidadGastos: Number(f.cantidad_gastos),
     totalGastos: Number(f.total_gastos),
+    odooExpenseIds: f.odoo_expense_ids ?? [],
     creadoEn: f.creado_en,
   }));
 }

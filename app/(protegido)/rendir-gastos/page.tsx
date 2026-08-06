@@ -160,15 +160,15 @@ export default async function RendirGastosPage() {
                   >
                     {r.estado === "cargada_odoo" ? "Cargada a Odoo" : "Borrador"}
                   </span>
-                  {/* Solo en borrador. Una rendición cargada guarda los ids de
-                      hr.expense y es la única traza de qué se creó en Odoo. */}
-                  {r.estado === "borrador" && (
-                    <BotonBorrarRendicion
-                      id={r.id}
-                      titulo={r.tituloRendicion}
-                      borrar={eliminarRendicionAction}
-                    />
-                  )}
+                  {/* También las cargadas. La confirmación avisa que los gastos
+                      quedan vivos en Odoo y muestra sus ids para anotarlos. */}
+                  <BotonBorrarRendicion
+                    id={r.id}
+                    titulo={r.tituloRendicion}
+                    cargada={r.estado === "cargada_odoo"}
+                    idsOdoo={r.odooExpenseIds}
+                    borrar={eliminarRendicionAction}
+                  />
                 </div>
               </div>
             ))}
