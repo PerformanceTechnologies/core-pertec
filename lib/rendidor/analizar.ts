@@ -200,10 +200,11 @@ export async function analizarComprobante(
     // aviso (se ve en usage.cache_creation_input_tokens === 0).
     system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
     output_config: {
-      // Leer una boleta no necesita el esfuerzo por defecto ("high"). En Opus 5
-      // "medium" rinde muy bien y es LA palanca de latencia: era la causa de
-      // fondo de los cortes por tiempo, más allá del tamaño de la imagen.
-      effort: "medium",
+      // Vuelve a "high" (el default). Se había bajado a "medium" por latencia,
+      // pero esto es OCR de letra chica: un caso sensible a la capacidad, donde
+      // la recomendación es un mínimo de "high". El paralelismo del cliente ya
+      // recupera el tiempo de pared sin pagarlo en precisión.
+      effort: "high",
       format: { type: "json_schema", schema: ESQUEMA },
     },
     messages: [

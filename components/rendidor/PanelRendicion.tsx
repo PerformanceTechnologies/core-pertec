@@ -56,11 +56,26 @@ async function leerRespuesta(resp: Response): Promise<Record<string, unknown>> {
   }
 }
 
-// Las fotos de celular llegan a 4000 px y varios MB. La API de visión de todos
-// modos reescala a 1568 px en el lado largo, así que reducirlas acá no pierde
-// nada de calidad de lectura y sí baja mucho el peso del upload y el tiempo de
-// análisis — que es lo que hacía que la función se cayera por tiempo.
-const LADO_MAXIMO = 1568;
+// Las fotos de celular llegan a 4000 px y varios MB, así que se reducen antes de
+// subirlas: baja el peso del upload y el tiempo de análisis.
+//
+// 2576 px es el lado largo máximo que aprovecha Opus 5 (nivel de alta
+// resolución, hasta 4784 tokens visuales por imagen). ESTO ESTABA EN 1568, que
+// es el tope de Opus 4.6 y anteriores: con ese valor cada documento se reducía a
+// poco más de la mitad de lo que el modelo puede leer, y en una factura A4 la
+// letra chica —fecha, RUT, folio, montos— dejaba de ser legible. El encabezado
+// grande se seguía leyendo, de ahí que reconociera "LATAM AIRLINES" y el tipo de
+// documento pero devolviera todo el resto como ilegible.
+//
+// No se sube más allá de 2576: pasado ese punto la API reescala igual y solo se
+// paga peso.
+const LADO_MAXIMO = 2576;
+
+// Por debajo de esto, una factura A4 no tiene pixeles suficientes para que la
+// letra chica sea legible, y NO se puede arreglar reescalando hacia arriba: los
+// datos no estan en el archivo. Se avisa en vez de dejar la sospecha de que el
+// modelo "no funciona".
+const LADO_MINIMO_UTIL = 1100;
 
 /**
  * Pinta el lienzo de BLANCO antes de dibujar. No es cosmético.
@@ -82,11 +97,21 @@ function lienzoBlanco(ancho: number, alto: number): CanvasRenderingContext2D | n
   return ctx;
 }
 
-async function reducirImagen(archivo: File): Promise<File> {
-  if (!archivo.type.startsWith("image/")) return archivo;
+interface ImagenPreparada {
+  archivo: File;
+  // Dimensiones del ORIGEN, no del resultado: es lo que dice si el archivo
+  // traía suficiente detalle. Null cuando no es una imagen (PDF) o el navegador
+  // no la pudo decodificar.
+  ancho: number | null;
+  alto: number | null;
+}
+
+async function reducirImagen(archivo: File): Promise<ImagenPreparada> {
+  if (!archivo.type.startsWith("image/")) return { archivo, ancho: null, alto: null };
 
   try {
     const bitmap = await createImageBitmap(archivo);
+    const original = { ancho: bitmap.width, alto: bitmap.height };
     const escala = Math.min(1, LADO_MAXIMO / Math.max(bitmap.width, bitmap.height));
 
     // Solo un JPEG chico se devuelve sin tocar: no tiene alfa que aplanar y
@@ -94,7 +119,7 @@ async function reducirImagen(archivo: File): Promise<File> {
     // igual por el lienzo blanco, porque puede traer transparencia.
     if (escala === 1 && archivo.size <= 1_500_000 && archivo.type === "image/jpeg") {
       bitmap.close();
-      return archivo;
+      return { archivo, ...original };
     }
 
     const ancho = Math.round(bitmap.width * escala);
@@ -102,21 +127,24 @@ async function reducirImagen(archivo: File): Promise<File> {
     const ctx = lienzoBlanco(ancho, alto);
     if (!ctx) {
       bitmap.close();
-      return archivo;
+      return { archivo, ...original };
     }
     ctx.drawImage(bitmap, 0, 0, ancho, alto);
     bitmap.close();
 
     const blob = await new Promise<Blob | null>((res) => ctx.canvas.toBlob(res, "image/jpeg", 0.85));
-    if (!blob) return archivo;
+    if (!blob) return { archivo, ...original };
 
     // Antes se descartaba el resultado si no pesaba menos que el original. Eso
     // devolvía el PNG con transparencia intacta justo en el caso que hay que
     // aplanar, así que ahora el aplanado manda sobre el ahorro de bytes.
-    return new File([blob], archivo.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+    return {
+      archivo: new File([blob], archivo.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }),
+      ...original,
+    };
   } catch {
     // Si el navegador no puede decodificarla, que decida el servidor.
-    return archivo;
+    return { archivo, ancho: null, alto: null };
   }
 }
 
@@ -352,10 +380,10 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     // desordenados: se cuenta cuántos cerraron.
     let completados = 0;
 
-    const resultados = await mapaConTope(nuevos, ANALISIS_EN_PARALELO, async (original) => {
+    const resultados = await mapaConTope(nuevos, ANALISIS_EN_PARALELO, async (origen) => {
       // Se sube (y después se adjunta a Odoo) la versión reducida, para que el
       // respaldo sea exactamente el archivo que el modelo leyó.
-      const archivo = await reducirImagen(original);
+      const { archivo, ancho, alto } = await reducirImagen(origen);
 
       const fd = new FormData();
       fd.append("archivo", archivo);
@@ -363,7 +391,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
       try {
         const resp = await fetch("/api/rendidor/analizar", { method: "POST", body: fd });
         const { leido } = (await leerRespuesta(resp)) as unknown as { leido: ComprobanteLeidoUI };
-        return { archivo, leido };
+        return { archivo, leido, ancho, alto };
       } finally {
         completados += 1;
         setAnalizando({ actual: completados, total: nuevos.length });
@@ -373,6 +401,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     const gastosNuevos: GastoRendicion[] = [];
     const archivosNuevos: ArchivoEnMemoria[] = [];
     const fallos: string[] = [];
+    const pobres: string[] = [];
 
     // Recién acá se numeran los gastos, recorriendo los resultados en el orden
     // en que se eligieron los archivos.
@@ -381,7 +410,20 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         fallos.push(`${nuevos[i].name}: ${r.error instanceof Error ? r.error.message : "error"}`);
         return;
       }
-      const { archivo, leido: l } = r.valor;
+      const { archivo, leido: l, ancho, alto } = r.valor;
+
+      // Si volvieron varios campos ilegibles Y el archivo era chico, la causa es
+      // la resolución del origen, no el modelo — y no se arregla reintentando.
+      // Decirlo con los números concretos evita la sospecha de que "no funciona".
+      const ilegibles = l.ilegibles ?? [];
+      const ladoLargo = Math.max(ancho ?? 0, alto ?? 0);
+      if (ilegibles.length >= 3 && ladoLargo > 0 && ladoLargo < LADO_MINIMO_UTIL) {
+        pobres.push(
+          `${nuevos[i].name}: ${ancho}×${alto} px. A esa resolución la letra chica de un ` +
+            `comprobante no se puede leer, y ampliarla no la recupera. Subí el PDF original o ` +
+            `una captura más grande.`,
+        );
+      }
       const id = crypto.randomUUID();
       gastosNuevos.push({
         id,
@@ -415,6 +457,13 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     if (fallos.length > 0) {
       setError(
         `No se pudieron analizar ${fallos.length} archivo(s). Podés agregarlos a mano.\n` + fallos.join("\n"),
+      );
+    } else if (pobres.length > 0) {
+      // Va como aviso, no como error: el gasto SÍ se creó, con los campos que se
+      // pudieron leer, y el resto se completa a mano.
+      setAviso(
+        `${pobres.length} comprobante(s) quedaron con campos sin leer por resolución:\n` +
+          pobres.join("\n"),
       );
     }
   };
@@ -692,7 +741,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         </div>
       )}
       {aviso && (
-        <div className="mt-3 rounded-lg border border-teal/20 bg-teal/5 px-3 py-2 text-xs text-teal">{aviso}</div>
+        <div className="mt-3 whitespace-pre-line rounded-lg border border-teal/20 bg-teal/5 px-3 py-2 text-xs text-teal">
+          {aviso}
+        </div>
       )}
 
       {resultado && (
