@@ -670,11 +670,15 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             `El gasto ${c.expenseId} quedó sin respaldo: el archivo no está en esta sesión. Subilo a mano en Odoo.`,
           ];
         }
-        const gasto = rendicion.gastos.find((g) => g.id === c.gastoId);
+        // El total esperado en Odoo es NETO + IVA, no el total impreso. Para un
+        // pasaje aéreo el IVA se agrega encima, así que Odoo va a tener más que
+        // el papel: comparar contra el impreso marcaría una falsa alarma en cada
+        // pasaje. Se usa la fila, que ya tiene el desglose calculado.
+        const fila = filas.find((f) => f.gasto.id === c.gastoId);
         const fd = new FormData();
         fd.append("archivo", enMemoria.archivo);
         fd.append("expenseId", String(c.expenseId));
-        fd.append("totalEsperado", String(gasto?.total ?? 0));
+        fd.append("totalEsperado", String(fila ? fila.neto + fila.iva : 0));
 
         const r = await fetch("/api/rendidor/adjuntar", { method: "POST", body: fd });
         const j = (await leerRespuesta(r)) as unknown as { problemas?: string[] };
@@ -920,7 +924,20 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                       />
                     </td>
                     <td className="px-2 py-1.5 text-right text-tinta/60">{money(neto)}</td>
-                    <td className="px-2 py-1.5 text-right text-tinta/60">{money(iva)}</td>
+                    <td className="px-2 py-1.5 text-right text-tinta/60">
+                      {money(iva)}
+                      {/* En estos tipos el IVA se agrega SOBRE el total impreso, así
+                          que neto + IVA no suma la columna TOTAL. Sin este cartel
+                          la fila parece descuadrada. */}
+                      {g.tipoDocumento && TRATAMIENTO_DOCUMENTO[g.tipoDocumento].totalEsNeto && (
+                        <span
+                          className="mt-0.5 block text-[9px] font-semibold uppercase tracking-wide text-naranjo"
+                          title={`El documento viene exento, así que el 19% se agrega sobre el monto impreso. En Odoo queda ${money(neto + iva)}.`}
+                        >
+                          + sobre total
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-1.5 text-right">
                       <NumInput
                         value={g.total}

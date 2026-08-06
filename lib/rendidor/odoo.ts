@@ -234,11 +234,22 @@ export function armarPreview(
  * datos que ya vienen bien. Con extract_state en "done" el gasto ya no esta en
  * estado extraible y el auto-send lo saltea. El orden es esencial.
  *
- * Se carga el TOTAL impreso en price_unit: si se cargara el neto, Odoo le
- * agregaria el IVA encima y el total quedaria inflado un 19%.
+ * En price_unit va el NETO, no el total.
  *
- * total_amount, tax_amount y untaxed_amount NO se envian: son campos calculados
- * y Odoo los deriva.
+ * El impuesto IVA 19% de compra de esta instancia tiene `price_include: false`,
+ * o sea el IVA NO viene dentro del precio: Odoo lo agrega sobre price_unit y
+ * deriva el total. Antes se mandaba el total impreso, con lo cual el 19% se
+ * aplicaba sobre un monto que ya lo incluia. Mandando el neto los dos casos
+ * quedan bien con la misma regla:
+ *
+ *   boleta de consumo  $161.079 impresos (con IVA dentro)
+ *     -> neto 135.361, Odoo deriva total 161.079  = lo que dice el papel
+ *   pasaje aereo       $161.079 impresos (factura exenta, sin IVA dentro)
+ *     -> neto 161.079, Odoo deriva total 191.684  = IVA agregado encima
+ *
+ * total_amount, tax_amount y untaxed_amount NO se envian: son campos calculados.
+ * Tampoco total_amount_currency, que antes se forzaba al total impreso y pisaba
+ * el calculo de Odoo.
  */
 export async function crearGastoOdoo(
   preview: PreviewGastoOdoo,
@@ -250,8 +261,7 @@ export async function crearGastoOdoo(
     name: preview.name,
     date: preview.date,
     quantity: 1,
-    price_unit: preview.total,
-    total_amount_currency: preview.total,
+    price_unit: preview.neto,
     payment_mode: "own_account",
     company_id: companyId,
     currency_id: CURRENCY_CLP,

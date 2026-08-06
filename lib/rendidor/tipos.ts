@@ -40,9 +40,17 @@ export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
 // confirmarlo". Hoy ningun tipo lo usa; se mantiene en el tipo porque
 // calcularDesglose sabe manejarlo y evita tener que reintroducirlo si aparece
 // una categoria que si lo necesite.
+// `totalEsNeto` distingue los dos sentidos en que un total impreso puede
+// relacionarse con el IVA, y es la diferencia entre inflar una rendicion y
+// dejarla corta:
+//
+//   sin la marca (boleta de consumo): el total impreso YA INCLUYE el IVA, asi que
+//     el neto se saca hacia atras. $50.000 -> neto 42.017 + IVA 7.983.
+//   con la marca (pasaje aereo): el total impreso es la BASE y el IVA se agrega
+//     encima. $161.079 -> neto 161.079 + IVA 30.605 = $191.684.
 export const TRATAMIENTO_DOCUMENTO: Record<
   TipoDocumento,
-  { etiqueta: string; afecto: boolean | null; nota?: string }
+  { etiqueta: string; afecto: boolean | null; totalEsNeto?: boolean; nota?: string }
 > = {
   factura_electronica: { etiqueta: "Factura Electrónica", afecto: true },
   factura_exenta_no_afecta: { etiqueta: "Factura Exenta / No Afecta", afecto: false },
@@ -55,14 +63,17 @@ export const TRATAMIENTO_DOCUMENTO: Record<
   comprobante_peaje_tag: { etiqueta: "Comprobante Peaje / TAG", afecto: true },
   comprobante_estacionamiento: { etiqueta: "Comprobante Estacionamiento", afecto: true },
   // Criterio contable de PERTEC: el pasaje aereo va SIEMPRE afecto al 19%, sin
-  // importar el tramo ni que el documento venga marcado como exento o no afecto.
-  // LATAM emite estos pasajes como "FACTURA NO AFECTA O EXENTA" con una linea
-  // VALOR EXENTO, y aun asi el IVA se reconoce: se calcula hacia atras desde el
-  // total impreso, de modo que el total cargado nunca cambia.
+  // importar el tramo ni que el documento venga marcado como exento.
+  //
+  // LATAM los emite como "FACTURA NO AFECTA O EXENTA" con linea VALOR EXENTO, o
+  // sea el monto impreso NO trae IVA dentro. Por eso lleva totalEsNeto: el 19%
+  // se AGREGA sobre ese monto, no se extrae de el. Extraerlo dejaria la
+  // rendicion corta y el credito fiscal subdeclarado.
   pasaje_aereo: {
     etiqueta: "Pasaje Aéreo",
     afecto: true,
-    nota: "Siempre afecto al 19%, aunque el documento diga exento",
+    totalEsNeto: true,
+    nota: "Siempre afecto al 19%, agregado sobre el monto impreso (el documento viene exento)",
   },
   pasaje_terrestre: {
     etiqueta: "Pasaje Terrestre",
