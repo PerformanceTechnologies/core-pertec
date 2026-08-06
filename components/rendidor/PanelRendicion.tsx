@@ -260,7 +260,6 @@ interface ComprobanteLeidoUI {
   neto: number | null;
   iva: number | null;
   total: number | null;
-  exentoDeclarado: boolean | null;
   ilegibles: string[] | null;
 }
 
@@ -323,7 +322,6 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
               g.iva > 0 ? g.neto : null,
               g.iva > 0 ? g.iva : null,
               tratamiento.afecto === null ? g.iva > 0 : undefined,
-              g.exentoDeclarado,
             );
             neto = d.neto;
             iva = d.iva;
@@ -440,7 +438,6 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         neto: l.neto ?? 0,
         iva: l.iva ?? 0,
         total: l.total ?? 0,
-        exentoDeclarado: l.exentoDeclarado ?? null,
         pendientes: l.ilegibles ?? [],
         archivoNombre: archivo.name,
         archivoPath: "",
@@ -923,32 +920,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                       />
                     </td>
                     <td className="px-2 py-1.5 text-right text-tinta/60">{money(neto)}</td>
-                    <td className="px-2 py-1.5 text-right text-tinta/60">
-                      {money(iva)}
-                      {/* Se muestra por qué el IVA es 0 en vez de dejarlo como
-                          magia, y se puede corregir: si el modelo se equivocó
-                          leyendo la leyenda, el clic lo destraba sin tener que
-                          cambiar el tipo de documento. */}
-                      <button
-                        type="button"
-                        disabled={yaCargada}
-                        onClick={() =>
-                          actualizarGasto(g.id, { exentoDeclarado: g.exentoDeclarado ? null : true })
-                        }
-                        title={
-                          g.exentoDeclarado
-                            ? "El documento se declara exento (VALOR EXENTO / NO AFECTA). Clic para quitar la marca."
-                            : "Marcar como documento exento o no afecto (fuerza IVA 0)."
-                        }
-                        className={`mt-0.5 block w-full rounded px-1 text-[9px] font-semibold uppercase tracking-wide transition disabled:cursor-default ${
-                          g.exentoDeclarado
-                            ? "bg-teal/10 text-teal"
-                            : "text-tinta/25 hover:text-tinta/60 disabled:hidden"
-                        }`}
-                      >
-                        {g.exentoDeclarado ? "Exento" : "¿Exento?"}
-                      </button>
-                    </td>
+                    <td className="px-2 py-1.5 text-right text-tinta/60">{money(iva)}</td>
                     <td className="px-2 py-1.5 text-right">
                       <NumInput
                         value={g.total}

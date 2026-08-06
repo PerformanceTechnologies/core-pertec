@@ -36,9 +36,10 @@ export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
 // aplica solo cuando el comprobante no desglosa neto e IVA — el desglose
 // impreso siempre manda sobre esta tabla (ver reglas en iva.ts).
 //
-// "pasaje_aereo" queda con afecto: null porque depende del tramo (nacional
-// afecto / internacional exento) y no se puede resolver por tipo: hay que
-// preguntarlo.
+// `afecto: null` significa "el tipo no alcanza para decidir, hay que
+// confirmarlo". Hoy ningun tipo lo usa; se mantiene en el tipo porque
+// calcularDesglose sabe manejarlo y evita tener que reintroducirlo si aparece
+// una categoria que si lo necesite.
 export const TRATAMIENTO_DOCUMENTO: Record<
   TipoDocumento,
   { etiqueta: string; afecto: boolean | null; nota?: string }
@@ -53,10 +54,15 @@ export const TRATAMIENTO_DOCUMENTO: Record<
   },
   comprobante_peaje_tag: { etiqueta: "Comprobante Peaje / TAG", afecto: true },
   comprobante_estacionamiento: { etiqueta: "Comprobante Estacionamiento", afecto: true },
+  // Criterio contable de PERTEC: el pasaje aereo va SIEMPRE afecto al 19%, sin
+  // importar el tramo ni que el documento venga marcado como exento o no afecto.
+  // LATAM emite estos pasajes como "FACTURA NO AFECTA O EXENTA" con una linea
+  // VALOR EXENTO, y aun asi el IVA se reconoce: se calcula hacia atras desde el
+  // total impreso, de modo que el total cargado nunca cambia.
   pasaje_aereo: {
     etiqueta: "Pasaje Aéreo",
-    afecto: null,
-    nota: "Nacional afecto / internacional exento — hay que confirmar el tramo",
+    afecto: true,
+    nota: "Siempre afecto al 19%, aunque el documento diga exento",
   },
   pasaje_terrestre: {
     etiqueta: "Pasaje Terrestre",
@@ -110,15 +116,6 @@ export interface GastoRendicion {
   neto: number;
   iva: number;
   total: number;
-  /**
-   * El documento se declara EXENTO o NO AFECTO a IVA (leyenda "FACTURA NO AFECTA
-   * O EXENTA", línea "VALOR EXENTO").
-   *
-   * Decide la afectación por encima del tipo de documento — ver la REGLA 0 en
-   * iva.ts. Es opcional para no romper los gastos guardados antes de que
-   * existiera este campo: undefined se trata como "sin indicio".
-   */
-  exentoDeclarado?: boolean | null;
   // Marca los campos que el modelo no pudo leer y que hay que confirmar a mano
   // antes de cargar. La skill es explícita: no inventar datos ilegibles.
   pendientes: string[];
