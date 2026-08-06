@@ -210,7 +210,7 @@ export async function analizarComprobante(
           })();
 
   const respuesta = await cliente().messages.create({
-    model: "claude-opus-5",
+    model: "claude-sonnet-5",
     // max_tokens es techo de THINKING + RESPUESTA juntos, no solo de la
     // respuesta. Con 4096 y el razonamiento encendido, el JSON podía llegar
     // cortado y JSON.parse fallaba con un error que no decía nada. El objeto
@@ -219,7 +219,7 @@ export async function analizarComprobante(
     thinking: { type: "adaptive" },
     // El prompt es fijo entre comprobantes: se marca para caché y las llamadas
     // siguientes de la misma rendición leen ese prefijo al 0,1×. Ojo: el mínimo
-    // cacheable de Opus 5 son 512 tokens y las instrucciones rondan ese umbral,
+    // cacheable son 512 tokens y las instrucciones rondan ese umbral,
     // así que si quedan por debajo simplemente no cachea — sin error y sin
     // aviso (se ve en usage.cache_creation_input_tokens === 0).
     system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],

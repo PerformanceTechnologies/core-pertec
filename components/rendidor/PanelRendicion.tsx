@@ -51,9 +51,10 @@ async function leerRespuesta(resp: Response): Promise<Record<string, unknown>> {
 // Las fotos de celular llegan a 4000 px y varios MB, así que se reducen antes de
 // subirlas: baja el peso del upload y el tiempo de análisis.
 //
-// 2576 px es el lado largo máximo que aprovecha Opus 5 (nivel de alta
-// resolución, hasta 4784 tokens visuales por imagen). ESTO ESTABA EN 1568, que
-// es el tope de Opus 4.6 y anteriores: con ese valor cada documento se reducía a
+// 2576 px es el lado largo máximo que aprovecha la familia Claude 5 (nivel de
+// alta resolución, hasta 4784 tokens visuales por imagen). Va atado al modelo
+// que usa lib/rendidor/analizar.ts: si ese modelo cambia, hay que verificar el
+// número acá. ESTO ESTABA EN 1568, que es el tope de Opus 4.6 y anteriores: con ese valor cada documento se reducía a
 // poco más de la mitad de lo que el modelo puede leer, y en una factura A4 la
 // letra chica —fecha, RUT, folio, montos— dejaba de ser legible. El encabezado
 // grande se seguía leyendo, de ahí que reconociera "LATAM AIRLINES" y el tipo de
