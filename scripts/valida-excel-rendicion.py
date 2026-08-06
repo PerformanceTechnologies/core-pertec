@@ -111,7 +111,25 @@ check(r.cell(row=TRIB_TIT + 4, column=4).value ==
       f'=SUMIF($J${PRIMERA}:$J${ULTIMA},0,$K${PRIMERA}:$K${ULTIMA})',
       f"Total exento: fórmula ok → {exento_eval} (el pasaje terrestre)")
 check(exento_eval == 18000, f"exento evaluado = {exento_eval}")
-check(r.cell(row=TRIB_TIT + 5, column=1).value == "TOTAL RENDICIÓN", "última fila tributaria")
+check(r.cell(row=TRIB_TIT + 5, column=1).value == "TOTAL RENDICIÓN (lo pagado)",
+      "fila TOTAL RENDICIÓN = el total impreso, la plata que puso la persona")
+
+# La última fila concilia contra Odoo. Es indispensable cuando hay documentos
+# cuyo IVA se agrega sobre el total impreso (pasaje aéreo): ahí neto + IVA supera
+# lo pagado, y sin esta fila la planilla parece descuadrada.
+conciliacion = r.cell(row=TRIB_TIT + 6, column=1).value
+check(conciliacion == "TOTAL RECONOCIDO EN ODOO (neto + IVA)",
+      f"fila de conciliación con Odoo = {conciliacion!r}")
+check(r.cell(row=TRIB_TIT + 6, column=4).value ==
+      f"=SUM(I{PRIMERA}:I{ULTIMA})+SUM(J{PRIMERA}:J{ULTIMA})",
+      "conciliación suma neto + IVA, no la columna del total")
+
+# Y lo que motivó todo esto: el neto y el IVA de las filas tienen que venir
+# CALCULADOS, no en 0. Con los datos de prueba (una boleta con desglose, un
+# exento y uno con campos ilegibles) ninguna fila afecta puede quedar en 0.
+netos_cero = [f for f in range(PRIMERA, ULTIMA + 1)
+              if r.cell(row=f, column=9).value in (0, None)]
+check(not netos_cero, f"ninguna fila con neto en 0 (filas vacías: {netos_cero})")
 
 # --- Referencias fuera de rango --------------------------------------------
 print("\nREFERENCIAS")

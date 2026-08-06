@@ -1,6 +1,6 @@
 import "server-only";
 import { odooSearchRead, odooCreate } from "../panel-odoo/odoo-cliente";
-import { calcularDesglose, formasDeRut, rutValido, taxIdsParaGasto } from "./iva";
+import { desgloseDeGasto, formasDeRut, rutValido, taxIdsParaGasto } from "./iva";
 import { MAPEO_CATEGORIA_ODOO, TRATAMIENTO_DOCUMENTO, type Rendicion } from "./tipos";
 
 // PASO 8 de la skill rendidor-gastos: subir los gastos a Odoo.
@@ -217,14 +217,12 @@ export function armarPreview(
     }
 
     const tratamiento = TRATAMIENTO_DOCUMENTO[g.tipoDocumento];
-    // Para pasaje aéreo el tramo ya quedó resuelto al guardar (si no, calcularDesglose lanza).
-    const desglose = calcularDesglose(
-      g.total,
-      g.tipoDocumento,
-      g.iva > 0 ? g.neto : null,
-      g.iva > 0 ? g.iva : null,
-      tratamiento.afecto === null ? g.iva > 0 : undefined,
-    );
+    // Misma puerta que usan la tabla de revisión y la planilla: lo que se muestra,
+    // lo que se exporta y lo que se carga salen del mismo cálculo.
+    const desglose = desgloseDeGasto(g);
+    if (!desglose) {
+      throw new Error(`El gasto ${g.orden} no tiene un total válido para calcular el IVA.`);
+    }
 
     const mapeo = MAPEO_CATEGORIA_ODOO[g.categoria];
 

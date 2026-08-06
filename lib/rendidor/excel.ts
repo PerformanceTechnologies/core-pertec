@@ -1,6 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { CATEGORIAS_GASTO, TRATAMIENTO_DOCUMENTO, type Rendicion } from "./tipos";
+import { CATEGORIAS_GASTO, TRATAMIENTO_DOCUMENTO, type GastoRendicion, type Rendicion } from "./tipos";
+import { desgloseDeGasto } from "./iva";
 
 // PASO 4 de la skill rendidor-gastos: la planilla de 2 hojas.
 //
@@ -105,6 +106,27 @@ function dimensionesImagen(buffer: Buffer): { ancho: number; alto: number } | nu
   return null;
 }
 
+/**
+ * Neto e IVA de un gasto para las columnas I y J.
+ *
+ * Se CALCULAN con las mismas reglas que usa la carga a Odoo, en vez de escribir
+ * `gasto.neto` y `gasto.iva` crudos: esos son lo que el modelo leyó del papel, y
+ * una boleta de consumo no desglosa nada, asi que venian en 0. La planilla salia
+ * con el resumen tributario en cero y toda la rendicion contada como exenta.
+ *
+ * Si el calculo no se puede hacer (falta el tipo de documento, o el tipo no
+ * define la afectacion) se cae a lo leido: es mejor una fila incompleta que una
+ * planilla que no se genera.
+ */
+function netoEIva(g: GastoRendicion): { neto: number; iva: number } {
+  try {
+    const d = desgloseDeGasto(g);
+    return d ? { neto: d.neto, iva: d.iva } : { neto: g.neto, iva: g.iva };
+  } catch {
+    return { neto: g.neto, iva: g.iva };
+  }
+}
+
 export interface RespaldoParaExcel {
   gastoId: string;
   nombre: string;
@@ -176,6 +198,7 @@ export async function construirLibroRendicion(
     const f = PRIMERA + i;
     const alterna = i % 2 === 0 ? GRIS_ALTERNO : undefined;
     const etiquetaTipo = g.tipoDocumento ? TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta : "[ilegible]";
+    const { neto, iva } = netoEIva(g);
 
     const columnas: [string, string | number, EstiloCelda][] = [
       ["A", g.orden, { bold: true, horizontal: "center" }],
@@ -186,8 +209,8 @@ export async function construirLibroRendicion(
       ["F", etiquetaTipo, { horizontal: "center", wrap: true }],
       ["G", g.detalle, { horizontal: "left", wrap: true }],
       ["H", g.categoria ?? "[sin categoría]", { horizontal: "center" }],
-      ["I", g.neto, { horizontal: "right", numFmt: MONEDA }],
-      ["J", g.iva, { horizontal: "right", numFmt: MONEDA }],
+      ["I", neto, { horizontal: "right", numFmt: MONEDA }],
+      ["J", iva, { horizontal: "right", numFmt: MONEDA }],
       ["K", g.total, { bold: true, horizontal: "right", numFmt: MONEDA }],
     ];
 
@@ -317,7 +340,13 @@ export async function construirLibroRendicion(
     ["Total afecto a IVA (neto)", `SUM(I${PRIMERA}:I${ULTIMA})`],
     ["IVA total", `SUM(J${PRIMERA}:J${ULTIMA})`],
     ["Total exento", `SUMIF($J$${PRIMERA}:$J$${ULTIMA},0,$K$${PRIMERA}:$K$${ULTIMA})`],
-    ["TOTAL RENDICIÓN", `K${FILA_TOTAL}`],
+    // TOTAL RENDICIÓN es la plata que puso la persona: el total impreso.
+    ["TOTAL RENDICIÓN (lo pagado)", `K${FILA_TOTAL}`],
+    // Y este es el monto contable, que puede ser MAYOR. En un pasaje aéreo el
+    // IVA se agrega sobre el monto impreso, así que neto + IVA supera lo pagado
+    // y la resta de las dos filas es justamente el IVA agregado. Sin esta fila la
+    // planilla parece descuadrada y no hay con qué conciliar contra Odoo.
+    ["TOTAL RECONOCIDO EN ODOO (neto + IVA)", `SUM(I${PRIMERA}:I${ULTIMA})+SUM(J${PRIMERA}:J${ULTIMA})`],
   ];
 
   filasTrib.forEach(([concepto, formula], i) => {
@@ -374,6 +403,7 @@ export async function construirLibroRendicion(
   gastos.forEach((g, i) => {
     const base = 4 + i * FILAS_POR_RESPALDO;
     const etiquetaTipo = g.tipoDocumento ? TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta : "[ilegible]";
+    const { neto, iva } = netoEIva(g);
 
     tituloSeccion(respaldosHoja, `A${base}:F${base}`, `GASTO N° ${g.orden}`);
 
@@ -385,8 +415,8 @@ export async function construirLibroRendicion(
       ["Tipo Documento:", etiquetaTipo, undefined],
       ["Detalle:", g.detalle, undefined],
       ["Categoría:", g.categoria ?? "[sin categoría]", undefined],
-      ["Neto:", g.neto, MONEDA],
-      ["IVA:", g.iva, MONEDA],
+      ["Neto:", neto, MONEDA],
+      ["IVA:", iva, MONEDA],
       ["Total (CLP):", g.total, MONEDA],
     ];
 

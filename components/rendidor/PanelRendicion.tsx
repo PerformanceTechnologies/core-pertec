@@ -10,7 +10,7 @@ import {
   type Rendicion,
   type TipoDocumento,
 } from "@/lib/rendidor/tipos";
-import { calcularDesglose, rutValido } from "@/lib/rendidor/iva";
+import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
 
 // Los archivos viven en memoria del navegador durante la sesión: se envían al
@@ -313,22 +313,17 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         let iva = g.iva;
         const advertencias: string[] = [];
 
-        if (g.tipoDocumento && g.total > 0) {
-          const tratamiento = TRATAMIENTO_DOCUMENTO[g.tipoDocumento];
-          try {
-            const d = calcularDesglose(
-              g.total,
-              g.tipoDocumento,
-              g.iva > 0 ? g.neto : null,
-              g.iva > 0 ? g.iva : null,
-              tratamiento.afecto === null ? g.iva > 0 : undefined,
-            );
+        try {
+          // Misma puerta que usan el preview de Odoo y la planilla: lo que se ve
+          // acá es exactamente lo que se exporta y lo que se carga.
+          const d = desgloseDeGasto(g);
+          if (d) {
             neto = d.neto;
             iva = d.iva;
             advertencias.push(...d.advertencias);
-          } catch (e) {
-            advertencias.push(e instanceof Error ? e.message : "No se pudo calcular el IVA.");
           }
+        } catch (e) {
+          advertencias.push(e instanceof Error ? e.message : "No se pudo calcular el IVA.");
         }
 
         return { gasto: g, neto, iva, advertencias };

@@ -4,7 +4,7 @@
 // Sin "server-only": la UI las usa para mostrar el desglose en vivo mientras el
 // rendidor corrige, con exactamente el mismo resultado que al cargar a Odoo.
 
-import { TRATAMIENTO_DOCUMENTO, type TipoDocumento } from "./tipos";
+import { TRATAMIENTO_DOCUMENTO, type GastoRendicion, type TipoDocumento } from "./tipos";
 
 // El impuesto IVA 19% de compra depende de la EMPRESA: el id 2 pertenece a la
 // company 1 (PERFORMANCE TECHNOLOGIES SPA). Para PERFORMANCE SERVICE SPA
@@ -138,6 +138,41 @@ export function calcularDesglose(
   // que el neto se saca hacia atrás. Nunca hacia arriba, o se infla la rendición.
   const neto = Math.round(total / 1.19);
   return { neto, iva: total - neto, total, afecto: true, advertencias };
+}
+
+/**
+ * El desglose de un gasto de la rendición, con los argumentos ya armados.
+ *
+ * ÚNICA puerta de entrada a calcularDesglose desde la aplicación. Existe porque
+ * las tres piezas que necesitan el desglose —la tabla de revisión, el preview de
+ * Odoo y la planilla Excel— repetían este mismo armado, y una se quedó atrás: la
+ * planilla escribía `gasto.neto` y `gasto.iva` crudos, que en el caso normal (una
+ * boleta que no desglosa nada) son 0. El resultado era un resumen tributario en
+ * cero y toda la rendición contada como exenta.
+ *
+ * Devuelve null si todavía no hay con qué calcular (sin tipo de documento o sin
+ * total), que es el estado normal de una fila recién leída y a medio corregir.
+ * Puede lanzar si el tipo no define la afectación por sí solo; quien llama decide
+ * si eso es un error o una advertencia en pantalla.
+ */
+export function desgloseDeGasto(
+  gasto: Pick<GastoRendicion, "total" | "tipoDocumento" | "neto" | "iva">,
+): DesgloseIva | null {
+  if (!gasto.tipoDocumento || gasto.total <= 0) return null;
+
+  const tratamiento = TRATAMIENTO_DOCUMENTO[gasto.tipoDocumento];
+  // Un IVA en 0 se trata como "el documento no lo desglosa", no como "el IVA es
+  // cero": esa es la diferencia entre aplicar el default del tipo y darlo por
+  // exento.
+  const traeIva = gasto.iva > 0;
+
+  return calcularDesglose(
+    gasto.total,
+    gasto.tipoDocumento,
+    traeIva ? gasto.neto : null,
+    traeIva ? gasto.iva : null,
+    tratamiento.afecto === null ? traeIva : undefined,
+  );
 }
 
 /**
