@@ -71,6 +71,9 @@ export interface DatosNuevaRendicion {
   montoAsignado: number;
   tituloRendicion: string;
   empresaCompanyId: number;
+  // El empleado de Odoo se elige desde el inicio, asi que la carga a Odoo ya no
+  // depende de que el nombre escrito a mano coincida con el de la ficha.
+  odooEmployeeId: number;
 }
 
 /** PASO 0 de la skill: los 3 datos iniciales, antes de analizar nada. */
@@ -85,6 +88,7 @@ export async function crearRendicion(
       monto_asignado: datos.montoAsignado,
       titulo_rendicion: datos.tituloRendicion.trim(),
       empresa_company_id: datos.empresaCompanyId,
+      odoo_employee_id: datos.odooEmployeeId,
       creado_por: usuarioId,
       gastos: [],
     })

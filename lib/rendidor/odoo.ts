@@ -15,16 +15,58 @@ export interface EmpleadoOdoo {
   id: number;
   name: string;
   department_id: [number, string] | false;
+  // Solo lo trae la busqueda por correo; en las demas viene undefined.
+  work_email?: string | false;
 }
+
+// Campos que se piden en TODAS las consultas de empleado. work_email queda
+// deliberadamente fuera: es estandar de hr.employee, pero si en esta instancia
+// estuviera renombrado o quitado, pedirlo acá tumbaria tambien la busqueda por
+// nombre y la lectura por id, que son las dos que no pueden fallar.
+const CAMPOS_EMPLEADO = ["id", "name", "department_id"];
 
 /** 8.1 — Buscar al empleado. Nunca se adivina: si hay 0 o varios, decide quien rinde. */
 export async function buscarEmpleados(nombre: string): Promise<EmpleadoOdoo[]> {
   return odooSearchRead<EmpleadoOdoo>(
     "hr.employee",
     [["name", "ilike", nombre]],
-    ["id", "name", "department_id"],
+    CAMPOS_EMPLEADO,
     { limit: 20 },
   );
+}
+
+/**
+ * El empleado de Odoo del usuario logueado, buscado por su correo corporativo.
+ *
+ * Es el camino preferido para saber quien rinde: el correo es unico y lo
+ * administra RRHH, a diferencia del nombre escrito a mano, que basta que tenga
+ * una tilde de diferencia para no encontrar a nadie.
+ *
+ * Es un ATAJO, no un requisito: quien llama tiene que tolerar el null (y el
+ * throw, si work_email no existiera en la instancia) y caer a la busqueda por
+ * nombre.
+ */
+export async function buscarEmpleadoPorCorreo(correo: string): Promise<EmpleadoOdoo | null> {
+  if (!correo.trim()) return null;
+  const filas = await odooSearchRead<EmpleadoOdoo>(
+    "hr.employee",
+    [["work_email", "=ilike", correo.trim()]],
+    [...CAMPOS_EMPLEADO, "work_email"],
+    { limit: 2 },
+  );
+  // Con dos coincidencias no se elige por nosotros: que lo resuelva el selector.
+  return filas.length === 1 ? filas[0] : null;
+}
+
+/** Lee un empleado por id. Se usa para tomar el nombre canonico desde Odoo. */
+export async function obtenerEmpleado(id: number): Promise<EmpleadoOdoo | null> {
+  const filas = await odooSearchRead<EmpleadoOdoo>(
+    "hr.employee",
+    [["id", "=", id]],
+    CAMPOS_EMPLEADO,
+    { limit: 1 },
+  );
+  return filas[0] ?? null;
 }
 
 export interface ProveedorOdoo {

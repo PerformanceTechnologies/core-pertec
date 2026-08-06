@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { listarRendiciones } from "@/lib/rendidor/datos";
+import { buscarEmpleadoPorCorreo } from "@/lib/rendidor/odoo";
+import SelectorEmpleado from "@/components/rendidor/SelectorEmpleado";
 import { crearRendicionAction } from "./acciones";
 
 const SLUG_APP = "rendir-gastos";
@@ -12,7 +14,17 @@ const money = (n: number) =>
 
 export default async function RendirGastosPage() {
   const usuario = await exigirAccesoApp(SLUG_APP);
-  const rendiciones = await listarRendiciones(usuario.id);
+
+  // La ficha de empleado se busca por el correo del usuario logueado, que es
+  // único y lo administra RRHH. Si Odoo no responde no se cae la página: el
+  // selector queda en modo búsqueda por nombre.
+  const [rendiciones, empleado] = await Promise.all([
+    listarRendiciones(usuario.id),
+    buscarEmpleadoPorCorreo(usuario.correo).catch((e) => {
+      console.error("[rendidor] No se pudo buscar el empleado por correo:", e);
+      return null;
+    }),
+  ]);
 
   const faltaApiKey = !process.env.ANTHROPIC_API_KEY;
 
@@ -48,20 +60,7 @@ export default async function RendirGastosPage() {
               className="mt-1 w-full rounded-md border border-borde bg-white px-2.5 py-1.5 text-sm"
             />
           </div>
-          <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
-              Nombre de quien rinde
-            </label>
-            <input
-              name="nombreQuienRinde"
-              required
-              defaultValue={usuario.nombre ?? ""}
-              className="mt-1 w-full rounded-md border border-borde bg-white px-2.5 py-1.5 text-sm"
-            />
-            <p className="mt-1 text-[10px] text-tinta/40">
-              Tiene que coincidir con el empleado en Odoo.
-            </p>
-          </div>
+          <SelectorEmpleado inicial={empleado} />
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
               Monto asignado (CLP)

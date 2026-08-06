@@ -866,30 +866,40 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
               Empleado en Odoo
             </label>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={buscarEmpleado}
-                disabled={buscandoEmpleado}
-                className="rounded-md border border-borde bg-white px-3 py-1.5 text-xs font-medium text-tinta hover:border-naranjo/50 disabled:opacity-40"
-              >
-                {buscandoEmpleado ? "Buscando..." : `Buscar "${rendicion.nombreQuienRinde}"`}
-              </button>
-              {empleados.length > 0 && (
-                <select
-                  value={employeeId ?? ""}
-                  onChange={(e) => setEmployeeId(Number(e.target.value) || null)}
-                  className="rounded border border-borde bg-white px-2 py-1.5 text-xs"
+            {/* El empleado se elige al crear la rendición, así que acá ya viene
+                resuelto. El buscador queda solo para las rendiciones anteriores
+                a ese cambio, que se guardaron con el nombre a mano. */}
+            {employeeId && empleados.length === 0 ? (
+              <p className="mt-1 text-sm text-tinta">
+                {rendicion.nombreQuienRinde}{" "}
+                <span className="text-xs text-tinta/50">· Odoo #{employeeId}</span>
+              </p>
+            ) : (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={buscarEmpleado}
+                  disabled={buscandoEmpleado}
+                  className="rounded-md border border-borde bg-white px-3 py-1.5 text-xs font-medium text-tinta hover:border-naranjo/50 disabled:opacity-40"
                 >
-                  <option value="">— elegir empleado —</option>
-                  {empleados.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name} (id {e.id})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
+                  {buscandoEmpleado ? "Buscando..." : `Buscar "${rendicion.nombreQuienRinde}"`}
+                </button>
+                {empleados.length > 0 && (
+                  <select
+                    value={employeeId ?? ""}
+                    onChange={(e) => setEmployeeId(Number(e.target.value) || null)}
+                    className="rounded border border-borde bg-white px-2 py-1.5 text-xs"
+                  >
+                    <option value="">— elegir empleado —</option>
+                    {empleados.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} (id {e.id})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
           </div>
 
           <p className="mt-4 text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
