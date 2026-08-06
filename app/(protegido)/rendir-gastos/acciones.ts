@@ -48,13 +48,41 @@ export async function crearRendicionAction(form: FormData) {
   redirect(`/rendir-gastos/${rendicion.id}`);
 }
 
-export async function eliminarRendicionAction(id: string) {
+export type ResultadoBorrado = { ok: true } | { ok: false; error: string };
+
+/**
+ * Borra una rendición. SOLO en borrador.
+ *
+ * La restricción de estado no es cosmética: una rendición cargada guarda el
+ * `odooExpenseId` de cada gasto, y esa es la única traza local de qué
+ * hr.expense se crearon. Borrarla deja esos gastos vivos en Odoo sin forma de
+ * saber de dónde vinieron — y el wrapper de Odoo del core es create-only, así
+ * que tampoco se pueden deshacer desde acá.
+ *
+ * Devuelve el resultado en vez de lanzar: una excepción en una Server Action
+ * llega al cliente como un digest opaco, y acá el motivo del rechazo es
+ * justamente lo que hay que mostrarle a quien rinde.
+ */
+export async function eliminarRendicionAction(id: string): Promise<ResultadoBorrado> {
   const usuario = await exigirAccesoApp(SLUG_APP);
+
   const rendicion = await obtenerRendicion(id);
-  if (!rendicion) return;
+  // Ya no existe: se trata como éxito para que un doble clic no muestre un
+  // error sobre algo que efectivamente está borrado.
+  if (!rendicion) return { ok: true };
+
   if (rendicion.creadoPor !== usuario.id && usuario.rol !== "admin") {
-    throw new Error("No autorizado");
+    return { ok: false, error: "No podés borrar una rendición de otra persona." };
   }
+  if (rendicion.estado !== "borrador") {
+    return {
+      ok: false,
+      error:
+        "Esta rendición ya se cargó a Odoo y no se puede borrar: es la única traza de qué gastos se crearon allá.",
+    };
+  }
+
   await eliminarRendicion(id);
   revalidatePath("/rendir-gastos");
+  return { ok: true };
 }

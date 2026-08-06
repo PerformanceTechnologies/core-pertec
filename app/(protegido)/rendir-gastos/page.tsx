@@ -4,7 +4,8 @@ import { exigirAccesoApp } from "@/lib/autorizacion";
 import { listarRendiciones } from "@/lib/rendidor/datos";
 import { buscarEmpleadoPorCorreo } from "@/lib/rendidor/odoo";
 import SelectorEmpleado from "@/components/rendidor/SelectorEmpleado";
-import { crearRendicionAction } from "./acciones";
+import BotonBorrarRendicion from "@/components/rendidor/BotonBorrarRendicion";
+import { crearRendicionAction, eliminarRendicionAction } from "./acciones";
 
 const SLUG_APP = "rendir-gastos";
 
@@ -131,36 +132,46 @@ export default async function RendirGastosPage() {
           <p className="text-sm text-tinta/50">Todavía no tenés rendiciones.</p>
         ) : (
           <div className="space-y-2">
-            {rendiciones.map((r) => {
-              return (
-                <Link
-                  key={r.id}
-                  href={`/rendir-gastos/${r.id}`}
-                  className="block rounded-xl border border-borde bg-white px-4 py-3 shadow-sm transition hover:border-naranjo/40"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-condensed text-sm font-bold uppercase tracking-wide text-tinta">
-                        {r.tituloRendicion}
-                      </p>
-                      <p className="mt-0.5 text-xs text-tinta/50">
-                        {r.nombreQuienRinde} · {r.cantidadGastos} comprobante(s) ·{" "}
-                        {money(r.totalGastos)}
-                      </p>
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                        r.estado === "cargada_odoo"
-                          ? "bg-teal/10 text-teal"
-                          : "bg-naranjo/10 text-naranjo"
-                      }`}
-                    >
-                      {r.estado === "cargada_odoo" ? "Cargada a Odoo" : "Borrador"}
-                    </span>
-                  </div>
+            {/* La tarjeta ya no es un <Link> completo: un <button> dentro de un
+                <a> es HTML inválido (y el clic quedaría ambiguo). El enlace
+                cubre el área de texto y el botón de borrar es su hermano. */}
+            {rendiciones.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-borde bg-white px-4 py-3 shadow-sm transition focus-within:border-naranjo/40 hover:border-naranjo/40"
+              >
+                <Link href={`/rendir-gastos/${r.id}`} className="min-w-0 flex-1 rounded">
+                  <p className="truncate font-condensed text-sm font-bold uppercase tracking-wide text-tinta">
+                    {r.tituloRendicion}
+                  </p>
+                  <p className="mt-0.5 text-xs text-tinta/50">
+                    {r.nombreQuienRinde} · {r.cantidadGastos} comprobante(s) ·{" "}
+                    {money(r.totalGastos)}
+                  </p>
                 </Link>
-              );
-            })}
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                      r.estado === "cargada_odoo"
+                        ? "bg-teal/10 text-teal"
+                        : "bg-naranjo/10 text-naranjo"
+                    }`}
+                  >
+                    {r.estado === "cargada_odoo" ? "Cargada a Odoo" : "Borrador"}
+                  </span>
+                  {/* Solo en borrador. Una rendición cargada guarda los ids de
+                      hr.expense y es la única traza de qué se creó en Odoo. */}
+                  {r.estado === "borrador" && (
+                    <BotonBorrarRendicion
+                      id={r.id}
+                      titulo={r.tituloRendicion}
+                      borrar={eliminarRendicionAction}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
