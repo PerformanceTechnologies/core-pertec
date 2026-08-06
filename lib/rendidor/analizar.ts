@@ -135,9 +135,20 @@ Extrae los datos del comprobante adjunto. Reglas que no puedes romper:
 1. **El TOTAL es el TOTAL A PAGAR impreso.** Nunca el neto, nunca el subtotal. Si el documento
    muestra "Subtotal", "Neto", "IVA" y "Total", el que va en \`total\` es el Total.
 
-2. **No calcules el neto ni el IVA.** Solo llénalos si el documento los desglosa explícitamente
-   (una línea que diga Neto/Afecto y otra que diga IVA). Si el documento no los desglosa —el caso
-   típico de una boleta de consumo— deja ambos en null. El desglose se calcula después, fuera de aquí.
+2. **No calcules el neto ni el IVA: solo copiá lo que el documento diga.** Hay tres situaciones y la
+   diferencia entre ellas es lo más importante de este paso, porque decide el tratamiento tributario:
+
+   a. **El documento desglosa** (una línea "Neto"/"Afecto"/"Subtotal" y otra "IVA"): copiá los dos
+      montos tal como están impresos.
+   b. **El documento declara un monto exento o no afecto** ("VALOR EXENTO", "MONTO EXENTO", "TOTAL
+      EXENTO", "EXENTO", "NO AFECTO", o el recuadro "FACTURA NO AFECTA O EXENTA"): poné ese monto en
+      \`neto\` y **\`iva\` en 0**. Cero, no null — que el documento diga que no hay IVA es un dato, y
+      es distinto de no decir nada.
+   c. **El documento no dice nada** —el caso típico de una boleta de consumo, que muestra solo el
+      total— - dejá **los dos en null**. Null significa "el documento no lo declara", y recién ahí el
+      desglose se calcula después con las reglas de la casa.
+
+   No mezcles null con 0: null es silencio del documento, 0 es el documento afirmando que no hay IVA.
 
 3. **No inventes nada.** Si un campo es ilegible, déjalo en null y agrega su nombre a \`ilegibles\`.
    Es mucho mejor que alguien lo complete a mano que una cifra inventada en una rendición.

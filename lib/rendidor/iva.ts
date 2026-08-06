@@ -84,13 +84,29 @@ export function calcularDesglose(
 
   if (traeDesglose) {
     // Un desglose con IVA > 0 prueba que el documento es afecto, aunque la
-    // tabla dijera lo contrario (y viceversa).
+    // tabla dijera lo contrario. Y un IVA en 0 —una línea "VALOR EXENTO" / "NO
+    // AFECTO"— prueba lo inverso: es la regla 1 de la skill, el documento manda.
     const afectoSegunDocumento = ivaLeido > 0;
+
     if (afectoSegunDocumento !== afecto) {
+      // Única excepción: los tipos donde el criterio de la casa reconoce el IVA
+      // pase lo que diga el documento. Un pasaje aéreo viene en factura exenta y
+      // aun así se le reconoce el IVA incluido, así que la leyenda no lo puede
+      // dejar sin IVA — se avisa y se sigue con el criterio de la casa.
+      if (!afectoSegunDocumento && tratamiento.ivaSiempre) {
+        advertencias.push(
+          `El comprobante se declara exento, pero un ${tratamiento.etiqueta.toLowerCase()} se reconoce ` +
+            "afecto igual: el IVA se calcula desde el total impreso.",
+        );
+        // El desglose leído no sirve: el IVA se saca del total más abajo.
+        const neto = Math.round(total / 1.19);
+        return { neto, iva: total - neto, total, afecto: true, advertencias };
+      }
+
       advertencias.push(
         afectoSegunDocumento
           ? "El comprobante desglosa IVA pero el tipo de documento se trata como exento por defecto: se respeta el documento."
-          : "El comprobante no desglosa IVA pero el tipo se trata como afecto por defecto: se respeta el documento.",
+          : "El comprobante se declara exento o no afecto, aunque el tipo se trate como afecto por defecto: se respeta el documento.",
       );
       afecto = afectoSegunDocumento;
     }
@@ -149,22 +165,28 @@ export function calcularDesglose(
  * si eso es un error o una advertencia en pantalla.
  */
 export function desgloseDeGasto(
-  gasto: Pick<GastoRendicion, "total" | "tipoDocumento" | "neto" | "iva">,
+  gasto: Pick<GastoRendicion, "total" | "tipoDocumento" | "neto" | "iva" | "ivaDesglosado">,
 ): DesgloseIva | null {
   if (!gasto.tipoDocumento || gasto.total <= 0) return null;
 
   const tratamiento = TRATAMIENTO_DOCUMENTO[gasto.tipoDocumento];
-  // Un IVA en 0 se trata como "el documento no lo desglosa", no como "el IVA es
-  // cero": esa es la diferencia entre aplicar el default del tipo y darlo por
-  // exento.
-  const traeIva = gasto.iva > 0;
+
+  // ¿El DOCUMENTO declaró el desglose? Es la pregunta que activa la regla 1, y
+  // no es lo mismo que "el IVA es mayor que cero": un comprobante con una línea
+  // "VALOR EXENTO" declara un desglose cuyo IVA es 0, y eso es evidencia de que
+  // es exento — muy distinto de una boleta que no dice nada, donde recién ahí se
+  // aplica el default del tipo.
+  //
+  // Los gastos guardados antes de que existiera la bandera caen al criterio
+  // viejo, que es lo mejor que se puede inferir de un iva sin contexto.
+  const traeDesglose = gasto.ivaDesglosado ?? gasto.iva > 0;
 
   return calcularDesglose(
     gasto.total,
     gasto.tipoDocumento,
-    traeIva ? gasto.neto : null,
-    traeIva ? gasto.iva : null,
-    tratamiento.afecto === null ? traeIva : undefined,
+    traeDesglose ? gasto.neto : null,
+    traeDesglose ? gasto.iva : null,
+    tratamiento.afecto === null ? gasto.iva > 0 : undefined,
   );
 }
 

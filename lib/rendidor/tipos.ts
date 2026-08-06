@@ -49,9 +49,15 @@ export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
 // Vale para el pasaje aereo igual que para una boleta de consumo, aunque LATAM lo
 // emita como "factura no afecta o exenta": el criterio de PERTEC es reconocer el
 // IVA que ya viene dentro del monto.
+// `ivaSiempre` es la unica excepcion a la regla 1 de la skill ("el documento
+// impreso siempre manda"): marca los tipos donde el criterio de la casa reconoce
+// el IVA aunque el documento se declare exento. Hoy solo el pasaje aereo, porque
+// LATAM los emite como "factura no afecta o exenta" y PERTEC igual reconoce el
+// IVA incluido. Sin esta excepcion, leer bien la leyenda de exento haria que el
+// pasaje quedara sin IVA, que es justo lo contrario de lo que se decidio.
 export const TRATAMIENTO_DOCUMENTO: Record<
   TipoDocumento,
-  { etiqueta: string; afecto: boolean | null; nota?: string }
+  { etiqueta: string; afecto: boolean | null; ivaSiempre?: boolean; nota?: string }
 > = {
   factura_electronica: { etiqueta: "Factura Electrónica", afecto: true },
   factura_exenta_no_afecta: { etiqueta: "Factura Exenta / No Afecta", afecto: false },
@@ -70,7 +76,8 @@ export const TRATAMIENTO_DOCUMENTO: Record<
   pasaje_aereo: {
     etiqueta: "Pasaje Aéreo",
     afecto: true,
-    nota: "Siempre afecto al 19%, ya incluido en el total impreso",
+    ivaSiempre: true,
+    nota: "Siempre afecto al 19%, ya incluido en el total impreso, aunque el documento diga exento",
   },
   pasaje_terrestre: {
     etiqueta: "Pasaje Terrestre",
@@ -124,6 +131,21 @@ export interface GastoRendicion {
   neto: number;
   iva: number;
   total: number;
+  /**
+   * El DOCUMENTO declaró el desglose, sea con neto + IVA o con una línea de monto
+   * exento. Es lo que activa la regla 1 de la skill ("el documento impreso siempre
+   * manda").
+   *
+   * Existe porque `neto` e `iva` son numeros y no pueden guardar la diferencia
+   * entre "el documento dice que el IVA es 0" y "el documento no dice nada": las
+   * dos cosas terminaban en 0 y se trataban igual. El modelo SI distingue —
+   * devuelve null cuando el documento calla— y esta bandera es lo que salva esa
+   * distincion al guardar el gasto.
+   *
+   * Opcional: los gastos guardados antes de que existiera caen al criterio viejo
+   * (iva > 0).
+   */
+  ivaDesglosado?: boolean;
   // Marca los campos que el modelo no pudo leer y que hay que confirmar a mano
   // antes de cargar. La skill es explícita: no inventar datos ilegibles.
   pendientes: string[];

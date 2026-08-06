@@ -379,6 +379,11 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
         categoria: l.categoria,
         neto: l.neto ?? 0,
         iva: l.iva ?? 0,
+        // AQUÍ se salva la distinción que los números no pueden guardar: el
+        // modelo devuelve null cuando el documento no declara nada, y 0 cuando el
+        // documento afirma que no hay IVA (línea "VALOR EXENTO"). Al pasar a
+        // number las dos cosas caían en 0 y quedaban indistinguibles.
+        ivaDesglosado: l.neto !== null && l.iva !== null,
         total: l.total ?? 0,
         pendientes: l.ilegibles ?? [],
         archivoNombre: archivo.name,
