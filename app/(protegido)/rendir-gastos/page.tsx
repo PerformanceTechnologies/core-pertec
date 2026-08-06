@@ -200,15 +200,17 @@ export default async function RendirGastosPage() {
               Cotizador. */}
           <div className="mt-2 overflow-x-auto rounded-2xl border border-borde bg-white shadow-sm">
             <table className="w-full table-fixed text-left text-sm">
+              {/* La última columna es la más ancha porque al confirmar un
+                  borrado se despliega ahí el aviso de los ids de Odoo. */}
               <colgroup>
-                <col style={{ width: 260 }} />
-                <col style={{ width: 150 }} />
+                <col style={{ width: 240 }} />
+                <col style={{ width: 140 }} />
                 <col style={{ width: 110 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 130 }} />
                 <col style={{ width: 130 }} />
                 <col style={{ width: 130 }} />
-                <col style={{ width: 210 }} />
+                <col style={{ width: 240 }} />
               </colgroup>
               <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
                 <tr>
@@ -228,6 +230,10 @@ export default async function RendirGastosPage() {
                   // reembolsarle. Negativo: sobró fondo y lo tiene que devolver.
                   const saldo = r.totalGastos - r.montoAsignado;
                   const cargada = r.estado === "cargada_odoo";
+                  // Una rendición recién creada, sin fondo ni comprobantes, tiene
+                  // saldo 0 — pero pintarlo de verde como "a reembolsar" es ruido:
+                  // todavía no hay nada que devolver ni cobrar.
+                  const saldoVacio = r.totalGastos === 0 && r.montoAsignado === 0;
 
                   return (
                     <tr key={r.id} className="border-b border-borde last:border-0 hover:bg-crema/40">
@@ -251,12 +257,18 @@ export default async function RendirGastosPage() {
                         {money(r.totalGastos)}
                       </td>
                       <td
-                        className={`px-3 py-3 text-right ${saldo >= 0 ? "text-teal" : "text-naranjo"}`}
+                        className={`px-3 py-3 text-right ${
+                          saldoVacio ? "text-tinta/30" : saldo >= 0 ? "text-teal" : "text-naranjo"
+                        }`}
                         title={
-                          saldo >= 0 ? `A reembolsar a ${r.nombreQuienRinde}` : "A reintegrar a la empresa"
+                          saldoVacio
+                            ? "Sin fondo entregado y sin comprobantes todavía"
+                            : saldo >= 0
+                              ? `A reembolsar a ${r.nombreQuienRinde}`
+                              : "A reintegrar a la empresa"
                         }
                       >
-                        {money(Math.abs(saldo))}
+                        {saldoVacio ? "—" : money(Math.abs(saldo))}
                       </td>
                       <td className="px-3 py-3">
                         <span
@@ -267,7 +279,7 @@ export default async function RendirGastosPage() {
                           {cargada ? "Cargada" : "Borrador"}
                         </span>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-3 align-top">
                         {/* También las cargadas. La confirmación avisa que los
                             gastos quedan vivos en Odoo y muestra sus ids. */}
                         <BotonBorrarRendicion
