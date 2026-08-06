@@ -150,6 +150,27 @@ export async function crearProveedor(datos: {
   });
 }
 
+// Tope del nombre del gasto en Odoo. La instruccion al modelo pide una linea
+// corta, pero una instruccion no es una garantia: si se pasa, se corta aca.
+const LARGO_NOMBRE = 80;
+
+/**
+ * Corta en el ultimo espacio antes del tope, no a mitad de palabra.
+ *
+ * El slice crudo dejaba nombres terminados en cosas como "equipaje de ma", que
+ * en una lista de gastos se lee peor que un texto corto y completo.
+ */
+function nombreCorto(detalle: string): string {
+  const limpio = detalle.replace(/\s+/g, " ").trim();
+  if (limpio.length <= LARGO_NOMBRE) return limpio;
+
+  const cortado = limpio.slice(0, LARGO_NOMBRE);
+  const ultimoEspacio = cortado.lastIndexOf(" ");
+  // Si no hay espacios (una sola palabra larguisima) se corta igual: mejor eso
+  // que devolver el texto entero y que Odoo lo muestre como un parrafo.
+  return (ultimoEspacio > LARGO_NOMBRE / 2 ? cortado.slice(0, ultimoEspacio) : cortado).trimEnd() + "…";
+}
+
 export interface PreviewGastoOdoo {
   gastoId: string;
   name: string;
@@ -209,7 +230,7 @@ export function armarPreview(
 
     return {
       gastoId: g.id,
-      name: g.detalle.slice(0, 200),
+      name: nombreCorto(g.detalle),
       date: g.fecha,
       total: desglose.total,
       neto: desglose.neto,

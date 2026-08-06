@@ -74,7 +74,10 @@ const ESQUEMA = {
     detalle: {
       type: "string",
       description:
-        "Descripción del gasto. Incluir litros si es combustible, cantidad de personas si es alimentación, tramo y horario si es transporte.",
+        "Descripción CORTA del gasto: una línea, idealmente menos de 60 caracteres. Es la que va como " +
+        "nombre del gasto en Odoo. Un dato concreto y nada más (litros si es combustible, personas si " +
+        'es alimentación, tramo si es transporte). Ej: "Combustible 42,5 L", "Almuerzo 3 personas", ' +
+        '"Pasaje SCL-CJC". NO enumerar las líneas del documento.',
     },
     categoria: {
       anyOf: [{ type: "string", enum: [...CATEGORIAS_GASTO] }, { type: "null" }],
@@ -155,8 +158,14 @@ Extrae los datos del comprobante adjunto. Reglas que no puedes romper:
    - \`gasto_sin_respaldo_excepcional\`: solo si no hay comprobante real
    Si no puedes determinarlo con certeza, deja \`tipoDocumento\` en null y agrégalo a \`ilegibles\`.
 
-5. **El detalle tiene que ser útil para el contador.** Incluye litros si es combustible, cuántas
-   personas si es alimentación, el tramo si es transporte.`;
+5. **El detalle va CORTO: una línea, idealmente menos de 60 caracteres.** Es el nombre con el que
+   el gasto queda en Odoo, así que tiene que leerse de un vistazo en una lista.
+   Un dato concreto y nada más: litros si es combustible, cuántas personas si es alimentación, el
+   tramo si es transporte.
+   Así sí: "Combustible 42,5 L" · "Almuerzo 3 personas" · "Pasaje SCL-CJC" · "Peaje Ruta 5 Norte"
+   Así no: enumerar las líneas del documento ("vuelo, tasas y/o impuestos, equipaje de mano 12KG
+   x2, LATAM Flex 0 horas"), ni repetir el proveedor o el tipo de documento — esos ya van en sus
+   propios campos.`;
 
 type MediaTypeImagen = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
