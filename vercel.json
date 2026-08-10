@@ -18,7 +18,19 @@
     },
     {
       "path": "/api/cron/resumen-diario",
-      "schedule": "30 10-19 * * 1-5"
+      "schedule": "30 11 * * 1-5"
+    },
+    {
+      "path": "/api/cron/resumen-diario",
+      "schedule": "30 13 * * 1-5"
+    },
+    {
+      "path": "/api/cron/resumen-diario",
+      "schedule": "30 15 * * 1-5"
+    },
+    {
+      "path": "/api/cron/resumen-diario",
+      "schedule": "30 17 * * 1-5"
     }
   ]
 }

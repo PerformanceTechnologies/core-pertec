@@ -19,11 +19,17 @@ export const SLUG_APP = "mi-dia";
 
 // Ventana horaria local en la que tiene sentido mandar un resumen de la mañana.
 //
-// El cron está agendado cada hora, no dos veces: así, si alguien recién queda
-// habilitado a media mañana —le asignaron la app, o guardó su credencial al
-// iniciar sesión— recibe su resumen ese mismo día en vez de esperar al siguiente.
-// El reenvío lo impide enviado_en, así que las corridas de más no mandan nada dos
-// veces: son dos consultas y siguen de largo.
+// El cron está agendado VARIAS veces al día (ver vercel.json): así, si alguien
+// recién queda habilitado a media mañana —le asignaron la app, o guardó su
+// credencial al iniciar sesión— recibe su resumen ese mismo día en vez de esperar
+// al siguiente. El reenvío lo impide enviado_en, así que las corridas de más no
+// mandan nada dos veces: son dos consultas y siguen de largo.
+//
+// Son entradas separadas y no un rango horario ("30 10-19 * * 1-5") porque el plan
+// Hobby de Vercel exige que cada expresión corra como máximo una vez al día: un
+// rango hace FALLAR EL DEPLOY, no la ejecución. Y su precisión es por hora (±59
+// min), así que la hora exacta de cada corrida es aproximada — otra razón para que
+// la decisión de mandar o no dependa de esta ventana y no del horario agendado.
 //
 // El tope de las 15:00 es a propósito: un "resumen de la mañana" que llega a las
 // siete de la tarde ya no sirve de nada, y es mejor que le llegue mañana temprano.
