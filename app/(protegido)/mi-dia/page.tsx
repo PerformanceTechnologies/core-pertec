@@ -367,11 +367,10 @@ async function ResumenDelDia({ usuario }: { usuario: UsuarioConAcceso }) {
           nunca le llegó nada. */}
       {estado.estado === "ok" && !credencialGuardada && (
         <p className="mt-6 max-w-[80ch] rounded-lg border-l-[3px] border-naranjo bg-naranjo/[0.06] px-4 py-3 text-xs text-pretty text-naranjo">
-          El resumen se muestra aquí, pero el <strong>envío automático de la mañana no está activo</strong>:
-          no hay credencial guardada para tu cuenta. Suele ser que falta{" "}
-          <code className="font-mono">TOKEN_CIFRADO_KEY</code> en el entorno, o que no se ha vuelto a iniciar
-          sesión después de configurarla. En los logs del servidor aparece como{" "}
-          <code className="font-mono">[auth] No se pudo guardar el refresh token</code>.
+          El resumen se muestra aquí, pero el{" "}
+          <strong>envío automático de la mañana todavía no está activo</strong> para tu cuenta. Se activa solo
+          la próxima vez que inicies sesión en el core; no tienes que hacer nada más. Si mañana no te llega,
+          avísale a TI: puede faltar una variable de entorno del servidor.
         </p>
       )}
 

@@ -17,8 +17,18 @@ export const maxDuration = 300;
 
 export const SLUG_APP = "mi-dia";
 
-// Antes de esta hora local el disparo se descarta (ver el comentario en GET).
+// Ventana horaria local en la que tiene sentido mandar un resumen de la mañana.
+//
+// El cron está agendado cada hora, no dos veces: así, si alguien recién queda
+// habilitado a media mañana —le asignaron la app, o guardó su credencial al
+// iniciar sesión— recibe su resumen ese mismo día en vez de esperar al siguiente.
+// El reenvío lo impide enviado_en, así que las corridas de más no mandan nada dos
+// veces: son dos consultas y siguen de largo.
+//
+// El tope de las 15:00 es a propósito: un "resumen de la mañana" que llega a las
+// siete de la tarde ya no sirve de nada, y es mejor que le llegue mañana temprano.
 const HORA_MINIMA_CHILE = 7;
+const HORA_MAXIMA_CHILE = 15;
 
 // Mismo patrón que los demás cron del repo: Vercel manda
 // "Authorization: Bearer <CRON_SECRET>". También sirve para invocarlo a mano y
@@ -55,19 +65,21 @@ export async function GET(request: NextRequest) {
   }
 
   // Chile cambia de huso dos veces al año y los crons de Vercel corren en UTC
-  // fijo: por eso hay DOS disparos agendados (10:30 y 11:30 UTC) y acá se
-  // descarta el que en Chile todavía es de madrugada. El que sí corresponde
-  // manda, y el otro no hace nada porque enviado_en ya quedó marcado.
+  // fijo, así que ninguna hora UTC es "las 7:30 de Chile" todo el año. Por eso el
+  // cron se dispara cada hora y acá se descartan las que localmente no
+  // corresponden, en vez de intentar calzar una hora exacta.
   //
   // Invocado a mano (sin el header de Vercel no se llega hasta acá, pero con el
   // CRON_SECRET sí), `?ahora=1` saltea la guarda para poder probar a cualquier
   // hora.
   const hora = horaEnSantiago();
   const forzarHora = request.nextUrl.searchParams.get("ahora") === "1";
-  if (!forzarHora && hora < HORA_MINIMA_CHILE) {
+  if (!forzarHora && (hora < HORA_MINIMA_CHILE || hora >= HORA_MAXIMA_CHILE)) {
     return NextResponse.json({
       ok: true,
-      omitido: `En Chile son las ${hora}:00, todavía es temprano. Manda el disparo de la hora siguiente.`,
+      omitido:
+        `En Chile son las ${hora}:00, fuera de la ventana de ${HORA_MINIMA_CHILE} a ` +
+        `${HORA_MAXIMA_CHILE}. No se manda nada.`,
     });
   }
 
