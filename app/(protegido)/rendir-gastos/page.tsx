@@ -59,51 +59,55 @@ export default async function RendirGastosPage() {
   const montoBorradores = borradores.reduce((a, r) => a + r.totalGastos, 0);
 
   return (
-    <div>
+    // El <main> del core no tiene tope de ancho y en un monitor de 1900px la
+    // prosa se estiraba a todo lo largo.
+    <div className="max-w-[1500px]">
       <span className="etiqueta-seccion">Rendir Gastos</span>
-      <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">Mis rendiciones</h1>
-      <p className="mt-1 max-w-2xl text-sm text-tinta/60">
-        Subí las boletas y facturas, revisá lo que se leyó de cada una, y cargalas a Odoo con el proveedor, el
+      <h1 className="mt-2 font-condensed text-3xl font-bold uppercase leading-none tracking-tight text-tinta sm:text-4xl">
+        Mis rendiciones
+      </h1>
+      <p className="mt-3 max-w-[62ch] text-[15px] text-pretty text-tinta/60">
+        Sube las boletas y facturas, revisa lo que se leyó de cada una, y cárgalas a Odoo con el proveedor, el
         tipo de documento y el IVA correctos.
       </p>
 
       {faltaApiKey && (
-        <div className="mt-4 rounded-lg border border-naranjo/25 bg-naranjo/5 px-3 py-2 text-xs text-naranjo">
+        <p className="mt-5 max-w-[80ch] rounded-lg border-l-[3px] border-naranjo bg-naranjo/[0.06] px-4 py-3 text-xs text-pretty text-naranjo">
           Falta configurar <code className="font-mono">ANTHROPIC_API_KEY</code> en el entorno. Sin eso los
           comprobantes no se pueden leer automáticamente — se pueden cargar a mano igual.
-        </div>
+        </p>
       )}
 
       {/* La paleta es la del Cotizador —los mismos tintes naranjo / gris / teal
           sobre crema— pero la forma no: en vez de tres tarjetas sueltas es UNA
           cinta de cuatro segmentos separados por el borde de la grilla. Ocupa
           menos alto y deja la lista más arriba, que es a lo que se entra. */}
-      <dl className="mt-6 grid grid-cols-2 overflow-hidden rounded-xl border border-borde sm:grid-cols-4">
+      <dl className="mt-8 grid grid-cols-2 overflow-hidden rounded-2xl border border-borde sm:grid-cols-4">
         <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Total rendido</dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">
+          <dt className="text-xs font-medium text-tinta/55">Total rendido</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums sm:text-3xl text-tinta">
             {money(totalRendido)}
           </dd>
         </div>
         <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Sin cargar a Odoo</dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-naranjo">
+          <dt className="text-xs font-medium text-tinta/55">Sin cargar a Odoo</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums sm:text-3xl text-naranjo">
             {money(montoBorradores)}
           </dd>
-          <dd className="text-[11px] text-tinta/45">
+          <dd className="mt-1.5 text-[11px] text-tinta/45">
             en {borradores.length} borrador{borradores.length === 1 ? "" : "es"}
           </dd>
         </div>
         <div className="border-borde bg-teal/[0.06] px-5 py-4 sm:border-r">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Cargadas</dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-teal">
+          <dt className="text-xs font-medium text-tinta/55">Cargadas</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums sm:text-3xl text-teal">
             {cargadas.length}
             <span className="text-base text-tinta/30"> / {rendiciones.length}</span>
           </dd>
         </div>
         <div className="bg-gris/[0.08] px-5 py-4">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Comprobantes</dt>
-          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">
+          <dt className="text-xs font-medium text-tinta/55">Comprobantes</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums sm:text-3xl text-tinta">
             {totalComprobantes}
           </dd>
         </div>
@@ -115,19 +119,21 @@ export default async function RendirGastosPage() {
 
           El cuadrado naranjo gira 45 grados al abrirse, así que la cruz pasa a
           ser una equis y el mismo elemento sirve de "abrir" y de "cerrar". */}
-      <details open={rendiciones.length === 0} className="group mt-4">
-        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl border border-borde bg-crema/60 px-4 py-3 transition hover:border-naranjo/50 hover:bg-naranjo/[0.06] group-open:rounded-b-none group-open:border-b-transparent group-open:bg-superficie">
+      <details open={rendiciones.length === 0} className="group mt-6">
+        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-borde bg-crema/60 px-4 py-3.5 transition-colors hover:border-naranjo/50 hover:bg-naranjo/[0.06] group-open:rounded-b-none group-open:border-b-transparent group-open:bg-superficie">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-naranjo text-base font-bold leading-none text-white transition-transform duration-200 group-open:rotate-45">
             +
           </span>
           <span className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
             Nueva rendición
           </span>
-          <span className="ml-auto text-[11px] text-tinta/40 group-open:hidden">
+          {/* El texto de ayuda desaparece en angosto: al lado del título no cabe
+              y bajarlo de línea desalinea el cuadrado del "+". */}
+          <span className="ml-auto hidden text-[11px] text-tinta/40 sm:block group-open:hidden">
             Crear una y empezar a subir comprobantes
           </span>
         </summary>
-        <div className="rounded-b-xl border border-t-0 border-borde bg-superficie px-4 pb-4">
+        <div className="rounded-b-2xl border border-t-0 border-borde bg-superficie px-4 pb-5">
           {/* Los campos ocupan la grilla y la acción vive en su propia fila. El
               botón NO va como una celda más: estaba al lado de Empresa con
               items-end, y se alineaba al borde inferior de una fila cuya altura
@@ -197,8 +203,8 @@ export default async function RendirGastosPage() {
       </details>
 
       {rendiciones.length === 0 ? (
-        <p className="mt-8 rounded-xl border border-dashed border-borde px-4 py-10 text-center text-sm text-tinta/50">
-          Todavía no tenés rendiciones. Empezá arriba con el título, el fondo entregado y la empresa.
+        <p className="mx-auto mt-8 max-w-[52ch] rounded-xl border border-dashed border-borde px-4 py-10 text-center text-sm text-pretty text-tinta/50">
+          Todavía no hay rendiciones. Empieza arriba con el título, el fondo entregado y la empresa.
         </p>
       ) : (
         <ListaRendiciones rendiciones={rendiciones} borrar={eliminarRendicionAction} />

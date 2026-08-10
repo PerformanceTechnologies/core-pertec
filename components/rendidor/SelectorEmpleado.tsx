@@ -56,8 +56,7 @@ export default function SelectorEmpleado({ inicial }: { inicial: EmpleadoOpcion 
     }
   };
 
-  const etiqueta = (e: EmpleadoOpcion) =>
-    e.department_id ? `${e.name} · ${e.department_id[1]}` : e.name;
+  const etiqueta = (e: EmpleadoOpcion) => (e.department_id ? `${e.name} · ${e.department_id[1]}` : e.name);
 
   return (
     <div>

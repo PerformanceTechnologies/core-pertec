@@ -5,20 +5,11 @@ import { obtenerResumenDeHoy } from "@/lib/resumen-diario/datos";
 import { tieneCredencialGuardada } from "@/lib/graph-credenciales";
 import type { ResumenGuardado, Urgencia } from "@/lib/resumen-diario/tipos";
 import type { Dirigido } from "@/lib/graph-correo";
+import { SOMBRA_CALIDA } from "@/lib/estilos";
 
 const SLUG_APP = "mi-dia";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Sombra cálida, no negra.
- *
- * La paleta del core es cálida (crema #faf8f5 sobre tinta #171411) y una sombra
- * de negro puro al 10% encima de ese crema se ve gris sucio. Tintada con el
- * mismo tinta queda como una sombra de verdad. Dos capas: una de contacto de 1px
- * y una difusa y alta, que es lo que da la sensación de una sola fuente de luz.
- */
-const SOMBRA = "shadow-[0_1px_2px_rgba(23,20,17,0.04),0_10px_28px_-14px_rgba(23,20,17,0.12)]";
 
 /**
  * La urgencia, como barra en el borde izquierdo.
@@ -161,7 +152,7 @@ function Fila({
   tenue?: boolean;
 }) {
   const base = `block rounded-lg border px-4 py-3 transition-colors duration-200 ${acento} ${
-    tenue ? "border-dashed border-borde bg-transparent" : `border-borde bg-superficie ${SOMBRA}`
+    tenue ? "border-dashed border-borde bg-transparent" : `border-borde bg-superficie ${SOMBRA_CALIDA}`
   }`;
 
   if (!enlace) return <li className={base}>{children}</li>;
