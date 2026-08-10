@@ -19,8 +19,9 @@ import type { ConteosCorreo, Dirigido } from "@/lib/graph-correo";
  * 1 — primera versión
  * 2 — conteos, temas, enCopia, ventana de 72 h
  * 3 — enlaces a Outlook y registro sin voseo
+ * 4 — datos reales por fila para los popovers de detalle
  */
-export const VERSION_RESUMEN = 3;
+export const VERSION_RESUMEN = 4;
 
 export type Urgencia = "alta" | "media" | "baja";
 
@@ -47,9 +48,28 @@ export interface CorreoDestacadoModelo {
   indice: number;
 }
 
+/**
+ * El correo destacado, ya con los datos reales del mensaje pegados.
+ *
+ * Todo lo de acá abajo sale del mensaje que Graph devolvió, ubicado por el índice
+ * que dio el modelo. No se le piden al modelo por la misma razón que el enlace:
+ * son datos exactos, y un extracto "recordado" por un modelo es un extracto
+ * inventado.
+ *
+ * Alimentan el popover de detalle de cada fila. Quedan en null cuando el índice no
+ * se pudo resolver, y en ese caso la fila simplemente no muestra popover.
+ */
 export interface CorreoDestacado extends Omit<CorreoDestacadoModelo, "indice"> {
-  /** Resuelto por el servidor a partir del índice. Null si no se pudo ubicar. */
   enlace: string | null;
+  /** La dirección, no el nombre para mostrar: es lo que permite reconocer a alguien. */
+  correoDe: string | null;
+  /** Las primeras líneas del cuerpo, tal como las entregó Graph. */
+  extracto: string | null;
+  leido: boolean | null;
+  marcado: boolean | null;
+  tieneAdjuntos: boolean | null;
+  /** Cuántas personas lo recibieron en total. */
+  destinatarios: number | null;
 }
 
 /**
@@ -93,9 +113,15 @@ export interface ReunionResumidaModelo {
   indice: number;
 }
 
+/** Ídem: los campos de abajo salen del evento real, no del modelo. */
 export interface ReunionResumida extends Omit<ReunionResumidaModelo, "indice"> {
-  /** Resuelto por el servidor a partir del índice. Null si no se pudo ubicar. */
   enlace: string | null;
+  /** Hora de término, para poder mostrar la duración. */
+  fin: string | null;
+  lugar: string | null;
+  esTeams: boolean;
+  organizador: string | null;
+  asistentes: string[];
 }
 
 export interface CompromisoAbierto {

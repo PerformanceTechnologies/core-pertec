@@ -132,7 +132,7 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   // Los conteos y los enlaces se pegan acá y no se le piden al modelo: los dos
   // son datos exactos, y eso es justo lo que un modelo hace mal.
   const resumen: ResumenDiario = {
-    ...conEnlaces(delModelo, correos.correos, listaReuniones),
+    ...conDatosReales(delModelo, correos.correos, listaReuniones),
     conteos: correos.conteos,
     reunionesTotales: listaReuniones.length,
     version: VERSION_RESUMEN,
@@ -142,34 +142,52 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
 }
 
 /**
- * Cambia los índices que devolvió el modelo por los enlaces reales a Outlook.
+ * Cambia los índices que devolvió el modelo por los datos reales del mensaje y
+ * del evento: el enlace a Outlook, el extracto del cuerpo, los asistentes.
  *
- * El modelo nunca ve una URL: dice "esto es el correo [7]" y acá se busca el 7 en
- * la lista que se le pasó. Así un índice inventado o fuera de rango termina en un
- * enlace nulo —la fila simplemente no es clickeable— en vez de mandar a la
- * persona a un mensaje equivocado.
+ * El modelo nunca ve una URL ni copia un extracto: dice "esto es el correo [7]" y
+ * acá se busca el 7 en la lista que se le pasó. Así un índice inventado o fuera de
+ * rango termina en campos nulos —la fila no es clickeable y no muestra popover— en
+ * vez de mandar a la persona a un mensaje equivocado o mostrarle un extracto que
+ * el modelo se imaginó.
  *
  * El índice del prompt empieza en 1, de ahí el -1.
  */
-function conEnlaces(
+function conDatosReales(
   delModelo: ResumenModelo,
   correos: CorreoResumen[],
   reuniones: ReunionCalendario[],
 ): Omit<ResumenModelo, "reuniones" | "correosDestacados"> &
   Pick<ResumenDiario, "reuniones" | "correosDestacados"> {
-  const enlaceDe = <T extends { enlace?: string | null }>(lista: T[], indice: number) =>
-    lista[indice - 1]?.enlace ?? null;
-
   return {
     ...delModelo,
-    correosDestacados: delModelo.correosDestacados.map(({ indice, ...resto }) => ({
-      ...resto,
-      enlace: enlaceDe(correos, indice),
-    })),
-    reuniones: delModelo.reuniones.map(({ indice, ...resto }) => ({
-      ...resto,
-      enlace: enlaceDe(reuniones, indice),
-    })),
+    correosDestacados: delModelo.correosDestacados.map(({ indice, ...resto }) => {
+      const real = correos[indice - 1];
+      return {
+        ...resto,
+        enlace: real?.enlace ?? null,
+        correoDe: real?.correoDe || null,
+        extracto: real?.extracto || null,
+        leido: real ? real.leido : null,
+        marcado: real ? real.marcado : null,
+        tieneAdjuntos: real ? real.tieneAdjuntos : null,
+        destinatarios: real ? real.destinatarios : null,
+      };
+    }),
+    reuniones: delModelo.reuniones.map(({ indice, ...resto }) => {
+      const real = reuniones[indice - 1];
+      return {
+        ...resto,
+        enlace: real?.enlace ?? null,
+        fin: real?.fin ?? null,
+        lugar: real?.ubicacion ?? null,
+        esTeams: Boolean(real?.enlaceTeams),
+        organizador: real?.organizador ?? null,
+        // Tope de 12: un "todos los de operaciones" con 40 personas no cabe en un
+        // popover y tampoco informa.
+        asistentes: (real?.asistentes ?? []).slice(0, 12),
+      };
+    }),
   };
 }
 

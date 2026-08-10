@@ -79,6 +79,31 @@ function horaChile(isoUtc: string): string {
   }).format(new Date(isoUtc));
 }
 
+const DETALLE_DIRIGIDO: Record<Dirigido, string> = {
+  a_mi: "dirigido a ti",
+  en_copia: "solo en copia",
+  lista: "por lista o regla",
+};
+
+/**
+ * "1 h 30 min" entre dos ISO locales.
+ *
+ * Se resta sobre los minutos del día recortados del string, no construyendo dos
+ * Date: los ISO vienen en hora de Chile sin offset, así que un `new Date()` los
+ * interpretaría en la zona del servidor y la diferencia saldría igual, pero una
+ * reunión que cruza la medianoche daría negativo. Con el ajuste de +24 h eso
+ * queda cubierto.
+ */
+function duracion(inicio: string, fin: string): string {
+  const minutos = (iso: string) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
+  let total = minutos(fin) - minutos(inicio);
+  if (total < 0) total += 24 * 60;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
 // "12 ago" para las reuniones que no son hoy ni mañana.
 function fechaCorta(isoLocal: string): string {
   return new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "UTC" }).format(
@@ -143,6 +168,7 @@ function Fila({
   titulo,
   acento = "",
   tenue = false,
+  detalle,
 }: {
   children: React.ReactNode;
   enlace?: string | null;
@@ -150,15 +176,26 @@ function Fila({
   titulo?: string;
   acento?: string;
   tenue?: boolean;
+  /** Contenido del popover que aparece al pasar el cursor. */
+  detalle?: React.ReactNode;
 }) {
   const base = `block rounded-lg border px-4 py-3 transition-colors duration-200 ${acento} ${
     tenue ? "border-dashed border-borde bg-transparent" : `border-borde bg-superficie ${SOMBRA_CALIDA}`
   }`;
 
-  if (!enlace) return <li className={base}>{children}</li>;
+  // `group relative` en el <li> y no en el enlace: el popover se posiciona contra
+  // la fila completa, y así también funciona en las filas sin enlace.
+  if (!enlace) {
+    return (
+      <li tabIndex={detalle ? 0 : undefined} className={`group relative outline-none ${base}`}>
+        {children}
+        {detalle && <Popover>{detalle}</Popover>}
+      </li>
+    );
+  }
 
   return (
-    <li>
+    <li className="group relative">
       <a
         href={enlace}
         // Se abre en otra pestaña porque el resumen es una lista de la que se van
@@ -174,7 +211,55 @@ function Fila({
       >
         {children}
       </a>
+      {detalle && <Popover>{detalle}</Popover>}
     </li>
+  );
+}
+
+/**
+ * Popover de detalle al pasar el cursor.
+ *
+ * Solo CSS: un hijo posicionado que pasa de opacidad 0 a 1 con el hover del
+ * contenedor. Sin estado ni efectos, así que la página sigue siendo un server
+ * component y no manda un kilo de JavaScript para mostrar un recuadro.
+ *
+ * `group-focus-within` además del hover: sin eso el detalle sería inalcanzable
+ * con teclado, y en una pantalla táctil —donde no hay cursor— tocar la fila al
+ * menos le da el foco y lo muestra.
+ *
+ * `pointer-events-none` para que el popover no se coma el clic de la fila que
+ * está debajo: varias de estas filas son enlaces a Outlook.
+ *
+ * OJO con el contenedor: un ancestro con overflow-hidden lo recorta. Por eso la
+ * cinta de cifras dejó de usarlo y ahora redondea esquina por esquina.
+ */
+function Popover({
+  children,
+  alineado = "izquierda",
+}: {
+  children: React.ReactNode;
+  /** A la derecha para los elementos del borde derecho, que si no se salen. */
+  alineado?: "izquierda" | "derecha";
+}) {
+  return (
+    <span
+      role="tooltip"
+      className={`pointer-events-none absolute top-full z-30 mt-2 w-64 max-w-[calc(100vw-3rem)] origin-top translate-y-1 rounded-lg border border-borde bg-superficie p-3 text-left text-[11px] leading-relaxed text-tinta/70 opacity-0 shadow-[0_4px_12px_rgba(23,20,17,0.08),0_16px_40px_-16px_rgba(23,20,17,0.25)] transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
+        alineado === "derecha" ? "right-0" : "left-0"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Una línea etiqueta/valor dentro de un popover. */
+function LineaDetalle({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
+  return (
+    <span className="mt-1.5 block first:mt-0">
+      <span className="block text-[10px] font-medium text-tinta/40">{etiqueta}</span>
+      <span className="block text-tinta/75">{children}</span>
+    </span>
   );
 }
 
@@ -277,13 +362,54 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
           los tintes del Cotizador y Rendir Gastos —es la convención de la casa—
           pero los rótulos van en caja normal: en mayúsculas competían con el
           título de la página y con los de sección. */}
-      <dl className="mt-8 grid grid-cols-2 overflow-hidden rounded-2xl border border-borde sm:grid-cols-4">
-        <Cifra etiqueta="Correos" valor={r.conteos.total} pie={`últimas ${r.conteos.horas} horas`} />
+      {/* Sin overflow-hidden: recortaría los popovers. El redondeo va esquina por
+          esquina en cada segmento, y cambia entre 2 y 4 columnas porque las
+          esquinas del bloque no son los mismos segmentos en cada caso. */}
+      <dl className="mt-8 grid grid-cols-2 rounded-2xl border border-borde sm:grid-cols-4">
+        <Cifra
+          etiqueta="Correos"
+          valor={r.conteos.total}
+          pie={`últimas ${r.conteos.horas} horas`}
+          esquinas="rounded-tl-2xl sm:rounded-bl-2xl"
+          detalle={
+            <>
+              <LineaDetalle etiqueta="De dónde salen">
+                Todo lo que llegó a tu bandeja de entrada en las últimas {r.conteos.horas} horas. No incluye
+                lo que archivaste ni lo que enviaste.
+              </LineaDetalle>
+              <LineaDetalle etiqueta="Cómo se reparten">
+                {r.conteos.aMi} dirigidos a ti · {r.conteos.enCopia} en copia ·{" "}
+                {r.conteos.total - r.conteos.aMi - r.conteos.enCopia} por lista o regla
+              </LineaDetalle>
+              {r.conteos.recortado && (
+                <LineaDetalle etiqueta="Atención">
+                  Se llegó al tope de mensajes que se analizan, así que hay correo más viejo que no se revisó.
+                </LineaDetalle>
+              )}
+            </>
+          }
+        />
         <Cifra
           etiqueta="Sin leer"
           valor={r.conteos.sinLeer}
           pie={r.conteos.marcados > 0 ? `${r.conteos.marcados} con bandera` : "sin banderas"}
           resalte="naranjo"
+          esquinas="rounded-tr-2xl sm:rounded-none"
+          detalle={
+            <>
+              <LineaDetalle etiqueta="Qué cuenta">
+                Mensajes del período que siguen marcados como no leídos en Outlook.
+              </LineaDetalle>
+              <LineaDetalle etiqueta="Con bandera">
+                {r.conteos.marcados === 0
+                  ? "Ninguno tiene bandera puesta."
+                  : `${r.conteos.marcados} ${r.conteos.marcados === 1 ? "mensaje" : "mensajes"} con bandera. Esos los marcaste tú, así que suelen ser los que ya identificaste como pendientes.`}
+              </LineaDetalle>
+              <LineaDetalle etiqueta="No es lo mismo que pendiente">
+                Un correo leído puede seguir requiriendo respuesta. Para eso está la lista de abajo.
+              </LineaDetalle>
+            </>
+          }
         />
         <Cifra
           etiqueta="Dirigidos a ti"
@@ -291,6 +417,22 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
           pie={`${r.conteos.enCopia} en copia`}
           fondo="teal"
           resalte="teal"
+          esquinas="rounded-none sm:rounded-none"
+          detalle={
+            <>
+              <LineaDetalle etiqueta="Dirigidos a ti">
+                Estás en el campo Para. Casi siempre esperan algo tuyo.
+              </LineaDetalle>
+              <LineaDetalle etiqueta="En copia">
+                {r.conteos.enCopia} donde estás solo en CC: normalmente son para que estés al tanto, no para
+                que respondas.
+              </LineaDetalle>
+              <LineaDetalle etiqueta="Por lista">
+                {r.conteos.total - r.conteos.aMi - r.conteos.enCopia} que no te nombran: llegaron por una
+                lista de distribución, un buzón compartido o una regla.
+              </LineaDetalle>
+            </>
+          }
         />
         <Cifra
           etiqueta="Reuniones"
@@ -298,6 +440,26 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
           pie="hoy y los próximos días"
           fondo="gris"
           ultima
+          esquinas="rounded-bl-2xl sm:rounded-r-2xl sm:rounded-bl-none"
+          detalleAlineado="derecha"
+          detalle={
+            <>
+              <LineaDetalle etiqueta="Qué abarca">
+                Desde las 00:00 de hoy y por los dos días siguientes, en hora de Chile.
+              </LineaDetalle>
+              <LineaDetalle etiqueta="Cómo se reparten">
+                {(() => {
+                  const hoyN = r.reuniones.filter((m) => m.dia === "hoy").length;
+                  const mananaN = r.reuniones.filter((m) => m.dia === "manana").length;
+                  const despuesN = r.reuniones.filter((m) => m.dia === "despues").length;
+                  return `${hoyN} hoy · ${mananaN} mañana · ${despuesN} más adelante`;
+                })()}
+              </LineaDetalle>
+              <LineaDetalle etiqueta="Recién agendadas">
+                {r.reuniones.filter((m) => !m.agendadaAntes).length} se agregaron el mismo día en que ocurren.
+              </LineaDetalle>
+            </>
+          }
         />
       </dl>
 
@@ -342,7 +504,47 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
             ) : (
               <ul className="flex flex-col gap-2">
                 {r.correosDestacados.map((c, i) => (
-                  <Fila key={i} enlace={c.enlace} titulo={c.asunto} acento={BARRA_URGENCIA[c.urgencia]}>
+                  <Fila
+                    key={i}
+                    enlace={c.enlace}
+                    titulo={c.asunto}
+                    acento={BARRA_URGENCIA[c.urgencia]}
+                    detalle={
+                      <>
+                        <LineaDetalle etiqueta="De">
+                          {c.de}
+                          {c.correoDe && ` · ${c.correoDe}`}
+                        </LineaDetalle>
+                        <LineaDetalle etiqueta="Cuándo llegó">{c.cuando}</LineaDetalle>
+                        <LineaDetalle etiqueta="Estado">
+                          {[
+                            c.leido === null ? null : c.leido ? "Leído" : "Sin leer",
+                            c.marcado ? "con bandera" : null,
+                            c.tieneAdjuntos ? "con adjuntos" : null,
+                            c.destinatarios && c.destinatarios > 1
+                              ? `${c.destinatarios} destinatarios`
+                              : null,
+                            DETALLE_DIRIGIDO[c.dirigido],
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </LineaDetalle>
+                        {c.extracto && (
+                          <LineaDetalle etiqueta="Cómo empieza">
+                            {/* Recortado a 220: el extracto de Graph llega hasta 700
+                                y un popover con un párrafo entero deja de ser un
+                                detalle al pasar y se vuelve otra cosa que leer. */}
+                            {c.extracto.length > 220 ? `${c.extracto.slice(0, 220)}…` : c.extracto}
+                          </LineaDetalle>
+                        )}
+                        {c.enlace && (
+                          <span className="mt-2 block text-[10px] font-medium text-naranjo">
+                            Clic para abrirlo en Outlook
+                          </span>
+                        )}
+                      </>
+                    }
+                  >
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <p className="min-w-0 flex-1 truncate font-medium text-tinta" title={c.asunto}>
                         {c.asunto}
@@ -388,7 +590,19 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
             <Seccion titulo="Estado de los temas" cuenta={r.temas.length}>
               <ul className="flex flex-col gap-2">
                 {r.temas.map((t, i) => (
-                  <Fila key={i}>
+                  <Fila
+                    key={i}
+                    detalle={
+                      <>
+                        <LineaDetalle etiqueta="Correos del tema">
+                          {t.correos} mensajes del período tratan este asunto.
+                        </LineaDetalle>
+                        <LineaDetalle etiqueta="Por qué se agrupa">
+                          Varios correos sobre lo mismo son un asunto que avanzó, no varias cosas por leer.
+                        </LineaDetalle>
+                      </>
+                    }
+                  >
                     <div className="flex items-baseline justify-between gap-3">
                       <p className="font-medium text-tinta">{t.tema}</p>
                       <span className="shrink-0 text-[11px] tabular-nums text-tinta/40">
@@ -414,7 +628,34 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
                 {/* El nombre del item NO puede ser `r`: taparía al resumen y el
                     próximo que agregue un campo acá se lleva una sorpresa. */}
                 {r.reuniones.map((m, i) => (
-                  <Fila key={i} enlace={m.enlace} titulo={m.asunto}>
+                  <Fila
+                    key={i}
+                    enlace={m.enlace}
+                    titulo={m.asunto}
+                    detalle={
+                      <>
+                        <LineaDetalle etiqueta="Horario">
+                          {horaDeReunion(m.inicio)}
+                          {m.fin && ` a ${horaDeReunion(m.fin)}`}
+                          {m.fin && ` · ${duracion(m.inicio, m.fin)}`}
+                        </LineaDetalle>
+                        <LineaDetalle etiqueta="Dónde">
+                          {m.lugar ?? (m.esTeams ? "Reunión de Teams" : "Sin lugar indicado")}
+                        </LineaDetalle>
+                        {m.organizador && <LineaDetalle etiqueta="Organiza">{m.organizador}</LineaDetalle>}
+                        {m.asistentes.length > 0 && (
+                          <LineaDetalle etiqueta={`Asistentes (${m.asistentes.length})`}>
+                            {m.asistentes.join(", ")}
+                          </LineaDetalle>
+                        )}
+                        {!m.agendadaAntes && (
+                          <LineaDetalle etiqueta="Atención">
+                            Se agendó el mismo día en que ocurre.
+                          </LineaDetalle>
+                        )}
+                      </>
+                    }
+                  >
                     <div className="flex items-baseline gap-3">
                       {/* <time> con dateTime: es un dato horario y así lo puede
                           leer un lector de pantalla o un parser. */}
@@ -482,6 +723,9 @@ const FONDO_CIFRA = {
  * de correos es un dato neutro aunque su segmento tenga tinte naranjo, y solo
  * "sin leer" se resalta. Si el color del número siguiera al del fondo, los cuatro
  * quedarían resaltados y ninguno destacaría.
+ *
+ * `esquinas` viene de afuera porque cuál esquina redondear depende de la posición
+ * del segmento Y de si la cinta está en dos o en cuatro columnas.
  */
 function Cifra({
   etiqueta,
@@ -490,6 +734,9 @@ function Cifra({
   fondo = "naranjo",
   resalte,
   ultima = false,
+  esquinas = "",
+  detalle,
+  detalleAlineado = "izquierda",
 }: {
   etiqueta: string;
   valor: number;
@@ -497,13 +744,19 @@ function Cifra({
   fondo?: keyof typeof FONDO_CIFRA;
   resalte?: "naranjo" | "teal";
   ultima?: boolean;
+  esquinas?: string;
+  detalle?: React.ReactNode;
+  detalleAlineado?: "izquierda" | "derecha";
 }) {
   const color = resalte === "teal" ? "text-teal" : resalte === "naranjo" ? "text-naranjo" : "text-tinta";
   return (
     <div
-      className={`border-b border-borde px-5 py-4 sm:border-b-0 ${ultima ? "" : "sm:border-r"} ${
-        FONDO_CIFRA[fondo]
-      }`}
+      // tabIndex solo cuando hay detalle: un div enfocable sin nada que mostrar es
+      // una parada más del tabulador a cambio de nada.
+      tabIndex={detalle ? 0 : undefined}
+      className={`group relative border-b border-borde px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-naranjo/50 sm:border-b-0 ${
+        ultima ? "" : "sm:border-r"
+      } ${FONDO_CIFRA[fondo]} ${esquinas}`}
     >
       <dt className="text-xs font-medium text-tinta/55">{etiqueta}</dt>
       {/* La cifra en tamaño de display: es el dato, no una nota al pie. */}
@@ -513,6 +766,7 @@ function Cifra({
         {valor}
       </dd>
       <dd className="mt-1.5 text-[11px] text-tinta/45">{pie}</dd>
+      {detalle && <Popover alineado={detalleAlineado}>{detalle}</Popover>}
     </div>
   );
 }
