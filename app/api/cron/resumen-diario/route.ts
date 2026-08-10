@@ -114,8 +114,12 @@ export async function GET(request: NextRequest) {
         // configurable a propósito: un resumen de bandeja de entrada no puede
         // terminar en el buzón de otro por un error de configuración.
         persona.correo,
-        `Tu día · ${fechaLegible(hoy.iso)}`,
-        armarCorreoHtml(persona.nombre, fechaLegible(hoy.iso), estado.datos.resumen),
+        `Mi día · ${fechaLegible(hoy.iso)}`,
+        // El correo es solo un aviso con un botón al core; el resumen no viaja
+        // en él. Se genera igual antes de mandarlo —y de ahí el `estado` de más
+        // arriba— porque así, cuando la persona hace clic, la página ya lo tiene
+        // en caché y abre al instante en vez de esperar la llamada al modelo.
+        armarCorreoHtml(persona.nombre, fechaLegible(hoy.iso)),
       );
 
       await marcarEnviado(persona.id, hoy.iso);
