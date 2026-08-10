@@ -183,7 +183,7 @@ function bloqueReuniones(reuniones: ReunionCalendario[], hoyIso: string, mananaI
       // aritmética de fechas, que es justo lo que hace mal.
       const fecha = r.inicio.slice(0, 10);
       const dia = fecha === hoyIso ? "hoy" : fecha === mananaIso ? "manana" : "despues";
-      const asistentes = r.asistentes?.length ? r.asistentes.slice(0, 10).join(", ") : "(sin asistentes)";
+      const asistentes = r.asistentes?.length ? r.asistentes.slice(0, 6).join(", ") : "(sin asistentes)";
       return [
         `[${i + 1}] ${dia.toUpperCase()} ${r.inicio.slice(11, 16)}-${r.fin.slice(11, 16)}${
           r.todoElDia ? " (todo el día)" : ""
@@ -214,18 +214,21 @@ export async function generarResumen(
 
   const respuesta = await cliente().messages.create({
     model: "claude-sonnet-5",
-    // Techo de thinking + respuesta juntos. El objeto ahora tiene más secciones
-    // (~1.500 tokens) y el razonamiento sobre 150 correos es más largo, así que
-    // el techo sube respecto de la primera versión.
+    // Techo de thinking + respuesta juntos. El objeto tiene ~1.500 tokens y el
+    // resto es holgura para razonar. Es un TECHO, no un objetivo: dejarlo alto no
+    // cuesta latencia, y si queda corto la respuesta llega cortada.
     max_tokens: 16384,
     thinking: { type: "adaptive" },
     // Las instrucciones son idénticas todos los días y para todas las personas:
     // se marcan para caché y a partir de la segunda llamada se leen al 0,1×.
     system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
     output_config: {
-      // Sube de "medium" a "high": agrupar temas y juzgar qué requiere una respuesta
-      // sobre 150 correos es bastante más difícil que resumir 20.
-      effort: "high",
+      // "medium" y no "high". Con high la primera carga del día se iba a más de un
+      // minuto, y esto no es OCR de letra chica como el análisis de comprobantes:
+      // es clasificar y agrupar texto que ya viene legible. Si se nota que agrupa
+      // peor los temas o que se le pasan correos que sí pedían respuesta, subirlo
+      // de nuevo es una línea.
+      effort: "medium",
       format: { type: "json_schema", schema: ESQUEMA },
     },
     messages: [

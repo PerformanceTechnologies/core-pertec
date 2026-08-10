@@ -19,10 +19,18 @@ const HORAS_POR_DEFECTO = 72;
 // esto es lo que evita que un buzón muy movido reviente el prompt. Lo que se
 // recorta son los MÁS VIEJOS, porque la consulta viene ordenada por fecha
 // descendente.
-const TOPE_CORREOS = 150;
+//
+// Bajó de 150 a 120 por latencia: la primera carga del día es una sola llamada al
+// modelo sobre todo esto, y el tiempo crece con el largo del prompt. 120 mensajes
+// en 72 horas ya es un buzón bastante movido.
+const TOPE_CORREOS = 120;
 // Recorte del cuerpo de cada correo. El resumen necesita saber de qué se trata y
 // qué piden, no el hilo completo con las 14 respuestas anteriores citadas.
-const LARGO_CUERPO = 700;
+//
+// Bajó de 700 a 400 por la misma razón. En 400 caracteres cabe el saludo y la
+// petición, que es lo que decide si el correo requiere respuesta; lo que se pierde
+// son las firmas y los avisos de confidencialidad.
+const LARGO_CUERPO = 400;
 
 /** A quién iba dirigido el correo, desde el punto de vista de quien rinde. */
 export type Dirigido = "a_mi" | "en_copia" | "lista";

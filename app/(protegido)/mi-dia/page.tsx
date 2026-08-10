@@ -1,11 +1,14 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
 import { obtenerResumenDeHoy } from "@/lib/resumen-diario/datos";
 import { tieneCredencialGuardada } from "@/lib/graph-credenciales";
 import type { ResumenGuardado, Urgencia } from "@/lib/resumen-diario/tipos";
+import type { UsuarioConAcceso } from "@/lib/tipos";
 import type { Dirigido } from "@/lib/graph-correo";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
+import ResumenCargando from "@/components/mi-dia/ResumenCargando";
 
 const SLUG_APP = "mi-dia";
 
@@ -277,22 +280,15 @@ function Badge({ tono, children }: { tono: "naranjo" | "gris"; children: React.R
 }
 
 export default async function MiDiaPage() {
+  // Solo el guard, que son dos consultas rápidas. Todo lo caro vive en
+  // <ResumenDelDia>, detrás de su propio Suspense: así el encabezado con la fecha
+  // se manda al navegador de inmediato y la espera pasa a ocurrir DENTRO de una
+  // página que ya se ve, en vez de frente a una pantalla en blanco.
+  //
+  // Antes esta función esperaba el resumen completo antes de devolver el primer
+  // byte, así que la primera visita del día eran 30 a 90 segundos de nada.
   const usuario = await exigirAccesoApp(SLUG_APP);
-  const sesion = await auth();
   const hoy = hoyEnSantiago();
-
-  // El resumen y la credencial son independientes: van en paralelo.
-  const [estado, credencialGuardada] = await Promise.all([
-    obtenerResumenDeHoy({
-      usuarioId: usuario.id,
-      nombre: usuario.nombre ?? usuario.correo,
-      correo: usuario.correo,
-      // Con sesión abierta se usa el token que ya está en la mano: evita un canje
-      // contra Entra en cada visita.
-      accessTokenSesion: sesion?.accessToken,
-    }),
-    tieneCredencialGuardada(usuario.id),
-  ]);
 
   return (
     // El <main> del core no tiene tope de ancho, así que en un monitor de 1900px
@@ -312,6 +308,37 @@ export default async function MiDiaPage() {
         </p>
       </header>
 
+      <Suspense fallback={<ResumenCargando />}>
+        <ResumenDelDia usuario={usuario} />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * La parte lenta: leer Graph y generar el resumen.
+ *
+ * Separada en su propio componente para poder envolverla en Suspense. Recibe el
+ * usuario ya resuelto por el guard, y no lo vuelve a pedir.
+ */
+async function ResumenDelDia({ usuario }: { usuario: UsuarioConAcceso }) {
+  const sesion = await auth();
+
+  // El resumen y la credencial son independientes: van en paralelo.
+  const [estado, credencialGuardada] = await Promise.all([
+    obtenerResumenDeHoy({
+      usuarioId: usuario.id,
+      nombre: usuario.nombre ?? usuario.correo,
+      correo: usuario.correo,
+      // Con sesión abierta se usa el token que ya está en la mano: evita un canje
+      // contra Entra en cada visita.
+      accessTokenSesion: sesion?.accessToken,
+    }),
+    tieneCredencialGuardada(usuario.id),
+  ]);
+
+  return (
+    <>
       {estado.estado === "sin_permiso" && (
         <div className="mt-6 rounded-2xl border border-naranjo/25 bg-naranjo/5 px-5 py-4">
           <p className="font-condensed text-lg font-bold tracking-tight text-naranjo">
@@ -349,7 +376,7 @@ export default async function MiDiaPage() {
       )}
 
       {estado.estado === "ok" && <ResumenCompleto datos={estado.datos} />}
-    </div>
+    </>
   );
 }
 
