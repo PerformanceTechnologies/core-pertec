@@ -13,6 +13,7 @@ import {
 import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
+import { SOMBRA_CALIDA } from "@/lib/estilos";
 
 /**
  * Lee la respuesta de un fetch tolerando que NO sea JSON.
@@ -218,6 +219,33 @@ interface EstadoProveedor {
   elegido: number | null;
   crear: boolean;
   esPersonaNatural: boolean;
+}
+
+/**
+ * Un campo del editor de gastos: etiqueta arriba, control abajo.
+ *
+ * La etiqueta va SIEMPRE, no solo en pantalla angosta. Antes esto era una tabla
+ * de 1100px con los nombres de columna en un thead, y al desplazarla a la derecha
+ * —que era obligatorio en cualquier pantalla— el encabezado quedaba fuera de
+ * vista: quien editaba tenía cuatro inputs de texto seguidos sin saber cuál era
+ * el RUT y cuál el número de documento.
+ */
+function Campo({
+  etiqueta,
+  ancho = "",
+  children,
+}: {
+  etiqueta: string;
+  /** Clases de col-span para que el campo ocupe más de una celda. */
+  ancho?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={`block min-w-0 ${ancho}`}>
+      <span className="mb-1 block text-[10px] font-medium text-tinta/45">{etiqueta}</span>
+      {children}
+    </label>
+  );
 }
 
 export default function PanelRendicion({ rendicionInicial }: { rendicionInicial: Rendicion }) {
@@ -677,12 +705,14 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
   };
 
   return (
-    <div>
+    // El <main> del core no tiene tope de ancho: sin esto los campos del editor
+    // se estiran a 1900px en un monitor grande.
+    <div className="max-w-[1500px]">
       <span className="etiqueta-seccion">Rendir Gastos</span>
-      <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
+      <h1 className="mt-2 font-condensed text-3xl font-bold uppercase leading-none tracking-tight text-tinta sm:text-4xl">
         {rendicion.tituloRendicion}
       </h1>
-      <p className="mt-1 text-sm text-tinta/60">
+      <p className="mt-2 text-sm text-tinta/60">
         {rendicion.nombreQuienRinde} · Fondo entregado {money(rendicion.montoAsignado)}
         {yaCargada && " · Ya cargada a Odoo"}
       </p>
@@ -725,13 +755,11 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
 
       {/* PASO 1 — subir comprobantes */}
       {!yaCargada && (
-        <div className="mt-5 rounded-2xl border border-borde bg-white p-5 shadow-sm">
-          <p className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
-            1 · Subir comprobantes
-          </p>
-          <p className="mt-1 text-xs text-tinta/55">
-            PDF o imagen. Se analizan de a varios a la vez y podés corregir todo después. Los comprobantes
-            quedan guardados: si cerrás la página podés volver más tarde y seguir donde estabas, sin subir
+        <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
+          <p className="font-condensed text-lg font-bold tracking-tight text-tinta">1 · Subir comprobantes</p>
+          <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
+            PDF o imagen. Se analizan de a varios a la vez y puedes corregir todo después. Los comprobantes
+            quedan guardados: si cierras la página puedes volver más tarde y seguir donde estabas, sin subir
             nada de nuevo.
           </p>
           <input
@@ -740,7 +768,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
             disabled={analizando !== null}
             onChange={(e) => e.target.files && subirYAnalizar(e.target.files)}
-            className="mt-3 block w-full text-xs text-tinta/70 file:mr-3 file:rounded-md file:border file:border-borde file:bg-crema/60 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-tinta"
+            className="mt-4 block w-full text-xs text-tinta/70 file:mr-3 file:mb-2 file:rounded-md file:border file:border-borde file:bg-crema/60 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-tinta sm:file:mb-0"
           />
           {analizando && (
             <p className="mt-2 flex items-center gap-2 text-xs font-medium text-naranjo">
@@ -753,9 +781,9 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
 
       {/* PASO 2 — revisar y corregir */}
       {rendicion.gastos.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-borde bg-white p-5 shadow-sm">
+        <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
+            <p className="font-condensed text-lg font-bold tracking-tight text-tinta">
               2 · Revisar y corregir
             </p>
             {pendientes.length > 0 && (
@@ -764,73 +792,57 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
               </span>
             )}
           </div>
-          <p className="mt-1 text-xs text-tinta/55">
-            El neto y el IVA se calculan solos desde el total impreso según el tipo de documento. Lo que
-            corrijas acá es exactamente lo que se carga a Odoo.
+          <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
+            El neto y el IVA se calculan desde el total impreso según el tipo de documento. Lo que corrijas
+            aquí es exactamente lo que se carga a Odoo.
           </p>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-xs">
-              <thead>
-                <tr className="border-b border-tinta text-left text-[9px] uppercase tracking-wide text-tinta/45">
-                  <th className="px-2 py-2">N°</th>
-                  <th className="px-2 py-2">Fecha</th>
-                  <th className="px-2 py-2">Proveedor</th>
-                  <th className="px-2 py-2">RUT</th>
-                  <th className="px-2 py-2">N° Doc</th>
-                  <th className="px-2 py-2">Tipo documento</th>
-                  <th className="px-2 py-2">Detalle</th>
-                  <th className="px-2 py-2">Categoría</th>
-                  <th className="px-2 py-2 text-right">Neto</th>
-                  <th className="px-2 py-2 text-right">IVA</th>
-                  <th className="px-2 py-2 text-right">Total</th>
-                  {!yaCargada && <th className="px-2 py-2" />}
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map(({ gasto: g, neto, iva, advertencias }, i) => (
-                  <tr key={g.id} className={i % 2 === 0 ? "bg-crema/30" : ""}>
-                    <td className="px-2 py-1.5 font-semibold">{i + 1}</td>
-                    <td className="px-2 py-1.5">
+          {/* Una tarjeta por gasto, en vez de una tabla de 1100px con scroll
+              horizontal. Diez campos editables no caben en una fila en ninguna
+              pantalla: en el celular había que arrastrar para ver el total, y en
+              escritorio igual, solo un poco menos.
+
+              La grilla va de 1 columna a 2 y a 4, así que el mismo marcado sirve
+              para el teléfono y para un monitor ancho sin nada oculto ni ningún
+              desplazamiento lateral. */}
+          <ul className="mt-4 flex flex-col gap-3">
+            {filas.map(({ gasto: g, neto, iva, advertencias }, i) => {
+              const avisos = [...g.pendientes.map((p) => `Ilegible: ${p}`), ...advertencias];
+              const rutMalo = Boolean(g.rutProveedor?.trim()) && !rutValido(g.rutProveedor!);
+
+              return (
+                <li
+                  key={g.id}
+                  className={`rounded-xl border bg-superficie px-4 py-3.5 ${SOMBRA_CALIDA} ${
+                    avisos.length > 0 || rutMalo ? "border-naranjo/40" : "border-borde"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3 border-b border-borde pb-2.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-condensed text-base font-bold leading-none tabular-nums text-tinta">
+                        {i + 1}
+                      </span>
+                      {/* El proveedor repetido en el encabezado: con la tarjeta
+                          plegada mentalmente, es lo que identifica el gasto. */}
+                      <span className="truncate text-xs text-tinta/45">
+                        {g.proveedor?.trim() || "Sin proveedor"}
+                      </span>
+                    </div>
+                    {!yaCargada && <DeleteButton onClick={() => quitarGasto(g.id)} />}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <Campo etiqueta="Fecha">
                       <input
                         type="date"
                         value={g.fecha ?? ""}
                         disabled={yaCargada}
                         onChange={(e) => actualizarGasto(g.id, { fecha: e.target.value || null })}
-                        className="w-32 rounded border border-borde bg-white px-1.5 py-1 text-xs"
+                        className="h-8 w-full rounded-md border border-borde bg-superficie px-2 text-sm text-tinta outline-none focus:border-naranjo/50 disabled:bg-crema disabled:text-tinta/50"
                       />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <TextInput
-                        value={g.proveedor}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { proveedor: v })}
-                        className="w-40"
-                      />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <TextInput
-                        value={g.rutProveedor ?? ""}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
-                        className="w-28"
-                      />
-                      {/* Se avisa al escribirlo, no al cargar: Odoo valida el
-                          dígito verificador y rechaza el proveedor recién en la
-                          carga, cuando ya hay gastos creados. */}
-                      {g.rutProveedor?.trim() && !rutValido(g.rutProveedor) && (
-                        <p className="mt-0.5 w-28 text-[10px] leading-tight text-red-600">RUT inválido</p>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <TextInput
-                        value={g.numeroDocumento ?? ""}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { numeroDocumento: v || null })}
-                        className="w-24"
-                      />
-                    </td>
-                    <td className="px-2 py-1.5">
+                    </Campo>
+
+                    <Campo etiqueta="Tipo de documento">
                       <SelectInput
                         value={(g.tipoDocumento ?? "") as TipoDocumento | ""}
                         disabled={yaCargada}
@@ -845,16 +857,41 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                           })),
                         ]}
                       />
-                    </td>
-                    <td className="px-2 py-1.5">
+                    </Campo>
+
+                    <Campo etiqueta="Proveedor" ancho="xl:col-span-2">
                       <TextInput
-                        value={g.detalle}
+                        value={g.proveedor}
                         disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { detalle: v })}
-                        className="w-52"
+                        onChange={(v) => actualizarGasto(g.id, { proveedor: v })}
                       />
-                    </td>
-                    <td className="px-2 py-1.5">
+                    </Campo>
+
+                    <Campo etiqueta="RUT del proveedor">
+                      <TextInput
+                        value={g.rutProveedor ?? ""}
+                        disabled={yaCargada}
+                        onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
+                      />
+                      {/* Se avisa al escribirlo, no al cargar: Odoo valida el
+                          dígito verificador y rechaza el proveedor recién en la
+                          carga, cuando ya hay gastos creados. */}
+                      {rutMalo && (
+                        <span className="mt-1 block text-[10px] leading-tight text-red-600">
+                          El dígito verificador no calza
+                        </span>
+                      )}
+                    </Campo>
+
+                    <Campo etiqueta="N° de documento">
+                      <TextInput
+                        value={g.numeroDocumento ?? ""}
+                        disabled={yaCargada}
+                        onChange={(v) => actualizarGasto(g.id, { numeroDocumento: v || null })}
+                      />
+                    </Campo>
+
+                    <Campo etiqueta="Categoría">
                       <SelectInput
                         value={(g.categoria ?? "") as CategoriaGasto | ""}
                         disabled={yaCargada}
@@ -869,75 +906,89 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                           })),
                         ]}
                       />
-                    </td>
-                    <td className="px-2 py-1.5 text-right text-tinta/60">{money(neto)}</td>
-                    <td className="px-2 py-1.5 text-right text-tinta/60">{money(iva)}</td>
-                    <td className="px-2 py-1.5 text-right">
+                    </Campo>
+
+                    <Campo etiqueta="Detalle" ancho="sm:col-span-2 xl:col-span-3">
+                      <TextInput
+                        value={g.detalle}
+                        disabled={yaCargada}
+                        onChange={(v) => actualizarGasto(g.id, { detalle: v })}
+                      />
+                    </Campo>
+
+                    <Campo etiqueta="Total impreso">
                       <NumInput
                         value={g.total}
                         disabled={yaCargada}
                         onChange={(v) => actualizarGasto(g.id, { total: v })}
-                        className="w-24"
+                        align="right"
                       />
-                      {(advertencias.length > 0 || g.pendientes.length > 0) && (
-                        <p className="mt-0.5 max-w-[14rem] text-[10px] leading-tight text-naranjo">
-                          {[...g.pendientes.map((p) => `Ilegible: ${p}`), ...advertencias].join(" · ")}
-                        </p>
-                      )}
-                    </td>
-                    {!yaCargada && (
-                      <td className="px-2 py-1.5">
-                        <DeleteButton onClick={() => quitarGasto(g.id)} />
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-tinta font-bold">
-                  <td className="px-2 py-2" colSpan={8}>
-                    TOTALES
-                  </td>
-                  <td className="px-2 py-2 text-right">{money(totales.neto)}</td>
-                  <td className="px-2 py-2 text-right">{money(totales.iva)}</td>
-                  <td className="px-2 py-2 text-right">{money(totales.total)}</td>
-                  {!yaCargada && <td />}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                      {/* Neto e IVA no se editan: salen del total según el tipo de
+                          documento. Van debajo del total, que es de donde se
+                          derivan, en vez de en dos columnas aparte que parecían
+                          campos más. */}
+                      <span className="mt-1 block text-right text-[10px] tabular-nums text-tinta/45">
+                        Neto {money(neto)} · IVA {money(iva)}
+                      </span>
+                    </Campo>
+                  </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-4 rounded-lg bg-crema/60 px-4 py-3">
+                  {avisos.length > 0 && (
+                    <p className="mt-3 rounded-md border-l-2 border-naranjo bg-naranjo/[0.06] px-2.5 py-1.5 text-[11px] leading-snug text-pretty text-naranjo">
+                      {avisos.join(" · ")}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Los totales de la tabla vivían en un <tfoot> que quedaba fuera de
+              vista con el scroll horizontal. Ahora van acá, junto al fondo y el
+              saldo, que es la única cifra que a alguien le interesa de verdad. */}
+          <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl bg-crema/60 px-4 py-3.5 sm:grid-cols-5">
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-tinta/45">Fondo entregado</p>
-              <p className="font-condensed text-sm font-bold">{money(rendicion.montoAsignado)}</p>
+              <p className="text-[10px] text-tinta/45">Neto</p>
+              <p className="font-condensed text-sm font-bold tabular-nums">{money(totales.neto)}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-tinta/45">Total rendido</p>
-              <p className="font-condensed text-sm font-bold">{money(totales.total)}</p>
+              <p className="text-[10px] text-tinta/45">IVA</p>
+              <p className="font-condensed text-sm font-bold tabular-nums">{money(totales.iva)}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-tinta/45">
+              <p className="text-[10px] text-tinta/45">Fondo entregado</p>
+              <p className="font-condensed text-sm font-bold tabular-nums">
+                {money(rendicion.montoAsignado)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-tinta/45">Total rendido</p>
+              <p className="font-condensed text-sm font-bold tabular-nums">{money(totales.total)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-pretty text-tinta/45">
                 {totales.saldo >= 0
                   ? `A reembolsar a ${rendicion.nombreQuienRinde}`
                   : "A reintegrar a la empresa"}
               </p>
               <p
-                className={`font-condensed text-sm font-bold ${totales.saldo >= 0 ? "text-teal" : "text-naranjo"}`}
+                className={`font-condensed text-sm font-bold tabular-nums ${
+                  totales.saldo >= 0 ? "text-teal" : "text-naranjo"
+                }`}
               >
                 {money(Math.abs(totales.saldo))}
               </p>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             {!yaCargada && (
               <button
                 type="button"
                 onClick={guardar}
                 disabled={guardando}
                 aria-busy={guardando}
-                className="inline-flex items-center gap-2 rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-borde bg-superficie px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
               >
                 {guardando && <RuedaCarga />}
                 {guardando ? "Guardando..." : "Guardar borrador"}
@@ -948,7 +999,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
               onClick={descargarExcel}
               disabled={generandoExcel || rendicion.gastos.length === 0}
               aria-busy={generandoExcel}
-              className="inline-flex items-center gap-2 rounded-md border border-borde bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-borde bg-superficie px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
             >
               {generandoExcel && <RuedaCarga />}
               {generandoExcel ? "Generando planilla..." : "Descargar Excel"}
@@ -959,7 +1010,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                 onClick={resolverProveedores}
                 disabled={resolviendo || rendicion.gastos.length === 0}
                 aria-busy={resolviendo}
-                className="inline-flex items-center gap-2 rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 disabled:cursor-progress disabled:opacity-40"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-tinta px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
               >
                 {resolviendo && <RuedaCarga />}
                 {resolviendo ? "Buscando proveedores..." : "Continuar a Odoo →"}
@@ -977,8 +1028,8 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
 
       {/* PASO 3 — confirmar y cargar */}
       {paso === "cargar" && !yaCargada && (
-        <div className="mt-4 rounded-2xl border border-borde bg-white p-5 shadow-sm">
-          <p className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
+        <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
+          <p className="font-condensed text-lg font-bold tracking-tight text-tinta">
             3 · Confirmar y cargar a Odoo
           </p>
 
@@ -1001,7 +1052,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                   onClick={buscarEmpleado}
                   disabled={buscandoEmpleado}
                   aria-busy={buscandoEmpleado}
-                  className="inline-flex items-center gap-2 rounded-md border border-borde bg-white px-3 py-1.5 text-xs font-medium text-tinta hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-md border border-borde bg-superficie px-3 py-1.5 text-xs font-medium text-tinta hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40"
                 >
                   {buscandoEmpleado && <RuedaCarga />}
                   {buscandoEmpleado ? "Buscando..." : `Buscar "${rendicion.nombreQuienRinde}"`}
@@ -1010,7 +1061,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                   <select
                     value={employeeId ?? ""}
                     onChange={(e) => setEmployeeId(Number(e.target.value) || null)}
-                    className="rounded border border-borde bg-white px-2 py-1.5 text-xs"
+                    className="rounded border border-borde bg-superficie px-2 py-1.5 text-xs"
                   >
                     <option value="">— elegir empleado —</option>
                     {empleados.map((e) => (
@@ -1046,7 +1097,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                           [g.id]: { ...prev[g.id], elegido: Number(e.target.value) || null, crear: false },
                         }))
                       }
-                      className="mt-1 w-full rounded border border-borde bg-white px-2 py-1 text-xs"
+                      className="mt-1 w-full rounded border border-borde bg-superficie px-2 py-1 text-xs"
                     >
                       <option value="">— elegir proveedor —</option>
                       {p.candidatos.map((c) => (
@@ -1090,7 +1141,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             onClick={cargarAOdoo}
             disabled={guardando || !employeeId}
             aria-busy={guardando}
-            className="mt-4 inline-flex items-center gap-2 rounded-md bg-teal px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-teal/85 disabled:cursor-progress disabled:opacity-40"
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-teal px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-teal/85 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
           >
             {guardando && <RuedaCarga />}
             {guardando
