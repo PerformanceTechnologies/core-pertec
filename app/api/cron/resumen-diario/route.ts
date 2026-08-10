@@ -72,11 +72,11 @@ export async function GET(request: NextRequest) {
   }
 
   const hoy = hoyEnSantiago();
-  const destinatarios = await destinatariosDelCron(SLUG_APP);
+  const { listos, sinCredencial } = await destinatariosDelCron(SLUG_APP);
 
   const resultados: { correo: string; ok: boolean; detalle: string }[] = [];
 
-  for (const persona of destinatarios) {
+  for (const persona of listos) {
     try {
       // Si ya se envió hoy, no se manda de nuevo. Protege del caso en que Vercel
       // reintente la ejecución o alguien invoque la ruta a mano dos veces.
@@ -130,7 +130,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     ok: resultados.every((r) => r.ok),
     fecha: hoy.iso,
-    destinatarios: destinatarios.length,
+    destinatarios: listos.length,
     resultados,
+    // Gente con la app asignada que no recibe nada porque nunca inició sesión
+    // desde que existe el guardado de credenciales. Va en la respuesta para que
+    // se vea en el log del cron y no haya que ir a preguntarle a la base.
+    sinCredencial,
   });
 }

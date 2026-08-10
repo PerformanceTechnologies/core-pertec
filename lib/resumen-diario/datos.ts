@@ -179,40 +179,67 @@ export interface DestinatarioResumen {
   correo: string;
 }
 
+export interface DestinatariosDelCron {
+  /** Tienen la app asignada Y credencial guardada: a estos se les manda. */
+  listos: DestinatarioResumen[];
+  /** Tienen la app asignada pero nunca iniciaron sesión: no se les puede mandar. */
+  sinCredencial: string[];
+}
+
 /**
- * Los usuarios a los que el cron les tiene que generar el resumen.
+ * Los usuarios a los que el cron les manda el resumen.
  *
- * Es la intersección de tres cosas, y las tres importan: que estén activos, que
- * tengan la app asignada (o sean admin) y que tengan credencial de Graph
- * guardada. Sin el último filtro el cron intentaría leer el buzón de gente que
- * nunca dio el permiso y llenaría los logs de errores.
+ * Requiere la app ASIGNADA, sin excepción para los admin. Antes los admin
+ * entraban por su rol, y eso hacía que quitarle "Mi Día" a un admin no lo diera
+ * de baja del correo: seguía llegándole sin ninguna forma de pararlo desde la
+ * UI. Recibir un correo diario con el contenido de tu bandeja tiene que ser algo
+ * que se activa y se desactiva de un solo lugar.
+ *
+ * (Ver la página del módulo es otra cosa: ahí exigirAccesoApp sí deja pasar a los
+ * admin, como en el resto del core.)
+ *
+ * Los que tienen la app pero no credencial se devuelven aparte en vez de
+ * descartarse en silencio: son gente que DEBERÍA estar recibiendo el resumen y no
+ * lo recibe, y la única forma de notarlo era que alguien reclamara.
  */
-export async function destinatariosDelCron(slugApp: string): Promise<DestinatarioResumen[]> {
-  const [{ data: app }, { data: credenciales }] = await Promise.all([
-    supabaseAdmin.from("aplicaciones").select("id").eq("slug", slugApp).maybeSingle(),
-    supabaseAdmin.from("graph_credenciales").select("usuario_id"),
+export async function destinatariosDelCron(slugApp: string): Promise<DestinatariosDelCron> {
+  const { data: app } = await supabaseAdmin
+    .from("aplicaciones")
+    .select("id")
+    .eq("slug", slugApp)
+    .maybeSingle();
+  if (!app?.id) return { listos: [], sinCredencial: [] };
+
+  const [{ data: asignaciones }, { data: credenciales }] = await Promise.all([
+    supabaseAdmin.from("usuario_aplicaciones").select("usuario_id").eq("aplicacion_id", app.id),
+    // Solo las credenciales sanas: una con error es un token que Microsoft ya
+    // rechazó, y reintentarlo cada mañana solo llena los logs.
+    supabaseAdmin.from("graph_credenciales").select("usuario_id").is("error", null),
   ]);
 
+  const asignados = new Set((asignaciones ?? []).map((a) => a.usuario_id as string));
+  if (asignados.size === 0) return { listos: [], sinCredencial: [] };
+
   const conCredencial = new Set((credenciales ?? []).map((c) => c.usuario_id as string));
-  if (conCredencial.size === 0) return [];
 
   const { data: usuarios } = await supabaseAdmin
     .from("usuarios")
-    .select("id, nombre, correo, rol")
+    .select("id, nombre, correo")
     .eq("activo", true);
 
-  const { data: asignaciones } = app?.id
-    ? await supabaseAdmin.from("usuario_aplicaciones").select("usuario_id").eq("aplicacion_id", app.id)
-    : { data: [] as { usuario_id: string }[] };
+  const listos: DestinatarioResumen[] = [];
+  const sinCredencial: string[] = [];
 
-  const asignados = new Set((asignaciones ?? []).map((a) => a.usuario_id as string));
+  for (const u of usuarios ?? []) {
+    const id = u.id as string;
+    if (!asignados.has(id)) continue;
+    const correo = u.correo as string;
+    if (conCredencial.has(id)) {
+      listos.push({ id, nombre: (u.nombre as string) ?? correo, correo });
+    } else {
+      sinCredencial.push(correo);
+    }
+  }
 
-  return (usuarios ?? [])
-    .filter((u) => conCredencial.has(u.id as string))
-    .filter((u) => u.rol === "admin" || asignados.has(u.id as string))
-    .map((u) => ({
-      id: u.id as string,
-      nombre: (u.nombre as string) ?? (u.correo as string),
-      correo: u.correo as string,
-    }));
+  return { listos, sinCredencial };
 }
