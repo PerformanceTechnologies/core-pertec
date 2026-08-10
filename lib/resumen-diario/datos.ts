@@ -4,7 +4,13 @@ import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
 import { obtenerCorreosRecientes } from "@/lib/graph-correo";
 import { hoyEnSantiago, obtenerReunionesProximas } from "@/lib/graph-calendario";
 import { generarResumen } from "./generar";
-import type { EstadoResumen, ResumenDiario, ResumenGuardado, ResumenModelo } from "./tipos";
+import {
+  VERSION_RESUMEN,
+  type EstadoResumen,
+  type ResumenDiario,
+  type ResumenGuardado,
+  type ResumenModelo,
+} from "./tipos";
 import type { CorreoResumen } from "@/lib/graph-correo";
 import type { ReunionCalendario } from "@/lib/graph-calendario";
 
@@ -26,11 +32,15 @@ export async function leerResumenGuardado(usuarioId: string, fecha: string): Pro
     .maybeSingle();
 
   if (!data) return null;
+  const resumen = data.resumen as ResumenDiario;
   return {
     fecha: data.fecha as string,
-    resumen: data.resumen as ResumenDiario,
+    resumen,
     generadoEn: data.generado_en as string,
     enviadoEn: (data.enviado_en as string | null) ?? null,
+    // Las filas guardadas antes de que existiera el campo no tienen version:
+    // quedan no vigentes, que es exactamente lo que corresponde.
+    vigente: resumen?.version === VERSION_RESUMEN,
   };
 }
 
@@ -43,7 +53,7 @@ async function guardar(usuarioId: string, fecha: string, resumen: ResumenDiario)
       { onConflict: "usuario_id,fecha" },
     );
   if (error) throw new Error(error.message);
-  return { fecha, resumen, generadoEn, enviadoEn: null };
+  return { fecha, resumen, generadoEn, enviadoEn: null, vigente: true };
 }
 
 export async function marcarEnviado(usuarioId: string, fecha: string): Promise<void> {
@@ -81,8 +91,10 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   const { usuarioId, nombre, correo, accessTokenSesion } = opciones;
   const hoy = hoyEnSantiago();
 
+  // Solo sirve si se generó con la versión actual del formato: si no, la página
+  // mostraría campos que ese resumen no tiene.
   const guardado = await leerResumenGuardado(usuarioId, hoy.iso);
-  if (guardado) return { estado: "ok", datos: guardado };
+  if (guardado?.vigente) return { estado: "ok", datos: guardado };
 
   let accessToken = accessTokenSesion;
   if (!accessToken) {
@@ -123,6 +135,7 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
     ...conEnlaces(delModelo, correos.correos, listaReuniones),
     conteos: correos.conteos,
     reunionesTotales: listaReuniones.length,
+    version: VERSION_RESUMEN,
   };
 
   return { estado: "ok", datos: await guardar(usuarioId, hoy.iso, resumen) };

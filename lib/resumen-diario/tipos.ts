@@ -3,6 +3,25 @@
 
 import type { ConteosCorreo, Dirigido } from "@/lib/graph-correo";
 
+/**
+ * Versión del formato del resumen guardado.
+ *
+ * SUBIR ESTE NÚMERO cada vez que cambie la forma de ResumenDiario o algo del
+ * prompt que altere el contenido. Un resumen guardado con otra versión se trata
+ * como si no existiera y se regenera.
+ *
+ * Existe porque sin esto cada cambio de forma dejaba filas viejas en la caché que
+ * la página nueva no sabía leer, y había que ir a borrarlas a mano en la base. Y
+ * peor: si alguien cargaba la página durante el despliegue, quedaba con un
+ * resumen del código anterior cacheado por el resto del día, sin manera de
+ * refrescarlo. Pasó de verdad, dos veces.
+ *
+ * 1 — primera versión
+ * 2 — conteos, temas, enCopia, ventana de 72 h
+ * 3 — enlaces a Outlook y registro sin voseo
+ */
+export const VERSION_RESUMEN = 3;
+
 export type Urgencia = "alta" | "media" | "baja";
 
 /**
@@ -116,6 +135,8 @@ export interface ResumenModelo {
  * donde inventa.
  */
 export interface ResumenDiario extends Omit<ResumenModelo, "reuniones" | "correosDestacados"> {
+  /** Con qué VERSION_RESUMEN se generó. Ver el comentario de esa constante. */
+  version: number;
   reuniones: ReunionResumida[];
   correosDestacados: CorreoDestacado[];
   conteos: ConteosCorreo;
@@ -128,6 +149,14 @@ export interface ResumenGuardado {
   resumen: ResumenDiario;
   generadoEn: string;
   enviadoEn: string | null;
+  /**
+   * false si se generó con otra versión del formato.
+   *
+   * La fila se devuelve igual —el cron necesita `enviadoEn` para no mandar dos
+   * veces el mismo correo, sin importar la versión— pero la página la descarta y
+   * regenera.
+   */
+  vigente: boolean;
 }
 
 /** Lo que la página necesita saber para decidir qué pintar. */
