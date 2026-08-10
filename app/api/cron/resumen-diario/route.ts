@@ -86,7 +86,11 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const estado = await obtenerResumenDeHoy({ usuarioId: persona.id, nombre: persona.nombre });
+      const estado = await obtenerResumenDeHoy({
+        usuarioId: persona.id,
+        nombre: persona.nombre,
+        correo: persona.correo,
+      });
       if (estado.estado !== "ok") {
         resultados.push({
           correo: persona.correo,

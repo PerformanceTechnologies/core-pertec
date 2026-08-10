@@ -11,12 +11,21 @@ import { Client } from "@microsoft/microsoft-graph-client";
  */
 
 const ZONA_HORARIA = "America/Santiago";
-// Un día hábil normal de una persona con harto correo. Más que esto no aporta al
-// resumen y sí infla el prompt.
-const TOPE_CORREOS = 60;
+// Tres días, no uno. Un correo del viernes que sigue sin responder el lunes es
+// justamente el que hay que recordarle a alguien, y con 24 horas desaparecía del
+// resumen sin haber sido atendido.
+const HORAS_POR_DEFECTO = 72;
+// Tope de mensajes que se le pasan al modelo. Con 72 horas el volumen sube, y
+// esto es lo que evita que un buzón muy movido reviente el prompt. Lo que se
+// recorta son los MÁS VIEJOS, porque la consulta viene ordenada por fecha
+// descendente.
+const TOPE_CORREOS = 150;
 // Recorte del cuerpo de cada correo. El resumen necesita saber de qué se trata y
 // qué piden, no el hilo completo con las 14 respuestas anteriores citadas.
-const LARGO_CUERPO = 600;
+const LARGO_CUERPO = 700;
+
+/** A quién iba dirigido el correo, desde el punto de vista de quien rinde. */
+export type Dirigido = "a_mi" | "en_copia" | "lista";
 
 export interface CorreoResumen {
   id: string;
@@ -27,18 +36,50 @@ export interface CorreoResumen {
   leido: boolean;
   marcado: boolean;
   tieneAdjuntos: boolean;
+  /**
+   * Si la persona está en Para, en CC, o en ninguno de los dos.
+   *
+   * Es la distinción que más cambia la lectura del resumen: un correo dirigido a
+   * vos casi siempre espera algo, y uno en copia casi nunca. Antes no se
+   * calculaba y los dos se mezclaban en la misma lista.
+   *
+   * "lista" es el correo que no te nombra en Para ni en CC: llegó por una lista
+   * de distribución, un buzón compartido o una regla. Es lo menos exigente de
+   * los tres.
+   */
+  dirigido: Dirigido;
+  /** Cuántas personas más lo recibieron. Un "para 14" pide bastante menos que un "para vos". */
+  destinatarios: number;
   extracto: string;
 }
 
+/** Conteos del buzón. Se calculan acá y no los inventa el modelo. */
+export interface ConteosCorreo {
+  total: number;
+  sinLeer: number;
+  aMi: number;
+  enCopia: number;
+  marcados: number;
+  horas: number;
+  /** true si el tope recortó mensajes: el resumen no vio el buzón completo. */
+  recortado: boolean;
+}
+
 export type ResultadoCorreos =
-  | { estado: "ok"; correos: CorreoResumen[] }
+  | { estado: "ok"; correos: CorreoResumen[]; conteos: ConteosCorreo }
   | { estado: "sin_permiso" }
   | { estado: "error"; motivo: string };
+
+interface DireccionGraph {
+  emailAddress?: { name?: string; address?: string };
+}
 
 interface MensajeGraph {
   id: string;
   subject?: string;
-  from?: { emailAddress?: { name?: string; address?: string } };
+  from?: DireccionGraph;
+  toRecipients?: DireccionGraph[];
+  ccRecipients?: DireccionGraph[];
   receivedDateTime?: string;
   isRead?: boolean;
   flag?: { flagStatus?: string };
@@ -46,16 +87,24 @@ interface MensajeGraph {
   bodyPreview?: string;
 }
 
+function contiene(lista: DireccionGraph[] | undefined, correo: string): boolean {
+  return (lista ?? []).some((d) => d.emailAddress?.address?.toLowerCase() === correo);
+}
+
 /**
- * Los correos recibidos en las últimas N horas, del más nuevo al más viejo.
+ * Los correos de las últimas N horas, del más nuevo al más viejo.
  *
  * Se piden solo los campos que usa el resumen (`select`): traer el cuerpo
- * completo de 60 correos son megabytes y varios segundos por nada, porque igual
+ * completo de 150 correos son megabytes y varios segundos por nada, porque igual
  * se recorta a bodyPreview.
+ *
+ * @param correoPropio La dirección de la persona, para poder distinguir lo que va
+ *                     dirigido a ella de lo que le llegó en copia.
  */
 export async function obtenerCorreosRecientes(
   accessToken: string | undefined,
-  horas = 24,
+  correoPropio: string,
+  horas = HORAS_POR_DEFECTO,
 ): Promise<ResultadoCorreos> {
   if (!accessToken) return { estado: "sin_permiso" };
 
@@ -67,16 +116,20 @@ export async function obtenerCorreosRecientes(
       .api("/me/mailFolders/inbox/messages")
       .header("Prefer", `outlook.timezone="${ZONA_HORARIA}"`)
       .filter(`receivedDateTime ge ${desde}`)
-      .select("subject,from,receivedDateTime,isRead,flag,hasAttachments,bodyPreview")
+      .select(
+        "subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,flag,hasAttachments,bodyPreview",
+      )
       .orderby("receivedDateTime desc")
       .top(TOPE_CORREOS)
       .get();
 
     const mensajes: MensajeGraph[] = respuesta.value ?? [];
+    const propio = correoPropio.toLowerCase();
 
-    return {
-      estado: "ok",
-      correos: mensajes.map((m) => ({
+    const correos: CorreoResumen[] = mensajes.map((m) => {
+      const enPara = contiene(m.toRecipients, propio);
+      const enCc = contiene(m.ccRecipients, propio);
+      return {
         id: m.id,
         asunto: m.subject?.trim() || "(Sin asunto)",
         de: m.from?.emailAddress?.name?.trim() || m.from?.emailAddress?.address || "(Desconocido)",
@@ -85,8 +138,27 @@ export async function obtenerCorreosRecientes(
         leido: Boolean(m.isRead),
         marcado: m.flag?.flagStatus === "flagged",
         tieneAdjuntos: Boolean(m.hasAttachments),
+        // El orden importa: estar en Para manda sobre estar además en CC.
+        dirigido: enPara ? "a_mi" : enCc ? "en_copia" : "lista",
+        destinatarios: (m.toRecipients ?? []).length + (m.ccRecipients ?? []).length,
         extracto: (m.bodyPreview ?? "").replace(/\s+/g, " ").trim().slice(0, LARGO_CUERPO),
-      })),
+      };
+    });
+
+    return {
+      estado: "ok",
+      correos,
+      conteos: {
+        total: correos.length,
+        sinLeer: correos.filter((c) => !c.leido).length,
+        aMi: correos.filter((c) => c.dirigido === "a_mi").length,
+        enCopia: correos.filter((c) => c.dirigido === "en_copia").length,
+        marcados: correos.filter((c) => c.marcado).length,
+        horas,
+        // Si volvieron exactamente TOPE_CORREOS, es casi seguro que hay más
+        // atrás. Se avisa en pantalla en vez de dejar creer que se vio todo.
+        recortado: correos.length >= TOPE_CORREOS,
+      },
     };
   } catch (error) {
     // 401/403 es el caso típico de permiso no consentido; se separa del resto

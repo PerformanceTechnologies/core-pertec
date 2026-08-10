@@ -55,6 +55,8 @@ export async function marcarEnviado(usuarioId: string, fecha: string): Promise<v
 interface OpcionesResumen {
   usuarioId: string;
   nombre: string;
+  /** Necesario para distinguir el correo dirigido a la persona del que le llega en copia. */
+  correo: string;
   /**
    * Token de la sesión activa, si hay. Cuando la persona abre /mi-dia se usa
    * este y no se toca la credencial guardada: es un token que ya está en la
@@ -63,8 +65,6 @@ interface OpcionesResumen {
    * El cron no tiene sesión, así que pasa undefined y cae al token guardado.
    */
   accessTokenSesion?: string;
-  /** true fuerza regenerar aunque ya exista el de hoy (botón "actualizar"). */
-  forzar?: boolean;
 }
 
 /**
@@ -76,13 +76,11 @@ interface OpcionesResumen {
  * configuración y conviene que se vean.
  */
 export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<EstadoResumen> {
-  const { usuarioId, nombre, accessTokenSesion, forzar = false } = opciones;
+  const { usuarioId, nombre, correo, accessTokenSesion } = opciones;
   const hoy = hoyEnSantiago();
 
-  if (!forzar) {
-    const guardado = await leerResumenGuardado(usuarioId, hoy.iso);
-    if (guardado) return { estado: "ok", datos: guardado };
-  }
+  const guardado = await leerResumenGuardado(usuarioId, hoy.iso);
+  if (guardado) return { estado: "ok", datos: guardado };
 
   let accessToken = accessTokenSesion;
   if (!accessToken) {
@@ -97,8 +95,10 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   // Correo y calendario son independientes: en paralelo, y así el tiempo de
   // pared es el del más lento y no la suma de los dos.
   const [correos, reuniones] = await Promise.all([
-    obtenerCorreosRecientes(accessToken, 24),
-    obtenerReunionesProximas(accessToken, 1),
+    obtenerCorreosRecientes(accessToken, correo),
+    // Dos días además de hoy: alcanza para que el resumen avise de algo que se
+    // viene sin convertirse en una agenda de la semana.
+    obtenerReunionesProximas(accessToken, 2),
   ]);
 
   // Sin correo no hay resumen que valga la pena: el calendario solo ya lo
@@ -106,12 +106,22 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   if (correos.estado === "sin_permiso") return { estado: "sin_permiso" };
   if (correos.estado === "error") return { estado: "error", motivo: correos.motivo };
 
-  const resumen = await generarResumen(
+  const listaReuniones = reuniones.estado === "ok" ? reuniones.reuniones : [];
+  const delModelo = await generarResumen(
     nombre,
     correos.correos,
-    reuniones.estado === "ok" ? reuniones.reuniones : [],
+    listaReuniones,
     hoy.iso,
+    correos.conteos.horas,
   );
+
+  // Los conteos se pegan acá y no se le piden al modelo: son cuentas exactas
+  // sobre 150 correos, y eso es justo lo que un modelo hace mal.
+  const resumen: ResumenDiario = {
+    ...delModelo,
+    conteos: correos.conteos,
+    reunionesTotales: listaReuniones.length,
+  };
 
   return { estado: "ok", datos: await guardar(usuarioId, hoy.iso, resumen) };
 }

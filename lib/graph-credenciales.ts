@@ -52,6 +52,25 @@ export async function guardarRefreshToken(correo: string, refreshToken: string):
   if (error) throw new Error(error.message);
 }
 
+/**
+ * ¿Hay credencial guardada para esta persona?
+ *
+ * La página lo usa para avisar que el envío automático de la mañana NO está
+ * activo. Sin esto el módulo se ve perfecto —el dashboard funciona con el token
+ * de la sesión— y el correo de las 7:30 simplemente no llega nunca, sin que nada
+ * en pantalla lo insinúe. Pasó de verdad: la primera vez que esto corrió en
+ * producción faltaba TOKEN_CIFRADO_KEY, guardarRefreshToken falló, el error
+ * quedó solo en los logs y la tabla vacía.
+ */
+export async function tieneCredencialGuardada(usuarioId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("graph_credenciales")
+    .select("usuario_id, error")
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+  return Boolean(data) && !data?.error;
+}
+
 export type ResultadoTokenGuardado =
   | { estado: "ok"; accessToken: string }
   /** Nunca se guardó un token: la persona no ha vuelto a loguearse desde que existe esto. */

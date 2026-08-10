@@ -39,6 +39,18 @@ function seccion(titulo: string, contenido: string): string {
   </td></tr>`;
 }
 
+/**
+ * Interpola un número sin escapar.
+ *
+ * Los conteos los calcula el servidor y `temas[].correos` lo devuelve el modelo
+ * con el esquema forzado a integer, así que en teoría no hace falta. Pasa por
+ * Number igual porque el valor viene de una columna jsonb: si alguna vez se
+ * manipula esa fila, un string ahí sería HTML sin escapar dentro del correo.
+ */
+function numero(v: number): string {
+  return String(Number(v) || 0);
+}
+
 function vacio(texto: string): string {
   return `<div style="font:14px/1.5 Arial,sans-serif;color:#b8b2a4">${esc(texto)}</div>`;
 }
@@ -50,7 +62,8 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
           (m) => `<div style="padding:8px 0;border-bottom:1px solid #e7e1d8">
         <div style="font:700 15px/1.4 Arial,sans-serif;color:#171411">
           <span style="color:#c85217">${esc(m.inicio.slice(11, 16))}</span>
-          ${m.dia === "manana" ? '<span style="font:600 10px/1 Arial,sans-serif;color:#8c8578;letter-spacing:1px"> MAÑANA </span>' : ""}
+          ${m.dia !== "hoy" ? `<span style="font:600 10px/1 Arial,sans-serif;color:#8c8578;letter-spacing:1px"> ${esc(m.dia === "manana" ? "MAÑANA" : "MÁS ADELANTE")} </span>` : ""}
+          ${!m.agendadaAntes ? '<span style="font:600 10px/1 Arial,sans-serif;color:#c85217;letter-spacing:1px"> RECIÉN AGENDADA </span>' : ""}
           ${esc(m.asunto)}
         </div>
         <div style="font:13px/1.5 Arial,sans-serif;color:#8c8578">con ${esc(m.con)}</div>
@@ -68,7 +81,9 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
           <span style="display:inline-block;width:8px;height:8px;border-radius:8px;background:${COLOR_URGENCIA[c.urgencia]}"></span>
           ${esc(c.asunto)}
         </div>
-        <div style="font:13px/1.5 Arial,sans-serif;color:#8c8578">${esc(c.de)}</div>
+        <div style="font:13px/1.5 Arial,sans-serif;color:#8c8578">
+          ${esc(c.de)} · ${esc(c.cuando)}${c.dirigido !== "a_mi" ? ` · ${esc(c.dirigido === "en_copia" ? "en copia" : "lista")}` : ""}
+        </div>
         <div style="font:14px/1.5 Arial,sans-serif;color:#171411">${esc(c.queEsperan)}</div>
       </div>`,
         )
@@ -79,10 +94,44 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
     ? `<ul style="margin:0;padding-left:18px">${r.compromisos
         .map(
           (c) =>
-            `<li style="font:14px/1.6 Arial,sans-serif;color:#171411">${esc(c.compromiso)} <span style="color:#8c8578">— ${esc(c.aQuien)}</span></li>`,
+            `<li style="font:14px/1.6 Arial,sans-serif;color:#171411">${esc(c.compromiso)} <span style="color:#8c8578">— ${esc(c.aQuien)}${c.desde ? `, ${esc(c.desde)}` : ""}</span></li>`,
         )
         .join("")}</ul>`
     : vacio("Sin compromisos propios abiertos.");
+
+  const temas = r.temas.length
+    ? r.temas
+        .map(
+          (t) => `<div style="padding:8px 0;border-bottom:1px solid #e7e1d8">
+        <div style="font:700 15px/1.4 Arial,sans-serif;color:#171411">
+          ${esc(t.tema)}
+          <span style="font:400 12px/1.4 Arial,sans-serif;color:#b8b2a4">· ${numero(t.correos)} correos</span>
+        </div>
+        <div style="font:14px/1.5 Arial,sans-serif;color:#171411">${esc(t.estado)}</div>
+      </div>`,
+        )
+        .join("")
+    : "";
+
+  const enCopia = r.enCopia.length
+    ? r.enCopia
+        .map(
+          (c) => `<div style="padding:6px 0">
+        <div style="font:600 14px/1.4 Arial,sans-serif;color:#8c8578">${esc(c.asunto)} <span style="font-weight:400">— ${esc(c.de)}</span></div>
+        <div style="font:13px/1.5 Arial,sans-serif;color:#8c8578">${esc(c.porQueImporta)}</div>
+      </div>`,
+        )
+        .join("")
+    : "";
+
+  const conteos = `<div style="font:13px/1.6 Arial,sans-serif;color:#8c8578">
+    <b style="color:#171411">${numero(r.conteos.total)}</b> correos en ${numero(r.conteos.horas)} h ·
+    <b style="color:#171411">${numero(r.conteos.aMi)}</b> dirigidos a vos ·
+    <b style="color:#171411">${numero(r.conteos.enCopia)}</b> en copia ·
+    <b style="color:#c85217">${numero(r.conteos.sinLeer)}</b> sin leer ·
+    <b style="color:#171411">${numero(r.reunionesTotales)}</b> reuniones
+    ${r.conteos.recortado ? '<br><span style="color:#c85217">Se llegó al tope de mensajes: hay correo más viejo que no se analizó.</span>' : ""}
+  </div>`;
 
   const prioridades = r.prioridades
     .map(
@@ -106,9 +155,12 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
         <div style="font:15px/1.6 Arial,sans-serif;color:#171411">${esc(r.panorama)}</div>
       </td></tr>
 
+      ${seccion("El período en números", conteos)}
       ${seccion("Lo primero", `<table role="presentation" cellpadding="0" cellspacing="0">${prioridades}</table>`)}
       ${seccion("Reuniones", reuniones)}
       ${seccion("Esperan algo de vos", correos)}
+      ${temas ? seccion("En qué quedaron los temas", temas) : ""}
+      ${enCopia ? seccion("Para saber, sin acción", enCopia) : ""}
       ${seccion("Prometiste y sigue abierto", compromisos)}
 
       <tr><td style="padding:22px 24px 24px 24px">

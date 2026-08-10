@@ -20,6 +20,16 @@ export interface ReunionCalendario {
   // eventos del mes seria peso al vacio.
   organizador?: string | null;
   asistentes?: string[];
+  /**
+   * Cuándo se creó la cita, no cuándo ocurre.
+   *
+   * Sirve para separar "esto lo agendaron hace dos semanas" de "esto lo metieron
+   * anoche": lo segundo suele ser lo que descoloca el día y merece aparecer
+   * destacado en el resumen.
+   */
+  creadaEn?: string | null;
+  /** true si se agendó ANTES del día en que ocurre. Lo calcula el servidor. */
+  agendadaAntes?: boolean;
 }
 
 // "Hoy" en hora de Chile, calculado sin depender de la zona horaria del
@@ -173,7 +183,7 @@ export async function obtenerReunionesProximas(
       .api("/me/calendarView")
       .header("Prefer", `outlook.timezone="${ZONA_HORARIA}"`)
       .query({ startDateTime: inicio, endDateTime: fin })
-      .select("subject,start,end,location,onlineMeeting,isAllDay,attendees,organizer")
+      .select("subject,start,end,location,onlineMeeting,isAllDay,attendees,organizer,createdDateTime")
       .orderby("start/dateTime")
       .top(TOPE_EVENTOS)
       .get();
@@ -181,6 +191,7 @@ export async function obtenerReunionesProximas(
     const eventos: (EventoGraph & {
       attendees?: { emailAddress?: { name?: string; address?: string } }[];
       organizer?: { emailAddress?: { name?: string } };
+      createdDateTime?: string;
     })[] = respuesta.value ?? [];
 
     const reuniones = eventos
@@ -197,6 +208,16 @@ export async function obtenerReunionesProximas(
         asistentes: (evento.attendees ?? [])
           .map((a) => a.emailAddress?.name?.trim() || a.emailAddress?.address || "")
           .filter(Boolean),
+        creadaEn: evento.createdDateTime ?? null,
+        // createdDateTime viene en UTC (no lo toca el header Prefer, que solo
+        // aplica a start/end), y el inicio ya viene en hora de Chile. Comparar
+        // los dos como fecha suelta serviria salvo cerca de la medianoche, asi
+        // que se compara el dia local de cada uno.
+        agendadaAntes: evento.createdDateTime
+          ? new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_HORARIA }).format(
+              new Date(evento.createdDateTime),
+            ) < evento.start!.dateTime!.slice(0, 10)
+          : false,
       }));
 
     return { estado: "ok", reuniones };
