@@ -4,7 +4,9 @@ import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
 import { obtenerCorreosRecientes } from "@/lib/graph-correo";
 import { hoyEnSantiago, obtenerReunionesProximas } from "@/lib/graph-calendario";
 import { generarResumen } from "./generar";
-import type { EstadoResumen, ResumenDiario, ResumenGuardado } from "./tipos";
+import type { EstadoResumen, ResumenDiario, ResumenGuardado, ResumenModelo } from "./tipos";
+import type { CorreoResumen } from "@/lib/graph-correo";
+import type { ReunionCalendario } from "@/lib/graph-calendario";
 
 /**
  * El resumen del día: lo lee de la caché o lo genera.
@@ -115,15 +117,47 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
     correos.conteos.horas,
   );
 
-  // Los conteos se pegan acá y no se le piden al modelo: son cuentas exactas
-  // sobre 150 correos, y eso es justo lo que un modelo hace mal.
+  // Los conteos y los enlaces se pegan acá y no se le piden al modelo: los dos
+  // son datos exactos, y eso es justo lo que un modelo hace mal.
   const resumen: ResumenDiario = {
-    ...delModelo,
+    ...conEnlaces(delModelo, correos.correos, listaReuniones),
     conteos: correos.conteos,
     reunionesTotales: listaReuniones.length,
   };
 
   return { estado: "ok", datos: await guardar(usuarioId, hoy.iso, resumen) };
+}
+
+/**
+ * Cambia los índices que devolvió el modelo por los enlaces reales a Outlook.
+ *
+ * El modelo nunca ve una URL: dice "esto es el correo [7]" y acá se busca el 7 en
+ * la lista que se le pasó. Así un índice inventado o fuera de rango termina en un
+ * enlace nulo —la fila simplemente no es clickeable— en vez de mandar a la
+ * persona a un mensaje equivocado.
+ *
+ * El índice del prompt empieza en 1, de ahí el -1.
+ */
+function conEnlaces(
+  delModelo: ResumenModelo,
+  correos: CorreoResumen[],
+  reuniones: ReunionCalendario[],
+): Omit<ResumenModelo, "reuniones" | "correosDestacados"> &
+  Pick<ResumenDiario, "reuniones" | "correosDestacados"> {
+  const enlaceDe = <T extends { enlace?: string | null }>(lista: T[], indice: number) =>
+    lista[indice - 1]?.enlace ?? null;
+
+  return {
+    ...delModelo,
+    correosDestacados: delModelo.correosDestacados.map(({ indice, ...resto }) => ({
+      ...resto,
+      enlace: enlaceDe(correos, indice),
+    })),
+    reuniones: delModelo.reuniones.map(({ indice, ...resto }) => ({
+      ...resto,
+      enlace: enlaceDe(reuniones, indice),
+    })),
+  };
 }
 
 export interface DestinatarioResumen {

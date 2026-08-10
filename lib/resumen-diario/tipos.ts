@@ -5,23 +5,39 @@ import type { ConteosCorreo, Dirigido } from "@/lib/graph-correo";
 
 export type Urgencia = "alta" | "media" | "baja";
 
-export interface CorreoDestacado {
+/**
+ * Lo que el modelo devuelve por cada correo destacado.
+ *
+ * Trae `indice`, no la URL. Pedirle el enlace al modelo sería pedirle que copie
+ * una cadena larga sin equivocarse, y un enlace mal copiado lleva al correo
+ * equivocado o a ninguna parte. El índice es un número chico que además el modelo
+ * ve impreso al lado de cada mensaje; el servidor lo resuelve contra la lista
+ * real.
+ */
+export interface CorreoDestacadoModelo {
   asunto: string;
   de: string;
-  /** Qué espera esa persona de vos, en una línea. Es el valor real del resumen. */
+  /** Qué espera esa persona, en una línea. Es el valor real del resumen. */
   queEsperan: string;
   urgencia: Urgencia;
-  /** Dirigido a vos o en copia: cambia por completo cuánto exige. */
+  /** Dirigido a ti o en copia: cambia por completo cuánto exige. */
   dirigido: Dirigido;
   /** "hoy", "ayer", "el viernes"... Con 72 horas de ventana hace falta ubicarlo. */
   cuando: string;
+  /** El [N] con el que el correo aparece numerado en el prompt. */
+  indice: number;
+}
+
+export interface CorreoDestacado extends Omit<CorreoDestacadoModelo, "indice"> {
+  /** Resuelto por el servidor a partir del índice. Null si no se pudo ubicar. */
+  enlace: string | null;
 }
 
 /**
  * Un correo donde la persona solo está en copia pero que igual conviene saber.
  *
  * Separado de correosDestacados a propósito: mezclarlos hacía que una lista de
- * "cosas que esperan algo de vos" se llenara de cosas que no esperan nada.
+ * "cosas que requieren respuesta" se llenara de cosas que no requieren nada.
  */
 export interface CorreoInformativo {
   asunto: string;
@@ -43,7 +59,7 @@ export interface TemaDelPeriodo {
   estado: string;
 }
 
-export interface ReunionResumida {
+export interface ReunionResumidaModelo {
   asunto: string;
   /** ISO local de Chile, tal como lo devuelve Graph con el header Prefer. */
   inicio: string;
@@ -54,6 +70,13 @@ export interface ReunionResumida {
   preparacion: string | null;
   /** false = la agendaron el mismo día: suele ser lo que descoloca la jornada. */
   agendadaAntes: boolean;
+  /** El [N] con el que la reunión aparece numerada en el prompt. */
+  indice: number;
+}
+
+export interface ReunionResumida extends Omit<ReunionResumidaModelo, "indice"> {
+  /** Resuelto por el servidor a partir del índice. Null si no se pudo ubicar. */
+  enlace: string | null;
 }
 
 export interface CompromisoAbierto {
@@ -63,12 +86,17 @@ export interface CompromisoAbierto {
   desde: string | null;
 }
 
-/** Lo que devuelve el modelo. Los conteos NO están acá: los pone el servidor. */
+/**
+ * Lo que devuelve el modelo.
+ *
+ * Ni los conteos ni los enlaces están acá: los dos los pone el servidor, porque
+ * los dos son datos exactos y eso es justo lo que un modelo hace mal.
+ */
 export interface ResumenModelo {
   /** Tres o cuatro líneas de contexto. Lo primero que se lee. */
   panorama: string;
-  reuniones: ReunionResumida[];
-  correosDestacados: CorreoDestacado[];
+  reuniones: ReunionResumidaModelo[];
+  correosDestacados: CorreoDestacadoModelo[];
   enCopia: CorreoInformativo[];
   temas: TemaDelPeriodo[];
   compromisos: CompromisoAbierto[];
@@ -87,7 +115,9 @@ export interface ResumenModelo {
  * pedírselas al modelo es pedirle que cuente 150 correos de memoria, y ahí es
  * donde inventa.
  */
-export interface ResumenDiario extends ResumenModelo {
+export interface ResumenDiario extends Omit<ResumenModelo, "reuniones" | "correosDestacados"> {
+  reuniones: ReunionResumida[];
+  correosDestacados: CorreoDestacado[];
   conteos: ConteosCorreo;
   /** Cuántas reuniones había en la ventana consultada, contadas por el servidor. */
   reunionesTotales: number;

@@ -51,6 +51,20 @@ function numero(v: number): string {
   return String(Number(v) || 0);
 }
 
+/**
+ * Envuelve un texto en un enlace, solo si la URL es https.
+ *
+ * El `enlace` ya viene validado desde lib/graph-correo, pero acá se vuelve a
+ * comprobar: este HTML se manda por correo, o sea que sale del sistema, y un href
+ * es el peor lugar para confiar en que alguien más ya validó. Sin enlace devuelve
+ * el texto escapado y listo.
+ */
+function conEnlace(texto: string, url: string | null | undefined): string {
+  const escapado = esc(texto);
+  if (!url || !/^https:\/\//.test(url)) return escapado;
+  return `<a href="${esc(url)}" style="color:inherit;text-decoration:none;border-bottom:1px solid #c8521766">${escapado}</a>`;
+}
+
 function vacio(texto: string): string {
   return `<div style="font:14px/1.5 Arial,sans-serif;color:#b8b2a4">${esc(texto)}</div>`;
 }
@@ -64,7 +78,7 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
           <span style="color:#c85217">${esc(m.inicio.slice(11, 16))}</span>
           ${m.dia !== "hoy" ? `<span style="font:600 10px/1 Arial,sans-serif;color:#8c8578;letter-spacing:1px"> ${esc(m.dia === "manana" ? "MAÑANA" : "MÁS ADELANTE")} </span>` : ""}
           ${!m.agendadaAntes ? '<span style="font:600 10px/1 Arial,sans-serif;color:#c85217;letter-spacing:1px"> RECIÉN AGENDADA </span>' : ""}
-          ${esc(m.asunto)}
+          ${conEnlace(m.asunto, m.enlace)}
         </div>
         <div style="font:13px/1.5 Arial,sans-serif;color:#8c8578">con ${esc(m.con)}</div>
         ${m.preparacion ? `<div style="font:13px/1.5 Arial,sans-serif;color:#c85217">Preparar: ${esc(m.preparacion)}</div>` : ""}
@@ -79,7 +93,7 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
           (c) => `<div style="padding:8px 0;border-bottom:1px solid #e7e1d8">
         <div style="font:700 15px/1.4 Arial,sans-serif;color:#171411">
           <span style="display:inline-block;width:8px;height:8px;border-radius:8px;background:${COLOR_URGENCIA[c.urgencia]}"></span>
-          ${esc(c.asunto)}
+          ${conEnlace(c.asunto, c.enlace)}
         </div>
         <div style="font:13px/1.5 Arial,sans-serif;color:#8c8578">
           ${esc(c.de)} · ${esc(c.cuando)}${c.dirigido !== "a_mi" ? ` · ${esc(c.dirigido === "en_copia" ? "en copia" : "lista")}` : ""}
@@ -88,7 +102,7 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
       </div>`,
         )
         .join("")
-    : vacio("Nada en la bandeja está esperando algo de vos.");
+    : vacio("Ningún correo del período requiere una respuesta tuya.");
 
   const compromisos = r.compromisos.length
     ? `<ul style="margin:0;padding-left:18px">${r.compromisos
@@ -97,7 +111,7 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
             `<li style="font:14px/1.6 Arial,sans-serif;color:#171411">${esc(c.compromiso)} <span style="color:#8c8578">— ${esc(c.aQuien)}${c.desde ? `, ${esc(c.desde)}` : ""}</span></li>`,
         )
         .join("")}</ul>`
-    : vacio("Sin compromisos propios abiertos.");
+    : vacio("Sin compromisos propios pendientes.");
 
   const temas = r.temas.length
     ? r.temas
@@ -126,7 +140,7 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
 
   const conteos = `<div style="font:13px/1.6 Arial,sans-serif;color:#8c8578">
     <b style="color:#171411">${numero(r.conteos.total)}</b> correos en ${numero(r.conteos.horas)} h ·
-    <b style="color:#171411">${numero(r.conteos.aMi)}</b> dirigidos a vos ·
+    <b style="color:#171411">${numero(r.conteos.aMi)}</b> dirigidos a ti ·
     <b style="color:#171411">${numero(r.conteos.enCopia)}</b> en copia ·
     <b style="color:#c85217">${numero(r.conteos.sinLeer)}</b> sin leer ·
     <b style="color:#171411">${numero(r.reunionesTotales)}</b> reuniones
@@ -157,16 +171,16 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string, r: Resumen
 
       ${seccion("El período en números", conteos)}
       ${seccion("Lo primero", `<table role="presentation" cellpadding="0" cellspacing="0">${prioridades}</table>`)}
-      ${seccion("Reuniones", reuniones)}
-      ${seccion("Esperan algo de vos", correos)}
-      ${temas ? seccion("En qué quedaron los temas", temas) : ""}
-      ${enCopia ? seccion("Para saber, sin acción", enCopia) : ""}
-      ${seccion("Prometiste y sigue abierto", compromisos)}
+      ${seccion("Agenda", reuniones)}
+      ${seccion("Requieren tu respuesta", correos)}
+      ${temas ? seccion("Estado de los temas", temas) : ""}
+      ${enCopia ? seccion("Informativo", enCopia) : ""}
+      ${seccion("Compromisos abiertos", compromisos)}
 
       <tr><td style="padding:22px 24px 24px 24px">
         <div style="font:12px/1.5 Arial,sans-serif;color:#b8b2a4;border-top:1px solid #e7e1d8;padding-top:14px">
           Generado automáticamente por Core PERTEC a partir de tu correo y tu calendario.
-          Es un resumen, no un reemplazo: revisá la bandeja antes de decidir algo importante.
+          Es un resumen, no un reemplazo: revisa la bandeja antes de tomar una decisión importante.
         </div>
       </td></tr>
     </table>

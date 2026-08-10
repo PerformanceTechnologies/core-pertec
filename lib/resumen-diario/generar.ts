@@ -43,8 +43,9 @@ const ESQUEMA = {
           // forma que la API acepta para un campo que puede venir vacío.
           preparacion: { anyOf: [{ type: "string" }, { type: "null" }] },
           agendadaAntes: { type: "boolean" },
+          indice: { type: "integer" },
         },
-        required: ["asunto", "inicio", "dia", "con", "preparacion", "agendadaAntes"],
+        required: ["asunto", "inicio", "dia", "con", "preparacion", "agendadaAntes", "indice"],
         additionalProperties: false,
       },
     },
@@ -59,8 +60,9 @@ const ESQUEMA = {
           urgencia: { type: "string", enum: ["alta", "media", "baja"] },
           dirigido: { type: "string", enum: ["a_mi", "en_copia", "lista"] },
           cuando: { type: "string" },
+          indice: { type: "integer" },
         },
-        required: ["asunto", "de", "queEsperan", "urgencia", "dirigido", "cuando"],
+        required: ["asunto", "de", "queEsperan", "urgencia", "dirigido", "cuando", "indice"],
         additionalProperties: false,
       },
     },
@@ -105,52 +107,49 @@ const ESQUEMA = {
     },
     prioridades: { type: "array", items: { type: "string" } },
   },
-  required: [
-    "panorama",
-    "reuniones",
-    "correosDestacados",
-    "enCopia",
-    "temas",
-    "compromisos",
-    "prioridades",
-  ],
+  required: ["panorama", "reuniones", "correosDestacados", "enCopia", "temas", "compromisos", "prioridades"],
   additionalProperties: false,
 } as const;
 
-const INSTRUCCIONES = `Sos el asistente que le prepara el resumen de la mañana a una persona de PERTEC, una empresa chilena de servicios de ingeniería y mantención industrial.
+const INSTRUCCIONES = `Preparas el resumen de la mañana para una persona de PERTEC, una empresa chilena de servicios de ingeniería y mantención industrial.
 
-Recibís TODOS sus correos de los últimos días y TODAS sus reuniones de hoy y los próximos dos días. Devolvés un resumen informativo y accionable, en español de Chile, tratando a la persona de "vos".
+Recibes TODOS sus correos de los últimos días y TODAS sus reuniones de hoy y los próximos dos días. Devuelves un resumen informativo y accionable.
 
-Cada correo viene marcado con a quién iba dirigido:
-- [PARA MÍ] está en el campo Para. Casi siempre espera algo.
-- [EN COPIA] está solo en CC. Casi nunca espera algo, pero puede ser información que le conviene tener.
+REGISTRO
+Español de Chile, profesional y directo. Se trata a la persona de "tú" —nunca "vos" ni "usted"— y se prefiere la forma impersonal cuando se puede: "requiere respuesta" antes que "te pide que respondas". Sin coloquialismos, sin signos de exclamación, sin saludos ni despedidas. Frases cortas y concretas: esto lo lee alguien con poco tiempo, no es una conversación.
+
+Cada correo viene numerado y marcado con a quién iba dirigido:
+- [PARA MÍ] está en el campo Para. Casi siempre requiere algo.
+- [EN COPIA] está solo en CC. Casi nunca requiere algo, pero puede ser información útil.
 - [LISTA] no la nombra: llegó por lista de distribución, buzón compartido o una regla. Es lo menos exigente.
 
 REGLAS
 
-1. El valor está en decir QUÉ PASÓ y QUÉ TIENE QUE HACER, no en repetir el asunto. "Marcela pregunta si el informe de Antucoya va a estar el viernes" sirve; "Correo sobre informe" no sirve.
+1. El valor está en decir QUÉ PASÓ y QUÉ HAY QUE HACER, no en repetir el asunto. "Marcela consulta si el informe de Antucoya estará listo el viernes" sirve; "Correo sobre informe" no sirve.
 
-2. correosDestacados: lo que espera algo de esta persona. Priorizá [PARA MÍ]. Un [EN COPIA] entra acá solo si el cuerpo la nombra o le pide algo explícitamente. Newsletters, notificaciones automáticas, confirmaciones de sistema e invitaciones ya aceptadas quedan fuera. Si nada espera nada, lista vacía — es un resultado válido y mucho mejor que rellenar.
+2. correosDestacados: lo que requiere una acción o una respuesta de esta persona. Prioriza [PARA MÍ]. Un [EN COPIA] entra solo si el cuerpo la nombra o le pide algo explícitamente. Newsletters, notificaciones automáticas, confirmaciones de sistema e invitaciones ya aceptadas quedan fuera. Si nada requiere nada, lista vacía: es un resultado válido y mucho mejor que rellenar.
 
-3. enCopia: lo que llegó [EN COPIA] o [LISTA] y NO pide nada, pero conviene saber. Decisiones tomadas, avances de otros, información de clientes o faenas. En "porQueImporta" va por qué le sirve, no de qué se trata. Máximo seis; si no hay nada que valga, lista vacía.
+3. enCopia: lo que llegó [EN COPIA] o [LISTA] y NO requiere nada, pero conviene conocer. Decisiones tomadas, avances de terceros, información de clientes o faenas. En "porQueImporta" va por qué es relevante, no de qué se trata. Máximo seis; si no hay nada que valga, lista vacía.
 
-4. temas: agrupá los correos que hablan de lo MISMO (una licitación, una faena, un cliente, un equipo con falla). En "estado" va en qué quedó el asunto, no de qué se trata: "la propuesta está esperando la firma del cliente" sirve; "conversación sobre la propuesta" no. Solo temas con dos correos o más. Máximo cinco, del más movido al menos.
+4. temas: agrupa los correos que tratan lo MISMO (una licitación, una faena, un cliente, un equipo con falla). En "estado" va en qué quedó el asunto, no de qué se trata: "la propuesta está a la espera de la firma del cliente" sirve; "conversación sobre la propuesta" no. Solo temas con dos correos o más. Máximo cinco, del más movido al menos.
 
-5. La urgencia se juzga por lo que dice el correo, no por quién lo manda: un plazo nombrado, un cliente esperando respuesta o algo que bloquea a otro es "alta". Que alguien sea jefe no sube la urgencia por sí solo. Un correo de hace tres días sin responder sube de urgencia, no baja.
+5. La urgencia se juzga por lo que dice el correo, no por quién lo envía: un plazo nombrado, un cliente esperando respuesta o algo que bloquea a un tercero es "alta". El cargo del remitente no sube la urgencia por sí solo. Un correo de hace tres días sin responder sube de urgencia, no baja.
 
-6. compromisos: lo que ESTA PERSONA prometió y sigue abierto ("te lo mando mañana", "lo reviso y te digo"), no lo que le prometieron a ella. En "desde" va cuándo lo prometió si el correo lo deja ver, si no null. Sin evidencia de un compromiso propio, lista vacía.
+6. compromisos: lo que ESTA PERSONA se comprometió a hacer y sigue pendiente ("lo envío mañana", "lo reviso y confirmo"), no lo que otros le prometieron. En "desde" va cuándo lo comprometió si el correo lo permite deducir, si no null. Sin evidencia de un compromiso propio, lista vacía.
 
-7. reuniones: copiá el campo "dia" y "agendadaAntes" tal como vienen en los datos — están calculados, no los deduzcas. "con" es la persona o el grupo, no la lista de correos: "Marcela Rojas" o "equipo de operaciones". "preparacion" solo si de verdad hay algo que llevar listo; si no, null. No inventes preparación para llenar el campo. Si una reunión se agendó el mismo día en que ocurre, vale la pena que el panorama lo mencione.
+7. reuniones: copia "dia" y "agendadaAntes" tal como vienen en los datos, están calculados. "con" es la persona o el grupo, no la lista de correos: "Marcela Rojas" o "equipo de operaciones". "preparacion" solo si hay algo concreto que llevar listo; si no, null. No inventes preparación para llenar el campo.
 
 8. "cuando" en correosDestacados es relativo y en palabras: "hoy", "ayer", "el viernes", "hace tres días".
 
-9. prioridades: exactamente tres, ordenadas, cruzando todo lo anterior. Imperativas y concretas.
+9. indice: el número entre corchetes con el que el elemento aparece en los datos que recibes. Va tanto en correosDestacados como en reuniones y tiene que ser EXACTO — el sistema lo usa para enlazar cada fila con el correo o la cita reales en Outlook. Un índice equivocado manda a la persona al mensaje equivocado. Si no puedes determinarlo con certeza, usa 0.
 
-10. panorama: tres o cuatro líneas. Cuántas reuniones y si el día está cargado, qué es lo que de verdad no puede quedar sin hacer, y si hay algo raro (una reunión metida a última hora, un plazo que se viene, un correo de hace días sin responder).
+10. prioridades: exactamente tres, ordenadas, cruzando todo lo anterior. En imperativo y concretas.
 
-11. Nunca inventes un dato que no esté en lo que recibiste. Si el correo no dice el plazo, no lo pongas. Si algo es ambiguo, decilo en vez de completarlo. No cuentes correos: los conteos los calcula el sistema.
+11. panorama: tres o cuatro líneas. Cuántas reuniones hay y si el día está cargado, qué es lo que no puede quedar pendiente, y si hay algo fuera de lo normal (una reunión agregada a última hora, un plazo próximo, un correo de hace días sin responder).
 
-12. No es un correo ni un mensaje: no saludes, no te despidas, no expliques lo que vas a hacer. Solo el objeto.`;
+12. No inventes ningún dato que no esté en lo que recibes. Si el correo no menciona el plazo, no lo pongas. Si algo es ambiguo, dilo en vez de completarlo. No cuentes correos: los conteos los calcula el sistema.
+
+13. No es un correo ni un mensaje: solo el objeto.`;
 
 const ETIQUETA_DIRIGIDO = {
   a_mi: "PARA MÍ",
@@ -178,7 +177,7 @@ function bloqueCorreos(correos: CorreoResumen[]): string {
 function bloqueReuniones(reuniones: ReunionCalendario[], hoyIso: string, mananaIso: string): string {
   if (reuniones.length === 0) return "(Sin reuniones agendadas en el período.)";
   return reuniones
-    .map((r) => {
+    .map((r, i) => {
       // El día lo decide el servidor comparando con la fecha de Chile, no el
       // modelo: preguntarle "¿esto es hoy o mañana?" es pedirle que haga
       // aritmética de fechas, que es justo lo que hace mal.
@@ -186,7 +185,7 @@ function bloqueReuniones(reuniones: ReunionCalendario[], hoyIso: string, mananaI
       const dia = fecha === hoyIso ? "hoy" : fecha === mananaIso ? "manana" : "despues";
       const asistentes = r.asistentes?.length ? r.asistentes.slice(0, 10).join(", ") : "(sin asistentes)";
       return [
-        `${dia.toUpperCase()} ${r.inicio.slice(11, 16)}-${r.fin.slice(11, 16)}${
+        `[${i + 1}] ${dia.toUpperCase()} ${r.inicio.slice(11, 16)}-${r.fin.slice(11, 16)}${
           r.todoElDia ? " (todo el día)" : ""
         }: ${r.asunto}`,
         `dia: ${dia}`,
@@ -224,7 +223,7 @@ export async function generarResumen(
     // se marcan para caché y a partir de la segunda llamada se leen al 0,1×.
     system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
     output_config: {
-      // Sube de "medium" a "high": agrupar temas y juzgar qué espera algo de vos
+      // Sube de "medium" a "high": agrupar temas y juzgar qué requiere una respuesta
       // sobre 150 correos es bastante más difícil que resumir 20.
       effort: "high",
       format: { type: "json_schema", schema: ESQUEMA },

@@ -51,7 +51,7 @@ const ETIQUETA_DIA: Record<string, string | null> = {
 
 // A quién iba dirigido. Se muestra solo cuando NO es "a mí": lo normal es que un
 // correo que espera algo esté dirigido a la persona, así que marcar cada uno con
-// "para vos" sería ruido; lo que informa es la excepción.
+// "dirigido a ti" sería ruido; lo que informa es la excepción.
 const ETIQUETA_DIRIGIDO: Record<Dirigido, string | null> = {
   a_mi: null,
   en_copia: "En copia",
@@ -135,34 +135,54 @@ function Vacio({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * La fila de una lista.
+ * La fila de una lista, opcionalmente enlazada a Outlook.
  *
  * Radio menor que el de los contenedores (`rounded-lg` contra `rounded-2xl`): el
  * radio uniforme en todo hacía que las filas y la caja que las agrupa se leyeran
  * como el mismo nivel.
  *
- * El realce al pasar el mouse es de FILA, no de botón: estas tarjetas no son
- * clickeables, y el hover con sombra que tenían antes prometía una navegación que
- * no existe.
+ * Con `enlace` la fila entera es clickeable y abre el correo o la cita en Outlook
+ * Web, y ahí el realce al pasar el mouse es honesto. Sin `enlace` —porque el
+ * modelo no pudo ubicar el mensaje— la fila se ve igual pero sin cursor de mano
+ * ni realce: prometer una navegación que no existe es peor que no ofrecerla.
  */
 function Fila({
   children,
+  enlace,
+  titulo,
   acento = "",
   tenue = false,
 }: {
   children: React.ReactNode;
+  enlace?: string | null;
+  /** Para el title del enlace: "Abrir en Outlook: <asunto>". */
+  titulo?: string;
   acento?: string;
   tenue?: boolean;
 }) {
+  const base = `block rounded-lg border px-4 py-3 transition-colors duration-200 ${acento} ${
+    tenue ? "border-dashed border-borde bg-transparent" : `border-borde bg-superficie ${SOMBRA}`
+  }`;
+
+  if (!enlace) return <li className={base}>{children}</li>;
+
   return (
-    <li
-      className={`rounded-lg border px-4 py-3 transition-colors duration-200 ${acento} ${
-        tenue
-          ? "border-dashed border-borde bg-transparent hover:bg-crema/50"
-          : `border-borde bg-superficie ${SOMBRA} hover:border-tinta/15`
-      }`}
-    >
-      {children}
+    <li>
+      <a
+        href={enlace}
+        // Se abre en otra pestaña porque el resumen es una lista de la que se van
+        // atendiendo cosas: reemplazar la página obligaría a volver y recargarla.
+        // noreferrer además de noopener: sin él, Outlook recibiría la URL del core
+        // como referente.
+        target="_blank"
+        rel="noopener noreferrer"
+        title={titulo ? `Abrir en Outlook: ${titulo}` : "Abrir en Outlook"}
+        className={`${base} ${
+          tenue ? "hover:bg-crema/50" : "hover:border-naranjo/40 hover:bg-crema/40"
+        } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo`}
+      >
+        {children}
+      </a>
     </li>
   );
 }
@@ -211,7 +231,8 @@ export default async function MiDiaPage() {
           {fechaLarga(hoy.iso)}
         </h1>
         <p className="mt-3 max-w-[62ch] text-[15px] text-pretty text-tinta/60">
-          Tu correo de los últimos días y tus reuniones de hoy y los próximos, resumidos.
+          Resumen de tu correo de los últimos días y de las reuniones de hoy y los próximos. Cada fila abre el
+          mensaje o la cita en Outlook.
         </p>
       </header>
 
@@ -221,8 +242,8 @@ export default async function MiDiaPage() {
             Falta conectar tu correo
           </p>
           <p className="mt-1 max-w-[70ch] text-sm text-pretty text-tinta/70">
-            El core todavía no tiene permiso para leer tu buzón. Cerrá sesión y volvé a entrar: Microsoft te
-            va a pedir el permiso de correo. Si no aparece, es que falta el consentimiento del administrador
+            El core todavía no tiene permiso para leer tu buzón. Cierra sesión y vuelve a entrar: Microsoft
+            solicitará el permiso de correo. Si no aparece, es que falta el consentimiento del administrador
             del tenant para <code className="font-mono text-xs">Mail.Read</code>.
           </p>
         </div>
@@ -243,9 +264,9 @@ export default async function MiDiaPage() {
           nunca le llegó nada. */}
       {estado.estado === "ok" && !credencialGuardada && (
         <p className="mt-6 max-w-[80ch] rounded-lg border-l-[3px] border-naranjo bg-naranjo/[0.06] px-4 py-3 text-xs text-pretty text-naranjo">
-          El resumen se ve acá, pero el <strong>envío automático de la mañana no está activo</strong>: no hay
-          credencial guardada para tu cuenta. Suele ser que falta{" "}
-          <code className="font-mono">TOKEN_CIFRADO_KEY</code> en el entorno, o que no volviste a iniciar
+          El resumen se muestra aquí, pero el <strong>envío automático de la mañana no está activo</strong>:
+          no hay credencial guardada para tu cuenta. Suele ser que falta{" "}
+          <code className="font-mono">TOKEN_CIFRADO_KEY</code> en el entorno, o que no se ha vuelto a iniciar
           sesión después de configurarla. En los logs del servidor aparece como{" "}
           <code className="font-mono">[auth] No se pudo guardar el refresh token</code>.
         </p>
@@ -274,7 +295,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
           resalte="naranjo"
         />
         <Cifra
-          etiqueta="Para vos"
+          etiqueta="Dirigidos a ti"
           valor={r.conteos.aMi}
           pie={`${r.conteos.enCopia} en copia`}
           fondo="teal"
@@ -318,19 +339,19 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
         </ol>
       </div>
 
-      {/* Dos columnas: a la izquierda lo que exige algo de vos, a la derecha la
+      {/* Dos columnas: a la izquierda lo que requiere una acción, a la derecha la
           agenda y el contexto. Antes era una sola columna de listas apiladas, que
           en un monitor ancho dejaba media pantalla vacía y obligaba a bajar hasta
           el final para ver a qué hora es la primera reunión. */}
       <div className="mt-10 grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div>
-          <Seccion titulo="Esperan algo de vos" cuenta={r.correosDestacados.length}>
+          <Seccion titulo="Requieren tu respuesta" cuenta={r.correosDestacados.length}>
             {r.correosDestacados.length === 0 ? (
-              <Vacio>Nada en el correo está esperando algo de vos. Buen día para avanzar lo tuyo.</Vacio>
+              <Vacio>Ningún correo del período requiere una respuesta tuya.</Vacio>
             ) : (
               <ul className="flex flex-col gap-2">
                 {r.correosDestacados.map((c, i) => (
-                  <Fila key={i} acento={BARRA_URGENCIA[c.urgencia]}>
+                  <Fila key={i} enlace={c.enlace} titulo={c.asunto} acento={BARRA_URGENCIA[c.urgencia]}>
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <p className="min-w-0 flex-1 truncate font-medium text-tinta" title={c.asunto}>
                         {c.asunto}
@@ -352,9 +373,9 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
             )}
           </Seccion>
 
-          <Seccion titulo="Prometiste y sigue abierto" cuenta={r.compromisos.length}>
+          <Seccion titulo="Compromisos abiertos" cuenta={r.compromisos.length}>
             {r.compromisos.length === 0 ? (
-              <Vacio>Sin compromisos propios abiertos en el correo del período.</Vacio>
+              <Vacio>Sin compromisos propios pendientes en el correo del período.</Vacio>
             ) : (
               <ul className="flex flex-col gap-2">
                 {r.compromisos.map((c, i) => (
@@ -373,7 +394,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
           </Seccion>
 
           {r.temas.length > 0 && (
-            <Seccion titulo="En qué quedaron los temas" cuenta={r.temas.length}>
+            <Seccion titulo="Estado de los temas" cuenta={r.temas.length}>
               <ul className="flex flex-col gap-2">
                 {r.temas.map((t, i) => (
                   <Fila key={i}>
@@ -402,7 +423,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
                 {/* El nombre del item NO puede ser `r`: taparía al resumen y el
                     próximo que agregue un campo acá se lleva una sorpresa. */}
                 {r.reuniones.map((m, i) => (
-                  <Fila key={i}>
+                  <Fila key={i} enlace={m.enlace} titulo={m.asunto}>
                     <div className="flex items-baseline gap-3">
                       {/* <time> con dateTime: es un dato horario y así lo puede
                           leer un lector de pantalla o un parser. */}
@@ -431,7 +452,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
           </Seccion>
 
           {r.enCopia.length > 0 && (
-            <Seccion titulo="Para saber, sin acción" cuenta={r.enCopia.length}>
+            <Seccion titulo="Informativo" cuenta={r.enCopia.length}>
               <ul className="flex flex-col gap-2">
                 {r.enCopia.map((c, i) => (
                   <Fila key={i} tenue>
@@ -449,9 +470,9 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
       </div>
 
       <footer className="mt-12 border-t border-borde pt-4 text-[11px] text-pretty text-tinta/35">
-        Generado a las {horaChile(datos.generadoEn)} · Es un resumen, no un reemplazo: revisá la bandeja antes
-        de decidir algo importante.
-        {datos.enviadoEn && " · Ya te llegó por correo esta mañana."}
+        Generado a las {horaChile(datos.generadoEn)} · Es un resumen, no un reemplazo: revisa la bandeja antes
+        de tomar una decisión importante.
+        {datos.enviadoEn && " · Enviado por correo esta mañana."}
       </footer>
     </>
   );

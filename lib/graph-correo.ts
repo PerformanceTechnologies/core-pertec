@@ -48,9 +48,17 @@ export interface CorreoResumen {
    * los tres.
    */
   dirigido: Dirigido;
-  /** Cuántas personas más lo recibieron. Un "para 14" pide bastante menos que un "para vos". */
+  /** Cuántas personas más lo recibieron. Un "para 14" exige bastante menos que un "para ti". */
   destinatarios: number;
   extracto: string;
+  /**
+   * URL para abrir el mensaje en Outlook Web.
+   *
+   * La devuelve Graph como `webLink`. Es lo que convierte el resumen en algo
+   * desde donde se puede actuar: sin esto hay que volver al buzón y buscar el
+   * correo a mano por el asunto.
+   */
+  enlace: string | null;
 }
 
 /** Conteos del buzón. Se calculan acá y no los inventa el modelo. */
@@ -85,10 +93,29 @@ interface MensajeGraph {
   flag?: { flagStatus?: string };
   hasAttachments?: boolean;
   bodyPreview?: string;
+  webLink?: string;
 }
 
 function contiene(lista: DireccionGraph[] | undefined, correo: string): boolean {
   return (lista ?? []).some((d) => d.emailAddress?.address?.toLowerCase() === correo);
+}
+
+/**
+ * Acepta una URL solo si es https.
+ *
+ * Graph devuelve `webLink` y en la práctica siempre apunta a outlook.office.com,
+ * pero es un valor que llega de un servicio externo y termina en un atributo
+ * href. Sin este filtro, un `javascript:` en esa respuesta sería un enlace
+ * ejecutable en la página. Es el mismo criterio que el escapado del HTML del
+ * correo: lo que viene de afuera no se confía.
+ */
+export function urlSegura(url: string | undefined | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -117,7 +144,7 @@ export async function obtenerCorreosRecientes(
       .header("Prefer", `outlook.timezone="${ZONA_HORARIA}"`)
       .filter(`receivedDateTime ge ${desde}`)
       .select(
-        "subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,flag,hasAttachments,bodyPreview",
+        "subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,flag,hasAttachments,bodyPreview,webLink",
       )
       .orderby("receivedDateTime desc")
       .top(TOPE_CORREOS)
@@ -142,6 +169,7 @@ export async function obtenerCorreosRecientes(
         dirigido: enPara ? "a_mi" : enCc ? "en_copia" : "lista",
         destinatarios: (m.toRecipients ?? []).length + (m.ccRecipients ?? []).length,
         extracto: (m.bodyPreview ?? "").replace(/\s+/g, " ").trim().slice(0, LARGO_CUERPO),
+        enlace: urlSegura(m.webLink),
       };
     });
 
