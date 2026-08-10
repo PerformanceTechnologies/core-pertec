@@ -76,18 +76,55 @@ function fechaCorta(isoLocal: string): string {
   );
 }
 
-function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+/**
+ * Encabezado de sección con el mismo tratamiento que el resto del core
+ * (font-condensed en mayúsculas), no la etiqueta chica de 10px que tenía antes.
+ * El contador al lado evita tener que contar las filas con la vista.
+ */
+function Seccion({
+  titulo,
+  cuenta,
+  children,
+}: {
+  titulo: string;
+  cuenta?: number;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="mt-6">
-      <h2 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tinta/40">{titulo}</h2>
-      <div className="mt-2">{children}</div>
+    <section className="mt-8">
+      <div className="flex items-baseline gap-2">
+        <h2 className="font-condensed text-lg font-bold uppercase tracking-wide text-tinta">{titulo}</h2>
+        {cuenta !== undefined && cuenta > 0 && (
+          <span className="rounded-full bg-tinta/5 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-tinta/45">
+            {cuenta}
+          </span>
+        )}
+      </div>
+      <div className="mt-3">{children}</div>
     </section>
   );
 }
 
 function Vacio({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-lg border border-dashed border-borde px-4 py-5 text-sm text-tinta/45">{children}</p>
+    <p className="rounded-xl border border-dashed border-borde px-4 py-6 text-center text-sm text-tinta/45">
+      {children}
+    </p>
+  );
+}
+
+/** La tarjeta de una fila. Un solo lugar para el borde, el fondo y el hover. */
+function Tarjeta({ children, tenue = false }: { children: React.ReactNode; tenue?: boolean }) {
+  return (
+    <li
+      className={
+        tenue
+          ? "rounded-xl border border-dashed border-borde px-4 py-3"
+          : "rounded-xl border border-borde bg-superficie px-4 py-3 shadow-sm transition hover:bg-crema/40"
+      }
+    >
+      {children}
+    </li>
   );
 }
 
@@ -164,188 +201,211 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
   const r = datos.resumen;
   return (
     <>
-      {/* Panorama y prioridades juntos en la banda oscura: es lo único que
-              alguien lee si está apurado, así que va primero y con el contraste
-              más alto de la página. */}
-      <div className="mt-6 overflow-hidden rounded-2xl bg-tinta">
-        <p className="px-6 pt-5 text-[15px] leading-relaxed text-crema/85">{r.panorama}</p>
-        <ol className="mt-4 border-t border-crema/10">
+      {/* Los números del período, en la misma cinta de segmentos con tintes
+          naranjo / teal / gris que usa Rendir Gastos. Antes era una línea de
+          texto suelta que no se leía como parte del módulo. */}
+      <dl className="mt-6 grid grid-cols-2 overflow-hidden rounded-xl border border-borde sm:grid-cols-4">
+        <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Correos</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">
+            {r.conteos.total}
+          </dd>
+          <dd className="text-[11px] text-tinta/45">últimas {r.conteos.horas} horas</dd>
+        </div>
+        <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Sin leer</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-naranjo">
+            {r.conteos.sinLeer}
+          </dd>
+          <dd className="text-[11px] text-tinta/45">
+            {r.conteos.marcados > 0 ? `${r.conteos.marcados} con bandera` : "sin banderas"}
+          </dd>
+        </div>
+        <div className="border-borde bg-teal/[0.06] px-5 py-4 sm:border-r">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Para vos</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-teal">{r.conteos.aMi}</dd>
+          <dd className="text-[11px] text-tinta/45">{r.conteos.enCopia} en copia</dd>
+        </div>
+        <div className="bg-gris/[0.08] px-5 py-4">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Reuniones</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">
+            {r.reunionesTotales}
+          </dd>
+          <dd className="text-[11px] text-tinta/45">hoy y los próximos días</dd>
+        </div>
+      </dl>
+
+      {r.conteos.recortado && (
+        <p className="mt-2 text-[11px] text-naranjo">
+          Se llegó al tope de mensajes: hay correo más viejo que no se analizó.
+        </p>
+      )}
+
+      {/* El panorama y las tres prioridades, en la tarjeta naranjo del core en
+          vez de la banda oscura. Sigue siendo lo más destacado de la página
+          —es lo único que alguien lee si está apurado— pero ahora con la misma
+          paleta que el Cotizador y Rendir Gastos. */}
+      <div className="mt-6 overflow-hidden rounded-xl border border-naranjo/20 bg-naranjo/[0.06]">
+        <p className="px-5 pt-5 text-[15px] leading-relaxed text-tinta">{r.panorama}</p>
+        <ol className="mt-4">
           {r.prioridades.map((prioridad, i) => (
-            <li key={i} className="flex gap-3 border-b border-crema/10 px-6 py-3 last:border-b-0 text-crema">
-              <span className="font-condensed text-lg font-bold leading-6 text-naranjo-suave">{i + 1}</span>
-              <span className="text-sm leading-6">{prioridad}</span>
+            <li
+              key={i}
+              className="flex gap-3 border-t border-naranjo/15 px-5 py-3 text-sm leading-6 text-tinta"
+            >
+              <span className="font-condensed text-lg font-bold leading-6 text-naranjo">{i + 1}</span>
+              <span>{prioridad}</span>
             </li>
           ))}
         </ol>
       </div>
 
-      {/* Los números del período, contados por el servidor. Van acá y no en
-              el panorama porque son un dato duro y el panorama es interpretación. */}
-      <dl className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-tinta/50">
-        <div>
-          <dt className="inline font-semibold text-tinta/70">{r.conteos.total}</dt>{" "}
-          <dd className="inline">correos en {r.conteos.horas} h</dd>
-        </div>
-        <div>
-          <dt className="inline font-semibold text-tinta/70">{r.conteos.aMi}</dt>{" "}
-          <dd className="inline">dirigidos a vos</dd>
-        </div>
-        <div>
-          <dt className="inline font-semibold text-tinta/70">{r.conteos.enCopia}</dt>{" "}
-          <dd className="inline">en copia</dd>
-        </div>
-        <div>
-          <dt className="inline font-semibold text-naranjo">{r.conteos.sinLeer}</dt>{" "}
-          <dd className="inline">sin leer</dd>
-        </div>
-        {r.conteos.marcados > 0 && (
-          <div>
-            <dt className="inline font-semibold text-tinta/70">{r.conteos.marcados}</dt>{" "}
-            <dd className="inline">con bandera</dd>
-          </div>
-        )}
-        <div>
-          <dt className="inline font-semibold text-tinta/70">{r.reunionesTotales}</dt>{" "}
-          <dd className="inline">reuniones en el rango</dd>
-        </div>
-        {r.conteos.recortado && (
-          <div className="text-naranjo">
-            <dd className="inline">se llegó al tope: hay correo más viejo que no se analizó</dd>
-          </div>
-        )}
-      </dl>
-
-      <Seccion titulo="Reuniones">
+      <Seccion titulo="Reuniones" cuenta={r.reuniones.length}>
         {r.reuniones.length === 0 ? (
           <Vacio>Sin reuniones agendadas en los próximos días.</Vacio>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2">
             {/* El nombre del item NO puede ser `r`: taparía al resumen y el
                 próximo que agregue un campo acá se lleva una sorpresa. */}
             {r.reuniones.map((m, i) => (
-              <li
-                key={i}
-                className="flex gap-4 rounded-lg border border-borde bg-superficie px-4 py-3 transition hover:bg-crema/40"
-              >
-                <div className="w-16 shrink-0">
-                  <div className="font-condensed text-base font-bold tabular-nums text-tinta">
-                    {horaDeReunion(m.inicio)}
+              <Tarjeta key={i}>
+                <div className="flex gap-4">
+                  {/* La hora en su propia columna de ancho fijo: alineadas una
+                      debajo de otra se leen como una agenda. */}
+                  <div className="w-16 shrink-0 border-r border-borde pr-3">
+                    <div className="font-condensed text-lg font-bold tabular-nums leading-none text-tinta">
+                      {horaDeReunion(m.inicio)}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-tinta/40">
+                      {ETIQUETA_DIA[m.dia] ?? fechaCorta(m.inicio)}
+                    </div>
                   </div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-tinta/40">
-                    {ETIQUETA_DIA[m.dia] ?? fechaCorta(m.inicio)}
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <p className="font-medium text-tinta">{m.asunto}</p>
-                    {/* Una reunión metida el mismo día es la que descoloca la
-                        jornada: se marca para que se note sin leer el panorama. */}
-                    {!m.agendadaAntes && (
-                      <span className="rounded-full bg-naranjo/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-naranjo">
-                        Recién agendada
-                      </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <p className="font-medium text-tinta">{m.asunto}</p>
+                      {/* Una reunión metida el mismo día es la que descoloca la
+                          jornada: se marca para que se note sin leer el panorama. */}
+                      {!m.agendadaAntes && (
+                        <span className="rounded-full bg-naranjo/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-naranjo">
+                          Recién agendada
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-tinta/50">con {m.con}</p>
+                    {m.preparacion && (
+                      <p className="mt-1.5 rounded-md bg-naranjo/[0.07] px-2 py-1 text-xs text-naranjo">
+                        Preparar: {m.preparacion}
+                      </p>
                     )}
                   </div>
-                  <p className="text-xs text-tinta/50">con {m.con}</p>
-                  {m.preparacion && <p className="mt-1 text-xs text-naranjo">Preparar: {m.preparacion}</p>}
                 </div>
-              </li>
+              </Tarjeta>
             ))}
           </ul>
         )}
       </Seccion>
 
-      <Seccion titulo="Esperan algo de vos">
+      <Seccion titulo="Esperan algo de vos" cuenta={r.correosDestacados.length}>
         {r.correosDestacados.length === 0 ? (
           <Vacio>Nada en el correo está esperando algo de vos. Buen día para avanzar lo tuyo.</Vacio>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2">
             {r.correosDestacados.map((c, i) => (
-              <li
-                key={i}
-                className="rounded-lg border border-borde bg-superficie px-4 py-3 transition hover:bg-crema/40"
-              >
-                <div className="flex items-center gap-2">
+              <Tarjeta key={i}>
+                <div className="flex items-start gap-3">
+                  {/* El punto de urgencia arriba y alineado con la primera línea,
+                      no centrado: con dos líneas de texto quedaba flotando. */}
                   <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${PUNTO_URGENCIA[c.urgencia]}`}
+                    className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${PUNTO_URGENCIA[c.urgencia]}`}
                     title={ETIQUETA_URGENCIA[c.urgencia]}
                   />
-                  <p className="min-w-0 flex-1 truncate font-medium text-tinta" title={c.asunto}>
-                    {c.asunto}
-                  </p>
-                  {ETIQUETA_DIRIGIDO[c.dirigido] && (
-                    <span className="shrink-0 rounded-full bg-gris/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gris">
-                      {ETIQUETA_DIRIGIDO[c.dirigido]}
-                    </span>
-                  )}
-                  <span className="shrink-0 text-xs text-tinta/45">{c.de}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <p className="min-w-0 flex-1 truncate font-medium text-tinta" title={c.asunto}>
+                        {c.asunto}
+                      </p>
+                      {ETIQUETA_DIRIGIDO[c.dirigido] && (
+                        <span className="shrink-0 rounded-full bg-gris/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gris">
+                          {ETIQUETA_DIRIGIDO[c.dirigido]}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-sm text-tinta/70">{c.queEsperan}</p>
+                    <p className="mt-1 text-[11px] text-tinta/35">
+                      {c.de} · {c.cuando}
+                    </p>
+                  </div>
                 </div>
-                <p className="mt-1 pl-4 text-sm text-tinta/70">{c.queEsperan}</p>
-                <p className="pl-4 text-[11px] text-tinta/35">{c.cuando}</p>
-              </li>
+              </Tarjeta>
             ))}
           </ul>
         )}
       </Seccion>
 
-      {/* Solo si hay algo: una sección vacía más es ruido, y estas dos son
-          informativas, no accionables. */}
-      {r.temas.length > 0 && (
-        <Seccion titulo="En qué quedaron los temas">
-          <ul className="flex flex-col gap-1.5">
-            {r.temas.map((t, i) => (
-              <li key={i} className="rounded-lg border border-borde bg-superficie px-4 py-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-medium text-tinta">{t.tema}</p>
-                  <span className="shrink-0 text-[11px] tabular-nums text-tinta/40">{t.correos} correos</span>
-                </div>
-                <p className="mt-0.5 text-sm text-tinta/70">{t.estado}</p>
-              </li>
-            ))}
-          </ul>
-        </Seccion>
-      )}
-
-      {r.enCopia.length > 0 && (
-        <Seccion titulo="Para saber, sin acción">
-          <ul className="flex flex-col gap-1.5">
-            {r.enCopia.map((c, i) => (
-              <li key={i} className="rounded-lg border border-dashed border-borde px-4 py-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="min-w-0 truncate text-sm font-medium text-tinta/80" title={c.asunto}>
-                    {c.asunto}
-                  </p>
-                  <span className="shrink-0 text-xs text-tinta/40">{c.de}</span>
-                </div>
-                <p className="mt-0.5 text-sm text-tinta/60">{c.porQueImporta}</p>
-              </li>
-            ))}
-          </ul>
-        </Seccion>
-      )}
-
-      <Seccion titulo="Prometiste y sigue abierto">
+      <Seccion titulo="Prometiste y sigue abierto" cuenta={r.compromisos.length}>
         {r.compromisos.length === 0 ? (
           <Vacio>Sin compromisos propios abiertos en el correo del período.</Vacio>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2">
             {r.compromisos.map((c, i) => (
-              <li
-                key={i}
-                className="flex items-baseline justify-between gap-4 rounded-lg border border-borde bg-superficie px-4 py-3"
-              >
-                <span className="text-sm text-tinta">{c.compromiso}</span>
-                <span className="shrink-0 text-xs text-tinta/45">
-                  {c.aQuien}
-                  {c.desde && <span className="text-tinta/30"> · {c.desde}</span>}
-                </span>
-              </li>
+              <Tarjeta key={i}>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <span className="text-sm text-tinta">{c.compromiso}</span>
+                  <span className="shrink-0 text-xs text-tinta/45">
+                    {c.aQuien}
+                    {c.desde && <span className="text-tinta/30"> · {c.desde}</span>}
+                  </span>
+                </div>
+              </Tarjeta>
             ))}
           </ul>
         )}
       </Seccion>
 
-      <p className="mt-6 text-[11px] text-tinta/35">
+      {/* Las dos informativas van en dos columnas: son cortas, y apiladas
+          alargaban la página sin necesidad. Cada una desaparece si está vacía —
+          una sección vacía más sería ruido. */}
+      {(r.temas.length > 0 || r.enCopia.length > 0) && (
+        <div className="grid grid-cols-1 gap-x-6 lg:grid-cols-2">
+          {r.temas.length > 0 && (
+            <Seccion titulo="En qué quedaron los temas" cuenta={r.temas.length}>
+              <ul className="flex flex-col gap-2">
+                {r.temas.map((t, i) => (
+                  <Tarjeta key={i}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="font-medium text-tinta">{t.tema}</p>
+                      <span className="shrink-0 text-[11px] tabular-nums text-tinta/40">
+                        {t.correos} correos
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-sm text-tinta/70">{t.estado}</p>
+                  </Tarjeta>
+                ))}
+              </ul>
+            </Seccion>
+          )}
+
+          {r.enCopia.length > 0 && (
+            <Seccion titulo="Para saber, sin acción" cuenta={r.enCopia.length}>
+              <ul className="flex flex-col gap-2">
+                {r.enCopia.map((c, i) => (
+                  <Tarjeta key={i} tenue>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="min-w-0 truncate text-sm font-medium text-tinta/80" title={c.asunto}>
+                        {c.asunto}
+                      </p>
+                      <span className="shrink-0 text-xs text-tinta/40">{c.de}</span>
+                    </div>
+                    <p className="mt-0.5 text-sm text-tinta/60">{c.porQueImporta}</p>
+                  </Tarjeta>
+                ))}
+              </ul>
+            </Seccion>
+          )}
+        </div>
+      )}
+
+      <p className="mt-8 border-t border-borde pt-4 text-[11px] text-tinta/35">
         Generado a las {horaChile(datos.generadoEn)} · Es un resumen, no un reemplazo: revisá la bandeja antes
         de decidir algo importante.
         {datos.enviadoEn && " · Ya te llegó por correo esta mañana."}
