@@ -15,6 +15,14 @@
     {
       "path": "/api/cron/finanzas-historico?tipo=compra",
       "schedule": "20 9 * * *"
+    },
+    {
+      "path": "/api/cron/resumen-diario",
+      "schedule": "30 10 * * 1-5"
+    },
+    {
+      "path": "/api/cron/resumen-diario",
+      "schedule": "30 11 * * 1-5"
     }
   ]
 }

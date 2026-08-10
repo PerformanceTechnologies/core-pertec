@@ -1,41 +1,30 @@
 import NextAuth from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { obtenerUsuarioActivo, registrarIngreso } from "@/lib/usuarios";
+import { canjearRefreshToken, SCOPES_GRAPH } from "@/lib/graph-token";
+import { guardarRefreshToken } from "@/lib/graph-credenciales";
 
-// Token endpoint del mismo tenant/App Registration que ya usa
-// AUTH_MICROSOFT_ENTRA_ID_ISSUER (formato ".../<tenant-id>/v2.0"), para
-// refrescar el access token cuando expira (ver callback jwt).
-function endpointToken(): string {
-  const issuer = process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER!;
-  return `${issuer.replace(/\/v2\.0\/?$/, "")}/oauth2/v2.0/token`;
-}
-
+// El canje contra Entra vive en lib/graph-token.ts porque el cron del resumen
+// diario lo necesita igual, sin sesión de por medio, y los scopes de los dos
+// tienen que ser idénticos (ver el comentario de ese archivo).
 async function refrescarAccessToken(token: import("next-auth/jwt").JWT) {
   try {
     if (!token.refreshToken) throw new Error("Sin refresh token");
+    const tokens = await canjearRefreshToken(token.refreshToken);
 
-    const respuesta = await fetch(endpointToken(), {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: process.env.AUTH_MICROSOFT_ENTRA_ID_ID!,
-        client_secret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET!,
-        grant_type: "refresh_token",
-        refresh_token: token.refreshToken,
-        scope: "openid profile email offline_access User.Read Calendars.Read",
-      }),
-    });
-
-    const datos = await respuesta.json();
-    if (!respuesta.ok) throw datos;
+    // El refresh token rotado también se guarda en la base: si no, el cron se
+    // quedaría con uno que Microsoft ya invalidó al rotarlo acá.
+    if (tokens.refreshToken && token.email) {
+      await guardarRefreshToken(token.email, tokens.refreshToken);
+    }
 
     return {
       ...token,
-      accessToken: datos.access_token,
-      expiresAt: Math.floor(Date.now() / 1000) + datos.expires_in,
+      accessToken: tokens.accessToken,
+      expiresAt: tokens.expiraEn,
       // Microsoft rota el refresh token en cada uso; si no viene uno nuevo,
       // el anterior sigue siendo válido y hay que conservarlo.
-      refreshToken: datos.refresh_token ?? token.refreshToken,
+      refreshToken: tokens.refreshToken ?? token.refreshToken,
       error: undefined,
     };
   } catch (error) {
@@ -47,13 +36,12 @@ async function refrescarAccessToken(token: import("next-auth/jwt").JWT) {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     MicrosoftEntraID({
-      // Calendars.Read es opcional en la práctica: si el usuario lo rechaza
-      // (o el tenant aún no dio consentimiento de administrador), el login
-      // igual funciona -- el widget de calendario del dashboard simplemente
-      // muestra un estado "conecta tu calendario" (ver lib/graph-calendario.ts).
-      authorization: {
-        params: { scope: "openid profile email offline_access User.Read Calendars.Read" },
-      },
+      // Calendars.Read, Mail.Read y Mail.Send son opcionales en la práctica: si
+      // el usuario los rechaza (o el tenant aún no dio consentimiento de
+      // administrador), el login igual funciona -- el widget de calendario y el
+      // resumen diario muestran un estado "conectá tu cuenta" en vez de caerse
+      // (ver lib/graph-calendario.ts y lib/graph-correo.ts).
+      authorization: { params: { scope: SCOPES_GRAPH } },
     }),
   ],
   session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
@@ -73,6 +61,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // lo sobreescriba con el de ahora mismo (ver lib/usuarios.ts) -- así
         // el dashboard puede mostrar "tu último ingreso fue...".
         const ultimoIngresoAnterior = profile?.email ? await registrarIngreso(profile.email) : null;
+
+        // El refresh token se persiste cifrado para que el cron de las 7:30
+        // pueda leer el correo en nombre de la persona. Es la alternativa a
+        // pedir permisos de APLICACIÓN, que darían acceso a todos los buzones
+        // del tenant en vez de solo al de quien se logueó. Si falla, el login
+        // no se rompe: el resumen diario simplemente no se genera solo.
+        if (account.refresh_token && profile?.email) {
+          await guardarRefreshToken(profile.email, account.refresh_token).catch((e) =>
+            console.error("[auth] No se pudo guardar el refresh token de Graph:", e),
+          );
+        }
 
         return {
           ...token,
