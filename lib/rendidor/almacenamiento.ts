@@ -68,6 +68,31 @@ export async function descargarRespaldo(ruta: string): Promise<RespaldoDescargad
 }
 
 /** Borra todos los respaldos de una rendicion. */
+/**
+ * URL temporal para VER un respaldo desde el navegador.
+ *
+ * El bucket es privado y tiene que seguir siéndolo: son documentos tributarios con
+ * RUT, montos y datos del proveedor. Una URL firmada es la forma de mostrarlos sin
+ * abrir el bucket ni hacer pasar los bytes por una función del servidor — el
+ * navegador los pide directo a Supabase.
+ *
+ * Es una credencial portadora: quien tenga el enlace puede ver ESE archivo hasta
+ * que expire, sin estar logueado. Por eso la vida es corta y se generan en cada
+ * carga de la página, que es force-dynamic. No sirven para compartir ni quedan
+ * guardadas en ninguna parte.
+ *
+ * Devuelve null en vez de lanzar: un respaldo que no se puede previsualizar no
+ * puede voltear la página entera de revisión.
+ */
+export async function urlFirmadaDeRespaldo(ruta: string, segundos = 1800): Promise<string | null> {
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(ruta, segundos);
+  if (error || !data?.signedUrl) {
+    console.error(`[rendidor] No se pudo firmar la URL de ${ruta}:`, error?.message);
+    return null;
+  }
+  return data.signedUrl;
+}
+
 export async function borrarRespaldosDeRendicion(rendicionId: string): Promise<void> {
   const { data, error } = await supabaseAdmin.storage.from(BUCKET).list(rendicionId);
   if (error) {
@@ -108,10 +133,7 @@ const ESCALONES: [number, number][] = [
  * Devuelve null para un PDF (no se puede embeber en una celda) o si la
  * conversion falla, y quien llama pone el aviso en la planilla.
  */
-export async function miniaturaParaExcel(
-  contenido: Buffer,
-  mimeType: string,
-): Promise<Buffer | null> {
+export async function miniaturaParaExcel(contenido: Buffer, mimeType: string): Promise<Buffer | null> {
   if (mimeType === "application/pdf") return null;
 
   try {

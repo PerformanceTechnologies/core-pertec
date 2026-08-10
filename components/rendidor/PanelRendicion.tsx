@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CATEGORIAS_GASTO,
   TIPOS_DOCUMENTO,
@@ -248,14 +248,97 @@ function Campo({
   );
 }
 
-export default function PanelRendicion({ rendicionInicial }: { rendicionInicial: Rendicion }) {
+/**
+ * Miniatura del comprobante de un gasto.
+ *
+ * Con `<img>` y no con next/image a propósito: el optimizador de Next descarga la
+ * imagen desde su servidor y la CACHEA en la CDN, y estos son documentos
+ * tributarios que viven en un bucket privado detrás de una URL firmada que expira.
+ * Dejar copias optimizadas en una CDN pública es exactamente lo que el bucket
+ * privado evita. Además habría que registrar el dominio de Supabase en
+ * remotePatterns para algo que no se quiere cachear.
+ *
+ * Los PDF no se pueden miniaturizar en un <img>, así que muestran una ficha con el
+ * nombre. Los dos casos abren el archivo completo en otra pestaña.
+ */
+function Previsualizacion({ url, nombre, tipo }: { url?: string; nombre: string; tipo: string }) {
+  if (!url) {
+    return (
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border border-dashed border-borde text-center text-[9px] leading-tight text-tinta/35">
+        Sin
+        <br />
+        comprobante
+      </div>
+    );
+  }
+
+  const esPdf = tipo === "application/pdf" || nombre.toLowerCase().endsWith(".pdf");
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`Abrir ${nombre}`}
+      className="group/vista relative block h-20 w-20 shrink-0 overflow-hidden rounded-md border border-borde bg-crema/60 transition hover:border-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+    >
+      {esPdf ? (
+        <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-tinta/45">
+          <span className="font-condensed text-sm font-bold tracking-wide">PDF</span>
+          <span className="px-1 text-center text-[8px] leading-tight break-all">
+            {nombre.length > 24 ? `${nombre.slice(0, 24)}…` : nombre}
+          </span>
+        </span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element -- ver el comentario del componente
+        <img
+          src={url}
+          alt={`Comprobante: ${nombre}`}
+          loading="lazy"
+          className="h-full w-full object-cover transition-transform duration-200 group-hover/vista:scale-105"
+        />
+      )}
+      <span className="absolute inset-x-0 bottom-0 bg-tinta/70 py-0.5 text-center text-[8px] font-semibold text-crema opacity-0 transition-opacity group-hover/vista:opacity-100">
+        Ver
+      </span>
+    </a>
+  );
+}
+
+export default function PanelRendicion({
+  rendicionInicial,
+  urlsRespaldo = {},
+}: {
+  rendicionInicial: Rendicion;
+  /**
+   * URL firmada por gasto, generada en el servidor. De vida corta, ver
+   * lib/rendidor/almacenamiento.ts.
+   */
+  urlsRespaldo?: Record<string, string>;
+}) {
   const [rendicion, setRendicion] = useState(rendicionInicial);
+  /**
+   * Vistas de los archivos recién subidos, con URL.createObjectURL.
+   *
+   * Las firmadas las emite el servidor al cargar la página, así que un comprobante
+   * subido en esta misma sesión no tiene ninguna hasta recargar. Como el navegador
+   * ya tiene el File en la mano, se arma la vista local y la miniatura aparece de
+   * inmediato.
+   */
+  const [vistasLocales, setVistasLocales] = useState<Record<string, string>>({});
   const [paso, setPaso] = useState<Paso>(rendicion.gastos.length > 0 ? "revisar" : "subir");
   const [analizando, setAnalizando] = useState<{ actual: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [generandoExcel, setGenerandoExcel] = useState(false);
+
+  // Cada createObjectURL retiene el archivo en memoria hasta que se revoca. Sin
+  // esto, subir 16 comprobantes y navegar a otra parte deja los 16 colgados.
+  useEffect(() => {
+    const urls = Object.values(vistasLocales);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [vistasLocales]);
 
   // Empleado de Odoo
   const [empleados, setEmpleados] = useState<{ id: number; name: string }[]>([]);
@@ -373,6 +456,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
     });
 
     const gastosNuevos: GastoRendicion[] = [];
+    const vistasNuevas: Record<string, string> = {};
     const fallos: string[] = [];
     const pobres: string[] = [];
 
@@ -397,8 +481,16 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
             `una captura más grande.`,
         );
       }
+      const idGasto = crypto.randomUUID();
+      // La vista se arma del archivo REDUCIDO, que es el que se subió al bucket y
+      // el que leyó el modelo: así la miniatura muestra exactamente lo que se
+      // analizó, no el original del celular.
+      if (archivo.type.startsWith("image/")) {
+        vistasNuevas[idGasto] = URL.createObjectURL(archivo);
+      }
+
       gastosNuevos.push({
-        id: crypto.randomUUID(),
+        id: idGasto,
         orden: rendicion.gastos.length + gastosNuevos.length + 1,
         fecha: l.fecha,
         proveedor: l.proveedor ?? "",
@@ -426,6 +518,7 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
 
     setAnalizando(null);
     if (gastosNuevos.length > 0) {
+      setVistasLocales((prev) => ({ ...prev, ...vistasNuevas }));
       setRendicion((prev) => ({ ...prev, gastos: [...prev.gastos, ...gastosNuevos] }));
       setPaso("revisar");
     }
@@ -817,16 +910,29 @@ export default function PanelRendicion({ rendicionInicial }: { rendicionInicial:
                     avisos.length > 0 || rutMalo ? "border-naranjo/40" : "border-borde"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-3 border-b border-borde pb-2.5">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-condensed text-base font-bold leading-none tabular-nums text-tinta">
-                        {i + 1}
-                      </span>
-                      {/* El proveedor repetido en el encabezado: con la tarjeta
-                          plegada mentalmente, es lo que identifica el gasto. */}
-                      <span className="truncate text-xs text-tinta/45">
-                        {g.proveedor?.trim() || "Sin proveedor"}
-                      </span>
+                  <div className="flex items-start justify-between gap-3 border-b border-borde pb-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      {/* La miniatura del comprobante, para poder cotejar lo que
+                          dice el documento contra lo que quedó en los campos sin
+                          tener que abrirlo en otra pestaña. */}
+                      <Previsualizacion
+                        url={vistasLocales[g.id] ?? urlsRespaldo[g.id]}
+                        nombre={g.archivoNombre}
+                        tipo={g.archivoTipo}
+                      />
+                      <div className="min-w-0">
+                        <span className="font-condensed text-base font-bold leading-none tabular-nums text-tinta">
+                          {i + 1}
+                        </span>
+                        {/* El proveedor repetido en el encabezado: es lo que
+                            identifica el gasto de un vistazo. */}
+                        <p className="truncate text-xs text-tinta/45">
+                          {g.proveedor?.trim() || "Sin proveedor"}
+                        </p>
+                        <p className="mt-0.5 truncate text-[10px] text-tinta/30" title={g.archivoNombre}>
+                          {g.archivoNombre || "sin archivo"}
+                        </p>
+                      </div>
                     </div>
                     {!yaCargada && <DeleteButton onClick={() => quitarGasto(g.id)} />}
                   </div>
