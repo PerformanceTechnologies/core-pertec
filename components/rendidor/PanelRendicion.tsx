@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CATEGORIAS_GASTO,
   TIPOS_DOCUMENTO,
@@ -332,6 +332,17 @@ export default function PanelRendicion({
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [generandoExcel, setGenerandoExcel] = useState(false);
+  /**
+   * Estado del autoguardado.
+   *
+   * "limpio" es el estado inicial y también el de después de guardar sin cambios
+   * nuevos; se distingue de "guardado" para no mostrar "Guardado 15:02" al abrir
+   * una rendición que nadie tocó.
+   */
+  const [estadoGuardado, setEstadoGuardado] = useState<
+    "limpio" | "pendiente" | "guardando" | "guardado" | "error"
+  >("limpio");
+  const [guardadoEn, setGuardadoEn] = useState<string | null>(null);
 
   // Cada createObjectURL retiene el archivo en memoria hasta que se revoca. Sin
   // esto, subir 16 comprobantes y navegar a otra parte deja los 16 colgados.
@@ -406,17 +417,21 @@ export default function PanelRendicion({
     [filas],
   );
 
-  const actualizarGasto = (id: string, patch: Partial<GastoRendicion>) =>
+  const actualizarGasto = (id: string, patch: Partial<GastoRendicion>) => {
+    setEstadoGuardado("pendiente");
     setRendicion((prev) => ({
       ...prev,
       gastos: prev.gastos.map((g) => (g.id === id ? { ...g, ...patch } : g)),
     }));
+  };
 
   // El respaldo queda en el bucket. No se borra al quitar la fila: si alguien
   // borra un gasto por error, volver a subir el archivo es lo mas molesto de
   // rehacer. Los huerfanos se van con la rendicion cuando se borra.
-  const quitarGasto = (id: string) =>
+  const quitarGasto = (id: string) => {
+    setEstadoGuardado("pendiente");
     setRendicion((prev) => ({ ...prev, gastos: prev.gastos.filter((g) => g.id !== id) }));
+  };
 
   // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
   // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
@@ -518,6 +533,7 @@ export default function PanelRendicion({
 
     setAnalizando(null);
     if (gastosNuevos.length > 0) {
+      setEstadoGuardado("pendiente");
       setVistasLocales((prev) => ({ ...prev, ...vistasNuevas }));
       setRendicion((prev) => ({ ...prev, gastos: [...prev.gastos, ...gastosNuevos] }));
       setPaso("revisar");
@@ -597,10 +613,15 @@ export default function PanelRendicion({
     }
   };
 
-  const guardar = async () => {
-    setGuardando(true);
-    setError(null);
-    setAviso(null);
+  /**
+   * Persiste los gastos. La usa el autoguardado y el reintento manual.
+   *
+   * No toca `aviso` ni `error` globales: el autoguardado corre solo y llenar la
+   * pantalla de "Borrador guardado." cada vez que alguien tipea una letra sería
+   * insoportable. El estado se comunica en el indicador de al lado del paso 2.
+   */
+  const persistir = useCallback(async () => {
+    setEstadoGuardado("guardando");
     try {
       const resp = await fetch(`/api/rendidor/${rendicion.id}/gastos`, {
         method: "PATCH",
@@ -608,13 +629,66 @@ export default function PanelRendicion({
         body: JSON.stringify({ gastos: rendicion.gastos }),
       });
       await leerRespuesta(resp);
-      setAviso("Borrador guardado.");
+      setEstadoGuardado("guardado");
+      setGuardadoEn(
+        new Intl.DateTimeFormat("es-CL", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          timeZone: "America/Santiago",
+        }).format(new Date()),
+      );
     } catch (e) {
+      setEstadoGuardado("error");
       setError(e instanceof Error ? e.message : "No se pudo guardar.");
-    } finally {
-      setGuardando(false);
     }
-  };
+  }, [rendicion.id, rendicion.gastos]);
+
+  /**
+   * Autoguardado: cada cambio en los gastos se persiste solo, con un compás de
+   * espera para no mandar un PATCH por cada tecla.
+   *
+   * Antes había que apretar "Guardar borrador", y no apretarlo perdía todo el
+   * trabajo de corrección al cerrar la pestaña — sin ningún aviso, porque los
+   * comprobantes SÍ quedaban guardados y la rendición existía: lo único que se
+   * perdía eran las correcciones.
+   *
+   * El primer render no guarda: abrir una rendición no es un cambio, y guardar al
+   * abrir escribiría en la base cada visita.
+   *
+   * El estado "pendiente" NO se marca acá sino en las funciones que modifican los
+   * gastos. Marcarlo en el cuerpo del efecto es un setState sincrónico durante el
+   * render —el lint lo rechaza con razón— y además es conceptualmente al revés:
+   * "hay cambios sin guardar" es consecuencia de que alguien editó, no de que se
+   * haya vuelto a renderizar.
+   */
+  const primerRender = useRef(true);
+  useEffect(() => {
+    if (primerRender.current) {
+      primerRender.current = false;
+      return;
+    }
+    // Una rendición ya cargada a Odoo es de solo lectura.
+    if (yaCargada) return;
+
+    const t = setTimeout(persistir, 1200);
+    return () => clearTimeout(t);
+    // persistir cambia junto con rendicion.gastos, que es justo el disparador.
+  }, [persistir, yaCargada]);
+
+  /**
+   * Aviso al cerrar si quedó algo sin guardar.
+   *
+   * La ventana del compás de espera es de poco más de un segundo, pero cerrar la
+   * pestaña justo ahí perdía la última corrección. El navegador muestra su propio
+   * diálogo; el texto no se puede personalizar.
+   */
+  useEffect(() => {
+    if (estadoGuardado !== "pendiente" && estadoGuardado !== "guardando") return;
+    const alSalir = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", alSalir);
+    return () => window.removeEventListener("beforeunload", alSalir);
+  }, [estadoGuardado]);
 
   const buscarEmpleado = async () => {
     setBuscandoEmpleado(true);
@@ -879,6 +953,28 @@ export default function PanelRendicion({
             <p className="font-condensed text-lg font-bold tracking-tight text-tinta">
               2 · Revisar y corregir
             </p>
+            {/* El estado del autoguardado vive acá, al lado del título del paso, y
+                no como un aviso flotante: es información de fondo, no un evento
+                que interrumpa. */}
+            {!yaCargada && (
+              <span
+                className="flex items-center gap-1.5 text-[11px] text-tinta/40"
+                // aria-live para que un lector de pantalla anuncie el cambio de
+                // estado, que es el único indicio de que se guardó.
+                aria-live="polite"
+              >
+                {estadoGuardado === "guardando" && (
+                  <>
+                    <RuedaCarga />
+                    Guardando
+                  </>
+                )}
+                {estadoGuardado === "pendiente" && "Cambios sin guardar"}
+                {estadoGuardado === "guardado" && <span className="text-teal">Guardado {guardadoEn}</span>}
+                {estadoGuardado === "error" && <span className="text-red-600">No se pudo guardar</span>}
+                {estadoGuardado === "limpio" && "Se guarda solo"}
+              </span>
+            )}
             {pendientes.length > 0 && (
               <span className="rounded-full bg-naranjo/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-naranjo">
                 {pendientes.length} por confirmar
@@ -1088,16 +1184,17 @@ export default function PanelRendicion({
           </div>
 
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {!yaCargada && (
+            {/* No hay botón de guardar: se guarda solo. El único botón que
+                aparece es el de reintentar, y solo cuando el autoguardado falló —
+                un botón de guardar permanente al lado de un autoguardado que
+                funciona solo genera la duda de si hay que apretarlo. */}
+            {!yaCargada && estadoGuardado === "error" && (
               <button
                 type="button"
-                onClick={guardar}
-                disabled={guardando}
-                aria-busy={guardando}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-borde bg-superficie px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
+                onClick={persistir}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-red-600/40 bg-red-600/5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-red-700 transition hover:bg-red-600/10 sm:w-auto sm:py-2"
               >
-                {guardando && <RuedaCarga />}
-                {guardando ? "Guardando..." : "Guardar borrador"}
+                Reintentar el guardado
               </button>
             )}
             <button

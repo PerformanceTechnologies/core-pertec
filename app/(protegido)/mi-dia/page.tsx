@@ -31,8 +31,16 @@ const BARRA_URGENCIA: Record<Urgencia, string> = {
 
 const ETIQUETA_URGENCIA: Record<Urgencia, string | null> = {
   alta: "Urgente",
-  media: null,
+  media: "Revisar",
   baja: null,
+};
+
+// El badge de "media" va en gris y no en naranjo: si los dos niveles se pintan
+// igual, tener dos niveles no sirve de nada.
+const TONO_URGENCIA: Record<Urgencia, "naranjo" | "gris"> = {
+  alta: "naranjo",
+  media: "gris",
+  baja: "gris",
 };
 
 const ETIQUETA_DIA: Record<string, string | null> = {
@@ -133,14 +141,20 @@ function Seccion({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-8 first:mt-0">
-      <div className="flex items-baseline gap-2 border-b border-borde pb-2">
-        <h2 className="font-condensed text-xl font-bold tracking-tight text-tinta">{titulo}</h2>
-        {cuenta !== undefined && cuenta > 0 && (
-          <span className="font-condensed text-xl font-bold tabular-nums text-tinta/25">{cuenta}</span>
+    <section className="mt-10 first:mt-0">
+      {/* Rótulo, una regla que ocupa lo que sobra, y el conteo al final. La regla
+          es lo que hace que el rótulo se lea como un título de sección sin
+          necesidad de tamaño ni de peso. */}
+      <div className="flex items-center gap-4">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-tinta/50">{titulo}</h2>
+        <span className="h-px flex-1 bg-borde" />
+        {cuenta !== undefined && (
+          <span className="text-[11px] font-semibold tabular-nums text-tinta/30">
+            {String(cuenta).padStart(2, "0")}
+          </span>
         )}
       </div>
-      <div className="mt-3">{children}</div>
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
@@ -279,52 +293,16 @@ function Badge({ tono, children }: { tono: "naranjo" | "gris"; children: React.R
   );
 }
 
-export default async function MiDiaPage() {
-  // Solo el guard, que son dos consultas rápidas. Todo lo caro vive en
-  // <ResumenDelDia>, detrás de su propio Suspense: así el encabezado con la fecha
-  // se manda al navegador de inmediato y la espera pasa a ocurrir DENTRO de una
-  // página que ya se ve, en vez de frente a una pantalla en blanco.
-  //
-  // Antes esta función esperaba el resumen completo antes de devolver el primer
-  // byte, así que la primera visita del día eran 30 a 90 segundos de nada.
-  const usuario = await exigirAccesoApp(SLUG_APP);
-  const hoy = hoyEnSantiago();
-
-  return (
-    // El <main> del core no tiene tope de ancho, así que en un monitor de 1900px
-    // la prosa de este módulo se estiraba a todo lo largo. Esta página es de
-    // lectura, no una tabla: necesita un límite.
-    <div className="max-w-[1500px]">
-      <header>
-        <span className="etiqueta-seccion">Mi día</span>
-        {/* El título es la fecha y es lo que ubica todo lo demás: merece tamaño
-            de display y tracking cerrado, no el text-2xl de un subtítulo. */}
-        <h1 className="mt-2 font-condensed text-4xl font-bold leading-none tracking-tight text-tinta sm:text-5xl">
-          {fechaLarga(hoy.iso)}
-        </h1>
-        <p className="mt-3 max-w-[62ch] text-[15px] text-pretty text-tinta/60">
-          Resumen de tu correo de los últimos días y de las reuniones de hoy y los próximos. Cada fila abre el
-          mensaje o la cita en Outlook.
-        </p>
-      </header>
-
-      <Suspense fallback={<ResumenCargando />}>
-        <ResumenDelDia usuario={usuario} />
-      </Suspense>
-    </div>
-  );
-}
-
 /**
- * La parte lenta: leer Graph y generar el resumen.
+ * Todo lo caro, en UNA promesa.
  *
- * Separada en su propio componente para poder envolverla en Suspense. Recibe el
- * usuario ya resuelto por el guard, y no lo vuelve a pedir.
+ * Se comparte entre la banda de cifras y el cuerpo del resumen, que están en dos
+ * límites de Suspense distintos. Si cada uno llamara por su cuenta, en una caché
+ * vacía se generarían DOS resúmenes: dos llamadas al modelo sobre el mismo buzón,
+ * y la segunda sobreescribiendo a la primera.
  */
-async function ResumenDelDia({ usuario }: { usuario: UsuarioConAcceso }) {
+async function cargarResumen(usuario: UsuarioConAcceso) {
   const sesion = await auth();
-
-  // El resumen y la credencial son independientes: van en paralelo.
   const [estado, credencialGuardada] = await Promise.all([
     obtenerResumenDeHoy({
       usuarioId: usuario.id,
@@ -336,6 +314,169 @@ async function ResumenDelDia({ usuario }: { usuario: UsuarioConAcceso }) {
     }),
     tieneCredencialGuardada(usuario.id),
   ]);
+  return { estado, credencialGuardada };
+}
+
+type DatosResumen = Awaited<ReturnType<typeof cargarResumen>>;
+
+export default async function MiDiaPage() {
+  // Solo el guard, que son dos consultas rápidas.
+  const usuario = await exigirAccesoApp(SLUG_APP);
+  const hoy = hoyEnSantiago();
+
+  // SIN await: la promesa se pasa a los dos hijos y cada uno la espera dentro de su
+  // propio Suspense. Esperarla acá volvería a bloquear la página entera, que es lo
+  // que hacía que la primera visita del día fueran 30 a 90 segundos de nada.
+  const datos = cargarResumen(usuario);
+
+  // "Lunes," / "10 de agosto" en dos líneas: la fecha es el título de la página y
+  // partida en dos gana presencia sin necesidad de más tamaño.
+  const [diaSemana, ...resto] = fechaLarga(hoy.iso).split(", ");
+
+  return (
+    // El <main> del core no tiene tope de ancho, así que en un monitor de 1900px
+    // la prosa de este módulo se estiraba a todo lo largo. Esta página es de
+    // lectura, no una tabla: necesita un límite.
+    <div className="max-w-[1500px]">
+      {/* La banda oscura reúne lo que antes eran tres bloques separados: el
+          encabezado, la cinta de cifras y el "generado a las" del pie. Un solo
+          bloque de contraste alto arriba y el resto de la página en claro. */}
+      <header className="rounded-2xl bg-tinta px-6 py-7 sm:px-8 sm:py-9">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
+              <span className="h-px w-6 bg-naranjo" />
+              Mi día
+            </span>
+            <h1 className="mt-3 font-condensed text-4xl font-bold uppercase leading-[0.95] tracking-tight text-crema sm:text-5xl">
+              {diaSemana},
+              <br />
+              {resto.join(", ")}
+            </h1>
+            <p className="mt-4 max-w-[52ch] text-sm text-pretty text-crema/50">
+              Resumen de tu correo de los últimos días y de las reuniones de hoy y los próximos. Cada fila
+              abre el mensaje o la cita en Outlook.
+            </p>
+          </div>
+
+          {/* Las cifras van en su propio Suspense DENTRO de la banda: el título y
+              la fecha se pintan de inmediato y los números entran cuando están,
+              sin mover nada de lugar porque el hueco ya está reservado. */}
+          <Suspense fallback={<CifrasCargando />}>
+            <Cifras datos={datos} />
+          </Suspense>
+        </div>
+      </header>
+
+      <Suspense fallback={<ResumenCargando />}>
+        <CuerpoResumen datos={datos} />
+      </Suspense>
+    </div>
+  );
+}
+
+/** Las cuatro cifras del período, en la banda oscura. */
+async function Cifras({ datos }: { datos: Promise<DatosResumen> }) {
+  const { estado } = await datos;
+  if (estado.estado !== "ok") return null;
+  const r = estado.datos.resumen;
+
+  return (
+    <dl className="grid shrink-0 grid-cols-2 gap-y-5 rounded-xl border border-crema/10 px-5 py-4 sm:grid-cols-4 sm:gap-y-0 lg:min-w-[30rem]">
+      <Cifra
+        etiqueta="Correos"
+        valor={r.conteos.total}
+        pie={`últimas ${r.conteos.horas} horas`}
+        detalle={
+          <>
+            <LineaDetalle etiqueta="De dónde salen">
+              Todo lo que llegó a tu bandeja de entrada en las últimas {r.conteos.horas} horas. No incluye lo
+              archivado ni lo enviado.
+            </LineaDetalle>
+            <LineaDetalle etiqueta="Cómo se reparten">
+              {r.conteos.aMi} dirigidos a ti · {r.conteos.enCopia} en copia ·{" "}
+              {r.conteos.total - r.conteos.aMi - r.conteos.enCopia} por lista o regla
+            </LineaDetalle>
+            {r.conteos.recortado && (
+              <LineaDetalle etiqueta="Atención">
+                Se llegó al tope de mensajes que se analizan, así que hay correo más viejo que no se revisó.
+              </LineaDetalle>
+            )}
+          </>
+        }
+      />
+      <Cifra
+        etiqueta="Sin leer"
+        valor={r.conteos.sinLeer}
+        pie={r.conteos.marcados > 0 ? `${r.conteos.marcados} con bandera` : "sin banderas"}
+        resalte="naranjo"
+        detalle={
+          <>
+            <LineaDetalle etiqueta="Qué cuenta">
+              Mensajes del período que siguen marcados como no leídos en Outlook.
+            </LineaDetalle>
+            <LineaDetalle etiqueta="No es lo mismo que pendiente">
+              Un correo leído puede seguir requiriendo respuesta. Para eso está la lista de abajo.
+            </LineaDetalle>
+          </>
+        }
+      />
+      <Cifra
+        etiqueta="Dirigidos a ti"
+        valor={r.conteos.aMi}
+        pie={`${r.conteos.enCopia} en copia`}
+        resalte="teal"
+        detalle={
+          <>
+            <LineaDetalle etiqueta="Dirigidos a ti">
+              Estás en el campo Para. Casi siempre esperan algo tuyo.
+            </LineaDetalle>
+            <LineaDetalle etiqueta="En copia">
+              {r.conteos.enCopia} donde estás solo en CC: son para que estés al tanto, no para que respondas.
+            </LineaDetalle>
+          </>
+        }
+      />
+      <Cifra
+        etiqueta="Reuniones"
+        valor={r.reunionesTotales}
+        pie="hoy y los próximos días"
+        ultima
+        detalleAlineado="derecha"
+        detalle={
+          <>
+            <LineaDetalle etiqueta="Qué abarca">
+              Desde las 00:00 de hoy y por los dos días siguientes, en hora de Chile.
+            </LineaDetalle>
+            <LineaDetalle etiqueta="Cómo se reparten">
+              {r.reuniones.filter((m) => m.dia === "hoy").length} hoy ·{" "}
+              {r.reuniones.filter((m) => m.dia === "manana").length} mañana ·{" "}
+              {r.reuniones.filter((m) => m.dia === "despues").length} más adelante
+            </LineaDetalle>
+          </>
+        }
+      />
+    </dl>
+  );
+}
+
+/** Hueco del mismo tamaño que las cifras, para que al llegar no salte nada. */
+function CifrasCargando() {
+  return (
+    <div className="grid shrink-0 grid-cols-2 gap-y-5 rounded-xl border border-crema/10 px-5 py-4 sm:grid-cols-4 sm:gap-y-0 lg:min-w-[30rem]">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className={i === 3 ? "" : "sm:border-r sm:border-crema/10"}>
+          <div className="h-8 w-10 animate-pulse rounded bg-crema/10" />
+          <div className="mt-2 h-2.5 w-16 animate-pulse rounded bg-crema/10" />
+          <div className="mt-1.5 h-2.5 w-20 animate-pulse rounded bg-crema/[0.06]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+async function CuerpoResumen({ datos }: { datos: Promise<DatosResumen> }) {
+  const { estado, credencialGuardada } = await datos;
 
   return (
     <>
@@ -384,139 +525,29 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
 
   return (
     <>
-      {/* Los números del período. Se mantiene la cinta de cuatro segmentos con
-          los tintes del Cotizador y Rendir Gastos —es la convención de la casa—
-          pero los rótulos van en caja normal: en mayúsculas competían con el
-          título de la página y con los de sección. */}
-      {/* Sin overflow-hidden: recortaría los popovers. El redondeo va esquina por
-          esquina en cada segmento, y cambia entre 2 y 4 columnas porque las
-          esquinas del bloque no son los mismos segmentos en cada caso. */}
-      <dl className="mt-8 grid grid-cols-2 rounded-2xl border border-borde sm:grid-cols-4">
-        <Cifra
-          etiqueta="Correos"
-          valor={r.conteos.total}
-          pie={`últimas ${r.conteos.horas} horas`}
-          esquinas="rounded-tl-2xl sm:rounded-bl-2xl"
-          detalle={
-            <>
-              <LineaDetalle etiqueta="De dónde salen">
-                Todo lo que llegó a tu bandeja de entrada en las últimas {r.conteos.horas} horas. No incluye
-                lo que archivaste ni lo que enviaste.
-              </LineaDetalle>
-              <LineaDetalle etiqueta="Cómo se reparten">
-                {r.conteos.aMi} dirigidos a ti · {r.conteos.enCopia} en copia ·{" "}
-                {r.conteos.total - r.conteos.aMi - r.conteos.enCopia} por lista o regla
-              </LineaDetalle>
-              {r.conteos.recortado && (
-                <LineaDetalle etiqueta="Atención">
-                  Se llegó al tope de mensajes que se analizan, así que hay correo más viejo que no se revisó.
-                </LineaDetalle>
-              )}
-            </>
-          }
-        />
-        <Cifra
-          etiqueta="Sin leer"
-          valor={r.conteos.sinLeer}
-          pie={r.conteos.marcados > 0 ? `${r.conteos.marcados} con bandera` : "sin banderas"}
-          resalte="naranjo"
-          esquinas="rounded-tr-2xl sm:rounded-none"
-          detalle={
-            <>
-              <LineaDetalle etiqueta="Qué cuenta">
-                Mensajes del período que siguen marcados como no leídos en Outlook.
-              </LineaDetalle>
-              <LineaDetalle etiqueta="Con bandera">
-                {r.conteos.marcados === 0
-                  ? "Ninguno tiene bandera puesta."
-                  : `${r.conteos.marcados} ${r.conteos.marcados === 1 ? "mensaje" : "mensajes"} con bandera. Esos los marcaste tú, así que suelen ser los que ya identificaste como pendientes.`}
-              </LineaDetalle>
-              <LineaDetalle etiqueta="No es lo mismo que pendiente">
-                Un correo leído puede seguir requiriendo respuesta. Para eso está la lista de abajo.
-              </LineaDetalle>
-            </>
-          }
-        />
-        <Cifra
-          etiqueta="Dirigidos a ti"
-          valor={r.conteos.aMi}
-          pie={`${r.conteos.enCopia} en copia`}
-          fondo="teal"
-          resalte="teal"
-          esquinas="rounded-none sm:rounded-none"
-          detalle={
-            <>
-              <LineaDetalle etiqueta="Dirigidos a ti">
-                Estás en el campo Para. Casi siempre esperan algo tuyo.
-              </LineaDetalle>
-              <LineaDetalle etiqueta="En copia">
-                {r.conteos.enCopia} donde estás solo en CC: normalmente son para que estés al tanto, no para
-                que respondas.
-              </LineaDetalle>
-              <LineaDetalle etiqueta="Por lista">
-                {r.conteos.total - r.conteos.aMi - r.conteos.enCopia} que no te nombran: llegaron por una
-                lista de distribución, un buzón compartido o una regla.
-              </LineaDetalle>
-            </>
-          }
-        />
-        <Cifra
-          etiqueta="Reuniones"
-          valor={r.reunionesTotales}
-          pie="hoy y los próximos días"
-          fondo="gris"
-          ultima
-          esquinas="rounded-bl-2xl sm:rounded-r-2xl sm:rounded-bl-none"
-          detalleAlineado="derecha"
-          detalle={
-            <>
-              <LineaDetalle etiqueta="Qué abarca">
-                Desde las 00:00 de hoy y por los dos días siguientes, en hora de Chile.
-              </LineaDetalle>
-              <LineaDetalle etiqueta="Cómo se reparten">
-                {(() => {
-                  const hoyN = r.reuniones.filter((m) => m.dia === "hoy").length;
-                  const mananaN = r.reuniones.filter((m) => m.dia === "manana").length;
-                  const despuesN = r.reuniones.filter((m) => m.dia === "despues").length;
-                  return `${hoyN} hoy · ${mananaN} mañana · ${despuesN} más adelante`;
-                })()}
-              </LineaDetalle>
-              <LineaDetalle etiqueta="Recién agendadas">
-                {r.reuniones.filter((m) => !m.agendadaAntes).length} se agregaron el mismo día en que ocurren.
-              </LineaDetalle>
-            </>
-          }
-        />
-      </dl>
+      {/* El panorama, como una cita: regla al costado y nada más. Antes era una
+          tarjeta naranja que competía por atención con las prioridades de justo
+          abajo, y las dos quedaban al mismo nivel siendo cosas distintas: esto es
+          contexto, eso es la lista de qué hacer. */}
+      <blockquote className="mt-10 border-l-2 border-naranjo pl-5">
+        <p className="max-w-[70ch] text-[17px] leading-relaxed text-pretty text-tinta">{r.panorama}</p>
+      </blockquote>
 
-      {r.conteos.recortado && (
-        <p className="mt-2 text-[11px] text-tinta/45">
-          Se llegó al tope de mensajes: hay correo más viejo que no se analizó.
-        </p>
-      )}
-
-      {/* Lo primero: panorama y las tres prioridades. Va a todo el ancho y antes
-          de las dos columnas porque es lo único que alguien lee si está apurado. */}
-      <div className="mt-6 overflow-hidden rounded-2xl border border-naranjo/25 bg-naranjo/[0.05]">
-        <p className="max-w-[75ch] px-6 pt-6 text-base leading-relaxed text-pretty text-tinta">
-          {r.panorama}
-        </p>
-        <ol className="mt-5">
+      <Seccion titulo="Prioridades del día" cuenta={r.prioridades.length}>
+        {/* Tres tarjetas en fila en vez de una lista numerada: en fila se leen como
+            tres cosas del día y no como un ranking del que solo importa la primera.
+            El número grande da el orden sin necesidad de la lista. */}
+        <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {r.prioridades.map((prioridad, i) => (
-            <li
-              key={i}
-              className="flex items-baseline gap-4 border-t border-naranjo/15 px-6 py-3.5 text-[15px] leading-6 text-pretty text-tinta"
-            >
-              {/* El número en condensed y grande, alineado por la línea base con
-                  el texto: es un marcador de orden, no una viñeta decorativa. */}
-              <span className="w-4 shrink-0 font-condensed text-xl font-bold leading-none tabular-nums text-naranjo">
-                {i + 1}
+            <li key={i} className={`rounded-xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
+              <span className="font-condensed text-2xl font-bold leading-none tabular-nums text-naranjo">
+                {String(i + 1).padStart(2, "0")}
               </span>
-              <span>{prioridad}</span>
+              <p className="mt-4 text-[15px] leading-relaxed text-pretty text-tinta">{prioridad}</p>
             </li>
           ))}
         </ol>
-      </div>
+      </Seccion>
 
       {/* Dos columnas: a la izquierda lo que requiere una acción, a la derecha la
           agenda y el contexto. Antes era una sola columna de listas apiladas, que
@@ -576,7 +607,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
                         {c.asunto}
                       </p>
                       {ETIQUETA_URGENCIA[c.urgencia] && (
-                        <Badge tono="naranjo">{ETIQUETA_URGENCIA[c.urgencia]}</Badge>
+                        <Badge tono={TONO_URGENCIA[c.urgencia]}>{ETIQUETA_URGENCIA[c.urgencia]}</Badge>
                       )}
                       {ETIQUETA_DIRIGIDO[c.dirigido] && (
                         <Badge tono="gris">{ETIQUETA_DIRIGIDO[c.dirigido]}</Badge>
@@ -736,62 +767,45 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
   );
 }
 
-const FONDO_CIFRA = {
-  naranjo: "bg-naranjo/[0.06]",
-  teal: "bg-teal/[0.06]",
-  gris: "bg-gris/[0.08]",
-} as const;
-
 /**
- * Un segmento de la cinta de conteos.
+ * Un segmento de las cifras de la banda oscura.
  *
- * El fondo y el color de la cifra son decisiones separadas a propósito: el total
- * de correos es un dato neutro aunque su segmento tenga tinte naranjo, y solo
- * "sin leer" se resalta. Si el color del número siguiera al del fondo, los cuatro
- * quedarían resaltados y ninguno destacaría.
- *
- * `esquinas` viene de afuera porque cuál esquina redondear depende de la posición
- * del segmento Y de si la cinta está en dos o en cuatro columnas.
+ * La cifra en grande y el rótulo abajo, no al revés: el número es el dato y la
+ * etiqueta solo lo nombra. Y solo dos de los cuatro llevan color —"sin leer" en
+ * naranjo, "dirigidos a ti" en teal— porque si los cuatro se resaltan ninguno
+ * destaca.
  */
 function Cifra({
   etiqueta,
   valor,
   pie,
-  fondo = "naranjo",
   resalte,
   ultima = false,
-  esquinas = "",
   detalle,
   detalleAlineado = "izquierda",
 }: {
   etiqueta: string;
   valor: number;
   pie: string;
-  fondo?: keyof typeof FONDO_CIFRA;
   resalte?: "naranjo" | "teal";
   ultima?: boolean;
-  esquinas?: string;
   detalle?: React.ReactNode;
   detalleAlineado?: "izquierda" | "derecha";
 }) {
-  const color = resalte === "teal" ? "text-teal" : resalte === "naranjo" ? "text-naranjo" : "text-tinta";
+  const color =
+    resalte === "teal" ? "text-teal-suave" : resalte === "naranjo" ? "text-naranjo-suave" : "text-crema";
   return (
     <div
-      // tabIndex solo cuando hay detalle: un div enfocable sin nada que mostrar es
-      // una parada más del tabulador a cambio de nada.
       tabIndex={detalle ? 0 : undefined}
-      className={`group relative border-b border-borde px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-naranjo/50 sm:border-b-0 ${
-        ultima ? "" : "sm:border-r"
-      } ${FONDO_CIFRA[fondo]} ${esquinas}`}
+      className={`group relative px-4 outline-none first:pl-0 last:pr-0 focus-visible:ring-1 focus-visible:ring-naranjo/60 ${
+        ultima ? "" : "sm:border-r sm:border-crema/10"
+      }`}
     >
-      <dt className="text-xs font-medium text-tinta/55">{etiqueta}</dt>
-      {/* La cifra en tamaño de display: es el dato, no una nota al pie. */}
-      <dd
-        className={`mt-1 font-condensed text-3xl font-bold leading-none tracking-tight tabular-nums ${color}`}
-      >
+      <dd className={`font-condensed text-3xl font-bold leading-none tracking-tight tabular-nums ${color}`}>
         {valor}
       </dd>
-      <dd className="mt-1.5 text-[11px] text-tinta/45">{pie}</dd>
+      <dt className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-crema/45">{etiqueta}</dt>
+      <dd className="mt-1 text-[10px] leading-tight text-crema/30">{pie}</dd>
       {detalle && <Popover alineado={detalleAlineado}>{detalle}</Popover>}
     </div>
   );

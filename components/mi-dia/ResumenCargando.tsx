@@ -53,7 +53,7 @@ export default function ResumenCargando() {
 
   return (
     <div
-      className="mt-8 rounded-2xl border border-borde bg-superficie px-6 py-10"
+      className="mt-10 rounded-2xl border border-borde bg-superficie px-6 py-10"
       // aria-live para que un lector de pantalla anuncie los cambios de paso, y
       // "polite" para que espere a que termine de leer lo anterior.
       aria-live="polite"
