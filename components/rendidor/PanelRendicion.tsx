@@ -344,6 +344,22 @@ export default function PanelRendicion({
   >("limpio");
   const [guardadoEn, setGuardadoEn] = useState<string | null>(null);
 
+  /**
+   * Para plegar o desplegar todas las tarjetas de gasto de una vez.
+   *
+   * Se toca el DOM en vez de llevar el estado de apertura en React, y es a
+   * propósito: `<details>` ya guarda su propio estado, y duplicarlo en un `Set` de
+   * ids significaría re-renderizar el formulario entero cada vez que alguien abre
+   * una fila — con inputs controlados adentro, eso es pedir problemas de foco.
+   * Esto es exactamente el caso para el que sirve una ref.
+   */
+  const listaGastos = useRef<HTMLUListElement>(null);
+  const plegarTodo = (abrir: boolean) => {
+    listaGastos.current?.querySelectorAll("details").forEach((d) => {
+      d.open = abrir;
+    });
+  };
+
   // Cada createObjectURL retiene el archivo en memoria hasta que se revoca. Sin
   // esto, subir 16 comprobantes y navegar a otra parte deja los 16 colgados.
   useEffect(() => {
@@ -949,37 +965,63 @@ export default function PanelRendicion({
       {/* PASO 2 — revisar y corregir */}
       {rendicion.gastos.length > 0 && (
         <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <p className="font-condensed text-lg font-bold tracking-tight text-tinta">
               2 · Revisar y corregir
             </p>
-            {/* El estado del autoguardado vive acá, al lado del título del paso, y
+            {/* Todo lo demás agrupado a la derecha: con cuatro elementos sueltos,
+                justify-between los repartía a lo ancho y el estado del guardado
+                quedaba flotando en el medio de la nada. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* El estado del autoguardado vive acá, al lado del título del paso, y
                 no como un aviso flotante: es información de fondo, no un evento
                 que interrumpa. */}
-            {!yaCargada && (
-              <span
-                className="flex items-center gap-1.5 text-[11px] text-tinta/40"
-                // aria-live para que un lector de pantalla anuncie el cambio de
-                // estado, que es el único indicio de que se guardó.
-                aria-live="polite"
-              >
-                {estadoGuardado === "guardando" && (
-                  <>
-                    <RuedaCarga />
-                    Guardando
-                  </>
-                )}
-                {estadoGuardado === "pendiente" && "Cambios sin guardar"}
-                {estadoGuardado === "guardado" && <span className="text-teal">Guardado {guardadoEn}</span>}
-                {estadoGuardado === "error" && <span className="text-red-600">No se pudo guardar</span>}
-                {estadoGuardado === "limpio" && "Se guarda solo"}
-              </span>
-            )}
-            {pendientes.length > 0 && (
-              <span className="rounded-full bg-naranjo/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-naranjo">
-                {pendientes.length} por confirmar
-              </span>
-            )}
+              {!yaCargada && (
+                <span
+                  className="flex items-center gap-1.5 text-[11px] text-tinta/40"
+                  // aria-live para que un lector de pantalla anuncie el cambio de
+                  // estado, que es el único indicio de que se guardó.
+                  aria-live="polite"
+                >
+                  {estadoGuardado === "guardando" && (
+                    <>
+                      <RuedaCarga />
+                      Guardando
+                    </>
+                  )}
+                  {estadoGuardado === "pendiente" && "Cambios sin guardar"}
+                  {estadoGuardado === "guardado" && <span className="text-teal">Guardado {guardadoEn}</span>}
+                  {estadoGuardado === "error" && <span className="text-red-600">No se pudo guardar</span>}
+                  {estadoGuardado === "limpio" && "Se guarda solo"}
+                </span>
+              )}
+              {/* Solo con más de una tarjeta: con una sola, plegar y desplegar todo
+                es lo mismo que el propio encabezado de esa tarjeta. */}
+              {filas.length > 1 && (
+                <span className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => plegarTodo(true)}
+                    className="font-medium text-tinta/45 underline underline-offset-2 hover:text-naranjo"
+                  >
+                    Desplegar todo
+                  </button>
+                  <span className="text-tinta/20">·</span>
+                  <button
+                    type="button"
+                    onClick={() => plegarTodo(false)}
+                    className="font-medium text-tinta/45 underline underline-offset-2 hover:text-naranjo"
+                  >
+                    Plegar todo
+                  </button>
+                </span>
+              )}
+              {pendientes.length > 0 && (
+                <span className="rounded-full bg-naranjo/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-naranjo">
+                  {pendientes.length} por confirmar
+                </span>
+              )}
+            </div>
           </div>
           <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
             El neto y el IVA se calculan desde el total impreso según el tipo de documento. Lo que corrijas
@@ -994,152 +1036,203 @@ export default function PanelRendicion({
               La grilla va de 1 columna a 2 y a 4, así que el mismo marcado sirve
               para el teléfono y para un monitor ancho sin nada oculto ni ningún
               desplazamiento lateral. */}
-          <ul className="mt-4 flex flex-col gap-3">
+          <ul ref={listaGastos} className="mt-4 flex flex-col gap-3">
             {filas.map(({ gasto: g, neto, iva, advertencias }, i) => {
               const avisos = [...g.pendientes.map((p) => `Ilegible: ${p}`), ...advertencias];
               const rutMalo = Boolean(g.rutProveedor?.trim()) && !rutValido(g.rutProveedor!);
 
+              // Se abre lo que hay que mirar: un gasto con campos ilegibles o con
+              // un RUT que no calza. Lo que quedó bien arranca plegado, y con una
+              // rendición de dieciséis comprobantes eso es la diferencia entre una
+              // lista que se recorre y una página de cinco pantallas de alto.
+              //
+              // Con un solo gasto no tiene sentido plegarlo: no hay lista que
+              // recorrer.
+              const abierto = avisos.length > 0 || rutMalo || filas.length === 1;
+
               return (
                 <li
                   key={g.id}
-                  className={`rounded-xl border bg-superficie px-4 py-3.5 ${SOMBRA_CALIDA} ${
+                  className={`overflow-hidden rounded-xl border bg-superficie ${SOMBRA_CALIDA} ${
                     avisos.length > 0 || rutMalo ? "border-naranjo/40" : "border-borde"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3 border-b border-borde pb-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      {/* La miniatura del comprobante, para poder cotejar lo que
-                          dice el documento contra lo que quedó en los campos sin
-                          tener que abrirlo en otra pestaña. */}
-                      <Previsualizacion
-                        url={vistasLocales[g.id] ?? urlsRespaldo[g.id]}
-                        nombre={g.archivoNombre}
-                        tipo={g.archivoTipo}
-                      />
-                      <div className="min-w-0">
-                        <span className="font-condensed text-base font-bold leading-none tabular-nums text-tinta">
-                          {i + 1}
-                        </span>
-                        {/* El proveedor repetido en el encabezado: es lo que
-                            identifica el gasto de un vistazo. */}
-                        <p className="truncate text-xs text-tinta/45">
-                          {g.proveedor?.trim() || "Sin proveedor"}
-                        </p>
-                        <p className="mt-0.5 truncate text-[10px] text-tinta/30" title={g.archivoNombre}>
-                          {g.archivoNombre || "sin archivo"}
-                        </p>
+                  <details open={abierto} className="group/gasto">
+                    {/* <details> y no estado propio: plegar y desplegar no tiene
+                        por qué re-renderizar el formulario ni arriesgar que un
+                        input pierda el foco mientras alguien escribe. */}
+                    <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-crema/40">
+                      <div className="flex min-w-0 items-start gap-3">
+                        {/* La miniatura del comprobante, para poder cotejar lo que
+                            dice el documento contra lo que quedó en los campos sin
+                            tener que abrirlo en otra pestaña. */}
+                        <Previsualizacion
+                          url={vistasLocales[g.id] ?? urlsRespaldo[g.id]}
+                          nombre={g.archivoNombre}
+                          tipo={g.archivoTipo}
+                        />
+                        <div className="min-w-0">
+                          <span className="font-condensed text-base font-bold leading-none tabular-nums text-tinta">
+                            {i + 1}
+                          </span>
+                          {/* El proveedor identifica el gasto de un vistazo, y es
+                              lo único que se ve con la tarjeta plegada. */}
+                          <p className="truncate text-xs text-tinta/45">
+                            {g.proveedor?.trim() || "Sin proveedor"}
+                          </p>
+                          <p className="mt-0.5 truncate text-[10px] text-tinta/30" title={g.archivoNombre}>
+                            {g.archivoNombre || "sin archivo"}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    {!yaCargada && <DeleteButton onClick={() => quitarGasto(g.id)} />}
-                  </div>
 
-                  <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <Campo etiqueta="Fecha">
-                      <input
-                        type="date"
-                        value={g.fecha ?? ""}
-                        disabled={yaCargada}
-                        onChange={(e) => actualizarGasto(g.id, { fecha: e.target.value || null })}
-                        className="h-8 w-full rounded-md border border-borde bg-superficie px-2 text-sm text-tinta outline-none focus:border-naranjo/50 disabled:bg-crema disabled:text-tinta/50"
-                      />
-                    </Campo>
+                      <div className="flex shrink-0 items-center gap-3">
+                        {/* El total va en el resumen: es la cifra que se recorre
+                            cuando se revisa una rendición entera plegada. */}
+                        <div className="text-right">
+                          <p className="font-condensed text-base font-bold tabular-nums text-tinta">
+                            {money(g.total)}
+                          </p>
+                          {(avisos.length > 0 || rutMalo) && (
+                            <p className="text-[10px] font-semibold text-naranjo">Revisar</p>
+                          )}
+                        </div>
+                        {!yaCargada && (
+                          // preventDefault en el span y no en el botón: DeleteButton
+                          // no recibe el evento, y sin esto el clic burbujea al
+                          // <summary> y además pliega la tarjeta.
+                          <span onClick={(e) => e.preventDefault()}>
+                            <DeleteButton onClick={() => quitarGasto(g.id)} />
+                          </span>
+                        )}
+                        {/* La flecha gira al abrir. Es el único indicio de que la
+                            fila se despliega, así que no puede faltar. */}
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          aria-hidden
+                          className="shrink-0 text-tinta/35 transition-transform duration-200 group-open/gasto:rotate-180"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </div>
+                    </summary>
 
-                    <Campo etiqueta="Tipo de documento">
-                      <SelectInput
-                        value={(g.tipoDocumento ?? "") as TipoDocumento | ""}
-                        disabled={yaCargada}
-                        onChange={(v) =>
-                          actualizarGasto(g.id, { tipoDocumento: (v || null) as TipoDocumento | null })
-                        }
-                        options={[
-                          { value: "" as TipoDocumento | "", label: "— elegir —" },
-                          ...TIPOS_DOCUMENTO.map((t) => ({
-                            value: t as TipoDocumento | "",
-                            label: TRATAMIENTO_DOCUMENTO[t].etiqueta,
-                          })),
-                        ]}
-                      />
-                    </Campo>
+                    <div className="border-t border-borde px-4 pb-4">
+                      <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <Campo etiqueta="Fecha">
+                          <input
+                            type="date"
+                            value={g.fecha ?? ""}
+                            disabled={yaCargada}
+                            onChange={(e) => actualizarGasto(g.id, { fecha: e.target.value || null })}
+                            className="h-8 w-full rounded-md border border-borde bg-superficie px-2 text-sm text-tinta outline-none focus:border-naranjo/50 disabled:bg-crema disabled:text-tinta/50"
+                          />
+                        </Campo>
 
-                    <Campo etiqueta="Proveedor" ancho="xl:col-span-2">
-                      <TextInput
-                        value={g.proveedor}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { proveedor: v })}
-                      />
-                    </Campo>
+                        <Campo etiqueta="Tipo de documento">
+                          <SelectInput
+                            value={(g.tipoDocumento ?? "") as TipoDocumento | ""}
+                            disabled={yaCargada}
+                            onChange={(v) =>
+                              actualizarGasto(g.id, { tipoDocumento: (v || null) as TipoDocumento | null })
+                            }
+                            options={[
+                              { value: "" as TipoDocumento | "", label: "— elegir —" },
+                              ...TIPOS_DOCUMENTO.map((t) => ({
+                                value: t as TipoDocumento | "",
+                                label: TRATAMIENTO_DOCUMENTO[t].etiqueta,
+                              })),
+                            ]}
+                          />
+                        </Campo>
 
-                    <Campo etiqueta="RUT del proveedor">
-                      <TextInput
-                        value={g.rutProveedor ?? ""}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
-                      />
-                      {/* Se avisa al escribirlo, no al cargar: Odoo valida el
+                        <Campo etiqueta="Proveedor" ancho="xl:col-span-2">
+                          <TextInput
+                            value={g.proveedor}
+                            disabled={yaCargada}
+                            onChange={(v) => actualizarGasto(g.id, { proveedor: v })}
+                          />
+                        </Campo>
+
+                        <Campo etiqueta="RUT del proveedor">
+                          <TextInput
+                            value={g.rutProveedor ?? ""}
+                            disabled={yaCargada}
+                            onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
+                          />
+                          {/* Se avisa al escribirlo, no al cargar: Odoo valida el
                           dígito verificador y rechaza el proveedor recién en la
                           carga, cuando ya hay gastos creados. */}
-                      {rutMalo && (
-                        <span className="mt-1 block text-[10px] leading-tight text-red-600">
-                          El dígito verificador no calza
-                        </span>
-                      )}
-                    </Campo>
+                          {rutMalo && (
+                            <span className="mt-1 block text-[10px] leading-tight text-red-600">
+                              El dígito verificador no calza
+                            </span>
+                          )}
+                        </Campo>
 
-                    <Campo etiqueta="N° de documento">
-                      <TextInput
-                        value={g.numeroDocumento ?? ""}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { numeroDocumento: v || null })}
-                      />
-                    </Campo>
+                        <Campo etiqueta="N° de documento">
+                          <TextInput
+                            value={g.numeroDocumento ?? ""}
+                            disabled={yaCargada}
+                            onChange={(v) => actualizarGasto(g.id, { numeroDocumento: v || null })}
+                          />
+                        </Campo>
 
-                    <Campo etiqueta="Categoría">
-                      <SelectInput
-                        value={(g.categoria ?? "") as CategoriaGasto | ""}
-                        disabled={yaCargada}
-                        onChange={(v) =>
-                          actualizarGasto(g.id, { categoria: (v || null) as CategoriaGasto | null })
-                        }
-                        options={[
-                          { value: "" as CategoriaGasto | "", label: "— elegir —" },
-                          ...CATEGORIAS_GASTO.map((c) => ({
-                            value: c as CategoriaGasto | "",
-                            label: c,
-                          })),
-                        ]}
-                      />
-                    </Campo>
+                        <Campo etiqueta="Categoría">
+                          <SelectInput
+                            value={(g.categoria ?? "") as CategoriaGasto | ""}
+                            disabled={yaCargada}
+                            onChange={(v) =>
+                              actualizarGasto(g.id, { categoria: (v || null) as CategoriaGasto | null })
+                            }
+                            options={[
+                              { value: "" as CategoriaGasto | "", label: "— elegir —" },
+                              ...CATEGORIAS_GASTO.map((c) => ({
+                                value: c as CategoriaGasto | "",
+                                label: c,
+                              })),
+                            ]}
+                          />
+                        </Campo>
 
-                    <Campo etiqueta="Detalle" ancho="sm:col-span-2 xl:col-span-3">
-                      <TextInput
-                        value={g.detalle}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { detalle: v })}
-                      />
-                    </Campo>
+                        <Campo etiqueta="Detalle" ancho="sm:col-span-2 xl:col-span-3">
+                          <TextInput
+                            value={g.detalle}
+                            disabled={yaCargada}
+                            onChange={(v) => actualizarGasto(g.id, { detalle: v })}
+                          />
+                        </Campo>
 
-                    <Campo etiqueta="Total impreso">
-                      <NumInput
-                        value={g.total}
-                        disabled={yaCargada}
-                        onChange={(v) => actualizarGasto(g.id, { total: v })}
-                        align="right"
-                      />
-                      {/* Neto e IVA no se editan: salen del total según el tipo de
+                        <Campo etiqueta="Total impreso">
+                          <NumInput
+                            value={g.total}
+                            disabled={yaCargada}
+                            onChange={(v) => actualizarGasto(g.id, { total: v })}
+                            align="right"
+                          />
+                          {/* Neto e IVA no se editan: salen del total según el tipo de
                           documento. Van debajo del total, que es de donde se
                           derivan, en vez de en dos columnas aparte que parecían
                           campos más. */}
-                      <span className="mt-1 block text-right text-[10px] tabular-nums text-tinta/45">
-                        Neto {money(neto)} · IVA {money(iva)}
-                      </span>
-                    </Campo>
-                  </div>
+                          <span className="mt-1 block text-right text-[10px] tabular-nums text-tinta/45">
+                            Neto {money(neto)} · IVA {money(iva)}
+                          </span>
+                        </Campo>
+                      </div>
 
-                  {avisos.length > 0 && (
-                    <p className="mt-3 rounded-md border-l-2 border-naranjo bg-naranjo/[0.06] px-2.5 py-1.5 text-[11px] leading-snug text-pretty text-naranjo">
-                      {avisos.join(" · ")}
-                    </p>
-                  )}
+                      {avisos.length > 0 && (
+                        <p className="mt-3 rounded-md border-l-2 border-naranjo bg-naranjo/[0.06] px-2.5 py-1.5 text-[11px] leading-snug text-pretty text-naranjo">
+                          {avisos.join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </details>
                 </li>
               );
             })}
