@@ -14,6 +14,7 @@ import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
+import VisorComprobante, { type Comprobante } from "./VisorComprobante";
 
 /**
  * Lee la respuesta de un fetch tolerando que NO sea JSON.
@@ -251,17 +252,31 @@ function Campo({
 /**
  * Miniatura del comprobante de un gasto.
  *
+ * Es un botón y no un enlace: abre el visor dentro de la misma página. Abrirlo en
+ * otra pestaña rompía justo lo que uno está haciendo —mirar el documento para
+ * cotejar un dato contra el campo de al lado— porque obligaba a cambiar de
+ * pestaña, mirar, volver y buscar otra vez dónde se estaba.
+ *
  * Con `<img>` y no con next/image a propósito: el optimizador de Next descarga la
  * imagen desde su servidor y la CACHEA en la CDN, y estos son documentos
  * tributarios que viven en un bucket privado detrás de una URL firmada que expira.
  * Dejar copias optimizadas en una CDN pública es exactamente lo que el bucket
- * privado evita. Además habría que registrar el dominio de Supabase en
- * remotePatterns para algo que no se quiere cachear.
+ * privado evita.
  *
  * Los PDF no se pueden miniaturizar en un <img>, así que muestran una ficha con el
- * nombre. Los dos casos abren el archivo completo en otra pestaña.
+ * nombre. Abren igual en el visor, que para PDF usa el lector del navegador.
  */
-function Previsualizacion({ url, nombre, tipo }: { url?: string; nombre: string; tipo: string }) {
+function Previsualizacion({
+  url,
+  nombre,
+  tipo,
+  onAbrir,
+}: {
+  url?: string;
+  nombre: string;
+  tipo: string;
+  onAbrir: (c: Comprobante) => void;
+}) {
   if (!url) {
     return (
       <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border border-dashed border-borde text-center text-[9px] leading-tight text-tinta/35">
@@ -275,11 +290,16 @@ function Previsualizacion({ url, nombre, tipo }: { url?: string; nombre: string;
   const esPdf = tipo === "application/pdf" || nombre.toLowerCase().endsWith(".pdf");
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={`Abrir ${nombre}`}
+    <button
+      type="button"
+      // La miniatura vive dentro de un <summary>: sin preventDefault, el clic
+      // abriría el visor Y plegaría la tarjeta al mismo tiempo.
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onAbrir({ url, nombre, esPdf });
+      }}
+      title={`Ver ${nombre}`}
       className="group/vista relative block h-20 w-20 shrink-0 overflow-hidden rounded-md border border-borde bg-crema/60 transition hover:border-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
     >
       {esPdf ? (
@@ -301,7 +321,7 @@ function Previsualizacion({ url, nombre, tipo }: { url?: string; nombre: string;
       <span className="absolute inset-x-0 bottom-0 bg-tinta/70 py-0.5 text-center text-[8px] font-semibold text-crema opacity-0 transition-opacity group-hover/vista:opacity-100">
         Ver
       </span>
-    </a>
+    </button>
   );
 }
 
@@ -326,6 +346,8 @@ export default function PanelRendicion({
    * inmediato.
    */
   const [vistasLocales, setVistasLocales] = useState<Record<string, string>>({});
+  /** El comprobante que se está mirando en el visor, o null si está cerrado. */
+  const [viendo, setViendo] = useState<Comprobante | null>(null);
   const [paso, setPaso] = useState<Paso>(rendicion.gastos.length > 0 ? "revisar" : "subir");
   const [analizando, setAnalizando] = useState<{ actual: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1070,6 +1092,7 @@ export default function PanelRendicion({
                           url={vistasLocales[g.id] ?? urlsRespaldo[g.id]}
                           nombre={g.archivoNombre}
                           tipo={g.archivoTipo}
+                          onAbrir={setViendo}
                         />
                         <div className="min-w-0">
                           <span className="font-condensed text-base font-bold leading-none tabular-nums text-tinta">
@@ -1446,6 +1469,11 @@ export default function PanelRendicion({
           </button>
         </div>
       )}
+
+      {/* El visor se monta una sola vez, al final: uno por página y no uno por
+          gasto. Y se desmonta al cerrar, así el <img> o el <iframe> dejan de
+          existir en vez de quedar ocultos consumiendo memoria. */}
+      {viendo && <VisorComprobante comprobante={viendo} onCerrar={() => setViendo(null)} />}
     </div>
   );
 }
