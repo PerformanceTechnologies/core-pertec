@@ -8,7 +8,7 @@ export default async function ReclutamientoPage() {
 
   return (
     <div>
-      <span className="etiqueta-seccion">Reclutamiento</span>
+      <span className="etiqueta-seccion">Postulaciones Web</span>
       <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
         Postulaciones
       </h1>

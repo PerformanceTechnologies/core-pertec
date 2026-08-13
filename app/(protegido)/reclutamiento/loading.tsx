@@ -4,5 +4,5 @@ import CargaPertec from "@/components/CargaPertec";
 // loading.tsx, el navegador se queda en la pagina anterior sin ninguna senal de
 // que algo esta pasando, y el modulo se siente colgado.
 export default function CargandoReclutamiento() {
-  return <CargaPertec modulo="Reclutamiento Web" />;
+  return <CargaPertec modulo="Postulaciones Web" />;
 }

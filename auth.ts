@@ -44,7 +44,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       authorization: { params: { scope: SCOPES_GRAPH } },
     }),
   ],
-  session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
+  // Treinta días, y la cookie se corre una vez por día de uso.
+  //
+  // Antes eran 8 horas SIN renovación: `updateAge` por defecto son 24 h (ver
+  // @auth/core/lib/init.js), o sea más que la vida de la sesión, así que la
+  // cookie nunca alcanzaba a renovarse y a las 8 horas del login sacaba a la
+  // persona aunque estuviera trabajando. Entrando a las 8:00, login de nuevo a
+  // las 16:00, en medio de la jornada.
+  //
+  // Una sesión larga no le da acceso extra a nadie: el core no confía en la
+  // sesión para los permisos, vuelve a leer de la base quién es, si está activo
+  // y qué apps tiene en CADA carga de página (ver app/(protegido)/layout.tsx y
+  // su force-dynamic). Desactivar a alguien en Usuarios lo deja afuera en la
+  // página siguiente, tenga la sesión que tenga.
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60, updateAge: 24 * 60 * 60 },
   pages: { signIn: "/ingresar" },
   callbacks: {
     // Solo decide si puede ENTRAR. El rol y las apps asignadas se leen frescos

@@ -338,8 +338,25 @@ export default async function MiDiaPage() {
     <div className="animar-entrada max-w-[1500px]">
       {/* La banda oscura reúne lo que antes eran tres bloques separados: el
           encabezado, la cinta de cifras y el "generado a las" del pie. Un solo
-          bloque de contraste alto arriba y el resto de la página en claro. */}
-      <header className="rounded-2xl bg-tinta px-6 py-7 sm:px-8 sm:py-9">
+          bloque de contraste alto arriba y el resto de la página en claro.
+
+          El negro no es parejo: va de un tinta apenas aclarado arriba a la
+          izquierda hacia el tinta pleno abajo a la derecha. Plano se veía como
+          un rectángulo macizo pegado sobre la página; con la diagonal la banda
+          agarra volumen y el título queda en la parte más clara, que es donde
+          entra la vista.
+
+          Los dos tonos salen del mismo tinta mezclado con crema, no son colores
+          nuevos. En modo oscuro la banda se invierte —tinta pasa a ser claro y
+          crema oscuro— igual que ya lo hacía con bg-tinta plano: sigue siendo el
+          bloque de máximo contraste de la página, solo que al revés. */}
+      <header
+        className="rounded-2xl px-6 py-7 sm:px-8 sm:py-9"
+        style={{
+          backgroundImage:
+            "linear-gradient(135deg, color-mix(in srgb, var(--color-tinta) 72%, var(--color-crema)) 0%, color-mix(in srgb, var(--color-tinta) 84%, var(--color-crema)) 100%)",
+        }}
+      >
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
@@ -351,7 +368,7 @@ export default async function MiDiaPage() {
               <br />
               {resto.join(", ")}
             </h1>
-            <p className="mt-4 max-w-[52ch] text-sm text-pretty text-crema/50">
+            <p className="mt-4 max-w-[52ch] text-sm text-pretty text-crema/65">
               Resumen de tu correo de los últimos días y de las reuniones de hoy y los próximos. Cada fila
               abre el mensaje o la cita en Outlook.
             </p>
