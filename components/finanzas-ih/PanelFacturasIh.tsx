@@ -116,7 +116,7 @@ export default function PanelFacturasIh({
   ultimaEjecucionExitosa: { ejecutado_en: string } | null;
 }) {
   const [filtroEmpresa, setFiltroEmpresa] = useState<"todas" | "IH" | "IL">("todas");
-  const [direccion, setDireccion] = useState<"venta" | "compra">("venta");
+  const [direccion, setDireccion] = useState<"venta" | "compra">("compra");
   const [grupoTipo, setGrupoTipo] = useState<ClaveGrupoTipo>("todos");
   const [busqueda, setBusqueda] = useState("");
   const [ordenFecha, setOrdenFecha] = useState<"desc" | "asc">("desc");
