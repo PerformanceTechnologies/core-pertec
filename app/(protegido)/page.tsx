@@ -25,10 +25,15 @@ export default async function DashboardPage() {
   if (!usuario) return null; // el layout ya redirige antes de llegar aquí
 
   const todasLasApps = await listarAplicaciones();
-  const apps =
+  const apps = (
     usuario.rol === "admin"
       ? todasLasApps
-      : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id));
+      : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id))
+  )
+    // Mi Día no va en la grilla: su resumen está destacado arriba con su propio
+    // botón, y tener las dos cosas hace dudar de si llevan al mismo lado. Sigue
+    // en el menú de la izquierda como todos los demás módulos.
+    .filter((app) => app.slug !== "mi-dia");
   const primerNombre = usuario.nombre?.split(" ")[0];
 
   return (
