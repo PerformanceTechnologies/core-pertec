@@ -27,12 +27,19 @@ export default async function PanelOdooPage({
 }: {
   searchParams: Promise<{ empresa?: string }>;
 }) {
+  // Estas dos no dependen del usuario ni de la empresa elegida, asi que arrancan
+  // ANTES de esperar al guard en vez de despues: iban en una tercera tanda
+  // secuencial de consultas, con el guard esperando al layout y estas esperando
+  // al guard. El guard sigue siendo el que decide si se renderiza algo.
+  const promesaEjecuciones = obtenerUltimasEjecuciones();
+  const promesaOrden = obtenerOrdenModulos();
+
   const { usuario, rol, modulosVisibles } = await exigirAccesoPanelOdoo();
   const { empresa } = await searchParams;
   const companyId = COMPANIAS_ODOO.some((c) => c.id === Number(empresa))
     ? Number(empresa)
     : COMPANIA_ODOO_DEFECTO;
-  const [ejecuciones, ordenModulos] = await Promise.all([obtenerUltimasEjecuciones(), obtenerOrdenModulos()]);
+  const [ejecuciones, ordenModulos] = await Promise.all([promesaEjecuciones, promesaOrden]);
 
   // El orden es global (lo define un admin del core, no el rol interno de
   // Panel Odoo) -- ver comentario en moverModuloOrdenAction. Cada tarjeta se
@@ -45,7 +52,9 @@ export default async function PanelOdooPage({
   // directo pasaba a ser ese <div> vacio en vez de la tarjeta con borde).
   const tarjetasPorModulo: Record<ModuloVisiblePanelOdoo, ReactNode> = {
     facturas: <TarjetaFacturas key="facturas" companyId={companyId} ejecucion={ejecuciones.facturas} />,
-    contabilidad: <TarjetaContabilidad key="contabilidad" companyId={companyId} ejecucion={ejecuciones.contabilidad} />,
+    contabilidad: (
+      <TarjetaContabilidad key="contabilidad" companyId={companyId} ejecucion={ejecuciones.contabilidad} />
+    ),
     crm: <TarjetaCrm key="crm" companyId={companyId} ejecucion={ejecuciones.crm} />,
     gastos: <TarjetaGastos key="gastos" companyId={companyId} ejecucion={ejecuciones.gastos} />,
     ventas: <TarjetaVentas key="ventas" companyId={companyId} ejecucion={ejecuciones.ventas} />,
@@ -76,11 +85,19 @@ export default async function PanelOdooPage({
 
       {modulosVisibles.length === 0 ? (
         <p className="mt-8 text-sm text-tinta/50">
-          No tienes ningún módulo asignado en Panel Odoo. Pídele a un administrador que te
-          asigne acceso.
+          No tienes ningún módulo asignado en Panel Odoo. Pídele a un administrador que te asigne acceso.
         </p>
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Sin limites de Suspense internos, a proposito: mientras alguna
+              tarjeta siga esperando su consulta, React no puede mandar nada de
+              esta pagina, asi que loading.tsx —la animacion de la marca— se
+              queda hasta que estan las ocho.
+
+              Antes cada tarjeta tenia el suyo y aparecian de a una. Se cambio
+              porque media pagina llena y media vacia se lee como si algo hubiera
+              fallado; el costo es que ahora la espera es la de la tarjeta mas
+              lenta, para todas. */}
           {modulosARenderizar.map((modulo) => tarjetasPorModulo[modulo])}
         </div>
       )}

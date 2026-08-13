@@ -1,6 +1,7 @@
 import type { Aplicacion, UsuarioConAcceso } from "@/lib/tipos";
 import { MODULOS_PANEL_ODOO } from "@/lib/panel-odoo/modulos-usuario";
 import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
+import BotonEnviar from "@/components/BotonEnviar";
 
 const ETIQUETAS_MODULO_ODOO: Record<string, string> = {
   facturas: "Facturas",
@@ -88,8 +89,7 @@ export default function FormularioUsuario({
 
       <div className="sm:col-span-2">
         <label className="block text-xs font-medium text-tinta/70">
-          Aplicaciones asignadas (el administrador siempre ve todas, esto solo aplica al rol
-          Usuario)
+          Aplicaciones asignadas (el administrador siempre ve todas, esto solo aplica al rol Usuario)
         </label>
         <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-borde p-3 sm:grid-cols-3">
           {todasLasApps.length === 0 && (
@@ -190,12 +190,12 @@ export default function FormularioUsuario({
       </div>
 
       <div className="sm:col-span-2">
-        <button
-          type="submit"
+        <BotonEnviar
+          cargando="Guardando..."
           className="rounded-lg bg-naranjo px-5 py-2.5 font-condensed text-sm font-bold uppercase tracking-wide text-white transition hover:bg-naranjo-suave"
         >
           {textoBoton}
-        </button>
+        </BotonEnviar>
       </div>
     </form>
   );

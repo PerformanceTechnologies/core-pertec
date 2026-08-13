@@ -1,6 +1,6 @@
 import type { MargenesConfig, QuotationInput } from "@/lib/cotizador/motor/types";
 import type { QuotationResult } from "@/lib/cotizador/motor/consolidacion";
-import { money, pct } from "@/lib/cotizador/formato";
+import { money, pct, aNumeroPorcentaje } from "@/lib/cotizador/formato";
 import { Badge } from "../campos/Campos";
 
 const ASIG_CLASES: Record<string, string> = {
@@ -28,13 +28,18 @@ export default function ResumenTab({
     update((q) => ({ ...q, margenes: { ...q.margenes, [campo]: valorPct / 100 } }));
 
   const margenesA: { k: string; campo: keyof MargenesConfig; v: number; monto: number }[] = [
-    { k: "MOB", campo: "mobPct", v: m.mobPct * 100, monto: result.mob },
-    { k: "GG", campo: "ggPct", v: m.ggPct * 100, monto: result.gg },
-    { k: "Utilidad", campo: "utilidadPct", v: m.utilidadPct * 100, monto: result.utilidad },
+    { k: "MOB", campo: "mobPct", v: aNumeroPorcentaje(m.mobPct), monto: result.mob },
+    { k: "GG", campo: "ggPct", v: aNumeroPorcentaje(m.ggPct), monto: result.gg },
+    { k: "Utilidad", campo: "utilidadPct", v: aNumeroPorcentaje(m.utilidadPct), monto: result.utilidad },
   ];
   const margenesB: { k: string; campo: keyof MargenesConfig; v: number; monto: number }[] = [
-    { k: "GG-ECO", campo: "ggEcoPct", v: m.ggEcoPct * 100, monto: result.ggEco },
-    { k: "Utilidad-ECO", campo: "utilidadEcoPct", v: m.utilidadEcoPct * 100, monto: result.utilidadEco },
+    { k: "GG-ECO", campo: "ggEcoPct", v: aNumeroPorcentaje(m.ggEcoPct), monto: result.ggEco },
+    {
+      k: "Utilidad-ECO",
+      campo: "utilidadEcoPct",
+      v: aNumeroPorcentaje(m.utilidadEcoPct),
+      monto: result.utilidadEco,
+    },
   ];
 
   const escalera = [
@@ -59,14 +64,19 @@ export default function ResumenTab({
             <span>Asignación</span>
           </div>
           {result.categorias.map((c) => (
-            <div key={c.categoria} className="grid grid-cols-[minmax(190px,1.7fr)_130px_76px_110px] items-center gap-x-3 border-b border-borde px-4 py-2 text-sm">
+            <div
+              key={c.categoria}
+              className="grid grid-cols-[minmax(190px,1.7fr)_130px_76px_110px] items-center gap-x-3 border-b border-borde px-4 py-2 text-sm"
+            >
               <span className="text-tinta">{c.nombre}</span>
               <span className="text-right font-medium tabular-nums text-tinta">{money(c.monto)}</span>
               <span className="text-right text-xs tabular-nums text-tinta/40">
                 {result.costoMensualTotal > 0 ? pct(c.monto / result.costoMensualTotal) : "0%"}
               </span>
               <span>
-                <Badge tono={c.asignacion === "directo" ? "teal" : c.asignacion === "mixto" ? "naranjo" : "gris"}>
+                <Badge
+                  tono={c.asignacion === "directo" ? "teal" : c.asignacion === "mixto" ? "naranjo" : "gris"}
+                >
                   {c.asignacion.toUpperCase()}
                 </Badge>
               </span>
@@ -74,8 +84,12 @@ export default function ResumenTab({
           ))}
           <div className="grid grid-cols-[minmax(190px,1.7fr)_130px_186px] items-center gap-x-3 border-t-2 border-tinta bg-crema/50 px-4 py-3">
             <span className="text-xs font-bold uppercase tracking-wide text-tinta">Costo mensual total</span>
-            <span className="text-right text-base font-bold tabular-nums text-tinta">{money(result.costoMensualTotal)}</span>
-            <span className="text-right text-xs text-tinta/40">directo {pctDir} · indirecto {pctInd}</span>
+            <span className="text-right text-base font-bold tabular-nums text-tinta">
+              {money(result.costoMensualTotal)}
+            </span>
+            <span className="text-right text-xs text-tinta/40">
+              directo {pctDir} · indirecto {pctInd}
+            </span>
           </div>
         </div>
 
@@ -95,7 +109,9 @@ export default function ResumenTab({
 
       <div className="flex flex-col gap-3.5">
         <div className="rounded-xl border border-borde bg-white p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-tinta/50">Márgenes internos · RESUMEN</div>
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-tinta/50">
+            Márgenes internos · RESUMEN
+          </div>
           {margenesA.map((mm) => (
             <div key={mm.k} className="flex items-center gap-2 py-1.5">
               <span className="flex-1 text-sm text-tinta/70">{mm.k}</span>
@@ -106,7 +122,7 @@ export default function ResumenTab({
                 defaultValue={mm.v}
                 disabled={disabled}
                 onChange={(e) => setMargen(mm.campo, Number(e.target.value))}
-                className="h-8 w-16 rounded-md border border-borde px-2 text-right text-sm tabular-nums outline-none focus:border-naranjo/50 disabled:bg-crema"
+                className="h-8 w-20 rounded-md border border-borde bg-superficie px-2 text-right text-sm tabular-nums text-tinta outline-none focus:border-naranjo/50 disabled:bg-crema disabled:text-tinta/50"
               />
               <span className="w-3 text-xs text-tinta/40">%</span>
               <span className="w-24 text-right text-xs tabular-nums text-tinta/60">{money(mm.monto)}</span>
@@ -124,7 +140,10 @@ export default function ResumenTab({
                 onClick={() =>
                   update((q) => ({
                     ...q,
-                    margenes: { ...q.margenes, baseCalculoEco: m.baseCalculoEco === "costo_puro" ? "costo_cargado" : "costo_puro" },
+                    margenes: {
+                      ...q.margenes,
+                      baseCalculoEco: m.baseCalculoEco === "costo_puro" ? "costo_cargado" : "costo_puro",
+                    },
                   }))
                 }
                 className="normal-case tracking-normal text-naranjo underline decoration-dotted"
@@ -143,7 +162,7 @@ export default function ResumenTab({
                 defaultValue={mm.v}
                 disabled={disabled}
                 onChange={(e) => setMargen(mm.campo, Number(e.target.value))}
-                className="h-8 w-16 rounded-md border border-borde px-2 text-right text-sm tabular-nums outline-none focus:border-naranjo/50 disabled:bg-crema"
+                className="h-8 w-20 rounded-md border border-borde bg-superficie px-2 text-right text-sm tabular-nums text-tinta outline-none focus:border-naranjo/50 disabled:bg-crema disabled:text-tinta/50"
               />
               <span className="w-3 text-xs text-tinta/40">%</span>
               <span className="w-24 text-right text-xs tabular-nums text-tinta/60">{money(mm.monto)}</span>
@@ -161,33 +180,46 @@ export default function ResumenTab({
 
         <div className="rounded-xl bg-tinta p-4 text-white">
           <div className="flex justify-between border-b border-white/10 py-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Costo total</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+              Costo total
+            </span>
             <span className="text-base font-bold tabular-nums">{money(result.costoMensualTotal)}</span>
           </div>
           <div className="flex justify-between border-b border-white/10 py-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Precio de venta</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+              Precio de venta
+            </span>
             <span className="text-base font-bold tabular-nums">{money(result.costoTotalServicio)}</span>
           </div>
           <div className="pt-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Margen efectivo total</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+              Margen efectivo total
+            </div>
             <div className="flex items-baseline gap-2">
-              <span className={`text-3xl font-bold tabular-nums ${margenPositivo ? "text-teal-suave" : "text-naranjo-suave"}`}>
+              <span
+                className={`text-3xl font-bold tabular-nums ${margenPositivo ? "text-teal-suave" : "text-naranjo-suave"}`}
+              >
                 {pct(result.margenEfectivoTotal)}
               </span>
-              <span className="text-xs text-white/55">recargo compuesto {pct(result.recargoCompuesto)} sobre costo</span>
+              <span className="text-xs text-white/55">
+                recargo compuesto {pct(result.recargoCompuesto)} sobre costo
+              </span>
             </div>
           </div>
         </div>
 
         {result.warnDobleMargen && (
           <div className="rounded-lg border border-naranjo/30 bg-naranjo/5 p-3.5 text-xs leading-relaxed text-tinta/70">
-            <b className="text-tinta">Márgenes aplicados dos veces.</b> GG {pct(m.ggPct)} + Utilidad {pct(m.utilidadPct)} ya
-            están en el precio de venta, y GG-ECO {pct(m.ggEcoPct)} + Utilidad-ECO {pct(m.utilidadEcoPct)} se aplican sobre
-            ese costo cargado. Verifique si es colchón de negociación intencional o doble marginación.{" "}
+            <b className="text-tinta">Márgenes aplicados dos veces.</b> GG {pct(m.ggPct)} + Utilidad{" "}
+            {pct(m.utilidadPct)} ya están en el precio de venta, y GG-ECO {pct(m.ggEcoPct)} + Utilidad-ECO{" "}
+            {pct(m.utilidadEcoPct)} se aplican sobre ese costo cargado. Verifique si es colchón de negociación
+            intencional o doble marginación.{" "}
             {!disabled && (
               <button
                 type="button"
-                onClick={() => update((q) => ({ ...q, margenes: { ...q.margenes, baseCalculoEco: "costo_puro" } }))}
+                onClick={() =>
+                  update((q) => ({ ...q, margenes: { ...q.margenes, baseCalculoEco: "costo_puro" } }))
+                }
                 className="text-naranjo underline"
               >
                 Cambiar base de cálculo ECO →

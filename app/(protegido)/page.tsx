@@ -5,6 +5,7 @@ import { listarAplicaciones } from "@/lib/aplicaciones";
 import { obtenerIcono } from "@/lib/iconos";
 import { clasesInsigniaColor, clasesInsigniaEstado, etiquetaEstado } from "@/lib/colores";
 import WidgetCalendario from "@/components/WidgetCalendario";
+import AvanceDelDia from "@/components/mi-dia/AvanceDelDia";
 
 const ZONA_HORARIA = "America/Santiago";
 
@@ -18,30 +19,22 @@ function fechaDeHoy(): string {
   return formateada.charAt(0).toUpperCase() + formateada.slice(1);
 }
 
-function formatearUltimoIngreso(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const formateada = new Intl.DateTimeFormat("es-CL", {
-    timeZone: ZONA_HORARIA,
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-  return `Tu último ingreso fue el ${formateada} hrs.`;
-}
-
 export default async function DashboardPage() {
   const session = await auth();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) return null; // el layout ya redirige antes de llegar aquí
 
   const todasLasApps = await listarAplicaciones();
-  const apps =
+  const apps = (
     usuario.rol === "admin"
       ? todasLasApps
-      : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id));
+      : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id))
+  )
+    // Mi Día no va en la grilla: su resumen está destacado arriba con su propio
+    // botón, y tener las dos cosas hace dudar de si llevan al mismo lado. Sigue
+    // en el menú de la izquierda como todos los demás módulos.
+    .filter((app) => app.slug !== "mi-dia");
   const primerNombre = usuario.nombre?.split(" ")[0];
-  const ultimoIngreso = formatearUltimoIngreso(session?.ultimoIngresoAnterior);
 
   return (
     <div>
@@ -49,11 +42,13 @@ export default async function DashboardPage() {
       <h1 className="mt-2 font-condensed text-4xl font-bold uppercase leading-none text-tinta sm:text-5xl">
         Hola{primerNombre ? `, ${primerNombre}` : ""}
       </h1>
-      <p className="mt-3 max-w-lg text-sm text-tinta/55">
-        Este es tu panel de acceso a Core PERTEC. Tus herramientas están también en el menú de la
-        izquierda.
-        {ultimoIngreso && <span className="block text-tinta/40">{ultimoIngreso}</span>}
-      </p>
+      {/* En vez del párrafo que explicaba qué es el Dashboard y a qué hora
+          entraste —que nadie necesita después de la primera vez— acá va el
+          adelanto del resumen del día: lo único que a esta altura de la mañana
+          hace falta saber antes de elegir a dónde entrar.
+
+          Solo lee la caché; si no hay resumen de hoy, invita a abrir Mi Día. */}
+      <AvanceDelDia usuario={usuario} />
 
       <div className="mt-8 lg:flex lg:items-start lg:gap-10">
         <div className="lg:w-[264px] lg:shrink-0">
@@ -66,14 +61,11 @@ export default async function DashboardPage() {
 
         <div className="mt-10 lg:mt-0 lg:min-w-0 lg:flex-1">
           <span className="etiqueta-seccion">Accesos</span>
-          <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">
-            Tus aplicaciones
-          </h2>
+          <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">Tus aplicaciones</h2>
 
           {apps.length === 0 ? (
             <p className="mt-4 text-sm text-tinta/60">
-              Todavía no tienes aplicaciones asignadas. Pídele a un administrador que te dé
-              acceso.
+              Todavía no tienes aplicaciones asignadas. Pídele a un administrador que te dé acceso.
             </p>
           ) : (
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

@@ -5,6 +5,7 @@ import type { GastoItem, Objetivo, Proyecto } from "@/lib/proyectos";
 import { CAT_COLOR, catLabel, colorDe, costoConcepto, fmtCLP } from "@/lib/proyectos-utilidades";
 import FormularioGastosModal from "./FormularioGastosModal";
 import PopoverAdjuntosGasto from "./PopoverAdjuntosGasto";
+import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
 
 interface Categoria {
   categoria: string;
@@ -95,7 +96,9 @@ export default function GastosProyecto({
         resultado.push({ objetivo: o, gastado: gastadoObjetivo, count: items.length, items });
       }
     });
-    return resultado.sort((a, b) => (Number(b.objetivo.presupuesto) || 0) - (Number(a.objetivo.presupuesto) || 0));
+    return resultado.sort(
+      (a, b) => (Number(b.objetivo.presupuesto) || 0) - (Number(a.objetivo.presupuesto) || 0),
+    );
   }, [objetivos, gastos]);
 
   return (
@@ -103,40 +106,59 @@ export default function GastosProyecto({
       <div className="flex items-center justify-between">
         <p className="text-xs text-tinta/50">
           {presupuesto > 0 ? `Presupuesto ${fmtCLP(presupuesto)} · ` : ""}
-          {gastos.length} partida{gastos.length === 1 ? "" : "s"} · {porCategoria.length} categoría{porCategoria.length === 1 ? "" : "s"}
+          {gastos.length} partida{gastos.length === 1 ? "" : "s"} · {porCategoria.length} categoría
+          {porCategoria.length === 1 ? "" : "s"}
           {" · haz clic en una partida para ver sus adjuntos"}
         </p>
         {puedeEditar && (
-          <button
-            onClick={() => setConfigAbierto(true)}
-            className="rounded-full bg-naranjo px-4 py-2 text-[11px] font-semibold uppercase tracking-[.12em] text-white shadow-[0_4px_14px_rgba(200,82,23,.25)] transition hover:-translate-y-px hover:bg-[#b14614]"
-          >
+          <button type="button" onClick={() => setConfigAbierto(true)} className={BOTON_PRIMARIO}>
             Configurar gastos
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="border-t-[3px] border border-borde bg-white p-4" style={{ borderTopColor: "#C85217" }}>
-          <span className="etiqueta-seccion">Presupuesto inicial</span>
-          <p className="mt-2 text-[26px] font-medium leading-none tracking-tight text-naranjo">{fmtCLP(presupuesto)}</p>
-          <p className="mt-1.5 text-[11px] text-tinta/45">{presupuesto === 0 ? "configura el presupuesto" : "base del proyecto"}</p>
+      <dl
+        className={`grid grid-cols-1 overflow-hidden rounded-2xl border sm:grid-cols-3 ${
+          sobrePresupuesto ? "border-red-300" : "border-borde"
+        }`}
+      >
+        <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-medium text-tinta/55">Presupuesto inicial</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums text-naranjo sm:text-3xl">
+            {fmtCLP(presupuesto)}
+          </dd>
+          <dd className="mt-1.5 text-[11px] text-tinta/45">
+            {presupuesto === 0 ? "configura el presupuesto" : "base del proyecto"}
+          </dd>
         </div>
-        <div className="border border-borde bg-white p-4">
-          <span className="etiqueta-seccion">Gastado</span>
-          <p className="mt-2 text-[26px] font-medium leading-none tracking-tight text-tinta">{fmtCLP(gastado)}</p>
-          <p className="mt-1.5 text-[11px] text-tinta/45">
-            {gastos.length} partidas{presupuesto > 0 ? ` · ${pctUsado}%` : ""}
-          </p>
+        <div className="border-b border-borde bg-gris/[0.08] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-medium text-tinta/55">Gastado</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums text-tinta sm:text-3xl">
+            {fmtCLP(gastado)}
+          </dd>
+          <dd className="mt-1.5 text-[11px] text-tinta/45">
+            {gastos.length} partida{gastos.length === 1 ? "" : "s"}
+            {presupuesto > 0 ? ` · ${pctUsado}%` : ""}
+          </dd>
         </div>
-        <div className={`border bg-white p-4 ${sobrePresupuesto ? "border-red-300" : "border-borde"}`}>
-          <span className="etiqueta-seccion">Disponible</span>
-          <p className={`mt-2 text-[26px] font-medium leading-none tracking-tight ${sobrePresupuesto ? "text-red-600" : "text-tinta"}`}>{fmtCLP(disponible)}</p>
-          <p className="mt-1.5 text-[11px] text-tinta/45">
-            {sobrePresupuesto ? "fuera de presupuesto" : presupuesto > 0 ? `${100 - pctUsado}% restante` : "sin presupuesto definido"}
-          </p>
+        <div className={`px-5 py-4 ${sobrePresupuesto ? "bg-red-50" : "bg-teal/[0.06]"}`}>
+          <dt className="text-xs font-medium text-tinta/55">Disponible</dt>
+          <dd
+            className={`mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums sm:text-3xl ${
+              sobrePresupuesto ? "text-red-600" : "text-teal"
+            }`}
+          >
+            {fmtCLP(disponible)}
+          </dd>
+          <dd className="mt-1.5 text-[11px] text-tinta/45">
+            {sobrePresupuesto
+              ? "fuera de presupuesto"
+              : presupuesto > 0
+                ? `${100 - pctUsado}% restante`
+                : "sin presupuesto definido"}
+          </dd>
         </div>
-      </div>
+      </dl>
 
       {(saldoGlobalAsignado > 0 || sumaPresupuestosObjetivos > 0) && (
         <div
@@ -147,28 +169,36 @@ export default function GastosProyecto({
           {sobreasignado && <span aria-hidden>⚠</span>}
           <span>
             Suma de presupuestos por objetivo{" "}
-            <strong className={sobreasignado ? "text-red-700" : "text-tinta"}>{fmtCLP(sumaPresupuestosObjetivos)}</strong> de{" "}
-            <strong className={sobreasignado ? "text-red-700" : "text-tinta"}>{fmtCLP(saldoGlobalAsignado)}</strong> asignados
+            <strong className={sobreasignado ? "text-red-700" : "text-tinta"}>
+              {fmtCLP(sumaPresupuestosObjetivos)}
+            </strong>{" "}
+            de{" "}
+            <strong className={sobreasignado ? "text-red-700" : "text-tinta"}>
+              {fmtCLP(saldoGlobalAsignado)}
+            </strong>{" "}
+            asignados
             {sobreasignado && " — supera el saldo global asignado"}
           </span>
         </div>
       )}
 
       {gastos.length === 0 ? (
-        <div className="rounded-2xl border border-borde bg-white p-8 text-center">
-          <p className="text-sm text-tinta/60">Aún no hay gastos registrados.</p>
+        <div className="rounded-xl border border-dashed border-borde p-8 text-center">
+          <p className="text-sm text-pretty text-tinta/60">Aún no hay gastos registrados.</p>
           <p className="mt-1 text-xs text-tinta/40">
-            {puedeEditar ? "Configura el presupuesto inicial y agrega los gastos del proyecto." : "El admin aún no ha registrado gastos."}
+            {puedeEditar
+              ? "Configura el presupuesto inicial y agrega los gastos del proyecto."
+              : "El admin aún no ha registrado gastos."}
           </p>
           {puedeEditar && (
-            <button onClick={() => setConfigAbierto(true)} className="mt-4 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave">
+            <button type="button" onClick={() => setConfigAbierto(true)} className={`mt-4 ${BOTON_PRIMARIO}`}>
               Configurar gastos
             </button>
           )}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
-          <div className="border border-borde bg-white p-4">
+          <div className={`p-4 ${TARJETA}`}>
             <div className="mb-3 flex items-baseline justify-between border-b border-borde pb-2.5">
               <span className="text-[15px] font-medium tracking-tight text-tinta">Por categoría</span>
               <em className="text-xs font-semibold not-italic text-tinta/45">{porCategoria.length}</em>
@@ -181,7 +211,9 @@ export default function GastosProyecto({
                   <li key={c.categoria} className="flex flex-col gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setPopover({ titulo: `${catLabel(c.categoria)} · todos los gastos`, gastos: c.items })}
+                      onClick={() =>
+                        setPopover({ titulo: `${catLabel(c.categoria)} · todos los gastos`, gastos: c.items })
+                      }
                       className="flex items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-crema"
                       title="Ver todos los adjuntos de esta categoría"
                     >
@@ -189,15 +221,23 @@ export default function GastosProyecto({
                       <span className="flex-1 truncate text-[13px] font-medium text-tinta">
                         {catLabel(c.categoria)}
                         {totalArchivos > 0 && (
-                          <span className="ml-1.5 text-tinta/35" title={`${totalArchivos} adjunto(s) en total`}>
+                          <span
+                            className="ml-1.5 text-tinta/35"
+                            title={`${totalArchivos} adjunto(s) en total`}
+                          >
                             📎 {totalArchivos}
                           </span>
                         )}
                       </span>
-                      <span className="text-[13px] font-semibold text-tinta">{fmtCLP(c.total)}</span>
+                      <span className="text-[13px] font-semibold tabular-nums text-tinta">
+                        {fmtCLP(c.total)}
+                      </span>
                     </button>
                     <div className="h-1.5 overflow-hidden rounded-full bg-crema">
-                      <div className="h-full rounded-full" style={{ width: `${(c.total / maxCategoria) * 100}%`, background: color.bg }} />
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(c.total / maxCategoria) * 100}%`, background: color.bg }}
+                      />
                     </div>
                     <ul className="ml-2.5 flex flex-col gap-1 border-l border-dashed border-borde pl-3">
                       {c.items.map((g, i) => (
@@ -215,12 +255,15 @@ export default function GastosProyecto({
                             <span>
                               {[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}
                               {g.archivos && g.archivos.length > 0 && (
-                                <span className="ml-1.5 text-tinta/35" title={`${g.archivos.length} adjunto(s)`}>
+                                <span
+                                  className="ml-1.5 text-tinta/35"
+                                  title={`${g.archivos.length} adjunto(s)`}
+                                >
                                   📎 {g.archivos.length}
                                 </span>
                               )}
                             </span>
-                            <span className="font-medium text-tinta">{fmtCLP(g.monto)}</span>
+                            <span className="font-medium tabular-nums text-tinta">{fmtCLP(g.monto)}</span>
                           </button>
                         </li>
                       ))}
@@ -231,7 +274,7 @@ export default function GastosProyecto({
             </ul>
           </div>
 
-          <div className="border border-borde bg-white p-4">
+          <div className={`p-4 ${TARJETA}`}>
             <div className="mb-3 flex items-baseline justify-between border-b border-borde pb-2.5">
               <span className="text-[15px] font-medium tracking-tight text-tinta">Por partida</span>
               <em className="text-xs font-semibold not-italic text-tinta/45">{porPartida.length}</em>
@@ -246,10 +289,15 @@ export default function GastosProyecto({
                   >
                     <div className="flex items-center gap-2">
                       <span className="flex-1 truncate text-[13px] font-medium text-tinta">{t.label}</span>
-                      <span className="text-[13px] font-semibold text-tinta">{fmtCLP(t.total)}</span>
+                      <span className="text-[13px] font-semibold tabular-nums text-tinta">
+                        {fmtCLP(t.total)}
+                      </span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-crema">
-                      <div className="h-full rounded-full bg-naranjo" style={{ width: `${(t.total / maxPartida) * 100}%` }} />
+                      <div
+                        className="h-full rounded-full bg-naranjo"
+                        style={{ width: `${(t.total / maxPartida) * 100}%` }}
+                      />
                     </div>
                     {t.count > 1 && <p className="text-[11px] text-tinta/40">{t.count} entradas</p>}
                   </button>
@@ -261,7 +309,7 @@ export default function GastosProyecto({
       )}
 
       {porObjetivo.length > 0 && (
-        <div className="border border-borde bg-white p-4">
+        <div className={`p-4 ${TARJETA}`}>
           <div className="mb-3 flex items-baseline justify-between border-b border-borde pb-2.5">
             <span className="text-[15px] font-medium tracking-tight text-tinta">Por objetivo</span>
             <em className="text-xs font-semibold not-italic text-tinta/45">{porObjetivo.length}</em>
@@ -269,31 +317,52 @@ export default function GastosProyecto({
           <ul className="flex flex-col gap-3.5">
             {porObjetivo.map((r) => {
               const presupuestoObjetivo = Number(r.objetivo.presupuesto) || 0;
-              const pctObjetivo = presupuestoObjetivo > 0 ? Math.min(100, Math.round((r.gastado / presupuestoObjetivo) * 100)) : 0;
+              const pctObjetivo =
+                presupuestoObjetivo > 0
+                  ? Math.min(100, Math.round((r.gastado / presupuestoObjetivo) * 100))
+                  : 0;
               const sobreObjetivo = presupuestoObjetivo > 0 && r.gastado > presupuestoObjetivo;
               return (
                 <li key={r.objetivo.id} className="flex flex-col gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setPopover({ titulo: `${r.objetivo.titulo} · todos los gastos`, gastos: r.items })}
+                    onClick={() =>
+                      setPopover({ titulo: `${r.objetivo.titulo} · todos los gastos`, gastos: r.items })
+                    }
                     className="flex items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-crema"
                     title="Ver todos los adjuntos de este objetivo"
                   >
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colorDe(r.objetivo.color).bg }} />
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: colorDe(r.objetivo.color).bg }}
+                    />
                     <span className="flex-1 truncate text-[13px] font-medium text-tinta">
                       {r.objetivo.titulo}
-                      {r.count > 0 && <span className="ml-1.5 text-tinta/35">{r.count} gasto{r.count === 1 ? "" : "s"}</span>}
+                      {r.count > 0 && (
+                        <span className="ml-1.5 text-tinta/35">
+                          {r.count} gasto{r.count === 1 ? "" : "s"}
+                        </span>
+                      )}
                     </span>
-                    <span className={`text-[13px] font-semibold ${sobreObjetivo ? "text-red-600" : "text-tinta"}`}>
+                    <span
+                      className={`text-[13px] font-semibold tabular-nums ${sobreObjetivo ? "text-red-600" : "text-tinta"}`}
+                    >
                       {fmtCLP(r.gastado)}
-                      {presupuestoObjetivo > 0 && <span className="ml-1 font-normal text-tinta/40">de {fmtCLP(presupuestoObjetivo)}</span>}
+                      {presupuestoObjetivo > 0 && (
+                        <span className="ml-1 font-normal text-tinta/40">
+                          de {fmtCLP(presupuestoObjetivo)}
+                        </span>
+                      )}
                     </span>
                   </button>
                   {presupuestoObjetivo > 0 && (
                     <div className="h-1.5 overflow-hidden rounded-full bg-crema">
                       <div
                         className={`h-full rounded-full ${sobreObjetivo ? "bg-red-500" : ""}`}
-                        style={{ width: `${pctObjetivo}%`, background: sobreObjetivo ? undefined : colorDe(r.objetivo.color).bg }}
+                        style={{
+                          width: `${pctObjetivo}%`,
+                          background: sobreObjetivo ? undefined : colorDe(r.objetivo.color).bg,
+                        }}
                       />
                     </div>
                   )}
@@ -317,7 +386,11 @@ export default function GastosProyecto({
       )}
 
       {popover && (
-        <PopoverAdjuntosGasto titulo={popover.titulo} gastos={popover.gastos} onClose={() => setPopover(null)} />
+        <PopoverAdjuntosGasto
+          titulo={popover.titulo}
+          gastos={popover.gastos}
+          onClose={() => setPopover(null)}
+        />
       )}
     </div>
   );

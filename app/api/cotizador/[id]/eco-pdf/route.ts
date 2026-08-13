@@ -3,6 +3,7 @@ import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { obtenerCotizacion } from "@/lib/cotizador";
 import { calcularCotizacion } from "@/lib/cotizador/motor/consolidacion";
 import { generarEcoPdf } from "@/lib/cotizador/eco-pdf";
+import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 
 const SLUG_APP = "cotizador";
 
@@ -33,7 +34,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   try {
     const result = calcularCotizacion(cotizacion.input, cotizacion.parametrosSnapshot);
     const preparadoPor = { nombre: acceso.usuario.nombre ?? acceso.usuario.correo, correo: acceso.usuario.correo };
-    const pdf = await generarEcoPdf(cotizacion, result, preparadoPor);
+    // Identidad legal de la empresa emisora, para el encabezado del PDF.
+    const empresa = await obtenerEmpresaPorNombre(cotizacion.empresa);
+    const pdf = await generarEcoPdf(cotizacion, result, preparadoPor, empresa);
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {

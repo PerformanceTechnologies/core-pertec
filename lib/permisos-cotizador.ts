@@ -15,7 +15,12 @@ export type AccionCotizador =
   | "marcar_emitida"
   | "crear_nueva_version"
   | "administrar_parametros_legales"
-  | "administrar_catalogo_cargos";
+  | "administrar_catalogo_cargos"
+  // Identidad legal (razón social, RUT, dirección) que se imprime en el ECO-1 y
+  // en el PDF que se le manda al mandante: se deja al mismo nivel que los
+  // parámetros legales, solo admin, porque un dato mal cargado sale firmado en
+  // una oferta.
+  | "administrar_empresas";
 
 const ACCIONES_USUARIO: AccionCotizador[] = [
   "crear_cotizacion",
@@ -29,5 +34,5 @@ const ACCIONES_USUARIO: AccionCotizador[] = [
 export function puedeEnCotizador(rol: RolCotizador, accion: AccionCotizador): boolean {
   if (rol === "admin") return true;
   if (rol === "usuario") return ACCIONES_USUARIO.includes(accion);
-  return false; // visualizador: solo lectura, incluida la administración de parámetros legales
+  return false; // visualizador: solo lectura, incluidos parámetros legales y empresas
 }

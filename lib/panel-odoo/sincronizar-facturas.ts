@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooSearchRead } from "./odoo-cliente";
+import { eliminarNoVigentes } from "./limpieza";
 import { obtenerCompania } from "./companias";
 
 type TuplaOdoo = [number, string] | false;
@@ -29,6 +30,10 @@ interface FacturaOdoo {
 
 // Se cachean tambien las borrador: el filtro "solo posted" es una decision de
 // presentacion (ver lib/panel-odoo/datos.ts), no de sincronizacion.
+// Tope de la consulta a Odoo. Si se alcanza, la limpieza de la cache se salta
+// (ver eliminarNoVigentes).
+const TOPE = 2000;
+
 export async function sincronizarFacturas(): Promise<number> {
   const facturas = await odooSearchRead<FacturaOdoo>(
     "account.move",
@@ -49,7 +54,7 @@ export async function sincronizarFacturas(): Promise<number> {
       "company_id",
       "journal_id",
     ],
-    { order: "invoice_date desc", limit: 2000 }
+    { order: "invoice_date desc", limit: TOPE },
   );
 
   if (facturas.length === 0) return 0;
@@ -80,5 +85,16 @@ export async function sincronizarFacturas(): Promise<number> {
     .upsert(filas, { onConflict: "odoo_id", count: "exact" });
 
   if (error) throw new Error(error.message);
+
+  // Lo que Odoo ya no devuelve sale de la cache. Va DESPUES del upsert: si el
+  // upsert falla, la tabla no queda vaciada.
+  await eliminarNoVigentes(
+    "panel_odoo_facturas",
+    filas.map((f) => f.odoo_id),
+    {
+      topeAlcanzado: facturas.length >= TOPE,
+    },
+  );
+
   return count ?? filas.length;
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooSearchRead } from "./odoo-cliente";
+import { eliminarNoVigentes } from "./limpieza";
 import { obtenerCompania } from "./companias";
 
 type TuplaOdoo = [number, string] | false;
@@ -31,6 +32,10 @@ interface VentaOdoo {
 // distinguen por x_has_rental_lines, un campo custom de este Odoo mas
 // confiable que el is_rental_order estandar (en la practica, ordenes que
 // segun x_rental_state SI son arriendo tienen is_rental_order=false).
+// Tope de la consulta a Odoo. Si se alcanza, la limpieza de la cache se salta
+// (ver eliminarNoVigentes).
+const TOPE = 2000;
+
 export async function sincronizarVentas(): Promise<number> {
   const ventas = await odooSearchRead<VentaOdoo>(
     "sale.order",
@@ -49,7 +54,7 @@ export async function sincronizarVentas(): Promise<number> {
       "x_rental_end_date",
       "x_rental_days",
     ],
-    { order: "date_order desc", limit: 2000 }
+    { order: "date_order desc", limit: TOPE },
   );
 
   if (ventas.length === 0) return 0;
@@ -80,5 +85,16 @@ export async function sincronizarVentas(): Promise<number> {
     .upsert(filas, { onConflict: "odoo_id", count: "exact" });
 
   if (error) throw new Error(error.message);
+
+  // Lo que Odoo ya no devuelve sale de la cache. Va DESPUES del upsert: si el
+  // upsert falla, la tabla no queda vaciada.
+  await eliminarNoVigentes(
+    "panel_odoo_ventas",
+    filas.map((f) => f.odoo_id),
+    {
+      topeAlcanzado: ventas.length >= TOPE,
+    },
+  );
+
   return count ?? filas.length;
 }

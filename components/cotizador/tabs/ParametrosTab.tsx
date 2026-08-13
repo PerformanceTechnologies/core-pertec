@@ -5,6 +5,7 @@ import { money, fechaCl } from "@/lib/cotizador/formato";
 import { NumInput } from "../campos/Campos";
 import ClienteOdooInput from "../ClienteOdooInput";
 import { actualizarMetaCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
+import BotonEnviar from "@/components/BotonEnviar";
 
 export default function ParametrosTab({
   cotizacion,
@@ -45,7 +46,9 @@ export default function ParametrosTab({
     <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_.8fr] lg:items-start">
       <div className="flex flex-col gap-4">
         <div className="rounded-xl border border-borde bg-white p-5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Identificación del proyecto</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">
+            Identificación del proyecto
+          </div>
           <form action={accionMeta} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-tinta/70">Nombre del proyecto</label>
@@ -99,12 +102,12 @@ export default function ParametrosTab({
             </div>
             {!disabled && (
               <div className="sm:col-span-2">
-                <button
-                  type="submit"
+                <BotonEnviar
+                  cargando="Guardando..."
                   className="rounded-md bg-naranjo px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-naranjo-suave"
                 >
                   Guardar identificación
-                </button>
+                </BotonEnviar>
               </div>
             )}
           </form>
@@ -112,12 +115,16 @@ export default function ParametrosTab({
 
         <div className="rounded-xl border border-borde bg-white p-5">
           <div className="flex items-baseline gap-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Parámetros del motor SPOT</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">
+              Parámetros del motor SPOT
+            </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {spotParams.map((p) => (
               <div key={p.campo}>
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-tinta/40">{p.etiqueta}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-tinta/40">
+                  {p.etiqueta}
+                </div>
                 <div className="mt-1">
                   <NumInput
                     value={quotation[p.campo] as number}
@@ -134,7 +141,9 @@ export default function ParametrosTab({
 
       <div className="rounded-xl border border-borde bg-crema/40 p-5">
         <div className="flex items-center gap-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Set de parámetros legales</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">
+            Set de parámetros legales
+          </div>
           <span className="rounded-full bg-teal/10 px-2 py-0.5 text-[10px] font-semibold text-teal">
             Vigente · {fechaCl(P.vigenteDesde)}
           </span>

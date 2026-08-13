@@ -122,6 +122,86 @@ body {
   animation: revelar 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
+/* La pantalla de carga de los módulos (components/CargaPertec.tsx).
+
+   La línea es la misma quebrada del patrón topográfico del fondo, así que la
+   espera se ve como la marca dibujándose y no como un spinner cualquiera.
+   El trazo se dibuja de izquierda a derecha y vuelve a empezar: dashoffset va
+   descubriendo el recorrido. Las medidas van en 1 y no en pixeles porque el SVG
+   declara pathLength="1": el largo real de esa quebrada son ~453 unidades, y con
+   un dasharray fijo menor que eso el trazo se repetía en varios pedazos. */
+@keyframes trazar-topo {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  55% {
+    stroke-dashoffset: 0;
+  }
+  /* Se queda entera un instante antes de reiniciar: sin esta pausa el ciclo se
+     lee como un parpadeo en vez de como un trazo que se completó. */
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+.animar-trazo-topo {
+  stroke-dasharray: 1;
+  animation: trazar-topo 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes latir-marca {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animar-latido-marca {
+  animation: latir-marca 2.4s ease-in-out infinite;
+}
+
+/* La entrada de un módulo: el contenido sube apenas y aparece.
+
+   Es más lenta y con menos recorrido que .animar-revelar (6px en vez de 10, y
+   0.55s en vez de 0.5) porque acá se mueve la página entera y no una tarjeta:
+   con el mismo salto se siente un tirón.
+
+   Corre UNA vez, al montarse el elemento — o sea al entrar al módulo. Un
+   re-render de React no la repite: React conserva el nodo del DOM y la
+   animación solo arranca cuando el nodo nace. Por eso va en el contenedor de
+   más afuera de cada módulo y no en las partes que cambian mientras se trabaja
+   (escribir en un campo o filtrar una lista no la vuelve a disparar). */
+@keyframes entrada-modulo {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animar-entrada {
+  animation: entrada-modulo 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Quien pidió menos movimiento ve la línea completa y quieta: sigue siendo una
+   señal de "esto está cargando" (el texto lo dice) sin nada animándose. Y el
+   contenido de los módulos aparece sin desplazarse. */
+@media (prefers-reduced-motion: reduce) {
+  .animar-trazo-topo,
+  .animar-latido-marca {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  .animar-entrada,
+  .animar-revelar {
+    animation: none;
+  }
+}
+
 input,
 select,
 textarea {

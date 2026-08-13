@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooSearchRead } from "./odoo-cliente";
+import { eliminarNoVigentes } from "./limpieza";
 import { obtenerCompania } from "./companias";
 
 type TuplaOdoo = [number, string] | false;
@@ -26,6 +27,10 @@ interface LeadOdoo {
 }
 
 // Solo oportunidades/leads activos (sin perdidas) para v1 -- ver plan.
+// Tope de la consulta a Odoo. Si se alcanza, la limpieza de la cache se salta
+// (ver eliminarNoVigentes).
+const TOPE = 2000;
+
 export async function sincronizarCrm(): Promise<number> {
   const leads = await odooSearchRead<LeadOdoo>(
     "crm.lead",
@@ -42,7 +47,7 @@ export async function sincronizarCrm(): Promise<number> {
       "create_date",
       "date_deadline",
     ],
-    { order: "create_date desc", limit: 2000 }
+    { order: "create_date desc", limit: TOPE },
   );
 
   const filas = leads.map((l) => {
@@ -71,5 +76,16 @@ export async function sincronizarCrm(): Promise<number> {
     .upsert(filas, { onConflict: "odoo_id", count: "exact" });
 
   if (error) throw new Error(error.message);
+
+  // Lo que Odoo ya no devuelve sale de la cache. Va DESPUES del upsert: si el
+  // upsert falla, la tabla no queda vaciada.
+  await eliminarNoVigentes(
+    "panel_odoo_crm_leads",
+    filas.map((f) => f.odoo_id),
+    {
+      topeAlcanzado: leads.length >= TOPE,
+    },
+  );
+
   return count ?? filas.length;
 }

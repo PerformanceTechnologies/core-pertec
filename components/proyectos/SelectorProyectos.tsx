@@ -3,8 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Proyecto } from "@/lib/proyectos";
 import { puedeEnPanel, type RolPanel } from "@/lib/permisos-panel";
-import { colorDe, diasEntre, mesAnio, parseFecha, ESTADO_PROYECTO_COLOR, ESTADO_PROYECTO_LABEL } from "@/lib/proyectos-utilidades";
+import {
+  colorDe,
+  diasEntre,
+  mesAnio,
+  parseFecha,
+  ESTADO_PROYECTO_COLOR,
+  ESTADO_PROYECTO_LABEL,
+} from "@/lib/proyectos-utilidades";
+import { SOMBRA_CALIDA } from "@/lib/estilos";
 import FormularioProyectoModal from "./FormularioProyectoModal";
+import CargaPertec from "@/components/CargaPertec";
 
 interface ResumenObjetivo {
   proyecto_id: string;
@@ -83,12 +92,46 @@ export default function SelectorProyectos({
     cargar();
   }, [cargar]);
 
-  const stats = useMemo(() => calcularStats(proyectos ?? [], resumenObjetivos), [proyectos, resumenObjetivos]);
+  const stats = useMemo(
+    () => calcularStats(proyectos ?? [], resumenObjetivos),
+    [proyectos, resumenObjetivos],
+  );
   const puedeCrear = puedeEnPanel(rolPanel, "create_objetivo");
+
+  // La cinta de cifras suma sobre las MISMAS stats que muestran las tarjetas, no
+  // sobre otra consulta: si el encabezado dijera un total distinto al de las
+  // tarjetas de abajo, no habría manera de saber cuál está mal.
+  const totales = useMemo(() => {
+    const lista = proyectos ?? [];
+    let objetivos = 0;
+    let hechos = 0;
+    let vencen = 0;
+    lista.forEach((p) => {
+      const s = stats[p.id];
+      if (!s) return;
+      objetivos += s.total;
+      hechos += s.hechos;
+      vencen += s.vencen;
+    });
+    return {
+      proyectos: lista.length,
+      enCurso: lista.filter((p) => p.estado !== "terminado").length,
+      objetivos,
+      hechos,
+      vencen,
+    };
+  }, [proyectos, stats]);
+
+  // Este modulo carga en el navegador, no en el servidor: la pagina se pinta
+  // enseguida y los proyectos llegan despues por fetch. Sin esto se veia el
+  // encabezado con la cinta de cifras en guiones y sin ninguna tarjeta —
+  // exactamente la pantalla a medio llenar que loading.tsx evita en el resto del
+  // core. Se muestra la misma animacion de la marca hasta que estan los datos.
+  if (!proyectos && !error) return <CargaPertec modulo="Proyectos" />;
 
   if (error && !proyectos) {
     return (
-      <div className="rounded-2xl border border-borde bg-white p-8 text-center">
+      <div className="rounded-2xl border border-borde bg-superficie p-8 text-center">
         <p className="text-sm font-medium text-red-600">{error}</p>
         <button
           onClick={cargar}
@@ -101,48 +144,84 @@ export default function SelectorProyectos({
   }
 
   return (
-    <div className="flex flex-col gap-7">
-      <div className="animar-revelar relative overflow-hidden border-b border-borde pb-7">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse at 80% 10%, rgba(200,82,23,.12), transparent 50%), radial-gradient(ellipse at 8% 95%, rgba(0,160,128,.09), transparent 55%)",
-          }}
-        />
-        <div className="relative">
+    // El <main> del core no tiene tope de ancho: sin esto, en un monitor de
+    // 1900px el encabezado se estira a todo lo largo. Mismo tope que Cotizador,
+    // Rendir Gastos y Mi Día.
+    <div className="max-w-[1500px]">
+      {/* El encabezado va con el mismo tratamiento que el resto del core:
+          etiqueta, título condensado en dos líneas y nada de fondo.
+
+          Antes tenía dos gradientes radiales encima de la banda, y sobre el crema
+          se veían como una mancha detrás del título en vez de como una
+          iluminación. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
           <span className="etiqueta-seccion">PERTEC · {mesAnio()}</span>
-          <h1 className="mt-2.5 text-[28px] font-medium uppercase leading-[1.1] tracking-tight text-tinta sm:text-[32px]">
+          <h1 className="mt-2 max-w-[24ch] font-condensed text-3xl font-bold uppercase leading-[0.95] tracking-tight text-tinta sm:text-4xl">
             Proyectos
+            <span className="block text-tinta/40">Objetivos y avance</span>
           </h1>
-          <p className="mt-2 max-w-lg text-sm font-light leading-relaxed text-tinta/55">
-            Selecciona un proyecto para gestionar sus objetivos y revisar su avance.
+          <p className="mt-3 max-w-[52ch] text-sm font-light leading-relaxed text-pretty text-tinta/55">
+            Elige un proyecto para gestionar sus objetivos, su presupuesto y revisar su avance.
           </p>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium leading-none tracking-tight text-tinta">
-          {proyectos ? `${proyectos.length} proyecto${proyectos.length === 1 ? "" : "s"} activo${proyectos.length === 1 ? "" : "s"}` : "Cargando…"}
-        </h2>
         {puedeCrear && (
           <button
+            type="button"
             onClick={() => setEditando("nuevo")}
-            className="rounded-full bg-naranjo px-4 py-2 text-[11px] font-semibold uppercase tracking-[.12em] text-white shadow-[0_4px_14px_rgba(200,82,23,.25)] transition hover:-translate-y-px hover:bg-[#b14614] hover:shadow-[0_8px_20px_rgba(200,82,23,.35)]"
+            className="shrink-0 self-start rounded-lg bg-naranjo px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-naranjo-suave focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo lg:self-auto"
           >
             + Nuevo proyecto
           </button>
         )}
       </div>
 
+      {/* Cinta de cifras, igual que en los otros módulos. Reemplaza al
+          "N proyectos activos" que era un h2 solo, y además llena el ancho que
+          quedaba vacío arriba de las tarjetas cuando hay pocos proyectos. */}
+      <dl className="mt-8 grid grid-cols-1 overflow-hidden rounded-2xl border border-borde sm:grid-cols-3">
+        <div className="border-b border-borde bg-naranjo/[0.06] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-medium text-tinta/55">Proyectos</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums text-tinta sm:text-3xl">
+            {proyectos ? totales.proyectos : "—"}
+          </dd>
+          <dd className="mt-1.5 text-[11px] text-tinta/45">
+            {proyectos ? `${totales.enCurso} en curso` : "Cargando…"}
+          </dd>
+        </div>
+        <div className="border-b border-borde bg-gris/[0.08] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-xs font-medium text-tinta/55">Objetivos cumplidos</dt>
+          <dd className="mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums text-teal sm:text-3xl">
+            {proyectos && totales.objetivos > 0
+              ? `${Math.round((totales.hechos / totales.objetivos) * 100)}%`
+              : "—"}
+          </dd>
+          <dd className="mt-1.5 text-[11px] text-tinta/45">
+            {totales.hechos} de {totales.objetivos}
+          </dd>
+        </div>
+        <div className="bg-teal/[0.06] px-5 py-4">
+          <dt className="text-xs font-medium text-tinta/55">Vencen esta semana</dt>
+          <dd
+            className={`mt-1 font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums sm:text-3xl ${
+              totales.vencen > 0 ? "text-naranjo" : "text-tinta"
+            }`}
+          >
+            {proyectos ? totales.vencen : "—"}
+          </dd>
+          <dd className="mt-1.5 text-[11px] text-tinta/45">objetivos con plazo a 7 días</dd>
+        </div>
+      </dl>
+
       {proyectos && proyectos.length === 0 && (
-        <div className="rounded-2xl border border-borde bg-white p-8 text-center">
-          <p className="text-sm text-tinta/60">Aún no hay proyectos.</p>
+        <div className="mt-6 rounded-2xl border border-dashed border-borde p-8 text-center">
+          <p className="text-sm text-pretty text-tinta/60">Aún no hay proyectos.</p>
           {puedeCrear && (
             <button
+              type="button"
               onClick={() => setEditando("nuevo")}
-              className="mt-4 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave"
+              className="mt-4 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white transition hover:bg-naranjo-suave focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
             >
               Crear el primero
             </button>
@@ -150,7 +229,14 @@ export default function SelectorProyectos({
         </div>
       )}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+      {/* El tope de 340px por columna es a propósito: con auto-fill y 1fr, dos
+          proyectos se estiraban a 750px cada uno en un monitor ancho y la
+          tarjeta quedaba con más aire que contenido. Ahora crecen hasta un ancho
+          de tarjeta y se alinean a la izquierda. */}
+      <div
+        className="mt-6 grid gap-4"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 340px))" }}
+      >
         {(proyectos ?? []).map((p, i) => {
           const s = stats[p.id] ?? { total: 0, hechos: 0, vencen: 0, minIni: null, maxFin: null };
           const pct = s.total > 0 ? Math.round((s.hechos / s.total) * 100) : 0;
@@ -159,98 +245,135 @@ export default function SelectorProyectos({
           return (
             <button
               key={p.id}
+              type="button"
               onClick={() => onElegir(p.id)}
-              className="animar-revelar group relative flex flex-col gap-4 overflow-hidden border border-borde bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(12,10,9,.08)]"
-              style={{ animationDelay: `${Math.min(i, 8) * 70}ms`, borderTopColor: color.bg, borderTopWidth: 3 }}
+              // h-full + flex-col + el pie con mt-auto: el título de un proyecto
+              // ocupa una o tres líneas según el nombre, y sin esto el
+              // "ENTRAR →" de cada tarjeta quedaba a una altura distinta.
+              className={`animar-revelar group flex h-full flex-col gap-4 overflow-hidden rounded-xl border border-borde p-4 text-left transition hover:-translate-y-0.5 hover:border-naranjo/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo ${SOMBRA_CALIDA} ${
+                terminado ? "bg-teal/[0.045]" : "bg-superficie"
+              }`}
+              style={{
+                animationDelay: `${Math.min(i, 8) * 70}ms`,
+                borderTopColor: color.bg,
+                borderTopWidth: 3,
+              }}
             >
-              {terminado && (
+              <div className="flex items-start gap-2.5">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color.bg }} />
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[15px] font-semibold leading-tight tracking-tight text-pretty text-tinta">
+                    {p.nombre}
+                  </h3>
+                  {p.descripcion && (
+                    <p className="mt-1 line-clamp-2 text-xs font-light leading-relaxed text-pretty text-tinta/50">
+                      {p.descripcion}
+                    </p>
+                  )}
+                </div>
+                {puedeCrear && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditando(p);
+                    }}
+                    className="rounded-md p-1 text-tinta/40 opacity-0 transition hover:bg-crema hover:text-naranjo group-hover:opacity-100"
+                    aria-label="Editar proyecto"
+                  >
+                    ✎
+                  </span>
+                )}
+              </div>
+
+              {/* La pastilla de estado y el porcentaje comparten fila. En un
+                  proyecto terminado la pastilla no va: ese estado lo dice el
+                  sello de más abajo, y tenerlos a los dos era decir TERMINADO
+                  dos veces en la misma tarjeta. */}
+              <div className="flex items-center justify-between gap-3">
+                {!terminado && (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
+                    style={{
+                      background: ESTADO_PROYECTO_COLOR[p.estado].bg,
+                      color: ESTADO_PROYECTO_COLOR[p.estado].texto,
+                      border: `1px solid ${ESTADO_PROYECTO_COLOR[p.estado].borde}`,
+                    }}
+                  >
+                    {ESTADO_PROYECTO_LABEL[p.estado]}
+                  </span>
+                )}
+                <span className="ml-auto font-condensed text-[22px] font-bold leading-none tracking-tight tabular-nums text-tinta">
+                  {pct}
+                  <span className="text-xs font-normal text-tinta/50">%</span>
+                </span>
+              </div>
+
+              <div className="h-1 overflow-hidden rounded-full bg-crema">
                 <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
-                >
-                  <span className="-rotate-[18deg] select-none whitespace-nowrap rounded-md border-[3px] border-teal bg-white px-4 py-1 text-lg font-black uppercase tracking-[.2em] text-teal shadow-sm">
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${pct}%`, background: terminado ? "var(--color-teal)" : color.bg }}
+                />
+              </div>
+
+              {/* El sello, en su propia banda al medio de la tarjeta y no
+                  absoluto encima de todo: se ve igual de grande y girado que
+                  antes, pero ya no tapa el 100% ni su barra de avance.
+
+                  Un poco de rotación (8 grados y no 18) porque a 18 el texto
+                  tocaba los bordes de la tarjeta y había que recortarlo. */}
+              {terminado && (
+                <div className="flex justify-center py-1">
+                  <span className="-rotate-[8deg] select-none whitespace-nowrap rounded-md border-[3px] border-teal bg-superficie px-4 py-1 font-condensed text-lg font-black uppercase tracking-[.2em] text-teal shadow-[0_2px_10px_rgba(0,160,128,0.18)]">
                     Terminado
                   </span>
                 </div>
               )}
 
-              <div className={`flex flex-col gap-4 ${terminado ? "opacity-50 grayscale-[35%]" : ""}`}>
-                <div className="flex items-start gap-2.5">
-                  <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color.bg }} />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-[15px] font-semibold leading-tight tracking-tight text-tinta">{p.nombre}</h3>
-                    {p.descripcion && <p className="mt-1 text-xs font-light leading-relaxed text-tinta/50">{p.descripcion}</p>}
-                  </div>
-                  {puedeCrear && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditando(p);
-                      }}
-                      className="rounded-lg p-1 text-tinta/40 opacity-0 transition hover:bg-crema hover:text-naranjo group-hover:opacity-100"
-                      aria-label="Editar proyecto"
-                    >
-                      ✎
-                    </span>
-                  )}
+              <div className="grid grid-cols-3 gap-0 border-t border-borde pt-3">
+                <div className="flex flex-col gap-0.5 border-r border-borde pr-2">
+                  <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-tinta/45">
+                    Objetivos
+                  </span>
+                  <span className="text-sm font-medium tracking-tight tabular-nums text-tinta">
+                    {s.total}
+                  </span>
                 </div>
-  
-                <span
-                  className="self-start rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
-                  style={{
-                    background: ESTADO_PROYECTO_COLOR[p.estado].bg,
-                    color: ESTADO_PROYECTO_COLOR[p.estado].texto,
-                    border: `1px solid ${ESTADO_PROYECTO_COLOR[p.estado].borde}`,
-                  }}
-                >
-                  {ESTADO_PROYECTO_LABEL[p.estado]}
+                <div className="flex flex-col gap-0.5 border-r border-borde px-2">
+                  <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-tinta/45">
+                    Hechos
+                  </span>
+                  <span className="text-sm font-medium tracking-tight tabular-nums text-tinta">
+                    {s.hechos}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5 pl-2">
+                  <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-tinta/45">
+                    Vencen 7d
+                  </span>
+                  <span
+                    className="text-sm font-medium tracking-tight tabular-nums"
+                    style={s.vencen > 0 ? { color: "#C85217" } : { color: "var(--color-tinta)" }}
+                  >
+                    {s.vencen}
+                  </span>
+                </div>
+              </div>
+
+              {/* mt-auto: el pie se pega abajo, así que "ENTRAR →" queda a la
+                  misma altura en toda la fila aunque los títulos midan distinto. */}
+              <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-borde pt-3">
+                {s.minIni && s.maxFin ? (
+                  <span className="text-[11px] tabular-nums text-tinta/45">
+                    {diasEntre(s.minIni, s.maxFin) + 1} días
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[.08em] text-tinta/45 transition group-hover:gap-2 group-hover:text-naranjo">
+                  Entrar →
                 </span>
-  
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[22px] font-medium leading-none tracking-tight text-tinta [font-variant-numeric:tabular-nums]">
-                    {pct}
-                    <span className="text-xs font-normal text-tinta/50">%</span>
-                  </span>
-                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-crema">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, background: color.bg }}
-                    />
-                  </div>
-                </div>
-  
-                <div className="grid grid-cols-3 gap-0 border-t border-borde pt-3">
-                  <div className="flex flex-col gap-0.5 border-r border-borde pr-2">
-                    <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-tinta/45">Objetivos</span>
-                    <span className="text-sm font-medium tracking-tight text-tinta [font-variant-numeric:tabular-nums]">{s.total}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 border-r border-borde px-2">
-                    <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-tinta/45">Hechos</span>
-                    <span className="text-sm font-medium tracking-tight text-tinta [font-variant-numeric:tabular-nums]">{s.hechos}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 pl-2">
-                    <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-tinta/45">Vencen 7d</span>
-                    <span
-                      className="text-sm font-medium tracking-tight [font-variant-numeric:tabular-nums]"
-                      style={s.vencen > 0 ? { color: "#C85217" } : { color: "var(--color-tinta)" }}
-                    >
-                      {s.vencen}
-                    </span>
-                  </div>
-                </div>
-  
-                <div className="flex items-center justify-between gap-2 border-t border-dashed border-borde pt-3">
-                  {s.minIni && s.maxFin ? (
-                    <span className="text-[11px] text-tinta/45">{diasEntre(s.minIni, s.maxFin) + 1} días</span>
-                  ) : (
-                    <span />
-                  )}
-                  <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[.08em] text-tinta/45 transition group-hover:gap-2 group-hover:text-naranjo">
-                    Entrar →
-                  </span>
-                </div>
               </div>
             </button>
           );

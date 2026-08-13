@@ -1,15 +1,65 @@
+import { cache } from "react";
 import { supabaseAdmin } from "./supabase-admin";
 import type { Rol, UsuarioConAcceso, Usuario } from "./tipos";
 
 // Se consulta en cada carga de página protegida (ver app/(protegido)/layout.tsx):
 // si el admin borra o desactiva a alguien, pierde el acceso de inmediato,
 // sin esperar a que expire su sesión.
-export async function obtenerUsuarioActivo(
-  correo: string | null | undefined
+//
+// Envuelto en cache() de React porque el layout protegido Y la pagina que
+// renderiza dentro suelen pedir el mismo usuario en el mismo request (la
+// pagina lo pide via su guard, exigirAdmin/exigirAccesoApp), lo que costaba
+// 2 consultas duplicadas por navegacion. cache() deduplica SOLO dentro de un
+// mismo pase de render, nunca entre requests, asi que la garantia de frescura
+// del parrafo anterior se mantiene intacta. Fuera de un render (Route
+// Handlers, Server Actions) no deduplica ni falla: se comporta igual que antes.
+export const obtenerUsuarioActivo = cache(async function obtenerUsuarioActivo(
+  correo: string | null | undefined,
 ): Promise<UsuarioConAcceso | null> {
   if (!correo) return null;
   const correoNormalizado = correo.toLowerCase();
 
+  // Una sola consulta con las asignaciones embebidas, en vez de dos seguidas.
+  //
+  // La segunda necesitaba el id que devolvia la primera, asi que no podian ir en
+  // paralelo: eran dos viajes de ida y vuelta encadenados a Supabase, y esto
+  // corre en el layout de TODA pagina protegida del core. PostgREST resuelve el
+  // embed por la foreign key usuario_aplicaciones_usuario_id_fkey.
+  const { data: usuario, error } = await supabaseAdmin
+    .from("usuarios")
+    .select("*, usuario_aplicaciones(aplicacion_id, rol_extra)")
+    .eq("correo", correoNormalizado)
+    .eq("activo", true)
+    .maybeSingle();
+
+  // El embed lo sostiene la foreign key y nada mas. Si alguna vez se cae —o la
+  // consulta falla por cualquier otra razon— se vuelve al camino de dos
+  // consultas en vez de devolver null: null acá significa "no existe o esta
+  // desactivado", y el layout lo traduce en un logout. Un embed roto NO puede
+  // sacar a todo el mundo de la aplicacion.
+  if (error) return await usuarioActivoEnDosConsultas(correoNormalizado);
+
+  if (!usuario) return null;
+
+  const { usuario_aplicaciones: embebidas, ...fila } = usuario as Usuario & {
+    usuario_aplicaciones?: AsignacionCruda[];
+  };
+  const asignaciones = embebidas ?? (await consultarAsignaciones(fila.id));
+
+  return {
+    ...(fila as Usuario),
+    aplicacionIds: asignaciones.map((a) => a.aplicacion_id),
+    rolesExtra: mapaRolesExtra(asignaciones),
+  };
+});
+
+interface AsignacionCruda {
+  aplicacion_id: string;
+  rol_extra: string | null;
+}
+
+/** El camino de antes: dos consultas encadenadas. Solo se usa si el embed falla. */
+async function usuarioActivoEnDosConsultas(correoNormalizado: string): Promise<UsuarioConAcceso | null> {
   const { data: usuario } = await supabaseAdmin
     .from("usuarios")
     .select("*")
@@ -19,27 +69,30 @@ export async function obtenerUsuarioActivo(
 
   if (!usuario) return null;
 
-  const { data: asignaciones } = await supabaseAdmin
-    .from("usuario_aplicaciones")
-    .select("aplicacion_id, rol_extra")
-    .eq("usuario_id", usuario.id);
-
+  const asignaciones = await consultarAsignaciones((usuario as Usuario).id);
   return {
     ...(usuario as Usuario),
-    aplicacionIds: (asignaciones ?? []).map((a) => a.aplicacion_id as string),
-    rolesExtra: mapaRolesExtra(asignaciones ?? []),
+    aplicacionIds: asignaciones.map((a) => a.aplicacion_id),
+    rolesExtra: mapaRolesExtra(asignaciones),
   };
 }
 
-export async function listarUsuarios(): Promise<UsuarioConAcceso[]> {
-  const { data: usuarios } = await supabaseAdmin
-    .from("usuarios")
-    .select("*")
-    .order("creado_en", { ascending: false });
-
-  const { data: asignaciones } = await supabaseAdmin
+async function consultarAsignaciones(usuarioId: string): Promise<AsignacionCruda[]> {
+  const { data } = await supabaseAdmin
     .from("usuario_aplicaciones")
-    .select("usuario_id, aplicacion_id, rol_extra");
+    .select("aplicacion_id, rol_extra")
+    .eq("usuario_id", usuarioId);
+  return (data ?? []) as AsignacionCruda[];
+}
+
+export async function listarUsuarios(): Promise<UsuarioConAcceso[]> {
+  // Las dos consultas son independientes (la de asignaciones no filtra por
+  // usuario, trae todas y despues se reparten en memoria), asi que van en
+  // paralelo en vez de una esperando a la otra.
+  const [{ data: usuarios }, { data: asignaciones }] = await Promise.all([
+    supabaseAdmin.from("usuarios").select("*").order("creado_en", { ascending: false }),
+    supabaseAdmin.from("usuario_aplicaciones").select("usuario_id, aplicacion_id, rol_extra"),
+  ]);
 
   return (usuarios ?? []).map((usuario) => {
     const propias = (asignaciones ?? []).filter((a) => a.usuario_id === usuario.id);
@@ -52,11 +105,7 @@ export async function listarUsuarios(): Promise<UsuarioConAcceso[]> {
 }
 
 export async function obtenerUsuarioPorId(id: string): Promise<UsuarioConAcceso | null> {
-  const { data: usuario } = await supabaseAdmin
-    .from("usuarios")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  const { data: usuario } = await supabaseAdmin.from("usuarios").select("*").eq("id", id).maybeSingle();
 
   if (!usuario) return null;
 
@@ -95,7 +144,9 @@ export async function registrarIngreso(correo: string): Promise<string | null> {
   return usuario.ultimo_ingreso as string | null;
 }
 
-function mapaRolesExtra(asignaciones: { aplicacion_id: string; rol_extra: string | null }[]): Record<string, string> {
+function mapaRolesExtra(
+  asignaciones: { aplicacion_id: string; rol_extra: string | null }[],
+): Record<string, string> {
   const mapa: Record<string, string> = {};
   asignaciones.forEach((a) => {
     if (a.rol_extra) mapa[a.aplicacion_id] = a.rol_extra;
@@ -128,7 +179,13 @@ export async function crearUsuario(datos: {
 
 export async function actualizarUsuario(
   id: string,
-  datos: { nombre: string; rol: Rol; activo: boolean; aplicacionIds: string[]; rolesExtra: Record<string, string> }
+  datos: {
+    nombre: string;
+    rol: Rol;
+    activo: boolean;
+    aplicacionIds: string[];
+    rolesExtra: Record<string, string>;
+  },
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from("usuarios")
@@ -152,7 +209,7 @@ export async function eliminarUsuario(id: string): Promise<void> {
 async function reemplazarAsignaciones(
   usuarioId: string,
   aplicacionIds: string[],
-  rolesExtra: Record<string, string>
+  rolesExtra: Record<string, string>,
 ): Promise<void> {
   await supabaseAdmin.from("usuario_aplicaciones").delete().eq("usuario_id", usuarioId);
 
@@ -163,7 +220,7 @@ async function reemplazarAsignaciones(
       usuario_id: usuarioId,
       aplicacion_id,
       rol_extra: rolesExtra[aplicacion_id] || null,
-    }))
+    })),
   );
 
   if (error) throw new Error(error.message);

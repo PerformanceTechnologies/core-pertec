@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooSearchRead } from "./odoo-cliente";
+import { eliminarNoVigentes } from "./limpieza";
 import { obtenerCompania } from "./companias";
 
 type TuplaOdoo = [number, string] | false;
@@ -38,18 +39,6 @@ interface DocumentoVehiculoOdoo {
   vehicle_id: TuplaOdoo;
 }
 
-// Borra de la cache lo que Odoo ya no devuelve (vehiculo o documento
-// eliminado/dado de baja) -- upsert por si solo nunca limpia filas viejas,
-// y un vehiculo borrado en Odoo seguia apareciendo en el panel para
-// siempre. "sin ids vigentes" borra todo (odoo_id siempre es positivo, asi
-// que -1 nunca matchea nada real).
-async function eliminarNoVigentes(tabla: "panel_odoo_flota" | "panel_odoo_flota_documentos", idsVigentes: number[]) {
-  const query = supabaseAdmin.from(tabla).delete();
-  const { error } =
-    idsVigentes.length > 0 ? await query.not("odoo_id", "in", `(${idsVigentes.join(",")})`) : await query.neq("odoo_id", -1);
-  if (error) throw new Error(error.message);
-}
-
 export async function sincronizarFlota(): Promise<number> {
   const vehiculos = await odooSearchRead<VehiculoOdoo>(
     "fleet.vehicle",
@@ -66,12 +55,12 @@ export async function sincronizarFlota(): Promise<number> {
       "acquisition_date",
       "company_id",
     ],
-    { limit: 2000 }
+    { limit: 2000 },
   );
 
   await eliminarNoVigentes(
     "panel_odoo_flota",
-    vehiculos.map((v) => v.id)
+    vehiculos.map((v) => v.id),
   );
 
   if (vehiculos.length === 0) {
@@ -111,12 +100,12 @@ export async function sincronizarFlota(): Promise<number> {
     "pertec.fleet.vehicle.document",
     [],
     ["name", "category", "document_type", "expiration_date", "vehicle_id"],
-    { limit: 5000 }
+    { limit: 5000 },
   );
 
   await eliminarNoVigentes(
     "panel_odoo_flota_documentos",
-    documentos.map((d) => d.id)
+    documentos.map((d) => d.id),
   );
 
   let countDocumentos = 0;

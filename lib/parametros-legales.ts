@@ -183,10 +183,47 @@ export interface ResultadoActualizacionIndicadores {
   motivo?: string;
 }
 
-// Solo toca uf/utm del set VIGENTE (no crea uno nuevo, no toca ninguna otra
-// columna) — llamado por el cron diario que sincroniza con mindicador.cl.
+// Tabla del impuesto único de 2ª categoría, expresada en múltiplos de UTM —
+// que es como la define la ley, y el motivo por el que los tramos NO pueden
+// quedarse fijos en pesos cuando la UTM cambia.
+//
+// Son exactamente los múltiplos que ya estaban guardados en la fila vigente
+// (verificado: regenerar con la UTM con que se calcularon reproduce los mismos
+// pesos), así que esto no reinterpreta la tabla, solo la vuelve a expresar.
+const TABLA_IMPUESTO_EN_UTM: { hasta: number | null; factor: number; rebaja: number }[] = [
+  { hasta: 13.5, factor: 0, rebaja: 0 },
+  { hasta: 30, factor: 0.04, rebaja: 0.54 },
+  { hasta: 50, factor: 0.08, rebaja: 1.74 },
+  { hasta: 70, factor: 0.135, rebaja: 4.49 },
+  { hasta: 90, factor: 0.23, rebaja: 11.14 },
+  { hasta: 120, factor: 0.304, rebaja: 17.8 },
+  { hasta: 310, factor: 0.35, rebaja: 23.32 },
+  { hasta: null, factor: 0.4, rebaja: 38.82 },
+];
+
+// Convierte la tabla legal a pesos para una UTM dada. Se redondea al peso,
+// igual que venían los valores guardados.
+export function tramosParaUtm(utm: number): TaxBracket[] {
+  return TABLA_IMPUESTO_EN_UTM.map((t, i) => ({
+    tramoN: i + 1,
+    desde: i === 0 ? 0 : Math.round(TABLA_IMPUESTO_EN_UTM[i - 1].hasta! * utm),
+    hasta: t.hasta === null ? null : Math.round(t.hasta * utm),
+    factor: t.factor,
+    rebaja: Math.round(t.rebaja * utm),
+  }));
+}
+
+// Toca uf/utm del set VIGENTE y, con la UTM nueva, recalcula los tramos del
+// impuesto único — llamado por el cron diario que sincroniza con mindicador.cl.
 // Las cotizaciones ya creadas no se ven afectadas (usan su propio
 // parametros_snapshot); solo las cotizaciones NUEVAS usan el valor fresco.
+//
+// Antes solo se actualizaban uf/utm y los tramos quedaban congelados en la UTM
+// con que se habían cargado: al subir la UTM cada mes, los cortes se quedaban
+// atrás (llegaron a estar 3,96% desfasados) y el impuesto salía calculado con
+// una tabla que ya no era la vigente. Como los tramos son múltiplos de UTM por
+// ley, la única forma de que sigan siendo correctos es recalcularlos junto con
+// ella.
 export async function actualizarUfUtmVigente(
   uf: number,
   utm: number,
@@ -198,7 +235,7 @@ export async function actualizarUfUtmVigente(
 
   const { error } = await supabaseAdmin
     .from("parametros_legales_sets")
-    .update({ uf, utm })
+    .update({ uf, utm, tramos: tramosParaUtm(utm) })
     .eq("id", vigente.id);
 
   if (error) throw new Error(error.message);

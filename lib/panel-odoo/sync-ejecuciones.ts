@@ -2,14 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export type ModuloOdoo =
-  | "facturas"
-  | "contabilidad"
-  | "crm"
-  | "gastos"
-  | "flota"
-  | "proyectos"
-  | "ventas"
-  | "compras";
+  "facturas" | "contabilidad" | "crm" | "gastos" | "flota" | "proyectos" | "ventas" | "compras";
 
 export interface EjecucionOdoo {
   modulo: ModuloOdoo;
@@ -23,7 +16,7 @@ export async function registrarEjecucionOdoo(
   modulo: ModuloOdoo,
   exito: boolean,
   registrosSincronizados: number,
-  mensajeError?: string
+  mensajeError?: string,
 ): Promise<void> {
   const { error } = await supabaseAdmin.from("panel_odoo_sync_ejecuciones").insert({
     modulo,
@@ -37,9 +30,14 @@ export async function registrarEjecucionOdoo(
 // Para el indicador "hace X min" de cada tarjeta: la ultima ejecucion (exitosa
 // o no) de cada modulo.
 export async function obtenerUltimasEjecuciones(): Promise<Record<ModuloOdoo, EjecucionOdoo | null>> {
+  // Columnas explicitas: la tabla tiene mas de las que usa el indicador, y con
+  // 50 filas por carga eso es payload que no se muestra. Ordenar por
+  // ejecutado_en usa el indice panel_odoo_sync_ejecuciones_ejecutado_en_idx
+  // (antes no existia y esto era un seq scan de la tabla completa: 11 ms, la
+  // consulta mas lenta del panel, creciendo ~384 filas al dia).
   const { data } = await supabaseAdmin
     .from("panel_odoo_sync_ejecuciones")
-    .select("*")
+    .select("modulo, ejecutado_en, exito, registros_sincronizados, mensaje_error")
     .order("ejecutado_en", { ascending: false })
     .limit(50);
 

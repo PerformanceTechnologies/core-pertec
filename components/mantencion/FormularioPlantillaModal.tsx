@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ChecklistPlantilla } from "@/lib/mantencion";
+import RuedaCarga from "@/components/RuedaCarga";
 
 interface FilaItem {
   id?: string;
@@ -23,12 +24,18 @@ export default function FormularioPlantillaModal({
   const [titulo, setTitulo] = useState(plantilla?.titulo ?? "");
   const [descripcion, setDescripcion] = useState(plantilla?.descripcion ?? "");
   const [items, setItems] = useState<FilaItem[]>(
-    (plantilla?.items ?? []).map((it) => ({ id: it.id, titulo: it.titulo, descripcion: it.descripcion ?? "", seccion: it.seccion ?? "General" }))
+    (plantilla?.items ?? []).map((it) => ({
+      id: it.id,
+      titulo: it.titulo,
+      descripcion: it.descripcion ?? "",
+      seccion: it.seccion ?? "General",
+    })),
   );
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const agregarItem = () => setItems((s) => [...s, { titulo: "", descripcion: "", seccion: s[s.length - 1]?.seccion ?? "General" }]);
+  const agregarItem = () =>
+    setItems((s) => [...s, { titulo: "", descripcion: "", seccion: s[s.length - 1]?.seccion ?? "General" }]);
   const actualizarItem = (i: number, clave: keyof FilaItem, valor: string) =>
     setItems((s) => s.map((it, idx) => (idx === i ? { ...it, [clave]: valor } : it)));
   const quitarItem = (i: number) => setItems((s) => s.filter((_, idx) => idx !== i));
@@ -71,9 +78,14 @@ export default function FormularioPlantillaModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-borde bg-superficie shadow-lg"
+      >
         <div className="flex items-start justify-between border-b border-borde px-6 py-4">
-          <h2 className="font-condensed text-xl font-bold text-tinta">{esNueva ? "Nueva plantilla" : "Editar plantilla"}</h2>
+          <h2 className="font-condensed text-xl font-bold text-tinta">
+            {esNueva ? "Nueva plantilla" : "Editar plantilla"}
+          </h2>
           <button onClick={onClose} className="text-tinta/40 hover:text-tinta" aria-label="Cerrar">
             ×
           </button>
@@ -109,7 +121,9 @@ export default function FormularioPlantillaModal({
               {items.map((it, i) => (
                 <li key={i} className="rounded-lg border border-borde p-2.5">
                   <div className="flex gap-2">
-                    <span className="mt-2 w-6 shrink-0 text-xs text-tinta/40">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="mt-2 w-6 shrink-0 text-xs text-tinta/40">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
                     <input
                       value={it.seccion}
                       onChange={(e) => actualizarItem(i, "seccion", e.target.value)}
@@ -122,7 +136,11 @@ export default function FormularioPlantillaModal({
                       placeholder="Ítem (ej: Inspección visual)"
                       className="flex-1 rounded-md border border-borde px-2 py-1.5 text-xs outline-none focus:border-naranjo/50"
                     />
-                    <button type="button" onClick={() => quitarItem(i)} className="text-tinta/40 hover:text-red-600">
+                    <button
+                      type="button"
+                      onClick={() => quitarItem(i)}
+                      className="text-tinta/40 hover:text-red-600"
+                    >
                       ×
                     </button>
                   </div>
@@ -148,10 +166,20 @@ export default function FormularioPlantillaModal({
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
           <div className="mt-2 flex justify-end gap-2 border-t border-borde pt-4">
-            <button type="button" onClick={onClose} className="rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40"
+            >
               Cancelar
             </button>
-            <button type="submit" disabled={guardando} className="rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={guardando}
+              aria-busy={guardando}
+              className="inline-flex items-center gap-2 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave disabled:cursor-progress disabled:opacity-50"
+            >
+              {guardando && <RuedaCarga />}
               {guardando ? "Guardando…" : esNueva ? "Crear plantilla" : "Guardar"}
             </button>
           </div>

@@ -51,13 +51,18 @@ export default function PanelComentariosModal({
   };
 
   const fmt = (iso: string) =>
-    new Date(iso).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    new Date(iso).toLocaleString("es-CL", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg"
+        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl border border-borde bg-superficie shadow-lg"
       >
         <div className="flex items-start justify-between border-b border-borde px-5 py-3">
           <h2 className="font-condensed text-base font-bold text-tinta">Comentarios · {objetivo.titulo}</h2>
@@ -80,7 +85,11 @@ export default function PanelComentariosModal({
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-tinta/40">{fmt(c.created_at)}</span>
                       {puedeEscribir && (
-                        <button onClick={() => eliminar(c.id)} className="text-tinta/35 hover:text-red-600" aria-label="Eliminar">
+                        <button
+                          onClick={() => eliminar(c.id)}
+                          className="text-tinta/35 hover:text-red-600"
+                          aria-label="Eliminar"
+                        >
                           ×
                         </button>
                       )}

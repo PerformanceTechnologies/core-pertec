@@ -3,9 +3,10 @@
 import { useState } from "react";
 import type { Objetivo } from "@/lib/proyectos";
 import { colorDe, diasEntre, fmtCLP, fmtMes, parseFecha, sumarDias } from "@/lib/proyectos-utilidades";
+import { TARJETA } from "@/lib/estilos";
 
 const ANCHO_DIA = 28;
-const ANCHO_LABEL = 180;
+const ANCHO_LABEL = 240;
 
 export default function Gantt({
   objetivos,
@@ -44,7 +45,12 @@ export default function Gantt({
     const clave = `${d.getFullYear()}-${d.getMonth()}`;
     if (clave !== mesActual) {
       if (mesActual !== null) {
-        gruposMes.push({ start: inicioRun, len: largoRun, label: fmtMes(dias[inicioRun]), anio: dias[inicioRun].getFullYear() });
+        gruposMes.push({
+          start: inicioRun,
+          len: largoRun,
+          label: fmtMes(dias[inicioRun]),
+          anio: dias[inicioRun].getFullYear(),
+        });
       }
       mesActual = clave;
       inicioRun = i;
@@ -53,13 +59,18 @@ export default function Gantt({
       largoRun++;
     }
   });
-  gruposMes.push({ start: inicioRun, len: largoRun, label: fmtMes(dias[inicioRun]), anio: dias[inicioRun].getFullYear() });
+  gruposMes.push({
+    start: inicioRun,
+    len: largoRun,
+    label: fmtMes(dias[inicioRun]),
+    anio: dias[inicioRun].getFullYear(),
+  });
 
   const colHoy = diasEntre(inicio, hoy);
   const gridTemplateColumns = `${ANCHO_LABEL}px repeat(${totalDias}, ${ANCHO_DIA}px)`;
 
   return (
-    <div className="animar-revelar overflow-x-auto rounded-2xl border border-borde bg-white shadow-sm">
+    <div className={`animar-revelar overflow-x-auto ${TARJETA}`}>
       <div className="grid" style={{ gridTemplateColumns }}>
         <div className="sticky left-0 z-10 border-b border-r border-borde bg-crema" />
         {gruposMes.map((g, i) => (
@@ -82,7 +93,11 @@ export default function Gantt({
             <div
               key={`d${i}`}
               className={`flex flex-col items-center border-b border-borde py-0.5 text-[9px] ${
-                esHoy ? "bg-naranjo/10 font-bold text-naranjo" : esFinDeSemana ? "bg-crema/70 text-tinta/40" : "text-tinta/50"
+                esHoy
+                  ? "bg-naranjo/10 font-bold text-naranjo"
+                  : esFinDeSemana
+                    ? "bg-crema/70 text-tinta/40"
+                    : "text-tinta/50"
               }`}
             >
               <span>{d.getDate()}</span>
@@ -106,7 +121,7 @@ export default function Gantt({
             <div key={o.id} className="contents">
               <div
                 style={{ gridRow: fila, gridColumn: 1 }}
-                className="sticky left-0 z-10 flex items-center gap-1.5 border-b border-r border-borde bg-white px-2.5 py-1.5"
+                className="sticky left-0 z-10 flex items-center gap-1.5 border-b border-r border-borde bg-superficie px-2.5 py-1.5"
               >
                 <input
                   type="checkbox"
@@ -148,7 +163,9 @@ export default function Gantt({
                   onClick={() => onEditar(o)}
                   disabled={!puedeEditar}
                   style={{
-                    background: o.hecho ? color.soft : `linear-gradient(135deg, ${color.bg} 0%, ${color.bg} 65%, rgba(0,0,0,.18) 100%)`,
+                    background: o.hecho
+                      ? color.soft
+                      : `linear-gradient(135deg, ${color.bg} 0%, ${color.bg} 65%, rgba(0,0,0,.18) 100%)`,
                     borderColor: color.edge,
                     color: o.hecho ? "var(--color-tinta)" : color.txt,
                     opacity: o.hecho ? 0.7 : 1,
@@ -159,36 +176,43 @@ export default function Gantt({
                   {o.hecho && <span className="ml-1">✓</span>}
                 </button>
 
-                {hoverId === o.id && (() => {
-                  const gasto = gastosPorObjetivo[o.id];
-                  const presupuestoObjetivo = Number(o.presupuesto) || 0;
-                  if (!gasto && presupuestoObjetivo === 0) return null;
-                  const gastado = gasto?.gastado ?? 0;
-                  const disponible = presupuestoObjetivo - gastado;
-                  const sobre = presupuestoObjetivo > 0 && gastado > presupuestoObjetivo;
-                  return (
-                    <div className="pointer-events-none absolute left-0.5 top-full z-20 mt-1 w-52 rounded-lg border border-borde bg-white p-2.5 text-left shadow-[0_12px_28px_rgba(12,10,9,.16)]">
-                      <p className="truncate text-[11px] font-semibold text-tinta">{o.titulo}</p>
-                      <div className="mt-1.5 flex flex-col gap-0.5 text-[10px] text-tinta/60">
-                        {presupuestoObjetivo > 0 && (
+                {hoverId === o.id &&
+                  (() => {
+                    const gasto = gastosPorObjetivo[o.id];
+                    const presupuestoObjetivo = Number(o.presupuesto) || 0;
+                    if (!gasto && presupuestoObjetivo === 0) return null;
+                    const gastado = gasto?.gastado ?? 0;
+                    const disponible = presupuestoObjetivo - gastado;
+                    const sobre = presupuestoObjetivo > 0 && gastado > presupuestoObjetivo;
+                    return (
+                      <div className="pointer-events-none absolute left-0.5 top-full z-20 mt-1 w-52 rounded-lg border border-borde bg-superficie p-2.5 text-left shadow-[0_12px_28px_rgba(12,10,9,.16)]">
+                        <p className="truncate text-[11px] font-semibold text-tinta">{o.titulo}</p>
+                        <div className="mt-1.5 flex flex-col gap-0.5 text-[10px] text-tinta/60">
+                          {presupuestoObjetivo > 0 && (
+                            <span>
+                              Presupuesto{" "}
+                              <strong className="text-tinta">{fmtCLP(presupuestoObjetivo)}</strong>
+                            </span>
+                          )}
                           <span>
-                            Presupuesto <strong className="text-tinta">{fmtCLP(presupuestoObjetivo)}</strong>
+                            Gastado{" "}
+                            <strong className={sobre ? "text-red-600" : "text-tinta"}>
+                              {fmtCLP(gastado)}
+                            </strong>
+                            {gasto && ` · ${gasto.count} partida${gasto.count === 1 ? "" : "s"}`}
                           </span>
-                        )}
-                        <span>
-                          Gastado <strong className={sobre ? "text-red-600" : "text-tinta"}>{fmtCLP(gastado)}</strong>
-                          {gasto && ` · ${gasto.count} partida${gasto.count === 1 ? "" : "s"}`}
-                        </span>
-                        {presupuestoObjetivo > 0 && (
-                          <span>
-                            {sobre ? "Sobregiro" : "Disponible"}{" "}
-                            <strong className={sobre ? "text-red-600" : "text-tinta"}>{fmtCLP(Math.abs(disponible))}</strong>
-                          </span>
-                        )}
+                          {presupuestoObjetivo > 0 && (
+                            <span>
+                              {sobre ? "Sobregiro" : "Disponible"}{" "}
+                              <strong className={sobre ? "text-red-600" : "text-tinta"}>
+                                {fmtCLP(Math.abs(disponible))}
+                              </strong>
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
               </div>
             </div>
           );
@@ -197,7 +221,11 @@ export default function Gantt({
         {colHoy >= 0 && colHoy < totalDias && (
           <div
             className="w-0.5 justify-self-center bg-naranjo"
-            style={{ gridColumn: colHoy + 2, gridRow: `3 / span ${objetivos.length}`, boxShadow: "0 0 8px rgba(200,82,23,.4)" }}
+            style={{
+              gridColumn: colHoy + 2,
+              gridRow: `3 / span ${objetivos.length}`,
+              boxShadow: "0 0 8px rgba(200,82,23,.4)",
+            }}
           />
         )}
       </div>

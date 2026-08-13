@@ -45,10 +45,6 @@ export function fmtMes(d: Date): string {
   return d.toLocaleDateString("es-CL", { month: "long" }).toUpperCase();
 }
 
-export function fmtFechaCorta(d: Date): string {
-  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
-}
-
 export function fmtCLP(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return "—";
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(n));

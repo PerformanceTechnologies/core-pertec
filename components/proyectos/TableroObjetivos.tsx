@@ -5,6 +5,7 @@ import type { Objetivo } from "@/lib/proyectos";
 import type { RolPanel } from "@/lib/permisos-panel";
 import { colorDe, diasEntre, parseFecha } from "@/lib/proyectos-utilidades";
 import PanelComentariosModal from "./PanelComentariosModal";
+import { TARJETA } from "@/lib/estilos";
 
 interface Props {
   objetivos: Objetivo[];
@@ -57,10 +58,12 @@ function Columna({
   };
 
   return (
-    <div className="animar-revelar rounded-2xl border border-borde bg-white p-4 shadow-sm">
+    <div className={`animar-revelar p-4 ${TARJETA}`}>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-condensed text-sm font-bold uppercase text-tinta/70">{titulo}</h3>
-        <span className="rounded-full bg-crema px-2 py-0.5 text-xs font-semibold text-tinta/60">{items.length}</span>
+        <span className="rounded-full bg-crema px-2 py-0.5 text-xs font-semibold text-tinta/60">
+          {items.length}
+        </span>
       </div>
 
       {items.length === 0 ? (
@@ -84,7 +87,11 @@ function Columna({
               <li
                 key={o.id}
                 className={`animar-revelar overflow-hidden rounded-xl border-l-4 border p-3 transition hover:shadow-md ${
-                  vencido ? "border-red-300 bg-red-50" : urgente ? "border-naranjo/40 bg-naranjo/5" : "border-borde"
+                  vencido
+                    ? "border-red-300 bg-red-50"
+                    : urgente
+                      ? "border-naranjo/40 bg-naranjo/5"
+                      : "border-borde"
                 }`}
                 style={{ borderLeftColor: color.bg, animationDelay: `${Math.min(i, 10) * 50}ms` }}
               >
@@ -102,18 +109,30 @@ function Columna({
                     disabled={!puedeEditar}
                     className="flex-1 text-left disabled:cursor-default"
                   >
-                    <p className={`text-sm font-semibold text-tinta ${o.hecho ? "text-tinta/40 line-through" : ""}`}>{o.titulo}</p>
+                    <p
+                      className={`text-sm font-semibold text-tinta ${o.hecho ? "text-tinta/40 line-through" : ""}`}
+                    >
+                      {o.titulo}
+                    </p>
                     {o.descripcion && <p className="mt-0.5 text-xs text-tinta/55">{o.descripcion}</p>}
                   </button>
                   {(puedeEditar || puedeEliminar) && (
                     <div className="flex gap-1">
                       {puedeEditar && (
-                        <button onClick={() => onEditar(o)} className="rounded p-1 text-tinta/40 hover:text-naranjo" aria-label="Editar">
+                        <button
+                          onClick={() => onEditar(o)}
+                          className="rounded p-1 text-tinta/40 hover:text-naranjo"
+                          aria-label="Editar"
+                        >
                           ✎
                         </button>
                       )}
                       {puedeEliminar && (
-                        <button onClick={() => onEliminar(o)} className="rounded p-1 text-tinta/40 hover:text-red-600" aria-label="Eliminar">
+                        <button
+                          onClick={() => onEliminar(o)}
+                          className="rounded p-1 text-tinta/40 hover:text-red-600"
+                          aria-label="Eliminar"
+                        >
                           ×
                         </button>
                       )}
@@ -126,9 +145,20 @@ function Columna({
                     {inicio.toLocaleDateString("es-CL", { day: "2-digit", month: "short" })} →{" "}
                     {fin.toLocaleDateString("es-CL", { day: "2-digit", month: "short" })}
                   </span>
-                  {urgente && <span className="rounded-full bg-naranjo/15 px-2 py-0.5 font-semibold text-naranjo">Urgente</span>}
-                  {vencido && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-600">Vencido</span>}
-                  <button onClick={() => setExpandido((s) => ({ ...s, [o.id]: !s[o.id] }))} className="ml-auto hover:text-naranjo">
+                  {urgente && (
+                    <span className="rounded-full bg-naranjo/15 px-2 py-0.5 font-semibold text-naranjo">
+                      Urgente
+                    </span>
+                  )}
+                  {vencido && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-600">
+                      Vencido
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setExpandido((s) => ({ ...s, [o.id]: !s[o.id] }))}
+                    className="ml-auto hover:text-naranjo"
+                  >
                     {subs.length > 0 ? `${subsHechos}/${subs.length} ` : "+ "}sub-objetivos
                   </button>
                   <button onClick={() => setComentariosDe(o)} className="hover:text-naranjo">
@@ -139,7 +169,11 @@ function Columna({
                 {o.responsables.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {o.responsables.map((r, i) => (
-                      <span key={i} className="rounded-full bg-crema px-2 py-0.5 text-[11px] text-tinta/60" title={r}>
+                      <span
+                        key={i}
+                        className="rounded-full bg-crema px-2 py-0.5 text-[11px] text-tinta/60"
+                        title={r}
+                      >
                         {r}
                       </span>
                     ))}
@@ -165,11 +199,19 @@ function Columna({
                         >
                           {sub.titulo}
                         </button>
-                        <button onClick={() => setComentariosDe(sub)} className="text-tinta/35 hover:text-naranjo" aria-label="Comentarios">
+                        <button
+                          onClick={() => setComentariosDe(sub)}
+                          className="text-tinta/35 hover:text-naranjo"
+                          aria-label="Comentarios"
+                        >
                           💬
                         </button>
                         {esAdmin && (
-                          <button onClick={() => onEliminar(sub)} className="text-tinta/35 hover:text-red-600" aria-label="Eliminar">
+                          <button
+                            onClick={() => onEliminar(sub)}
+                            className="text-tinta/35 hover:text-red-600"
+                            aria-label="Eliminar"
+                          >
                             ×
                           </button>
                         )}
@@ -207,7 +249,13 @@ function Columna({
         </ul>
       )}
 
-      {comentariosDe && <PanelComentariosModal objetivo={comentariosDe} rolPanel={rolPanel} onClose={() => setComentariosDe(null)} />}
+      {comentariosDe && (
+        <PanelComentariosModal
+          objetivo={comentariosDe}
+          rolPanel={rolPanel}
+          onClose={() => setComentariosDe(null)}
+        />
+      )}
     </div>
   );
 }

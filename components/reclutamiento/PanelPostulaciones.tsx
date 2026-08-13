@@ -4,8 +4,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PostulacionGuardada } from "@/lib/reclutamiento";
 import { exportarPostulacionesAExcel } from "@/lib/exportarCsv";
 import ModalPostulante from "./ModalPostulante";
+import CargaPertec from "@/components/CargaPertec";
 
 const INTERVALO_ACTUALIZACION_MS = 30_000;
+
+// "ahora" solo alimenta comparaciones contra ventanas de tiempo medidas en
+// horas o dias (el filtro por rango y el contador de ultimas 24h), pero se
+// guardaba con precision de milisegundos y se refrescaba cada segundo: como es
+// dependencia del useMemo de "filtradas", eso re-corria el filtro completo
+// sobre todas las postulaciones -- y con el las 3 agregaciones que dependen de
+// su resultado -- 60 veces por minuto, sin que ningun numero en pantalla
+// cambiara. Truncando al minuto, el valor de estado solo cambia cuando cambia
+// el minuto, asi que React descarta los renders intermedios (setState con un
+// valor identico no re-renderiza) y el filtro corre 1 vez por minuto en vez de
+// 60. El intervalo sigue en 1s a proposito: asi el primer valor real llega
+// enseguida tras montar, igual que antes.
+const minutoActual = () => Math.floor(Date.now() / 60_000) * 60_000;
 
 const RANGOS = [
   { valor: "todos", etiqueta: "Todo el periodo" },
@@ -46,7 +60,7 @@ function contarPor(lista: PostulacionGuardada[], clave: keyof PostulacionGuardad
 
 function opcionesUnicas(lista: PostulacionGuardada[], clave: keyof PostulacionGuardada) {
   return Array.from(new Set(lista.map((p) => p[clave]).filter(Boolean))).sort((a, b) =>
-    a.localeCompare(b, "es")
+    a.localeCompare(b, "es"),
   );
 }
 
@@ -114,7 +128,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   }, [actualizadoEn]);
 
   useEffect(() => {
-    const tick = setInterval(() => setAhora(Date.now()), 1000);
+    const tick = setInterval(() => setAhora(minutoActual()), 1000);
     return () => clearInterval(tick);
   }, []);
 
@@ -143,7 +157,11 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   }, [postulaciones, filtros, ahora]);
 
   const hayFiltrosActivos =
-    filtros.busqueda !== "" || filtros.cargo !== "" || filtros.region !== "" || filtros.turno !== "" || filtros.rango !== "todos";
+    filtros.busqueda !== "" ||
+    filtros.cargo !== "" ||
+    filtros.region !== "" ||
+    filtros.turno !== "" ||
+    filtros.rango !== "todos";
 
   const todasSeleccionadas = filtradas.length > 0 && filtradas.every((p) => seleccionados.has(p.id));
 
@@ -180,12 +198,16 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   const ultimas24h = useMemo(() => {
     const momentoActual = ahora ?? 0;
     return filtradas.filter(
-      (p) => p.creadaEn && momentoActual - new Date(p.creadaEn).getTime() < 24 * 60 * 60 * 1000
+      (p) => p.creadaEn && momentoActual - new Date(p.creadaEn).getTime() < 24 * 60 * 60 * 1000,
     ).length;
   }, [filtradas, ahora]);
 
   const maxCargo = porCargo[0]?.total ?? 1;
   const maxRegion = porRegion[0]?.total ?? 1;
+
+  // Este panel tambien carga en el navegador: hasta que llegan las postulaciones
+  // se veia el encabezado con "Actualizado Cargando..." y la lista vacia.
+  if (!postulaciones && !error) return <CargaPertec modulo="Reclutamiento Web" />;
 
   if (error && !postulaciones) {
     return (
@@ -202,7 +224,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="animar-entrada flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <span className="etiqueta-seccion">Postulaciones</span>
         <span className="flex items-center gap-2 text-xs text-tinta/45">

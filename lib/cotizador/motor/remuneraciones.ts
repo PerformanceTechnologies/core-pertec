@@ -47,7 +47,13 @@ function tasaCesantia(tipoContrato: TipoContrato, P: LegalParameterSet, lado: "t
   return tipoContrato === "indefinido" ? P.tasaCesantiaEmpIndefinido : P.tasaCesantiaEmpPlazoFijo;
 }
 
-/** Módulo A.4 — lookup genérico en la tabla de tramos vigente (corrección C-01). */
+/**
+ * Módulo A.4 — lookup genérico en la tabla de tramos vigente (corrección C-01).
+ * El `return` final NO es un caso de error: cubre el tributable <= 0 (o <= el
+ * `desde` del primer tramo), donde ningún tramo hace match porque todos se
+ * saltan por la primera condición. Ese caso corresponde justamente al tramo 1
+ * (factor 0, exento), que es taxBrackets[0].
+ */
 export function buscarTramo(tributable: number, taxBrackets: TaxBracket[]): TaxBracket {
   for (const t of taxBrackets) {
     if (tributable <= t.desde) continue;
