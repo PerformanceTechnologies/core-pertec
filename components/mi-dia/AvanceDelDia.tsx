@@ -22,12 +22,24 @@ import type { UsuarioConAcceso } from "@/lib/tipos";
  * esto invita a abrir Mi Día, que es donde esa espera tiene sentido y donde hay
  * una pantalla que la explica.
  */
-export default async function AvanceDelDia({ usuario }: { usuario: UsuarioConAcceso }) {
-  // Mismo criterio que el resto del core: el admin ve todo, los demás solo lo
-  // asignado. Sin esto le ofreceríamos el resumen a quien no tiene el módulo.
+/**
+ * Si a esta persona le corresponde ver el resumen.
+ *
+ * Se exporta porque el Dashboard necesita saberlo ANTES de dibujar: cuando no
+ * hay resumen, el calendario ocupa el ancho completo en vez de quedar arrinconado
+ * a la derecha de un hueco. La regla vive acá y no repetida en la página.
+ *
+ * Mismo criterio que el resto del core: el admin ve todo, los demás solo lo
+ * asignado. obtenerAplicacionPorSlug está envuelto en cache(), así que llamarlo
+ * desde los dos lados en el mismo render no cuesta una segunda consulta.
+ */
+export async function puedeVerResumenDelDia(usuario: UsuarioConAcceso): Promise<boolean> {
   const app = await obtenerAplicacionPorSlug("mi-dia");
-  const tieneAcceso = usuario.rol === "admin" || (app ? usuario.aplicacionIds.includes(app.id) : false);
-  if (!tieneAcceso) return null;
+  return usuario.rol === "admin" || (app ? usuario.aplicacionIds.includes(app.id) : false);
+}
+
+export default async function AvanceDelDia({ usuario }: { usuario: UsuarioConAcceso }) {
+  if (!(await puedeVerResumenDelDia(usuario))) return null;
 
   const guardado = await leerResumenGuardado(usuario.id, hoyEnSantiago().iso);
   const r = guardado?.vigente ? guardado.resumen : null;
@@ -37,7 +49,7 @@ export default async function AvanceDelDia({ usuario }: { usuario: UsuarioConAcc
 
   return (
     <section
-      className={`mt-6 max-w-4xl overflow-hidden rounded-2xl border border-naranjo/25 bg-naranjo/[0.05] ${SOMBRA_CALIDA}`}
+      className={`overflow-hidden rounded-2xl border border-naranjo/25 bg-naranjo/[0.05] ${SOMBRA_CALIDA}`}
     >
       <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
         <div className="min-w-0">
