@@ -86,7 +86,7 @@ export default function FormularioProyectoModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg"
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-borde bg-superficie shadow-lg"
       >
         <div className="flex items-start justify-between border-b border-borde px-6 py-4">
           <h2 className="font-condensed text-xl font-bold text-tinta">

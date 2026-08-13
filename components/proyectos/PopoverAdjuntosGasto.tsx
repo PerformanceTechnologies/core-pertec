@@ -20,7 +20,7 @@ export default function PopoverAdjuntosGasto({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg"
+        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl border border-borde bg-superficie shadow-lg"
       >
         <div className="flex items-start justify-between border-b border-borde px-5 py-3.5">
           <div>
@@ -42,7 +42,9 @@ export default function PopoverAdjuntosGasto({
               return (
                 <div key={gi}>
                   <div className="mb-1.5 flex items-center justify-between text-xs">
-                    <span className="text-tinta/60">{[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}</span>
+                    <span className="text-tinta/60">
+                      {[g.tag, g.label].filter(Boolean).join(" · ") || "Sin detalle"}
+                    </span>
                     <span className="font-semibold text-tinta">{fmtCLP(g.monto)}</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -81,7 +83,12 @@ export default function PopoverAdjuntosGasto({
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
           onClick={() => setLightbox(null)}
         >
-          <img src={lightbox} alt="Adjunto" className="max-h-[85vh] max-w-full rounded-lg" onClick={(e) => e.stopPropagation()} />
+          <img
+            src={lightbox}
+            alt="Adjunto"
+            className="max-h-[85vh] max-w-full rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

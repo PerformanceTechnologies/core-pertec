@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { ChecklistPlantilla, ChecklistRun, EquipoMantenimiento, EstadoEquipo, FotoEvidencia } from "@/lib/mantencion";
+import type {
+  ChecklistPlantilla,
+  ChecklistRun,
+  EquipoMantenimiento,
+  EstadoEquipo,
+  FotoEvidencia,
+} from "@/lib/mantencion";
 import FichaEquipo from "./FichaEquipo";
+import { BOTON_PRIMARIO_CHICO, TARJETA } from "@/lib/estilos";
 
 export default function TarjetaPlantilla({
   plantilla,
@@ -34,7 +41,11 @@ export default function TarjetaPlantilla({
   onNuevaInspeccion: (equipo: EquipoMantenimiento) => void;
   onSetEstado: (equipo: EquipoMantenimiento, estado: EstadoEquipo) => void;
   onCheckItem: (runId: string, itemId: string, hecho: boolean) => void;
-  onUpdateItem: (runId: string, itemId: string, patch: { notas?: string | null; fotos?: FotoEvidencia[]; medicion?: Record<string, string> | null }) => void;
+  onUpdateItem: (
+    runId: string,
+    itemId: string,
+    patch: { notas?: string | null; fotos?: FotoEvidencia[]; medicion?: Record<string, string> | null },
+  ) => void;
   onCerrarRun: (runId: string) => void;
   onReabrirRun: (runId: string) => void;
   onEliminarRun: (runId: string) => void;
@@ -45,19 +56,25 @@ export default function TarjetaPlantilla({
   const secciones = new Set((plantilla.items || []).map((i) => i.seccion || "General"));
   const q = busqueda.trim().toLowerCase();
   const equiposFiltrados = q
-    ? equipos.filter((e) => e.nombre.toLowerCase().includes(q) || (e.descripcion ?? "").toLowerCase().includes(q))
+    ? equipos.filter(
+        (e) => e.nombre.toLowerCase().includes(q) || (e.descripcion ?? "").toLowerCase().includes(q),
+      )
     : equipos;
 
   return (
-    <div className="border border-borde bg-white p-4">
+    <div className={`p-4 ${TARJETA}`}>
       <div className="flex flex-wrap items-start gap-3 border-b border-borde pb-3.5">
         <button type="button" onClick={() => setAbierto((s) => !s)} className="mt-0.5 text-tinta/45">
           {abierto ? "▾" : "▸"}
         </button>
         <div className="min-w-0 flex-1">
           <span className="etiqueta-seccion">Plantilla</span>
-          <h3 className="mt-1 text-[15px] font-semibold leading-tight tracking-tight text-tinta">{plantilla.titulo}</h3>
-          {plantilla.descripcion && <p className="mt-0.5 text-xs font-light text-tinta/50">{plantilla.descripcion}</p>}
+          <h3 className="mt-1 text-[15px] font-semibold leading-tight tracking-tight text-tinta">
+            {plantilla.titulo}
+          </h3>
+          {plantilla.descripcion && (
+            <p className="mt-0.5 text-xs font-light text-tinta/50">{plantilla.descripcion}</p>
+          )}
           <p className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-tinta/45">
             <span>{secciones.size} secciones</span>
             <span>·</span>
@@ -77,11 +94,16 @@ export default function TarjetaPlantilla({
                 setAbierto(true);
                 onNuevoEquipo();
               }}
-              className="rounded-full bg-naranjo px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.1em] text-white shadow-[0_4px_14px_rgba(200,82,23,.25)] transition hover:bg-[#b14614]"
+              className={BOTON_PRIMARIO_CHICO}
             >
               + Registrar {noun}
             </button>
-            <button type="button" onClick={onEditarPlantilla} className="rounded-lg p-1.5 text-tinta/40 hover:bg-crema hover:text-naranjo" title="Editar plantilla">
+            <button
+              type="button"
+              onClick={onEditarPlantilla}
+              className="rounded-md p-1.5 text-tinta/40 transition hover:bg-crema hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-naranjo"
+              title="Editar plantilla"
+            >
               ✎
             </button>
           </div>
@@ -96,7 +118,7 @@ export default function TarjetaPlantilla({
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder={`Buscar ${noun} por nombre o descripción…`}
-              className="w-full rounded-lg border border-borde px-3 py-1.5 text-xs outline-none focus:border-naranjo/50"
+              className="w-full rounded-lg border border-borde bg-superficie px-3 py-1.5 text-xs text-tinta outline-none focus:border-naranjo/50"
             />
           )}
 

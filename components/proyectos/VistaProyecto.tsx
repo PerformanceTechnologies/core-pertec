@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Objetivo, Proyecto } from "@/lib/proyectos";
 import { puedeEnPanel, puedeVerGastos, puedeEditarGastos, type RolPanel } from "@/lib/permisos-panel";
-import { colorDe, diasEntre, parseFecha, ESTADO_PROYECTO_COLOR, ESTADO_PROYECTO_LABEL } from "@/lib/proyectos-utilidades";
+import {
+  colorDe,
+  diasEntre,
+  parseFecha,
+  ESTADO_PROYECTO_COLOR,
+  ESTADO_PROYECTO_LABEL,
+} from "@/lib/proyectos-utilidades";
 import AnilloProgreso from "./AnilloProgreso";
 import Gantt from "./Gantt";
 import TableroObjetivos from "./TableroObjetivos";
@@ -11,6 +17,7 @@ import FormularioObjetivoModal from "./FormularioObjetivoModal";
 import GastosProyecto from "./GastosProyecto";
 import GastosHeroMini from "./GastosHeroMini";
 import SeccionMantencion from "@/components/mantencion/SeccionMantencion";
+import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
 
 export default function VistaProyecto({
   proyectoId,
@@ -142,7 +149,7 @@ export default function VistaProyecto({
 
   if (error && !objetivos) {
     return (
-      <div className="rounded-2xl border border-borde bg-white p-8 text-center">
+      <div className={`p-8 text-center ${TARJETA}`}>
         <p className="text-sm font-medium text-red-600">{error}</p>
         <button
           onClick={cargar}
@@ -157,10 +164,16 @@ export default function VistaProyecto({
   const color = colorDe(proyecto?.color ?? "cobre");
 
   return (
-    <div className="flex flex-col gap-6">
+    // Mismo tope de ancho que el listado y que el resto del core: sin esto el
+    // Gantt y las dos tarjetas del hero se estiran a todo el monitor.
+    <div className="flex max-w-[1500px] flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button onClick={onVolver} className="text-sm font-medium text-tinta/60 hover:text-naranjo">
+          <button
+            type="button"
+            onClick={onVolver}
+            className="rounded text-sm font-medium text-tinta/60 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+          >
             ← Proyectos
           </button>
           {proyecto && (
@@ -172,19 +185,19 @@ export default function VistaProyecto({
           )}
         </div>
 
-        <div className="flex gap-1 rounded-full border border-borde bg-white p-1">
+        <div className="flex gap-1 rounded-lg border border-borde bg-superficie p-1">
           <button
             onClick={() => setSeccion("objetivos")}
-            className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
-              seccion === "objetivos" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
+            className={`rounded-md px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-naranjo ${
+              seccion === "objetivos" ? "bg-naranjo text-white" : "text-tinta/50 hover:text-tinta"
             }`}
           >
             Objetivos
           </button>
           <button
             onClick={() => setSeccion("mantencion")}
-            className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
-              seccion === "mantencion" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
+            className={`rounded-md px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-naranjo ${
+              seccion === "mantencion" ? "bg-naranjo text-white" : "text-tinta/50 hover:text-tinta"
             }`}
           >
             Mantención
@@ -192,8 +205,8 @@ export default function VistaProyecto({
           {puedeVerGastosProyecto && (
             <button
               onClick={() => setSeccion("gastos")}
-              className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
-                seccion === "gastos" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
+              className={`rounded-md px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-naranjo ${
+                seccion === "gastos" ? "bg-naranjo text-white" : "text-tinta/50 hover:text-tinta"
               }`}
             >
               Gastos
@@ -213,175 +226,185 @@ export default function VistaProyecto({
         <SeccionMantencion rolPanel={rolPanel} />
       ) : (
         <>
+          {/* Las dos tarjetas del hero, en una grilla de verdad.
 
-      <div className="animar-revelar relative overflow-hidden border-b border-borde py-6">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse at 80% 10%, rgba(200,82,23,.10), transparent 50%), radial-gradient(ellipse at 8% 95%, rgba(0,160,128,.08), transparent 55%)",
-          }}
-        />
-        <div className={`relative ${puedeVerGastosProyecto ? "flex flex-col items-center justify-center gap-8 lg:flex-row lg:justify-center" : "mx-auto max-w-sm"}`}>
-          {puedeVerGastosProyecto && proyecto && (
-            <GastosHeroMini
-              proyecto={proyecto}
-              objetivos={objetivosTop}
-              onVerDetalle={() => setSeccion("gastos")}
-            />
-          )}
+          Antes eran dos bloques de max-w-sm centrados con justify-center, así
+          que en un monitor ancho quedaban una a cada extremo con medio metro de
+          crema en medio, y con un solo bloque —cuando el rol no ve gastos— la
+          tarjeta quedaba flotando sola al centro.
 
-          <div className="relative mx-auto w-full max-w-sm overflow-hidden bg-white px-6 py-5 shadow-[0_20px_40px_rgba(12,10,9,.08)]">
-            <span
-              aria-hidden
-              className="absolute inset-y-0 left-0 w-1"
-              style={{ background: "linear-gradient(180deg, #C85217 0%, #E67E3F 50%, #00A080 100%)" }}
-            />
-            <div className="flex items-baseline justify-between border-b border-borde pb-3.5">
-              <span className="etiqueta-seccion">Progreso global</span>
-              <div className="flex items-center gap-2">
-                {proyecto && (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
-                    style={{
-                      background: ESTADO_PROYECTO_COLOR[proyecto.estado].bg,
-                      color: ESTADO_PROYECTO_COLOR[proyecto.estado].texto,
-                      border: `1px solid ${ESTADO_PROYECTO_COLOR[proyecto.estado].borde}`,
-                    }}
-                  >
-                    {ESTADO_PROYECTO_LABEL[proyecto.estado]}
+          También se fueron los dos gradientes radiales del fondo: sobre el crema
+          se leían como una mancha, no como una iluminación. */}
+          <div
+            className={`animar-revelar grid grid-cols-1 gap-4 ${
+              puedeVerGastosProyecto ? "lg:grid-cols-2" : "max-w-md"
+            }`}
+          >
+            {puedeVerGastosProyecto && proyecto && (
+              <GastosHeroMini
+                proyecto={proyecto}
+                objetivos={objetivosTop}
+                onVerDetalle={() => setSeccion("gastos")}
+              />
+            )}
+
+            {/* La franja superior en teal en vez de la barra vertical con degradado
+            naranjo→teal: era el único elemento del core con tres colores en un
+            gradiente, y arrancaba justo donde la tarjeta ya tenía la regla
+            naranja de la etiqueta. */}
+            <div className={`flex flex-col border-t-[3px] border-t-teal px-5 py-4 ${TARJETA}`}>
+              <div className="flex items-baseline justify-between gap-3 border-b border-borde pb-3.5">
+                <span className="etiqueta-seccion">Progreso global</span>
+                <div className="flex items-center gap-2">
+                  {proyecto && (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
+                      style={{
+                        background: ESTADO_PROYECTO_COLOR[proyecto.estado].bg,
+                        color: ESTADO_PROYECTO_COLOR[proyecto.estado].texto,
+                        border: `1px solid ${ESTADO_PROYECTO_COLOR[proyecto.estado].borde}`,
+                      }}
+                    >
+                      {ESTADO_PROYECTO_LABEL[proyecto.estado]}
+                    </span>
+                  )}
+                  <span className="text-xs font-medium tabular-nums text-tinta/50">
+                    {hechos}/{total}
                   </span>
-                )}
-                <span className="text-xs font-medium tracking-wide text-tinta/50">
-                  {hechos}/{total}
-                </span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex justify-center py-5">
-              <div className="relative flex items-center justify-center">
-                <AnilloProgreso pct={pct} size={104} stroke={8} />
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[26px] font-medium leading-none tracking-tight text-tinta">
-                    {pct}
-                    <span className="text-xs font-normal text-tinta/50">%</span>
+              <div className="flex flex-1 items-center justify-center py-6">
+                <div className="relative flex items-center justify-center">
+                  <AnilloProgreso pct={pct} size={104} stroke={8} />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-condensed text-[28px] font-bold leading-none tracking-tight tabular-nums text-tinta">
+                      {pct}
+                      <span className="text-xs font-normal text-tinta/50">%</span>
+                    </span>
+                    <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[.18em] text-tinta/50">
+                      completado
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Las cifras en Barlow Condensed y tabulares, como en las cintas del
+              resto del core: en la tipografía de texto un 5 y un 0 tenían anchos
+              distintos y las tres columnas bailaban al cambiar de proyecto. */}
+              <div className="grid grid-cols-3 gap-0 border-t border-borde pt-4">
+                <div className="flex flex-col items-center gap-1.5">
+                  <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">
+                    Activos
                   </span>
-                  <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[.18em] text-tinta/50">completado</span>
+                  <span className="font-condensed text-xl font-bold leading-none tracking-tight tabular-nums text-naranjo">
+                    {total - hechos}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5 border-x border-borde">
+                  <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">
+                    Completados
+                  </span>
+                  <span className="font-condensed text-xl font-bold leading-none tracking-tight tabular-nums text-teal">
+                    {hechos}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">
+                    Vencen ≤7d
+                  </span>
+                  <span
+                    className={`font-condensed text-xl font-bold leading-none tracking-tight tabular-nums ${
+                      vencen > 0 ? "text-naranjo" : "text-tinta"
+                    }`}
+                  >
+                    {vencen}
+                  </span>
                 </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-3 gap-0 border-t border-borde pt-4">
-              <div className="flex flex-col items-center gap-1.5">
-                <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Activos</span>
-                <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#C85217" }}>
-                  {total - hechos}
-                </span>
-              </div>
-              <div className="flex flex-col items-center gap-1.5 border-x border-borde">
-                <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Completados</span>
-                <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#00A080" }}>
-                  {hechos}
-                </span>
-              </div>
-              <div className="flex flex-col items-center gap-1.5">
-                <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Vencen ≤7d</span>
-                <span className="text-lg font-medium leading-none tracking-tight" style={{ color: vencen > 0 ? "#b58900" : "var(--color-tinta)" }}>
-                  {vencen}
-                </span>
-              </div>
-            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-full border border-borde bg-white p-1">
-          <button
-            onClick={() => setVista("gantt")}
-            className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
-              vista === "gantt" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
-            }`}
-          >
-            Gantt
-          </button>
-          <button
-            onClick={() => setVista("checklist")}
-            className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition ${
-              vista === "checklist" ? "bg-naranjo text-white shadow-[0_4px_14px_rgba(200,82,23,.25)]" : "text-tinta/50 hover:text-tinta"
-            }`}
-          >
-            Checklist
-          </button>
-        </div>
-        {puedeCrear && (
-          <button
-            onClick={() => setEditando("nuevo")}
-            className="rounded-full bg-naranjo px-4 py-2 text-[11px] font-semibold uppercase tracking-[.12em] text-white shadow-[0_4px_14px_rgba(200,82,23,.25)] transition hover:-translate-y-px hover:bg-[#b14614] hover:shadow-[0_8px_20px_rgba(200,82,23,.35)]"
-          >
-            + Nuevo objetivo
-          </button>
-        )}
-      </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex gap-1 rounded-lg border border-borde bg-superficie p-1">
+              <button
+                onClick={() => setVista("gantt")}
+                className={`rounded-md px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-naranjo ${
+                  vista === "gantt" ? "bg-naranjo text-white" : "text-tinta/50 hover:text-tinta"
+                }`}
+              >
+                Gantt
+              </button>
+              <button
+                onClick={() => setVista("checklist")}
+                className={`rounded-md px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-naranjo ${
+                  vista === "checklist" ? "bg-naranjo text-white" : "text-tinta/50 hover:text-tinta"
+                }`}
+              >
+                Checklist
+              </button>
+            </div>
+            {puedeCrear && (
+              <button onClick={() => setEditando("nuevo")} className={BOTON_PRIMARIO}>
+                + Nuevo objetivo
+              </button>
+            )}
+          </div>
 
-      {!objetivos ? (
-        <div className="rounded-2xl border border-borde bg-white p-8 text-center text-sm text-tinta/50">Cargando…</div>
-      ) : objetivosTop.length === 0 ? (
-        <div className="rounded-2xl border border-borde bg-white p-8 text-center">
-          <p className="text-sm text-tinta/60">Aún no hay objetivos cargados.</p>
-          {puedeCrear && (
-            <button
-              onClick={() => setEditando("nuevo")}
-              className="mt-4 rounded-lg bg-naranjo px-4 py-2 text-sm font-semibold text-white hover:bg-naranjo-suave"
-            >
-              Crear el primero
-            </button>
+          {!objetivos ? (
+            <div className={`p-8 text-center text-sm text-tinta/50 ${TARJETA}`}>Cargando…</div>
+          ) : objetivosTop.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-borde p-8 text-center">
+              <p className="text-sm text-pretty text-tinta/60">Aún no hay objetivos cargados.</p>
+              {puedeCrear && (
+                <button onClick={() => setEditando("nuevo")} className={`mt-4 ${BOTON_PRIMARIO}`}>
+                  Crear el primero
+                </button>
+              )}
+            </div>
+          ) : vista === "gantt" ? (
+            <Gantt
+              objetivos={objetivosTop}
+              gastosPorObjetivo={gastosPorObjetivo}
+              puedeEditar={puedeEditar}
+              puedeAlternar={puedeAlternar}
+              onAlternar={alternarHecho}
+              onEditar={(o) => puedeEditar && setEditando(o)}
+            />
+          ) : (
+            <TableroObjetivos
+              objetivos={objetivosTop}
+              objetivosPorPadre={objetivosPorPadre}
+              rolPanel={rolPanel}
+              puedeEditar={puedeEditar}
+              puedeEliminar={puedeEliminar}
+              puedeAlternar={puedeAlternar}
+              onAlternar={alternarHecho}
+              onEditar={(o) => puedeEditar && setEditando(o)}
+              onEliminar={eliminarObjetivo}
+              onAgregarSub={agregarSub}
+            />
           )}
-        </div>
-      ) : vista === "gantt" ? (
-        <Gantt
-          objetivos={objetivosTop}
-          gastosPorObjetivo={gastosPorObjetivo}
-          puedeEditar={puedeEditar}
-          puedeAlternar={puedeAlternar}
-          onAlternar={alternarHecho}
-          onEditar={(o) => puedeEditar && setEditando(o)}
-        />
-      ) : (
-        <TableroObjetivos
-          objetivos={objetivosTop}
-          objetivosPorPadre={objetivosPorPadre}
-          rolPanel={rolPanel}
-          puedeEditar={puedeEditar}
-          puedeEliminar={puedeEliminar}
-          puedeAlternar={puedeAlternar}
-          onAlternar={alternarHecho}
-          onEditar={(o) => puedeEditar && setEditando(o)}
-          onEliminar={eliminarObjetivo}
-          onAgregarSub={agregarSub}
-        />
-      )}
 
-      {editando && (
-        <FormularioObjetivoModal
-          objetivo={editando === "nuevo" ? null : editando}
-          proyectoId={proyectoId}
-          onClose={() => setEditando(null)}
-          onGuardado={() => {
-            setEditando(null);
-            cargar();
-          }}
-          onEliminar={
-            editando !== "nuevo" && puedeEliminar
-              ? () => {
-                  eliminarObjetivo(editando);
-                  setEditando(null);
-                }
-              : null
-          }
-        />
-      )}
+          {editando && (
+            <FormularioObjetivoModal
+              objetivo={editando === "nuevo" ? null : editando}
+              proyectoId={proyectoId}
+              onClose={() => setEditando(null)}
+              onGuardado={() => {
+                setEditando(null);
+                cargar();
+              }}
+              onEliminar={
+                editando !== "nuevo" && puedeEliminar
+                  ? () => {
+                      eliminarObjetivo(editando);
+                      setEditando(null);
+                    }
+                  : null
+              }
+            />
+          )}
         </>
       )}
     </div>

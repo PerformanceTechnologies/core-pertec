@@ -1,18 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ChecklistPlantilla, ChecklistRun, EquipoMantenimiento, EstadoEquipo, FotoEvidencia, MantencionBundle } from "@/lib/mantencion";
+import type {
+  ChecklistPlantilla,
+  ChecklistRun,
+  EquipoMantenimiento,
+  EstadoEquipo,
+  FotoEvidencia,
+  MantencionBundle,
+} from "@/lib/mantencion";
 import { puedeEnPanel, type RolPanel } from "@/lib/permisos-panel";
 import { mesAnio } from "@/lib/proyectos-utilidades";
 import TarjetaPlantilla from "./TarjetaPlantilla";
 import FormularioPlantillaModal from "./FormularioPlantillaModal";
 import FormularioEquipoModal from "./FormularioEquipoModal";
+import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
 
 export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) {
   const [bundle, setBundle] = useState<MantencionBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editandoPlantilla, setEditandoPlantilla] = useState<ChecklistPlantilla | "nueva" | null>(null);
-  const [editandoEquipo, setEditandoEquipo] = useState<{ equipo: EquipoMantenimiento | null; plantilla: ChecklistPlantilla } | null>(null);
+  const [editandoEquipo, setEditandoEquipo] = useState<{
+    equipo: EquipoMantenimiento | null;
+    plantilla: ChecklistPlantilla;
+  } | null>(null);
 
   const esAdmin = rolPanel === "admin";
   const puedeOperar = puedeEnPanel(rolPanel, "run_checklist");
@@ -53,12 +64,20 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
 
   // Mutaciones optimistas locales para no perder la posición de scroll ni
   // recargar todo el árbol en cada click de checkbox.
-  const actualizarItemLocal = (runId: string, itemId: string, cambios: Partial<ChecklistRun["items"][number]>) => {
+  const actualizarItemLocal = (
+    runId: string,
+    itemId: string,
+    cambios: Partial<ChecklistRun["items"][number]>,
+  ) => {
     setBundle((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        runs: prev.runs.map((r) => (r.id !== runId ? r : { ...r, items: r.items.map((it) => (it.id === itemId ? { ...it, ...cambios } : it)) })),
+        runs: prev.runs.map((r) =>
+          r.id !== runId
+            ? r
+            : { ...r, items: r.items.map((it) => (it.id === itemId ? { ...it, ...cambios } : it)) },
+        ),
       };
     });
   };
@@ -76,7 +95,7 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
   const onUpdateItem = async (
     runId: string,
     itemId: string,
-    patch: { notas?: string | null; fotos?: FotoEvidencia[]; medicion?: Record<string, string> | null }
+    patch: { notas?: string | null; fotos?: FotoEvidencia[]; medicion?: Record<string, string> | null },
   ) => {
     actualizarItemLocal(runId, itemId, patch);
     const respuesta = await fetch(`/api/mantencion/run-items/${itemId}`, {
@@ -129,7 +148,10 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
 
   const onEliminarRun = async (runId: string, run: ChecklistRun) => {
     const doneCount = run.items.filter((i) => i.hecho).length;
-    const msg = doneCount > 0 ? `Esta inspección tiene ${doneCount} ítem(s) marcado(s). ¿Eliminarla?` : "¿Eliminar esta inspección?";
+    const msg =
+      doneCount > 0
+        ? `Esta inspección tiene ${doneCount} ítem(s) marcado(s). ¿Eliminarla?`
+        : "¿Eliminar esta inspección?";
     if (!window.confirm(msg)) return;
     const respuesta = await fetch(`/api/mantencion/inspecciones/${runId}`, { method: "DELETE" });
     if (!respuesta.ok) {
@@ -141,7 +163,10 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
 
   const onEliminarEquipo = async (equipo: EquipoMantenimiento) => {
     const runCount = (runsPorEquipo[equipo.id] ?? []).length;
-    const msg = runCount > 0 ? `"${equipo.nombre}" tiene ${runCount} inspección(es). ¿Eliminar el equipo y todo su historial?` : `¿Eliminar "${equipo.nombre}"?`;
+    const msg =
+      runCount > 0
+        ? `"${equipo.nombre}" tiene ${runCount} inspección(es). ¿Eliminar el equipo y todo su historial?`
+        : `¿Eliminar "${equipo.nombre}"?`;
     if (!window.confirm(msg)) return;
     const respuesta = await fetch(`/api/mantencion/equipos/${equipo.id}`, { method: "DELETE" });
     if (!respuesta.ok) {
@@ -152,11 +177,20 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
   };
 
   const onSetEstado = async (equipo: EquipoMantenimiento, estado: EstadoEquipo) => {
-    setBundle((prev) => (prev ? { ...prev, equipos: prev.equipos.map((e) => (e.id === equipo.id ? { ...e, estado } : e)) } : prev));
+    setBundle((prev) =>
+      prev
+        ? { ...prev, equipos: prev.equipos.map((e) => (e.id === equipo.id ? { ...e, estado } : e)) }
+        : prev,
+    );
     const respuesta = await fetch(`/api/mantencion/equipos/${equipo.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre: equipo.nombre, descripcion: equipo.descripcion, estado, secciones_activas: equipo.secciones_activas }),
+      body: JSON.stringify({
+        nombre: equipo.nombre,
+        descripcion: equipo.descripcion,
+        estado,
+        secciones_activas: equipo.secciones_activas,
+      }),
     });
     if (!respuesta.ok) cargar();
   };
@@ -165,9 +199,12 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
 
   if (error && !bundle) {
     return (
-      <div className="rounded-2xl border border-borde bg-white p-8 text-center">
+      <div className={`p-8 text-center ${TARJETA}`}>
         <p className="text-sm font-medium text-red-600">{error}</p>
-        <button onClick={cargar} className="mt-4 rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo">
+        <button
+          onClick={cargar}
+          className="mt-4 rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+        >
           Reintentar
         </button>
       </div>
@@ -175,33 +212,34 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
   }
 
   return (
-    <div className="flex flex-col gap-7">
-      <div className="animar-revelar relative overflow-hidden border-b border-borde pb-7">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse at 80% 10%, rgba(200,82,23,.12), transparent 50%), radial-gradient(ellipse at 8% 95%, rgba(0,160,128,.09), transparent 55%)",
-          }}
-        />
-        <div className="relative">
+    <div className="flex max-w-[1500px] flex-col gap-7">
+      {/* Un <h2> y no un <h1>: esta sección vive dentro de la página de un
+          proyecto, que ya tiene su propio encabezado. Con dos h1 el lector de
+          pantalla anuncia dos títulos de página en la misma vista.
+
+          El conteo de plantillas y equipos entra al encabezado en vez de ser un
+          h2 suelto abajo: era un título sin sección que titular. */}
+      <div className="animar-revelar flex flex-col gap-4 border-b border-borde pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
           <span className="etiqueta-seccion">PERTEC · {mesAnio()}</span>
-          <h1 className="mt-2.5 text-[28px] font-medium uppercase leading-[1.1] tracking-tight text-tinta sm:text-[32px]">Mantención</h1>
-          <p className="mt-2 max-w-lg text-sm font-light leading-relaxed text-tinta/55">
+          <h2 className="mt-2 font-condensed text-3xl font-bold uppercase leading-[0.95] tracking-tight text-tinta sm:text-4xl">
+            Mantención
+          </h2>
+          <p className="mt-3 max-w-[52ch] text-sm font-light leading-relaxed text-pretty text-tinta/55">
             Plantillas de checklist, equipos/herramientas e historial de inspecciones.
           </p>
+          <p className="mt-2 text-xs font-medium tabular-nums text-tinta/45">
+            {bundle
+              ? `${bundle.plantillas.length} plantilla${bundle.plantillas.length === 1 ? "" : "s"} · ${totalEquipos} equipo${totalEquipos === 1 ? "" : "s"}`
+              : "Cargando…"}
+          </p>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium leading-none tracking-tight text-tinta">
-          {bundle ? `${bundle.plantillas.length} plantilla${bundle.plantillas.length === 1 ? "" : "s"} · ${totalEquipos} equipo${totalEquipos === 1 ? "" : "s"}` : "Cargando…"}
-        </h2>
         {puedeOperar && (
           <button
+            type="button"
             onClick={() => setEditandoPlantilla("nueva")}
-            className="rounded-full bg-naranjo px-4 py-2 text-[11px] font-semibold uppercase tracking-[.12em] text-white shadow-[0_4px_14px_rgba(200,82,23,.25)] transition hover:-translate-y-px hover:bg-[#b14614] hover:shadow-[0_8px_20px_rgba(200,82,23,.35)]"
+            className={`shrink-0 self-start ${BOTON_PRIMARIO}`}
           >
             + Nueva plantilla
           </button>
@@ -209,10 +247,10 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
       </div>
 
       {!bundle ? (
-        <div className="rounded-2xl border border-borde bg-white p-8 text-center text-sm text-tinta/50">Cargando…</div>
+        <div className={`p-8 text-center text-sm text-tinta/50 ${TARJETA}`}>Cargando…</div>
       ) : bundle.plantillas.length === 0 ? (
-        <div className="rounded-2xl border border-borde bg-white p-8 text-center">
-          <p className="text-sm text-tinta/60">No hay plantillas de mantención.</p>
+        <div className="rounded-xl border border-dashed border-borde p-8 text-center">
+          <p className="text-sm text-pretty text-tinta/60">No hay plantillas de mantención.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

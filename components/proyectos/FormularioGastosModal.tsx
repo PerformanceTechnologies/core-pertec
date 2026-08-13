@@ -149,7 +149,10 @@ function FilaGastoRow({
       {abierto && (
         <div className="mt-2 flex flex-wrap gap-2 border-t border-borde pt-2">
           {archivos.map((a, i) => (
-            <div key={i} className="group relative h-16 w-16 flex-none overflow-hidden rounded-md border border-borde">
+            <div
+              key={i}
+              className="group relative h-16 w-16 flex-none overflow-hidden rounded-md border border-borde"
+            >
               {a.tipo.startsWith("image/") ? (
                 <img
                   src={a.url}
@@ -199,7 +202,12 @@ function FilaGastoRow({
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
           onClick={() => setLightbox(null)}
         >
-          <img src={lightbox} alt="Adjunto" className="max-h-[85vh] max-w-full rounded-lg" onClick={(e) => e.stopPropagation()} />
+          <img
+            src={lightbox}
+            alt="Adjunto"
+            className="max-h-[85vh] max-w-full rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </li>
@@ -217,9 +225,11 @@ export default function FormularioGastosModal({
   onClose: () => void;
   onGuardado: () => void;
 }) {
-  const [presupuesto, setPresupuesto] = useState(proyecto.presupuesto_inicial != null ? String(proyecto.presupuesto_inicial) : "");
+  const [presupuesto, setPresupuesto] = useState(
+    proyecto.presupuesto_inicial != null ? String(proyecto.presupuesto_inicial) : "",
+  );
   const [saldoGlobalAsignado, setSaldoGlobalAsignado] = useState(
-    proyecto.saldo_global_asignado != null ? String(proyecto.saldo_global_asignado) : ""
+    proyecto.saldo_global_asignado != null ? String(proyecto.saldo_global_asignado) : "",
   );
   const [items, setItems] = useState<FilaGasto[]>(
     (proyecto.gastos ?? []).map((g) => ({
@@ -229,7 +239,7 @@ export default function FormularioGastosModal({
       monto: g.monto != null ? String(g.monto) : "",
       archivos: g.archivos ?? [],
       objetivoId: g.objetivo_id ?? null,
-    }))
+    })),
   );
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -268,7 +278,10 @@ export default function FormularioGastosModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-borde bg-superficie shadow-lg"
+      >
         <div className="flex items-start justify-between border-b border-borde px-6 py-4">
           <div>
             <span className="etiqueta-seccion">Configurar gastos</span>
@@ -281,7 +294,9 @@ export default function FormularioGastosModal({
 
         <div className="flex flex-col gap-4 px-6 py-5">
           <label>
-            <span className="block text-[10px] font-semibold uppercase tracking-[.1em] text-tinta/60">Presupuesto inicial (CLP)</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[.1em] text-tinta/60">
+              Presupuesto inicial (CLP)
+            </span>
             <input
               type="number"
               min="0"
@@ -294,7 +309,9 @@ export default function FormularioGastosModal({
           </label>
 
           <label>
-            <span className="block text-[10px] font-semibold uppercase tracking-[.1em] text-tinta/60">Saldo global asignado (CLP)</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[.1em] text-tinta/60">
+              Saldo global asignado (CLP)
+            </span>
             <input
               type="number"
               min="0"
@@ -314,13 +331,16 @@ export default function FormularioGastosModal({
               Gastado <strong className="text-tinta">{fmtCLP(totalGastado)}</strong>
             </span>
             <span>
-              Disponible <strong className={disponible < 0 ? "text-red-600" : "text-tinta"}>{fmtCLP(disponible)}</strong>
+              Disponible{" "}
+              <strong className={disponible < 0 ? "text-red-600" : "text-tinta"}>{fmtCLP(disponible)}</strong>
             </span>
           </div>
 
           <div>
             <span className="etiqueta-seccion">Partidas de gasto</span>
-            <p className="mt-1 text-[11px] text-tinta/50">📎 para adjuntar boletas, facturas o fotos de respaldo a una partida.</p>
+            <p className="mt-1 text-[11px] text-tinta/50">
+              📎 para adjuntar boletas, facturas o fotos de respaldo a una partida.
+            </p>
             <ul className="mt-3 flex flex-col gap-2">
               {items.map((it, i) => (
                 <FilaGastoRow
@@ -344,7 +364,11 @@ export default function FormularioGastosModal({
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
           <div className="mt-2 flex justify-end gap-2 border-t border-borde pt-4">
-            <button type="button" onClick={onClose} className="rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40"
+            >
               Cancelar
             </button>
             <button

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { GastoItem, Objetivo, Proyecto } from "@/lib/proyectos";
 import { CAT_COLOR, catLabel, colorDe, fmtCLP, mesAnio } from "@/lib/proyectos-utilidades";
 import AnilloProgreso from "./AnilloProgreso";
+import { BOTON_PRIMARIO_CHICO, TARJETA } from "@/lib/estilos";
 
 interface Categoria {
   categoria: string;
@@ -63,25 +64,24 @@ export default function GastosHeroMini({
   const maxObjetivo = porObjetivo[0]?.total || 1;
 
   return (
-    <div className="relative mx-auto w-full max-w-sm overflow-hidden bg-white px-6 py-5 shadow-[0_20px_40px_rgba(12,10,9,.08)]">
-      <span
-        aria-hidden
-        className="absolute inset-y-0 left-0 w-1"
-        style={{ background: "linear-gradient(180deg, #C85217 0%, #E67E3F 50%, #00A080 100%)" }}
-      />
-      <div className="flex items-baseline justify-between border-b border-borde pb-3.5">
+    <div className={`flex w-full flex-col border-t-[3px] border-t-naranjo px-5 py-4 ${TARJETA}`}>
+      <div className="flex items-baseline justify-between gap-3 border-b border-borde pb-3.5">
         <span className="etiqueta-seccion">Gastos · {mesAnio()}</span>
-        <span className="text-xs font-medium tracking-wide text-tinta/50">
+        <span className="text-xs font-medium tabular-nums text-tinta/50">
           {fmtCLP(gastado)}
           {presupuesto > 0 && ` / ${fmtCLP(presupuesto)}`}
         </span>
       </div>
 
-      <div className="flex justify-center py-5">
+      <div className="flex justify-center py-6">
         <div className="relative flex items-center justify-center">
           <AnilloProgreso pct={pctUsado} size={104} stroke={8} />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`text-[26px] font-medium leading-none tracking-tight ${sobrePresupuesto ? "text-red-600" : "text-tinta"}`}>
+            <span
+              className={`font-condensed text-[28px] font-bold leading-none tracking-tight tabular-nums ${
+                sobrePresupuesto ? "text-red-600" : "text-tinta"
+              }`}
+            >
               {pctUsado}
               <span className="text-xs font-normal text-tinta/50">%</span>
             </span>
@@ -94,18 +94,28 @@ export default function GastosHeroMini({
 
       <div className="grid grid-cols-3 gap-0 border-t border-borde pt-4">
         <div className="flex flex-col items-center gap-1.5">
-          <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Presupuesto</span>
-          <span className="text-lg font-medium leading-none tracking-tight text-tinta">{fmtCLP(presupuesto)}</span>
+          <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">
+            Presupuesto
+          </span>
+          <span className="font-condensed text-lg font-bold leading-none tracking-tight tabular-nums text-tinta">
+            {fmtCLP(presupuesto)}
+          </span>
         </div>
         <div className="flex flex-col items-center gap-1.5 border-x border-borde">
           <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Gastado</span>
-          <span className="text-lg font-medium leading-none tracking-tight" style={{ color: "#C85217" }}>
+          <span className="font-condensed text-lg font-bold leading-none tracking-tight tabular-nums text-naranjo">
             {fmtCLP(gastado)}
           </span>
         </div>
         <div className="flex flex-col items-center gap-1.5">
-          <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">Disponible</span>
-          <span className="text-lg font-medium leading-none tracking-tight" style={{ color: sobrePresupuesto ? "#dc2626" : "#00A080" }}>
+          <span className="text-[8.5px] font-semibold uppercase tracking-[.14em] text-tinta/50">
+            Disponible
+          </span>
+          <span
+            className={`font-condensed text-lg font-bold leading-none tracking-tight tabular-nums ${
+              sobrePresupuesto ? "text-red-600" : "text-teal"
+            }`}
+          >
             {fmtCLP(disponible)}
           </span>
         </div>
@@ -119,12 +129,12 @@ export default function GastosHeroMini({
           · {gastos.length} partida{gastos.length === 1 ? "" : "s"}
         </p>
         {porObjetivo.length > 0 && (
-          <div className="flex gap-0.5 rounded-full border border-borde bg-white p-0.5">
+          <div className="flex gap-0.5 rounded-md border border-borde bg-superficie p-0.5">
             <button
               type="button"
               onClick={() => setVista("categoria")}
-              className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.06em] transition ${
-                vista === "categoria" ? "bg-naranjo text-white" : "text-tinta/45"
+              className={`rounded px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.06em] transition ${
+                vista === "categoria" ? "bg-naranjo text-white" : "text-tinta/45 hover:text-tinta"
               }`}
             >
               Categoría
@@ -132,8 +142,8 @@ export default function GastosHeroMini({
             <button
               type="button"
               onClick={() => setVista("objetivo")}
-              className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.06em] transition ${
-                vista === "objetivo" ? "bg-naranjo text-white" : "text-tinta/45"
+              className={`rounded px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.06em] transition ${
+                vista === "objetivo" ? "bg-naranjo text-white" : "text-tinta/45 hover:text-tinta"
               }`}
             >
               Objetivo
@@ -154,11 +164,18 @@ export default function GastosHeroMini({
               return (
                 <li key={c.categoria} className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color.bg }} />
-                  <span className="w-16 shrink-0 truncate text-[10px] text-tinta/70">{catLabel(c.categoria)}</span>
-                  <div className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-crema">
-                    <div className="h-full rounded-full" style={{ width: `${(c.total / maxCategoria) * 100}%`, background: color.bg }} />
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-tinta/70">
+                    {catLabel(c.categoria)}
+                  </span>
+                  <div className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-crema sm:w-20">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${(c.total / maxCategoria) * 100}%`, background: color.bg }}
+                    />
                   </div>
-                  <span className="shrink-0 text-right text-[10px] font-medium text-tinta">{fmtCLP(c.total)}</span>
+                  <span className="shrink-0 text-right text-[11px] font-medium tabular-nums text-tinta">
+                    {fmtCLP(c.total)}
+                  </span>
                 </li>
               );
             })}
@@ -175,23 +192,27 @@ export default function GastosHeroMini({
             return (
               <li key={r.objetivo.id} className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color.bg }} />
-                <span className="w-16 shrink-0 truncate text-[10px] text-tinta/70">{r.objetivo.titulo}</span>
-                <div className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-crema">
-                  <div className="h-full rounded-full" style={{ width: `${(r.total / maxObjetivo) * 100}%`, background: color.bg }} />
+                <span className="min-w-0 flex-1 truncate text-[11px] text-tinta/70">{r.objetivo.titulo}</span>
+                <div className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-crema sm:w-20">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${(r.total / maxObjetivo) * 100}%`, background: color.bg }}
+                  />
                 </div>
-                <span className="shrink-0 text-right text-[10px] font-medium text-tinta">{fmtCLP(r.total)}</span>
+                <span className="shrink-0 text-right text-[11px] font-medium tabular-nums text-tinta">
+                  {fmtCLP(r.total)}
+                </span>
               </li>
             );
           })}
         </ul>
       )}
 
-      <button
-        onClick={onVerDetalle}
-        className="mt-4 self-start rounded-full bg-naranjo px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[.1em] text-white shadow-[0_4px_14px_rgba(200,82,23,.25)] transition hover:-translate-y-px hover:bg-[#b14614]"
-      >
-        Ver detalle de gastos →
-      </button>
+      <div className="mt-auto pt-4">
+        <button type="button" onClick={onVerDetalle} className={BOTON_PRIMARIO_CHICO}>
+          Ver detalle de gastos →
+        </button>
+      </div>
     </div>
   );
 }

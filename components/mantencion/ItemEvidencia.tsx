@@ -13,7 +13,11 @@ export default function ItemEvidencia({
   item: ChecklistRunItem;
   editable: boolean;
   onCheck: (hecho: boolean) => void;
-  onUpdate: (patch: { notas?: string | null; fotos?: FotoEvidencia[]; medicion?: Record<string, string> | null }) => void;
+  onUpdate: (patch: {
+    notas?: string | null;
+    fotos?: FotoEvidencia[];
+    medicion?: Record<string, string> | null;
+  }) => void;
 }) {
   const fotos = item.fotos ?? [];
   const [abierto, setAbierto] = useState(false);
@@ -78,14 +82,18 @@ export default function ItemEvidencia({
     onUpdate({ fotos: fotos.filter((_, i) => i !== idx) });
   };
 
-  const medCompletaAhora = !tieneMedicion || MED_FIELDS.every((f) => (med[f.k] ?? "").toString().trim() !== "");
+  const medCompletaAhora =
+    !tieneMedicion || MED_FIELDS.every((f) => (med[f.k] ?? "").toString().trim() !== "");
   const bloqueaCheck = tieneMedicion && !medCompletaAhora;
   const justificado = !item.hecho && !!(item.notas && item.notas.trim());
 
   return (
     <li className="border-b border-borde/60 py-2 last:border-b-0">
       <div className="flex items-center gap-3">
-        <label className="inline-flex cursor-pointer items-center" title={bloqueaCheck ? "Completa los datos de temperatura para marcar" : undefined}>
+        <label
+          className="inline-flex cursor-pointer items-center"
+          title={bloqueaCheck ? "Completa los datos de temperatura para marcar" : undefined}
+        >
           <input
             type="checkbox"
             checked={item.hecho}
@@ -94,9 +102,14 @@ export default function ItemEvidencia({
             className="h-[18px] w-[18px] accent-naranjo disabled:opacity-40"
           />
         </label>
-        <span className={`flex-1 text-sm ${item.hecho ? "text-tinta/45 line-through" : "text-tinta"}`}>{item.titulo}</span>
+        <span className={`flex-1 text-sm ${item.hecho ? "text-tinta/45 line-through" : "text-tinta"}`}>
+          {item.titulo}
+        </span>
         {justificado && (
-          <span className="rounded-full bg-crema px-2 py-0.5 text-[10px] font-semibold uppercase text-tinta/50" title="Justificado con nota — no aplica">
+          <span
+            className="rounded-full bg-crema px-2 py-0.5 text-[10px] font-semibold uppercase text-tinta/50"
+            title="Justificado con nota — no aplica"
+          >
             N/A
           </span>
         )}
@@ -113,12 +126,14 @@ export default function ItemEvidencia({
 
       {tieneMedicion && (
         <div className="mt-2.5 rounded-lg bg-crema/60 p-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-tinta/50">Temperatura — levante / tiempos</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-tinta/50">
+            Temperatura — levante / tiempos
+          </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {MED_FIELDS.map((f) => (
               <label key={f.k} className="flex flex-col gap-1">
                 <span className="text-[10px] text-tinta/50">{f.l}</span>
-                <div className="flex items-center gap-1 rounded-md border border-borde bg-white px-2 py-1">
+                <div className="flex items-center gap-1 rounded-md border border-borde bg-superficie px-2 py-1">
                   <input
                     type="text"
                     inputMode="decimal"
@@ -134,7 +149,11 @@ export default function ItemEvidencia({
               </label>
             ))}
           </div>
-          {bloqueaCheck && editable && <p className="mt-1.5 text-[11px] text-naranjo">Completa los 4 campos para poder marcar este ítem.</p>}
+          {bloqueaCheck && editable && (
+            <p className="mt-1.5 text-[11px] text-naranjo">
+              Completa los 4 campos para poder marcar este ítem.
+            </p>
+          )}
         </div>
       )}
 
@@ -157,8 +176,16 @@ export default function ItemEvidencia({
         <div className="mt-2.5">
           <div className="flex flex-wrap gap-2">
             {fotos.map((f, i) => (
-              <div key={i} className="group relative h-16 w-16 overflow-hidden rounded-md border border-borde">
-                <img src={f.url} alt={f.nombre} className="h-full w-full cursor-pointer object-cover" onClick={() => setLightbox(f.url)} />
+              <div
+                key={i}
+                className="group relative h-16 w-16 overflow-hidden rounded-md border border-borde"
+              >
+                <img
+                  src={f.url}
+                  alt={f.nombre}
+                  className="h-full w-full cursor-pointer object-cover"
+                  onClick={() => setLightbox(f.url)}
+                />
                 {editable && (
                   <button
                     type="button"
@@ -172,7 +199,15 @@ export default function ItemEvidencia({
             ))}
             {editable && (
               <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-borde text-tinta/40 hover:border-naranjo/50 hover:text-naranjo">
-                <input ref={inputRef} type="file" accept="image/*" multiple hidden disabled={subiendo} onChange={(e) => subirFotos(e.target.files)} />
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  disabled={subiendo}
+                  onChange={(e) => subirFotos(e.target.files)}
+                />
                 <span className="text-lg">{subiendo ? "…" : "+"}</span>
                 <span className="text-[9px]">foto</span>
               </label>
@@ -183,8 +218,16 @@ export default function ItemEvidencia({
       )}
 
       {lightbox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="Foto" className="max-h-[85vh] max-w-full rounded-lg" onClick={(e) => e.stopPropagation()} />
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <img
+            src={lightbox}
+            alt="Foto"
+            className="max-h-[85vh] max-w-full rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </li>
