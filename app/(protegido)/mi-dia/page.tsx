@@ -354,7 +354,7 @@ export default async function MiDiaPage() {
         className="rounded-2xl px-6 py-7 sm:px-8 sm:py-9"
         style={{
           backgroundImage:
-            "linear-gradient(135deg, color-mix(in srgb, var(--color-tinta) 80%, var(--color-crema)) 0%, color-mix(in srgb, var(--color-tinta) 90%, var(--color-crema)) 100%)",
+            "linear-gradient(135deg, color-mix(in srgb, var(--color-tinta) 72%, var(--color-crema)) 0%, color-mix(in srgb, var(--color-tinta) 84%, var(--color-crema)) 100%)",
         }}
       >
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
@@ -368,7 +368,7 @@ export default async function MiDiaPage() {
               <br />
               {resto.join(", ")}
             </h1>
-            <p className="mt-4 max-w-[52ch] text-sm text-pretty text-crema/50">
+            <p className="mt-4 max-w-[52ch] text-sm text-pretty text-crema/65">
               Resumen de tu correo de los últimos días y de las reuniones de hoy y los próximos. Cada fila
               abre el mensaje o la cita en Outlook.
             </p>
