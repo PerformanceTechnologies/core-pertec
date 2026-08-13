@@ -554,17 +554,33 @@ export interface KpisProyectos {
 
 const ESTADOS_TAREA_CERRADA = ["1_done", "1_canceled"];
 
+/**
+ * Una tarea esta terminada si Odoo la cerro por su estado nativo O si esta
+ * marcada como objetivo cumplido.
+ *
+ * Las tareas que el panel de proyectos de Odoo usa como OBJETIVOS nunca cambian
+ * de `state`: quedan todas en 01_in_progress y se marcan con objetivo_done (ver
+ * pertec_project_panel/models/project_task.py). Mirando solo el estado, el panel
+ * decia "Completadas 0" con seis objetivos ya terminados y ademas los listaba
+ * como tareas abiertas.
+ */
+
 export async function obtenerKpisProyectos(): Promise<KpisProyectos> {
   const [{ data: proyectos }, { data: tareas }] = await Promise.all([
     supabaseAdmin.from("panel_odoo_proyectos").select("activo").eq("activo", true),
-    supabaseAdmin.from("panel_odoo_tareas").select("estado"),
+    supabaseAdmin.from("panel_odoo_tareas").select("estado, completado"),
   ]);
 
-  const filasTareas = tareas ?? [];
+  const filasTareas = (tareas ?? []) as { estado: string; completado: boolean }[];
+  const cerrada = (t: { estado: string; completado: boolean }) =>
+    t.completado || ESTADOS_TAREA_CERRADA.includes(t.estado);
+
   return {
     proyectosActivos: (proyectos ?? []).length,
-    tareasAbiertas: filasTareas.filter((t) => !ESTADOS_TAREA_CERRADA.includes(t.estado)).length,
-    tareasCompletadas: filasTareas.filter((t) => t.estado === "1_done").length,
+    tareasAbiertas: filasTareas.filter((t) => !cerrada(t)).length,
+    // Se cuentan las canceladas aparte de las hechas: una tarea cancelada esta
+    // cerrada, pero no completada.
+    tareasCompletadas: filasTareas.filter((t) => t.completado || t.estado === "1_done").length,
   };
 }
 
@@ -573,6 +589,9 @@ export async function listarTareasRecientes(limite = 5): Promise<FilaTarea[]> {
     .from("panel_odoo_tareas")
     .select("odoo_id, proyecto_nombre, nombre, etapa, estado, fecha_limite, asignados")
     .not("estado", "in", `(${ESTADOS_TAREA_CERRADA.join(",")})`)
+    // Los objetivos ya cumplidos no son tareas abiertas, aunque su estado nativo
+    // siga en 01_in_progress.
+    .eq("completado", false)
     .order("fecha_limite", { ascending: true, nullsFirst: false })
     .limit(limite);
   return (data ?? []) as FilaTarea[];
