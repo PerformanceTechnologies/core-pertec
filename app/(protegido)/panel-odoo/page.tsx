@@ -1,11 +1,14 @@
+import { Suspense } from "react";
 import { exigirAccesoPanelOdoo } from "@/lib/panel-odoo";
 import { COMPANIAS_ODOO, COMPANIA_ODOO_DEFECTO } from "@/lib/panel-odoo/companias";
+import { NOMBRES_MODULO } from "@/lib/panel-odoo/orden-modulos";
 import { obtenerUltimasEjecuciones } from "@/lib/panel-odoo/sync-ejecuciones";
 import { obtenerOrdenModulos } from "@/lib/panel-odoo/orden-modulos";
 import SelectorEmpresa from "@/components/panel-odoo/SelectorEmpresa";
 import BotonActualizarOdoo from "@/components/panel-odoo/BotonActualizarOdoo";
 import BotonOrdenarTarjetas from "@/components/panel-odoo/BotonOrdenarTarjetas";
 import OrdenTarjetasOdoo from "@/components/panel-odoo/OrdenTarjetasOdoo";
+import EsqueletoTarjeta from "@/components/panel-odoo/EsqueletoTarjeta";
 import TarjetaFacturas from "@/components/panel-odoo/TarjetaFacturas";
 import TarjetaContabilidad from "@/components/panel-odoo/TarjetaContabilidad";
 import TarjetaCrm from "@/components/panel-odoo/TarjetaCrm";
@@ -45,7 +48,9 @@ export default async function PanelOdooPage({
   // directo pasaba a ser ese <div> vacio en vez de la tarjeta con borde).
   const tarjetasPorModulo: Record<ModuloVisiblePanelOdoo, ReactNode> = {
     facturas: <TarjetaFacturas key="facturas" companyId={companyId} ejecucion={ejecuciones.facturas} />,
-    contabilidad: <TarjetaContabilidad key="contabilidad" companyId={companyId} ejecucion={ejecuciones.contabilidad} />,
+    contabilidad: (
+      <TarjetaContabilidad key="contabilidad" companyId={companyId} ejecucion={ejecuciones.contabilidad} />
+    ),
     crm: <TarjetaCrm key="crm" companyId={companyId} ejecucion={ejecuciones.crm} />,
     gastos: <TarjetaGastos key="gastos" companyId={companyId} ejecucion={ejecuciones.gastos} />,
     ventas: <TarjetaVentas key="ventas" companyId={companyId} ejecucion={ejecuciones.ventas} />,
@@ -76,12 +81,26 @@ export default async function PanelOdooPage({
 
       {modulosVisibles.length === 0 ? (
         <p className="mt-8 text-sm text-tinta/50">
-          No tienes ningún módulo asignado en Panel Odoo. Pídele a un administrador que te
-          asigne acceso.
+          No tienes ningún módulo asignado en Panel Odoo. Pídele a un administrador que te asigne acceso.
         </p>
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {modulosARenderizar.map((modulo) => tarjetasPorModulo[modulo])}
+          {/* Un Suspense POR TARJETA, no uno para toda la grilla.
+
+              Sin esto la pagina entera —titulo, selector de empresa, boton de
+              actualizar— esperaba a que las ocho tarjetas terminaran sus 27
+              consultas, porque el `await` de cada tarjeta bloquea el render del
+              arbol completo. Con un limite por tarjeta, la cascara se manda de
+              inmediato y cada tarjeta entra en su hueco cuando esta lista: la
+              mas rapida ya no espera a la mas lenta.
+
+              El fallback tiene el mismo alto y borde que la tarjeta real, asi
+              que la grilla no salta cuando cada una llega. */}
+          {modulosARenderizar.map((modulo) => (
+            <Suspense key={modulo} fallback={<EsqueletoTarjeta titulo={NOMBRES_MODULO[modulo]} />}>
+              {tarjetasPorModulo[modulo]}
+            </Suspense>
+          ))}
         </div>
       )}
     </div>
