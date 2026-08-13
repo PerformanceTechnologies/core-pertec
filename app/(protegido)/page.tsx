@@ -64,17 +64,22 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Sin resumen al lado (rol sin acceso a Mi Día) el calendario no se
-            estira: se queda en su ancho y a la izquierda, que es donde estaba
-            antes de este cambio. Las clases se eligen enteras y no se apilan
-            dos anchos lg: cuál gana depende del orden en el CSS generado, no
-            del orden en que se escriben acá. */}
+        {/* El rótulo "Hoy / Tu calendario" se fue: ocupaba unos 60px arriba del
+            widget y dejaba al calendario arrancando bastante más abajo que la
+            tarjeta del resumen, con la que ahora comparte fila. El widget ya
+            trae su propio encabezado con el mes y el ícono, así que el rótulo
+            era un segundo título para lo mismo.
+
+            Queda como sr-only para que la estructura de encabezados de la
+            página siga completa para un lector de pantalla.
+
+            Sin resumen al lado (rol sin acceso a Mi Día) el calendario se queda
+            en su ancho y a la izquierda. Las clases se eligen enteras y no se
+            apilan dos anchos lg: cuál gana depende del orden en el CSS
+            generado, no del orden en que se escriben acá. */}
         <div className={veResumen ? "mt-8 lg:mt-0 lg:w-[264px] lg:shrink-0" : "mt-8 lg:mt-0 lg:w-[264px]"}>
-          <span className="etiqueta-seccion">Hoy</span>
-          <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">Tu calendario</h2>
-          <div className="mt-4">
-            <WidgetCalendario />
-          </div>
+          <h2 className="sr-only">Tu calendario</h2>
+          <WidgetCalendario />
         </div>
       </div>
 
