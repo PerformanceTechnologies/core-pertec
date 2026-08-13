@@ -161,27 +161,35 @@ export default function TablaCotizaciones({
       <div
         className={`mt-4 hidden overflow-x-auto rounded-2xl border border-borde bg-superficie xl:block ${SOMBRA_CALIDA}`}
       >
-        <table className="w-full min-w-[1120px] table-fixed text-left text-sm">
+        {/* OCHO columnas, no diez. Empresa y Rev. bajan a una segunda línea bajo el
+            nombre del proyecto, igual que en las tarjetas.
+
+            No es un capricho: las diez columnas sumaban 1116px y a xl, con el
+            sidebar de 256px, quedan 944 de contenido, así que la tabla entraba en
+            scroll horizontal en su propio breakpoint. Con ocho suman 944 justos. Y
+            las dos que se fueron son las menos consultadas: la empresa casi
+            siempre es la misma y la revisión importa una vez que ya estás dentro.
+
+            El colgroup, el thead y cada fila TIENEN que tener el mismo número de
+            columnas. Cuando no lo tuvieron, el encabezado quedó corrido y "Cliente"
+            aparecía sobre la faena. Lo verifica scripts/verificar-tablas.mjs. */}
+        <table className="w-full min-w-[944px] table-fixed text-left text-sm">
           <colgroup>
-            <col style={{ width: 210 }} />
-            <col style={{ width: 120 }} />
-            <col style={{ width: 150 }} />
-            <col style={{ width: 100 }} />
-            <col style={{ width: 84 }} />
-            <col style={{ width: 56 }} />
-            <col style={{ width: 108 }} />
-            <col style={{ width: 64 }} />
-            <col style={{ width: 84 }} />
+            <col style={{ width: 220 }} />
             <col style={{ width: 140 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 92 }} />
+            <col style={{ width: 112 }} />
+            <col style={{ width: 70 }} />
+            <col style={{ width: 88 }} />
+            <col style={{ width: 122 }} />
           </colgroup>
           <thead className="border-b border-borde bg-crema/60 text-[11px] font-medium text-tinta/50">
             <tr>
               <th className="px-3 py-3">Proyecto</th>
-              <th className="px-3 py-3">Empresa</th>
               <th className="px-3 py-3">Cliente</th>
               <th className="px-3 py-3">Faena</th>
               <th className="px-3 py-3">Tipo</th>
-              <th className="px-3 py-3">Rev.</th>
               <th className="px-3 py-3 text-right">Monto neto/mes</th>
               <th className="px-3 py-3 text-right">Margen</th>
               <th className="px-3 py-3">Estado</th>
