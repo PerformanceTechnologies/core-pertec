@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { listarRendiciones } from "@/lib/rendidor/datos";
 import { buscarEmpleadoPorCorreo } from "@/lib/rendidor/odoo";
@@ -30,18 +29,6 @@ async function CampoEmpleado({ correo }: { correo: string }) {
     return null;
   });
   return <SelectorEmpleado inicial={empleado} />;
-}
-
-function CampoEmpleadoCargando() {
-  return (
-    <div>
-      <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
-        Quién rinde (empleado de Odoo)
-      </label>
-      <div className="mt-1 h-[38px] animate-pulse rounded-md border border-borde bg-tinta/5" />
-      <p className="mt-1 text-[10px] text-tinta/40">Buscando tu ficha en Odoo...</p>
-    </div>
-  );
 }
 
 export default async function RendirGastosPage() {
@@ -153,9 +140,7 @@ export default async function RendirGastosPage() {
                 className="mt-1 w-full rounded-md border border-borde bg-superficie px-2.5 py-1.5 text-sm"
               />
             </div>
-            <Suspense fallback={<CampoEmpleadoCargando />}>
-              <CampoEmpleado correo={usuario.correo} />
-            </Suspense>
+            <CampoEmpleado correo={usuario.correo} />
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
                 Monto asignado (CLP)

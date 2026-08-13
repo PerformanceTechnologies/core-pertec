@@ -1,14 +1,11 @@
-import { Suspense } from "react";
 import { exigirAccesoPanelOdoo } from "@/lib/panel-odoo";
 import { COMPANIAS_ODOO, COMPANIA_ODOO_DEFECTO } from "@/lib/panel-odoo/companias";
-import { NOMBRES_MODULO } from "@/lib/panel-odoo/orden-modulos";
 import { obtenerUltimasEjecuciones } from "@/lib/panel-odoo/sync-ejecuciones";
 import { obtenerOrdenModulos } from "@/lib/panel-odoo/orden-modulos";
 import SelectorEmpresa from "@/components/panel-odoo/SelectorEmpresa";
 import BotonActualizarOdoo from "@/components/panel-odoo/BotonActualizarOdoo";
 import BotonOrdenarTarjetas from "@/components/panel-odoo/BotonOrdenarTarjetas";
 import OrdenTarjetasOdoo from "@/components/panel-odoo/OrdenTarjetasOdoo";
-import EsqueletoTarjeta from "@/components/panel-odoo/EsqueletoTarjeta";
 import TarjetaFacturas from "@/components/panel-odoo/TarjetaFacturas";
 import TarjetaContabilidad from "@/components/panel-odoo/TarjetaContabilidad";
 import TarjetaCrm from "@/components/panel-odoo/TarjetaCrm";
@@ -92,22 +89,16 @@ export default async function PanelOdooPage({
         </p>
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Un Suspense POR TARJETA, no uno para toda la grilla.
+          {/* Sin limites de Suspense internos, a proposito: mientras alguna
+              tarjeta siga esperando su consulta, React no puede mandar nada de
+              esta pagina, asi que loading.tsx —la animacion de la marca— se
+              queda hasta que estan las ocho.
 
-              Sin esto la pagina entera —titulo, selector de empresa, boton de
-              actualizar— esperaba a que las ocho tarjetas terminaran sus 27
-              consultas, porque el `await` de cada tarjeta bloquea el render del
-              arbol completo. Con un limite por tarjeta, la cascara se manda de
-              inmediato y cada tarjeta entra en su hueco cuando esta lista: la
-              mas rapida ya no espera a la mas lenta.
-
-              El fallback tiene el mismo alto y borde que la tarjeta real, asi
-              que la grilla no salta cuando cada una llega. */}
-          {modulosARenderizar.map((modulo) => (
-            <Suspense key={modulo} fallback={<EsqueletoTarjeta titulo={NOMBRES_MODULO[modulo]} />}>
-              {tarjetasPorModulo[modulo]}
-            </Suspense>
-          ))}
+              Antes cada tarjeta tenia el suyo y aparecian de a una. Se cambio
+              porque media pagina llena y media vacia se lee como si algo hubiera
+              fallado; el costo es que ahora la espera es la de la tarjeta mas
+              lenta, para todas. */}
+          {modulosARenderizar.map((modulo) => tarjetasPorModulo[modulo])}
         </div>
       )}
     </div>

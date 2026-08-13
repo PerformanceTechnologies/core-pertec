@@ -1,25 +1,21 @@
+import CargaPertec from "@/components/CargaPertec";
 import ResumenCargando from "@/components/mi-dia/ResumenCargando";
 
-// Fallback de navegación hacia /mi-dia.
+// Mi Día lleva la animación de la marca como todos los módulos, y además los
+// pasos narrados debajo.
 //
-// Muestra lo MISMO que el Suspense interno de la página, a propósito: si acá
-// hubiera un esqueleto gris y adentro la pantalla con los pasos, al entrar se
-// verían dos estados de carga distintos uno tras otro.
+// La diferencia con el resto es cuánto dura: acá la primera visita del día lee
+// el buzón completo y lo pasa por el modelo, y eso puede ser más de un minuto.
+// La línea sola, dibujándose todo ese rato sin decir nada, se lee como una
+// página colgada; los pasos son los que explican que el sistema está trabajando
+// y por qué tarda.
 //
-// La banda oscura se dibuja completa —no como esqueleto— porque su color y su
-// forma no dependen de los datos: lo único que falta es el texto de la fecha.
+// La página ya no tiene límites de Suspense internos, así que esto se ve hasta
+// que el resumen está entero.
 export default function CargandoMiDia() {
   return (
     <div className="max-w-[1500px]">
-      <header className="rounded-2xl bg-tinta px-6 py-7 sm:px-8 sm:py-9">
-        <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
-          <span className="h-px w-6 bg-naranjo" />
-          Mi día
-        </span>
-        <div className="mt-3 h-9 w-48 animate-pulse rounded bg-crema/10" />
-        <div className="mt-2 h-9 w-64 animate-pulse rounded bg-crema/10" />
-        <div className="mt-5 h-3.5 w-full max-w-[26rem] animate-pulse rounded bg-crema/[0.06]" />
-      </header>
+      <CargaPertec modulo="Mi Día" compacto />
       <ResumenCargando />
     </div>
   );

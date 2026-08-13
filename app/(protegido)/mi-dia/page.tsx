@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { auth } from "@/auth";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
@@ -8,7 +7,6 @@ import type { ResumenGuardado, Urgencia } from "@/lib/resumen-diario/tipos";
 import type { UsuarioConAcceso } from "@/lib/tipos";
 import type { Dirigido } from "@/lib/graph-correo";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
-import ResumenCargando from "@/components/mi-dia/ResumenCargando";
 
 const SLUG_APP = "mi-dia";
 
@@ -359,18 +357,11 @@ export default async function MiDiaPage() {
             </p>
           </div>
 
-          {/* Las cifras van en su propio Suspense DENTRO de la banda: el título y
-              la fecha se pintan de inmediato y los números entran cuando están,
-              sin mover nada de lugar porque el hueco ya está reservado. */}
-          <Suspense fallback={<CifrasCargando />}>
-            <Cifras datos={datos} />
-          </Suspense>
+          <Cifras datos={datos} />
         </div>
       </header>
 
-      <Suspense fallback={<ResumenCargando />}>
-        <CuerpoResumen datos={datos} />
-      </Suspense>
+      <CuerpoResumen datos={datos} />
     </div>
   );
 }
@@ -461,20 +452,6 @@ async function Cifras({ datos }: { datos: Promise<DatosResumen> }) {
 }
 
 /** Hueco del mismo tamaño que las cifras, para que al llegar no salte nada. */
-function CifrasCargando() {
-  return (
-    <div className="grid shrink-0 grid-cols-2 gap-y-5 rounded-xl border border-crema/10 px-5 py-4 sm:grid-cols-4 sm:gap-y-0 lg:min-w-[30rem]">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className={i === 3 ? "" : "sm:border-r sm:border-crema/10"}>
-          <div className="h-8 w-10 animate-pulse rounded bg-crema/10" />
-          <div className="mt-2 h-2.5 w-16 animate-pulse rounded bg-crema/10" />
-          <div className="mt-1.5 h-2.5 w-20 animate-pulse rounded bg-crema/[0.06]" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 async function CuerpoResumen({ datos }: { datos: Promise<DatosResumen> }) {
   const { estado, credencialGuardada } = await datos;
 

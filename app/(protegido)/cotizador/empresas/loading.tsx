@@ -4,6 +4,6 @@ import CargaPertec from "@/components/CargaPertec";
 // pagina tiene TODOS sus datos: la pagina no usa limites de Suspense internos, y
 // sin ellos React no puede mandar la mitad de arriba antes de que la de abajo
 // este lista.
-export default function CargandoRendirGastos() {
-  return <CargaPertec modulo="Rendir Gastos" />;
+export default function CargandoEmpresas() {
+  return <CargaPertec modulo="las empresas" />;
 }

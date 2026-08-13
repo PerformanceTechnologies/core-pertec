@@ -12,10 +12,15 @@
  * kilobyte de JavaScript. Eso importa especialmente acá: esto se muestra
  * mientras el bundle de la página todavía se está descargando.
  */
-export default function CargaPertec({ modulo }: { modulo: string }) {
+export default function CargaPertec({ modulo, compacto = false }: { modulo: string; compacto?: boolean }) {
   return (
     <div
-      className="flex min-h-[60vh] flex-col items-center justify-center gap-6 px-6"
+      // `compacto` para cuando algo mas acompaña a la animacion (Mi Día pone
+      // debajo los pasos narrados): con los 60vh de alto completo, esa lista
+      // quedaba fuera de la pantalla.
+      className={`flex flex-col items-center justify-center px-6 ${
+        compacto ? "gap-4 py-8" : "min-h-[60vh] gap-6"
+      }`}
       // El lector de pantalla anuncia el estado una vez, con el nombre del
       // módulo; el dibujo va oculto porque no agrega nada hablado.
       role="status"
