@@ -31,9 +31,15 @@ import { parsearXmlDte } from "../xml-dte";
 
 const CODIGO_DTE_GUIA_DESPACHO = 52;
 // Boletas (39 afecta / 41 exenta): igual que guia_despacho, no salen del RCV
-// (CODIGOS_DTE_IH en sii-rcv-ih.ts no las incluye) -- el Portal MIPYME es su
-// unica fuente aqui, con pasadas DEDICADAS por el mismo motivo que las guias
-// (mezcladas con "todos los documentos" la paginacion las corta muy pronto).
+// (CODIGOS_DTE_IH en sii-rcv-ih.ts no las incluye). A diferencia de guia_despacho
+// NO tienen pasada dedicada propia: agregar 4 pasadas dedicadas mas (39/41 x
+// emi/rcp) hizo que la corrida completa superara los 60s de maxDuration de
+// Vercel Hobby (FUNCTION_INVOCATION_TIMEOUT en produccion, 2026-08-13). Como
+// son raras (~1 por semana historicamente) y la ventana incremental es de solo
+// 7 dias, casi siempre caen en la primera pagina de la pasada "todos los
+// documentos" de todos modos -- se detectan ahi mismo, sin pasada aparte. Solo
+// se pierde profundidad en una carga inicial futura (para eso esta
+// scripts/completar-pdf-emitidas.mjs, corrida a mano una vez).
 const CODIGO_DTE_BOLETA_AFECTA = 39;
 const CODIGO_DTE_BOLETA_EXENTA = 41;
 
@@ -297,74 +303,18 @@ export async function extraerGuiasYCodigosIh(
         }
       });
 
-      // Pasadas DEDICADAS a boletas (39/41), emitidas Y recibidas: a
-      // diferencia de facturas/notas (que ya trae el RCV con mas detalle),
-      // las boletas no salen del RCV -- hay que crear el DocumentoIh aca
-      // mismo, con los datos limitados que da el listado del portal (sin
-      // desglose neto/IVA, igual que guia_despacho).
-      for (const [codigoDte, tpoDoc] of [
-        [CODIGO_DTE_BOLETA_AFECTA, CODIGO_DTE_BOLETA_AFECTA] as const,
-        [CODIGO_DTE_BOLETA_EXENTA, CODIGO_DTE_BOLETA_EXENTA] as const,
-      ]) {
-        await recorrerPaginas(page, URL_EMI, "RUT_RECP", "mipeGesDocEmi", tpoDoc, opciones.cargaInicial, desdeIso, async (filas) => {
-          for (const fila of filas) {
-            if (fila.codigo) codigosEmitidos.set(claveDocumento(fila.folio, fila.rut), fila.codigo);
-            documentos.push({
-              empresa: empresa as EmpresaIh,
-              tipoDocumento: "boleta",
-              direccion: "venta",
-              codigoDte,
-              estadoSii: null,
-              rutContraparte: fila.rut,
-              razonSocialContraparte: fila.razonSocial,
-              folio: fila.folio,
-              fechaEmision: fechaAIso(fila.fecha),
-              montoExento: null,
-              montoNeto: null,
-              montoIva: null,
-              montoTotal: fila.monto,
-              periodo: fila.fecha.slice(0, 7).replace("-", ""),
-              fuente: "portal_mipyme" as const,
-              codigoPortal: fila.codigo,
-            });
-            await intentarRespaldarEnLinea(page, fila, empresa, "boleta", "venta", contextoRespaldo);
-          }
-        });
-
-        await recorrerPaginas(page, URL_RCP, "RUT_EMI", "mipeGesDocRcp", tpoDoc, opciones.cargaInicial, desdeIso, async (filas) => {
-          for (const fila of filas) {
-            if (fila.codigo) codigosRecibidos.set(claveDocumento(fila.folio, fila.rut), fila.codigo);
-            documentos.push({
-              empresa: empresa as EmpresaIh,
-              tipoDocumento: "boleta",
-              direccion: "compra",
-              codigoDte,
-              estadoSii: null,
-              rutContraparte: fila.rut,
-              razonSocialContraparte: fila.razonSocial,
-              folio: fila.folio,
-              fechaEmision: fechaAIso(fila.fecha),
-              montoExento: null,
-              montoNeto: null,
-              montoIva: null,
-              montoTotal: fila.monto,
-              periodo: fila.fecha.slice(0, 7).replace("-", ""),
-              fuente: "portal_mipyme" as const,
-              codigoPortal: fila.codigo,
-            });
-            await intentarRespaldarEnLinea(page, fila, empresa, "boleta", "compra", contextoRespaldo);
-          }
-        });
-      }
-
       // Pasada "todos los documentos" (emitidos): matchea el codigo de las
-      // facturas/notas que ya trajo el RCV (no crea DocumentoIh, ya vienen
-      // del RCV con mas detalle) Y respalda su XML en linea.
+      // facturas/notas que ya trajo el RCV (no crea DocumentoIh para esas,
+      // ya vienen del RCV con mas detalle) Y respalda su XML en linea. Las
+      // boletas SI se crean aca (no salen del RCV ni tienen pasada propia,
+      // ver comentario de CODIGO_DTE_BOLETA_AFECTA arriba).
       await recorrerPaginas(page, URL_EMI, "RUT_RECP", "mipeGesDocEmi", "", opciones.cargaInicial, desdeIso, async (filas) => {
         for (const fila of filas) {
           if (fila.codigo) codigosEmitidos.set(claveDocumento(fila.folio, fila.rut), fila.codigo);
-          // Guias y boletas ya se respaldaron arriba, con pasadas dedicadas.
-          if (fila.tipoTexto === "Guia de Despacho Electronica" || /^Boleta/.test(fila.tipoTexto)) continue;
+          if (fila.tipoTexto === "Guia de Despacho Electronica") continue; // ya se respaldo arriba
+          if (/^Boleta/.test(fila.tipoTexto)) {
+            documentos.push(documentoBoletaDesdeFila(fila, empresa as EmpresaIh, "venta"));
+          }
           await intentarRespaldarEnLinea(page, fila, empresa, tipoDocumentoDesdeTexto(fila.tipoTexto), "venta", contextoRespaldo);
         }
       });
@@ -373,7 +323,9 @@ export async function extraerGuiasYCodigosIh(
       await recorrerPaginas(page, URL_RCP, "RUT_EMI", "mipeGesDocRcp", "", opciones.cargaInicial, desdeIso, async (filas) => {
         for (const fila of filas) {
           if (fila.codigo) codigosRecibidos.set(claveDocumento(fila.folio, fila.rut), fila.codigo);
-          if (/^Boleta/.test(fila.tipoTexto)) continue; // ya se respaldo arriba
+          if (/^Boleta/.test(fila.tipoTexto)) {
+            documentos.push(documentoBoletaDesdeFila(fila, empresa as EmpresaIh, "compra"));
+          }
           await intentarRespaldarEnLinea(page, fila, empresa, tipoDocumentoDesdeTexto(fila.tipoTexto), "compra", contextoRespaldo);
         }
       });
@@ -391,6 +343,31 @@ export async function extraerGuiasYCodigosIh(
   } finally {
     await browser.close();
   }
+}
+
+// Boletas (39/41): a diferencia de facturas/notas, no vienen del RCV con
+// mas detalle -- hay que crear el DocumentoIh aca mismo, con los datos
+// limitados que da el listado del portal (sin desglose neto/IVA, igual que
+// guia_despacho).
+function documentoBoletaDesdeFila(fila: FilaPortal, empresa: EmpresaIh, direccion: "compra" | "venta"): DocumentoIh {
+  return {
+    empresa,
+    tipoDocumento: "boleta",
+    direccion,
+    codigoDte: fila.tipoTexto === "Boleta Exenta Electronica" ? CODIGO_DTE_BOLETA_EXENTA : CODIGO_DTE_BOLETA_AFECTA,
+    estadoSii: null,
+    rutContraparte: fila.rut,
+    razonSocialContraparte: fila.razonSocial,
+    folio: fila.folio,
+    fechaEmision: fechaAIso(fila.fecha),
+    montoExento: null,
+    montoNeto: null,
+    montoIva: null,
+    montoTotal: fila.monto,
+    periodo: fila.fecha.slice(0, 7).replace("-", ""),
+    fuente: "portal_mipyme" as const,
+    codigoPortal: fila.codigo,
+  };
 }
 
 function tipoDocumentoDesdeTexto(tipoTexto: string): string {
