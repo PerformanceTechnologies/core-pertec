@@ -125,18 +125,40 @@ export async function guardarDocumentosIh(documentos: DocumentoIh[]): Promise<nu
   return count ?? documentos.length;
 }
 
+// Trae TODAS las filas de una columna paginando con .range(): PostgREST tope
+// las filas por respuesta a su "db-max-rows" (1000 por defecto en Supabase)
+// sin importar el .limit()/tamaño de la tabla -- mismo motivo que
+// obtenerColumnaCompleta en lib/facturas-historicas.ts. Sin esto,
+// listarClavesYaRespaldadasIh y actualizarRespaldosPorClaveIh solo veian los
+// primeros 1000 documentos y perdian de vista el resto silenciosamente
+// (descubierto diagnosticando el FUNCTION_INVOCATION_TIMEOUT de produccion,
+// 2026-08-13 -- ver [[project-facturas-ih-boletas-bhe]]).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function paginarTodo<T>(columnas: string, filtrar?: (query: any) => any): Promise<T[]> {
+  const filas: T[] = [];
+  const tamanoPagina = 1000;
+  for (let desde = 0; ; desde += tamanoPagina) {
+    let query = supabaseAdmin.from("finanzas_ih_documentos").select(columnas).range(desde, desde + tamanoPagina - 1);
+    if (filtrar) query = filtrar(query);
+    const { data } = await query;
+    if (!data || data.length === 0) break;
+    filas.push(...(data as T[]));
+    if (data.length < tamanoPagina) break;
+  }
+  return filas;
+}
+
 // Documentos que YA tienen XML o PDF en SharePoint -- lib/finanzas-ih/
 // sii-guias-ih.ts los usa para no volver a pedirlos cada corrida (el
 // respaldo se hace EN LINEA durante el scraping, no en un paso aparte; ver
 // ese archivo para el porque).
 export async function listarClavesYaRespaldadasIh(): Promise<Set<string>> {
-  const { data } = await supabaseAdmin
-    .from("finanzas_ih_documentos")
-    .select("folio, rut_contraparte")
-    .or("xml_sharepoint_item_id.not.is.null,pdf_sharepoint_item_id.not.is.null");
+  const filas = await paginarTodo<{ folio: number; rut_contraparte: string }>("folio, rut_contraparte", (q) =>
+    q.or("xml_sharepoint_item_id.not.is.null,pdf_sharepoint_item_id.not.is.null")
+  );
 
   const claves = new Set<string>();
-  for (const fila of data ?? []) {
+  for (const fila of filas) {
     claves.add(claveDocumento(fila.folio, fila.rut_contraparte));
   }
   return claves;
@@ -148,7 +170,7 @@ export async function listarClavesYaRespaldadasIh(): Promise<Set<string>> {
 export async function actualizarRespaldosPorClaveIh(respaldos: Map<string, RespaldoDocumento>): Promise<number> {
   if (respaldos.size === 0) return 0;
 
-  const { data } = await supabaseAdmin.from("finanzas_ih_documentos").select("id, folio, rut_contraparte");
+  const data = await paginarTodo<{ id: string; folio: number; rut_contraparte: string }>("id, folio, rut_contraparte");
   let actualizados = 0;
   for (const fila of data ?? []) {
     const respaldo = respaldos.get(claveDocumento(fila.folio, fila.rut_contraparte));

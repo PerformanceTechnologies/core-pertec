@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconArrowLeft, IconRefresh, IconSearch, IconChevronUp, IconChevronDown, IconInfoCircle } from "@tabler/icons-react";
 import type { FinanzasIhDocumentoFila } from "@/lib/finanzas-ih/finanzas-ih";
@@ -116,7 +115,6 @@ export default function PanelFacturasIh({
   documentos: FinanzasIhDocumentoFila[];
   ultimaEjecucionExitosa: { ejecutado_en: string } | null;
 }) {
-  const router = useRouter();
   const [filtroEmpresa, setFiltroEmpresa] = useState<"todas" | "IH" | "IL">("todas");
   const [direccion, setDireccion] = useState<"venta" | "compra">("venta");
   const [grupoTipo, setGrupoTipo] = useState<ClaveGrupoTipo>("todos");
@@ -124,6 +122,7 @@ export default function PanelFacturasIh({
   const [ordenFecha, setOrdenFecha] = useState<"desc" | "asc">("desc");
   const [actualizando, setActualizando] = useState(false);
   const [errorActualizar, setErrorActualizar] = useState<string | null>(null);
+  const [encolado, setEncolado] = useState(false);
   const [seleccionado, setSeleccionado] = useState<FinanzasIhDocumentoFila | null>(null);
 
   const documentosFiltrados = useMemo(() => {
@@ -185,26 +184,24 @@ export default function PanelFacturasIh({
     [universoDireccion]
   );
 
-  // Dos llamadas separadas, no una: cada una es su propia invocacion de
-  // funcion en Vercel, con su propio limite de 60s (Hobby) -- juntarlas en
-  // una sola hacia que la corrida completa (SII representante + login
-  // propio de BHE) se pasara del limite y tirara FUNCTION_INVOCATION_TIMEOUT.
+  // La sincronizacion real corre en GitHub Actions, no en Vercel (superaba
+  // los 60s del plan Hobby, ver .github/workflows/finanzas-ih-cron.yml) --
+  // este boton solo la encola (workflow_dispatch) y no espera a que
+  // termine, por eso el mensaje avisa que tarda un par de minutos en verse.
   async function actualizarAhora() {
     setActualizando(true);
     setErrorActualizar(null);
-    const errores: string[] = [];
-    for (const ruta of ["/api/finanzas-ih/actualizar", "/api/finanzas-ih/actualizar-bhe"]) {
-      try {
-        const resp = await fetch(ruta, { method: "POST" });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error ?? "No se pudo actualizar.");
-      } catch (err) {
-        errores.push(err instanceof Error ? err.message : "Error desconocido");
-      }
+    setEncolado(false);
+    try {
+      const resp = await fetch("/api/finanzas-ih/actualizar", { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error ?? "No se pudo encolar la actualización.");
+      setEncolado(true);
+    } catch (err) {
+      setErrorActualizar(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setActualizando(false);
     }
-    setErrorActualizar(errores.length > 0 ? errores.join(" · ") : null);
-    router.refresh();
-    setActualizando(false);
   }
 
   return (
@@ -233,13 +230,18 @@ export default function PanelFacturasIh({
             className="inline-flex items-center gap-1.5 rounded-lg border border-borde bg-white px-3 py-1.5 text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo disabled:opacity-50"
           >
             <IconRefresh size={13} stroke={2} className={actualizando ? "animate-spin" : ""} aria-hidden />
-            {actualizando ? "Actualizando con el SII..." : "Actualizar con SII ahora"}
+            {actualizando ? "Encolando..." : "Actualizar con SII ahora"}
           </button>
           <span className="text-[11px] text-tinta/45">
             {ultimaEjecucionExitosa
               ? `Última actualización: ${new Date(ultimaEjecucionExitosa.ejecutado_en).toLocaleString("es-CL")}`
               : "Todavía no se ha ejecutado la actualización automática."}
           </span>
+          {encolado && (
+            <span className="text-[11px] text-teal">
+              Sincronización encolada — tarda 1-2 minutos, recarga la página luego.
+            </span>
+          )}
           {errorActualizar && <span className="text-[11px] text-red-600">{errorActualizar}</span>}
         </div>
       </div>

@@ -1,0 +1,51 @@
+name: Facturas IH - Sincronizacion diaria
+
+# Corre fuera de Vercel a proposito: la sincronizacion completa (RCV + Portal
+# MIPYME + boletas de honorarios, cada una con su propio login al SII) pasaba
+# los 60s de maxDuration del plan Hobby de Vercel (FUNCTION_INVOCATION_TIMEOUT
+# en produccion, 2026-08-13). GitHub Actions no tiene ese limite.
+on:
+  schedule:
+    # 10:10 UTC = 06:10 o 07:10 hora de Chile (segun horario de verano/invierno).
+    - cron: "10 10 * * *"
+  workflow_dispatch:
+    inputs:
+      cargaInicial:
+        description: "Carga inicial (paginacion profunda, mas lento)"
+        type: boolean
+        default: false
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Sincronizar Facturas IH
+        env:
+          NODE_OPTIONS: "--conditions=react-server"
+          SII_RUT_REPRESENTANTE: ${{ secrets.SII_RUT_REPRESENTANTE }}
+          SII_CLAVE_TRIBUTARIA: ${{ secrets.SII_CLAVE_TRIBUTARIA }}
+          SII_RUT_EMPRESA_IH: ${{ secrets.SII_RUT_EMPRESA_IH }}
+          SII_RUT_EMPRESA_IL: ${{ secrets.SII_RUT_EMPRESA_IL }}
+          SII_CLAVE_EMPRESA_IH: ${{ secrets.SII_CLAVE_EMPRESA_IH }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          SHAREPOINT_FACTURAS_SITE_ID: ${{ secrets.SHAREPOINT_FACTURAS_SITE_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MS_TENANT_ID: ${{ secrets.MS_TENANT_ID }}
+          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+        run: npx tsx scripts/sincronizar-finanzas-ih.mts ${{ inputs.cargaInicial && '--carga-inicial' || '' }}

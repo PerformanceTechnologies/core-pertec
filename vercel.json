@@ -9,14 +9,6 @@
       "schedule": "0 9 * * *"
     },
     {
-      "path": "/api/cron/finanzas-ih",
-      "schedule": "10 6 * * *"
-    },
-    {
-      "path": "/api/cron/finanzas-ih-bhe",
-      "schedule": "25 6 * * *"
-    },
-    {
       "path": "/api/cron/finanzas-historico",
       "schedule": "15 9 * * *"
     },
