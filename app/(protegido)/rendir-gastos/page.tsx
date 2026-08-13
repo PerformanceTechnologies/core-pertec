@@ -48,7 +48,7 @@ export default async function RendirGastosPage() {
   return (
     // El <main> del core no tiene tope de ancho y en un monitor de 1900px la
     // prosa se estiraba a todo lo largo.
-    <div className="max-w-[1500px]">
+    <div className="animar-entrada max-w-[1500px]">
       <span className="etiqueta-seccion">Rendir Gastos</span>
       <h1 className="mt-2 font-condensed text-3xl font-bold uppercase leading-none tracking-tight text-tinta sm:text-4xl">
         Mis rendiciones

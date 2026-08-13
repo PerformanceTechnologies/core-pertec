@@ -33,7 +33,7 @@ export default function PanelCotizador({
   return (
     // El <main> del core no tiene tope de ancho: sin esto, en un monitor de
     // 1900px los filtros y el título se estiran a todo lo largo.
-    <div className="max-w-[1500px]">
+    <div className="animar-entrada max-w-[1500px]">
       <Link
         href="/"
         className="text-xs font-medium text-tinta/50 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"

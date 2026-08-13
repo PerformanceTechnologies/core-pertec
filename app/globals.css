@@ -161,14 +161,44 @@ body {
   animation: latir-marca 2.4s ease-in-out infinite;
 }
 
+/* La entrada de un módulo: el contenido sube apenas y aparece.
+
+   Es más lenta y con menos recorrido que .animar-revelar (6px en vez de 10, y
+   0.55s en vez de 0.5) porque acá se mueve la página entera y no una tarjeta:
+   con el mismo salto se siente un tirón.
+
+   Corre UNA vez, al montarse el elemento — o sea al entrar al módulo. Un
+   re-render de React no la repite: React conserva el nodo del DOM y la
+   animación solo arranca cuando el nodo nace. Por eso va en el contenedor de
+   más afuera de cada módulo y no en las partes que cambian mientras se trabaja
+   (escribir en un campo o filtrar una lista no la vuelve a disparar). */
+@keyframes entrada-modulo {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animar-entrada {
+  animation: entrada-modulo 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
 /* Quien pidió menos movimiento ve la línea completa y quieta: sigue siendo una
-   señal de "esto está cargando" (el texto lo dice) sin nada animándose. */
+   señal de "esto está cargando" (el texto lo dice) sin nada animándose. Y el
+   contenido de los módulos aparece sin desplazarse. */
 @media (prefers-reduced-motion: reduce) {
   .animar-trazo-topo,
   .animar-latido-marca {
     animation: none;
     stroke-dashoffset: 0;
     opacity: 1;
+  }
+  .animar-entrada,
+  .animar-revelar {
+    animation: none;
   }
 }
 

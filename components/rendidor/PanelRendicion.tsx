@@ -912,7 +912,7 @@ export default function PanelRendicion({
   return (
     // El <main> del core no tiene tope de ancho: sin esto los campos del editor
     // se estiran a 1900px en un monitor grande.
-    <div className="max-w-[1500px]">
+    <div className="animar-entrada max-w-[1500px]">
       <span className="etiqueta-seccion">Rendir Gastos</span>
       <h1 className="mt-2 font-condensed text-3xl font-bold uppercase leading-none tracking-tight text-tinta sm:text-4xl">
         {rendicion.tituloRendicion}

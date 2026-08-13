@@ -224,7 +224,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="animar-entrada flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <span className="etiqueta-seccion">Postulaciones</span>
         <span className="flex items-center gap-2 text-xs text-tinta/45">

@@ -335,7 +335,7 @@ export default async function MiDiaPage() {
     // El <main> del core no tiene tope de ancho, así que en un monitor de 1900px
     // la prosa de este módulo se estiraba a todo lo largo. Esta página es de
     // lectura, no una tabla: necesita un límite.
-    <div className="max-w-[1500px]">
+    <div className="animar-entrada max-w-[1500px]">
       {/* La banda oscura reúne lo que antes eran tres bloques separados: el
           encabezado, la cinta de cifras y el "generado a las" del pie. Un solo
           bloque de contraste alto arriba y el resto de la página en claro. */}
