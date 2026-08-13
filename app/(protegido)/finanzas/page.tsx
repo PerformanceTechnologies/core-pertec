@@ -2,11 +2,21 @@ import Link from "next/link";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { obtenerIcono } from "@/lib/iconos";
 import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
+import { obtenerSubpanelesFinanzasGuardados, subpanelFinanzasPermitido } from "@/lib/finanzas-subpaneles-usuario";
 
 const SLUG_APP = "finanzas";
 
 export default async function FinanzasPage() {
-  await exigirAccesoApp(SLUG_APP);
+  const usuario = await exigirAccesoApp(SLUG_APP);
+
+  // Cada sub-panel de Finanzas tiene su propio permiso fino (ver
+  // lib/finanzas-subpaneles-usuario.ts), asignable por el admin desde
+  // /usuarios -- el admin siempre ve todos.
+  const guardados = usuario.rol === "admin" ? [] : await obtenerSubpanelesFinanzasGuardados(usuario.id);
+  const subpaneles =
+    usuario.rol === "admin"
+      ? SUBPANELES_FINANZAS
+      : SUBPANELES_FINANZAS.filter((sp) => subpanelFinanzasPermitido(sp.slug, guardados));
 
   return (
     <div>
@@ -19,7 +29,7 @@ export default async function FinanzasPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SUBPANELES_FINANZAS.map((sp) => {
+        {subpaneles.map((sp) => {
           const Icono = obtenerIcono(sp.icono);
           return (
             <Link

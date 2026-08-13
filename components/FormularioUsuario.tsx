@@ -1,5 +1,6 @@
 import type { Aplicacion, UsuarioConAcceso } from "@/lib/tipos";
 import { MODULOS_PANEL_ODOO } from "@/lib/panel-odoo/modulos-usuario";
+import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
 
 const ETIQUETAS_MODULO_ODOO: Record<string, string> = {
   facturas: "Facturas",
@@ -17,6 +18,7 @@ export default function FormularioUsuario({
   todasLasApps,
   valoresPorDefecto,
   modulosOdooAsignados,
+  subpanelesFinanzasAsignados,
   textoBoton,
   correoBloqueado,
 }: {
@@ -26,6 +28,9 @@ export default function FormularioUsuario({
   // undefined = sin restricción, ve todos los módulos (ver
   // lib/panel-odoo/modulos-usuario.ts: sin filas guardadas = acceso total)
   modulosOdooAsignados?: string[];
+  // idem, pero "facturas-ih" deniega por defecto sin fila explicita (ver
+  // lib/finanzas-subpaneles-usuario.ts)
+  subpanelesFinanzasAsignados?: string[];
   textoBoton: string;
   correoBloqueado?: boolean;
 }) {
@@ -127,6 +132,26 @@ export default function FormularioUsuario({
                   <option value="usuario">Cotizador: Usuario</option>
                   <option value="admin">Cotizador: Admin</option>
                 </select>
+              )}
+              {app.slug === "finanzas" && (
+                <div className="ml-6 flex flex-col gap-1">
+                  <span className="text-[11px] text-tinta/50">
+                    Sub-paneles visibles (sin marcar ninguno = ve Facturas de Compra/Venta e Históricas; SII
+                    Documentos IH - IL siempre requiere marcarse explícito, es información sensible)
+                  </span>
+                  {SUBPANELES_FINANZAS.map((sp) => (
+                    <label key={sp.slug} className="flex items-center gap-2 text-xs text-tinta/70">
+                      <input
+                        type="checkbox"
+                        name="subpaneles_finanzas"
+                        value={sp.slug}
+                        defaultChecked={subpanelesFinanzasAsignados?.includes(sp.slug) ?? false}
+                        className="h-3.5 w-3.5 rounded border-borde"
+                      />
+                      {sp.nombre}
+                    </label>
+                  ))}
+                </div>
               )}
               {app.slug === "panel-odoo" && (
                 <>

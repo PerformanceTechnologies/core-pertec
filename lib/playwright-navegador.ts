@@ -29,3 +29,25 @@ export async function lanzarNavegador() {
   const { chromium: localChromium } = await import("playwright");
   return localChromium.launch({ headless: true });
 }
+
+// Varias paginas del sitio del SII (ej. mipeGesDocEmi.cgi, mipeAdminDocsEmi.cgi)
+// disparan una redireccion de fondo poco despues de cargar (confirmado en
+// vivo: terminan en "factura_sii.htm" o en si mismas otra vez, algo tipo
+// tracking/ads). Si el siguiente goto() se dispara antes de que esa
+// redireccion en curso termine, Playwright tira "Navigation to X is
+// interrupted by another navigation to Y". gotoRobusto reintenta UNA vez
+// tras una pausa corta en vez de fallar todo el flujo por esta carrera.
+export async function gotoRobusto(
+  page: import("playwright-core").Page,
+  url: string,
+  opciones: { timeout?: number } = {}
+): Promise<void> {
+  try {
+    await page.goto(url, { timeout: opciones.timeout ?? 30000 });
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    if (!mensaje.includes("interrupted by another navigation")) throw err;
+    await page.waitForTimeout(1500);
+    await page.goto(url, { timeout: opciones.timeout ?? 30000 });
+  }
+}

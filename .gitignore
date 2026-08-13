@@ -28,6 +28,10 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# salida de scripts de exploracion manual (screenshots/HTML del SII, pueden
+# contener datos tributarios reales -- ver scripts/explorar-*.mjs)
+/scripts/exploracion-output/
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)

@@ -4,6 +4,7 @@ import { exigirAdmin } from "@/lib/autorizacion";
 import { obtenerUsuarioPorId } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import { obtenerModulosGuardados } from "@/lib/panel-odoo/modulos-usuario";
+import { obtenerSubpanelesFinanzasGuardados } from "@/lib/finanzas-subpaneles-usuario";
 import FormularioUsuario from "@/components/FormularioUsuario";
 import { actualizarUsuarioAction } from "../acciones";
 
@@ -14,10 +15,11 @@ export default async function EditarUsuarioPage({
 }) {
   await exigirAdmin();
   const { id } = await params;
-  const [usuario, apps, modulosOdooAsignados] = await Promise.all([
+  const [usuario, apps, modulosOdooAsignados, subpanelesFinanzasAsignados] = await Promise.all([
     obtenerUsuarioPorId(id),
     listarAplicaciones(),
     obtenerModulosGuardados(id),
+    obtenerSubpanelesFinanzasGuardados(id),
   ]);
   if (!usuario) notFound();
 
@@ -38,6 +40,7 @@ export default async function EditarUsuarioPage({
           todasLasApps={apps}
           valoresPorDefecto={usuario}
           modulosOdooAsignados={modulosOdooAsignados}
+          subpanelesFinanzasAsignados={subpanelesFinanzasAsignados}
           textoBoton="Guardar cambios"
           correoBloqueado
         />

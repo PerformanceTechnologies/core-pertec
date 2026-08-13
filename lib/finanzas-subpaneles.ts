@@ -25,4 +25,11 @@ export const SUBPANELES_FINANZAS: SubpanelFinanzas[] = [
     href: "/finanzas/facturas-historicas",
     icono: "folder",
   },
+  {
+    slug: "facturas-ih",
+    nombre: "SII Documentos IH - IL",
+    descripcion: "Factura afecta/exenta, notas de crédito/débito, guías de despacho y boletas de IH e IL (SII), actualizado todos los días. Acceso restringido.",
+    href: "/finanzas/facturas-ih",
+    icono: "building",
+  },
 ];

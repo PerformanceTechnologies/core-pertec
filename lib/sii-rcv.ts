@@ -80,11 +80,17 @@ function numeroONull(valor: string | undefined): number | null {
 // mayusculas/minusculas inconsistentes ("Monto Total" en compra, "Monto
 // total" en venta) — por eso el parseo es por nombre de columna
 // (case-insensitive), nunca por indice fijo.
+//
+// codigosIncluidos es un parametro (no siempre CODIGOS_DTE_INCLUIDOS) porque
+// Facturas IH (lib/finanzas-ih/sii-rcv-ih.ts) reutiliza este parser pero
+// necesita tambien notas de credito/debito (56/61), no solo factura
+// afecta/exenta (33/34).
 function parsearCsvRcv(
   contenido: string,
   tipoDocumento: TipoDocumento,
   estado: EstadoFactura,
-  periodo: string
+  periodo: string,
+  codigosIncluidos: number[] = CODIGOS_DTE_INCLUIDOS
 ): FacturaSii[] {
   const lineas = contenido.trim().split(/\r?\n/);
   if (lineas.length < 2) return [];
@@ -115,7 +121,7 @@ function parsearCsvRcv(
     if (!linea.trim()) continue;
     const cols = linea.split(";");
     const codigoDte = Number(cols[iTipoDoc]);
-    if (!CODIGOS_DTE_INCLUIDOS.includes(codigoDte)) continue;
+    if (!codigosIncluidos.includes(codigoDte)) continue;
 
     const folio = Number(cols[iFolio]);
     if (!Number.isFinite(folio)) continue;
@@ -143,7 +149,10 @@ function parsearCsvRcv(
 // --- Playwright: navegador segun entorno -----------------------------------
 // (extraído a lib/playwright-navegador.ts para reutilizarlo fuera de este scraper)
 
-async function login(page: import("playwright-core").Page, creds: CredencialesSii): Promise<void> {
+// Exportada para que lib/finanzas-ih/sii-rcv-ih.ts pueda loguearse una sola
+// vez y despues consultar el RCV de varias empresas (IH, IL) en la misma
+// sesion, en vez de logearse una vez por empresa.
+export async function login(page: import("playwright-core").Page, creds: CredencialesSii): Promise<void> {
   await page.goto(
     "https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html" +
       "?https://www1.sii.cl/cgi-bin/Portal001/mipeSelEmpresa.cgi?DESDE_DONDE_URL=OPCION%3D2%26TIPO%3D4",
@@ -180,7 +189,8 @@ async function descargarDetalle(
   page: import("playwright-core").Page,
   tipoDocumento: TipoDocumento,
   estado: EstadoFactura,
-  periodo: string
+  periodo: string,
+  codigosIncluidos: number[]
 ): Promise<FacturaSii[]> {
   const btn = page.locator("button, a").filter({ hasText: /descargar detalles/i });
   if ((await btn.count()) === 0) return []; // sin boton = 0 documentos en esa pestana
@@ -193,16 +203,21 @@ async function descargarDetalle(
   if (!streamPath) return [];
   const fs = await import("node:fs/promises");
   const contenido = await fs.readFile(streamPath, "utf-8");
-  return parsearCsvRcv(contenido, tipoDocumento, estado, periodo);
+  return parsearCsvRcv(contenido, tipoDocumento, estado, periodo, codigosIncluidos);
 }
 
 // Consulta un periodo (AAAAMM) completo: todas las sub-pestanas de compra +
 // venta. periodoMes/periodoAnio van en formato SII ("07", "2026").
-async function consultarPeriodo(
+//
+// Exportada (con codigosIncluidos parametrizable) para que Facturas IH pueda
+// pedir tambien notas de credito/debito (56/61), no solo factura afecta/
+// exenta (33/34) como el RCV clasico de PERTEC SpA.
+export async function consultarPeriodo(
   page: import("playwright-core").Page,
   rutEmpresa: string,
   periodoMes: string,
-  periodoAnio: string
+  periodoAnio: string,
+  codigosIncluidos: number[] = CODIGOS_DTE_INCLUIDOS
 ): Promise<FacturaSii[]> {
   await page.goto("https://www4.sii.cl/consdcvinternetui/#/index", { timeout: 40000 });
   // Esta SPA nunca llega a "networkidle" (sigue con llamadas de fondo), asi
@@ -231,14 +246,14 @@ async function consultarPeriodo(
   for (const { etiquetaTab, estado } of SUBESTADOS_COMPRA) {
     try {
       await irATab(page, etiquetaTab);
-      filas.push(...(await descargarDetalle(page, "compra", estado, periodo)));
+      filas.push(...(await descargarDetalle(page, "compra", estado, periodo, codigosIncluidos)));
     } catch {
       // Sub-pestana sin datos o no disponible ese periodo: se ignora.
     }
   }
 
   await irATab(page, "VENTA");
-  filas.push(...(await descargarDetalle(page, "venta", "registro", periodo)));
+  filas.push(...(await descargarDetalle(page, "venta", "registro", periodo, codigosIncluidos)));
 
   return filas;
 }
