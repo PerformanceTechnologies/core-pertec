@@ -242,7 +242,9 @@ export default function SelectorProyectos({
               // h-full + flex-col + el pie con mt-auto: el título de un proyecto
               // ocupa una o tres líneas según el nombre, y sin esto el
               // "ENTRAR →" de cada tarjeta quedaba a una altura distinta.
-              className={`animar-revelar group flex h-full flex-col gap-4 overflow-hidden rounded-xl border border-borde bg-superficie p-4 text-left transition hover:-translate-y-0.5 hover:border-naranjo/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo ${SOMBRA_CALIDA}`}
+              className={`animar-revelar group flex h-full flex-col gap-4 overflow-hidden rounded-xl border border-borde p-4 text-left transition hover:-translate-y-0.5 hover:border-naranjo/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo ${SOMBRA_CALIDA} ${
+                terminado ? "bg-teal/[0.045]" : "bg-superficie"
+              }`}
               style={{
                 animationDelay: `${Math.min(i, 8) * 70}ms`,
                 borderTopColor: color.bg,
@@ -277,24 +279,24 @@ export default function SelectorProyectos({
                 )}
               </div>
 
-              {/* La pastilla de estado y el porcentaje comparten fila.
-
-                  Un proyecto terminado tenía además un sello girado y absoluto en
-                  el centro de la tarjeta que decía TERMINADO por segunda vez y
-                  tapaba justo el 100% y su barra: el dato que uno viene a mirar
-                  quedaba detrás del adorno. */}
+              {/* La pastilla de estado y el porcentaje comparten fila. En un
+                  proyecto terminado la pastilla no va: ese estado lo dice el
+                  sello de más abajo, y tenerlos a los dos era decir TERMINADO
+                  dos veces en la misma tarjeta. */}
               <div className="flex items-center justify-between gap-3">
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
-                  style={{
-                    background: ESTADO_PROYECTO_COLOR[p.estado].bg,
-                    color: ESTADO_PROYECTO_COLOR[p.estado].texto,
-                    border: `1px solid ${ESTADO_PROYECTO_COLOR[p.estado].borde}`,
-                  }}
-                >
-                  {ESTADO_PROYECTO_LABEL[p.estado]}
-                </span>
-                <span className="font-condensed text-[22px] font-bold leading-none tracking-tight tabular-nums text-tinta">
+                {!terminado && (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.08em]"
+                    style={{
+                      background: ESTADO_PROYECTO_COLOR[p.estado].bg,
+                      color: ESTADO_PROYECTO_COLOR[p.estado].texto,
+                      border: `1px solid ${ESTADO_PROYECTO_COLOR[p.estado].borde}`,
+                    }}
+                  >
+                    {ESTADO_PROYECTO_LABEL[p.estado]}
+                  </span>
+                )}
+                <span className="ml-auto font-condensed text-[22px] font-bold leading-none tracking-tight tabular-nums text-tinta">
                   {pct}
                   <span className="text-xs font-normal text-tinta/50">%</span>
                 </span>
@@ -306,6 +308,20 @@ export default function SelectorProyectos({
                   style={{ width: `${pct}%`, background: terminado ? "var(--color-teal)" : color.bg }}
                 />
               </div>
+
+              {/* El sello, en su propia banda al medio de la tarjeta y no
+                  absoluto encima de todo: se ve igual de grande y girado que
+                  antes, pero ya no tapa el 100% ni su barra de avance.
+
+                  Un poco de rotación (8 grados y no 18) porque a 18 el texto
+                  tocaba los bordes de la tarjeta y había que recortarlo. */}
+              {terminado && (
+                <div className="flex justify-center py-1">
+                  <span className="-rotate-[8deg] select-none whitespace-nowrap rounded-md border-[3px] border-teal bg-superficie px-4 py-1 font-condensed text-lg font-black uppercase tracking-[.2em] text-teal shadow-[0_2px_10px_rgba(0,160,128,0.18)]">
+                    Terminado
+                  </span>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-0 border-t border-borde pt-3">
                 <div className="flex flex-col gap-0.5 border-r border-borde pr-2">
