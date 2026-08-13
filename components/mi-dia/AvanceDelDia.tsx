@@ -82,8 +82,8 @@ export default async function AvanceDelDia({ usuario }: { usuario: UsuarioConAcc
             </>
           ) : (
             <p className="mt-3 max-w-[60ch] text-[15px] leading-relaxed text-pretty text-tinta/70">
-              Tu resumen de correo y agenda de hoy todavía no está listo. Se arma leyendo tu bandeja de los
-              últimos días, así que la primera vez tarda unos segundos.
+              Tu resumen de correo y agenda de hoy todavía no está listo. Se arma al abrirlo, leyendo tu
+              bandeja de los últimos días, así que la primera vez tarda unos segundos.
             </p>
           )}
         </div>
@@ -95,7 +95,7 @@ export default async function AvanceDelDia({ usuario }: { usuario: UsuarioConAcc
           href="/mi-dia"
           className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-naranjo px-5 py-3 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-naranjo-suave focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo lg:self-center"
         >
-          {r ? "Ver mi resumen" : "Generar mi resumen"}
+          Ver mi resumen
           <span aria-hidden>→</span>
         </Link>
       </div>
