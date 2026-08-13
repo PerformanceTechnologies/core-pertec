@@ -77,6 +77,19 @@ interface OpcionesResumen {
    * El cron no tiene sesión, así que pasa undefined y cae al token guardado.
    */
   accessTokenSesion?: string;
+  /**
+   * Ignora la caché y genera de nuevo, aunque el resumen de hoy ya exista y sea
+   * de la versión actual. Lo usa el botón de regenerar de /mi-dia.
+   *
+   * No es lo mismo que un F5: cada regeneración es una llamada al modelo sobre
+   * el buzón completo, y por eso el camino normal SIEMPRE lee la caché y esto
+   * solo ocurre cuando alguien lo pide explícitamente.
+   *
+   * `guardar` hace upsert de `resumen` y `generado_en` nada más, así que
+   * `enviado_en` sobrevive: regenerar a mano no hace que el cron vuelva a mandar
+   * el correo del día.
+   */
+  forzar?: boolean;
 }
 
 /**
@@ -88,13 +101,15 @@ interface OpcionesResumen {
  * configuración y conviene que se vean.
  */
 export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<EstadoResumen> {
-  const { usuarioId, nombre, correo, accessTokenSesion } = opciones;
+  const { usuarioId, nombre, correo, accessTokenSesion, forzar } = opciones;
   const hoy = hoyEnSantiago();
 
   // Solo sirve si se generó con la versión actual del formato: si no, la página
   // mostraría campos que ese resumen no tiene.
-  const guardado = await leerResumenGuardado(usuarioId, hoy.iso);
-  if (guardado?.vigente) return { estado: "ok", datos: guardado };
+  if (!forzar) {
+    const guardado = await leerResumenGuardado(usuarioId, hoy.iso);
+    if (guardado?.vigente) return { estado: "ok", datos: guardado };
+  }
 
   let accessToken = accessTokenSesion;
   if (!accessToken) {

@@ -9,6 +9,7 @@ import type { UsuarioConAcceso } from "@/lib/tipos";
 import type { Dirigido } from "@/lib/graph-correo";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
 import ResumenCargando from "@/components/mi-dia/ResumenCargando";
+import BotonRegenerar from "@/components/mi-dia/BotonRegenerar";
 
 const SLUG_APP = "mi-dia";
 
@@ -758,10 +759,17 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
         </aside>
       </div>
 
-      <footer className="mt-12 border-t border-borde pt-4 text-[11px] text-pretty text-tinta/35">
-        Generado a las {horaChile(datos.generadoEn)} · Es un resumen, no un reemplazo: revisa la bandeja antes
-        de tomar una decisión importante.
-        {datos.enviadoEn && " · Enviado por correo esta mañana."}
+      {/* El "regenerar" va acá, en el pie, y no arriba junto al título: al lado
+          de la hora de generación es donde uno mira cuando sospecha que el
+          resumen quedó viejo. Arriba era lo primero que se apretaba, y cada
+          regeneración es una llamada al modelo sobre el buzón completo. */}
+      <footer className="mt-12 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-borde pt-4 text-[11px] text-pretty text-tinta/35">
+        <span>
+          Generado a las {horaChile(datos.generadoEn)} · Es un resumen, no un reemplazo: revisa la bandeja
+          antes de tomar una decisión importante.
+          {datos.enviadoEn && " · Enviado por correo esta mañana."}
+        </span>
+        <BotonRegenerar />
       </footer>
     </>
   );
