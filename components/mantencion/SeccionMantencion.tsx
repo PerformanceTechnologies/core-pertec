@@ -15,6 +15,7 @@ import TarjetaPlantilla from "./TarjetaPlantilla";
 import FormularioPlantillaModal from "./FormularioPlantillaModal";
 import FormularioEquipoModal from "./FormularioEquipoModal";
 import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
+import CargaPertec from "@/components/CargaPertec";
 
 export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) {
   const [bundle, setBundle] = useState<MantencionBundle | null>(null);
@@ -196,6 +197,9 @@ export default function SeccionMantencion({ rolPanel }: { rolPanel: RolPanel }) 
   };
 
   const totalEquipos = bundle?.equipos.length ?? 0;
+
+  // Igual que Proyectos: los datos llegan por fetch despues del render.
+  if (!bundle && !error) return <CargaPertec modulo="Mantención" />;
 
   if (error && !bundle) {
     return (

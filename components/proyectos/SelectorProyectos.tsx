@@ -13,6 +13,7 @@ import {
 } from "@/lib/proyectos-utilidades";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
 import FormularioProyectoModal from "./FormularioProyectoModal";
+import CargaPertec from "@/components/CargaPertec";
 
 interface ResumenObjetivo {
   proyecto_id: string;
@@ -120,6 +121,13 @@ export default function SelectorProyectos({
       vencen,
     };
   }, [proyectos, stats]);
+
+  // Este modulo carga en el navegador, no en el servidor: la pagina se pinta
+  // enseguida y los proyectos llegan despues por fetch. Sin esto se veia el
+  // encabezado con la cinta de cifras en guiones y sin ninguna tarjeta —
+  // exactamente la pantalla a medio llenar que loading.tsx evita en el resto del
+  // core. Se muestra la misma animacion de la marca hasta que estan los datos.
+  if (!proyectos && !error) return <CargaPertec modulo="Proyectos" />;
 
   if (error && !proyectos) {
     return (

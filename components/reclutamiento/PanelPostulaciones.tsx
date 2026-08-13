@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PostulacionGuardada } from "@/lib/reclutamiento";
 import { exportarPostulacionesAExcel } from "@/lib/exportarCsv";
 import ModalPostulante from "./ModalPostulante";
+import CargaPertec from "@/components/CargaPertec";
 
 const INTERVALO_ACTUALIZACION_MS = 30_000;
 
@@ -59,7 +60,7 @@ function contarPor(lista: PostulacionGuardada[], clave: keyof PostulacionGuardad
 
 function opcionesUnicas(lista: PostulacionGuardada[], clave: keyof PostulacionGuardada) {
   return Array.from(new Set(lista.map((p) => p[clave]).filter(Boolean))).sort((a, b) =>
-    a.localeCompare(b, "es")
+    a.localeCompare(b, "es"),
   );
 }
 
@@ -156,7 +157,11 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   }, [postulaciones, filtros, ahora]);
 
   const hayFiltrosActivos =
-    filtros.busqueda !== "" || filtros.cargo !== "" || filtros.region !== "" || filtros.turno !== "" || filtros.rango !== "todos";
+    filtros.busqueda !== "" ||
+    filtros.cargo !== "" ||
+    filtros.region !== "" ||
+    filtros.turno !== "" ||
+    filtros.rango !== "todos";
 
   const todasSeleccionadas = filtradas.length > 0 && filtradas.every((p) => seleccionados.has(p.id));
 
@@ -193,12 +198,16 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   const ultimas24h = useMemo(() => {
     const momentoActual = ahora ?? 0;
     return filtradas.filter(
-      (p) => p.creadaEn && momentoActual - new Date(p.creadaEn).getTime() < 24 * 60 * 60 * 1000
+      (p) => p.creadaEn && momentoActual - new Date(p.creadaEn).getTime() < 24 * 60 * 60 * 1000,
     ).length;
   }, [filtradas, ahora]);
 
   const maxCargo = porCargo[0]?.total ?? 1;
   const maxRegion = porRegion[0]?.total ?? 1;
+
+  // Este panel tambien carga en el navegador: hasta que llegan las postulaciones
+  // se veia el encabezado con "Actualizado Cargando..." y la lista vacia.
+  if (!postulaciones && !error) return <CargaPertec modulo="Reclutamiento Web" />;
 
   if (error && !postulaciones) {
     return (

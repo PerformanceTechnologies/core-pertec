@@ -18,6 +18,7 @@ import GastosProyecto from "./GastosProyecto";
 import GastosHeroMini from "./GastosHeroMini";
 import SeccionMantencion from "@/components/mantencion/SeccionMantencion";
 import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
+import CargaPertec from "@/components/CargaPertec";
 
 export default function VistaProyecto({
   proyectoId,
@@ -146,6 +147,10 @@ export default function VistaProyecto({
     await cargar();
     return true;
   };
+
+  // Mismo caso que el listado: hasta que llegan el proyecto y sus objetivos, la
+  // animacion de la marca en vez de la vista con huecos.
+  if ((!proyecto || !objetivos) && !error) return <CargaPertec modulo="el proyecto" />;
 
   if (error && !objetivos) {
     return (
