@@ -19,6 +19,10 @@ interface ProyectoOdoo {
   task_count: number;
   date: string | false;
   active: boolean;
+  // El id del proyecto en el core, que Odoo guarda al sincronizar (modulo
+  // pertec_project_panel, models/sync_mixin.py). Es la llave para cruzar los dos
+  // lados; por nombre no sirve, ya hubo dos "Plan Harris" a la vez.
+  supabase_id: string | false;
 }
 
 interface TareaOdoo {
@@ -56,7 +60,7 @@ export async function sincronizarProyectos(): Promise<number> {
     odooSearchRead<ProyectoOdoo>(
       "project.project",
       [],
-      ["name", "partner_id", "user_id", "task_count", "date", "active"],
+      ["name", "partner_id", "user_id", "task_count", "date", "active", "supabase_id"],
       { limit: TOPE_PROYECTOS },
     ),
     odooSearchRead<TareaOdoo>(
@@ -94,6 +98,7 @@ export async function sincronizarProyectos(): Promise<number> {
     cantidad_tareas: p.task_count,
     fecha_vencimiento: p.date || null,
     activo: p.active,
+    supabase_id: p.supabase_id || null,
     actualizado_en: new Date().toISOString(),
   }));
 

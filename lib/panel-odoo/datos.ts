@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { pertecWebSupabase } from "@/lib/pertec-web-supabase";
 import { fechaCl } from "@/lib/cotizador/formato";
 import {
   traducir,
@@ -565,18 +566,50 @@ const ESTADOS_TAREA_CERRADA = ["1_done", "1_canceled"];
  * como tareas abiertas.
  */
 
+/**
+ * Los proyectos que el CORE ya dio por terminados, por su id.
+ *
+ * Odoo no sabe de ese estado: su `active` solo dice si el proyecto esta
+ * archivado, y un proyecto terminado en el core sigue activo en Odoo. Por eso el
+ * panel contaba 3 proyectos activos cuando uno de los tres estaba cerrado hace
+ * rato.
+ *
+ * El cruce va por el id del core que Odoo guarda en supabase_id, nunca por
+ * nombre: llego a haber dos "Plan Harris" distintos al mismo tiempo.
+ *
+ * Si la base de pertec-web no responde, devuelve un conjunto vacio y el conteo
+ * queda como antes —de mas, no de menos— en vez de romper la tarjeta entera.
+ */
+async function idsDeProyectosTerminadosDelCore(): Promise<Set<string>> {
+  try {
+    const { data, error } = await pertecWebSupabase.from("proyectos").select("id").eq("estado", "terminado");
+    if (error) throw new Error(error.message);
+    return new Set((data ?? []).map((p) => p.id as string));
+  } catch (e) {
+    console.error("[panel-odoo] No se pudo cruzar con los proyectos del core:", e);
+    return new Set();
+  }
+}
+
 export async function obtenerKpisProyectos(): Promise<KpisProyectos> {
-  const [{ data: proyectos }, { data: tareas }] = await Promise.all([
-    supabaseAdmin.from("panel_odoo_proyectos").select("activo").eq("activo", true),
+  const [{ data: proyectos }, { data: tareas }, terminadosEnElCore] = await Promise.all([
+    supabaseAdmin.from("panel_odoo_proyectos").select("activo, supabase_id").eq("activo", true),
     supabaseAdmin.from("panel_odoo_tareas").select("estado, completado"),
+    idsDeProyectosTerminadosDelCore(),
   ]);
 
   const filasTareas = (tareas ?? []) as { estado: string; completado: boolean }[];
   const cerrada = (t: { estado: string; completado: boolean }) =>
     t.completado || ESTADOS_TAREA_CERRADA.includes(t.estado);
 
+  // Un proyecto sin supabase_id es de Odoo y nada mas (no nacio en el core):
+  // cuenta como activo, porque no hay estado del core que lo contradiga.
+  const activos = (proyectos ?? []).filter(
+    (p) => !p.supabase_id || !terminadosEnElCore.has(p.supabase_id as string),
+  );
+
   return {
-    proyectosActivos: (proyectos ?? []).length,
+    proyectosActivos: activos.length,
     tareasAbiertas: filasTareas.filter((t) => !cerrada(t)).length,
     // Se cuentan las canceladas aparte de las hechas: una tarea cancelada esta
     // cerrada, pero no completada.
