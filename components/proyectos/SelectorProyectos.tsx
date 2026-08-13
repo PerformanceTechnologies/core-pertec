@@ -322,14 +322,30 @@ export default function SelectorProyectos({
                   antes, pero ya no tapa el 100% ni su barra de avance.
 
                   Un poco de rotación (8 grados y no 18) porque a 18 el texto
-                  tocaba los bordes de la tarjeta y había que recortarlo. */}
-              {terminado && (
-                <div className="flex justify-center py-1">
-                  <span className="-rotate-[8deg] select-none whitespace-nowrap rounded-md border-[3px] border-teal bg-superficie px-4 py-1 font-condensed text-lg font-black uppercase tracking-[.2em] text-teal shadow-[0_2px_10px_rgba(0,160,128,0.18)]">
-                    Terminado
-                  </span>
-                </div>
-              )}
+                  tocaba los bordes de la tarjeta y había que recortarlo.
+
+                  La banda va SIEMPRE, y en los proyectos que no están
+                  terminados va vacía. Las tarjetas de una misma fila se estiran
+                  a la altura de la más alta, así que si la banda existiera solo
+                  en la terminada, en las otras ese alto sobrante se juntaba
+                  entero justo antes del pie y quedaba un hueco en el medio.
+                  Reservando el espacio, todas tienen los mismos bloques y no
+                  hay nada que repartir.
+
+                  `invisible` y no `hidden`: ocupa el lugar pero no se ve, y
+                  visibility:hidden lo saca además del árbol de accesibilidad,
+                  así que un lector de pantalla no lee "Terminado" en un
+                  proyecto que no lo está. */}
+              <div className="flex justify-center py-1">
+                <span
+                  aria-hidden={!terminado}
+                  className={`-rotate-[8deg] select-none whitespace-nowrap rounded-md border-[3px] border-teal bg-superficie px-4 py-1 font-condensed text-lg font-black uppercase tracking-[.2em] text-teal shadow-[0_2px_10px_rgba(0,160,128,0.18)] ${
+                    terminado ? "" : "invisible"
+                  }`}
+                >
+                  Terminado
+                </span>
+              </div>
 
               <div className="grid grid-cols-3 gap-0 border-t border-borde pt-3">
                 <div className="flex flex-col gap-0.5 border-r border-borde pr-2">
