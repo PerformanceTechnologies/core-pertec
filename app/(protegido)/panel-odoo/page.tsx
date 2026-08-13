@@ -30,12 +30,19 @@ export default async function PanelOdooPage({
 }: {
   searchParams: Promise<{ empresa?: string }>;
 }) {
+  // Estas dos no dependen del usuario ni de la empresa elegida, asi que arrancan
+  // ANTES de esperar al guard en vez de despues: iban en una tercera tanda
+  // secuencial de consultas, con el guard esperando al layout y estas esperando
+  // al guard. El guard sigue siendo el que decide si se renderiza algo.
+  const promesaEjecuciones = obtenerUltimasEjecuciones();
+  const promesaOrden = obtenerOrdenModulos();
+
   const { usuario, rol, modulosVisibles } = await exigirAccesoPanelOdoo();
   const { empresa } = await searchParams;
   const companyId = COMPANIAS_ODOO.some((c) => c.id === Number(empresa))
     ? Number(empresa)
     : COMPANIA_ODOO_DEFECTO;
-  const [ejecuciones, ordenModulos] = await Promise.all([obtenerUltimasEjecuciones(), obtenerOrdenModulos()]);
+  const [ejecuciones, ordenModulos] = await Promise.all([promesaEjecuciones, promesaOrden]);
 
   // El orden es global (lo define un admin del core, no el rol interno de
   // Panel Odoo) -- ver comentario en moverModuloOrdenAction. Cada tarjeta se

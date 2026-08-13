@@ -10,18 +10,19 @@ import BotonSubir from "@/components/BotonSubir";
 // siguiente página que cargue, no cuando expire su sesión.
 export const dynamic = "force-dynamic";
 
-export default async function LayoutProtegido({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function LayoutProtegido({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.email) redirect("/ingresar");
+
+  // El catalogo de aplicaciones no depende de quien sea el usuario: se pide al
+  // mismo tiempo y no despues. Encadenadas eran dos viajes a Supabase seguidos
+  // en el camino critico de toda pagina protegida.
+  const promesaApps = listarAplicaciones();
 
   const usuario = await obtenerUsuarioActivo(session.user.email);
   if (!usuario) redirect("/ingresar?error=sin_acceso");
 
-  const todasLasApps = await listarAplicaciones();
+  const todasLasApps = await promesaApps;
   const apps =
     usuario.rol === "admin"
       ? todasLasApps
