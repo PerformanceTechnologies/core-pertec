@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooSearchRead } from "./odoo-cliente";
+import { eliminarNoVigentes } from "./limpieza";
 import { obtenerCompania } from "./companias";
 
 type TuplaOdoo = [number, string] | false;
@@ -44,29 +45,29 @@ interface FondoOdoo {
   company_id: TuplaOdoo;
 }
 
-// Borra de la cache lo que Odoo ya no devuelve -- mismo patron que
-// sincronizar-flota.ts: upsert por si solo nunca limpia filas viejas.
-async function eliminarNoVigentes(
-  tabla: "panel_odoo_gastos" | "panel_odoo_fondos_gasto",
-  idsVigentes: number[]
-) {
-  const query = supabaseAdmin.from(tabla).delete();
-  const { error } =
-    idsVigentes.length > 0 ? await query.not("odoo_id", "in", `(${idsVigentes.join(",")})`) : await query.neq("odoo_id", -1);
-  if (error) throw new Error(error.message);
-}
-
 // Se cachean todos menos los rechazados -- state se guarda tal cual, el
 // filtro de KPI (ej. excluir borrador) se aplica al leer, no al sincronizar.
 export async function sincronizarGastos(): Promise<number> {
   const gastos = await odooSearchRead<GastoOdoo>(
     "hr.expense",
     [["state", "!=", "refused"]],
-    ["name", "employee_id", "total_amount", "state", "payment_mode", "date", "company_id", "pertec_categoria"],
-    { order: "date desc", limit: 2000 }
+    [
+      "name",
+      "employee_id",
+      "total_amount",
+      "state",
+      "payment_mode",
+      "date",
+      "company_id",
+      "pertec_categoria",
+    ],
+    { order: "date desc", limit: 2000 },
   );
 
-  await eliminarNoVigentes("panel_odoo_gastos", gastos.map((g) => g.id));
+  await eliminarNoVigentes(
+    "panel_odoo_gastos",
+    gastos.map((g) => g.id),
+  );
 
   let countGastos = 0;
   if (gastos.length > 0) {
@@ -97,11 +98,25 @@ export async function sincronizarGastos(): Promise<number> {
   const fondos = await odooSearchRead<FondoOdoo>(
     "hr.expense.advance",
     [["state", "!=", "cancel"]],
-    ["name", "employee_id", "date", "amount", "description", "purpose", "state", "expense_total", "balance", "company_id"],
-    { order: "date desc", limit: 500 }
+    [
+      "name",
+      "employee_id",
+      "date",
+      "amount",
+      "description",
+      "purpose",
+      "state",
+      "expense_total",
+      "balance",
+      "company_id",
+    ],
+    { order: "date desc", limit: 500 },
   );
 
-  await eliminarNoVigentes("panel_odoo_fondos_gasto", fondos.map((f) => f.id));
+  await eliminarNoVigentes(
+    "panel_odoo_fondos_gasto",
+    fondos.map((f) => f.id),
+  );
 
   let countFondos = 0;
   if (fondos.length > 0) {

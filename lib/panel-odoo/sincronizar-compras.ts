@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooSearchRead } from "./odoo-cliente";
+import { eliminarNoVigentes } from "./limpieza";
 import { obtenerCompania } from "./companias";
 
 type TuplaOdoo = [number, string] | false;
@@ -23,12 +24,25 @@ interface CompraOdoo {
   company_id: TuplaOdoo;
 }
 
+// Tope de la consulta a Odoo. Si se alcanza, la limpieza de la cache se salta
+// (ver eliminarNoVigentes).
+const TOPE = 2000;
+
 export async function sincronizarCompras(): Promise<number> {
   const compras = await odooSearchRead<CompraOdoo>(
     "purchase.order",
     [["state", "!=", "cancel"]],
-    ["name", "partner_id", "date_order", "amount_total", "state", "invoice_status", "date_planned", "company_id"],
-    { order: "date_order desc", limit: 2000 }
+    [
+      "name",
+      "partner_id",
+      "date_order",
+      "amount_total",
+      "state",
+      "invoice_status",
+      "date_planned",
+      "company_id",
+    ],
+    { order: "date_order desc", limit: TOPE },
   );
 
   if (compras.length === 0) return 0;
@@ -55,5 +69,16 @@ export async function sincronizarCompras(): Promise<number> {
     .upsert(filas, { onConflict: "odoo_id", count: "exact" });
 
   if (error) throw new Error(error.message);
+
+  // Lo que Odoo ya no devuelve sale de la cache. Va DESPUES del upsert: si el
+  // upsert falla, la tabla no queda vaciada.
+  await eliminarNoVigentes(
+    "panel_odoo_compras",
+    filas.map((f) => f.odoo_id),
+    {
+      topeAlcanzado: compras.length >= TOPE,
+    },
+  );
+
   return count ?? filas.length;
 }

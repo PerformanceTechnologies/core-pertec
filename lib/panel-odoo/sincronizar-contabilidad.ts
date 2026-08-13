@@ -56,7 +56,7 @@ export async function sincronizarContabilidad(): Promise<number> {
       "account.move.line",
       [["parent_state", "=", "posted"]],
       ["account_id", "debit", "credit", "date", "company_id"],
-      { limit: 20000 }
+      { limit: 20000 },
     ),
     odooSearchRead<CuentaOdoo>("account.account", [], ["account_type"], { limit: 5000 }),
   ]);
@@ -64,7 +64,10 @@ export async function sincronizarContabilidad(): Promise<number> {
   const tipoPorCuentaId = new Map(cuentas.map((c) => [c.id, c.account_type]));
 
   // Acumula por (company_id, periodo, tipo_cuenta)
-  const acumulado = new Map<string, { company_id: number; periodo: string; tipo_cuenta: TipoCuenta; monto: number }>();
+  const acumulado = new Map<
+    string,
+    { company_id: number; periodo: string; tipo_cuenta: TipoCuenta; monto: number }
+  >();
 
   for (const linea of lineas) {
     if (!linea.date) continue;
