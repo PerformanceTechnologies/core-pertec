@@ -50,7 +50,9 @@ const TITULO_LEYENDA_ESTADO = Object.entries(DEFINICIONES_ESTADO)
 // afecta/exenta bajo un solo filtro "Facturas").
 const GRUPOS_TIPO: Record<string, { etiqueta: string; tipos: string[] | null }> = {
   todos: { etiqueta: "Todos los documentos", tipos: null },
-  facturas: { etiqueta: "Facturas", tipos: ["factura_afecta", "factura_exenta"] },
+  facturas: { etiqueta: "Facturas (todas)", tipos: ["factura_afecta", "factura_exenta"] },
+  facturas_afectas: { etiqueta: "Facturas afectas", tipos: ["factura_afecta"] },
+  facturas_exentas: { etiqueta: "Facturas exentas", tipos: ["factura_exenta"] },
   notas_credito: { etiqueta: "Notas de crédito", tipos: ["nota_credito"] },
   notas_debito: { etiqueta: "Notas de débito", tipos: ["nota_debito"] },
   guias: { etiqueta: "Guías de despacho", tipos: ["guia_despacho"] },

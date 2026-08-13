@@ -43,12 +43,17 @@ export async function sincronizarFinanzasIh(opciones: { cargaInicial: boolean })
   }
 
   try {
+    const t0 = Date.now();
     const yaRespaldados = await listarClavesYaRespaldadasIh();
+    console.log(`[sincronizar-ih] listarClavesYaRespaldadasIh: ${Date.now() - t0}ms`);
 
     // Secuencial, no en paralelo: son sesiones de login independientes
     // contra el SII con la misma cuenta, y el SII puede invalidar una sesion
     // activa si detecta otra concurrente del mismo representante.
+    const t1 = Date.now();
     const documentosRcv = await extraerDocumentosIhRcv(creds, empresas, { cargaInicial: opciones.cargaInicial, ventanaDias: 7 });
+    console.log(`[sincronizar-ih] extraerDocumentosIhRcv: ${Date.now() - t1}ms, ${documentosRcv.length} docs`);
+    const t2 = Date.now();
     const { documentos: documentosGuias, codigosEmitidos, codigosRecibidos, respaldos } = await extraerGuiasYCodigosIh(
       creds,
       empresas,
@@ -58,6 +63,7 @@ export async function sincronizarFinanzasIh(opciones: { cargaInicial: boolean })
       // que arriesgar timeout en una sola.
       { cargaInicial: opciones.cargaInicial, ventanaDias: 7, yaRespaldados, limiteRespaldo: 5 }
     );
+    console.log(`[sincronizar-ih] extraerGuiasYCodigosIh: ${Date.now() - t2}ms, ${documentosGuias.length} docs`);
 
     // El RCV no trae el codigo del portal MIPYME: se completa matcheando
     // por (folio, rut contraparte) con lo que devolvio extraerGuiasYCodigosIh
