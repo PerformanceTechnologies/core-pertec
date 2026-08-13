@@ -207,7 +207,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
 
   // Este panel tambien carga en el navegador: hasta que llegan las postulaciones
   // se veia el encabezado con "Actualizado Cargando..." y la lista vacia.
-  if (!postulaciones && !error) return <CargaPertec modulo="Reclutamiento Web" />;
+  if (!postulaciones && !error) return <CargaPertec modulo="Postulaciones Web" />;
 
   if (error && !postulaciones) {
     return (
