@@ -10,16 +10,16 @@ import {
   actualizarRespaldosPorClaveIh,
 } from "./finanzas-ih";
 
-// Punto unico de sincronizacion, compartido por el cron diario
-// (app/api/cron/finanzas-ih/route.ts) y el boton "Actualizar ahora" de la UI
-// -- ambos deben hacer exactamente lo mismo, solo cambia quien los dispara.
-//
-// Cubre: factura afecta/exenta y notas de credito/debito (RCV), guias de
-// despacho y boletas 39/41 (Portal MIPYME), y boletas de honorarios
-// recibidas por IH (sistema separado del SII, ver sii-bhe-ih.ts) -- con
-// respaldo de XML (emitidos) / PDF (recibidos) a SharePoint hecho EN LINEA
-// durante el scraping (ver sii-guias-ih.ts) -- acotado por corrida para no
-// exceder maxDuration=60s de Vercel Hobby, se pone al dia de a poco.
+// Sincronizacion de factura/nota/guia/boleta (RCV + Portal MIPYME),
+// compartida por el cron diario (app/api/cron/finanzas-ih/route.ts) y el
+// boton "Actualizar ahora" de la UI. La BHE de IH (sii-bhe-ih.ts) se
+// sincroniza APARTE, ver sincronizarBoletasHonorariosIh mas abajo -- iba
+// todo junto originalmente, pero sumar los pasadas dedicadas de boletas
+// 39/41 (ver sii-guias-ih.ts) MAS el login separado de BHE hizo que una
+// corrida completa superara los 60s de maxDuration del plan Hobby de
+// Vercel (FUNCTION_INVOCATION_TIMEOUT en producción, 2026-08-13). Separarlas
+// en dos invocaciones de funcion (dos crons, dos fetch en el boton) es la
+// unica forma de acotar cada una a su propio limite de tiempo.
 export async function sincronizarFinanzasIh(opciones: { cargaInicial: boolean }): Promise<{
   documentos: number;
   nuevos: number;
@@ -67,20 +67,37 @@ export async function sincronizarFinanzasIh(opciones: { cargaInicial: boolean })
       doc.codigoPortal = (doc.direccion === "venta" ? codigosEmitidos.get(clave) : codigosRecibidos.get(clave)) ?? null;
     }
 
-    // Sesion de login totalmente distinta (RUT/clave propios de IH, no el
-    // representante) -- secuencial despues de las de arriba por el mismo
-    // motivo (no concurrir sesiones del SII). No lanza si falta
-    // SII_CLAVE_EMPRESA_IH: extraerBoletasHonorariosIh devuelve vacio.
-    const { documentos: documentosBhe, respaldos: respaldosBhe } = await extraerBoletasHonorariosIh({
+    const documentos = [...documentosRcv, ...documentosGuias];
+    const nuevos = await guardarDocumentosIh(documentos);
+    const archivosSubidos = await actualizarRespaldosPorClaveIh(respaldos);
+
+    await registrarEjecucionIh(true, nuevos, archivosSubidos);
+    return { documentos: documentos.length, nuevos, archivosSubidos };
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : "Error desconocido";
+    await registrarEjecucionIh(false, 0, 0, mensaje).catch(() => {});
+    throw err;
+  }
+}
+
+// Boletas de Honorarios recibidas por IH: login totalmente distinto (RUT y
+// clave PROPIOS de IH, no el representante), en su propia invocacion de
+// funcion -- ver comentario de arriba.
+export async function sincronizarBoletasHonorariosIh(opciones: { cargaInicial: boolean }): Promise<{
+  documentos: number;
+  nuevos: number;
+  archivosSubidos: number;
+}> {
+  try {
+    const yaRespaldados = await listarClavesYaRespaldadasIh();
+    const { documentos, respaldos } = await extraerBoletasHonorariosIh({
       cargaInicial: opciones.cargaInicial,
       yaRespaldados,
       limiteRespaldo: 5,
     });
 
-    const documentos = [...documentosRcv, ...documentosGuias, ...documentosBhe];
     const nuevos = await guardarDocumentosIh(documentos);
-    const archivosSubidos =
-      (await actualizarRespaldosPorClaveIh(respaldos)) + (await actualizarRespaldosPorClaveIh(respaldosBhe));
+    const archivosSubidos = await actualizarRespaldosPorClaveIh(respaldos);
 
     await registrarEjecucionIh(true, nuevos, archivosSubidos);
     return { documentos: documentos.length, nuevos, archivosSubidos };

@@ -183,19 +183,26 @@ export default function PanelFacturasIh({
     [universoDireccion]
   );
 
+  // Dos llamadas separadas, no una: cada una es su propia invocacion de
+  // funcion en Vercel, con su propio limite de 60s (Hobby) -- juntarlas en
+  // una sola hacia que la corrida completa (SII representante + login
+  // propio de BHE) se pasara del limite y tirara FUNCTION_INVOCATION_TIMEOUT.
   async function actualizarAhora() {
     setActualizando(true);
     setErrorActualizar(null);
-    try {
-      const resp = await fetch("/api/finanzas-ih/actualizar", { method: "POST" });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error ?? "No se pudo actualizar.");
-      router.refresh();
-    } catch (err) {
-      setErrorActualizar(err instanceof Error ? err.message : "Error desconocido");
-    } finally {
-      setActualizando(false);
+    const errores: string[] = [];
+    for (const ruta of ["/api/finanzas-ih/actualizar", "/api/finanzas-ih/actualizar-bhe"]) {
+      try {
+        const resp = await fetch(ruta, { method: "POST" });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error ?? "No se pudo actualizar.");
+      } catch (err) {
+        errores.push(err instanceof Error ? err.message : "Error desconocido");
+      }
     }
+    setErrorActualizar(errores.length > 0 ? errores.join(" · ") : null);
+    router.refresh();
+    setActualizando(false);
   }
 
   return (
