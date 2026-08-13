@@ -29,6 +29,13 @@ interface TareaOdoo {
   state: string;
   date_deadline: string | false;
   user_ids: number[];
+  // Campos del modulo pertec_project_panel (ver pertec-odoo/pertec_project_panel/
+  // models/project_task.py). Las tareas que ese panel usa como OBJETIVOS no se
+  // cierran con el `state` nativo —todas quedan en 01_in_progress— sino con
+  // objetivo_done, y su plazo y sus responsables viven en sus propios campos.
+  objetivo_done: boolean;
+  objetivo_date_end: string | false;
+  objetivo_responsables: string | false;
 }
 
 interface UsuarioOdoo {
@@ -55,7 +62,17 @@ export async function sincronizarProyectos(): Promise<number> {
     odooSearchRead<TareaOdoo>(
       "project.task",
       [],
-      ["name", "project_id", "stage_id", "state", "date_deadline", "user_ids"],
+      [
+        "name",
+        "project_id",
+        "stage_id",
+        "state",
+        "date_deadline",
+        "user_ids",
+        "objetivo_done",
+        "objetivo_date_end",
+        "objetivo_responsables",
+      ],
       { limit: TOPE_TAREAS },
     ),
   ]);
@@ -87,12 +104,20 @@ export async function sincronizarProyectos(): Promise<number> {
     nombre: t.name,
     etapa: nombreDeTupla(t.stage_id),
     estado: t.state,
-    fecha_limite: t.date_deadline || null,
+    // Una tarea puede estar cerrada por el estado nativo de Odoo o marcada como
+    // objetivo cumplido en el panel; el core las cuenta igual.
+    completado: Boolean(t.objetivo_done),
+    // En las tareas creadas desde el panel, date_deadline viene siempre vacio y
+    // el plazo real esta en objetivo_date_end: la columna "Fecha limite" salia
+    // entera en guiones.
+    fecha_limite: t.date_deadline || t.objetivo_date_end || null,
     asignados:
       (t.user_ids ?? [])
         .map((id) => nombrePorUsuarioId.get(id))
         .filter(Boolean)
-        .join(", ") || null,
+        .join(", ") ||
+      t.objetivo_responsables ||
+      null,
     actualizado_en: new Date().toISOString(),
   }));
 
