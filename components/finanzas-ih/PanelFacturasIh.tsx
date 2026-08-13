@@ -184,6 +184,18 @@ export default function PanelFacturasIh({
     [universoDireccion]
   );
 
+  // Solo los documentos que vienen del RCV traen estado_sii (ver
+  // DEFINICIONES_ESTADO arriba) -- los de portal_mipyme/carga_historica no
+  // se cuentan aca (no tendria sentido un "sin estado" mezclado).
+  const conteoPorEstado = useMemo(() => {
+    const conteo: Record<string, number> = {};
+    for (const d of universoEmpresaDireccion) {
+      if (d.estado_sii) conteo[d.estado_sii] = (conteo[d.estado_sii] ?? 0) + 1;
+    }
+    return conteo;
+  }, [universoEmpresaDireccion]);
+  const totalConEstado = Object.values(conteoPorEstado).reduce((acc, n) => acc + n, 0);
+
   // La sincronizacion real corre en GitHub Actions, no en Vercel (superaba
   // los 60s del plan Hobby, ver .github/workflows/finanzas-ih-cron.yml) --
   // este boton solo la encola (workflow_dispatch) y no espera a que
@@ -262,19 +274,19 @@ export default function PanelFacturasIh({
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-borde bg-white p-4">
-          <div className="text-xs uppercase text-tinta/50">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-borde bg-white p-3">
+          <div className="text-[11px] uppercase text-tinta/50">
             Documentos por tipo · {direccion === "venta" ? "Venta" : "Compra"}
             {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
           </div>
-          <dl className="mt-2 divide-y divide-borde text-sm">
+          <dl className="mt-1.5 divide-y divide-borde text-xs">
             {Object.entries(GRUPOS_TIPO)
               .filter(([clave]) => clave !== "todos")
               .map(([clave, grupo]) => {
                 const total = (grupo.tipos ?? []).reduce((acc, t) => acc + (conteoPorTipo[t] ?? 0), 0);
                 return (
-                  <div key={clave} className="flex items-center justify-between py-1">
+                  <div key={clave} className="flex items-center justify-between py-0.5">
                     <dt className="text-tinta/60">{grupo.etiqueta}</dt>
                     <dd className="font-semibold text-tinta">{total}</dd>
                   </div>
@@ -283,38 +295,61 @@ export default function PanelFacturasIh({
           </dl>
         </div>
 
-        <div className="rounded-xl border border-borde bg-white p-4">
-          <div className="text-xs uppercase text-tinta/50">
+        <div className="rounded-xl border border-borde bg-white p-3">
+          <div className="inline-flex items-center gap-1 text-[11px] uppercase text-tinta/50">
+            Estado SII · {direccion === "venta" ? "Venta" : "Compra"}
+            {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
+            <IconInfoCircle size={12} stroke={2} className="text-tinta/40" title={TITULO_LEYENDA_ESTADO} />
+          </div>
+          {totalConEstado === 0 ? (
+            <p className="mt-1.5 text-xs text-tinta/45">
+              Ninguno de estos documentos viene del Registro de Compras y Ventas.
+            </p>
+          ) : (
+            <dl className="mt-1.5 divide-y divide-borde text-xs">
+              {Object.entries(ETIQUETAS_ESTADO).map(([clave, etiqueta]) => (
+                <div key={clave} className="flex items-center justify-between py-0.5">
+                  <dt className="text-tinta/60">{etiqueta}</dt>
+                  <dd className="font-semibold text-tinta">{conteoPorEstado[clave] ?? 0}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-borde bg-white p-3">
+          <div className="text-[11px] uppercase text-tinta/50">
             Facturas afectas vs. exentas · {direccion === "venta" ? "Venta" : "Compra"}
             {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
           </div>
-          <dl className="mt-2 divide-y divide-borde text-sm">
-            <div className="flex items-center justify-between py-1">
+          <dl className="mt-1.5 divide-y divide-borde text-xs">
+            <div className="flex items-center justify-between py-0.5">
               <dt className="text-tinta/60">Afectas</dt>
               <dd className="font-semibold text-tinta">{conteoAfectaExenta.afecta}</dd>
             </div>
-            <div className="flex items-center justify-between py-1">
+            <div className="flex items-center justify-between py-0.5">
               <dt className="text-tinta/60">Exentas</dt>
               <dd className="font-semibold text-tinta">{conteoAfectaExenta.exenta}</dd>
             </div>
           </dl>
         </div>
 
-        <div className="rounded-xl border border-borde bg-white p-4">
-          <div className="text-xs uppercase text-tinta/50">
+        <div className="rounded-xl border border-borde bg-white p-3">
+          <div className="text-[11px] uppercase text-tinta/50">
             Documentos por empresa · {direccion === "venta" ? "Venta" : "Compra"}
           </div>
-          <dl className="mt-2 divide-y divide-borde text-sm">
-            <div className="flex items-center justify-between py-1">
+          <dl className="mt-1.5 divide-y divide-borde text-xs">
+            <div className="flex items-center justify-between py-0.5">
               <dt className="text-tinta/60">IH</dt>
               <dd className="font-semibold text-tinta">{conteoPorEmpresa.IH}</dd>
             </div>
-            <div className="flex items-center justify-between py-1">
+            <div className="flex items-center justify-between py-0.5">
               <dt className="text-tinta/60">IL</dt>
               <dd className="font-semibold text-tinta">{conteoPorEmpresa.IL}</dd>
             </div>
           </dl>
         </div>
+
       </div>
 
       <div className="mt-6 flex gap-2">
