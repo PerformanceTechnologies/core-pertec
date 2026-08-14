@@ -51,7 +51,14 @@ export async function sincronizarFinanzasIh(opciones: { cargaInicial: boolean })
     // contra el SII con la misma cuenta, y el SII puede invalidar una sesion
     // activa si detecta otra concurrente del mismo representante.
     const t1 = Date.now();
-    const documentosRcv = await extraerDocumentosIhRcv(creds, empresas, { cargaInicial: opciones.cargaInicial, ventanaDias: 7 });
+    // ventanaDias 15, no 7: un documento "pendiente" pasa a "registro" solo
+    // (aceptacion tacita) recien a los 8 dias -- con una ventana de 7 dias
+    // el documento envejece fuera del alcance justo antes de que el SII
+    // actualice su estado, y ese cambio nunca se vuelve a mirar. 15 dias da
+    // margen para que el cron lo alcance a recapturar en los dias
+    // siguientes (no cuesta requests extra al SII: la consulta ya trae el
+    // mes completo, esto solo cambia el filtro que se aplica DESPUES).
+    const documentosRcv = await extraerDocumentosIhRcv(creds, empresas, { cargaInicial: opciones.cargaInicial, ventanaDias: 15 });
     console.log(`[sincronizar-ih] extraerDocumentosIhRcv: ${Date.now() - t1}ms, ${documentosRcv.length} docs`);
     const t2 = Date.now();
     const { documentos: documentosGuias, codigosEmitidos, codigosRecibidos, respaldos } = await extraerGuiasYCodigosIh(
