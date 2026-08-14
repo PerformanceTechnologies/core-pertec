@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { type Profile } from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { obtenerUsuarioActivo, registrarIngreso } from "@/lib/usuarios";
 import { canjearRefreshToken, SCOPES_GRAPH } from "@/lib/graph-token";
@@ -33,6 +33,26 @@ async function refrescarAccessToken(token: import("next-auth/jwt").JWT) {
   }
 }
 
+/**
+ * El correo con el que se busca a la persona en la tabla `usuarios`.
+ *
+ * El provider de Entra mapea `email: profile.email` y nada más (ver
+ * @auth/core/providers/microsoft-entra-id.js). Ese claim sale del atributo `mail`
+ * del directorio, y si una cuenta no lo tiene poblado llega vacío: entonces la
+ * búsqueda se hacía con undefined, no encontraba a nadie, y el login terminaba
+ * en "Tu cuenta no está autorizada" aunque la persona estuviera cargada y activa.
+ *
+ * De ahí el respaldo a preferred_username y upn, que en Entra son el nombre de
+ * inicio de sesión. No abre ninguna puerta: el valor solo sirve para BUSCAR en
+ * `usuarios`, así que si no corresponde a alguien cargado y activo, el acceso se
+ * niega igual.
+ */
+function correoDelPerfil(perfil: Profile | undefined): string | null {
+  const claims = perfil as (Profile & { preferred_username?: string; upn?: string }) | undefined;
+  const candidato = claims?.email || claims?.preferred_username || claims?.upn;
+  return candidato ? candidato.toLowerCase() : null;
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     MicrosoftEntraID({
@@ -64,8 +84,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // en cada carga de página (ver app/(protegido)/layout.tsx) para que quitar
     // acceso a alguien tenga efecto de inmediato, no recién cuando expire su sesión.
     async signIn({ profile }) {
-      const usuario = await obtenerUsuarioActivo(profile?.email);
-      return usuario !== null;
+      const correo = correoDelPerfil(profile);
+      const usuario = await obtenerUsuarioActivo(correo);
+      if (!usuario) {
+        // Un rechazo no dejaba ningún rastro: la persona veía "no autorizada" y
+        // del lado del servidor no había con qué saber con qué correo entró. Sin
+        // esto, averiguar por qué a alguien no lo deja pasar es adivinar.
+        console.warn(
+          `[auth] Login rechazado. correo=${correo ?? "(el perfil de Entra no trajo ninguno)"} ` +
+            `claims=${Object.keys(profile ?? {}).join(",")}`,
+        );
+        return false;
+      }
+      return true;
     },
     async jwt({ token, account, profile }) {
       // Primer login: "account" trae los tokens que devolvió Microsoft.
@@ -73,21 +104,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Se captura el ultimo_ingreso ANTERIOR antes de que registrarIngreso
         // lo sobreescriba con el de ahora mismo (ver lib/usuarios.ts) -- así
         // el dashboard puede mostrar "tu último ingreso fue...".
-        const ultimoIngresoAnterior = profile?.email ? await registrarIngreso(profile.email) : null;
+        const correo = correoDelPerfil(profile);
+        const ultimoIngresoAnterior = correo ? await registrarIngreso(correo) : null;
 
         // El refresh token se persiste cifrado para que el cron de las 7:30
         // pueda leer el correo en nombre de la persona. Es la alternativa a
         // pedir permisos de APLICACIÓN, que darían acceso a todos los buzones
         // del tenant en vez de solo al de quien se logueó. Si falla, el login
         // no se rompe: el resumen diario simplemente no se genera solo.
-        if (account.refresh_token && profile?.email) {
-          await guardarRefreshToken(profile.email, account.refresh_token).catch((e) =>
+        if (account.refresh_token && correo) {
+          await guardarRefreshToken(correo, account.refresh_token).catch((e) =>
             console.error("[auth] No se pudo guardar el refresh token de Graph:", e),
           );
         }
 
         return {
           ...token,
+          // El correo va al token explícitamente: refrescarAccessToken lo usa
+          // para volver a guardar el refresh token rotado, y si el claim `email`
+          // vino vacío el token quedaba sin él y esa persona perdía el correo
+          // diario sin ninguna señal.
+          email: correo ?? token.email,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,
