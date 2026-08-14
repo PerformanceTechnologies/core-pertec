@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconArrowLeft, IconRefresh, IconSearch, IconChevronUp, IconChevronDown, IconInfoCircle } from "@tabler/icons-react";
 import type { FinanzasIhDocumentoFila } from "@/lib/finanzas-ih/finanzas-ih";
@@ -124,6 +125,8 @@ export default function PanelFacturasIh({
   const [errorActualizar, setErrorActualizar] = useState<string | null>(null);
   const [encolado, setEncolado] = useState(false);
   const [seleccionado, setSeleccionado] = useState<FinanzasIhDocumentoFila | null>(null);
+  const router = useRouter();
+  const timeoutRefrescoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const documentosFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
@@ -204,11 +207,20 @@ export default function PanelFacturasIh({
     setActualizando(true);
     setErrorActualizar(null);
     setEncolado(false);
+    if (timeoutRefrescoRef.current) clearTimeout(timeoutRefrescoRef.current);
     try {
       const resp = await fetch("/api/finanzas-ih/actualizar", { method: "POST" });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error ?? "No se pudo encolar la actualización.");
       setEncolado(true);
+      // La corrida en GitHub Actions tarda 1-2 minutos: a los 100s se refresca
+      // solo (router.refresh() vuelve a pedir los documentos al server sin
+      // recargar toda la pagina) y se oculta el aviso, para no depender de
+      // que el usuario recargue manualmente.
+      timeoutRefrescoRef.current = setTimeout(() => {
+        setEncolado(false);
+        router.refresh();
+      }, 100_000);
     } catch (err) {
       setErrorActualizar(err instanceof Error ? err.message : "Error desconocido");
     } finally {
