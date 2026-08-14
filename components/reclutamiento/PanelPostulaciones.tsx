@@ -5,6 +5,7 @@ import type { PostulacionGuardada } from "@/lib/reclutamiento";
 import { exportarPostulacionesAExcel } from "@/lib/exportarCsv";
 import ModalPostulante from "./ModalPostulante";
 import CargaPertec from "@/components/CargaPertec";
+import { TARJETA } from "@/lib/estilos";
 
 const INTERVALO_ACTUALIZACION_MS = 30_000;
 
@@ -81,7 +82,7 @@ function hace(segundos: number) {
 }
 
 const inputFiltro =
-  "w-full rounded-lg border border-borde bg-white px-3 py-2 text-sm text-tinta outline-none transition focus:border-naranjo focus:ring-2 focus:ring-naranjo/15";
+  "w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none transition focus:border-naranjo focus:ring-2 focus:ring-naranjo/15";
 
 export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   const [postulaciones, setPostulaciones] = useState<PostulacionGuardada[] | null>(null);
@@ -211,7 +212,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
 
   if (error && !postulaciones) {
     return (
-      <div className="rounded-2xl border border-borde bg-white p-8 text-center">
+      <div className={`p-8 text-center ${TARJETA}`}>
         <p className="text-sm font-medium text-red-600">{error}</p>
         <button
           onClick={cargar}
@@ -224,28 +225,39 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   }
 
   return (
-    <div className="animar-entrada flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <span className="etiqueta-seccion">Postulaciones</span>
+    <div className="animar-entrada mt-8 flex flex-col gap-6">
+      {/* El "Actualizado hace X" sin el rótulo de sección al lado: la página ya
+          se titula Postulaciones arriba, y repetirlo acá era decirlo dos veces
+          en la misma pantalla. */}
+      <div className="flex justify-end">
         <span className="flex items-center gap-2 text-xs text-tinta/45">
-          <span className={`h-1.5 w-1.5 rounded-full ${cargando ? "bg-naranjo animate-pulse" : "bg-teal"}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${cargando ? "animate-pulse bg-naranjo" : "bg-teal"}`} />
           {actualizadoEn ? `Actualizado ${hace(segundosDesde)}` : "Cargando..."}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <TarjetaResumen titulo="Postulaciones (filtro)" valor={filtradas.length} />
-        <TarjetaResumen titulo="Últimas 24 horas" valor={ultimas24h} />
-        <TarjetaResumen titulo="Cargo más solicitado" valor={porCargo[0]?.etiqueta ?? "—"} pequeno />
-        <TarjetaResumen titulo="Región líder" valor={porRegion[0]?.etiqueta ?? "—"} pequeno />
-      </div>
+      {/* Las cuatro cifras en una cinta de segmentos, como en el resto del core:
+          eran cuatro tarjetas sueltas, cada una con su borde, y se leían como
+          cuatro cosas distintas en vez de una sola lectura del período. */}
+      <dl className="-mt-2 grid grid-cols-1 overflow-hidden rounded-2xl border border-borde sm:grid-cols-4">
+        <Cifra titulo="Postulaciones (filtro)" valor={filtradas.length} tinte="bg-naranjo/[0.06]" borde />
+        <Cifra titulo="Últimas 24 horas" valor={ultimas24h} tinte="bg-gris/[0.08]" borde />
+        <Cifra
+          titulo="Cargo más solicitado"
+          valor={porCargo[0]?.etiqueta ?? "—"}
+          tinte="bg-gris/[0.08]"
+          texto
+          borde
+        />
+        <Cifra titulo="Región líder" valor={porRegion[0]?.etiqueta ?? "—"} tinte="bg-teal/[0.06]" texto />
+      </dl>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <BarrasDesglose titulo="Por cargo" datos={porCargo} maximo={maxCargo} />
         <BarrasDesglose titulo="Por región" datos={porRegion} maximo={maxRegion} />
       </div>
 
-      <div className="rounded-2xl border border-borde bg-white p-4">
+      <div className={`p-4 ${TARJETA}`}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="relative lg:col-span-1">
             <svg
@@ -328,7 +340,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
           {hayFiltrosActivos && (
             <button
               onClick={() => setFiltros(FILTROS_VACIOS)}
-              className="text-xs font-medium text-naranjo hover:underline"
+              className="rounded text-xs font-medium text-naranjo hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
             >
               Limpiar filtros
             </button>
@@ -336,7 +348,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-borde bg-white">
+      <div className={`overflow-hidden ${TARJETA}`}>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borde px-6 py-4">
           <h2 className="font-condensed text-lg font-bold uppercase text-tinta">
             Postulaciones {hayFiltrosActivos ? "filtradas" : "recientes"}
@@ -344,7 +356,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
           <button
             onClick={exportarSeleccionadas}
             disabled={seleccionados.size === 0}
-            className="inline-flex items-center gap-2 rounded-lg border border-borde px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-teal/40 hover:text-teal disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-lg border border-borde bg-superficie px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-teal/40 hover:text-teal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo disabled:cursor-not-allowed disabled:opacity-40"
           >
             <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
               <path
@@ -451,21 +463,35 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   );
 }
 
-function TarjetaResumen({
+/**
+ * Un segmento de la cinta de cifras.
+ *
+ * `texto` para los dos que muestran un nombre y no un número: van más chicos y
+ * sin tabular-nums, que solo sirve para dígitos.
+ */
+function Cifra({
   titulo,
   valor,
-  pequeno,
+  tinte,
+  borde,
+  texto,
 }: {
   titulo: string;
   valor: string | number;
-  pequeno?: boolean;
+  tinte: string;
+  borde?: boolean;
+  texto?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-borde bg-white p-4">
-      <p className="text-xs font-medium text-tinta/50">{titulo}</p>
-      <p className={`mt-1 font-condensed font-bold text-tinta ${pequeno ? "text-base" : "text-2xl"}`}>
+    <div className={`border-b border-borde px-5 py-4 sm:border-b-0 ${borde ? "sm:border-r" : ""} ${tinte}`}>
+      <dt className="text-xs font-medium text-tinta/55">{titulo}</dt>
+      <dd
+        className={`mt-1 font-condensed font-bold leading-tight tracking-tight text-tinta ${
+          texto ? "text-base" : "text-2xl tabular-nums sm:text-3xl"
+        }`}
+      >
         {valor}
-      </p>
+      </dd>
     </div>
   );
 }
@@ -480,7 +506,7 @@ function BarrasDesglose({
   maximo: number;
 }) {
   return (
-    <div className="rounded-2xl border border-borde bg-white p-5">
+    <div className={`p-5 ${TARJETA}`}>
       <h3 className="mb-4 font-condensed text-sm font-bold uppercase text-tinta/70">{titulo}</h3>
       <div className="flex flex-col gap-3">
         {datos.length === 0 && <p className="text-sm text-tinta/40">Sin datos aún.</p>}
@@ -488,7 +514,7 @@ function BarrasDesglose({
           <div key={d.etiqueta}>
             <div className="mb-1 flex items-center justify-between text-xs">
               <span className="font-medium text-tinta/75">{d.etiqueta}</span>
-              <span className="text-tinta/45">{d.total}</span>
+              <span className="tabular-nums text-tinta/45">{d.total}</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-crema">
               <div

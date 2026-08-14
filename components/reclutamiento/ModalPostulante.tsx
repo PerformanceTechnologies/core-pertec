@@ -46,13 +46,16 @@ export default function ModalPostulante({
   }, [onClose]);
 
   const otrosDocumentos = postulante.otrosDocumentosUrl
-    ? postulante.otrosDocumentosUrl.split(";").map((s) => s.trim()).filter(Boolean)
+    ? postulante.otrosDocumentosUrl
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
 
   async function eliminar() {
     if (
       !window.confirm(
-        `¿Eliminar la postulación de ${postulante.nombreCompleto}? Esta acción no se puede deshacer.`
+        `¿Eliminar la postulación de ${postulante.nombreCompleto}? Esta acción no se puede deshacer.`,
       )
     ) {
       return;
@@ -72,19 +75,14 @@ export default function ModalPostulante({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-borde bg-white shadow-lg"
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-borde bg-superficie shadow-lg"
       >
         <div className="flex items-start justify-between border-b border-borde px-6 py-4">
           <div>
-            <h2 className="font-condensed text-xl font-bold text-tinta">
-              {postulante.nombreCompleto}
-            </h2>
+            <h2 className="font-condensed text-xl font-bold text-tinta">{postulante.nombreCompleto}</h2>
             <p className="mt-0.5 text-xs text-tinta/45">
               Postuló el {formatearFechaLarga(postulante.creadaEn)}
             </p>
