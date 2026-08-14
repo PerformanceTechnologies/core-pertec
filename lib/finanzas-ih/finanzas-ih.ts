@@ -87,6 +87,22 @@ export async function obtenerUltimaEjecucionExitosaIh(): Promise<{ ejecutado_en:
   return data ?? null;
 }
 
+// Usado por el boton "Actualizar con SII ahora" para saber si el workflow de
+// GitHub Actions ya termino: cada corrida completa inserta DOS filas (RCV +
+// Portal MIPYME, y despues Boletas de Honorarios -- ver
+// scripts/sincronizar-finanzas-ih.mts), asi que la UI hace polling de esto
+// hasta ver 2 filas nuevas (o una fallida) desde que se encolo.
+export async function obtenerEjecucionesDesdeIh(
+  desdeIso: string
+): Promise<{ ejecutado_en: string; exito: boolean; mensaje_error: string | null }[]> {
+  const { data } = await supabaseAdmin
+    .from("finanzas_ih_ejecuciones")
+    .select("ejecutado_en, exito, mensaje_error")
+    .gt("ejecutado_en", desdeIso)
+    .order("ejecutado_en", { ascending: true });
+  return data ?? [];
+}
+
 // Upsert por la clave natural (empresa, tipo_documento, folio,
 // rut_contraparte): re-ejecutar la misma ventana de dias no duplica filas, y
 // si el estado SII de un documento cambio se actualiza en vez de insertar.

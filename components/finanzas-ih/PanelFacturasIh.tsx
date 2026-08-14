@@ -123,10 +123,10 @@ export default function PanelFacturasIh({
   const [ordenFecha, setOrdenFecha] = useState<"desc" | "asc">("desc");
   const [actualizando, setActualizando] = useState(false);
   const [errorActualizar, setErrorActualizar] = useState<string | null>(null);
-  const [encolado, setEncolado] = useState(false);
+  const [estadoSync, setEstadoSync] = useState<"idle" | "esperando" | "listo" | "fallo" | "sin_confirmar">("idle");
   const [seleccionado, setSeleccionado] = useState<FinanzasIhDocumentoFila | null>(null);
   const router = useRouter();
-  const timeoutRefrescoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervaloPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const documentosFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
@@ -202,25 +202,54 @@ export default function PanelFacturasIh({
   // La sincronizacion real corre en GitHub Actions, no en Vercel (superaba
   // los 60s del plan Hobby, ver .github/workflows/finanzas-ih-cron.yml) --
   // este boton solo la encola (workflow_dispatch) y no espera a que
-  // termine, por eso el mensaje avisa que tarda un par de minutos en verse.
+  // termine. Para saber cuando terminó DE VERDAD (y si salió bien), se hace
+  // polling de /api/finanzas-ih/estado hasta ver las 2 filas que deja una
+  // corrida completa (RCV+Portal MIPYME, y Boletas de Honorarios -- ver
+  // scripts/sincronizar-finanzas-ih.mts) o una fallida.
   async function actualizarAhora() {
     setActualizando(true);
     setErrorActualizar(null);
-    setEncolado(false);
-    if (timeoutRefrescoRef.current) clearTimeout(timeoutRefrescoRef.current);
+    setEstadoSync("idle");
+    if (intervaloPollingRef.current) clearInterval(intervaloPollingRef.current);
+
+    // Un poco antes del click, por si el reloj del navegador esta adelantado
+    // respecto al del servidor -- mejor no perderse una fila por unos segundos.
+    const desdeIso = new Date(Date.now() - 5_000).toISOString();
+
     try {
       const resp = await fetch("/api/finanzas-ih/actualizar", { method: "POST" });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error ?? "No se pudo encolar la actualización.");
-      setEncolado(true);
-      // La corrida en GitHub Actions tarda 1-2 minutos: a los 100s se refresca
-      // solo (router.refresh() vuelve a pedir los documentos al server sin
-      // recargar toda la pagina) y se oculta el aviso, para no depender de
-      // que el usuario recargue manualmente.
-      timeoutRefrescoRef.current = setTimeout(() => {
-        setEncolado(false);
-        router.refresh();
-      }, 100_000);
+      setEstadoSync("esperando");
+
+      let intentos = 0;
+      const maximoIntentos = 36; // 36 x 5s = 3 minutos de margen
+      intervaloPollingRef.current = setInterval(async () => {
+        intentos += 1;
+        try {
+          const respEstado = await fetch(`/api/finanzas-ih/estado?desde=${encodeURIComponent(desdeIso)}`);
+          const datosEstado = await respEstado.json();
+          const ejecuciones: { exito: boolean; mensaje_error: string | null }[] = datosEstado.ejecuciones ?? [];
+          const fallo = ejecuciones.find((e) => !e.exito);
+
+          if (fallo) {
+            clearInterval(intervaloPollingRef.current!);
+            setEstadoSync("fallo");
+            setErrorActualizar(fallo.mensaje_error ?? "La sincronización terminó con error.");
+            router.refresh();
+          } else if (ejecuciones.length >= 2) {
+            clearInterval(intervaloPollingRef.current!);
+            setEstadoSync("listo");
+            router.refresh();
+          } else if (intentos >= maximoIntentos) {
+            clearInterval(intervaloPollingRef.current!);
+            setEstadoSync("sin_confirmar");
+            router.refresh();
+          }
+        } catch {
+          // Un fallo de red puntual no corta el polling, sigue intentando.
+        }
+      }, 5_000);
     } catch (err) {
       setErrorActualizar(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -250,20 +279,31 @@ export default function PanelFacturasIh({
         <div className="flex flex-col items-end gap-1.5">
           <button
             onClick={actualizarAhora}
-            disabled={actualizando}
+            disabled={actualizando || estadoSync === "esperando"}
             className="inline-flex items-center gap-1.5 rounded-lg border border-borde bg-white px-3 py-1.5 text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo disabled:opacity-50"
           >
-            <IconRefresh size={13} stroke={2} className={actualizando ? "animate-spin" : ""} aria-hidden />
-            {actualizando ? "Encolando..." : "Actualizar con SII ahora"}
+            <IconRefresh
+              size={13}
+              stroke={2}
+              className={actualizando || estadoSync === "esperando" ? "animate-spin" : ""}
+              aria-hidden
+            />
+            {actualizando ? "Encolando..." : estadoSync === "esperando" ? "Sincronizando..." : "Actualizar con SII ahora"}
           </button>
           <span className="text-[11px] text-tinta/45">
             {ultimaEjecucionExitosa
               ? `Última actualización: ${new Date(ultimaEjecucionExitosa.ejecutado_en).toLocaleString("es-CL")}`
               : "Todavía no se ha ejecutado la actualización automática."}
           </span>
-          {encolado && (
-            <span className="text-[11px] text-teal">
-              Sincronización encolada — tarda 1-2 minutos, recarga la página luego.
+          {estadoSync === "esperando" && (
+            <span className="text-[11px] text-teal">Sincronizando con el SII, esto tarda 1-2 minutos...</span>
+          )}
+          {estadoSync === "listo" && (
+            <span className="text-[11px] text-teal">Sincronización terminada — datos actualizados.</span>
+          )}
+          {estadoSync === "sin_confirmar" && (
+            <span className="text-[11px] text-tinta/45">
+              Sigue corriendo hace más de lo normal, revisa en unos minutos.
             </span>
           )}
           {errorActualizar && <span className="text-[11px] text-red-600">{errorActualizar}</span>}
