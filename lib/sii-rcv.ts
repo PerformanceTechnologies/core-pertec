@@ -175,7 +175,27 @@ export async function login(page: import("playwright-core").Page, creds: Credenc
   }
 }
 
+// El SPA del RCV a veces muestra un modal de aviso (Bootstrap, id
+// "alert-modal") que queda tapando la pantalla e intercepta cualquier click
+// -- confirmado en vivo en produccion (GitHub Actions, 2026-08-14): el click
+// en la pestana VENTA fallaba con "<div id="alert-modal" ...> intercepts
+// pointer events". Se cierra ANTES de cada click de pestana, no solo una vez,
+// porque puede reaparecer en cualquier momento del flujo.
+async function cerrarModalSiExiste(page: import("playwright-core").Page): Promise<void> {
+  const modal = page.locator("#alert-modal.in, .modal.in").first();
+  if ((await modal.count()) === 0) return;
+
+  const cerrar = modal.locator("button.close, [data-dismiss='modal']").first();
+  if ((await cerrar.count()) > 0) {
+    await cerrar.click({ timeout: 3000 }).catch(() => {});
+  } else {
+    await page.keyboard.press("Escape").catch(() => {});
+  }
+  await page.waitForTimeout(300);
+}
+
 async function irATab(page: import("playwright-core").Page, texto: string): Promise<void> {
+  await cerrarModalSiExiste(page);
   const tab = page.locator("a, li").filter({ hasText: new RegExp(`^${texto}$`, "i") }).first();
   await tab.scrollIntoViewIfNeeded();
   await tab.click({ timeout: 10000 });
