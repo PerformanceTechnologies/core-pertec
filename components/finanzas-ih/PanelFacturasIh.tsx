@@ -124,7 +124,7 @@ export default function PanelFacturasIh({
   documentos: FinanzasIhDocumentoFila[];
   ultimaEjecucionExitosa: { ejecutado_en: string } | null;
 }) {
-  const [filtroEmpresa, setFiltroEmpresa] = useState<"todas" | "IH" | "IL">("todas");
+  const [filtroEmpresa, setFiltroEmpresa] = useState<"todas" | "IH" | "IL">("IH");
   const [direccion, setDireccion] = useState<"venta" | "compra">("compra");
   const [grupoTipo, setGrupoTipo] = useState<ClaveGrupoTipo>("todos");
   const [busqueda, setBusqueda] = useState("");
@@ -335,28 +335,28 @@ export default function PanelFacturasIh({
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <button
           onClick={() => setResumenAbierto("tipo")}
-          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+          className="rounded-lg border border-naranjo/25 bg-naranjo/5 px-3 py-3 text-left text-xs font-semibold text-naranjo shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-naranjo/10 hover:shadow-md hover:shadow-naranjo/20"
         >
           Documentos por tipo
         </button>
         <button
           onClick={() => setResumenAbierto("estado")}
-          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+          className="rounded-lg border border-teal/25 bg-teal/5 px-3 py-3 text-left text-xs font-semibold text-teal shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal/10 hover:shadow-md hover:shadow-teal/20"
         >
           Estado SII
         </button>
         <button
           onClick={() => setResumenAbierto("afecta_exenta")}
-          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+          className="rounded-lg border border-naranjo-suave/30 bg-naranjo-suave/10 px-3 py-3 text-left text-xs font-semibold text-naranjo-suave shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-naranjo-suave/15 hover:shadow-md hover:shadow-naranjo-suave/20"
         >
           Facturas afectas vs. exentas
         </button>
         <button
           onClick={() => setResumenAbierto("empresa")}
-          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+          className="rounded-lg border border-teal-suave/30 bg-teal-suave/10 px-3 py-3 text-left text-xs font-semibold text-teal-suave shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal-suave/15 hover:shadow-md hover:shadow-teal-suave/20"
         >
           Documentos por empresa
         </button>
