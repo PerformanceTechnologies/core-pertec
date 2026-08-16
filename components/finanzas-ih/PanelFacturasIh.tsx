@@ -3,7 +3,15 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconArrowLeft, IconRefresh, IconSearch, IconChevronUp, IconChevronDown, IconInfoCircle } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconRefresh,
+  IconSearch,
+  IconChevronUp,
+  IconChevronDown,
+  IconInfoCircle,
+  IconX,
+} from "@tabler/icons-react";
 import type { FinanzasIhDocumentoFila } from "@/lib/finanzas-ih/finanzas-ih";
 import ModalFacturaIhVenta from "./ModalFacturaIhVenta";
 import ModalFacturaIhCompra from "./ModalFacturaIhCompra";
@@ -125,6 +133,7 @@ export default function PanelFacturasIh({
   const [errorActualizar, setErrorActualizar] = useState<string | null>(null);
   const [estadoSync, setEstadoSync] = useState<"idle" | "esperando" | "listo" | "fallo" | "sin_confirmar">("idle");
   const [seleccionado, setSeleccionado] = useState<FinanzasIhDocumentoFila | null>(null);
+  const [resumenAbierto, setResumenAbierto] = useState<"tipo" | "estado" | "afecta_exenta" | "empresa" | null>(null);
   const router = useRouter();
   const intervaloPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -326,83 +335,130 @@ export default function PanelFacturasIh({
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-borde bg-white p-3">
-          <div className="text-[11px] uppercase text-tinta/50">
-            Documentos por tipo · {direccion === "venta" ? "Venta" : "Compra"}
-            {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
-          </div>
-          <dl className="mt-1.5 divide-y divide-borde text-xs">
-            {Object.entries(GRUPOS_TIPO)
-              .filter(([clave]) => clave !== "todos")
-              .map(([clave, grupo]) => {
-                const total = (grupo.tipos ?? []).reduce((acc, t) => acc + (conteoPorTipo[t] ?? 0), 0);
-                return (
-                  <div key={clave} className="flex items-center justify-between py-0.5">
-                    <dt className="text-tinta/60">{grupo.etiqueta}</dt>
-                    <dd className="font-semibold text-tinta">{total}</dd>
-                  </div>
-                );
-              })}
-          </dl>
-        </div>
-
-        <div className="rounded-xl border border-borde bg-white p-3">
-          <div className="inline-flex items-center gap-1 text-[11px] uppercase text-tinta/50">
-            Estado SII · {direccion === "venta" ? "Venta" : "Compra"}
-            {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
-            <IconInfoCircle size={12} stroke={2} className="text-tinta/40" title={TITULO_LEYENDA_ESTADO} />
-          </div>
-          {totalConEstado === 0 ? (
-            <p className="mt-1.5 text-xs text-tinta/45">
-              Ninguno de estos documentos viene del Registro de Compras y Ventas.
-            </p>
-          ) : (
-            <dl className="mt-1.5 divide-y divide-borde text-xs">
-              {Object.entries(ETIQUETAS_ESTADO).map(([clave, etiqueta]) => (
-                <div key={clave} className="flex items-center justify-between py-0.5">
-                  <dt className="text-tinta/60">{etiqueta}</dt>
-                  <dd className="font-semibold text-tinta">{conteoPorEstado[clave] ?? 0}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-borde bg-white p-3">
-          <div className="text-[11px] uppercase text-tinta/50">
-            Facturas afectas vs. exentas · {direccion === "venta" ? "Venta" : "Compra"}
-            {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
-          </div>
-          <dl className="mt-1.5 divide-y divide-borde text-xs">
-            <div className="flex items-center justify-between py-0.5">
-              <dt className="text-tinta/60">Afectas</dt>
-              <dd className="font-semibold text-tinta">{conteoAfectaExenta.afecta}</dd>
-            </div>
-            <div className="flex items-center justify-between py-0.5">
-              <dt className="text-tinta/60">Exentas</dt>
-              <dd className="font-semibold text-tinta">{conteoAfectaExenta.exenta}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="rounded-xl border border-borde bg-white p-3">
-          <div className="text-[11px] uppercase text-tinta/50">
-            Documentos por empresa · {direccion === "venta" ? "Venta" : "Compra"}
-          </div>
-          <dl className="mt-1.5 divide-y divide-borde text-xs">
-            <div className="flex items-center justify-between py-0.5">
-              <dt className="text-tinta/60">IH</dt>
-              <dd className="font-semibold text-tinta">{conteoPorEmpresa.IH}</dd>
-            </div>
-            <div className="flex items-center justify-between py-0.5">
-              <dt className="text-tinta/60">IL</dt>
-              <dd className="font-semibold text-tinta">{conteoPorEmpresa.IL}</dd>
-            </div>
-          </dl>
-        </div>
-
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <button
+          onClick={() => setResumenAbierto("tipo")}
+          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+        >
+          Documentos por tipo
+        </button>
+        <button
+          onClick={() => setResumenAbierto("estado")}
+          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+        >
+          Estado SII
+        </button>
+        <button
+          onClick={() => setResumenAbierto("afecta_exenta")}
+          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+        >
+          Facturas afectas vs. exentas
+        </button>
+        <button
+          onClick={() => setResumenAbierto("empresa")}
+          className="rounded-lg border border-borde bg-white px-3 py-2.5 text-left text-xs font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
+        >
+          Documentos por empresa
+        </button>
       </div>
+
+      {resumenAbierto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4"
+          onClick={() => setResumenAbierto(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-borde bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="inline-flex items-center gap-1 text-[11px] uppercase text-tinta/50">
+                {resumenAbierto === "tipo" && (
+                  <>
+                    Documentos por tipo · {direccion === "venta" ? "Venta" : "Compra"}
+                    {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
+                  </>
+                )}
+                {resumenAbierto === "estado" && (
+                  <>
+                    Estado SII · {direccion === "venta" ? "Venta" : "Compra"}
+                    {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
+                    <IconInfoCircle size={12} stroke={2} className="text-tinta/40" title={TITULO_LEYENDA_ESTADO} />
+                  </>
+                )}
+                {resumenAbierto === "afecta_exenta" && (
+                  <>
+                    Facturas afectas vs. exentas · {direccion === "venta" ? "Venta" : "Compra"}
+                    {filtroEmpresa !== "todas" ? ` · ${filtroEmpresa}` : ""}
+                  </>
+                )}
+                {resumenAbierto === "empresa" && <>Documentos por empresa · {direccion === "venta" ? "Venta" : "Compra"}</>}
+              </div>
+              <button onClick={() => setResumenAbierto(null)} className="text-tinta/40 hover:text-tinta">
+                <IconX size={16} stroke={2} />
+              </button>
+            </div>
+
+            {resumenAbierto === "tipo" && (
+              <dl className="mt-2 divide-y divide-borde text-xs">
+                {Object.entries(GRUPOS_TIPO)
+                  .filter(([clave]) => clave !== "todos")
+                  .map(([clave, grupo]) => {
+                    const total = (grupo.tipos ?? []).reduce((acc, t) => acc + (conteoPorTipo[t] ?? 0), 0);
+                    return (
+                      <div key={clave} className="flex items-center justify-between py-1">
+                        <dt className="text-tinta/60">{grupo.etiqueta}</dt>
+                        <dd className="font-semibold text-tinta">{total}</dd>
+                      </div>
+                    );
+                  })}
+              </dl>
+            )}
+
+            {resumenAbierto === "estado" &&
+              (totalConEstado === 0 ? (
+                <p className="mt-2 text-xs text-tinta/45">
+                  Ninguno de estos documentos viene del Registro de Compras y Ventas.
+                </p>
+              ) : (
+                <dl className="mt-2 divide-y divide-borde text-xs">
+                  {Object.entries(ETIQUETAS_ESTADO).map(([clave, etiqueta]) => (
+                    <div key={clave} className="flex items-center justify-between py-1">
+                      <dt className="text-tinta/60">{etiqueta}</dt>
+                      <dd className="font-semibold text-tinta">{conteoPorEstado[clave] ?? 0}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ))}
+
+            {resumenAbierto === "afecta_exenta" && (
+              <dl className="mt-2 divide-y divide-borde text-xs">
+                <div className="flex items-center justify-between py-1">
+                  <dt className="text-tinta/60">Afectas</dt>
+                  <dd className="font-semibold text-tinta">{conteoAfectaExenta.afecta}</dd>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <dt className="text-tinta/60">Exentas</dt>
+                  <dd className="font-semibold text-tinta">{conteoAfectaExenta.exenta}</dd>
+                </div>
+              </dl>
+            )}
+
+            {resumenAbierto === "empresa" && (
+              <dl className="mt-2 divide-y divide-borde text-xs">
+                <div className="flex items-center justify-between py-1">
+                  <dt className="text-tinta/60">IH</dt>
+                  <dd className="font-semibold text-tinta">{conteoPorEmpresa.IH}</dd>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <dt className="text-tinta/60">IL</dt>
+                  <dd className="font-semibold text-tinta">{conteoPorEmpresa.IL}</dd>
+                </div>
+              </dl>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 flex gap-2">
         <button
