@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { IconDownload } from "@tabler/icons-react";
 import type { FinanzasIhDocumentoFila } from "@/lib/finanzas-ih/finanzas-ih";
+import { nombreArchivoIh } from "@/lib/finanzas-ih/nombre-archivo";
 
 const ETIQUETAS_TIPO_DOCUMENTO: Record<string, string> = {
   factura_afecta: "Factura",
@@ -48,6 +50,12 @@ export default function ModalFacturaIhCompra({
   const urlPreview = documento.pdf_sharepoint_item_id
     ? `/api/finanzas-ih/archivo?id=${encodeURIComponent(documento.pdf_sharepoint_item_id)}`
     : null;
+  const urlDescargaXml = documento.xml_sharepoint_item_id
+    ? `/api/finanzas-ih/archivo?id=${encodeURIComponent(documento.xml_sharepoint_item_id)}&tipo=xml&descarga=1&nombre=${encodeURIComponent(nombreArchivoIh(documento, "xml"))}`
+    : null;
+  const urlDescargaPdf = documento.pdf_sharepoint_item_id
+    ? `/api/finanzas-ih/archivo?id=${encodeURIComponent(documento.pdf_sharepoint_item_id)}&tipo=pdf&descarga=1&nombre=${encodeURIComponent(nombreArchivoIh(documento, "pdf"))}`
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 p-4" onClick={onCerrar}>
@@ -68,13 +76,33 @@ export default function ModalFacturaIhCompra({
               {formatearMonto(documento.monto_total)}
             </p>
           </div>
-          <button
-            onClick={onCerrar}
-            className="rounded-full p-1 text-tinta/50 hover:bg-crema hover:text-tinta"
-            aria-label="Cerrar"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-1">
+            {urlDescargaXml && (
+              <a
+                href={urlDescargaXml}
+                title="Descargar XML"
+                className="inline-flex items-center gap-1 rounded-md border border-borde px-2 py-1 text-[11px] font-medium text-tinta/60 hover:border-naranjo/40 hover:text-naranjo"
+              >
+                <IconDownload size={13} stroke={2} /> XML
+              </a>
+            )}
+            {urlDescargaPdf && (
+              <a
+                href={urlDescargaPdf}
+                title="Descargar factura (PDF)"
+                className="inline-flex items-center gap-1 rounded-md border border-borde px-2 py-1 text-[11px] font-medium text-tinta/60 hover:border-teal/40 hover:text-teal"
+              >
+                <IconDownload size={13} stroke={2} /> PDF
+              </a>
+            )}
+            <button
+              onClick={onCerrar}
+              className="rounded-full p-1 text-tinta/50 hover:bg-crema hover:text-tinta"
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {urlPreview ? (

@@ -11,8 +11,11 @@ import {
   IconChevronDown,
   IconInfoCircle,
   IconX,
+  IconFileTypeXml,
+  IconFileTypePdf,
 } from "@tabler/icons-react";
 import type { FinanzasIhDocumentoFila } from "@/lib/finanzas-ih/finanzas-ih";
+import { nombreArchivoIh } from "@/lib/finanzas-ih/nombre-archivo";
 import ModalFacturaIhVenta from "./ModalFacturaIhVenta";
 import ModalFacturaIhCompra from "./ModalFacturaIhCompra";
 
@@ -73,6 +76,16 @@ type ClaveGrupoTipo = keyof typeof GRUPOS_TIPO;
 function formatearMonto(valor: number | null): string {
   if (valor === null) return "-";
   return valor.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+}
+
+function urlDescargaIh(itemId: string, tipo: "xml" | "pdf", documento: FinanzasIhDocumentoFila): string {
+  const params = new URLSearchParams({
+    id: itemId,
+    tipo,
+    descarga: "1",
+    nombre: nombreArchivoIh(documento, tipo),
+  });
+  return `/api/finanzas-ih/archivo?${params.toString()}`;
 }
 
 function formatearFecha(valor: string | null): string {
@@ -534,6 +547,7 @@ export default function PanelFacturasIh({
                   <IconInfoCircle size={13} stroke={2} className="text-tinta/40" title={TITULO_LEYENDA_ESTADO} />
                 </span>
               </th>
+              <th className="px-4 py-3 text-right">Archivos</th>
             </tr>
           </thead>
           <tbody>
@@ -568,11 +582,36 @@ export default function PanelFacturasIh({
                     <span className="text-[11px] text-tinta/35">-</span>
                   )}
                 </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    {d.xml_sharepoint_item_id && (
+                      <a
+                        href={urlDescargaIh(d.xml_sharepoint_item_id, "xml", d)}
+                        title="Descargar XML"
+                        className="rounded p-1 text-tinta/40 hover:bg-naranjo/10 hover:text-naranjo"
+                      >
+                        <IconFileTypeXml size={16} stroke={1.8} />
+                      </a>
+                    )}
+                    {d.pdf_sharepoint_item_id && (
+                      <a
+                        href={urlDescargaIh(d.pdf_sharepoint_item_id, "pdf", d)}
+                        title="Descargar factura (PDF)"
+                        className="rounded p-1 text-tinta/40 hover:bg-teal/10 hover:text-teal"
+                      >
+                        <IconFileTypePdf size={16} stroke={1.8} />
+                      </a>
+                    )}
+                    {!d.xml_sharepoint_item_id && !d.pdf_sharepoint_item_id && (
+                      <span className="text-[11px] text-tinta/30">-</span>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
             {documentosFiltrados.length === 0 && (
               <tr>
-                <td colSpan={filtroEmpresa === "todas" ? 8 : 7} className="px-4 py-6 text-center text-tinta/50">
+                <td colSpan={filtroEmpresa === "todas" ? 9 : 8} className="px-4 py-6 text-center text-tinta/50">
                   No hay documentos de {direccion === "venta" ? "venta" : "compra"} que coincidan con el filtro.
                 </td>
               </tr>
