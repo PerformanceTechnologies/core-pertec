@@ -332,20 +332,41 @@ export default function PanelFacturasIh({
         </div>
       </div>
 
-      <div className="mt-6 inline-flex gap-1 rounded-lg border border-borde bg-crema/50 p-1">
-        {(["todas", "IH", "IL"] as const).map((valor) => (
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="inline-flex gap-1 rounded-lg border border-borde bg-crema/50 p-1">
+          {(["todas", "IH", "IL"] as const).map((valor) => (
+            <button
+              key={valor}
+              onClick={() => setFiltroEmpresa(valor)}
+              className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+                filtroEmpresa === valor
+                  ? "bg-tinta text-white shadow-sm"
+                  : "text-tinta/55 hover:bg-white hover:text-tinta"
+              }`}
+            >
+              {valor === "todas" ? "Todas" : valor}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
           <button
-            key={valor}
-            onClick={() => setFiltroEmpresa(valor)}
-            className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
-              filtroEmpresa === valor
-                ? "bg-tinta text-white shadow-sm"
-                : "text-tinta/55 hover:bg-white hover:text-tinta"
+            onClick={() => setDireccion("venta")}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold uppercase ${
+              direccion === "venta" ? "bg-naranjo text-white" : "border border-borde bg-white text-tinta/60"
             }`}
           >
-            {valor === "todas" ? "Todas" : valor}
+            Venta
           </button>
-        ))}
+          <button
+            onClick={() => setDireccion("compra")}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold uppercase ${
+              direccion === "compra" ? "bg-naranjo text-white" : "border border-borde bg-white text-tinta/60"
+            }`}
+          >
+            Compra
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -472,25 +493,6 @@ export default function PanelFacturasIh({
           </div>
         </div>
       )}
-
-      <div className="mt-6 flex gap-2">
-        <button
-          onClick={() => setDireccion("venta")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold uppercase ${
-            direccion === "venta" ? "bg-naranjo text-white" : "border border-borde bg-white text-tinta/60"
-          }`}
-        >
-          Venta
-        </button>
-        <button
-          onClick={() => setDireccion("compra")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold uppercase ${
-            direccion === "compra" ? "bg-naranjo text-white" : "border border-borde bg-white text-tinta/60"
-          }`}
-        >
-          Compra
-        </button>
-      </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1 max-w-md">
