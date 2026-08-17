@@ -96,6 +96,7 @@ export default function TablaCotizaciones({
           <option value="todos">Tipo: todos</option>
           <option value="spot">SPOT</option>
           <option value="contrato_permanente">Contrato permanente</option>
+          <option value="spot_turnos">Obra por turnos</option>
         </select>
         <select
           value={estadoFiltro}
@@ -334,7 +335,7 @@ function PastillaEstado({ estado }: { estado: CotizacionResumen["estado"] }) {
 function PastillaTipo({ tipo }: { tipo: CotizacionResumen["tipoServicio"] }) {
   return (
     <span className="shrink-0 rounded-md bg-gris/10 px-2 py-0.5 text-[11px] font-semibold text-gris">
-      {tipo === "spot" ? "SPOT" : "Permanente"}
+      {tipo === "spot" ? "SPOT" : tipo === "spot_turnos" ? "Obra" : "Permanente"}
     </span>
   );
 }

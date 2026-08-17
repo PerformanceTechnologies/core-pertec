@@ -1,4 +1,5 @@
 import "server-only";
+import type { QuotationInput } from "@/lib/cotizador/motor/types";
 import { lanzarNavegador } from "../playwright-navegador";
 import { money, fechaCl } from "./formato";
 import type { CotizacionCompleta } from "../cotizador";
@@ -31,7 +32,7 @@ function filaEcoItem(e: QuotationResult["ecoItems"][number]): string {
 // relevantes de la cotización. Independiente de la vista en pantalla
 // (EcoTab.tsx): esta es la versión "para imprimir", generada en el servidor.
 export function construirHtmlEcoPdf(
-  cotizacion: CotizacionCompleta,
+  cotizacion: CotizacionCompleta & { input: QuotationInput },
   result: QuotationResult,
   preparadoPor: PreparadoPor,
   empresa: EmpresaIdentidad | null,
@@ -226,7 +227,7 @@ export function construirHtmlEcoPdf(
 }
 
 export async function generarEcoPdf(
-  cotizacion: CotizacionCompleta,
+  cotizacion: CotizacionCompleta & { input: QuotationInput },
   result: QuotationResult,
   preparadoPor: PreparadoPor,
   empresa: EmpresaIdentidad | null,

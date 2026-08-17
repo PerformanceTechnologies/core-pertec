@@ -66,8 +66,11 @@ export default function FormularioCotizacion({
           defaultValue={valoresPorDefecto?.tipoServicio ?? "spot"}
           className="mt-1 w-full rounded-lg border border-borde bg-white px-3 py-2 text-sm outline-none focus:border-naranjo/50"
         >
-          <option value="spot">SPOT</option>
+          <option value="spot">SPOT (mensual)</option>
           <option value="contrato_permanente">Contrato permanente</option>
+          {/* La obra tiene su propio editor: turnos y horas-hombre en vez de
+              meses, y equipo mayor cobrado por día. Ver lib/cotizador/obra. */}
+          <option value="spot_turnos">Obra por turnos</option>
         </select>
       </div>
 

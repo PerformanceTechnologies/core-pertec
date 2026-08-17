@@ -57,7 +57,11 @@ export default function CostosTab({
   const isEquipo = tab === "equipo_herramienta";
   const isVehiculo = tab === "vehiculo";
   const genericos = quotation.costItems.filter((i) => i.categoria === tab);
-  const nItems = isEquipo ? quotation.equipos.length : isVehiculo ? quotation.vehiculos.length : genericos.length;
+  const nItems = isEquipo
+    ? quotation.equipos.length
+    : isVehiculo
+      ? quotation.vehiculos.length
+      : genericos.length;
 
   const updateItem = (id: string, patch: Partial<CostItemInput>) =>
     update((q) => ({ ...q, costItems: q.costItems.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
@@ -80,7 +84,8 @@ export default function CostosTab({
       ],
     }));
 
-  const removeItem = (id: string) => update((q) => ({ ...q, costItems: q.costItems.filter((i) => i.id !== id) }));
+  const removeItem = (id: string) =>
+    update((q) => ({ ...q, costItems: q.costItems.filter((i) => i.id !== id) }));
 
   const updateEquipo = (id: string, patch: Partial<QuotationInput["equipos"][number]>) =>
     update((q) => ({ ...q, equipos: q.equipos.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
@@ -90,11 +95,20 @@ export default function CostosTab({
       ...q,
       equipos: [
         ...q.equipos,
-        { id: nextId("eq"), descripcion: "Nuevo equipo", cantBase: 1, nCuadrillas: 1, valorUnit: 0, vidaUtilAnios: 1, asignacion: "directo" },
+        {
+          id: nextId("eq"),
+          descripcion: "Nuevo equipo",
+          cantBase: 1,
+          nCuadrillas: 1,
+          valorUnit: 0,
+          vidaUtilAnios: 1,
+          asignacion: "directo",
+        },
       ],
     }));
 
-  const removeEquipo = (id: string) => update((q) => ({ ...q, equipos: q.equipos.filter((e) => e.id !== id) }));
+  const removeEquipo = (id: string) =>
+    update((q) => ({ ...q, equipos: q.equipos.filter((e) => e.id !== id) }));
 
   const updateVehiculo = (id: string, patch: Partial<QuotationInput["vehiculos"][number]>) =>
     update((q) => ({ ...q, vehiculos: q.vehiculos.map((v) => (v.id === id ? { ...v, ...patch } : v)) }));
@@ -119,7 +133,8 @@ export default function CostosTab({
       ],
     }));
 
-  const removeVehiculo = (id: string) => update((q) => ({ ...q, vehiculos: q.vehiculos.filter((v) => v.id !== id) }));
+  const removeVehiculo = (id: string) =>
+    update((q) => ({ ...q, vehiculos: q.vehiculos.filter((v) => v.id !== id) }));
 
   const addLinea = () => {
     if (isEquipo) addEquipo();
@@ -138,7 +153,9 @@ export default function CostosTab({
               type="button"
               onClick={() => setTab(c.key)}
               className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                activo ? "border-tinta bg-tinta text-white" : "border-borde bg-white text-tinta/70 hover:border-naranjo/40"
+                activo
+                  ? "border-tinta bg-tinta text-white"
+                  : "border-borde bg-white text-tinta/70 hover:border-naranjo/40"
               }`}
             >
               {c.label}
@@ -149,8 +166,8 @@ export default function CostosTab({
 
       {tab === "epp" && (
         <div className="mt-3 rounded-lg border border-naranjo/30 bg-naranjo/5 px-4 py-3 text-xs text-tinta/70">
-          El costo de personal (Módulo A) ya incluye $35.000/persona de EPP en costo empresa. Active esta categoría como
-          costo propio SOLO si desactiva ese componente — nunca ambos a la vez.
+          El costo de personal (Módulo A) ya incluye $35.000/persona de EPP en costo empresa. Active esta
+          categoría como costo propio SOLO si desactiva ese componente — nunca ambos a la vez.
         </div>
       )}
 
@@ -185,14 +202,47 @@ export default function CostosTab({
             {quotation.equipos.map((e) => {
               const dep = calcularDepreciacionEquipo(e, quotation.metodoDepreciacionEquipos);
               return (
-                <div key={e.id} className="grid grid-cols-[minmax(180px,2fr)_76px_90px_120px_80px_110px_110px_28px] items-center gap-x-3 border-b border-borde px-4 py-2">
-                  <TextInput value={e.descripcion} onChange={(v) => updateEquipo(e.id, { descripcion: v })} disabled={disabled} />
-                  <NumInput value={e.cantBase} onChange={(v) => updateEquipo(e.id, { cantBase: v })} format="plain" disabled={disabled} />
-                  <NumInput value={e.nCuadrillas} onChange={(v) => updateEquipo(e.id, { nCuadrillas: v })} format="plain" disabled={disabled} />
-                  <NumInput value={e.valorUnit} onChange={(v) => updateEquipo(e.id, { valorUnit: v })} disabled={disabled} />
-                  <NumInput value={e.vidaUtilAnios} onChange={(v) => updateEquipo(e.id, { vidaUtilAnios: v })} format="plain" disabled={disabled} />
-                  <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums">{money(dep.mensual)}</span>
-                  <SelectInput value={e.asignacion} onChange={(v) => updateEquipo(e.id, { asignacion: v })} options={ASIG_OPTS} disabled={disabled} />
+                <div
+                  key={e.id}
+                  className="grid grid-cols-[minmax(180px,2fr)_76px_90px_120px_80px_110px_110px_28px] items-center gap-x-3 border-b border-borde px-4 py-2"
+                >
+                  <TextInput
+                    value={e.descripcion}
+                    onChange={(v) => updateEquipo(e.id, { descripcion: v })}
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={e.cantBase}
+                    onChange={(v) => updateEquipo(e.id, { cantBase: v })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={e.nCuadrillas}
+                    onChange={(v) => updateEquipo(e.id, { nCuadrillas: v })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={e.valorUnit}
+                    onChange={(v) => updateEquipo(e.id, { valorUnit: v })}
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={e.vidaUtilAnios}
+                    onChange={(v) => updateEquipo(e.id, { vidaUtilAnios: v })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums">
+                    {money(dep.mensual)}
+                  </span>
+                  <SelectInput
+                    value={e.asignacion}
+                    onChange={(v) => updateEquipo(e.id, { asignacion: v })}
+                    options={ASIG_OPTS}
+                    disabled={disabled}
+                  />
                   <DeleteButton onClick={() => removeEquipo(e.id)} disabled={disabled} />
                 </div>
               );
@@ -217,16 +267,59 @@ export default function CostosTab({
             {quotation.vehiculos.map((v) => {
               const c = calcularCostoVehiculo(v, uf);
               return (
-                <div key={v.id} className="grid grid-cols-[minmax(160px,2fr)_66px_58px_66px_58px_66px_74px_100px_100px_28px] items-center gap-x-2 border-b border-borde px-4 py-2">
-                  <TextInput value={v.descripcion} onChange={(val) => updateVehiculo(v.id, { descripcion: val })} disabled={disabled} />
-                  <NumInput value={v.ufMes} onChange={(val) => updateVehiculo(v.id, { ufMes: val })} format="plain" disabled={disabled} />
-                  <NumInput value={v.unidades} onChange={(val) => updateVehiculo(v.id, { unidades: val })} format="plain" disabled={disabled} />
-                  <NumInput value={v.diasUsoMes} onChange={(val) => updateVehiculo(v.id, { diasUsoMes: val })} format="plain" disabled={disabled} />
-                  <NumInput value={v.kmDia} onChange={(val) => updateVehiculo(v.id, { kmDia: val })} format="plain" disabled={disabled} />
-                  <NumInput value={v.rendimientoKmL} onChange={(val) => updateVehiculo(v.id, { rendimientoKmL: val })} format="plain" disabled={disabled} />
-                  <NumInput value={v.precioLitro} onChange={(val) => updateVehiculo(v.id, { precioLitro: val })} disabled={disabled} />
-                  <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums">{money(c.total)}</span>
-                  <SelectInput value={v.asignacion} onChange={(val) => updateVehiculo(v.id, { asignacion: val })} options={ASIG_OPTS} disabled={disabled} />
+                <div
+                  key={v.id}
+                  className="grid grid-cols-[minmax(160px,2fr)_66px_58px_66px_58px_66px_74px_100px_100px_28px] items-center gap-x-2 border-b border-borde px-4 py-2"
+                >
+                  <TextInput
+                    value={v.descripcion}
+                    onChange={(val) => updateVehiculo(v.id, { descripcion: val })}
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={v.ufMes}
+                    onChange={(val) => updateVehiculo(v.id, { ufMes: val })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={v.unidades}
+                    onChange={(val) => updateVehiculo(v.id, { unidades: val })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={v.diasUsoMes}
+                    onChange={(val) => updateVehiculo(v.id, { diasUsoMes: val })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={v.kmDia}
+                    onChange={(val) => updateVehiculo(v.id, { kmDia: val })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={v.rendimientoKmL}
+                    onChange={(val) => updateVehiculo(v.id, { rendimientoKmL: val })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={v.precioLitro}
+                    onChange={(val) => updateVehiculo(v.id, { precioLitro: val })}
+                    disabled={disabled}
+                  />
+                  <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums">
+                    {money(c.total)}
+                  </span>
+                  <SelectInput
+                    value={v.asignacion}
+                    onChange={(val) => updateVehiculo(v.id, { asignacion: val })}
+                    options={ASIG_OPTS}
+                    disabled={disabled}
+                  />
                   <DeleteButton onClick={() => removeVehiculo(v.id)} disabled={disabled} />
                 </div>
               );
@@ -252,14 +345,46 @@ export default function CostosTab({
                   ? (i.cantidad * i.precioUnitario) / (i.vidaUtilMeses ?? quotation.duracionMeses)
                   : i.cantidad * i.precioUnitario;
               return (
-                <div key={i.id} className="grid grid-cols-[minmax(200px,2fr)_70px_66px_116px_150px_120px_110px_28px] items-center gap-x-2 border-b border-borde px-4 py-2">
-                  <TextInput value={i.descripcion} onChange={(v) => updateItem(i.id, { descripcion: v })} disabled={disabled} />
-                  <TextInput value={i.unidad} onChange={(v) => updateItem(i.id, { unidad: v })} disabled={disabled} />
-                  <NumInput value={i.cantidad} onChange={(v) => updateItem(i.id, { cantidad: v })} format="plain" disabled={disabled} />
-                  <NumInput value={i.precioUnitario} onChange={(v) => updateItem(i.id, { precioUnitario: v })} disabled={disabled} />
-                  <SelectInput value={i.modoCosto} onChange={(v) => updateItem(i.id, { modoCosto: v })} options={MODO_OPTS} disabled={disabled} />
-                  <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums">{money(total)}</span>
-                  <SelectInput value={i.asignacion} onChange={(v) => updateItem(i.id, { asignacion: v })} options={ASIG_OPTS} disabled={disabled} />
+                <div
+                  key={i.id}
+                  className="grid grid-cols-[minmax(200px,2fr)_70px_66px_116px_150px_120px_110px_28px] items-center gap-x-2 border-b border-borde px-4 py-2"
+                >
+                  <TextInput
+                    value={i.descripcion}
+                    onChange={(v) => updateItem(i.id, { descripcion: v })}
+                    disabled={disabled}
+                  />
+                  <TextInput
+                    value={i.unidad}
+                    onChange={(v) => updateItem(i.id, { unidad: v })}
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={i.cantidad}
+                    onChange={(v) => updateItem(i.id, { cantidad: v })}
+                    format="plain"
+                    disabled={disabled}
+                  />
+                  <NumInput
+                    value={i.precioUnitario}
+                    onChange={(v) => updateItem(i.id, { precioUnitario: v })}
+                    disabled={disabled}
+                  />
+                  <SelectInput
+                    value={i.modoCosto}
+                    onChange={(v) => updateItem(i.id, { modoCosto: v })}
+                    options={MODO_OPTS}
+                    disabled={disabled}
+                  />
+                  <span className="rounded-md bg-crema px-2 py-1 text-right text-sm font-semibold tabular-nums">
+                    {money(total)}
+                  </span>
+                  <SelectInput
+                    value={i.asignacion}
+                    onChange={(v) => updateItem(i.id, { asignacion: v })}
+                    options={ASIG_OPTS}
+                    disabled={disabled}
+                  />
                   <DeleteButton onClick={() => removeItem(i.id)} disabled={disabled} />
                 </div>
               );
@@ -268,12 +393,18 @@ export default function CostosTab({
         )}
 
         {nItems === 0 && (
-          <div className="px-4 py-5 text-sm text-tinta/40">Sin líneas en esta categoría. Use “+ Agregar línea”.</div>
+          <div className="px-4 py-5 text-sm text-tinta/40">
+            Sin líneas en esta categoría. Use “+ Agregar línea”.
+          </div>
         )}
 
         <div className="flex items-center justify-between bg-tinta px-4 py-3 text-white">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Total {chip.label} · mensual</span>
-          <span className="text-base font-bold tabular-nums text-naranjo-suave">{money(categoria?.monto ?? 0)}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+            Total {chip.label} · mensual
+          </span>
+          <span className="text-base font-bold tabular-nums text-naranjo-suave">
+            {money(categoria?.monto ?? 0)}
+          </span>
         </div>
       </div>
     </div>

@@ -22,8 +22,22 @@ const CARDS = [
 ];
 
 const LOCACIONES = [
-  { nombre: "Minera Antucoya", cliente: "Antofagasta Minerals", dias: 20, racion: "$9.850", examenes: "GES + altura física", casino: "Compass" },
-  { nombre: "Centinela", cliente: "Antofagasta Minerals", dias: 20, racion: "$10.240", examenes: "GES + MES", casino: "Sodexo" },
+  {
+    nombre: "Minera Antucoya",
+    cliente: "Antofagasta Minerals",
+    dias: 20,
+    racion: "$9.850",
+    examenes: "GES + altura física",
+    casino: "Compass",
+  },
+  {
+    nombre: "Centinela",
+    cliente: "Antofagasta Minerals",
+    dias: 20,
+    racion: "$10.240",
+    examenes: "GES + MES",
+    casino: "Sodexo",
+  },
 ];
 
 function nuevoCargoVacio(): DatosCargoCatalogo {
@@ -96,7 +110,8 @@ export default function PanelCatalogos({
   };
 
   const eliminarCargo = async (id: string) => {
-    if (!window.confirm("¿Ocultar este cargo del catálogo? Ya no aparecerá como opción al agregar dotación.")) return;
+    if (!window.confirm("¿Ocultar este cargo del catálogo? Ya no aparecerá como opción al agregar dotación."))
+      return;
     setError(null);
     setGuardando(id);
     try {
@@ -125,7 +140,9 @@ export default function PanelCatalogos({
       </p>
 
       {error && (
-        <div className="mt-3 rounded-lg border border-red-600/20 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+        <div className="mt-3 rounded-lg border border-red-600/20 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
       )}
 
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -136,7 +153,9 @@ export default function PanelCatalogos({
         {CARDS.map((c) => (
           <div key={c.label} className="rounded-xl border border-borde bg-white p-3.5">
             <div className="font-condensed text-2xl font-bold tabular-nums text-naranjo">{c.n}</div>
-            <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-tinta/60">{c.label}</div>
+            <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-tinta/60">
+              {c.label}
+            </div>
           </div>
         ))}
       </div>

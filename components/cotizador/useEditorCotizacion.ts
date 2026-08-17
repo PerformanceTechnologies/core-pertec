@@ -16,7 +16,10 @@ export type SaveState = "idle" | "saving" | "saved" | "error";
  * store de Zustand del Cotizador standalone, pero persistiendo vía
  * actualizarInputCotizacionAction en vez de un cliente Supabase directo.
  */
-export function useEditorCotizacion(cotizacion: CotizacionCompleta, puedeEditar: boolean) {
+export function useEditorCotizacion(
+  cotizacion: CotizacionCompleta & { input: QuotationInput },
+  puedeEditar: boolean,
+) {
   const [quotation, setQuotation] = useState<QuotationInput>(cotizacion.input);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -13,7 +13,7 @@ export default function ParametrosTab({
   update,
   disabled,
 }: {
-  cotizacion: CotizacionCompleta;
+  cotizacion: CotizacionCompleta & { input: QuotationInput };
   quotation: QuotationInput;
   update: (fn: (q: QuotationInput) => QuotationInput) => void;
   disabled: boolean;

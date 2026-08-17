@@ -28,7 +28,9 @@ export default function AlimentacionTab({
     <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[.9fr_1.1fr] lg:items-start">
       <div className="rounded-xl border border-borde bg-white p-5">
         <div className="text-xs font-semibold uppercase tracking-wide text-tinta/50">Tarifas por ración</div>
-        <div className="mt-1 text-xs text-tinta/50">heredadas de la locación — editables con override por cotización</div>
+        <div className="mt-1 text-xs text-tinta/50">
+          heredadas de la locación — editables con override por cotización
+        </div>
 
         {lista.map((t) => (
           <div key={t.campo} className="flex items-center gap-3 border-b border-borde py-2">
@@ -36,7 +38,9 @@ export default function AlimentacionTab({
             <div className="w-28">
               <NumInput
                 value={tarifas[t.campo]}
-                onChange={(v) => update((q) => ({ ...q, tarifasAlimentacion: { ...q.tarifasAlimentacion, [t.campo]: v } }))}
+                onChange={(v) =>
+                  update((q) => ({ ...q, tarifasAlimentacion: { ...q.tarifasAlimentacion, [t.campo]: v } }))
+                }
                 disabled={disabled}
               />
             </div>
@@ -56,7 +60,9 @@ export default function AlimentacionTab({
         </div>
 
         <div className="mt-3 flex justify-between rounded-md bg-crema px-3 py-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-tinta/60">Costo día por persona</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-tinta/60">
+            Costo día por persona
+          </span>
           <span className="text-sm font-bold tabular-nums text-tinta">{money(tarifaDia)}</span>
         </div>
       </div>
@@ -69,7 +75,10 @@ export default function AlimentacionTab({
           <span className="text-right">Costo mensual</span>
         </div>
         {result.alimentacionPorCargo.map((a) => (
-          <div key={a.id} className="grid grid-cols-[minmax(160px,1.6fr)_90px_100px_130px] gap-x-3 border-b border-borde px-4 py-2 text-sm">
+          <div
+            key={a.id}
+            className="grid grid-cols-[minmax(160px,1.6fr)_90px_100px_130px] gap-x-3 border-b border-borde px-4 py-2 text-sm"
+          >
             <span className="text-tinta">{a.cargo}</span>
             <span className="text-right tabular-nums text-tinta/60">{a.dotacion}</span>
             <span className="text-right tabular-nums text-tinta/60">{a.racionesMes}</span>
@@ -82,7 +91,9 @@ export default function AlimentacionTab({
           <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
             Alimentación mensual · {dotTotal} personas × {quotation.diasAlimentacionMes} días
           </span>
-          <span className="text-base font-bold tabular-nums text-naranjo-suave">{money(result.alimentacionTotal)}</span>
+          <span className="text-base font-bold tabular-nums text-naranjo-suave">
+            {money(result.alimentacionTotal)}
+          </span>
         </div>
       </div>
     </div>

@@ -4,7 +4,10 @@ import { fechaCl } from "@/lib/cotizador/formato";
 import BotonEliminar from "@/components/BotonEliminar";
 import BotonActualizarIndicadores from "./BotonActualizarIndicadores";
 import FormularioParametrosLegales from "./FormularioParametrosLegales";
-import { crearSetParametrosAction, eliminarSetParametrosAction } from "@/app/(protegido)/cotizador/parametros/acciones";
+import {
+  crearSetParametrosAction,
+  eliminarSetParametrosAction,
+} from "@/app/(protegido)/cotizador/parametros/acciones";
 
 export default function PanelParametrosLegales({
   sets,
@@ -24,16 +27,19 @@ export default function PanelParametrosLegales({
       <div className="mt-2">
         <span className="etiqueta-seccion">Cotizador · Administración</span>
       </div>
-      <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">Parámetros legales y tributarios</h1>
+      <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
+        Parámetros legales y tributarios
+      </h1>
       <p className="mt-1 max-w-2xl text-sm text-tinta/60">
-        UF, UTM, tasas AFP/salud/cesantía y tramos de impuesto único que usa el motor de cálculo del Cotizador.
-        Editables libremente y se pueden crear otros sets — cada cotización congela su propia copia al crearse, así
-        una edición nunca cambia retroactivamente una cotización ya calculada.
+        UF, UTM, tasas AFP/salud/cesantía y tramos de impuesto único que usa el motor de cálculo del
+        Cotizador. Editables libremente y se pueden crear otros sets — cada cotización congela su propia copia
+        al crearse, así una edición nunca cambia retroactivamente una cotización ya calculada.
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-crema/40 p-4">
         <div className="text-xs text-tinta/60">
-          UF y UTM del set vigente se actualizan solas todos los días a las 6:00 AM (Chile) desde mindicador.cl.
+          UF y UTM del set vigente se actualizan solas todos los días a las 6:00 AM (Chile) desde
+          mindicador.cl.
         </div>
         <div className="flex-1" />
         <BotonActualizarIndicadores />
@@ -77,8 +83,12 @@ export default function PanelParametrosLegales({
                 <tr key={s.id} className="border-b border-borde last:border-0">
                   <td className="px-4 py-3 font-medium text-tinta">{s.nombre}</td>
                   <td className="px-4 py-3 text-tinta/60">{fechaCl(s.vigenteDesde)}</td>
-                  <td className="px-4 py-3 text-right text-tinta/70">{s.valores.uf.toLocaleString("es-CL")}</td>
-                  <td className="px-4 py-3 text-right text-tinta/70">{s.valores.utm.toLocaleString("es-CL")}</td>
+                  <td className="px-4 py-3 text-right text-tinta/70">
+                    {s.valores.uf.toLocaleString("es-CL")}
+                  </td>
+                  <td className="px-4 py-3 text-right text-tinta/70">
+                    {s.valores.utm.toLocaleString("es-CL")}
+                  </td>
                   <td className="px-4 py-3">
                     {esVigente && (
                       <span className="rounded-full bg-teal/10 px-2 py-0.5 text-[11px] font-semibold text-teal">

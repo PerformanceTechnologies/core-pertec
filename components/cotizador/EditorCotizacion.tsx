@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { CotizacionCompleta } from "@/lib/cotizador";
+import type { QuotationInput } from "@/lib/cotizador/motor/types";
 import type { CatalogoCargo } from "@/lib/cotizador/catalogo-cargos-tipos";
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
@@ -46,7 +47,8 @@ export default function EditorCotizacion({
   preparadoPor,
   empresa,
 }: {
-  cotizacion: CotizacionCompleta;
+  // Estrechada a la entrada del motor: las obras van a EditorObra.
+  cotizacion: CotizacionCompleta & { input: QuotationInput };
   rol: RolCotizador;
   catalogoCargos: CatalogoCargo[];
   preparadoPor: { nombre: string; correo: string };
@@ -126,16 +128,16 @@ export default function EditorCotizacion({
 
       <div className="mt-1 text-sm text-tinta/60">
         {cotizacion.cliente ?? "Sin cliente"} · {cotizacion.faena ?? "Sin faena"} · duración{" "}
-        {quotation.duracionMeses} {quotation.duracionMeses === 1 ? "mes" : "meses"} · {quotation.diasServicio} días de
-        servicio · parámetros legales vigencia {cotizacion.parametrosSnapshot.vigenteDesde}
+        {quotation.duracionMeses} {quotation.duracionMeses === 1 ? "mes" : "meses"} · {quotation.diasServicio}{" "}
+        días de servicio · parámetros legales vigencia {cotizacion.parametrosSnapshot.vigenteDesde}
       </div>
 
       {cotizacion.esDemo && (
         <div className="mt-4 rounded-xl border border-naranjo/30 bg-naranjo/5 px-4 py-3 text-sm text-tinta/80">
-          <b className="text-naranjo">Cotización de ejemplo.</b> Las cifras cargadas son ilustrativas, para mostrar
-          cómo funciona el Cotizador — <b>no corresponden a ningún documento real</b>, así que no sirven para
-          contrastarlas contra un Excel. Para validar el motor de cálculo, cree una cotización nueva con los datos
-          reales del proyecto.
+          <b className="text-naranjo">Cotización de ejemplo.</b> Las cifras cargadas son ilustrativas, para
+          mostrar cómo funciona el Cotizador — <b>no corresponden a ningún documento real</b>, así que no
+          sirven para contrastarlas contra un Excel. Para validar el motor de cálculo, cree una cotización
+          nueva con los datos reales del proyecto.
         </div>
       )}
 
@@ -193,7 +195,9 @@ export default function EditorCotizacion({
           uf={cotizacion.parametrosSnapshot.uf}
         />
       )}
-      {tab === "resumen" && <ResumenTab quotation={quotation} result={result} update={update} disabled={disabled} />}
+      {tab === "resumen" && (
+        <ResumenTab quotation={quotation} result={result} update={update} disabled={disabled} />
+      )}
       {tab === "eco" && (
         <EcoTab cotizacion={cotizacion} result={result} preparadoPor={preparadoPor} empresa={empresa} />
       )}

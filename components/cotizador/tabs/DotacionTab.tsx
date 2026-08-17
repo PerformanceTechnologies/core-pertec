@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { PersonalSpotContratoInput, QuotationInput, StaffInput, Turno } from "@/lib/cotizador/motor/types";
+import type {
+  PersonalSpotContratoInput,
+  QuotationInput,
+  StaffInput,
+  Turno,
+} from "@/lib/cotizador/motor/types";
 import type { QuotationResult } from "@/lib/cotizador/motor/consolidacion";
 import { money } from "@/lib/cotizador/formato";
 import { nextId } from "@/lib/cotizador/ids";
@@ -28,14 +33,23 @@ const GRID =
 // Opciones del selector de Cargo: nombres del catálogo + el valor actual (si
 // no está en el catálogo, ej. cargos ya creados antes de que existiera esta
 // tabla) — así nunca se pierde ni se fuerza a cambiar un nombre existente.
-function opcionesCargo(catalogoCargos: CatalogoCargo[], valorActual: string): { value: string; label: string }[] {
+function opcionesCargo(
+  catalogoCargos: CatalogoCargo[],
+  valorActual: string,
+): { value: string; label: string }[] {
   const nombres = new Set(catalogoCargos.map((c) => c.cargo));
   const opciones = catalogoCargos.map((c) => ({ value: c.cargo, label: c.cargo }));
   if (valorActual && !nombres.has(valorActual)) opciones.unshift({ value: valorActual, label: valorActual });
   return opciones;
 }
 
-function DetailColumn({ titulo, filas }: { titulo: string; filas: { k: string; n?: string; v: string; fuerte?: boolean }[] }) {
+function DetailColumn({
+  titulo,
+  filas,
+}: {
+  titulo: string;
+  filas: { k: string; n?: string; v: string; fuerte?: boolean }[];
+}) {
   return (
     <div>
       <div className="border-b-2 border-tinta pb-1.5 text-[10px] font-bold uppercase tracking-wide text-tinta/40">
@@ -46,7 +60,9 @@ function DetailColumn({ titulo, filas }: { titulo: string; filas: { k: string; n
           <span className="text-tinta/60">
             {f.k} {f.n && <span className="text-[10px] text-tinta/30">{f.n}</span>}
           </span>
-          <span className={`tabular-nums ${f.fuerte ? "font-semibold text-tinta" : "text-tinta"}`}>{f.v}</span>
+          <span className={`tabular-nums ${f.fuerte ? "font-semibold text-tinta" : "text-tinta"}`}>
+            {f.v}
+          </span>
         </div>
       ))}
     </div>
@@ -120,7 +136,9 @@ export default function DotacionTab({
   const addBono = (staffId: string) =>
     update((q) => ({
       ...q,
-      staff: q.staff.map((s) => (s.id === staffId ? { ...s, bonos: [...s.bonos, { nombre: "Nuevo bono", monto: 0 }] } : s)),
+      staff: q.staff.map((s) =>
+        s.id === staffId ? { ...s, bonos: [...s.bonos, { nombre: "Nuevo bono", monto: 0 }] } : s,
+      ),
     }));
 
   const updateBono = (staffId: string, index: number, patch: Partial<{ nombre: string; monto: number }>) =>
@@ -134,7 +152,9 @@ export default function DotacionTab({
   const removeBono = (staffId: string, index: number) =>
     update((q) => ({
       ...q,
-      staff: q.staff.map((s) => (s.id === staffId ? { ...s, bonos: s.bonos.filter((_, i) => i !== index) } : s)),
+      staff: q.staff.map((s) =>
+        s.id === staffId ? { ...s, bonos: s.bonos.filter((_, i) => i !== index) } : s,
+      ),
     }));
 
   const personalSpotContrato = quotation.personalSpotContrato ?? [];
@@ -147,7 +167,10 @@ export default function DotacionTab({
 
   const elegirCargoSpotContrato = (id: string, nombreCargo: string) => {
     const cargoCatalogo = catalogoCargos.find((c) => c.cargo === nombreCargo);
-    updateSpotContrato(id, cargoCatalogo ? patchCargoCatalogoEnPersonalSpotContrato(cargoCatalogo) : { cargo: nombreCargo });
+    updateSpotContrato(
+      id,
+      cargoCatalogo ? patchCargoCatalogoEnPersonalSpotContrato(cargoCatalogo) : { cargo: nombreCargo },
+    );
   };
 
   const addSpotContrato = () =>
@@ -173,14 +196,17 @@ export default function DotacionTab({
     }));
 
   const removeSpotContrato = (id: string) =>
-    update((q) => ({ ...q, personalSpotContrato: (q.personalSpotContrato ?? []).filter((s) => s.id !== id) }));
+    update((q) => ({
+      ...q,
+      personalSpotContrato: (q.personalSpotContrato ?? []).filter((s) => s.id !== id),
+    }));
 
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center gap-3">
         <div className="text-xs text-tinta/60">
-          Celdas <span className="rounded border border-borde bg-white px-1.5 py-0.5">blancas</span> editables ·{" "}
-          <span className="rounded bg-crema px-1.5 py-0.5">grises</span> calculadas
+          Celdas <span className="rounded border border-borde bg-white px-1.5 py-0.5">blancas</span> editables
+          · <span className="rounded bg-crema px-1.5 py-0.5">grises</span> calculadas
         </div>
         <div className="flex-1" />
         {!disabled && catalogoCargos.length > 0 && (
@@ -214,7 +240,9 @@ export default function DotacionTab({
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-borde bg-white">
-        <div className={`${GRID} border-b-2 border-tinta px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/40`}>
+        <div
+          className={`${GRID} border-b-2 border-tinta px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/40`}
+        >
           <span>Cargo</span>
           <span>Turno</span>
           <span className="text-center">A</span>
@@ -244,16 +272,39 @@ export default function DotacionTab({
               >
                 <span className="font-medium text-tinta">{input.cargo}</span>
                 <span onClick={(e) => e.stopPropagation()}>
-                  <SelectInput value={input.turno} onChange={(v) => updateStaff(input.id, { turno: v })} options={TURNO_OPTS} disabled={disabled} />
+                  <SelectInput
+                    value={input.turno}
+                    onChange={(v) => updateStaff(input.id, { turno: v })}
+                    options={TURNO_OPTS}
+                    disabled={disabled}
+                  />
                 </span>
                 <span onClick={(e) => e.stopPropagation()}>
-                  <NumInput value={input.dotacionA} onChange={(v) => updateStaff(input.id, { dotacionA: v })} format="plain" align="center" disabled={disabled} />
+                  <NumInput
+                    value={input.dotacionA}
+                    onChange={(v) => updateStaff(input.id, { dotacionA: v })}
+                    format="plain"
+                    align="center"
+                    disabled={disabled}
+                  />
                 </span>
                 <span onClick={(e) => e.stopPropagation()}>
-                  <NumInput value={input.dotacionB} onChange={(v) => updateStaff(input.id, { dotacionB: v })} format="plain" align="center" disabled={disabled} />
+                  <NumInput
+                    value={input.dotacionB}
+                    onChange={(v) => updateStaff(input.id, { dotacionB: v })}
+                    format="plain"
+                    align="center"
+                    disabled={disabled}
+                  />
                 </span>
                 <span onClick={(e) => e.stopPropagation()}>
-                  <NumInput value={input.dotacionContra} onChange={(v) => updateStaff(input.id, { dotacionContra: v })} format="plain" align="center" disabled={disabled} />
+                  <NumInput
+                    value={input.dotacionContra}
+                    onChange={(v) => updateStaff(input.id, { dotacionContra: v })}
+                    format="plain"
+                    align="center"
+                    disabled={disabled}
+                  />
                 </span>
                 <span onClick={(e) => e.stopPropagation()}>
                   <SelectInput
@@ -284,12 +335,20 @@ export default function DotacionTab({
                       {money(r.baseUsado)}
                     </span>
                   ) : (
-                    <NumInput value={input.base ?? 0} onChange={(v) => updateStaff(input.id, { base: v })} disabled={disabled} />
+                    <NumInput
+                      value={input.base ?? 0}
+                      onChange={(v) => updateStaff(input.id, { base: v })}
+                      disabled={disabled}
+                    />
                   )}
                 </span>
                 <span onClick={(e) => e.stopPropagation()}>
                   {esLiquido ? (
-                    <NumInput value={input.targetLiquido ?? 0} onChange={(v) => updateStaff(input.id, { targetLiquido: v })} disabled={disabled} />
+                    <NumInput
+                      value={input.targetLiquido ?? 0}
+                      onChange={(v) => updateStaff(input.id, { targetLiquido: v })}
+                      disabled={disabled}
+                    />
                   ) : (
                     <span className="block rounded-md bg-crema px-2 py-1 text-right text-sm tabular-nums text-tinta/70">
                       {money(r.primeraPasada.liquida)}
@@ -322,7 +381,9 @@ export default function DotacionTab({
                 <div className="border-b border-borde bg-crema/40 p-5">
                   <div className="mb-3 flex items-center gap-2">
                     <div className="h-0.5 w-4 bg-naranjo" />
-                    <span className="text-xs font-bold uppercase tracking-wide text-tinta/60">Datos del cargo</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-tinta/60">
+                      Datos del cargo
+                    </span>
                     <div className="flex-1" />
                     {!disabled && (
                       <button
@@ -364,23 +425,40 @@ export default function DotacionTab({
                     <div>
                       <div className="text-[10px] font-semibold uppercase text-tinta/40">Movilización</div>
                       <div className="mt-1">
-                        <NumInput value={input.asigMovilizacion} onChange={(v) => updateStaff(input.id, { asigMovilizacion: v })} disabled={disabled} />
+                        <NumInput
+                          value={input.asigMovilizacion}
+                          onChange={(v) => updateStaff(input.id, { asigMovilizacion: v })}
+                          disabled={disabled}
+                        />
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] font-semibold uppercase text-tinta/40">Colación</div>
                       <div className="mt-1">
-                        <NumInput value={input.asigColacion} onChange={(v) => updateStaff(input.id, { asigColacion: v })} disabled={disabled} />
+                        <NumInput
+                          value={input.asigColacion}
+                          onChange={(v) => updateStaff(input.id, { asigColacion: v })}
+                          disabled={disabled}
+                        />
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-semibold uppercase text-tinta/40">Horas servicio/día</div>
+                      <div className="text-[10px] font-semibold uppercase text-tinta/40">
+                        Horas servicio/día
+                      </div>
                       <div className="mt-1">
-                        <NumInput value={input.horasServicioDia} onChange={(v) => updateStaff(input.id, { horasServicioDia: v })} format="plain" disabled={disabled} />
+                        <NumInput
+                          value={input.horasServicioDia}
+                          onChange={(v) => updateStaff(input.id, { horasServicioDia: v })}
+                          format="plain"
+                          disabled={disabled}
+                        />
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-semibold uppercase text-tinta/40">Trabaja festivos</div>
+                      <div className="text-[10px] font-semibold uppercase text-tinta/40">
+                        Trabaja festivos
+                      </div>
                       <div className="mt-1">
                         <SelectInput
                           value={input.trabajaFestivos ? "si" : "no"}
@@ -396,7 +474,9 @@ export default function DotacionTab({
 
                     <div className="col-span-2 sm:col-span-4 lg:col-span-6">
                       <div className="mb-1.5 flex items-center gap-2">
-                        <div className="text-[10px] font-semibold uppercase text-tinta/40">Bonos imponibles</div>
+                        <div className="text-[10px] font-semibold uppercase text-tinta/40">
+                          Bonos imponibles
+                        </div>
                         {!disabled && (
                           <button
                             type="button"
@@ -408,11 +488,26 @@ export default function DotacionTab({
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {input.bonos.length === 0 && <span className="text-xs text-tinta/40">Sin bonos.</span>}
+                        {input.bonos.length === 0 && (
+                          <span className="text-xs text-tinta/40">Sin bonos.</span>
+                        )}
                         {input.bonos.map((b, i) => (
-                          <div key={i} className="flex items-center gap-1.5 rounded-md border border-borde bg-white p-1">
-                            <TextInput value={b.nombre} onChange={(v) => updateBono(input.id, i, { nombre: v })} disabled={disabled} className="w-36 border-none" />
-                            <NumInput value={b.monto} onChange={(v) => updateBono(input.id, i, { monto: v })} disabled={disabled} className="w-28" />
+                          <div
+                            key={i}
+                            className="flex items-center gap-1.5 rounded-md border border-borde bg-white p-1"
+                          >
+                            <TextInput
+                              value={b.nombre}
+                              onChange={(v) => updateBono(input.id, i, { nombre: v })}
+                              disabled={disabled}
+                              className="w-36 border-none"
+                            />
+                            <NumInput
+                              value={b.monto}
+                              onChange={(v) => updateBono(input.id, i, { monto: v })}
+                              disabled={disabled}
+                              className="w-28"
+                            />
                             <DeleteButton onClick={() => removeBono(input.id, i)} disabled={disabled} />
                           </div>
                         ))}
@@ -425,7 +520,9 @@ export default function DotacionTab({
                     <span className="text-xs font-bold uppercase tracking-wide text-tinta/60">
                       Liquidación proyectada — {input.cargo} · mes promedio con provisiones
                     </span>
-                    <span className="text-[10px] text-tinta/40">tramo impuesto {r.segundaPasada.tramoAplicado}</span>
+                    <span className="text-[10px] text-tinta/40">
+                      tramo impuesto {r.segundaPasada.tramoAplicado}
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -447,7 +544,11 @@ export default function DotacionTab({
                         { k: "Salud", v: money(r.primeraPasada.salud) },
                         { k: "Copago seguro salud", v: money(r.primeraPasada.copagoSeguroSalud) },
                         { k: "Cesantía trabajador", v: money(r.primeraPasada.cesantiaTrabajador) },
-                        { k: "Impuesto único 2ª cat.", n: `tramo ${r.primeraPasada.tramoAplicado}`, v: money(r.primeraPasada.impuesto) },
+                        {
+                          k: "Impuesto único 2ª cat.",
+                          n: `tramo ${r.primeraPasada.tramoAplicado}`,
+                          v: money(r.primeraPasada.impuesto),
+                        },
                       ]}
                     />
                     <div>
@@ -463,8 +564,12 @@ export default function DotacionTab({
                         ]}
                       />
                       <div className="mt-2 flex justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wide text-teal">Líquido mensual</span>
-                        <span className="text-sm font-bold tabular-nums text-teal">{money(r.primeraPasada.liquida)}</span>
+                        <span className="text-xs font-bold uppercase tracking-wide text-teal">
+                          Líquido mensual
+                        </span>
+                        <span className="text-sm font-bold tabular-nums text-teal">
+                          {money(r.primeraPasada.liquida)}
+                        </span>
                       </div>
                     </div>
                     <DetailColumn
@@ -479,22 +584,34 @@ export default function DotacionTab({
                         { k: "Cesantía empleador", v: money(r.costoEmpresa.cesantiaEmpleador) },
                         { k: "Seguro salud empleador", v: money(r.costoEmpresa.seguroSaludEmpleador) },
                         { k: "Mutual", v: money(r.costoEmpresa.mutual) },
-                        { k: "Aporte reforma previsional", n: "Ley 21.735", v: money(r.costoEmpresa.aporteReforma) },
+                        {
+                          k: "Aporte reforma previsional",
+                          n: "Ley 21.735",
+                          v: money(r.costoEmpresa.aporteReforma),
+                        },
                       ]}
                     />
                   </div>
 
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="flex items-center justify-between rounded-lg bg-tinta px-4 py-3 text-white">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Costo unitario mes</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+                        Costo unitario mes
+                      </span>
                       <span className="text-base font-bold tabular-nums">{money(r.costoUnitarioMes)}</span>
                     </div>
                     <div className="flex items-center justify-between rounded-lg bg-tinta px-4 py-3 text-white">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Costo total mes × {r.dotacionTotal}</span>
-                      <span className="text-base font-bold tabular-nums text-naranjo-suave">{money(r.costoMensualCargo)}</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+                        Costo total mes × {r.dotacionTotal}
+                      </span>
+                      <span className="text-base font-bold tabular-nums text-naranjo-suave">
+                        {money(r.costoMensualCargo)}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between rounded-lg bg-tinta px-4 py-3 text-white">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Costo HH</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+                        Costo HH
+                      </span>
                       <span className="text-base font-bold tabular-nums">{money(r.hh70)}</span>
                     </div>
                   </div>
@@ -505,7 +622,9 @@ export default function DotacionTab({
         })}
 
         <div className="flex flex-wrap items-center gap-4 bg-tinta px-4 py-3 text-white">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Totales dotación</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
+            Totales dotación
+          </span>
           <span className="text-sm">
             <b className="text-naranjo-suave">{dotTotal}</b> personas · {result.staff.length} cargos
           </span>
@@ -514,7 +633,8 @@ export default function DotacionTab({
             Tarifa cuadrilla/día <b className="tabular-nums text-white">{money(result.tarifaCuadrillaDia)}</b>
           </span>
           <span className="text-xs text-white/70">
-            Costo personal SPOT/mes <b className="tabular-nums text-naranjo-suave">{money(result.costoPersonalSpot)}</b>
+            Costo personal SPOT/mes{" "}
+            <b className="tabular-nums text-naranjo-suave">{money(result.costoPersonalSpot)}</b>
           </span>
           <span className="text-xs text-white/70">
             Costo HH promedio <b className="tabular-nums text-white">{money(hhProm)}</b>
@@ -584,7 +704,11 @@ export default function DotacionTab({
                     ]}
                     disabled={disabled}
                   />
-                  <NumInput value={input.base ?? 0} onChange={(v) => updateSpotContrato(input.id, { base: v })} disabled={disabled} />
+                  <NumInput
+                    value={input.base ?? 0}
+                    onChange={(v) => updateSpotContrato(input.id, { base: v })}
+                    disabled={disabled}
+                  />
                   <NumInput
                     value={input.asigMovilizacion}
                     onChange={(v) => updateSpotContrato(input.id, { asigMovilizacion: v })}

@@ -6,6 +6,8 @@ import { exigirAccesoApp } from "./autorizacion";
 import { obtenerSetVigente } from "./parametros-legales";
 import { calcularCotizacion, type QuotationResult } from "./cotizador/motor/consolidacion";
 import type { LegalParameterSet, QuotationInput } from "./cotizador/motor/types";
+import { calcularObra } from "./cotizador/obra/calculo";
+import { DIVISOR_HH_DEFECTO, TIPO_OBRA, type ObraInput, type ObraResult } from "./cotizador/obra/tipos";
 import type { Empresa } from "./cotizador/empresas";
 import { puedeEnCotizador, type AccionCotizador, type RolCotizador } from "./permisos-cotizador";
 import type { UsuarioConAcceso } from "./tipos";
@@ -66,9 +68,31 @@ export interface CotizacionResumen {
   summary: ResumenCotizacion;
 }
 
+/**
+ * La entrada guardada, que depende del tipo de servicio.
+ *
+ * `spot` y `contrato_permanente` guardan un QuotationInput y los calcula el
+ * motor; `spot_turnos` (obra) guarda un ObraInput y lo calcula
+ * lib/cotizador/obra. Comparten tabla y columna `input` (jsonb) a propósito: son
+ * la misma cosa para el negocio —una cotización, con su cliente, su revisión y
+ * su estado— y separarlas en dos tablas obligaría a duplicar el listado, los
+ * permisos, el versionado y el panel.
+ *
+ * `esObra()` es el único lugar donde se decide cuál es cuál.
+ */
+export type EntradaCotizacion = QuotationInput | ObraInput;
+
+export function esObra(input: EntradaCotizacion): input is ObraInput {
+  return input.tipoServicio === TIPO_OBRA;
+}
+
+export function esTipoObra(tipoServicio: string): boolean {
+  return tipoServicio === TIPO_OBRA;
+}
+
 export interface CotizacionCompleta extends CotizacionResumen {
   creadoEn: string;
-  input: QuotationInput;
+  input: EntradaCotizacion;
   parametrosSetId: string | null;
   parametrosSnapshot: LegalParameterSet;
 }
@@ -104,7 +128,7 @@ interface FilaResumen {
 
 interface FilaCompleta extends FilaResumen {
   creado_en: string;
-  input: QuotationInput;
+  input: EntradaCotizacion;
   parametros_set_id: string | null;
   parametros_snapshot: LegalParameterSet;
 }
@@ -147,6 +171,28 @@ export function resumirResultado(result: QuotationResult): ResumenCotizacion {
   };
 }
 
+/**
+ * El mismo resumen, para una obra.
+ *
+ * Las claves son las del motor porque las consume el panel y el Dashboard, y no
+ * vale la pena una segunda forma para lo mismo. Dos equivalencias que conviene
+ * tener claras al leer un KPI:
+ *
+ *  - `costoMensualTotal` es el costo TOTAL de la obra, no de un mes: una obra no
+ *    tiene mes. El nombre queda por compatibilidad.
+ *  - `dotacionTotal` son las personas de la obra, no la dotación permanente.
+ */
+export function resumirObra(result: ObraResult): ResumenCotizacion {
+  return {
+    costoMensualTotal: result.costoTotal,
+    costoTotalServicio: result.costoCargado,
+    ecoTotalNeto: result.totalNeto,
+    ecoConIva: result.totalConIva,
+    margenEfectivoTotal: result.margenEfectivo,
+    dotacionTotal: result.personasTotales,
+  };
+}
+
 /** Cotización SPOT en blanco para "+ Nueva cotización" (parámetros por defecto, sin líneas). */
 function cotizacionVacia(tipoServicio: QuotationInput["tipoServicio"]): QuotationInput {
   return {
@@ -182,6 +228,28 @@ function cotizacionVacia(tipoServicio: QuotationInput["tipoServicio"]): Quotatio
   };
 }
 
+/** Obra en blanco: turnos y márgenes por defecto, sin dotación ni ítems. */
+function obraVacia(): ObraInput {
+  return {
+    tipoServicio: TIPO_OBRA,
+    // 4 turnos de 12 h es la parada de planta típica de un cambio de correa.
+    turnos: { cantidad: 4, horas: 12 },
+    dotacion: [],
+    trabajosPrevios: [],
+    items: [],
+    divisorHH: DIVISOR_HH_DEFECTO,
+    margenes: {
+      mobPct: 0.014,
+      ggPct: 0.07,
+      utilidadPct: 0.1,
+      ggEcoPct: 0.2,
+      utilidadEcoPct: 0.2,
+      ivaPct: 0.19,
+      baseCalculoEco: "costo_puro",
+    },
+  };
+}
+
 // "Revxx" -> "Rev(xx+1)"; si el formato no calza (dato antiguo/manual), parte de Rev01.
 function incrementarRev(rev: string): string {
   const m = /^Rev(\d+)$/.exec(rev);
@@ -213,7 +281,7 @@ export interface DatosNuevaCotizacion {
   empresa: Empresa;
   cliente: string | null;
   faena: string | null;
-  tipoServicio: QuotationInput["tipoServicio"];
+  tipoServicio: string;
 }
 
 // Toma el set de parámetros VIGENTE al momento de crear (no el que estaba
@@ -230,8 +298,12 @@ export async function crearCotizacion(
     );
   }
 
-  const input = cotizacionVacia(datos.tipoServicio);
-  const resultado = calcularCotizacion(input, set.valores);
+  const input: EntradaCotizacion = esTipoObra(datos.tipoServicio)
+    ? obraVacia()
+    : cotizacionVacia(datos.tipoServicio as QuotationInput["tipoServicio"]);
+  const summary = esObra(input)
+    ? resumirObra(calcularObra(input, set.valores))
+    : resumirResultado(calcularCotizacion(input, set.valores));
 
   const { data, error } = await supabaseAdmin
     .from("cotizaciones")
@@ -247,7 +319,7 @@ export async function crearCotizacion(
       input,
       parametros_set_id: set.id,
       parametros_snapshot: set.valores,
-      summary: resumirResultado(resultado),
+      summary,
       creado_por: creadoPor ?? null,
     })
     .select(COLUMNAS_COMPLETA)
@@ -262,7 +334,7 @@ export interface DatosMetaCotizacion {
   empresa: Empresa;
   cliente: string | null;
   faena: string | null;
-  tipoServicio: QuotationInput["tipoServicio"];
+  tipoServicio: string;
 }
 
 export async function actualizarMetaCotizacion(id: string, datos: DatosMetaCotizacion): Promise<void> {
@@ -284,13 +356,24 @@ export async function actualizarMetaCotizacion(id: string, datos: DatosMetaCotiz
 // Recalcula con el parametros_snapshot YA CONGELADO de esta cotización (no con
 // el set vigente actual), para que emitir una cotización sea reproducible sin
 // importar qué pase después con los parámetros legales.
-export async function actualizarInputCotizacion(id: string, input: QuotationInput): Promise<ResumenCotizacion> {
+export async function actualizarInputCotizacion(
+  id: string,
+  input: EntradaCotizacion,
+): Promise<ResumenCotizacion> {
   const actual = await obtenerCotizacion(id);
   if (!actual) throw new Error("Cotización no encontrada.");
   if (actual.emitida) throw new Error("No se puede editar una cotización emitida.");
 
-  const resultado = calcularCotizacion(input, actual.parametrosSnapshot);
-  const summary = resumirResultado(resultado);
+  // El tipo guardado manda: sin esto, un input de obra podría llegar a una
+  // cotización SPOT (o al revés) y el cálculo trabajaría sobre campos que no
+  // existen, guardando ceros sin avisar.
+  if (esTipoObra(actual.tipoServicio) !== esObra(input)) {
+    throw new Error("El tipo de la entrada no corresponde al tipo de servicio de la cotización.");
+  }
+
+  const summary = esObra(input)
+    ? resumirObra(calcularObra(input, actual.parametrosSnapshot))
+    : resumirResultado(calcularCotizacion(input, actual.parametrosSnapshot));
 
   const { error } = await supabaseAdmin
     .from("cotizaciones")

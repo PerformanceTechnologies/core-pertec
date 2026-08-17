@@ -1,5 +1,6 @@
 "use server";
 
+import type { EntradaCotizacion } from "@/lib/cotizador";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -23,7 +24,8 @@ function leerDatosMeta(form: FormData) {
     empresa: esEmpresaValida(empresa) ? empresa : EMPRESAS[0],
     cliente: String(form.get("cliente") ?? "") || null,
     faena: String(form.get("faena") ?? "") || null,
-    tipoServicio: tipoServicio === "contrato_permanente" ? ("contrato_permanente" as const) : ("spot" as const),
+    tipoServicio:
+      tipoServicio === "contrato_permanente" ? ("contrato_permanente" as const) : ("spot" as const),
   };
 }
 
@@ -46,7 +48,9 @@ export async function actualizarMetaCotizacionAction(id: string, form: FormData)
 // submit de formulario. Ver guía de Server Actions del repo (server-actions.md):
 // una función "use server" se puede invocar como cualquier async function
 // desde un Client Component.
-export async function actualizarInputCotizacionAction(id: string, input: QuotationInput) {
+// Acepta las dos formas de entrada (motor y obra); actualizarInputCotizacion
+// verifica que el tipo calce con el de la cotización antes de calcular.
+export async function actualizarInputCotizacionAction(id: string, input: EntradaCotizacion) {
   await exigirAccesoCotizador("editar_cotizacion");
   const summary = await actualizarInputCotizacion(id, input);
   revalidatePath(`/cotizador/${id}`);

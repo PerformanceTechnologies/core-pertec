@@ -26,7 +26,10 @@ export default function BotonActualizarIndicadores() {
                 texto: `UF ${money(r.ufNueva!)} · UTM ${money(r.utmNueva!)} (mindicador.cl)`,
               });
             } catch (e) {
-              setMensaje({ texto: e instanceof Error ? e.message : "Error al consultar mindicador.cl", error: true });
+              setMensaje({
+                texto: e instanceof Error ? e.message : "Error al consultar mindicador.cl",
+                error: true,
+              });
             }
           })
         }

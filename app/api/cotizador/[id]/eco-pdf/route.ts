@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
-import { obtenerCotizacion } from "@/lib/cotizador";
+import { esObra, obtenerCotizacion } from "@/lib/cotizador";
 import { calcularCotizacion } from "@/lib/cotizador/motor/consolidacion";
 import { generarEcoPdf } from "@/lib/cotizador/eco-pdf";
 import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
@@ -31,12 +31,26 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 });
   }
 
+  // El ECO-1 en PDF es el formato de las cotizaciones mensuales. Una obra tiene
+  // otra estructura (turnos, HH, ítems traspasados) y su PDF está pendiente:
+  // mejor decirlo que devolver un documento con los campos en blanco.
+  const { input } = cotizacion;
+  if (esObra(input)) {
+    return NextResponse.json(
+      { error: "El PDF del ECO todavía no está disponible para las cotizaciones de obra." },
+      { status: 501 },
+    );
+  }
+
   try {
-    const result = calcularCotizacion(cotizacion.input, cotizacion.parametrosSnapshot);
-    const preparadoPor = { nombre: acceso.usuario.nombre ?? acceso.usuario.correo, correo: acceso.usuario.correo };
+    const result = calcularCotizacion(input, cotizacion.parametrosSnapshot);
+    const preparadoPor = {
+      nombre: acceso.usuario.nombre ?? acceso.usuario.correo,
+      correo: acceso.usuario.correo,
+    };
     // Identidad legal de la empresa emisora, para el encabezado del PDF.
     const empresa = await obtenerEmpresaPorNombre(cotizacion.empresa);
-    const pdf = await generarEcoPdf(cotizacion, result, preparadoPor, empresa);
+    const pdf = await generarEcoPdf({ ...cotizacion, input }, result, preparadoPor, empresa);
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {

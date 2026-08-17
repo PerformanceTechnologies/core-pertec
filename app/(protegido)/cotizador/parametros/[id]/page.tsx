@@ -20,12 +20,16 @@ export default async function EditarSetParametrosPage({ params }: { params: Prom
       </Link>
       <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">Editar «{set.nombre}»</h1>
       <p className="mt-1 max-w-2xl text-sm text-tinta/60">
-        Los cambios NO afectan cotizaciones ya creadas: cada una guarda su propia copia congelada de los parámetros
-        vigentes al momento de crearse.
+        Los cambios NO afectan cotizaciones ya creadas: cada una guarda su propia copia congelada de los
+        parámetros vigentes al momento de crearse.
       </p>
 
       <div className="mt-6 max-w-4xl rounded-xl border border-borde bg-white p-6">
-        <FormularioParametrosLegales accion={accionConId} valoresPorDefecto={set} textoBoton="Guardar cambios" />
+        <FormularioParametrosLegales
+          accion={accionConId}
+          valoresPorDefecto={set}
+          textoBoton="Guardar cambios"
+        />
       </div>
     </div>
   );

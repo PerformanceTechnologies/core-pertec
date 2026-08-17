@@ -1,11 +1,8 @@
 import type { QuotationResult } from "@/lib/cotizador/motor/consolidacion";
+import type { QuotationInput } from "@/lib/cotizador/motor/types";
 import type { CotizacionCompleta } from "@/lib/cotizador";
 import { money, fechaCl } from "@/lib/cotizador/formato";
-import {
-  lineaIdentidadEmpresa,
-  nombreMostrarEmpresa,
-  type EmpresaIdentidad,
-} from "@/lib/cotizador/empresas";
+import { lineaIdentidadEmpresa, nombreMostrarEmpresa, type EmpresaIdentidad } from "@/lib/cotizador/empresas";
 
 export default function EcoTab({
   cotizacion,
@@ -13,7 +10,7 @@ export default function EcoTab({
   preparadoPor,
   empresa,
 }: {
-  cotizacion: CotizacionCompleta;
+  cotizacion: CotizacionCompleta & { input: QuotationInput };
   result: QuotationResult;
   preparadoPor: { nombre: string; correo: string };
   // Identidad legal de la empresa emisora de ESTA cotización. Puede venir null
@@ -45,8 +42,8 @@ export default function EcoTab({
               <div className="mt-1 text-xs text-tinta/60">{identidad}</div>
             ) : (
               <div className="mt-1 text-xs text-naranjo">
-                Falta cargar los datos legales de esta empresa (RUT, dirección, correo) en
-                Cotizador → Empresas.
+                Falta cargar los datos legales de esta empresa (RUT, dirección, correo) en Cotizador →
+                Empresas.
               </div>
             )}
           </div>
@@ -59,12 +56,19 @@ export default function EcoTab({
         </div>
 
         <div className="grid grid-cols-1 gap-1 border-b border-borde py-3.5 text-xs text-tinta sm:grid-cols-2">
-          <span><b className="font-medium text-tinta/50">MANDANTE:</b> {cotizacion.cliente ?? "—"}</span>
-          <span><b className="font-medium text-tinta/50">SERVICIO:</b> {cotizacion.nombre}</span>
-          <span><b className="font-medium text-tinta/50">FAENA:</b> {cotizacion.faena ?? "—"}</span>
+          <span>
+            <b className="font-medium text-tinta/50">MANDANTE:</b> {cotizacion.cliente ?? "—"}
+          </span>
+          <span>
+            <b className="font-medium text-tinta/50">SERVICIO:</b> {cotizacion.nombre}
+          </span>
+          <span>
+            <b className="font-medium text-tinta/50">FAENA:</b> {cotizacion.faena ?? "—"}
+          </span>
           <span>
             <b className="font-medium text-tinta/50">PLAZO:</b> {cotizacion.input.duracionMeses}{" "}
-            {cotizacion.input.duracionMeses === 1 ? "mes" : "meses"} · {cotizacion.input.diasServicio} días de servicio
+            {cotizacion.input.duracionMeses === 1 ? "mes" : "meses"} · {cotizacion.input.diasServicio} días de
+            servicio
           </span>
         </div>
 
@@ -77,7 +81,10 @@ export default function EcoTab({
           <span className="text-right">Total CLP</span>
         </div>
         {result.ecoItems.map((e) => (
-          <div key={e.item} className="grid grid-cols-[40px_minmax(200px,2fr)_90px_50px_110px_120px] items-center gap-x-2 border-b border-borde py-2 text-sm">
+          <div
+            key={e.item}
+            className="grid grid-cols-[40px_minmax(200px,2fr)_90px_50px_110px_120px] items-center gap-x-2 border-b border-borde py-2 text-sm"
+          >
             <span className="text-xs text-tinta/40">{e.item}</span>
             <span className="text-tinta">{e.descripcion}</span>
             <span className="text-xs text-tinta/40">{e.unidad}</span>
@@ -87,40 +94,41 @@ export default function EcoTab({
           </div>
         ))}
 
-        {cotizacion.input.tipoServicio === "contrato_permanente" && result.ecoItemsPersonalSpotContrato.length > 0 && (
-          <div className="mt-6">
-            <div className="border-b-2 border-tinta pb-1.5 text-xs font-bold uppercase tracking-wide text-tinta">
-              Personal SPOT del contrato — facturación por HH
-            </div>
-            <div className="grid grid-cols-[40px_minmax(200px,2fr)_60px_70px_110px_120px] gap-x-2 border-b border-tinta py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/50">
-              <span>Ítem</span>
-              <span>Cargo</span>
-              <span>Unidad</span>
-              <span className="text-right">HH/mes</span>
-              <span className="text-right">Tarifa HH25</span>
-              <span className="text-right">Total CLP</span>
-            </div>
-            {result.ecoItemsPersonalSpotContrato.map((e) => (
-              <div
-                key={e.item}
-                className="grid grid-cols-[40px_minmax(200px,2fr)_60px_70px_110px_120px] items-center gap-x-2 border-b border-borde py-2 text-sm"
-              >
-                <span className="text-xs text-tinta/40">{e.item}</span>
-                <span className="text-tinta">{e.descripcion}</span>
-                <span className="text-xs text-tinta/40">{e.unidad}</span>
-                <span className="text-right tabular-nums">{e.cantidad}</span>
-                <span className="text-right tabular-nums">{money(e.precioUnitario)}</span>
-                <span className="text-right font-medium tabular-nums">{money(e.total)}</span>
+        {cotizacion.input.tipoServicio === "contrato_permanente" &&
+          result.ecoItemsPersonalSpotContrato.length > 0 && (
+            <div className="mt-6">
+              <div className="border-b-2 border-tinta pb-1.5 text-xs font-bold uppercase tracking-wide text-tinta">
+                Personal SPOT del contrato — facturación por HH
               </div>
-            ))}
-            <div className="flex justify-end pt-3">
-              <div className="flex w-72 justify-between rounded-md bg-crema px-3 py-2 text-sm font-semibold text-tinta">
-                <span>SUBTOTAL PERSONAL SPOT</span>
-                <span className="tabular-nums">{money(result.ecoSubtotalPersonalSpotContrato)}</span>
+              <div className="grid grid-cols-[40px_minmax(200px,2fr)_60px_70px_110px_120px] gap-x-2 border-b border-tinta py-2 text-[10px] font-bold uppercase tracking-wide text-tinta/50">
+                <span>Ítem</span>
+                <span>Cargo</span>
+                <span>Unidad</span>
+                <span className="text-right">HH/mes</span>
+                <span className="text-right">Tarifa HH25</span>
+                <span className="text-right">Total CLP</span>
+              </div>
+              {result.ecoItemsPersonalSpotContrato.map((e) => (
+                <div
+                  key={e.item}
+                  className="grid grid-cols-[40px_minmax(200px,2fr)_60px_70px_110px_120px] items-center gap-x-2 border-b border-borde py-2 text-sm"
+                >
+                  <span className="text-xs text-tinta/40">{e.item}</span>
+                  <span className="text-tinta">{e.descripcion}</span>
+                  <span className="text-xs text-tinta/40">{e.unidad}</span>
+                  <span className="text-right tabular-nums">{e.cantidad}</span>
+                  <span className="text-right tabular-nums">{money(e.precioUnitario)}</span>
+                  <span className="text-right font-medium tabular-nums">{money(e.total)}</span>
+                </div>
+              ))}
+              <div className="flex justify-end pt-3">
+                <div className="flex w-72 justify-between rounded-md bg-crema px-3 py-2 text-sm font-semibold text-tinta">
+                  <span>SUBTOTAL PERSONAL SPOT</span>
+                  <span className="tabular-nums">{money(result.ecoSubtotalPersonalSpotContrato)}</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
         <div className="mt-6 flex justify-end border-t-2 border-tinta pt-3">
           <div className="w-72">

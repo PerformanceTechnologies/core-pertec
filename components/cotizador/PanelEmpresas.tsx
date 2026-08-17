@@ -18,7 +18,12 @@ import { TextInput } from "./campos/Campos";
 // desligaría las cotizaciones ya emitidas de su identidad.
 
 const CAMPOS: { clave: keyof DatosEmpresa; etiqueta: string; ayuda?: string; ancho?: string }[] = [
-  { clave: "razonSocial", etiqueta: "Razón social", ayuda: "Como debe aparecer en el encabezado del documento", ancho: "sm:col-span-2" },
+  {
+    clave: "razonSocial",
+    etiqueta: "Razón social",
+    ayuda: "Como debe aparecer en el encabezado del documento",
+    ancho: "sm:col-span-2",
+  },
   { clave: "rut", etiqueta: "RUT", ayuda: "Ej: 76.123.456-7" },
   { clave: "direccion", etiqueta: "Dirección" },
   { clave: "ciudad", etiqueta: "Ciudad" },
@@ -91,7 +96,9 @@ export default function PanelEmpresas({
       )}
 
       {error && (
-        <div className="mt-3 rounded-lg border border-red-600/20 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+        <div className="mt-3 rounded-lg border border-red-600/20 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
       )}
 
       <div className="mt-5 space-y-4">
@@ -126,7 +133,9 @@ export default function PanelEmpresas({
                     <div className="mt-1">
                       <TextInput
                         value={String(empresa[campo.clave as keyof EmpresaIdentidad] ?? "")}
-                        onChange={(v) => actualizarLocal(empresa.id, { [campo.clave]: v } as Partial<EmpresaIdentidad>)}
+                        onChange={(v) =>
+                          actualizarLocal(empresa.id, { [campo.clave]: v } as Partial<EmpresaIdentidad>)
+                        }
                         disabled={!puedeEditar || guardando === empresa.id}
                         className="w-full"
                       />
