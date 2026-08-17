@@ -9,7 +9,8 @@
     "lint": "eslint",
     "probar-obra": "npx tsx scripts/probar-obra.mts",
     "probar-importacion": "npx tsx scripts/probar-importacion.mts",
-    "probar-nombre": "npx tsx scripts/probar-nombre-cotizacion.mts"
+    "probar-nombre": "npx tsx scripts/probar-nombre-cotizacion.mts",
+    "probar-extraccion": "npx tsx scripts/probar-extraccion.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -20,6 +21,7 @@
     "@tabler/icons-react": "^3.44.0",
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.10.0",
+    "jszip": "^3.10.1",
     "next": "16.2.10",
     "next-auth": "^5.0.0-beta.31",
     "pdf-parse": "^1.1.1",

@@ -5,13 +5,14 @@ import { obtenerSetVigente } from "@/lib/parametros-legales";
 import { construirObra, leerPropuesta } from "@/lib/cotizador/obra/importar";
 import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
 import { nombreDeCotizacionImportada } from "@/lib/cotizador/nombre-cotizacion";
+import { formatoDe } from "@/lib/cotizador/obra/extraer-texto";
 
 export const runtime = "nodejs";
 // Leer una propuesta completa con el modelo tarda bastante más que una boleta.
 export const maxDuration = 60;
 
 /**
- * Importa una propuesta en PDF y la deja cargada como obra, cuadrada.
+ * Importa una propuesta (PDF, Excel o Word) y la deja cargada como obra, cuadrada.
  *
  * Va por route handler y no por Server Action porque una propuesta pesa varios
  * MB y el body de una Server Action está limitado a 1 MB por defecto.
@@ -28,8 +29,14 @@ export async function POST(request: Request) {
   if (!(archivo instanceof File)) {
     return NextResponse.json({ error: "No se recibió ningún archivo." }, { status: 400 });
   }
-  if (archivo.type !== "application/pdf") {
-    return NextResponse.json({ error: "La propuesta tiene que ser un PDF." }, { status: 400 });
+  // El formato se valida acá y no solo en el navegador: el `accept` del input es
+  // una comodidad, no una validación. Se acepta por MIME o por extensión porque
+  // Windows manda a veces application/octet-stream para un .xlsx.
+  if (!formatoDe(archivo.type, archivo.name)) {
+    return NextResponse.json(
+      { error: "La propuesta tiene que ser un PDF, un Excel (.xlsx, .xlsm) o un Word (.docx)." },
+      { status: 400 },
+    );
   }
   if (!esEmpresaValida(empresaCruda)) {
     return NextResponse.json({ error: "Empresa emisora no válida." }, { status: 400 });
@@ -45,8 +52,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const base64 = Buffer.from(await archivo.arrayBuffer()).toString("base64");
-    const propuesta = await leerPropuesta(base64, archivo.type, archivo.name);
+    const propuesta = await leerPropuesta(
+      Buffer.from(await archivo.arrayBuffer()),
+      archivo.type,
+      archivo.name,
+    );
     const catalogo = await listarCatalogoCargos();
     const { obra, avisos, verificacion } = construirObra(propuesta, catalogo, set.valores);
 

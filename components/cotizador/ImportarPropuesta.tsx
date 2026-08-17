@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EMPRESAS, type Empresa } from "@/lib/cotizador/empresas";
 import RuedaCarga from "@/components/RuedaCarga";
+import { FORMATOS_ACEPTADOS } from "@/lib/cotizador/obra/extraer-texto";
 
 /**
  * Importar una propuesta ya escrita y dejarla cargada como obra.
@@ -71,9 +72,11 @@ export default function ImportarPropuesta() {
           +
         </span>
         <span className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
-          Importar propuesta en PDF
+          Importar propuesta
         </span>
-        <span className="text-xs text-tinta/45">se carga como obra, cuadrada al total de la oferta</span>
+        <span className="text-xs text-tinta/45">
+          PDF, Excel o Word · se carga como obra, cuadrada al total de la oferta
+        </span>
       </summary>
 
       <div className="rounded-b-2xl border border-t-0 border-borde bg-superficie px-4 pb-5">
@@ -81,11 +84,11 @@ export default function ImportarPropuesta() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_240px_auto]">
             <label className="block">
               <span className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
-                Propuesta (PDF)
+                Propuesta (PDF, Excel o Word)
               </span>
               <input
                 type="file"
-                accept="application/pdf"
+                accept={FORMATOS_ACEPTADOS}
                 disabled={cargando}
                 onChange={(e) => {
                   setArchivo(e.target.files?.[0] ?? null);
@@ -128,9 +131,10 @@ export default function ImportarPropuesta() {
           </div>
 
           <p className="mt-3 text-xs text-pretty text-tinta/50">
-            El modelo transcribe lo que está impreso —turnos, cuadrilla y el cuadro de precios— y el servidor
+            El modelo transcribe lo que está escrito —turnos, cuadrilla y el cuadro de precios— y el servidor
             calcula: las horas-hombre, los márgenes y el divisor que hace cuadrar el total con el de la
-            oferta. Ningún monto lo calcula el modelo.
+            oferta. Ningún monto lo calcula el modelo. Un Excel o un Word cuestan mucho menos de leer que un
+            PDF, porque el PDF se procesa como una imagen de cada página.
           </p>
 
           {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}

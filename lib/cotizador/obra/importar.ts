@@ -2,7 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ItemObra } from "./tipos";
 import type { PropuestaLeida } from "./importar-tipos";
-import type { LegalParameterSet } from "@/lib/cotizador/motor/types";
+import { extraerTexto, formatoDe, type FormatoPropuesta } from "./extraer-texto";
 
 /**
  * Importar una propuesta ya escrita y dejarla cargada como obra, cuadrada.
@@ -173,16 +173,49 @@ esa línea es mano de obra por definición: no hay otra línea donde pueda estar
 
 Categorías: equipo_mayor para grúas, enrolladores y generadores; transporte para traslados, movilizaciones y
 camas bajas; insumo para materiales que se consumen; servicio para subcontratos de servicio; otro para el
-resto. La categoría es independiente de esManoDeObra: una línea puede ser transporte Y mano de obra.`;
+resto. La categoría es independiente de esManoDeObra: una línea puede ser transporte Y mano de obra.
+
+LA OFERTA PUEDE LLEGAR EN TRES FORMAS. El contenido que buscas es el mismo en las tres.
+
+- Un PDF, que ves como documento.
+- Una planilla de Excel, que llegas a ver como texto: cada hoja rotulada "## HOJA: nombre" y cada fila con
+  sus celdas separadas por " | ". Las columnas de una tabla pueden no estar alineadas entre filas, y la
+  tabla puede empezar muchas filas más abajo del principio de la hoja, después de un encabezado o un logo.
+  Una celda vacía en el medio de una fila es una columna real de la tabla, no un error.
+- Un documento de Word, también como texto: los párrafos van uno por línea y las tablas con el mismo " | ".
+
+Dos cosas propias de las planillas, y las dos se resuelven igual —transcribiendo lo que está, no lo que
+debería estar—:
+
+  Una celda de fórmula que nunca se recalculó llega VACÍA. Si el valor unitario o el total de una línea
+  viene vacío, no lo calcules multiplicando ni sumando: deja el monto en 0 y nombra esa línea en
+  "ilegibles" diciendo qué celda faltaba. El sistema verifica las sumas y avisa; un número que inventes
+  para tapar el hueco no se distingue de uno real.
+
+  Si hay más de una hoja o más de una tabla, transcribe la que tiene el cuadro de precios del servicio.
+  Una hoja de memoria de cálculo, una lista de precios de referencia o un histórico de otras ofertas no es
+  el cuadro de precios de ESTA oferta. Si no puedes decidir cuál es, nómbralas en "ilegibles" en vez de
+  mezclarlas.`;
 
 export async function leerPropuesta(
-  archivoBase64: string,
+  archivo: Buffer,
   mimeType: string,
   nombreArchivo: string,
 ): Promise<PropuestaLeida> {
-  if (mimeType !== "application/pdf") {
-    throw new Error(`"${nombreArchivo}" no es un PDF. La importación de propuestas acepta solo PDF.`);
+  const formato = formatoDe(mimeType, nombreArchivo);
+  if (!formato) {
+    throw new Error(
+      `"${nombreArchivo}" no es un formato que se pueda leer. Se aceptan PDF, Excel (.xlsx, .xlsm) y ` +
+        "Word (.docx).",
+    );
   }
+
+  // El PDF se manda como documento —la API lo procesa entero, texto más una
+  // imagen por página— porque su tabla está dibujada y hay que verla. El Excel y
+  // el Word no tienen páginas que rasterizar y la API tampoco los acepta como
+  // documento, así que el servidor los abre y manda el texto: la misma oferta
+  // cuesta ~300 tokens en vez de ~20.000 (ver ./extraer-texto.ts).
+  const contenido = await contenidoParaElModelo(archivo, formato, nombreArchivo);
 
   const respuesta = await cliente().messages.create({
     model: "claude-sonnet-5",
@@ -200,10 +233,7 @@ export async function leerPropuesta(
       {
         role: "user",
         content: [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: archivoBase64 },
-          },
+          ...contenido,
           {
             type: "text",
             text: `Transcribe esta oferta (archivo: ${nombreArchivo}) para cargarla en el cotizador.`,
@@ -229,6 +259,31 @@ export async function leerPropuesta(
   }
 
   return JSON.parse(texto.text) as PropuestaLeida;
+}
+
+/** El bloque de contenido con la oferta, según el formato. */
+async function contenidoParaElModelo(
+  archivo: Buffer,
+  formato: FormatoPropuesta,
+  nombreArchivo: string,
+): Promise<Anthropic.ContentBlockParam[]> {
+  if (formato === "pdf") {
+    return [
+      {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: archivo.toString("base64") },
+      },
+    ];
+  }
+
+  const texto = await extraerTexto(archivo, formato, nombreArchivo);
+  const rotulo = formato === "excel" ? "planilla de Excel" : "documento de Word";
+  return [
+    {
+      type: "text",
+      text: `Contenido de la oferta, extraído de una ${rotulo}:\n\n${texto}`,
+    },
+  ];
 }
 
 // La construcción de la obra vive aparte y sin "server-only" para poder probarla
