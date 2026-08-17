@@ -5,6 +5,7 @@ import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
 import FormularioCotizacion from "./FormularioCotizacion";
 import TablaCotizaciones from "./TablaCotizaciones";
 import ImportarPropuesta from "./ImportarPropuesta";
+import DetalleCotizaciones from "./DetalleCotizaciones";
 import { crearCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
 
 export default function PanelCotizador({
@@ -113,6 +114,11 @@ export default function PanelCotizador({
           <dd className="mt-1.5 text-[11px] text-tinta/45">sobre costo mensual total</dd>
         </div>
       </dl>
+
+      {/* El detalle cuelga de la cinta de KPI porque es el detalle de eso mismo:
+          los tres números de arriba dicen cuánto hay, el modal dice dónde está
+          trabado, quién concentra el monto y qué tiene el margen más flaco. */}
+      <DetalleCotizaciones cotizaciones={cotizaciones} />
 
       {puedeCrear && (
         <details className="group mt-6">
