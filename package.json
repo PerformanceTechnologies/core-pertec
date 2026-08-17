@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "probar-obra": "npx tsx scripts/probar-obra.mts",
-    "probar-importacion": "npx tsx scripts/probar-importacion.mts"
+    "probar-importacion": "npx tsx scripts/probar-importacion.mts",
+    "probar-nombre": "npx tsx scripts/probar-nombre-cotizacion.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

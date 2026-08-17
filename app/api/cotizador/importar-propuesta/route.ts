@@ -4,6 +4,7 @@ import { listarCatalogoCargos } from "@/lib/cotizador/catalogo-cargos";
 import { obtenerSetVigente } from "@/lib/parametros-legales";
 import { construirObra, leerPropuesta } from "@/lib/cotizador/obra/importar";
 import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
+import { nombreDeCotizacionImportada } from "@/lib/cotizador/nombre-cotizacion";
 
 export const runtime = "nodejs";
 // Leer una propuesta completa con el modelo tarda bastante más que una boleta.
@@ -51,10 +52,10 @@ export async function POST(request: Request) {
 
     const cotizacion = await crearCotizacionImportada(
       {
-        nombre: [propuesta.numeroOferta, propuesta.descripcionServicio]
-          .filter(Boolean)
-          .join(" · ")
-          .slice(0, 160),
+        // Las reglas de nombre viven en un solo lugar (lib/cotizador/
+        // nombre-cotizacion.ts): mayúsculas, acotado a 70 y sin el relleno del
+        // título del PDF.
+        nombre: nombreDeCotizacionImportada(propuesta.numeroOferta, propuesta.descripcionServicio),
         empresa,
         cliente: propuesta.cliente,
         faena: propuesta.faena,

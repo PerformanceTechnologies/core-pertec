@@ -1,4 +1,5 @@
 import type { DatosNuevaCotizacion } from "@/lib/cotizador";
+import { LARGO_MAXIMO_NOMBRE } from "@/lib/cotizador/nombre-cotizacion";
 import { EMPRESAS } from "@/lib/cotizador/empresas";
 import ClienteOdooInput from "./ClienteOdooInput";
 import BotonEnviar from "@/components/BotonEnviar";
@@ -16,13 +17,23 @@ export default function FormularioCotizacion({
     <form action={accion} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
         <label className="block text-xs font-medium text-tinta/70">Nombre del proyecto</label>
+        {/* maxLength en el campo Y normalización en el servidor: el atributo
+            evita que alguien escriba 200 caracteres y vea 70 después de guardar,
+            y el servidor es el que garantiza la regla (ver
+            lib/cotizador/nombre-cotizacion.ts) — un atributo HTML no es una
+            validación. uppercase por CSS para que se vea desde que se escribe
+            cómo va a quedar guardado. */}
         <input
           name="nombre"
           required
+          maxLength={LARGO_MAXIMO_NOMBRE}
           defaultValue={valoresPorDefecto?.nombre}
-          placeholder="Servicio SPOT Vulcanización CV-01"
-          className="mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm outline-none focus:border-naranjo/50"
+          placeholder="VULCANIZACIÓN CV-01 CHANCADO PRIMARIO"
+          className="mt-1 w-full rounded-lg border border-borde px-3 py-2 text-sm uppercase outline-none focus:border-naranjo/50"
         />
+        <p className="mt-1 text-[10px] text-tinta/40">
+          En mayúsculas y hasta {LARGO_MAXIMO_NOMBRE} caracteres, para que el listado se lea de un barrido.
+        </p>
       </div>
 
       <div>

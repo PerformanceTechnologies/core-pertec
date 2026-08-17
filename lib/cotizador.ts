@@ -9,6 +9,7 @@ import type { LegalParameterSet, QuotationInput } from "./cotizador/motor/types"
 import { calcularObra } from "./cotizador/obra/calculo";
 import { DIVISOR_HH_DEFECTO, TIPO_OBRA, type ObraInput, type ObraResult } from "./cotizador/obra/tipos";
 import type { Empresa } from "./cotizador/empresas";
+import { normalizarNombreCotizacion } from "./cotizador/nombre-cotizacion";
 import { puedeEnCotizador, type AccionCotizador, type RolCotizador } from "./permisos-cotizador";
 import type { UsuarioConAcceso } from "./tipos";
 
@@ -308,7 +309,9 @@ export async function crearCotizacion(
   const { data, error } = await supabaseAdmin
     .from("cotizaciones")
     .insert({
-      nombre: datos.nombre.trim() || "Nueva cotización",
+      // Mismas reglas que en la importación: el listado se lee de un barrido
+      // solo si todos los nombres siguen la misma forma.
+      nombre: normalizarNombreCotizacion(datos.nombre),
       empresa: datos.empresa,
       cliente: datos.cliente?.trim() || null,
       faena: datos.faena?.trim() || null,
@@ -353,7 +356,7 @@ export async function crearCotizacionImportada(
   const { data, error } = await supabaseAdmin
     .from("cotizaciones")
     .insert({
-      nombre: datos.nombre.trim() || "Propuesta importada",
+      nombre: normalizarNombreCotizacion(datos.nombre),
       empresa: datos.empresa,
       cliente: datos.cliente?.trim() || null,
       faena: datos.faena?.trim() || null,
@@ -386,7 +389,7 @@ export async function actualizarMetaCotizacion(id: string, datos: DatosMetaCotiz
   const { error } = await supabaseAdmin
     .from("cotizaciones")
     .update({
-      nombre: datos.nombre.trim() || "Nueva cotización",
+      nombre: normalizarNombreCotizacion(datos.nombre),
       empresa: datos.empresa,
       cliente: datos.cliente?.trim() || null,
       faena: datos.faena?.trim() || null,
