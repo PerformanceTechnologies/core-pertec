@@ -43,6 +43,9 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
 
   const divisor = input.divisorHH > 0 ? input.divisorHH : 1;
 
+  // Los montos exactos de cada cargo, sin redondear, para poder sumar bien.
+  const exactos: number[] = [];
+
   const lineasCargo: LineaCargoObra[] = input.dotacion.map((cargo) => {
     const resultado = calcularPersonalSpotContratoResult(
       { ...cargo.remuneracion, id: cargo.id, cargo: cargo.cargo, horasEstimadasMes: 0 },
@@ -57,6 +60,7 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
     const hhPrevios = hhPreviosPorCargo.get(cargo.id) ?? 0;
     const hhTotal = hhTurnos + hhPrevios;
     const costoHoraHombre = resultado.costoUnitarioMes / divisor;
+    exactos.push(costoHoraHombre * hhTotal);
 
     return {
       id: cargo.id,
@@ -72,7 +76,10 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
     };
   });
 
-  const costoPersonal = lineasCargo.reduce((total, l) => total + l.costoTotal, 0);
+  // Se suman los exactos y se redondea el TOTAL, no cada línea. Sumar valores ya
+  // redondeados arrastra hasta medio peso por cargo, y esa basura es justo la que
+  // impide que una obra cuadre al peso con su precio objetivo.
+  const costoPersonal = exactos.reduce((total, m) => total + m, 0);
   const monto = (i: { cantidad: number; precioUnitario: number }) => i.cantidad * i.precioUnitario;
   const costoItems = input.items.filter((i) => i.modo === "costo").reduce((t, i) => t + monto(i), 0);
   const preciosTraspasados = input.items.filter((i) => i.modo === "precio").reduce((t, i) => t + monto(i), 0);
@@ -119,10 +126,11 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
     // al precio de la oferta? Si el número es 20, la oferta está construida sobre
     // una carga comercial de HH20, no de HH25.
     const costoPersonalQueCabe = costoQueCabe - costoItems;
+    // Sin redondear a dos decimales: con 19,36 en vez de 19,359735… la obra
+    // quedaba a $13.329 del objetivo, y el pedido es que cuadre exacto. El
+    // editor lo muestra con dos decimales pero guarda todos.
     const divisorNecesario =
-      costoPersonalQueCabe > 0 && costoPersonal > 0
-        ? Math.round((divisor * costoPersonal * 100) / costoPersonalQueCabe) / 100
-        : 0;
+      costoPersonalQueCabe > 0 && costoPersonal > 0 ? (divisor * costoPersonal) / costoPersonalQueCabe : 0;
 
     cuadre = {
       objetivo,

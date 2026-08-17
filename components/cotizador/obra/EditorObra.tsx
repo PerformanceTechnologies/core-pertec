@@ -175,11 +175,18 @@ export default function EditorObra({
           }`}
         >
           <p className="text-pretty text-tinta">
-            Objetivo <strong className="tabular-nums">{money(result.cuadre.objetivo)}</strong> · diferencia{" "}
-            <strong className="tabular-nums">{money(result.cuadre.diferencia)}</strong>
+            Objetivo <strong className="tabular-nums">{money(result.cuadre.objetivo)}</strong> ·{" "}
+            {result.cuadre.diferencia === 0 ? (
+              <strong className="text-teal">cuadra exacto</strong>
+            ) : (
+              <>
+                diferencia <strong className="tabular-nums">{money(result.cuadre.diferencia)}</strong>
+              </>
+            )}
           </p>
           <p className="mt-1 text-xs text-pretty text-tinta/60">
-            Para cuadrar con estos ítems, el costo por hora-hombre tendría que ser{" "}
+            {result.cuadre.diferencia === 0 ? "El" : "Para cuadrar con estos ítems, el"} costo por hora-hombre{" "}
+            {result.cuadre.diferencia === 0 ? "es" : "tendría que ser"}{" "}
             <strong className="tabular-nums">{money(result.cuadre.costoHoraHombreNecesario)}</strong>. Hoy el
             promedio es{" "}
             <strong className="tabular-nums">
@@ -191,12 +198,18 @@ export default function EditorObra({
           {/* La otra forma de cuadrar, sin tocar un solo sueldo: mover el divisor.
               Va como botón y no automático — el divisor es la carga comercial de
               la obra y esa decisión es de quien cotiza, no del modelo. */}
-          {result.cuadre.divisorNecesario > 0 && Math.abs(result.cuadre.diferencia) >= 1000 && (
+          {/* La condición mira la DIFERENCIA, no el divisor: aplicado el divisor
+              exacto la diferencia es cero y esta línea desaparece. Antes miraba el
+              divisor y quedaba diciendo "19.36 en vez de 19.36" con la obra ya
+              cuadrada. */}
+          {result.cuadre.diferencia !== 0 && result.cuadre.divisorNecesario > 0 && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-tinta/60">
               <span className="text-pretty">
-                Con los mismos sueldos, cuadra con un divisor HH de{" "}
-                <strong className="tabular-nums text-tinta">{result.cuadre.divisorNecesario}</strong> en vez
-                de {obra.divisorHH}: recuperar el costo de un mes en esas horas.
+                Con los mismos sueldos cuadra exacto con un divisor HH de{" "}
+                <strong className="tabular-nums text-tinta">
+                  {result.cuadre.divisorNecesario.toFixed(2)}
+                </strong>{" "}
+                en vez de {obra.divisorHH.toFixed(2)}: recuperar el costo de un mes en esas horas.
               </span>
               {!disabled && (
                 <button
@@ -204,7 +217,7 @@ export default function EditorObra({
                   onClick={() => update((o) => ({ ...o, divisorHH: result.cuadre!.divisorNecesario }))}
                   className="rounded-md border border-naranjo/40 bg-superficie px-2 py-1 font-semibold text-naranjo transition hover:bg-naranjo/10"
                 >
-                  Usar {result.cuadre.divisorNecesario}
+                  Cuadrar
                 </button>
               )}
             </p>
@@ -230,7 +243,10 @@ export default function EditorObra({
           <Numero
             rotulo="Divisor HH"
             ayuda="Costo mensual ÷ este número = costo por hora-hombre. 45 es la convención HH25."
-            valor={obra.divisorHH}
+            // Cuatro decimales solo para que el campo sea legible: el valor
+            // guardado conserva toda la precisión, y es eso lo que hace que el
+            // total cuadre al peso.
+            valor={Math.round(obra.divisorHH * 1e4) / 1e4}
             disabled={disabled}
             onChange={(v) => update((o) => ({ ...o, divisorHH: v }))}
           />

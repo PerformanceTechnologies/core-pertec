@@ -225,10 +225,12 @@ assert.ok(
 
 // ── 5. El divisor sugerido tiene que hacer cuadrar de verdad ────────────────
 const conDivisorCuadrado = calcularObra({ ...ENTRADA, divisorHH: r.cuadre.divisorNecesario }, P);
-assert.ok(
-  Math.abs(conDivisorCuadrado.totalNeto - 137_117_960) < 20_000,
-  `con el divisor sugerido (${r.cuadre.divisorNecesario}) el neto da ${conDivisorCuadrado.totalNeto}, no el objetivo`,
+assert.equal(
+  conDivisorCuadrado.totalNeto,
+  137_117_960,
+  `con el divisor sugerido el neto da ${conDivisorCuadrado.totalNeto} y tiene que dar el objetivo al peso`,
 );
+assert.equal(conDivisorCuadrado.cuadre?.diferencia, 0, "aplicado el divisor, la diferencia debe ser cero");
 
 // Invariantes: nada negativo ni NaN.
 for (const [clave, valor] of Object.entries(r)) {
@@ -274,6 +276,8 @@ console.log(`
   Margen si se vende a eso  ${(r.cuadre!.margenEfectivoObjetivo * 100).toFixed(1)}%
   Costo/HH actual           ${clp(Math.round(hhPromedioActual))}
   Costo/HH para cuadrar     ${clp(r.cuadre!.costoHoraHombreNecesario)}
-  Divisor HH para cuadrar   ${r.cuadre!.divisorNecesario}  (hoy ${ENTRADA.divisorHH})
+  Divisor HH para cuadrar   ${r.cuadre!.divisorNecesario.toFixed(4)}  (hoy ${ENTRADA.divisorHH})
+  Neto con ese divisor      ${clp(conDivisorCuadrado.totalNeto)}
+  Diferencia con ese        ${clp(conDivisorCuadrado.cuadre!.diferencia)}
 `);
 console.log("Todas las verificaciones pasaron.");
