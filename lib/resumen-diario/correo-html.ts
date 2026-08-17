@@ -10,7 +10,9 @@ import "server-only";
  * buzón que se sincroniza en teléfonos y clientes de escritorio. Menos superficie
  * es mejor.
  *
- * Ahora el detalle vive en un solo lugar, detrás del login.
+ * Ahora el detalle vive en un solo lugar, detrás del login. El correo no lo
+ * explica: quien lo recibe todos los días no necesita que se le repita, y era la
+ * única línea del cuerpo que hablaba del correo en vez del día.
  *
  * Sigue con estilos en línea y tablas porque los clientes de correo no aplican
  * hojas de estilo externas y Outlook de escritorio ignora buena parte de flexbox.
@@ -45,12 +47,12 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string): string {
       <!-- El encabezado con el nombre y la fecha se queda: un correo cuyo cuerpo
            es un botón suelto, sin identidad ni contexto, se lee como phishing. -->
       <tr><td style="background:#171411;padding:22px 28px">
-        <div style="font:700 12px/1.4 Arial,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:#c85217">Mi día</div>
+        <div style="font:700 12px/1.4 Arial,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:#c85217">Tu día</div>
         <div style="font:700 22px/1.3 Arial,sans-serif;color:#faf8f5">${esc(nombre)}</div>
         <div style="font:13px/1.5 Arial,sans-serif;color:rgba(250,248,245,.5)">${esc(fechaLegible)}</div>
       </td></tr>
 
-      <tr><td align="center" style="padding:32px 28px">
+      <tr><td align="center" style="padding:32px 28px 36px 28px">
         <!-- El botón va como tabla con el fondo en el <td>, no como un <a> con
              padding: Outlook de escritorio no respeta el padding de un enlace en
              bloque y el botón queda del tamaño del texto. -->
@@ -61,12 +63,6 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string): string {
             </a>
           </td></tr>
         </table>
-      </td></tr>
-
-      <tr><td style="padding:0 28px 26px 28px">
-        <div style="font:12px/1.5 Arial,sans-serif;color:#b8b2a4;border-top:1px solid #e7e1d8;padding-top:14px">
-          El detalle no viaja en este correo a propósito: se ve en Core PERTEC, detrás del login.
-        </div>
       </td></tr>
     </table>
   </td></tr>

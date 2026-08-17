@@ -132,7 +132,9 @@ export async function GET(request: NextRequest) {
         // configurable a propósito: un resumen de bandeja de entrada no puede
         // terminar en el buzón de otro por un error de configuración.
         persona.correo,
-        `Mi día · ${fechaLegible(hoy.iso)}`,
+        // "Tu día" y no "Mi día": el asunto lo escribe el sistema hablándole a la
+        // persona. Adentro de la app el módulo se sigue llamando Mi Día.
+        `Tu día · ${fechaLegible(hoy.iso)}`,
         // El correo es solo un aviso con un botón al core; el resumen no viaja
         // en él. Se genera igual antes de mandarlo —y de ahí el `estado` de más
         // arriba— porque así, cuando la persona hace clic, la página ya lo tiene
