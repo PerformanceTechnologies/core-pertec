@@ -84,13 +84,69 @@ const DOTACION = [
 // Sección 8.1, ítems 2 a 8: todo lo que no es la cuadrilla. Los montos son los
 // del documento, tomados como COSTO para esta prueba.
 const ITEMS = [
-  { id: "i2", descripcion: "Enrollador + pesos muertos y retención", unidad: "dia" as const, cantidad: 4, precioUnitario: 2_583_750, categoria: "equipo_mayor" as const, modo: "precio" as const },
-  { id: "i3", descripcion: "Movilización y desmovilización enrollador", unidad: "unidad" as const, cantidad: 2, precioUnitario: 1_050_000, categoria: "transporte" as const, modo: "precio" as const },
-  { id: "i4", descripcion: "Grúa 50 ton, operador y rigger", unidad: "dia" as const, cantidad: 7, precioUnitario: 1_530_000, categoria: "equipo_mayor" as const, modo: "precio" as const },
-  { id: "i5", descripcion: "Traslado grúa Antofagasta-Mejillones", unidad: "unidad" as const, cantidad: 2, precioUnitario: 1_250_000, categoria: "transporte" as const, modo: "precio" as const },
-  { id: "i6", descripcion: "Núcleos metálicos para enrollar cinta", unidad: "unidad" as const, cantidad: 3, precioUnitario: 500_000, categoria: "insumo" as const, modo: "costo" as const },
-  { id: "i7", descripcion: "Generador eléctrico 200 KVA", unidad: "dia" as const, cantidad: 8, precioUnitario: 195_000, categoria: "equipo_mayor" as const, modo: "precio" as const },
-  { id: "i8", descripcion: "Camas bajas, traslado de 3 rollos a Calama", unidad: "unidad" as const, cantidad: 3, precioUnitario: 3_730_000, categoria: "transporte" as const, modo: "precio" as const },
+  {
+    id: "i2",
+    descripcion: "Enrollador + pesos muertos y retención",
+    unidad: "dia" as const,
+    cantidad: 4,
+    precioUnitario: 2_583_750,
+    categoria: "equipo_mayor" as const,
+    modo: "precio" as const,
+  },
+  {
+    id: "i3",
+    descripcion: "Movilización y desmovilización enrollador",
+    unidad: "unidad" as const,
+    cantidad: 2,
+    precioUnitario: 1_050_000,
+    categoria: "transporte" as const,
+    modo: "precio" as const,
+  },
+  {
+    id: "i4",
+    descripcion: "Grúa 50 ton, operador y rigger",
+    unidad: "dia" as const,
+    cantidad: 7,
+    precioUnitario: 1_530_000,
+    categoria: "equipo_mayor" as const,
+    modo: "precio" as const,
+  },
+  {
+    id: "i5",
+    descripcion: "Traslado grúa Antofagasta-Mejillones",
+    unidad: "unidad" as const,
+    cantidad: 2,
+    precioUnitario: 1_250_000,
+    categoria: "transporte" as const,
+    modo: "precio" as const,
+  },
+  {
+    id: "i6",
+    descripcion: "Núcleos metálicos para enrollar cinta",
+    unidad: "unidad" as const,
+    cantidad: 3,
+    precioUnitario: 500_000,
+    categoria: "insumo" as const,
+    modo: "costo" as const,
+  },
+  {
+    id: "i7",
+    descripcion: "Generador eléctrico 200 KVA",
+    unidad: "dia" as const,
+    cantidad: 8,
+    precioUnitario: 195_000,
+    categoria: "equipo_mayor" as const,
+    modo: "precio" as const,
+  },
+  {
+    id: "i8",
+    descripcion: "Camas bajas, traslado de 3 rollos a Calama",
+    unidad: "unidad" as const,
+    cantidad: 3,
+    precioUnitario: 3_730_000,
+    categoria: "transporte" as const,
+    modo: "precio" as const,
+  },
 ];
 
 const ENTRADA: ObraInput = {
@@ -167,6 +223,13 @@ assert.ok(
   "el HH necesario para cuadrar debería ser mayor que el actual",
 );
 
+// ── 5. El divisor sugerido tiene que hacer cuadrar de verdad ────────────────
+const conDivisorCuadrado = calcularObra({ ...ENTRADA, divisorHH: r.cuadre.divisorNecesario }, P);
+assert.ok(
+  Math.abs(conDivisorCuadrado.totalNeto - 137_117_960) < 20_000,
+  `con el divisor sugerido (${r.cuadre.divisorNecesario}) el neto da ${conDivisorCuadrado.totalNeto}, no el objetivo`,
+);
+
 // Invariantes: nada negativo ni NaN.
 for (const [clave, valor] of Object.entries(r)) {
   if (typeof valor === "number") {
@@ -211,5 +274,6 @@ console.log(`
   Margen si se vende a eso  ${(r.cuadre!.margenEfectivoObjetivo * 100).toFixed(1)}%
   Costo/HH actual           ${clp(Math.round(hhPromedioActual))}
   Costo/HH para cuadrar     ${clp(r.cuadre!.costoHoraHombreNecesario)}
+  Divisor HH para cuadrar   ${r.cuadre!.divisorNecesario}  (hoy ${ENTRADA.divisorHH})
 `);
 console.log("Todas las verificaciones pasaron.");

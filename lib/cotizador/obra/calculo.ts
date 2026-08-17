@@ -110,12 +110,26 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
     const objetivo = input.precioObjetivo;
     // Cuánto costo propio admite el objetivo, descontando lo que se traspasa.
     const costoQueCabe = (objetivo - preciosTraspasados) / factor;
+    // El costo del personal es inversamente proporcional al divisor
+    // (costoHH = costoMes / divisor), así que el divisor que hace cuadrar sale de
+    // una regla de tres — no hay que iterar ni tocar los sueldos.
+    //
+    // Esto es lo que responde la pregunta de verdad: con estos sueldos y estos
+    // ítems, ¿en cuántas horas hay que recuperar el costo de un mes para llegar
+    // al precio de la oferta? Si el número es 20, la oferta está construida sobre
+    // una carga comercial de HH20, no de HH25.
+    const costoPersonalQueCabe = costoQueCabe - costoItems;
+    const divisorNecesario =
+      costoPersonalQueCabe > 0 && costoPersonal > 0
+        ? Math.round((divisor * costoPersonal * 100) / costoPersonalQueCabe) / 100
+        : 0;
+
     cuadre = {
       objetivo,
       diferencia: round0(objetivo - totalNeto),
+      divisorNecesario,
       // Contra el objetivo SIN lo traspasado, por lo mismo que margenEfectivo.
-      margenEfectivoObjetivo:
-        costoTotal > 0 ? (objetivo - preciosTraspasados - costoTotal) / costoTotal : 0,
+      margenEfectivoObjetivo: costoTotal > 0 ? (objetivo - preciosTraspasados - costoTotal) / costoTotal : 0,
       costoHoraHombreNecesario: hhTotal > 0 ? round0((costoQueCabe - costoItems) / hhTotal) : 0,
     };
   }

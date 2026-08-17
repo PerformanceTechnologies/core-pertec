@@ -187,6 +187,28 @@ export default function EditorObra({
             </strong>
             . Vendida al objetivo, la obra deja {pct(result.cuadre.margenEfectivoObjetivo)} de margen.
           </p>
+
+          {/* La otra forma de cuadrar, sin tocar un solo sueldo: mover el divisor.
+              Va como botón y no automático — el divisor es la carga comercial de
+              la obra y esa decisión es de quien cotiza, no del modelo. */}
+          {result.cuadre.divisorNecesario > 0 && Math.abs(result.cuadre.diferencia) >= 1000 && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-tinta/60">
+              <span className="text-pretty">
+                Con los mismos sueldos, cuadra con un divisor HH de{" "}
+                <strong className="tabular-nums text-tinta">{result.cuadre.divisorNecesario}</strong> en vez
+                de {obra.divisorHH}: recuperar el costo de un mes en esas horas.
+              </span>
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => update((o) => ({ ...o, divisorHH: result.cuadre!.divisorNecesario }))}
+                  className="rounded-md border border-naranjo/40 bg-superficie px-2 py-1 font-semibold text-naranjo transition hover:bg-naranjo/10"
+                >
+                  Usar {result.cuadre.divisorNecesario}
+                </button>
+              )}
+            </p>
+          )}
         </div>
       )}
 

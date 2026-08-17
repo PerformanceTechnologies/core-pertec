@@ -169,5 +169,14 @@ export interface ObraResult {
     margenEfectivoObjetivo: number;
     /** Costo por hora-hombre que haría cuadrar el objetivo con estos ítems. */
     costoHoraHombreNecesario: number;
+    /**
+     * Divisor HH que haría cuadrar el objetivo SIN tocar los sueldos.
+     *
+     * Es la respuesta útil cuando el precio de la oferta ya está decidido: dice
+     * en cuántas horas hay que recuperar el costo de un mes para llegar a ese
+     * precio. Si sale 20, la oferta está armada sobre una carga de HH20 y no la
+     * HH25 que trae el modelo por defecto.
+     */
+    divisorNecesario: number;
   };
 }
