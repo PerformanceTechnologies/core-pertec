@@ -2,7 +2,8 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ItemObra } from "./tipos";
 import type { PropuestaLeida } from "./importar-tipos";
-import { extraerTexto, formatoDe, type FormatoPropuesta } from "./extraer-texto";
+import { extraerTexto } from "./extraer-texto";
+import { formatoDe, type FormatoPropuesta } from "./formatos";
 
 /**
  * Importar una propuesta ya escrita y dejarla cargada como obra, cuadrada.

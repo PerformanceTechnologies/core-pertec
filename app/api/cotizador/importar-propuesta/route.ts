@@ -5,7 +5,7 @@ import { obtenerSetVigente } from "@/lib/parametros-legales";
 import { construirObra, leerPropuesta } from "@/lib/cotizador/obra/importar";
 import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
 import { nombreDeCotizacionImportada } from "@/lib/cotizador/nombre-cotizacion";
-import { formatoDe } from "@/lib/cotizador/obra/extraer-texto";
+import { formatoDe } from "@/lib/cotizador/obra/formatos";
 
 export const runtime = "nodejs";
 // Leer una propuesta completa con el modelo tarda bastante más que una boleta.

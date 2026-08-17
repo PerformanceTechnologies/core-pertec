@@ -12,7 +12,8 @@
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
-import { extraerTexto, formatoDe, FORMATOS_ACEPTADOS } from "../lib/cotizador/obra/extraer-texto";
+import { extraerTexto } from "../lib/cotizador/obra/extraer-texto";
+import { formatoDe, FORMATOS_ACEPTADOS } from "../lib/cotizador/obra/formatos";
 
 const TOTAL = 15_885_200;
 const LINEA =

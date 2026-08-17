@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "probar-obra": "npx tsx scripts/probar-obra.mts",
-    "probar-importacion": "npx tsx scripts/probar-importacion.mts",
-    "probar-nombre": "npx tsx scripts/probar-nombre-cotizacion.mts",
-    "probar-extraccion": "npx tsx scripts/probar-extraccion.mts"
+    "probar-obra": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-obra.mts",
+    "probar-importacion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-importacion.mts",
+    "probar-nombre": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-nombre-cotizacion.mts",
+    "probar-extraccion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-extraccion.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

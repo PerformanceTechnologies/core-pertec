@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EMPRESAS, type Empresa } from "@/lib/cotizador/empresas";
 import RuedaCarga from "@/components/RuedaCarga";
-import { FORMATOS_ACEPTADOS } from "@/lib/cotizador/obra/extraer-texto";
+import { FORMATOS_ACEPTADOS } from "@/lib/cotizador/obra/formatos";
 
 /**
  * Importar una propuesta ya escrita y dejarla cargada como obra.

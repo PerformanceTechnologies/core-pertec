@@ -1,6 +1,8 @@
+import "server-only";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
+import type { FormatoPropuesta } from "./formatos";
 
 /**
  * De un archivo de oferta al texto que se le manda al modelo.
@@ -16,41 +18,16 @@ import { XMLParser } from "fast-xml-parser";
  * así que el servidor los abre y manda las celdas y los párrafos como texto. La
  * misma oferta, en Excel, son ~300 tokens.
  *
+ * Con "server-only" a propósito: importa exceljs y jszip, y un componente cliente
+ * que le pidiera aunque sea una constante se llevaría ExcelJS entero al bundle
+ * del navegador. Lo que el cliente necesita —la lista de formatos aceptados—
+ * vive en ./formatos.ts, que no importa nada pesado.
+ *
  * Lo que se extrae acá es SOLO texto: nada se interpreta, nada se calcula, nada
  * se descarta por parecer irrelevante. Interpretar es tarea del modelo y
  * calcular del servidor (ver ./importar.ts). Si esta función decidiera qué filas
  * importan, un formato distinto al esperado perdería datos en silencio.
  */
-
-export type FormatoPropuesta = "pdf" | "excel" | "word";
-
-const TIPOS: Record<string, FormatoPropuesta> = {
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
-  "application/vnd.ms-excel.sheet.macroEnabled.12": "excel",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "word",
-};
-
-/**
- * Los formatos que acepta el `<input type="file">`.
- *
- * Con la extensión además del MIME: Windows manda a veces
- * `application/octet-stream` para un .xlsx, y entonces el navegador no lo deja
- * ni seleccionar.
- */
-export const FORMATOS_ACEPTADOS = [...Object.keys(TIPOS), ".pdf", ".xlsx", ".xlsm", ".docx"].join(",");
-
-/** Formato del archivo, por MIME y con la extensión como respaldo. */
-export function formatoDe(mimeType: string, nombreArchivo: string): FormatoPropuesta | null {
-  const porMime = TIPOS[mimeType];
-  if (porMime) return porMime;
-
-  const extension = nombreArchivo.toLowerCase().split(".").pop() ?? "";
-  if (extension === "pdf") return "pdf";
-  if (extension === "xlsx" || extension === "xlsm") return "excel";
-  if (extension === "docx") return "word";
-  return null;
-}
 
 /**
  * Excel → texto.
