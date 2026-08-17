@@ -36,7 +36,6 @@ const ESQUEMA = {
         type: "object",
         properties: {
           asunto: { type: "string" },
-          inicio: { type: "string" },
           dia: { type: "string", enum: ["hoy", "manana", "despues"] },
           con: { type: "string" },
           // Nullable va como anyOf y no como "type": ["string", "null"]: es la
@@ -45,7 +44,7 @@ const ESQUEMA = {
           agendadaAntes: { type: "boolean" },
           indice: { type: "integer" },
         },
-        required: ["asunto", "inicio", "dia", "con", "preparacion", "agendadaAntes", "indice"],
+        required: ["asunto", "dia", "con", "preparacion", "agendadaAntes", "indice"],
         additionalProperties: false,
       },
     },

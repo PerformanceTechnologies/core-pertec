@@ -179,6 +179,9 @@ function conDatosReales(
       return {
         ...resto,
         enlace: real?.enlace ?? null,
+        // Del evento real, igual que el fin: ver el comentario de `inicio` en
+        // ReunionResumida.
+        inicio: real?.inicio ?? null,
         fin: real?.fin ?? null,
         lugar: real?.ubicacion ?? null,
         esTeams: Boolean(real?.enlaceTeams),

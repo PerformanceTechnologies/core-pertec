@@ -72,7 +72,10 @@ function fechaLarga(iso: string): string {
 // por el header Prefer), así que se recorta en vez de reinterpretarlo como Date
 // — construir un Date acá lo movería según la zona del servidor, que en
 // producción es UTC.
-function horaDeReunion(iso: string): string {
+function horaDeReunion(iso: string | null): string {
+  // Sin dato, o con algo que no sea un ISO, mejor un guion que una página
+  // caída: es un rótulo de hora, no el motivo de existir de la página.
+  if (!iso || iso.length < 16) return "—";
   return iso.slice(11, 16);
 }
 
@@ -103,7 +106,8 @@ const DETALLE_DIRIGIDO: Record<Dirigido, string> = {
  * reunión que cruza la medianoche daría negativo. Con el ajuste de +24 h eso
  * queda cubierto.
  */
-function duracion(inicio: string, fin: string): string {
+function duracion(inicio: string | null, fin: string | null): string {
+  if (!inicio || !fin || inicio.length < 16 || fin.length < 16) return "";
   const minutos = (iso: string) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
   let total = minutos(fin) - minutos(inicio);
   if (total < 0) total += 24 * 60;
@@ -114,10 +118,14 @@ function duracion(inicio: string, fin: string): string {
 }
 
 // "12 ago" para las reuniones que no son hoy ni mañana.
-function fechaCorta(isoLocal: string): string {
-  return new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "UTC" }).format(
-    new Date(`${isoLocal.slice(0, 10)}T12:00:00Z`),
-  );
+function fechaCorta(isoLocal: string | null): string {
+  // Un dato que no sea una fecha hacía que Intl lanzara RangeError y con eso se
+  // caía la página entera: le pasó a un resumen donde el inicio de la reunión
+  // venía como "11:00". El inicio ahora sale del evento real (ver `inicio` en
+  // ReunionResumida), y además esto no vuelve a tumbar nada.
+  const fecha = isoLocal ? new Date(`${isoLocal.slice(0, 10)}T12:00:00Z`) : new Date(NaN);
+  if (Number.isNaN(fecha.getTime())) return "";
+  return new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "UTC" }).format(fecha);
 }
 
 /**
@@ -688,7 +696,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
                         <LineaDetalle etiqueta="Horario">
                           {horaDeReunion(m.inicio)}
                           {m.fin && ` a ${horaDeReunion(m.fin)}`}
-                          {m.fin && ` · ${duracion(m.inicio, m.fin)}`}
+                          {duracion(m.inicio, m.fin) && ` · ${duracion(m.inicio, m.fin)}`}
                         </LineaDetalle>
                         <LineaDetalle etiqueta="Dónde">
                           {m.lugar ?? (m.esTeams ? "Reunión de Teams" : "Sin lugar indicado")}
@@ -711,7 +719,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
                       {/* <time> con dateTime: es un dato horario y así lo puede
                           leer un lector de pantalla o un parser. */}
                       <time
-                        dateTime={m.inicio}
+                        dateTime={m.inicio ?? undefined}
                         className="font-condensed text-xl font-bold leading-none tabular-nums text-tinta"
                       >
                         {horaDeReunion(m.inicio)}

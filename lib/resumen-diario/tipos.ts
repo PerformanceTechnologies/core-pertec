@@ -21,7 +21,7 @@ import type { ConteosCorreo, Dirigido } from "@/lib/graph-correo";
  * 3 — enlaces a Outlook y registro sin voseo
  * 4 — datos reales por fila para los popovers de detalle
  */
-export const VERSION_RESUMEN = 4;
+export const VERSION_RESUMEN = 5;
 
 export type Urgencia = "alta" | "media" | "baja";
 
@@ -100,8 +100,6 @@ export interface TemaDelPeriodo {
 
 export interface ReunionResumidaModelo {
   asunto: string;
-  /** ISO local de Chile, tal como lo devuelve Graph con el header Prefer. */
-  inicio: string;
   /** El día se decide en el servidor con la fecha de Chile, no en el modelo. */
   dia: "hoy" | "manana" | "despues";
   con: string;
@@ -116,6 +114,16 @@ export interface ReunionResumidaModelo {
 /** Ídem: los campos de abajo salen del evento real, no del modelo. */
 export interface ReunionResumida extends Omit<ReunionResumidaModelo, "indice"> {
   enlace: string | null;
+  /**
+   * Inicio y fin, en ISO local de Chile, tomados del evento REAL.
+   *
+   * El inicio salía del modelo y eso rompió la página: en el resumen de una
+   * persona escribió "11:00" en vez del ISO completo, y la fecha corta que se
+   * muestra para las reuniones de "después" reventó con RangeError: Invalid time
+   * value. Una hora es un dato exacto — de los que el modelo no tiene por qué
+   * transcribir.
+   */
+  inicio: string | null;
   /** Hora de término, para poder mostrar la duración. */
   fin: string | null;
   lugar: string | null;
