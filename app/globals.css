@@ -108,14 +108,34 @@ body {
   background: var(--color-naranjo);
 }
 
+/* LAS DOS ANIMACIONES DE APARICIÓN SON SOLO DE OPACIDAD, SIN TRANSFORM.
+
+   No es una preferencia estética, es un requisito: un elemento con una animación
+   de `transform` en curso —o rellenando, que con `both` es para siempre— se
+   convierte en bloque contenedor de sus descendientes `position: fixed`. Sus
+   modales dejan de medirse contra la pantalla y pasan a medirse contra él.
+
+   Eso rompió el visor de comprobantes de Rendir Gastos: abría a mitad de página,
+   se extendía más abajo del borde inferior y no se podía llegar al resto, porque
+   el visor bloquea el scroll del documento mientras está abierto. El mismo
+   defecto tenían, más callado, los modales de Proyectos y de Mantención, que
+   viven dentro de contenedores con .animar-revelar.
+
+   Y NO alcanza con terminar el keyframe en `transform: none`: lo medí en el
+   navegador y el valor calculado al final queda en `matrix(1, 0, 0, 1, 0, 0)`,
+   que sigue creando el bloque contenedor. Un fixed adentro seguía arrancando en
+   el borde del panel (top 400px) en vez de en el de la pantalla (top 0).
+
+   Si alguna vez se quiere devolver el desplazamiento, la forma que sí funciona
+   —también medida— es @starting-style con una transition, que al terminar deja
+   el transform en `none` de verdad. Antes de hacerlo hay que verificar que
+   ningún descendiente sea fixed. */
 @keyframes revelar {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 .animar-revelar {
@@ -161,11 +181,10 @@ body {
   animation: latir-marca 2.4s ease-in-out infinite;
 }
 
-/* La entrada de un módulo: el contenido sube apenas y aparece.
+/* La entrada de un módulo: el contenido aparece. Sin transform, ver arriba.
 
-   Es más lenta y con menos recorrido que .animar-revelar (6px en vez de 10, y
-   0.55s en vez de 0.5) porque acá se mueve la página entera y no una tarjeta:
-   con el mismo salto se siente un tirón.
+   Un poco más lenta que .animar-revelar (0.55s contra 0.5) porque acá aparece la
+   página entera y no una tarjeta.
 
    Corre UNA vez, al montarse el elemento — o sea al entrar al módulo. Un
    re-render de React no la repite: React conserva el nodo del DOM y la
@@ -175,11 +194,9 @@ body {
 @keyframes entrada-modulo {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 .animar-entrada {
