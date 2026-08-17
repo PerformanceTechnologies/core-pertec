@@ -329,6 +329,51 @@ export async function crearCotizacion(
   return filaACompleta(data as unknown as FilaCompleta);
 }
 
+/**
+ * Crea una cotización de obra con su entrada YA construida.
+ *
+ * Es el camino de la importación de propuestas: `crearCotizacion` parte de una
+ * obra en blanco, y acá la obra viene armada y cuadrada desde el PDF. Comparte
+ * todo lo demás —snapshot de parámetros congelado, Rev01, borrador— para que una
+ * cotización importada no sea un objeto de segunda clase.
+ */
+export async function crearCotizacionImportada(
+  datos: {
+    nombre: string;
+    empresa: Empresa;
+    cliente: string | null;
+    faena: string | null;
+    obra: ObraInput;
+  },
+  set: { id: string; valores: LegalParameterSet },
+  creadoPor?: string,
+): Promise<CotizacionCompleta> {
+  const summary = resumirObra(calcularObra(datos.obra, set.valores));
+
+  const { data, error } = await supabaseAdmin
+    .from("cotizaciones")
+    .insert({
+      nombre: datos.nombre.trim() || "Propuesta importada",
+      empresa: datos.empresa,
+      cliente: datos.cliente?.trim() || null,
+      faena: datos.faena?.trim() || null,
+      tipo_servicio: TIPO_OBRA,
+      rev: "Rev01",
+      estado: "borrador",
+      emitida: false,
+      input: datos.obra,
+      parametros_set_id: set.id,
+      parametros_snapshot: set.valores,
+      summary,
+      creado_por: creadoPor ?? null,
+    })
+    .select(COLUMNAS_COMPLETA)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return filaACompleta(data as unknown as FilaCompleta);
+}
+
 export interface DatosMetaCotizacion {
   nombre: string;
   empresa: Empresa;

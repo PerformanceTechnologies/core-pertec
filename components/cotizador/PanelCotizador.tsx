@@ -4,6 +4,7 @@ import { money, pct } from "@/lib/cotizador/formato";
 import { puedeEnCotizador, type RolCotizador } from "@/lib/permisos-cotizador";
 import FormularioCotizacion from "./FormularioCotizacion";
 import TablaCotizaciones from "./TablaCotizaciones";
+import ImportarPropuesta from "./ImportarPropuesta";
 import { crearCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
 
 export default function PanelCotizador({
@@ -132,6 +133,10 @@ export default function PanelCotizador({
           </div>
         </details>
       )}
+
+      {/* Debajo de "Nueva cotización" porque es lo mismo con otro punto de
+          partida: en vez de una obra en blanco, una propuesta ya escrita. */}
+      {puedeCrear && <ImportarPropuesta />}
 
       <TablaCotizaciones cotizaciones={cotizaciones} puedeEliminar={puedeEliminar} />
     </div>
