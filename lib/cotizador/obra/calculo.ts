@@ -9,10 +9,15 @@ import type { LineaCargoObra, ObraInput, ObraResult } from "./tipos";
  * Dos bloques de costo y una sola cadena de margen:
  *
  *   personal  = Σ (costo hora-hombre del cargo × sus horas-hombre)
- *   items     = Σ (cantidad × precio unitario)      ← arriendos, fletes, insumos
+ *   items     = Σ (cantidad × precio unitario) de los ítems en modo "costo"
  *   costo     = personal + items
  *   cargado   = costo + MOB + GG + utilidad
- *   neto      = cargado + GG ECO + utilidad ECO      ← sobre la base configurada
+ *   neto      = cargado + GG ECO + utilidad ECO + ítems en modo "precio"
+ *
+ * Los ítems en modo "precio" entran al final y sin margen: son el equipo mayor
+ * subcontratado, que llega con la cotización del proveedor y se traspasa. Meterlos
+ * como costo y aplicarles la cadena completa los deja fuera de mercado, y es la
+ * razón por la que un modelo prolijo puede no reproducir nunca la oferta real.
  *
  * La cadena es la misma del motor (ver consolidacion.ts, líneas 167-176) a
  * propósito: si el ECO de una obra usara otra fórmula, dos cotizaciones de la
@@ -68,7 +73,9 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
   });
 
   const costoPersonal = lineasCargo.reduce((total, l) => total + l.costoTotal, 0);
-  const costoItems = input.items.reduce((total, i) => total + i.cantidad * i.precioUnitario, 0);
+  const monto = (i: { cantidad: number; precioUnitario: number }) => i.cantidad * i.precioUnitario;
+  const costoItems = input.items.filter((i) => i.modo === "costo").reduce((t, i) => t + monto(i), 0);
+  const preciosTraspasados = input.items.filter((i) => i.modo === "precio").reduce((t, i) => t + monto(i), 0);
   const costoTotal = costoPersonal + costoItems;
 
   const mob = costoTotal * input.margenes.mobPct;
@@ -80,11 +87,43 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
   const ggEco = baseEco * input.margenes.ggEcoPct;
   const utilidadEco = baseEco * input.margenes.utilidadEcoPct;
 
-  const totalNeto = costoCargado + ggEco + utilidadEco;
+  const totalNeto = costoCargado + ggEco + utilidadEco + preciosTraspasados;
   const iva = totalNeto * input.margenes.ivaPct;
 
+  // El factor que convierte costo propio en precio, con esta configuración de
+  // márgenes. Sirve para responder al revés: cuánto costo cabe dentro de un
+  // precio dado.
+  const factor =
+    1 +
+    input.margenes.mobPct +
+    input.margenes.ggPct +
+    input.margenes.utilidadPct +
+    (input.margenes.baseCalculoEco === "costo_puro"
+      ? input.margenes.ggEcoPct + input.margenes.utilidadEcoPct
+      : (1 + input.margenes.mobPct + input.margenes.ggPct + input.margenes.utilidadPct) *
+        (input.margenes.ggEcoPct + input.margenes.utilidadEcoPct));
+
+  const hhTotal = lineasCargo.reduce((total, l) => total + l.hhTotal, 0);
+
+  let cuadre: ObraResult["cuadre"];
+  if (input.precioObjetivo && input.precioObjetivo > 0) {
+    const objetivo = input.precioObjetivo;
+    // Cuánto costo propio admite el objetivo, descontando lo que se traspasa.
+    const costoQueCabe = (objetivo - preciosTraspasados) / factor;
+    cuadre = {
+      objetivo,
+      diferencia: round0(objetivo - totalNeto),
+      // Contra el objetivo SIN lo traspasado, por lo mismo que margenEfectivo.
+      margenEfectivoObjetivo:
+        costoTotal > 0 ? (objetivo - preciosTraspasados - costoTotal) / costoTotal : 0,
+      costoHoraHombreNecesario: hhTotal > 0 ? round0((costoQueCabe - costoItems) / hhTotal) : 0,
+    };
+  }
+
   return {
-    hhTotal: lineasCargo.reduce((total, l) => total + l.hhTotal, 0),
+    cuadre,
+    preciosTraspasados: round0(preciosTraspasados),
+    hhTotal,
     personasTotales: lineasCargo.reduce((total, l) => total + l.personasTotales, 0),
     lineasCargo,
     costoPersonal: round0(costoPersonal),
@@ -99,6 +138,11 @@ export function calcularObra(input: ObraInput, P: LegalParameterSet): ObraResult
     totalNeto: round0(totalNeto),
     iva: round0(iva),
     totalConIva: round0(totalNeto + iva),
-    margenEfectivo: costoTotal > 0 ? (totalNeto - costoTotal) / costoTotal : 0,
+    // Margen del trabajo PROPIO: se descuenta lo traspasado del numerador porque
+    // no está en el denominador. Sumar al precio los $38 M de la grúa y el
+    // enrollador, cuyo costo el modelo no conoce, y dividir por el costo propio,
+    // daba un 201% que no significa nada: el margen se calcula sobre lo que la
+    // empresa efectivamente carga.
+    margenEfectivo: costoTotal > 0 ? (totalNeto - preciosTraspasados - costoTotal) / costoTotal : 0,
   };
 }

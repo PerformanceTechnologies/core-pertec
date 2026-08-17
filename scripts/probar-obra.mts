@@ -84,13 +84,13 @@ const DOTACION = [
 // Sección 8.1, ítems 2 a 8: todo lo que no es la cuadrilla. Los montos son los
 // del documento, tomados como COSTO para esta prueba.
 const ITEMS = [
-  { id: "i2", descripcion: "Enrollador + pesos muertos y retención", unidad: "dia" as const, cantidad: 4, precioUnitario: 2_583_750, categoria: "equipo_mayor" as const },
-  { id: "i3", descripcion: "Movilización y desmovilización enrollador", unidad: "unidad" as const, cantidad: 2, precioUnitario: 1_050_000, categoria: "transporte" as const },
-  { id: "i4", descripcion: "Grúa 50 ton, operador y rigger", unidad: "dia" as const, cantidad: 7, precioUnitario: 1_530_000, categoria: "equipo_mayor" as const },
-  { id: "i5", descripcion: "Traslado grúa Antofagasta-Mejillones", unidad: "unidad" as const, cantidad: 2, precioUnitario: 1_250_000, categoria: "transporte" as const },
-  { id: "i6", descripcion: "Núcleos metálicos para enrollar cinta", unidad: "unidad" as const, cantidad: 3, precioUnitario: 500_000, categoria: "insumo" as const },
-  { id: "i7", descripcion: "Generador eléctrico 200 KVA", unidad: "dia" as const, cantidad: 8, precioUnitario: 195_000, categoria: "equipo_mayor" as const },
-  { id: "i8", descripcion: "Camas bajas, traslado de 3 rollos a Calama", unidad: "unidad" as const, cantidad: 3, precioUnitario: 3_730_000, categoria: "transporte" as const },
+  { id: "i2", descripcion: "Enrollador + pesos muertos y retención", unidad: "dia" as const, cantidad: 4, precioUnitario: 2_583_750, categoria: "equipo_mayor" as const, modo: "precio" as const },
+  { id: "i3", descripcion: "Movilización y desmovilización enrollador", unidad: "unidad" as const, cantidad: 2, precioUnitario: 1_050_000, categoria: "transporte" as const, modo: "precio" as const },
+  { id: "i4", descripcion: "Grúa 50 ton, operador y rigger", unidad: "dia" as const, cantidad: 7, precioUnitario: 1_530_000, categoria: "equipo_mayor" as const, modo: "precio" as const },
+  { id: "i5", descripcion: "Traslado grúa Antofagasta-Mejillones", unidad: "unidad" as const, cantidad: 2, precioUnitario: 1_250_000, categoria: "transporte" as const, modo: "precio" as const },
+  { id: "i6", descripcion: "Núcleos metálicos para enrollar cinta", unidad: "unidad" as const, cantidad: 3, precioUnitario: 500_000, categoria: "insumo" as const, modo: "costo" as const },
+  { id: "i7", descripcion: "Generador eléctrico 200 KVA", unidad: "dia" as const, cantidad: 8, precioUnitario: 195_000, categoria: "equipo_mayor" as const, modo: "precio" as const },
+  { id: "i8", descripcion: "Camas bajas, traslado de 3 rollos a Calama", unidad: "unidad" as const, cantidad: 3, precioUnitario: 3_730_000, categoria: "transporte" as const, modo: "precio" as const },
 ];
 
 const ENTRADA: ObraInput = {
@@ -106,6 +106,7 @@ const ENTRADA: ObraInput = {
   ],
   items: ITEMS,
   divisorHH: DIVISOR_HH_DEFECTO,
+  precioObjetivo: 137_117_960,
   margenes: {
     mobPct: 0.014,
     ggPct: 0.07,
@@ -131,16 +132,40 @@ assert.equal(r.hhTotal, HH_TURNOS + HH_PREVIOS, "el total de HH no suma turnos +
 assert.equal(r.personasTotales, 18, "la dotación total no da 18 personas");
 
 // ── 2. La tabla de equipos y fletes ─────────────────────────────────────────
-// $39.895.000 es la suma de los ítems 2 a 8 del cuadro de precios.
-assert.equal(r.costoItems, 39_895_000, "los ítems no suman lo mismo que el documento");
+// Los ítems 2 a 8 del cuadro suman $39.895.000. Los núcleos metálicos (ítem 6,
+// $1.500.000) son insumo propio y van como costo; el resto es equipo mayor y
+// transporte subcontratado, que se traspasa a precio.
+assert.equal(r.costoItems, 1_500_000, "los insumos propios no cuadran");
+assert.equal(r.preciosTraspasados, 38_395_000, "el equipo traspasado no cuadra");
+assert.equal(r.costoItems + r.preciosTraspasados, 39_895_000, "los 8 ítems no suman lo del documento");
 
 // ── 3. La cadena de márgenes ────────────────────────────────────────────────
 const esperadoCargado = r.costoTotal * (1 + 0.014 + 0.07 + 0.1);
 assert.ok(Math.abs(r.costoCargado - esperadoCargado) <= 1, "MOB + GG + utilidad mal aplicados");
-const esperadoNeto = esperadoCargado + r.costoTotal * 0.4; // GG ECO 20% + utilidad ECO 20%
+const esperadoNeto = esperadoCargado + r.costoTotal * 0.4 + r.preciosTraspasados;
 assert.ok(Math.abs(r.totalNeto - esperadoNeto) <= 2, "el ECO no aplica 20% + 20% sobre el costo puro");
 assert.ok(Math.abs(r.iva - r.totalNeto * 0.19) <= 1, "IVA mal calculado");
-assert.ok(r.margenEfectivo > 0.55 && r.margenEfectivo < 0.6, `margen efectivo inesperado: ${r.margenEfectivo}`);
+// El margen es sobre el trabajo propio, así que no lo mueve el equipo traspasado.
+assert.ok(
+  r.margenEfectivo > 0.55 && r.margenEfectivo < 0.6,
+  `margen efectivo inesperado: ${r.margenEfectivo}`,
+);
+assert.ok(
+  Math.abs(r.margenEfectivo - (r.totalNeto - r.preciosTraspasados - r.costoTotal) / r.costoTotal) < 1e-6,
+  "el margen efectivo no descuenta lo traspasado",
+);
+
+// ── 4. El cuadre contra el objetivo ─────────────────────────────────────────
+assert.ok(r.cuadre, "no se calculó el cuadre pese a haber precioObjetivo");
+assert.equal(r.cuadre.objetivo, 137_117_960);
+assert.equal(r.cuadre.diferencia, r.cuadre.objetivo - r.totalNeto, "la diferencia no es objetivo − neto");
+// El costo por HH que haría cuadrar el objetivo tiene que ser mayor al actual:
+// el neto de la corrida queda por debajo de la oferta.
+const hhPromedioActual = r.costoPersonal / r.hhTotal;
+assert.ok(
+  r.cuadre.costoHoraHombreNecesario > hhPromedioActual,
+  "el HH necesario para cuadrar debería ser mayor que el actual",
+);
 
 // Invariantes: nada negativo ni NaN.
 for (const [clave, valor] of Object.entries(r)) {
@@ -166,7 +191,7 @@ console.table(
 console.log(`
   HH totales           ${r.hhTotal}   (${HH_TURNOS} en turnos + ${HH_PREVIOS} previos)
   Costo personal       ${clp(r.costoPersonal)}
-  Costo equipos/fletes ${clp(r.costoItems)}
+  Insumos propios      ${clp(r.costoItems)}
   ─────────────────────
   Costo total          ${clp(r.costoTotal)}
   + MOB 1,4%           ${clp(r.mob)}
@@ -175,11 +200,16 @@ console.log(`
   = Costo cargado      ${clp(r.costoCargado)}
   + GG ECO 20%         ${clp(r.ggEco)}
   + Utilidad ECO 20%   ${clp(r.utilidadEco)}
+  + Equipo traspasado  ${clp(r.preciosTraspasados)}
   ─────────────────────
   TOTAL NETO           ${clp(r.totalNeto)}
-  Margen efectivo      ${(r.margenEfectivo * 100).toFixed(1)}%
+  Margen efectivo      ${(r.margenEfectivo * 100).toFixed(1)}%  (sobre el trabajo propio)
 
-  Oferta OS 009-2026   $137.117.960
-  Diferencia           ${clp(r.totalNeto - 137_117_960)}
+  ── Cuadre contra la oferta ──
+  Oferta OS 009-2026        ${clp(r.cuadre!.objetivo)}
+  Diferencia                ${clp(r.cuadre!.diferencia)}
+  Margen si se vende a eso  ${(r.cuadre!.margenEfectivoObjetivo * 100).toFixed(1)}%
+  Costo/HH actual           ${clp(Math.round(hhPromedioActual))}
+  Costo/HH para cuadrar     ${clp(r.cuadre!.costoHoraHombreNecesario)}
 `);
 console.log("Todas las verificaciones pasaron.");

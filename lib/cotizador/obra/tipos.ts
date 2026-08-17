@@ -80,8 +80,17 @@ export interface TrabajoPrevio {
  * es un activo que se deprecia: es un arriendo, y su costo es el precio por día
  * por los días.
  *
- * `precioUnitario` es COSTO, no precio de venta: el margen lo aplica el cálculo
- * una sola vez y al final, igual que en el resto del Cotizador.
+ * `modo` decide de qué lado entra la plata, y es la diferencia que hace que una
+ * obra cuadre o no:
+ *
+ *  - "costo": es un costo propio y el margen se le aplica al final, igual que al
+ *    personal. Insumos, kits de empalme, lo que sale de bodega.
+ *  - "precio": ya es precio al cliente y pasa derecho al total, sin margen
+ *    encima. Es el caso del equipo mayor subcontratado —la grúa con operador, el
+ *    enrollador, las camas bajas— que llega con la cotización del proveedor y se
+ *    traspasa. Aplicarle la cadena completa de márgenes encima lo dejaría fuera
+ *    de mercado, y es justo lo que hace que un modelo "prolijo" no reproduzca
+ *    nunca la oferta real.
  */
 export interface ItemObra {
   id: string;
@@ -90,6 +99,7 @@ export interface ItemObra {
   cantidad: number;
   precioUnitario: number;
   categoria: "equipo_mayor" | "transporte" | "insumo" | "servicio" | "otro";
+  modo: "costo" | "precio";
 }
 
 export interface ObraInput {
@@ -100,6 +110,16 @@ export interface ObraInput {
   items: ItemObra[];
   divisorHH: number;
   margenes: MargenesConfig;
+  /**
+   * Precio neto al que se quiere llegar, si hay uno.
+   *
+   * Existe porque una oferta se arma casi siempre al revés: hay un número que el
+   * cliente puede pagar o que el mercado marca, y la pregunta es qué margen deja.
+   * El cálculo NO lo usa para ajustarse solo —eso sería inventar un número y
+   * presentarlo como calculado— sino para informar la brecha y el margen que ese
+   * objetivo implica. Quien decide sigue siendo la persona.
+   */
+  precioObjetivo?: number;
 }
 
 export interface LineaCargoObra {
@@ -121,6 +141,8 @@ export interface ObraResult {
   lineasCargo: LineaCargoObra[];
   costoPersonal: number;
   costoItems: number;
+  /** Ítems en modo "precio": van al total sin margen encima. */
+  preciosTraspasados: number;
   costoTotal: number;
   mob: number;
   gg: number;
@@ -132,6 +154,20 @@ export interface ObraResult {
   totalNeto: number;
   iva: number;
   totalConIva: number;
-  /** (totalNeto − costoTotal) / costoTotal. */
+  /**
+   * Margen sobre el trabajo propio: (totalNeto − traspasado − costoTotal) / costoTotal.
+   *
+   * Lo traspasado sale del numerador porque su costo no está en el denominador —
+   * el modelo no lo conoce. Dejarlo dentro infla el margen sin significar nada.
+   */
   margenEfectivo: number;
+  /** Solo si hay `precioObjetivo`. Nada de esto altera el cálculo. */
+  cuadre?: {
+    objetivo: number;
+    diferencia: number;
+    /** Margen efectivo que tendría la obra si se vendiera al objetivo. */
+    margenEfectivoObjetivo: number;
+    /** Costo por hora-hombre que haría cuadrar el objetivo con estos ítems. */
+    costoHoraHombreNecesario: number;
+  };
 }
