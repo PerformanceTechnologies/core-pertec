@@ -22,12 +22,20 @@ export default async function OfertasPage() {
         ← Volver al inicio
       </Link>
 
-      <div className="mt-3">
-        <span className="etiqueta-seccion">Ofertas técnicas</span>
-        <h1 className="mt-2 max-w-[26ch] font-condensed text-3xl font-bold uppercase leading-[0.95] tracking-tight text-tinta sm:text-4xl">
-          Ofertas técnicas
-          <span className="block text-tinta/40">Del borrador al formato de la casa</span>
-        </h1>
+      <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <span className="etiqueta-seccion">Ofertas técnicas</span>
+          <h1 className="mt-2 max-w-[26ch] font-condensed text-3xl font-bold uppercase leading-[0.95] tracking-tight text-tinta sm:text-4xl">
+            Ofertas técnicas
+            <span className="block text-tinta/40">Del borrador al formato de la casa</span>
+          </h1>
+        </div>
+        <Link
+          href="/ofertas/maestros"
+          className="text-xs font-medium text-tinta/55 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo lg:shrink-0"
+        >
+          Maestros de formato →
+        </Link>
       </div>
 
       <SubirBorrador />

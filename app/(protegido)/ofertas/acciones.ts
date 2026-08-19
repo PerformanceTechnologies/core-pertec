@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eliminarOferta, exigirAccesoOfertas, obtenerOferta } from "@/lib/ofertas/datos";
+import { asignarMaestro, eliminarOferta, exigirAccesoOfertas, obtenerOferta } from "@/lib/ofertas/datos";
 
 /**
  * Borra una oferta del listado.
@@ -20,4 +20,23 @@ export async function eliminarOfertaAction(formData: FormData) {
 
   await eliminarOferta(id);
   revalidatePath("/ofertas");
+}
+
+/**
+ * Cambia con qué maestro se imprime una oferta.
+ *
+ * Solo en borradores: una emitida ya salió con un formato y cambiárselo dejaría el
+ * registro diciendo algo distinto de lo que recibió el cliente.
+ */
+export async function asignarMaestroAction(formData: FormData) {
+  await exigirAccesoOfertas();
+  const id = String(formData.get("id") ?? "");
+  const maestroId = String(formData.get("maestroId") ?? "");
+  if (!id) return;
+
+  const oferta = await obtenerOferta(id);
+  if (!oferta || oferta.estado === "emitida") return;
+
+  await asignarMaestro(id, maestroId || null);
+  revalidatePath(`/ofertas/${id}`);
 }

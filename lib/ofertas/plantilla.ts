@@ -1,5 +1,6 @@
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import type { OfertaCanonica, TotalesOferta } from "./tipos";
+import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
 
 /**
  * El maestro del formato de ofertas técnicas, como código.
@@ -286,6 +287,9 @@ export function ofertaAHtml(
   oferta: OfertaCanonica,
   totales: TotalesOferta,
   empresa: EmpresaIdentidad,
+  // El estilo del maestro elegido. Sin maestro, el de PERTEC: una oferta sale
+  // igual que antes de que los maestros existieran.
+  estilo: EstiloMaestro = ESTILO_PERTEC,
 ): string {
   const secciones = armarSecciones(oferta, totales);
   const anexo = armarAnexo(oferta.anexo);
@@ -300,11 +304,11 @@ export function ofertaAHtml(
   /* Los márgenes reales los pone page.pdf() al imprimir, porque el header y el
      footer repetidos son cajas de Chromium y no elementos del documento (ver
      plantillasDeImpresion). Acá solo se declara el tamaño. */
-  @page { size: A4; margin: 32mm 16mm 22mm; }
+  @page { size: A4; margin: 32mm ${estilo.margenLateral}mm 22mm; }
   * { box-sizing: border-box; }
   body {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    color: #1f1b16; font-size: 10.5px; line-height: 1.45; margin: 0;
+    font-family: ${estilo.fuenteCuerpo};
+    color: ${estilo.colorTinta}; font-size: ${estilo.tamanoCuerpo}px; line-height: 1.45; margin: 0;
     counter-reset: pagina;
   }
 
@@ -315,100 +319,102 @@ export function ofertaAHtml(
      —el primer intento— se veía bien en el navegador y en el PDF caía encima del
      contenido, con "Página 0 de 0". */
   .header {
-    margin-bottom: 8mm; height: 18mm;
-    display: flex; border: 1px solid #d9d3c7;
+    margin-bottom: 8mm; height: ${estilo.altoHeader}mm;
+    display: flex; border: 1px solid ${estilo.colorBorde};
   }
   .header > div { padding: 3mm 4mm; display: flex; flex-direction: column; justify-content: center; }
-  .header .marca { width: 34mm; border-right: 1px solid #d9d3c7; font-weight: 700; letter-spacing: .06em;
-    font-size: 9px; text-transform: uppercase; color: #1f1b16; }
-  .header .centro { flex: 1; border-right: 1px solid #d9d3c7; flex-direction: row;
+  .header .marca { width: ${estilo.anchoCeldaLateral}mm; border-right: 1px solid ${estilo.colorBorde}; font-weight: 700; letter-spacing: .06em;
+    font-size: 9px; text-transform: uppercase; color: ${estilo.colorTinta}; }
+  .header .centro { flex: 1; border-right: 1px solid ${estilo.colorBorde}; flex-direction: row;
     align-items: center; justify-content: space-between; }
-  .header .cliente { width: 34mm; align-items: center; justify-content: center;
-    color: #8c8578; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+  .header .cliente { width: ${estilo.anchoCeldaLateral}mm; align-items: center; justify-content: center;
+    color: ${estilo.colorSuave}; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
   .header .empresa { font-weight: 700; font-size: 11px; }
-  .header .rut { color: #8c8578; font-size: 8.5px; }
-  .header .oferta { text-align: right; font-size: 9px; color: #8c8578; }
-  .header .oferta b { color: #1f1b16; }
+  .header .rut { color: ${estilo.colorSuave}; font-size: 8.5px; }
+  .header .oferta { text-align: right; font-size: 9px; color: ${estilo.colorSuave}; }
+  .header .oferta b { color: ${estilo.colorTinta}; }
 
   .footer {
-    margin-top: 10mm; border-top: 1px solid #e5e0d5; padding-top: 2mm;
+    margin-top: 10mm; border-top: 1px solid ${estilo.colorBorde}; padding-top: 2mm;
     display: flex; justify-content: space-between; gap: 6mm;
-    font-size: 7.5px; color: #8c8578;
+    font-size: 7.5px; color: ${estilo.colorSuave};
   }
 
-  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: -.01em; margin: 9mm 0 3mm;
-       padding-bottom: 2mm; border-bottom: 1.6px solid #1f1b16; display: flex; gap: 4mm;
+  h2 { font-size: ${estilo.tamanoTitulo}px; font-family: ${estilo.fuenteTitulos}; text-transform: uppercase; letter-spacing: -.01em; margin: 9mm 0 3mm;
+       padding-bottom: 2mm; border-bottom: 1.6px solid ${estilo.colorTinta}; display: flex; gap: 4mm;
        align-items: baseline; page-break-after: avoid; }
-  h2 .n { color: #c85217; font-weight: 700; }
+  h2 .n { color: ${estilo.colorAcento}; font-weight: 700; }
   h2:first-of-type { margin-top: 0; }
   h3 { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; margin: 5mm 0 2mm;
        page-break-after: avoid; }
   p { margin: 0 0 2.5mm; }
-  p.nota { color: #8c8578; font-size: 8.5px; }
+  p.nota { color: ${estilo.colorSuave}; font-size: 8.5px; }
 
   table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; page-break-inside: auto; }
   tr { page-break-inside: avoid; }
   .datos th.etiqueta { width: 32%; text-align: left; vertical-align: top; padding: 2mm 3mm;
-    background: #f4f1ea; color: #8c8578; font-size: 8px; text-transform: uppercase;
+    background: ${estilo.colorFondoSuave}; color: ${estilo.colorSuave}; font-size: 8px; text-transform: uppercase;
     letter-spacing: .06em; font-weight: 600; }
-  .datos td { padding: 2mm 3mm; background: #faf8f3; }
-  .datos tr + tr th, .datos tr + tr td { border-top: 1px solid #fff; }
+  .datos td { padding: 2mm 3mm; background: ${estilo.colorFondoSuave}; }
+  /* Separador por contraste con el fondo de la fila, no un blanco fijo: con un
+     maestro de paleta oscura un blanco acá sería una raya. */
+  .datos tr + tr th, .datos tr + tr td { border-top: 1px solid ${estilo.colorCabeceraTexto}; }
 
-  .tabla thead th { background: #262320; color: #fff; text-align: left; padding: 2mm 3mm;
+  .tabla thead th { background: ${estilo.colorCabecera}; color: ${estilo.colorCabeceraTexto}; text-align: left; padding: 2mm 3mm;
     font-size: 8px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
   .tabla td { padding: 2mm 3mm; vertical-align: top; }
-  .tabla tbody tr:nth-child(even) td { background: #f4f1ea; }
+  .tabla tbody tr:nth-child(even) td { background: ${estilo.colorFondoSuave}; }
   .tabla .num { text-align: right; }
-  .tabla tr.total td { background: #ebe6d9; font-weight: 700; border-top: 1px solid #d9d3c7; }
+  .tabla tr.total td { background: ${estilo.colorFondoTotal}; font-weight: 700; border-top: 1px solid ${estilo.colorBorde}; }
   .precios tr.total td:first-child { text-align: right; text-transform: uppercase;
     letter-spacing: .04em; font-size: 9px; }
 
-  .barra { display: inline-block; width: 42%; height: 2.4mm; background: #ebe6d9; vertical-align: middle;
+  .barra { display: inline-block; width: 42%; height: 2.4mm; background: ${estilo.colorFondoTotal}; vertical-align: middle;
     border-radius: 1.2mm; overflow: hidden; }
-  .barra > span { display: block; height: 100%; background: #c85217; }
-  .avance { font-size: 8px; color: #8c8578; margin-left: 2mm; }
+  .barra > span { display: block; height: 100%; background: ${estilo.colorAcento}; }
+  .avance { font-size: 8px; color: ${estilo.colorSuave}; margin-left: 2mm; }
 
   ol.hitos { list-style: none; margin: 0 0 3mm; padding: 0; }
-  ol.hitos li { display: flex; gap: 3mm; padding: 1.6mm 0; border-top: 1px solid #ebe6d9;
+  ol.hitos li { display: flex; gap: 3mm; padding: 1.6mm 0; border-top: 1px solid ${estilo.colorFondoTotal};
     page-break-inside: avoid; }
   ol.hitos li:first-child { border-top: 0; }
-  ol.hitos .numeral { color: #c85217; font-weight: 700; font-size: 9px; min-width: 6mm; }
+  ol.hitos .numeral { color: ${estilo.colorAcento}; font-weight: 700; font-size: 9px; min-width: 6mm; }
 
   .tarjetas { display: flex; flex-wrap: wrap; gap: 3mm; }
-  .tarjeta { flex: 1 1 46%; border: 1px solid #ebe6d9; border-left-width: 2.5mm; padding: 2.5mm 3mm;
+  .tarjeta { flex: 1 1 46%; border: 1px solid ${estilo.colorFondoTotal}; border-left-width: 2.5mm; padding: 2.5mm 3mm;
     page-break-inside: avoid; }
-  .tarjeta.naranjo { border-left-color: #c85217; }
-  .tarjeta.teal { border-left-color: #00a080; }
+  .tarjeta.naranjo { border-left-color: ${estilo.colorAcento}; }
+  .tarjeta.teal { border-left-color: ${estilo.colorAcentoAlterno}; }
   .tarjeta .cargo { text-transform: uppercase; font-size: 8.5px; letter-spacing: .05em;
     font-weight: 700; margin-bottom: 1mm; }
 
   .aportes { display: flex; gap: 4mm; }
   .aportes .columna { flex: 1; }
-  .aportes .cabecera { background: #262320; color: #fff; padding: 2mm 3mm; font-size: 8px;
+  .aportes .cabecera { background: ${estilo.colorCabecera}; color: ${estilo.colorCabeceraTexto}; padding: 2mm 3mm; font-size: 8px;
     text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin: 0; }
   .aportes ul { list-style: none; margin: 0; padding: 0; }
   .aportes li { padding: 2mm 3mm; page-break-inside: avoid; }
-  .aportes li:nth-child(even) { background: #f4f1ea; }
+  .aportes li:nth-child(even) { background: ${estilo.colorFondoSuave}; }
 
   .firmas { display: flex; gap: 12mm; margin-top: 18mm; page-break-inside: avoid; }
   .firmas .firma { flex: 1; }
-  .firmas .linea { display: block; border-top: 1px solid #1f1b16; margin-bottom: 1.5mm; }
+  .firmas .linea { display: block; border-top: 1px solid ${estilo.colorTinta}; margin-bottom: 1.5mm; }
   .firmas .nombre { font-weight: 700; margin: 0; }
-  .firmas .cargo { color: #8c8578; margin: 0; font-size: 9px; }
-  .cc { color: #8c8578; font-size: 8.5px; margin-top: 8mm; }
+  .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }
+  .cc { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 8mm; }
 
   .mandantes { display: flex; flex-wrap: wrap; gap: 0 6mm; }
-  .mandantes span { flex: 0 0 calc(33.333% - 4mm); border-bottom: 1px solid #ebe6d9;
+  .mandantes span { flex: 0 0 calc(33.333% - 4mm); border-bottom: 1px solid ${estilo.colorFondoTotal};
     padding: 2mm 0; }
 
   .indice { margin-bottom: 4mm; }
-  .indice li { display: flex; gap: 4mm; padding: 1.6mm 0; border-top: 1px solid #ebe6d9; list-style: none; }
-  .indice .n { color: #c85217; font-weight: 700; min-width: 6mm; }
+  .indice li { display: flex; gap: 4mm; padding: 1.6mm 0; border-top: 1px solid ${estilo.colorFondoTotal}; list-style: none; }
+  .indice .n { color: ${estilo.colorAcento}; font-weight: 700; min-width: 6mm; }
   .portada { page-break-after: always; }
-  .portada .rotulo { color: #c85217; font-size: 8.5px; letter-spacing: .16em;
+  .portada .rotulo { color: ${estilo.colorAcento}; font-size: 8.5px; letter-spacing: .16em;
     text-transform: uppercase; margin-bottom: 3mm; }
-  .portada h1 { font-size: 28px; line-height: 1.08; text-transform: uppercase; margin: 0 0 3mm; }
-  .portada .faena { color: #8c8578; font-size: 13px; margin-bottom: 14mm; }
+  .portada h1 { font-size: ${estilo.tamanoPortada}px; font-family: ${estilo.fuenteTitulos}; line-height: 1.08; text-transform: uppercase; margin: 0 0 3mm; }
+  .portada .faena { color: ${estilo.colorSuave}; font-size: 13px; margin-bottom: 14mm; }
 
   /* AL FINAL a propósito: tiene la misma especificidad que .header y .footer, así
      que si fuera antes ganaría la declaración de abajo y el header saldría igual.
@@ -424,7 +430,7 @@ export function ofertaAHtml(
            <div class="rut">RUT ${esc(empresa.rut)}</div></div>
       <div class="oferta">Oferta <b>${esc(id.numeroOferta ?? "—")}</b><br>Fecha <b>${esc(id.fecha ?? "—")}</b></div>
     </div>
-    <div class="cliente">[Logo cliente]</div>
+    <div class="cliente">${esc(estilo.rotuloLogoCliente)}</div>
   </div>
 
   <div class="footer">
@@ -474,6 +480,7 @@ export function ofertaAHtml(
 export function plantillasDeImpresion(
   oferta: OfertaCanonica,
   empresa: EmpresaIdentidad,
+  estilo: EstiloMaestro = ESTILO_PERTEC,
 ): { headerTemplate: string; footerTemplate: string } {
   const id = oferta.identificacion;
   const referenciaPie = [id.numeroOferta, oferta.titulo].filter(Boolean).join(" \u00b7 ");
@@ -481,26 +488,26 @@ export function plantillasDeImpresion(
   const celda = "padding:2mm 3mm;display:flex;flex-direction:column;justify-content:center;";
 
   return {
-    headerTemplate: `<div style="width:100%;font-family:Helvetica,Arial,sans-serif;color:#1f1b16;
-        padding:0 16mm;-webkit-print-color-adjust:exact;">
-      <div style="display:flex;border:1px solid #d9d3c7;height:16mm;">
-        <div style="${celda}width:32mm;border-right:1px solid #d9d3c7;font-size:7px;font-weight:700;
+    headerTemplate: `<div style="width:100%;font-family:${estilo.fuenteCuerpo};color:${estilo.colorTinta};
+        padding:0 ${estilo.margenLateral}mm;-webkit-print-color-adjust:exact;">
+      <div style="display:flex;border:1px solid ${estilo.colorBorde};height:${estilo.altoHeader - 2}mm;">
+        <div style="${celda}width:${estilo.anchoCeldaLateral - 2}mm;border-right:1px solid ${estilo.colorBorde};font-size:7px;font-weight:700;
           letter-spacing:.06em;text-transform:uppercase;">${esc(empresa.nombre)}</div>
-        <div style="${celda}flex:1;border-right:1px solid #d9d3c7;flex-direction:row;
+        <div style="${celda}flex:1;border-right:1px solid ${estilo.colorBorde};flex-direction:row;
           align-items:center;justify-content:space-between;">
           <div><div style="font-size:9px;font-weight:700;">${esc(empresa.razonSocial)}</div>
-            <div style="font-size:7px;color:#8c8578;">RUT ${esc(empresa.rut)}</div></div>
-          <div style="font-size:7px;color:#8c8578;text-align:right;">
-            Oferta <b style="color:#1f1b16;">${esc(id.numeroOferta ?? "\u2014")}</b><br>
-            Fecha <b style="color:#1f1b16;">${esc(id.fecha ?? "\u2014")}</b></div>
+            <div style="font-size:7px;color:${estilo.colorSuave};">RUT ${esc(empresa.rut)}</div></div>
+          <div style="font-size:7px;color:${estilo.colorSuave};text-align:right;">
+            Oferta <b style="color:${estilo.colorTinta};">${esc(id.numeroOferta ?? "\u2014")}</b><br>
+            Fecha <b style="color:${estilo.colorTinta};">${esc(id.fecha ?? "\u2014")}</b></div>
         </div>
-        <div style="${celda}width:32mm;align-items:center;font-size:6.5px;color:#8c8578;
-          letter-spacing:.08em;text-transform:uppercase;">[Logo cliente]</div>
+        <div style="${celda}width:${estilo.anchoCeldaLateral - 2}mm;align-items:center;font-size:6.5px;color:${estilo.colorSuave};
+          letter-spacing:.08em;text-transform:uppercase;">${esc(estilo.rotuloLogoCliente)}</div>
       </div>
     </div>`,
-    footerTemplate: `<div style="width:100%;font-family:Helvetica,Arial,sans-serif;font-size:6.5px;
-        color:#8c8578;padding:0 16mm;">
-      <div style="display:flex;justify-content:space-between;gap:6mm;border-top:1px solid #e5e0d5;
+    footerTemplate: `<div style="width:100%;font-family:${estilo.fuenteCuerpo};font-size:6.5px;
+        color:${estilo.colorSuave};padding:0 ${estilo.margenLateral}mm;">
+      <div style="display:flex;justify-content:space-between;gap:6mm;border-top:1px solid ${estilo.colorBorde};
         padding-top:2mm;">
         <span>${esc(direccion)}</span>
         <span>${esc(referenciaPie)}</span>

@@ -5,6 +5,7 @@ import type { Empresa } from "@/lib/cotizador/empresas";
 import { ofertaAHtml, plantillasDeImpresion } from "./plantilla";
 import { calcularTotales } from "./verificar";
 import type { OfertaCanonica } from "./tipos";
+import { estiloParaOferta } from "./maestros";
 
 /**
  * La oferta, impresa.
@@ -24,7 +25,11 @@ import type { OfertaCanonica } from "./tipos";
  * "Página 0 de 0" — los contadores CSS de página no existen fuera de estas cajas.
  * Los márgenes se declaran acá porque tienen que dejarles lugar.
  */
-export async function ofertaAPdf(oferta: OfertaCanonica, nombreEmpresa: Empresa): Promise<Buffer> {
+export async function ofertaAPdf(
+  oferta: OfertaCanonica,
+  nombreEmpresa: Empresa,
+  maestroId: string | null = null,
+): Promise<Buffer> {
   const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
   if (!empresa) {
     throw new Error(
@@ -32,7 +37,10 @@ export async function ofertaAPdf(oferta: OfertaCanonica, nombreEmpresa: Empresa)
     );
   }
 
-  const html = ofertaAHtml(oferta, calcularTotales(oferta), empresa);
+  // El estilo cae en cascada: el maestro de la oferta, si no el predeterminado,
+  // si no el de PERTEC. Nunca falla.
+  const estilo = await estiloParaOferta(maestroId);
+  const html = ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo);
 
   const browser = await lanzarNavegador();
   try {
@@ -44,7 +52,7 @@ export async function ofertaAPdf(oferta: OfertaCanonica, nombreEmpresa: Empresa)
     // portada mostraba la cabecera dos veces. Se vio imprimiendo, no leyendo el
     // código.
     await page.emulateMedia({ media: "print" });
-    const { headerTemplate, footerTemplate } = plantillasDeImpresion(oferta, empresa);
+    const { headerTemplate, footerTemplate } = plantillasDeImpresion(oferta, empresa, estilo);
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -62,8 +70,12 @@ export async function ofertaAPdf(oferta: OfertaCanonica, nombreEmpresa: Empresa)
 }
 
 /** El HTML sin imprimir, para la previsualización en pantalla. */
-export async function ofertaAHtmlConEmpresa(oferta: OfertaCanonica, nombreEmpresa: Empresa): Promise<string> {
+export async function ofertaAHtmlConEmpresa(
+  oferta: OfertaCanonica,
+  nombreEmpresa: Empresa,
+  maestroId: string | null = null,
+): Promise<string> {
   const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
   if (!empresa) throw new Error(`No se encontró la identidad de "${nombreEmpresa}".`);
-  return ofertaAHtml(oferta, calcularTotales(oferta), empresa);
+  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, await estiloParaOferta(maestroId));
 }

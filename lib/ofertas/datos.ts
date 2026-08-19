@@ -18,7 +18,7 @@ import type { Empresa } from "@/lib/cotizador/empresas";
 
 const COLUMNAS = `
   id, nombre, numero_oferta, cliente, faena, empresa, contenido, inconsistencias,
-  estado, archivo_origen, creado_en, actualizado_en
+  estado, archivo_origen, maestro_id, creado_en, actualizado_en
 `;
 
 export interface OfertaResumen {
@@ -30,6 +30,8 @@ export interface OfertaResumen {
   empresa: Empresa;
   estado: "borrador" | "emitida";
   cantidadInconsistencias: number;
+  /** Con qué maestro de formato se imprime. null = el predeterminado. */
+  maestroId: string | null;
   actualizadoEn: string;
 }
 
@@ -51,6 +53,7 @@ interface Fila {
   inconsistencias: Inconsistencia[];
   estado: "borrador" | "emitida";
   archivo_origen: string | null;
+  maestro_id: string | null;
   creado_en: string;
   actualizado_en: string;
 }
@@ -67,6 +70,7 @@ function filaAGuardada(f: Fila): OfertaGuardada {
     contenido: f.contenido,
     inconsistencias: f.inconsistencias ?? [],
     cantidadInconsistencias: (f.inconsistencias ?? []).length,
+    maestroId: f.maestro_id,
     archivoOrigen: f.archivo_origen,
     creadoEn: f.creado_en,
     actualizadoEn: f.actualizado_en,
@@ -167,6 +171,14 @@ export async function guardarContenido(
 
   if (error) throw new Error(`No se pudo guardar la oferta: ${error.message}`);
   return inconsistencias;
+}
+
+/** Cambia el maestro con que se imprime una oferta. */
+export async function asignarMaestro(id: string, maestroId: string | null): Promise<void> {
+  await supabaseAdmin
+    .from("ofertas_documentos")
+    .update({ maestro_id: maestroId, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
 }
 
 export async function marcarEmitida(id: string): Promise<void> {

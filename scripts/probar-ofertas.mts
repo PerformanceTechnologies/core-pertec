@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from "../lib/ofertas/verificar";
 import type { OfertaCanonica } from "../lib/ofertas/tipos";
+import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 
 /** La OS 010-2026 real, bien transcrita. */
 function os10(): OfertaCanonica {
@@ -201,6 +202,64 @@ assert.deepEqual(
   "al corregir el dato, el aviso tiene que desaparecer solo",
 );
 
+// ── El saneo del estilo de un maestro ───────────────────────────────────────
+//
+// Es el único punto del módulo donde la salida de un modelo llega al CSS de un
+// documento que se manda a un cliente, así que se prueba a conciencia.
+
+// Un estilo válido se acepta entero.
+const bueno = sanearEstilo({
+  colorTinta: "#12233A",
+  colorAcento: "#1B6CA8",
+  tamanoCuerpo: 10,
+  altoHeader: 16,
+  fuenteCuerpo: "Georgia, serif",
+  rotuloLogoCliente: "[Logo mandante]",
+});
+assert.deepEqual(bueno.descartados, [], "un estilo válido no descarta nada");
+assert.equal(bueno.estilo.colorTinta, "#12233a", "el hex se normaliza a minúscula");
+assert.equal(bueno.estilo.tamanoCuerpo, 10);
+assert.equal(bueno.estilo.fuenteCuerpo, "Georgia, serif");
+// Lo que no vino queda con el valor de PERTEC.
+assert.equal(bueno.estilo.colorSuave, ESTILO_PERTEC.colorSuave);
+
+// Un color que no es hex se descarta y se dice.
+const colorMalo = sanearEstilo({ colorAcento: "rojo" });
+assert.equal(colorMalo.estilo.colorAcento, ESTILO_PERTEC.colorAcento);
+assert.ok(
+  colorMalo.descartados.some((d) => d.includes("colorAcento")),
+  "un color inválido tiene que quedar nombrado, no volver al defecto en silencio",
+);
+
+// Un tamaño fuera de rango, también: un cuerpo de 400px no es un documento.
+const tamanoMalo = sanearEstilo({ tamanoCuerpo: 400 });
+assert.equal(tamanoMalo.estilo.tamanoCuerpo, ESTILO_PERTEC.tamanoCuerpo);
+assert.ok(tamanoMalo.descartados.some((d) => d.includes("tamanoCuerpo")));
+
+// Y lo que de verdad importa: nada puede colar CSS. Un valor con "}" cerraría la
+// regla y dejaría escribir declaraciones arbitrarias en el documento.
+for (const ataque of [
+  "#fff; } body { display: none } .x {",
+  "red; background: url(http://ajeno/x)",
+  "expression(alert(1))",
+]) {
+  const r = sanearEstilo({ colorTinta: ataque });
+  assert.equal(r.estilo.colorTinta, ESTILO_PERTEC.colorTinta, `no debe aceptar: ${ataque}`);
+}
+for (const ataque of ["Arial; } body { display:none } .x {", "Arial, url(http://ajeno/f.woff)"]) {
+  const r = sanearEstilo({ fuenteCuerpo: ataque });
+  assert.ok(
+    !r.estilo.fuenteCuerpo.includes("}") && !r.estilo.fuenteCuerpo.includes("url("),
+    `la fuente no debe arrastrar CSS: ${ataque} → ${r.estilo.fuenteCuerpo}`,
+  );
+}
+// Una lista de fuentes siempre termina en una genérica, para que un maestro que
+// nombre una fuente que el servidor no tiene igual imprima bien.
+assert.ok(sanearEstilo({ fuenteCuerpo: "Futura" }).estilo.fuenteCuerpo.endsWith("sans-serif"));
+
+// El rótulo no puede traer marcado.
+assert.equal(sanearEstilo({ rotuloLogoCliente: "<img src=x>" }).estilo.rotuloLogoCliente, "img src=x");
+
 console.log(`
 Controles de una oferta técnica — OS 010-2026
 
@@ -208,6 +267,9 @@ Controles de una oferta técnica — OS 010-2026
   programa              ${totales.cantidadTurnos} turno · ${totales.horasPrograma} h
   total neto calculado  $${totales.totalNetoCalculado.toLocaleString("es-CL")}
   avisos en la correcta ${sinProblemas.length}
+
+Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango e
+inyección de CSS por color, por fuente y por rótulo.
 
 Detectados en los ocho borradores defectuosos: número mezclado, suma que no da,
 línea mal multiplicada, celda sin recalcular, dotación doble, sección heredada,

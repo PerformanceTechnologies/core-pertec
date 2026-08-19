@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { exigirAccesoOfertas, obtenerOfertaOSalir } from "@/lib/ofertas/datos";
 import EditorOferta from "@/components/ofertas/EditorOferta";
+import { listarMaestros } from "@/lib/ofertas/maestros";
+import { asignarMaestroAction } from "../acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +10,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
   await exigirAccesoOfertas();
   const { id } = await params;
   const oferta = await obtenerOfertaOSalir(id);
+  const maestros = await listarMaestros();
 
   return (
     <div className="animar-entrada max-w-[1300px]">
@@ -34,11 +37,40 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
             </p>
           )}
         </div>
-        {oferta.archivoOrigen && (
-          <p className="shrink-0 text-[11px] text-tinta/45">
-            Desde <span className="text-tinta/70">{oferta.archivoOrigen}</span>
-          </p>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {oferta.archivoOrigen && (
+            <p className="text-[11px] text-tinta/45">
+              Desde <span className="text-tinta/70">{oferta.archivoOrigen}</span>
+            </p>
+          )}
+          {/* El selector de maestro solo aparece si hay maestros subidos: sin
+              ninguno, el formato es el de PERTEC y un desplegable de una sola
+              opción es ruido. */}
+          {maestros.length > 0 && oferta.estado === "borrador" && (
+            <form action={asignarMaestroAction} className="flex items-center gap-2">
+              <input type="hidden" name="id" value={oferta.id} />
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-tinta/45">Formato</span>
+              <select
+                name="maestroId"
+                defaultValue={oferta.maestroId ?? ""}
+                className="h-[30px] rounded-lg border border-borde bg-superficie px-2 text-xs text-tinta outline-none focus:border-naranjo/50"
+              >
+                <option value="">Predeterminado</option>
+                {maestros.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nombre}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="rounded-lg border border-borde px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-tinta/70 transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+              >
+                Aplicar
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       <EditorOferta
