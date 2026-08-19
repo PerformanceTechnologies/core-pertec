@@ -3,6 +3,7 @@ import { exigirAccesoOfertas, listarOfertas } from "@/lib/ofertas/datos";
 import SubirBorrador from "@/components/ofertas/SubirBorrador";
 import { fechaCl } from "@/lib/cotizador/formato";
 import { TARJETA } from "@/lib/estilos";
+import { eliminarOfertaAction } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export default async function OfertasPage() {
                 <col style={{ width: "12%" }} />
                 <col style={{ width: "14%" }} />
                 <col style={{ width: "12%" }} />
+                <col style={{ width: "8%" }} />
               </colgroup>
               <thead>
                 <tr className="border-b border-borde text-left text-[11px] uppercase tracking-wide text-tinta/45">
@@ -61,6 +63,7 @@ export default async function OfertasPage() {
                   <th className="px-4 py-3 font-medium">Estado</th>
                   <th className="px-4 py-3 font-medium">Por revisar</th>
                   <th className="px-4 py-3 font-medium">Modificada</th>
+                  <th className="px-4 py-3 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -94,6 +97,21 @@ export default async function OfertasPage() {
                     </td>
                     <td className="px-4 py-3 text-[11px] tabular-nums text-tinta/50">
                       {fechaCl(o.actualizadoEn)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {/* Solo los borradores: una emitida ya salió para afuera y su
+                          registro es lo único que queda de lo que se mandó. */}
+                      {o.estado === "borrador" && (
+                        <form action={eliminarOfertaAction}>
+                          <input type="hidden" name="id" value={o.id} />
+                          <button
+                            type="submit"
+                            className="text-[11px] font-medium text-tinta/40 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                          >
+                            Eliminar
+                          </button>
+                        </form>
+                      )}
                     </td>
                   </tr>
                 ))}

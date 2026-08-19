@@ -145,6 +145,8 @@ export function detectarInconsistencias(
     (oferta.organizacion?.cuadroPersonal ?? []).map((f) => normalizar(f.cargo)),
   );
   for (const r of oferta.organizacion?.responsabilidades ?? []) {
+    // Una con el cargo vacío está marcada para sacar: no es una inconsistencia.
+    if (r.cargo.trim() === "") continue;
     if (cargosDelCuadro.size > 0 && !cargosDelCuadro.has(normalizar(r.cargo))) {
       aritmetica(
         "contenido_ajeno",

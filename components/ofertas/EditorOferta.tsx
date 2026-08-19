@@ -294,6 +294,192 @@ export default function EditorOferta({
           </section>
         )}
 
+        {/* ── Programa ───────────────────────────────────────────────── */}
+        {oferta.programa && oferta.programa.turnos.length > 0 && (
+          <section className={`${TARJETA} p-5`}>
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
+                Programa y plazos
+              </h2>
+              <span className="text-xs text-tinta/45">
+                {totales.cantidadTurnos} turno{totales.cantidadTurnos === 1 ? "" : "s"} ·{" "}
+                <span className="font-semibold tabular-nums text-tinta">{totales.horasPrograma} h</span>
+              </span>
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {oferta.programa.turnos.map((turno, i) => (
+                <div key={i} className="grid grid-cols-[90px_1fr_90px] gap-2">
+                  <Campo
+                    rotulo={i === 0 ? "Turno" : ""}
+                    valor={turno.turno}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.programa!.turnos[i].turno = v;
+                      })
+                    }
+                  />
+                  <Campo
+                    rotulo={i === 0 ? "Jornada" : ""}
+                    valor={turno.jornada}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.programa!.turnos[i].jornada = v;
+                      })
+                    }
+                  />
+                  <Campo
+                    rotulo={i === 0 ? "Horas" : ""}
+                    valor={String(turno.horas)}
+                    numerico
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.programa!.turnos[i].horas = Number(v) || 0;
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-tinta/45">
+              La barra de avance del PDF se calcula sola con estas horas.
+            </p>
+          </section>
+        )}
+
+        {/* ── Especificaciones técnicas ───────────────────────────────── */}
+        {oferta.especificaciones && oferta.especificaciones.length > 0 && (
+          <section className={`${TARJETA} p-5`}>
+            <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
+              Especificaciones técnicas
+            </h2>
+            <div className="mt-3 flex flex-col gap-2">
+              {oferta.especificaciones.map((e, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1.6fr] gap-2">
+                  <Campo
+                    rotulo={i === 0 ? "Parámetro" : ""}
+                    valor={e.parametro}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.especificaciones![i].parametro = v;
+                      })
+                    }
+                  />
+                  <Campo
+                    rotulo={i === 0 ? "Especificación" : ""}
+                    valor={e.especificacion}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.especificaciones![i].especificacion = v;
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Responsabilidades por cargo ─────────────────────────────── */}
+        {oferta.organizacion && oferta.organizacion.responsabilidades.length > 0 && (
+          <section className={`${TARJETA} p-5`}>
+            <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
+              Organización del servicio
+            </h2>
+            <p className="mt-0.5 text-[11px] text-tinta/45">
+              Vaciá el cargo para sacar la tarjeta: es la forma de quitar una que quedó de otra oferta.
+            </p>
+            <div className="mt-3 flex flex-col gap-2">
+              {oferta.organizacion.responsabilidades.map((r, i) => (
+                <div key={i} className="grid grid-cols-[1fr_2fr] gap-2">
+                  <Campo
+                    rotulo={i === 0 ? "Cargo" : ""}
+                    valor={r.cargo}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.organizacion!.responsabilidades[i].cargo = v;
+                      })
+                    }
+                  />
+                  <Campo
+                    rotulo={i === 0 ? "Qué hace" : ""}
+                    valor={r.descripcion}
+                    multilinea
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.organizacion!.responsabilidades[i].descripcion = v;
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Firmantes ──────────────────────────────────────────────── */}
+        {oferta.cierre && oferta.cierre.firmantes.length > 0 && (
+          <section className={`${TARJETA} p-5`}>
+            <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
+              Cierre y firma
+            </h2>
+            <Campo
+              className="mt-3"
+              rotulo="Texto de cierre"
+              valor={oferta.cierre.texto ?? ""}
+              multilinea
+              deshabilitado={emitida}
+              onChange={(v) =>
+                cambiar((b) => {
+                  b.cierre!.texto = v || null;
+                })
+              }
+            />
+            <div className="mt-3 flex flex-col gap-2">
+              {oferta.cierre.firmantes.map((f, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1fr_1fr] gap-2">
+                  <Campo
+                    rotulo={i === 0 ? "Nombre" : ""}
+                    valor={f.nombre}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.cierre!.firmantes[i].nombre = v;
+                      })
+                    }
+                  />
+                  <Campo
+                    rotulo={i === 0 ? "Cargo" : ""}
+                    valor={f.cargo}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.cierre!.firmantes[i].cargo = v;
+                      })
+                    }
+                  />
+                  <Campo
+                    rotulo={i === 0 ? "Empresa" : ""}
+                    valor={f.empresa ?? ""}
+                    deshabilitado={emitida}
+                    onChange={(v) =>
+                      cambiar((b) => {
+                        b.cierre!.firmantes[i].empresa = v || null;
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ── Listas de texto: una por línea ─────────────────────────── */}
         <ListaEditable
           titulo="Actividades comprendidas"
@@ -302,6 +488,36 @@ export default function EditorOferta({
           onChange={(items) =>
             cambiar((b) => {
               if (b.alcance) b.alcance.actividades = items;
+            })
+          }
+        />
+        <ListaEditable
+          titulo="Trabajos previos considerados"
+          items={oferta.alcance?.trabajosPrevios ?? null}
+          deshabilitado={emitida}
+          onChange={(items) =>
+            cambiar((b) => {
+              if (b.alcance) b.alcance.trabajosPrevios = items;
+            })
+          }
+        />
+        <ListaEditable
+          titulo="Metodología · antes de la detención"
+          items={oferta.metodologia?.antesDeLaDetencion ?? null}
+          deshabilitado={emitida}
+          onChange={(items) =>
+            cambiar((b) => {
+              if (b.metodologia) b.metodologia.antesDeLaDetencion = items;
+            })
+          }
+        />
+        <ListaEditable
+          titulo="Metodología · durante la detención"
+          items={oferta.metodologia?.duranteLaDetencion ?? null}
+          deshabilitado={emitida}
+          onChange={(items) =>
+            cambiar((b) => {
+              if (b.metodologia) b.metodologia.duranteLaDetencion = items;
             })
           }
         />
@@ -332,6 +548,26 @@ export default function EditorOferta({
           onChange={(items) =>
             cambiar((b) => {
               b.condicionesComerciales = items;
+            })
+          }
+        />
+        <ListaEditable
+          titulo="Anexo · respaldo institucional"
+          items={oferta.anexo?.respaldoInstitucional ?? null}
+          deshabilitado={emitida}
+          onChange={(items) =>
+            cambiar((b) => {
+              if (b.anexo) b.anexo.respaldoInstitucional = items;
+            })
+          }
+        />
+        <ListaEditable
+          titulo="Anexo · principales mandantes"
+          items={oferta.anexo?.mandantes ?? null}
+          deshabilitado={emitida}
+          onChange={(items) =>
+            cambiar((b) => {
+              if (b.anexo) b.anexo.mandantes = items;
             })
           }
         />
@@ -383,6 +619,18 @@ export default function EditorOferta({
               {guardando ? "Guardando…" : "Guardar cambios"}
             </button>
           )}
+
+          {/* La vista rápida no pasa por Chromium: arranca al instante y muestra
+              la MISMA maqueta que después se imprime, así que sirve para corregir
+              sin esperar. El PDF queda para el resultado final. */}
+          <a
+            href={`/api/ofertas/${id}/pdf?formato=html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-borde px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+          >
+            Vista rápida
+          </a>
 
           <a
             href={`/api/ofertas/${id}/pdf`}

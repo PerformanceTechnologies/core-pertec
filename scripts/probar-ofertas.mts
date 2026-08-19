@@ -68,13 +68,23 @@ function os10(): OfertaCanonica {
     cierre: {
       texto: "Quedamos a disposición.",
       firmantes: [
-        { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: "Performance Technologies SpA" },
+        {
+          nombre: "Alfonso Hachim Fulgeri",
+          cargo: "Gerente General",
+          empresa: "Performance Technologies SpA",
+        },
       ],
       cc: "CC: Gcia. Gral. / Archivo.",
     },
-    anexo: { respaldoInstitucional: ["PERTEC es una empresa nacional…"], mandantes: ["Minera Franke"], notaEquipo: null },
+    anexo: {
+      respaldoInstitucional: ["PERTEC es una empresa nacional…"],
+      mandantes: ["Minera Franke"],
+      notaEquipo: null,
+    },
     porConfirmar: [],
-    omitidas: [{ seccion: "4 Especificaciones técnicas", motivo: "El servicio es un traslado, no un empalme." }],
+    omitidas: [
+      { seccion: "4 Especificaciones técnicas", motivo: "El servicio es un traslado, no un empalme." },
+    ],
   };
 }
 
@@ -89,7 +99,11 @@ assert.equal(totales.totalNetoCalculado, 15_885_200);
 // Un borrador bien transcrito no genera ruido: si una oferta correcta levantara
 // avisos, nadie leería la lista.
 const sinProblemas = detectarInconsistencias(buena, totales, "Propuesta Técnica_OS10.docx");
-assert.deepEqual(sinProblemas, [], `una oferta correcta no debe reportar nada:\n${JSON.stringify(sinProblemas, null, 1)}`);
+assert.deepEqual(
+  sinProblemas,
+  [],
+  `una oferta correcta no debe reportar nada:\n${JSON.stringify(sinProblemas, null, 1)}`,
+);
 
 // El nombre del archivo casi nunca trae el año: "OS10" es el mismo que "OS 010-2026".
 assert.ok(mismoNumeroDeOferta("OS 010-2026", "OS10"));
@@ -150,6 +164,15 @@ const p6 = detectarInconsistencias(heredada, calcularTotales(heredada), "os10.do
 assert.ok(
   p6.some((p) => p.tipo === "contenido_ajeno" && p.detalle.includes("Jefe de terreno")),
   "un cargo con responsabilidades que no está en el cuadro es rastro de copiar y pegar",
+);
+
+// ── Vaciar el cargo saca la tarjeta y no cuenta como inconsistencia ────────
+const marcadaParaSacar = os10();
+marcadaParaSacar.organizacion!.responsabilidades.push({ cargo: "  ", descripcion: "Sobra." });
+assert.deepEqual(
+  detectarInconsistencias(marcadaParaSacar, calcularTotales(marcadaParaSacar), "os10.docx"),
+  [],
+  "una responsabilidad con el cargo vacío está marcada para sacar, no es un problema",
 );
 
 // ── Un aporte del cliente que nombra a otra empresa ─────────────────────────

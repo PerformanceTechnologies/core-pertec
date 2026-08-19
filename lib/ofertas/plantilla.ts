@@ -43,17 +43,17 @@ function esc(valor: unknown): string {
 function filasEtiqueta(pares: [string, string | null][]): string {
   return pares
     .filter(([, v]) => v !== null && String(v).trim() !== "")
-    .map(
-      ([k, v]) =>
-        `<tr><th class="etiqueta">${esc(k)}</th><td>${esc(v)}</td></tr>`,
-    )
+    .map(([k, v]) => `<tr><th class="etiqueta">${esc(k)}</th><td>${esc(v)}</td></tr>`)
     .join("");
 }
 
 /** Lista de hitos con el numeral en naranjo, como el maestro. */
 function hitos(items: string[]): string {
   return `<ol class="hitos">${items
-    .map((t, i) => `<li><span class="numeral">${String(i + 1).padStart(2, "0")}</span><span>${esc(t)}</span></li>`)
+    .map(
+      (t, i) =>
+        `<li><span class="numeral">${String(i + 1).padStart(2, "0")}</span><span>${esc(t)}</span></li>`,
+    )
     .join("")}</ol>`;
 }
 
@@ -118,6 +118,8 @@ function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): Seccion
       `<table class="tabla"><colgroup><col style="width:34%"><col></colgroup>
         <thead><tr><th>Parámetro</th><th>Especificación</th></tr></thead>
         <tbody>${oferta.especificaciones
+          // Igual que las tarjetas: sin parámetro, la fila no existe.
+          .filter((e) => e.parametro.trim() !== "")
           .map((e) => `<tr><td>${esc(e.parametro)}</td><td>${esc(e.especificacion)}</td></tr>`)
           .join("")}</tbody></table>`,
     );
@@ -129,10 +131,13 @@ function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): Seccion
     if (o.cuadroPersonal.length) {
       cuerpo += `<h3>Cuadro de personal</h3>${tablaDotacion(o.cuadroPersonal, totales.dotacionTotal, true)}`;
     }
-    if (o.responsabilidades.length) {
+    // Una responsabilidad sin cargo no se dibuja: vaciar el cargo en el editor es
+    // la forma de sacar una tarjeta que quedó de otra oferta.
+    const responsabilidades = o.responsabilidades.filter((r) => r.cargo.trim() !== "");
+    if (responsabilidades.length) {
       cuerpo +=
         `<h3>Organización del servicio</h3><div class="tarjetas">` +
-        o.responsabilidades
+        responsabilidades
           .map(
             (r, i) =>
               `<div class="tarjeta ${i % 2 === 0 ? "naranjo" : "teal"}">
@@ -257,8 +262,7 @@ function armarAnexo(anexo: OfertaCanonica["anexo"]): SeccionArmada | null {
   let cuerpo = "";
   if (anexo.respaldoInstitucional.length) {
     cuerpo +=
-      `<h3>Respaldo institucional</h3>` +
-      anexo.respaldoInstitucional.map((p) => `<p>${esc(p)}</p>`).join("");
+      `<h3>Respaldo institucional</h3>` + anexo.respaldoInstitucional.map((p) => `<p>${esc(p)}</p>`).join("");
   }
   if (anexo.mandantes.length) {
     cuerpo +=
@@ -293,11 +297,10 @@ export function ofertaAHtml(
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(id.numeroOferta ?? "Oferta")}</title>
 <style>
-  @page {
-    size: A4;
-    margin: 32mm 16mm 22mm;
-    @top-center { content: none; }
-  }
+  /* Los márgenes reales los pone page.pdf() al imprimir, porque el header y el
+     footer repetidos son cajas de Chromium y no elementos del documento (ver
+     plantillasDeImpresion). Acá solo se declara el tamaño. */
+  @page { size: A4; margin: 32mm 16mm 22mm; }
   * { box-sizing: border-box; }
   body {
     font-family: "Helvetica Neue", Arial, sans-serif;
@@ -305,9 +308,14 @@ export function ofertaAHtml(
     counter-reset: pagina;
   }
 
-  /* Header de tres celdas, repetido en cada página. */
+  /* El header y el footer de ESTE documento son solo para la vista en pantalla.
+     Al imprimir se ocultan y los pone Chromium como cajas de margen, que es la
+     única forma de que se repitan en cada página sin encabalgarse con el texto y
+     de que la paginación funcione. Un position:fixed con offsets negativos
+     —el primer intento— se veía bien en el navegador y en el PDF caía encima del
+     contenido, con "Página 0 de 0". */
   .header {
-    position: fixed; top: -24mm; left: 0; right: 0; height: 18mm;
+    margin-bottom: 8mm; height: 18mm;
     display: flex; border: 1px solid #d9d3c7;
   }
   .header > div { padding: 3mm 4mm; display: flex; flex-direction: column; justify-content: center; }
@@ -322,14 +330,11 @@ export function ofertaAHtml(
   .header .oferta { text-align: right; font-size: 9px; color: #8c8578; }
   .header .oferta b { color: #1f1b16; }
 
-  /* Footer con paginación automática. */
   .footer {
-    position: fixed; bottom: -14mm; left: 0; right: 0;
-    border-top: 1px solid #e5e0d5; padding-top: 2mm;
+    margin-top: 10mm; border-top: 1px solid #e5e0d5; padding-top: 2mm;
     display: flex; justify-content: space-between; gap: 6mm;
     font-size: 7.5px; color: #8c8578;
   }
-  .footer .pagina::after { content: "Página " counter(page) " de " counter(pages); }
 
   h2 { font-size: 15px; text-transform: uppercase; letter-spacing: -.01em; margin: 9mm 0 3mm;
        padding-bottom: 2mm; border-bottom: 1.6px solid #1f1b16; display: flex; gap: 4mm;
@@ -404,6 +409,12 @@ export function ofertaAHtml(
     text-transform: uppercase; margin-bottom: 3mm; }
   .portada h1 { font-size: 28px; line-height: 1.08; text-transform: uppercase; margin: 0 0 3mm; }
   .portada .faena { color: #8c8578; font-size: 13px; margin-bottom: 14mm; }
+
+  /* AL FINAL a propósito: tiene la misma especificidad que .header y .footer, así
+     que si fuera antes ganaría la declaración de abajo y el header saldría igual.
+     Pasó: la portada mostraba la cabecera dos veces, la del documento y la que
+     repite Chromium. Una media query no agrega especificidad, solo condiciona. */
+  @media print { .header, .footer { display: none; } }
 </style></head>
 <body>
   <div class="header">
@@ -419,7 +430,7 @@ export function ofertaAHtml(
   <div class="footer">
     <span>${esc([empresa.direccion, empresa.ciudad].filter(Boolean).join(", "))}</span>
     <span>${esc(referenciaPie)}</span>
-    <span class="pagina"></span>
+    <span>Vista en pantalla</span>
   </div>
 
   <section class="portada">
@@ -440,7 +451,61 @@ export function ofertaAHtml(
   </section>
 
   ${todas
-    .map((s) => `<section><h2><span class="n">${esc(s.numero)}</span> ${esc(s.titulo)}</h2>${s.cuerpo}</section>`)
+    .map(
+      (s) =>
+        `<section><h2><span class="n">${esc(s.numero)}</span> ${esc(s.titulo)}</h2>${s.cuerpo}</section>`,
+    )
     .join("")}
 </body></html>`;
+}
+
+/**
+ * Las cajas de header y footer que repite Chromium en cada página.
+ *
+ * Van por acá y no como elementos del documento porque es la única forma de que
+ * se repitan sin encabalgarse con el texto, y porque la paginación real
+ * —"Página 3 de 11"— solo existe en estas cajas: Chromium las rellena con las
+ * clases `pageNumber` y `totalPages`.
+ *
+ * Dos cosas propias de estas plantillas que no se adivinan: heredan
+ * `font-size: 0`, así que hay que declararlo en cada elemento, y no cargan CSS
+ * externo, así que todo va en línea.
+ */
+export function plantillasDeImpresion(
+  oferta: OfertaCanonica,
+  empresa: EmpresaIdentidad,
+): { headerTemplate: string; footerTemplate: string } {
+  const id = oferta.identificacion;
+  const referenciaPie = [id.numeroOferta, oferta.titulo].filter(Boolean).join(" \u00b7 ");
+  const direccion = [empresa.direccion, empresa.ciudad].filter(Boolean).join(", ");
+  const celda = "padding:2mm 3mm;display:flex;flex-direction:column;justify-content:center;";
+
+  return {
+    headerTemplate: `<div style="width:100%;font-family:Helvetica,Arial,sans-serif;color:#1f1b16;
+        padding:0 16mm;-webkit-print-color-adjust:exact;">
+      <div style="display:flex;border:1px solid #d9d3c7;height:16mm;">
+        <div style="${celda}width:32mm;border-right:1px solid #d9d3c7;font-size:7px;font-weight:700;
+          letter-spacing:.06em;text-transform:uppercase;">${esc(empresa.nombre)}</div>
+        <div style="${celda}flex:1;border-right:1px solid #d9d3c7;flex-direction:row;
+          align-items:center;justify-content:space-between;">
+          <div><div style="font-size:9px;font-weight:700;">${esc(empresa.razonSocial)}</div>
+            <div style="font-size:7px;color:#8c8578;">RUT ${esc(empresa.rut)}</div></div>
+          <div style="font-size:7px;color:#8c8578;text-align:right;">
+            Oferta <b style="color:#1f1b16;">${esc(id.numeroOferta ?? "\u2014")}</b><br>
+            Fecha <b style="color:#1f1b16;">${esc(id.fecha ?? "\u2014")}</b></div>
+        </div>
+        <div style="${celda}width:32mm;align-items:center;font-size:6.5px;color:#8c8578;
+          letter-spacing:.08em;text-transform:uppercase;">[Logo cliente]</div>
+      </div>
+    </div>`,
+    footerTemplate: `<div style="width:100%;font-family:Helvetica,Arial,sans-serif;font-size:6.5px;
+        color:#8c8578;padding:0 16mm;">
+      <div style="display:flex;justify-content:space-between;gap:6mm;border-top:1px solid #e5e0d5;
+        padding-top:2mm;">
+        <span>${esc(direccion)}</span>
+        <span>${esc(referenciaPie)}</span>
+        <span>P\u00e1gina <span class="pageNumber"></span> de <span class="totalPages"></span></span>
+      </div>
+    </div>`,
+  };
 }
