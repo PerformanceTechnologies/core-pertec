@@ -27,6 +27,13 @@ export interface EmpresaIdentidad {
   telefono: string;
   representanteLegal: string;
   activo: boolean;
+  // El logo que va en el encabezado de los documentos de esta empresa. Es de la
+  // empresa y no del formato: dos empresas pueden compartir el mismo maestro de
+  // ofertas y ninguna quiere el logo de la otra. null = va el nombre en texto.
+  // La ruta apunta al bucket privado "logos" y el archivo es siempre un PNG que
+  // normalizo el servidor (ver lib/ofertas/logos-archivo.ts).
+  logoRuta: string | null;
+  logoNombre: string | null;
 }
 
 // Arma la linea "RUT X · Direccion, Ciudad · correo" saltando los campos

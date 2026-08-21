@@ -1,6 +1,7 @@
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import type { OfertaCanonica, TotalesOferta } from "./tipos";
 import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
+import { SIN_LOGOS, logoSeguro, type LogosDocumento } from "./logo";
 
 /**
  * El maestro del formato de ofertas técnicas, como código.
@@ -272,7 +273,11 @@ function armarAnexo(anexo: OfertaCanonica["anexo"]): SeccionArmada | null {
   }
   if (anexo.notaEquipo) cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
   if (!cuerpo) return null;
-  return { numero: "A", titulo: "Anexo — respaldos y experiencia en trabajos similares", cuerpo };
+  return {
+    numero: "A",
+    titulo: "Anexo — respaldos y experiencia en trabajos similares",
+    cuerpo,
+  };
 }
 
 /**
@@ -290,6 +295,9 @@ export function ofertaAHtml(
   // El estilo del maestro elegido. Sin maestro, el de PERTEC: una oferta sale
   // igual que antes de que los maestros existieran.
   estilo: EstiloMaestro = ESTILO_PERTEC,
+  // Los logos, ya resueltos a data URI por logos-archivo.ts. Sin logos el
+  // encabezado sale en texto, igual que antes de que se pudieran subir.
+  logos: LogosDocumento = SIN_LOGOS,
 ): string {
   const secciones = armarSecciones(oferta, totales);
   const anexo = armarAnexo(oferta.anexo);
@@ -297,6 +305,11 @@ export function ofertaAHtml(
   const id = oferta.identificacion;
 
   const referenciaPie = [id.numeroOferta, oferta.titulo].filter(Boolean).join(" · ");
+  // Se revalidan acá y no solo al bajarlos: este archivo es el que interpola el
+  // valor en un `src`, así que el control tiene que estar en el borde del
+  // documento. Lo que no pasa vuelve al texto, que es un resultado correcto.
+  const logoCasa = logoSeguro(logos.casa);
+  const logoCliente = logoSeguro(logos.cliente);
 
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(id.numeroOferta ?? "Oferta")}</title>
@@ -329,6 +342,12 @@ export function ofertaAHtml(
     align-items: center; justify-content: space-between; }
   .header .cliente { width: ${estilo.anchoCeldaLateral}mm; align-items: center; justify-content: center;
     color: ${estilo.colorSuave}; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+  /* Con max-width y max-height y sin dimensiones propias, el navegador escala la
+     imagen conservando la proporción: un logo apaisado y uno cuadrado caben los
+     dos en la celda sin deformarse. align-self evita que el flex lo estire. */
+  .header img { max-width: 100%; max-height: ${estilo.altoHeader - 8}mm; }
+  .header .marca img { align-self: flex-start; }
+  .header .cliente img { align-self: center; }
   .header .empresa { font-weight: 700; font-size: 11px; }
   .header .rut { color: ${estilo.colorSuave}; font-size: 8.5px; }
   .header .oferta { text-align: right; font-size: 9px; color: ${estilo.colorSuave}; }
@@ -411,6 +430,10 @@ export function ofertaAHtml(
   .indice li { display: flex; gap: 4mm; padding: 1.6mm 0; border-top: 1px solid ${estilo.colorFondoTotal}; list-style: none; }
   .indice .n { color: ${estilo.colorAcento}; font-weight: 700; min-width: 6mm; }
   .portada { page-break-after: always; }
+  /* En la portada el logo va grande: es la única página que alguien mira antes
+     de leer nada. */
+  .portada .logo { margin-bottom: 9mm; }
+  .portada .logo img { max-height: 20mm; max-width: 90mm; }
   .portada .rotulo { color: ${estilo.colorAcento}; font-size: 8.5px; letter-spacing: .16em;
     text-transform: uppercase; margin-bottom: 3mm; }
   .portada h1 { font-size: ${estilo.tamanoPortada}px; font-family: ${estilo.fuenteTitulos}; line-height: 1.08; text-transform: uppercase; margin: 0 0 3mm; }
@@ -424,13 +447,15 @@ export function ofertaAHtml(
 </style></head>
 <body>
   <div class="header">
-    <div class="marca">${esc(empresa.nombre)}</div>
+    <div class="marca">${logoCasa ? `<img src="${logoCasa}" alt="">` : esc(empresa.nombre)}</div>
     <div class="centro">
       <div><div class="empresa">${esc(empresa.razonSocial)}</div>
            <div class="rut">RUT ${esc(empresa.rut)}</div></div>
       <div class="oferta">Oferta <b>${esc(id.numeroOferta ?? "—")}</b><br>Fecha <b>${esc(id.fecha ?? "—")}</b></div>
     </div>
-    <div class="cliente">${esc(estilo.rotuloLogoCliente)}</div>
+    <div class="cliente">${
+      logoCliente ? `<img src="${logoCliente}" alt="">` : esc(estilo.rotuloLogoCliente)
+    }</div>
   </div>
 
   <div class="footer">
@@ -440,6 +465,7 @@ export function ofertaAHtml(
   </div>
 
   <section class="portada">
+    ${logoCasa ? `<div class="logo"><img src="${logoCasa}" alt=""></div>` : ""}
     <p class="rotulo">Oferta técnica y económica</p>
     <h1>${esc(oferta.titulo)}</h1>
     ${id.faena ? `<p class="faena">${esc(id.faena)}</p>` : ""}
@@ -481,8 +507,15 @@ export function plantillasDeImpresion(
   oferta: OfertaCanonica,
   empresa: EmpresaIdentidad,
   estilo: EstiloMaestro = ESTILO_PERTEC,
+  logos: LogosDocumento = SIN_LOGOS,
 ): { headerTemplate: string; footerTemplate: string } {
   const id = oferta.identificacion;
+  const logoCasa = logoSeguro(logos.casa);
+  const logoCliente = logoSeguro(logos.cliente);
+  // Estas cajas no cargan CSS externo, así que el escalado de la imagen también
+  // va en línea. El alto se ata al del encabezado para que un maestro con
+  // encabezado bajo no deje el logo colgando fuera de la celda.
+  const imagen = `max-width:100%;max-height:${estilo.altoHeader - 9}mm;`;
   const referenciaPie = [id.numeroOferta, oferta.titulo].filter(Boolean).join(" \u00b7 ");
   const direccion = [empresa.direccion, empresa.ciudad].filter(Boolean).join(", ");
   const celda = "padding:2mm 3mm;display:flex;flex-direction:column;justify-content:center;";
@@ -492,7 +525,11 @@ export function plantillasDeImpresion(
         padding:0 ${estilo.margenLateral}mm;-webkit-print-color-adjust:exact;">
       <div style="display:flex;border:1px solid ${estilo.colorBorde};height:${estilo.altoHeader - 2}mm;">
         <div style="${celda}width:${estilo.anchoCeldaLateral - 2}mm;border-right:1px solid ${estilo.colorBorde};font-size:7px;font-weight:700;
-          letter-spacing:.06em;text-transform:uppercase;">${esc(empresa.nombre)}</div>
+          letter-spacing:.06em;text-transform:uppercase;">${
+            logoCasa
+              ? `<img src="${logoCasa}" alt="" style="${imagen}align-self:flex-start;">`
+              : esc(empresa.nombre)
+          }</div>
         <div style="${celda}flex:1;border-right:1px solid ${estilo.colorBorde};flex-direction:row;
           align-items:center;justify-content:space-between;">
           <div><div style="font-size:9px;font-weight:700;">${esc(empresa.razonSocial)}</div>
@@ -502,7 +539,11 @@ export function plantillasDeImpresion(
             Fecha <b style="color:${estilo.colorTinta};">${esc(id.fecha ?? "\u2014")}</b></div>
         </div>
         <div style="${celda}width:${estilo.anchoCeldaLateral - 2}mm;align-items:center;font-size:6.5px;color:${estilo.colorSuave};
-          letter-spacing:.08em;text-transform:uppercase;">${esc(estilo.rotuloLogoCliente)}</div>
+          letter-spacing:.08em;text-transform:uppercase;">${
+            logoCliente
+              ? `<img src="${logoCliente}" alt="" style="${imagen}">`
+              : esc(estilo.rotuloLogoCliente)
+          }</div>
       </div>
     </div>`,
     footerTemplate: `<div style="width:100%;font-family:${estilo.fuenteCuerpo};font-size:6.5px;

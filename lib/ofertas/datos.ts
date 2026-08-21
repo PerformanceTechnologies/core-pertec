@@ -18,7 +18,8 @@ import type { Empresa } from "@/lib/cotizador/empresas";
 
 const COLUMNAS = `
   id, nombre, numero_oferta, cliente, faena, empresa, contenido, inconsistencias,
-  estado, archivo_origen, maestro_id, creado_en, actualizado_en
+  estado, archivo_origen, maestro_id, logo_cliente_ruta, logo_cliente_nombre,
+  creado_en, actualizado_en
 `;
 
 export interface OfertaResumen {
@@ -32,6 +33,14 @@ export interface OfertaResumen {
   cantidadInconsistencias: number;
   /** Con qué maestro de formato se imprime. null = el predeterminado. */
   maestroId: string | null;
+  /**
+   * El logo del cliente de ESTA oferta, en el bucket "logos".
+   *
+   * Es por documento porque el cliente cambia en cada oferta, al contrario del
+   * logo de la casa, que es de la empresa emisora y se sube una sola vez.
+   */
+  logoClienteRuta: string | null;
+  logoClienteNombre: string | null;
   actualizadoEn: string;
 }
 
@@ -54,6 +63,8 @@ interface Fila {
   estado: "borrador" | "emitida";
   archivo_origen: string | null;
   maestro_id: string | null;
+  logo_cliente_ruta: string | null;
+  logo_cliente_nombre: string | null;
   creado_en: string;
   actualizado_en: string;
 }
@@ -71,6 +82,8 @@ function filaAGuardada(f: Fila): OfertaGuardada {
     inconsistencias: f.inconsistencias ?? [],
     cantidadInconsistencias: (f.inconsistencias ?? []).length,
     maestroId: f.maestro_id,
+    logoClienteRuta: f.logo_cliente_ruta,
+    logoClienteNombre: f.logo_cliente_nombre,
     archivoOrigen: f.archivo_origen,
     creadoEn: f.creado_en,
     actualizadoEn: f.actualizado_en,
@@ -179,6 +192,24 @@ export async function asignarMaestro(id: string, maestroId: string | null): Prom
     .from("ofertas_documentos")
     .update({ maestro_id: maestroId, actualizado_en: new Date().toISOString() })
     .eq("id", id);
+}
+
+/** Guarda (o saca, con null) el logo del cliente de esta oferta. */
+export async function guardarLogoCliente(
+  id: string,
+  ruta: string | null,
+  nombreArchivo: string | null,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .update({
+      logo_cliente_ruta: ruta,
+      logo_cliente_nombre: nombreArchivo,
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw new Error(`No se pudo guardar el logo del cliente: ${error.message}`);
 }
 
 export async function marcarEmitida(id: string): Promise<void> {

@@ -30,12 +30,20 @@ export default async function OfertasPage() {
             <span className="block text-tinta/40">Del borrador al formato de la casa</span>
           </h1>
         </div>
-        <Link
-          href="/ofertas/maestros"
-          className="text-xs font-medium text-tinta/55 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo lg:shrink-0"
-        >
-          Maestros de formato →
-        </Link>
+        <div className="flex items-center gap-4 lg:shrink-0">
+          <Link
+            href="/ofertas/logos"
+            className="text-xs font-medium text-tinta/55 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+          >
+            Logos →
+          </Link>
+          <Link
+            href="/ofertas/maestros"
+            className="text-xs font-medium text-tinta/55 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+          >
+            Maestros de formato →
+          </Link>
+        </div>
       </div>
 
       <SubirBorrador />

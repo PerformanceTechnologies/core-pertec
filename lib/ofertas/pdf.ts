@@ -6,6 +6,7 @@ import { ofertaAHtml, plantillasDeImpresion } from "./plantilla";
 import { calcularTotales } from "./verificar";
 import type { OfertaCanonica } from "./tipos";
 import { estiloParaOferta } from "./maestros";
+import { logosParaDocumento } from "./logos-archivo";
 
 /**
  * La oferta, impresa.
@@ -29,6 +30,7 @@ export async function ofertaAPdf(
   oferta: OfertaCanonica,
   nombreEmpresa: Empresa,
   maestroId: string | null = null,
+  logoClienteRuta: string | null = null,
 ): Promise<Buffer> {
   const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
   if (!empresa) {
@@ -39,8 +41,15 @@ export async function ofertaAPdf(
 
   // El estilo cae en cascada: el maestro de la oferta, si no el predeterminado,
   // si no el de PERTEC. Nunca falla.
-  const estilo = await estiloParaOferta(maestroId);
-  const html = ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo);
+  //
+  // Los logos vienen de otro lado a propósito: el del maestro es la piel y el
+  // logo es la identidad. El de la casa sale de la empresa emisora —se sube una
+  // vez— y el del cliente, de esta oferta. Ninguno de los dos sale del maestro.
+  const [estilo, logos] = await Promise.all([
+    estiloParaOferta(maestroId),
+    logosParaDocumento(empresa, logoClienteRuta),
+  ]);
+  const html = ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos);
 
   const browser = await lanzarNavegador();
   try {
@@ -52,7 +61,7 @@ export async function ofertaAPdf(
     // portada mostraba la cabecera dos veces. Se vio imprimiendo, no leyendo el
     // código.
     await page.emulateMedia({ media: "print" });
-    const { headerTemplate, footerTemplate } = plantillasDeImpresion(oferta, empresa, estilo);
+    const { headerTemplate, footerTemplate } = plantillasDeImpresion(oferta, empresa, estilo, logos);
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -74,8 +83,13 @@ export async function ofertaAHtmlConEmpresa(
   oferta: OfertaCanonica,
   nombreEmpresa: Empresa,
   maestroId: string | null = null,
+  logoClienteRuta: string | null = null,
 ): Promise<string> {
   const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
   if (!empresa) throw new Error(`No se encontró la identidad de "${nombreEmpresa}".`);
-  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, await estiloParaOferta(maestroId));
+  const [estilo, logos] = await Promise.all([
+    estiloParaOferta(maestroId),
+    logosParaDocumento(empresa, logoClienteRuta),
+  ]);
+  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos);
 }

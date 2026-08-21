@@ -26,6 +26,13 @@ const nextConfig: NextConfig = {
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium-min/**/*",
     ],
+    // La oferta tecnica imprime con el mismo Chromium, asi que necesita los
+    // mismos archivos: sin esta entrada la ruta compila y falla en runtime en
+    // Vercel con "Cannot find module .../playwright-core/browsers.json".
+    "/api/ofertas/\\[id\\]/pdf": [
+      "./node_modules/playwright-core/**/*",
+      "./node_modules/@sparticuz/chromium-min/**/*",
+    ],
   },
 };
 

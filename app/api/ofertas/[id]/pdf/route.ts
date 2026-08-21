@@ -31,7 +31,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   try {
     if (parametros.get("formato") === "html") {
-      const html = await ofertaAHtmlConEmpresa(oferta.contenido, oferta.empresa, oferta.maestroId);
+      const html = await ofertaAHtmlConEmpresa(
+        oferta.contenido,
+        oferta.empresa,
+        oferta.maestroId,
+        oferta.logoClienteRuta,
+      );
       return new Response(html, {
         headers: {
           "content-type": "text/html; charset=utf-8",
@@ -41,7 +46,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       });
     }
 
-    const pdf = await ofertaAPdf(oferta.contenido, oferta.empresa, oferta.maestroId);
+    const pdf = await ofertaAPdf(oferta.contenido, oferta.empresa, oferta.maestroId, oferta.logoClienteRuta);
 
     if (parametros.get("emitir") === "1" && oferta.estado !== "emitida") {
       await marcarEmitida(id);

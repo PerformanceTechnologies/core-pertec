@@ -9,6 +9,8 @@ import assert from "node:assert/strict";
 import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from "../lib/ofertas/verificar";
 import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
+import { logoSeguro } from "../lib/ofertas/logo";
+import { ofertaAHtml, plantillasDeImpresion } from "../lib/ofertas/plantilla";
 
 /** La OS 010-2026 real, bien transcrita. */
 function os10(): OfertaCanonica {
@@ -260,6 +262,80 @@ assert.ok(sanearEstilo({ fuenteCuerpo: "Futura" }).estilo.fuenteCuerpo.endsWith(
 // El rótulo no puede traer marcado.
 assert.equal(sanearEstilo({ rotuloLogoCliente: "<img src=x>" }).estilo.rotuloLogoCliente, "img src=x");
 
+// ── Los logos: lo único que puede entrar es un PNG que armó el servidor ─────
+//
+// Es el mismo papel que cumple sanearEstilo con los colores, pero más estricto,
+// porque el valor termina interpolado en un `src`. Base64 no tiene comillas, así
+// que un valor que pase este control no puede cerrar el atributo.
+/** Una identidad cargada, para armar la maqueta. */
+const EMPRESA_DE_PRUEBA = {
+  id: "prueba",
+  nombre: "PERFORMANCE TECHNOLOGIES",
+  razonSocial: "Performance Technologies SpA",
+  rut: "77.777.777-7",
+  direccion: "Av. Siempre Viva 123",
+  ciudad: "Antofagasta",
+  email: "contacto@pertec.cl",
+  telefono: "+56 9 1234 5678",
+  representanteLegal: "Alex Oliva",
+  activo: true,
+  logoRuta: null,
+  logoNombre: null,
+};
+
+const PNG_VALIDO =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
+assert.equal(logoSeguro(PNG_VALIDO), PNG_VALIDO, "un PNG en base64 tiene que pasar");
+
+for (const ataque of [
+  'data:image/png;base64,AAAA" onerror="alert(1)',
+  "data:image/png;base64,AAAA); background: url(http://ajeno/x",
+  "javascript:alert(1)",
+  "http://ajeno/logo.png",
+  // Un SVG es marcado, no una imagen: acá nunca llega uno, porque sharp lo
+  // rasteriza antes de guardarlo. Si llegara, no se dibuja.
+  "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+  "data:image/png;base64,<script>alert(1)</script>",
+  "",
+]) {
+  assert.equal(logoSeguro(ataque), null, `no debe aceptar como logo: ${ataque}`);
+}
+assert.equal(logoSeguro(null), null);
+assert.equal(logoSeguro(undefined), null);
+
+// Un logo válido reemplaza el texto del encabezado; uno inválido lo deja como
+// estaba. Que el documento no se rompa por una imagen importa más que la imagen.
+const conLogos = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA, ESTILO_PERTEC, {
+  casa: PNG_VALIDO,
+  cliente: PNG_VALIDO,
+});
+assert.equal(
+  (conLogos.match(/<img src="data:image\/png;base64,/g) ?? []).length,
+  3,
+  "van tres: la celda izquierda, la del cliente y el de la portada",
+);
+assert.ok(!conLogos.includes(ESTILO_PERTEC.rotuloLogoCliente), "con logo, el rótulo no se imprime");
+
+const conLogoRoto = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA, ESTILO_PERTEC, {
+  casa: 'data:image/png;base64,AA" onerror="alert(1)',
+  cliente: null,
+});
+assert.ok(!conLogoRoto.includes("onerror"), "un logo que no pasa el control no llega al documento");
+assert.ok(
+  conLogoRoto.includes(EMPRESA_DE_PRUEBA.nombre),
+  "sin logo válido, la celda vuelve al nombre en texto",
+);
+assert.ok(conLogoRoto.includes(ESTILO_PERTEC.rotuloLogoCliente), "y el cliente, a su rótulo");
+
+// Y lo mismo en la caja que Chromium repite en cada página, que es otro código.
+const cajas = plantillasDeImpresion(os10(), EMPRESA_DE_PRUEBA, ESTILO_PERTEC, {
+  casa: PNG_VALIDO,
+  cliente: "javascript:alert(1)",
+});
+assert.ok(cajas.headerTemplate.includes(`src="${PNG_VALIDO}"`));
+assert.ok(!cajas.headerTemplate.includes("javascript:"), "el del cliente no pasó y no se dibuja");
+assert.ok(cajas.headerTemplate.includes(ESTILO_PERTEC.rotuloLogoCliente));
+
 console.log(`
 Controles de una oferta técnica — OS 010-2026
 
@@ -269,7 +345,8 @@ Controles de una oferta técnica — OS 010-2026
   avisos en la correcta ${sinProblemas.length}
 
 Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango e
-inyección de CSS por color, por fuente y por rótulo.
+inyección de CSS por color, por fuente y por rótulo. Más los logos: solo pasa un
+PNG en base64, y lo que no pasa deja el encabezado en texto.
 
 Detectados en los ocho borradores defectuosos: número mezclado, suma que no da,
 línea mal multiplicada, celda sin recalcular, dotación doble, sección heredada,
