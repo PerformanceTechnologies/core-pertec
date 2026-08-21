@@ -232,27 +232,40 @@ export async function leerBorrador(
           },
         ];
 
-  const respuesta = await cliente().messages.create({
-    model: "claude-sonnet-5",
-    // Una oferta completa son diez secciones con sus tablas y listas: bastante
-    // más salida que una propuesta suelta.
-    max_tokens: 32000,
-    thinking: { type: "adaptive" },
-    system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: "high", format: { type: "json_schema", schema: ESQUEMA } },
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...contenido,
-          {
-            type: "text",
-            text: `Normalizá este borrador (archivo: ${nombreArchivo}) a la estructura canónica.`,
-          },
-        ],
-      },
-    ],
-  });
+  // Streaming, y no por gusto: el SDK calcula la duración posible de una llamada
+  // como 3600 × max_tokens / 128.000 segundos y se niega a hacerla sin streaming
+  // si eso pasa de 10 minutos —"Streaming is required for operations that may take
+  // longer than 10 minutes"—, que con 32.000 tokens de techo daba 15. Además evita
+  // que un intermediario corte una conexión que está callada varios minutos.
+  // finalMessage() rearma la respuesta completa, así que el resto del código no
+  // cambia: no hace falta atender evento por evento.
+  const respuesta = await cliente()
+    .messages.stream({
+      model: "claude-sonnet-5",
+      // Una oferta completa son diez secciones con sus tablas y listas: bastante
+      // más salida que una propuesta suelta. Pero 32.000 tokens tampoco entran en
+      // el tiempo de la función —a la velocidad de salida del modelo son varios
+      // minutos— así que el techo se baja a lo que una oferta real necesita: la
+      // OS 010-2026 completa son unos 2.000. Si alguna vez no alcanza, el error
+      // dice exactamente eso, que es mejor que un corte por tiempo sin explicación.
+      max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
+      output_config: { effort: "high", format: { type: "json_schema", schema: ESQUEMA } },
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...contenido,
+            {
+              type: "text",
+              text: `Normalizá este borrador (archivo: ${nombreArchivo}) a la estructura canónica.`,
+            },
+          ],
+        },
+      ],
+    })
+    .finalMessage();
 
   if (respuesta.stop_reason === "refusal") {
     throw new Error(`El modelo no pudo procesar "${nombreArchivo}". Cargá la oferta a mano.`);

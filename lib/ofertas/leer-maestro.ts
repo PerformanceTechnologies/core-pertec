@@ -220,21 +220,27 @@ export async function leerMaestro(
   // que se ven. Sin pensamiento extendido, con esfuerzo medio y con un techo de
   // salida acorde a lo que se pide, porque lo que estaba cortando la operación era
   // el tiempo, no la calidad — y estos tokens quedan editables a mano igual.
-  const respuesta = await cliente().messages.create({
-    model: "claude-sonnet-5",
-    max_tokens: 2000,
-    system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: "medium", format: { type: "json_schema", schema: ESQUEMA } },
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...contenido,
-          { type: "text", text: `Describí la apariencia de este maestro (archivo: ${nombreArchivo}).` },
-        ],
-      },
-    ],
-  });
+  // Streaming como en la lectura del borrador. Acá el techo de salida es bajo y no
+  // dispara el guard del SDK, pero la entrada sigue siendo un PDF con imágenes: una
+  // conexión que espera callada un par de minutos es justo la que corta un
+  // intermediario.
+  const respuesta = await cliente()
+    .messages.stream({
+      model: "claude-sonnet-5",
+      max_tokens: 2000,
+      system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
+      output_config: { effort: "medium", format: { type: "json_schema", schema: ESQUEMA } },
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...contenido,
+            { type: "text", text: `Describí la apariencia de este maestro (archivo: ${nombreArchivo}).` },
+          ],
+        },
+      ],
+    })
+    .finalMessage();
 
   if (respuesta.stop_reason === "refusal" || respuesta.stop_reason === "max_tokens") {
     throw new Error(
