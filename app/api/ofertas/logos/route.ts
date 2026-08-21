@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { exigirAccesoOfertas, guardarLogoCliente, obtenerOferta } from "@/lib/ofertas/datos";
+import { verificarAccesoOfertasApi, guardarLogoCliente, obtenerOferta } from "@/lib/ofertas/datos";
 import { guardarLogoEmpresa, obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import { esEmpresaValida } from "@/lib/cotizador/empresas";
 import { esFormatoDeLogo, LIMITE_SUBIDA_LOGO } from "@/lib/ofertas/logo";
@@ -77,7 +77,8 @@ async function resolverDestino(
 }
 
 export async function POST(request: Request) {
-  await exigirAccesoOfertas();
+  const acceso = await verificarAccesoOfertasApi();
+  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
 
   const formulario = await request.formData();
   const archivo = formulario.get("archivo");
@@ -130,7 +131,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  await exigirAccesoOfertas();
+  const acceso = await verificarAccesoOfertasApi();
+  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
 
   const parametros = new URL(request.url).searchParams;
   const resuelto = await resolverDestino(

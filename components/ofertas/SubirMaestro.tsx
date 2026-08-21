@@ -6,6 +6,7 @@ import { EMPRESAS, type Empresa } from "@/lib/cotizador/empresas";
 import { FORMATOS_ACEPTADOS } from "@/lib/cotizador/obra/formatos";
 import RuedaCarga from "@/components/RuedaCarga";
 import { BOTON_PRIMARIO } from "@/lib/estilos";
+import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
 
 /**
  * Subir un maestro de formato.
@@ -32,8 +33,7 @@ export default function SubirMaestro() {
       cuerpo.set("archivo", archivo);
       if (empresa) cuerpo.set("empresa", empresa);
       const respuesta = await fetch("/api/ofertas/maestros", { method: "POST", body: cuerpo });
-      const datos = await respuesta.json();
-      if (!respuesta.ok) throw new Error(datos.error ?? "No se pudo leer el maestro.");
+      const datos = await leerRespuesta<{ descartados?: string[]; noDistinguidos?: string[] }>(respuesta);
       const pendientes: string[] = [...(datos.descartados ?? []), ...(datos.noDistinguidos ?? [])];
       setAviso(pendientes);
       setArchivo(null);
@@ -57,9 +57,12 @@ export default function SubirMaestro() {
             accept={FORMATOS_ACEPTADOS}
             disabled={cargando}
             onChange={(e) => {
-              setArchivo(e.target.files?.[0] ?? null);
-              setError(null);
+              const elegido = e.target.files?.[0] ?? null;
               setAviso(null);
+              // El tope se revisa acá y no después de mandarlo: subir 12 MB por una
+              // conexión de faena para que el servidor los rechace es tiempo tirado.
+              setError(elegido ? avisoDeTamano(elegido) : null);
+              setArchivo(elegido);
             }}
             className="mt-1 w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta file:mr-3 file:rounded-md file:border-0 file:bg-crema file:px-3 file:py-1 file:text-xs file:font-semibold file:text-tinta/70"
           />

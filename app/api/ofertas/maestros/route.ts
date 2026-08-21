@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { exigirAccesoOfertas } from "@/lib/ofertas/datos";
+import { verificarAccesoOfertasApi } from "@/lib/ofertas/datos";
 import { crearMaestro, subirArchivoMaestro } from "@/lib/ofertas/maestros";
 import { leerMaestro } from "@/lib/ofertas/leer-maestro";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
 import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
+import { LIMITE_SUBIDA } from "@/lib/subidas";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -18,9 +19,24 @@ export const maxDuration = 90;
  * El archivo original va al bucket privado como respaldo y referencia visual.
  */
 export async function POST(request: Request) {
-  const usuario = await exigirAccesoOfertas();
+  const acceso = await verificarAccesoOfertasApi();
+  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
+  const usuario = acceso.usuario;
 
-  const formulario = await request.formData();
+  // Dentro del try: si el cuerpo llega cortado o mal formado, formData() lanza, y
+  // sin capturarlo la respuesta sería una página de error en vez de un JSON — que
+  // es exactamente lo que deja al navegador mostrando "JSON.parse: unexpected
+  // character".
+  let formulario: FormData;
+  try {
+    formulario = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "El archivo no llegó completo al servidor. Probá de nuevo, o con uno más liviano." },
+      { status: 400 },
+    );
+  }
+
   const archivo = formulario.get("archivo");
   const empresaCruda = String(formulario.get("empresa") ?? "");
 
@@ -31,6 +47,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "El maestro tiene que ser un PDF, un Word (.docx) o un Excel (.xlsx)." },
       { status: 400 },
+    );
+  }
+  if (archivo.size > LIMITE_SUBIDA) {
+    const mb = (archivo.size / 1024 / 1024).toFixed(1);
+    return NextResponse.json(
+      {
+        error:
+          `El maestro pesa ${mb} MB y el servidor no acepta más de 4 MB por subida. ` +
+          "Exportá el PDF con las imágenes comprimidas.",
+      },
+      { status: 413 },
     );
   }
   // La empresa es opcional: un maestro puede servir a todas.

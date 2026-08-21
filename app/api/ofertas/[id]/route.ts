@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { exigirAccesoOfertas, guardarContenido, obtenerOferta } from "@/lib/ofertas/datos";
+import { verificarAccesoOfertasApi, guardarContenido, obtenerOferta } from "@/lib/ofertas/datos";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 
 export const runtime = "nodejs";
 
 /** Guarda las correcciones hechas en pantalla y devuelve los controles al día. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  await exigirAccesoOfertas();
+  const acceso = await verificarAccesoOfertasApi();
+  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   const { id } = await params;
 
   const oferta = await obtenerOferta(id);

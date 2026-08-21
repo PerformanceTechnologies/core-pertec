@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { crearOferta, exigirAccesoOfertas, guardarLogoCliente } from "@/lib/ofertas/datos";
+import { crearOferta, verificarAccesoOfertasApi, guardarLogoCliente } from "@/lib/ofertas/datos";
 import { leerBorrador } from "@/lib/ofertas/leer";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
 import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
 import { esFormatoDeLogo, LIMITE_SUBIDA_LOGO } from "@/lib/ofertas/logo";
 import { normalizarLogo, subirLogo } from "@/lib/ofertas/logos-archivo";
+import { LIMITE_SUBIDA } from "@/lib/subidas";
 
 export const runtime = "nodejs";
 // Normalizar una oferta completa —diez secciones con sus tablas— tarda bastante
@@ -26,9 +27,22 @@ export const maxDuration = 120;
  * mandante. Es opcional y se puede cambiar después en la oferta.
  */
 export async function POST(request: Request) {
-  const usuario = await exigirAccesoOfertas();
+  const acceso = await verificarAccesoOfertasApi();
+  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
+  const usuario = acceso.usuario;
 
-  const formulario = await request.formData();
+  // Dentro del try por la misma razón que en /maestros: un cuerpo cortado tiene
+  // que salir como JSON, no como página de error.
+  let formulario: FormData;
+  try {
+    formulario = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "El archivo no llegó completo al servidor. Probá de nuevo, o con uno más liviano." },
+      { status: 400 },
+    );
+  }
+
   const archivo = formulario.get("archivo");
   const logo = formulario.get("logoCliente");
   const empresaCruda = String(formulario.get("empresa") ?? "");
@@ -40,6 +54,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "El borrador tiene que ser un Word (.docx), un PDF o un Excel (.xlsx, .xlsm)." },
       { status: 400 },
+    );
+  }
+  // El borrador y el logo viajan juntos, así que el tope es del total.
+  const pesoTotal = archivo.size + (logo instanceof File ? logo.size : 0);
+  if (pesoTotal > LIMITE_SUBIDA) {
+    const mb = (pesoTotal / 1024 / 1024).toFixed(1);
+    return NextResponse.json(
+      {
+        error:
+          `Entre el borrador y el logo suman ${mb} MB y el servidor no acepta más de 4 MB por subida. ` +
+          "Exportá el borrador más liviano o subí el logo después, en la oferta.",
+      },
+      { status: 413 },
     );
   }
   if (!esEmpresaValida(empresaCruda)) {

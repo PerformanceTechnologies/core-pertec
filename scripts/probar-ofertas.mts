@@ -10,6 +10,7 @@ import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from ".
 import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { logoSeguro } from "../lib/ofertas/logo";
+import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
 import { ofertaAHtml, plantillasDeImpresion } from "../lib/ofertas/plantilla";
 
 /** La OS 010-2026 real, bien transcrita. */
@@ -336,6 +337,47 @@ assert.ok(cajas.headerTemplate.includes(`src="${PNG_VALIDO}"`));
 assert.ok(!cajas.headerTemplate.includes("javascript:"), "el del cliente no pasó y no se dibuja");
 assert.ok(cajas.headerTemplate.includes(ESTILO_PERTEC.rotuloLogoCliente));
 
+// ── Lo que ve alguien cuando una subida falla ───────────────────────────────
+//
+// El caso real: subir un maestro en PDF mostró "JSON.parse: unexpected character
+// at line 1 column 1 of the JSON data". Eso no es un error del archivo, es el
+// código haciendo respuesta.json() sobre algo que no era JSON. Cada una de estas
+// respuestas tiene que salir con una causa nombrada.
+const json = (cuerpo: unknown, status = 200) =>
+  new Response(JSON.stringify(cuerpo), { status, headers: { "content-type": "application/json" } });
+
+assert.deepEqual(await leerRespuesta<{ id: string }>(json({ id: "abc" })), { id: "abc" });
+
+await assert.rejects(
+  () => leerRespuesta(json({ error: "El maestro tiene que ser un PDF." }, 400)),
+  /El maestro tiene que ser un PDF/,
+  "un error que el servidor explicó se muestra tal cual",
+);
+
+// El guard de una página redirige al login: llega HTML con 200 y ningún JSON.
+await assert.rejects(
+  () => leerRespuesta(new Response("<!doctype html><html><body>Ingresar</body></html>")),
+  /sesión/i,
+  "una página donde debía haber JSON se explica como sesión vencida",
+);
+
+// La plataforma corta el cuerpo antes de que el código lo vea.
+await assert.rejects(
+  () => leerRespuesta(new Response("Request Entity Too Large", { status: 413 })),
+  /tope|grande/i,
+);
+await assert.rejects(() => leerRespuesta(new Response("", { status: 504 })), /tardó/i);
+await assert.rejects(() => leerRespuesta(new Response("", { status: 401 })), /sesión/i);
+
+// Y lo que no se puede clasificar dice el status y lo que vino, para poder
+// reportarlo: un mensaje inútil pero honesto es mejor que uno del parser.
+await assert.rejects(() => leerRespuesta(new Response("kaboom", { status: 500 })), /HTTP 500[\s\S]*kaboom/);
+
+// El tope se revisa antes de mandar el archivo, no después.
+assert.equal(avisoDeTamano(new File([new Uint8Array(1024)], "chico.pdf")), null);
+const grande = avisoDeTamano(new File([new Uint8Array(5 * 1024 * 1024)], "grande.pdf"));
+assert.ok(grande?.includes("grande.pdf") && grande.includes("5,0 MB"), grande ?? "sin aviso");
+
 console.log(`
 Controles de una oferta técnica — OS 010-2026
 
@@ -346,7 +388,9 @@ Controles de una oferta técnica — OS 010-2026
 
 Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango e
 inyección de CSS por color, por fuente y por rótulo. Más los logos: solo pasa un
-PNG en base64, y lo que no pasa deja el encabezado en texto.
+PNG en base64, y lo que no pasa deja el encabezado en texto. Y las subidas: una
+página de login, un 413 y un 504 salen con su causa nombrada, no con el error del
+parser de JSON.
 
 Detectados en los ocho borradores defectuosos: número mezclado, suma que no da,
 línea mal multiplicada, celda sin recalcular, dotación doble, sección heredada,

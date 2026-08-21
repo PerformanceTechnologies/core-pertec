@@ -1,4 +1,4 @@
-import { exigirAccesoOfertas, marcarEmitida, obtenerOferta } from "@/lib/ofertas/datos";
+import { verificarAccesoOfertasApi, marcarEmitida, obtenerOferta } from "@/lib/ofertas/datos";
 import { ofertaAHtmlConEmpresa, ofertaAPdf } from "@/lib/ofertas/pdf";
 
 export const runtime = "nodejs";
@@ -21,7 +21,9 @@ export const maxDuration = 60;
  * armarlo, no hay razón para que ese documento pueda ejecutar nada.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  await exigirAccesoOfertas();
+  const acceso = await verificarAccesoOfertasApi();
+  // Esta ruta devuelve un PDF o HTML, no JSON: el error va en texto plano.
+  if (!acceso.usuario) return new Response(acceso.error, { status: acceso.status });
   const { id } = await params;
 
   const oferta = await obtenerOferta(id);

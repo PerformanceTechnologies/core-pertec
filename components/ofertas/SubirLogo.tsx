@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import RuedaCarga from "@/components/RuedaCarga";
 import { FORMATOS_LOGO } from "@/lib/ofertas/logo";
+import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
 
 /**
  * Un hueco de logo: el de una empresa emisora o el del cliente de una oferta.
@@ -40,6 +41,11 @@ export default function SubirLogo({
   const [error, setError] = useState<string | null>(null);
 
   const subir = async (archivo: File) => {
+    const grande = avisoDeTamano(archivo);
+    if (grande) {
+      setError(grande);
+      return;
+    }
     setCargando(true);
     setError(null);
     try {
@@ -48,8 +54,7 @@ export default function SubirLogo({
       cuerpo.set("destino", destino);
       cuerpo.set("clave", clave);
       const respuesta = await fetch("/api/ofertas/logos", { method: "POST", body: cuerpo });
-      const datos = await respuesta.json();
-      if (!respuesta.ok) throw new Error(datos.error ?? "No se pudo subir el logo.");
+      await leerRespuesta(respuesta);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo subir el logo.");
@@ -67,10 +72,7 @@ export default function SubirLogo({
         `/api/ofertas/logos?destino=${destino}&clave=${encodeURIComponent(clave)}`,
         { method: "DELETE" },
       );
-      if (!respuesta.ok) {
-        const datos = await respuesta.json();
-        throw new Error(datos.error ?? "No se pudo quitar el logo.");
-      }
+      await leerRespuesta(respuesta);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo quitar el logo.");

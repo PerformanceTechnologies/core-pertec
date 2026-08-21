@@ -7,6 +7,7 @@ import { FORMATOS_ACEPTADOS } from "@/lib/cotizador/obra/formatos";
 import { FORMATOS_LOGO } from "@/lib/ofertas/logo";
 import RuedaCarga from "@/components/RuedaCarga";
 import { BOTON_PRIMARIO } from "@/lib/estilos";
+import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
 
 /**
  * Paso 1: subir el borrador.
@@ -38,8 +39,7 @@ export default function SubirBorrador() {
       cuerpo.set("empresa", empresa);
       if (logo) cuerpo.set("logoCliente", logo);
       const respuesta = await fetch("/api/ofertas/analizar", { method: "POST", body: cuerpo });
-      const datos = await respuesta.json();
-      if (!respuesta.ok) throw new Error(datos.error ?? "No se pudo leer el borrador.");
+      const datos = await leerRespuesta<{ id: string; avisoLogo?: string | null }>(respuesta);
       if (datos.avisoLogo) {
         setAviso({ id: datos.id, texto: datos.avisoLogo });
         setCargando(false);
@@ -64,8 +64,9 @@ export default function SubirBorrador() {
             accept={FORMATOS_ACEPTADOS}
             disabled={cargando}
             onChange={(e) => {
-              setArchivo(e.target.files?.[0] ?? null);
-              setError(null);
+              const elegido = e.target.files?.[0] ?? null;
+              setError(elegido ? avisoDeTamano(elegido) : null);
+              setArchivo(elegido);
             }}
             className="mt-1 w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta file:mr-3 file:rounded-md file:border-0 file:bg-crema file:px-3 file:py-1 file:text-xs file:font-semibold file:text-tinta/70"
           />

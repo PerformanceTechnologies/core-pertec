@@ -1,7 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { exigirAccesoApp } from "@/lib/autorizacion";
+import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { calcularTotales, detectarInconsistencias } from "./verificar";
 import type { Inconsistencia, OfertaCanonica } from "./tipos";
 import type { Empresa } from "@/lib/cotizador/empresas";
@@ -90,9 +90,24 @@ function filaAGuardada(f: Fila): OfertaGuardada {
   };
 }
 
-/** El guard del módulo: mismo mecanismo que el resto del core. */
+/** El guard de las PÁGINAS: si no hay acceso, redirige. */
 export async function exigirAccesoOfertas() {
   return exigirAccesoApp("ofertas");
+}
+
+/**
+ * El guard de las RUTAS de API. No es el mismo y la diferencia se ve en pantalla.
+ *
+ * `exigirAccesoOfertas` usa `redirect()`, que en una route handler no devuelve un
+ * status: devuelve una redirección al login. El fetch la sigue, recibe el HTML de
+ * la pantalla de ingreso y el `respuesta.json()` del navegador explota con
+ * "JSON.parse: unexpected character at line 1 column 1" — un mensaje que no dice
+ * nada de lo que pasó y que hace parecer que el archivo estaba mal.
+ *
+ * Acá se devuelve 401/403 con un JSON que la pantalla puede mostrar.
+ */
+export async function verificarAccesoOfertasApi() {
+  return verificarAccesoAppApi("ofertas");
 }
 
 export async function listarOfertas(): Promise<OfertaResumen[]> {
