@@ -11,6 +11,7 @@ import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
+import { normalizarLectura } from "../lib/ofertas/normalizar";
 import { ofertaAHtml, plantillasDeImpresion } from "../lib/ofertas/plantilla";
 
 /** La OS 010-2026 real, bien transcrita. */
@@ -337,6 +338,72 @@ assert.ok(cajas.headerTemplate.includes(`src="${PNG_VALIDO}"`));
 assert.ok(!cajas.headerTemplate.includes("javascript:"), "el del cliente no pasó y no se dibuja");
 assert.ok(cajas.headerTemplate.includes(ESTILO_PERTEC.rotuloLogoCliente));
 
+// ── El blanco y el 0: cómo dice el modelo "no lo distinguí" ─────────────────
+//
+// El esquema de salida no puede tener campos nullables ni opcionales —la API
+// rechaza el primero por tipos unión y el segundo por complejidad— así que el
+// modelo manda todas las claves y usa un valor vacío. Eso tiene que significar
+// "cae el valor de PERTEC", y NO tiene que aparecer como si el modelo se hubiera
+// equivocado.
+const enBlanco = sanearEstilo({
+  colorTinta: "",
+  fuenteCuerpo: "",
+  tamanoCuerpo: 0,
+  altoHeader: 0,
+  rotuloLogoCliente: "",
+  colorAcento: "#123456",
+});
+assert.equal(enBlanco.estilo.colorTinta, ESTILO_PERTEC.colorTinta);
+assert.equal(enBlanco.estilo.fuenteCuerpo, ESTILO_PERTEC.fuenteCuerpo);
+assert.equal(enBlanco.estilo.tamanoCuerpo, ESTILO_PERTEC.tamanoCuerpo);
+assert.equal(enBlanco.estilo.altoHeader, ESTILO_PERTEC.altoHeader);
+assert.equal(enBlanco.estilo.rotuloLogoCliente, ESTILO_PERTEC.rotuloLogoCliente);
+assert.equal(enBlanco.estilo.colorAcento, "#123456", "y lo que sí vino se usa");
+assert.deepEqual(
+  enBlanco.descartados,
+  [],
+  "un valor vacío no es un valor inválido: no se reporta como descartado",
+);
+
+// ── La normalización de la lectura de un borrador ───────────────────────────
+//
+// Por lo mismo, el modelo devuelve las diez secciones SIEMPRE, vacías cuando no
+// aplican, y los totales no impresos en 0. normalizarLectura lo traduce a la forma
+// que el resto del módulo espera: si no lo hiciera, la maqueta vería secciones
+// presentes y los controles verían totales impresos que no existen.
+const conVacias = normalizarLectura({
+  ...os10(),
+  metodologia: { antesDeLaDetencion: [], duranteLaDetencion: [] },
+  especificaciones: [],
+  aportes: { pertec: [], cliente: [] },
+  cierre: { texto: "", firmantes: [], cc: "" },
+});
+assert.equal(conVacias.metodologia, null, "una sección vacía no aplica: vuelve a null");
+assert.equal(conVacias.especificaciones, null);
+assert.equal(conVacias.aportes, null);
+assert.equal(conVacias.cierre, null);
+assert.ok(conVacias.precio, "y la que sí tiene datos se mantiene");
+assert.equal(conVacias.organizacion?.cuadroPersonal.length, 5);
+
+// Un total en 0 es "no está impreso", no un total de cero pesos: tratarlo como
+// impreso daría el aviso falso "el TOTAL NETO impreso es $0 y la suma da $15.885.200".
+const conCeros = normalizarLectura({
+  ...os10(),
+  precio: {
+    lineas: [{ cantidad: 1, cargo: "Global", unidad: "Global", valorUnitario: 500, valorTotalImpreso: 0 }],
+    totalNetoImpreso: 0,
+    nota: "",
+  },
+});
+assert.equal(conCeros.precio?.totalNetoImpreso, null);
+assert.equal(conCeros.precio?.lineas[0].valorTotalImpreso, null);
+const avisosCeros = detectarInconsistencias(conCeros, calcularTotales(conCeros), "os10.docx");
+assert.ok(
+  !avisosCeros.some((a) => /impreso es \$ 0/.test(a.detalle)),
+  "no se compara contra un total que no existe",
+);
+assert.ok(avisosCeros.some((a) => a.tipo === "falta_dato" && /TOTAL NETO/.test(a.detalle)));
+
 // ── Una oferta a la que le FALTAN claves, no que las tenga en null ───────────
 //
 // El esquema del lector dejó de marcar los campos como nullable —la API rechaza
@@ -431,8 +498,13 @@ Controles de una oferta técnica — OS 010-2026
 
 Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango e
 inyección de CSS por color, por fuente y por rótulo. Más los logos: solo pasa un
-PNG en base64, y lo que no pasa deja el encabezado en texto. Una oferta con claves
-ausentes —no en null— sale sin "undefined" y sin avisos inventados. Y las subidas: una
+PNG en base64, y lo que no pasa deja el encabezado en texto.
+
+El esquema de salida no admite campos nullables ni opcionales, así que "no está en
+el documento" se dice con un valor vacío: probado que un token en blanco cae al de
+PERTEC sin figurar como inválido, que una sección vacía vuelve a null, que un total
+en 0 es "no impreso" y no un total de cero pesos, y que una clave ausente no
+imprime "undefined" ni inventa avisos. Y las subidas: una
 página de login, un 413 y un 504 salen con su causa nombrada, no con el error del
 parser de JSON.
 

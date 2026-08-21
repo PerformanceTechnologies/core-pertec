@@ -73,64 +73,74 @@ function cliente(): Anthropic {
 }
 
 /**
- * Los campos van sin `null` y sin ser obligatorios, y eso NO es un detalle de
- * estilo: la API rechaza un esquema con más de 16 parámetros de tipo unión —
- * "Schemas contains too many parameters with union types" — y este esquema tenía
- * 18, uno por cada token. Marcarlos nullable era además redundante: para el saneo,
- * un campo ausente y un campo en null significan lo mismo, "no lo distingo".
+ * Todo obligatorio y de un solo tipo, y "no lo distingo" se dice con un valor
+ * vacío. Llegar a esta forma costó dos rechazos de la API, y los dos por lo mismo:
+ * un esquema se compila a una gramática y hay dos cosas que la hacen explotar.
+ *
+ *  - Marcar cada token como `["string","null"]` para poder decir "no lo distingo"
+ *    daba 18 tipos unión, y el tope es 16.
+ *  - Marcarlos como opcionales daba 19 claves que pueden estar o no, o sea que la
+ *    gramática tiene que admitir cualquiera de sus combinaciones: "Schema is too
+ *    complex". Una explosión por otra.
+ *
+ * Con el texto en blanco y la medida en 0 no hay ni unión ni combinatoria, y para
+ * `sanearEstilo` significan lo mismo que significaba null: cae el valor de PERTEC.
+ * El modelo además lo nombra en "noDistinguidos", que es lo que se muestra.
  */
 const color = (que: string) => ({
   type: "string",
-  description: `${que} Como hex de 6 dígitos, por ejemplo "#1f1b16". Omitilo si no se distingue.`,
+  description: `${que} Como hex de 6 dígitos, por ejemplo "#1f1b16". En blanco si no se distingue.`,
 });
 
 const medida = (que: string, min: number, max: number) => ({
   type: "number",
-  description: `${que} Entre ${min} y ${max}. Omitilo si no se puede estimar.`,
+  description: `${que} Entre ${min} y ${max}. En 0 si no se puede estimar.`,
 });
+
+const ESQUEMA_PROPIEDADES = {
+  nombreSugerido: {
+    type: "string",
+    description: "Un nombre corto para este maestro, del estilo 'PERTEC — Ofertas técnicas'.",
+  },
+  fuenteCuerpo: {
+    type: "string",
+    description:
+      "Familia tipográfica del texto de cuerpo. Solo el nombre, o el más parecido que reconozcas " +
+      "(Helvetica, Arial, Georgia, Times New Roman, Garamond). En blanco si no la distinguís.",
+  },
+  fuenteTitulos: { type: "string", description: "Ídem para los títulos de sección." },
+  tamanoCuerpo: medida("Tamaño del texto de cuerpo en px.", 7, 14),
+  tamanoTitulo: medida("Tamaño de los títulos de sección en px.", 10, 26),
+  tamanoPortada: medida("Tamaño del título de la portada en px.", 16, 44),
+  colorTinta: color("Color del texto principal."),
+  colorAcento: color("Color de acento: los numerales de sección, las barras, los bordes de color."),
+  colorAcentoAlterno: color("El segundo color de acento, si hay dos alternándose."),
+  colorSuave: color("Color del texto secundario y de los rótulos."),
+  colorCabecera: color("Fondo de las cabeceras de tabla."),
+  colorCabeceraTexto: color("Color del texto sobre la cabecera de tabla."),
+  colorFondoSuave: color("Fondo de las filas alternadas de las tablas."),
+  colorFondoTotal: color("Fondo de las filas de total."),
+  colorBorde: color("Color de los bordes y líneas finas."),
+  altoHeader: medida("Alto del recuadro de encabezado, en mm.", 10, 30),
+  anchoCeldaLateral: medida("Ancho de las celdas laterales del encabezado, en mm.", 18, 50),
+  margenLateral: medida("Margen izquierdo y derecho de la página, en mm.", 8, 30),
+  rotuloLogoCliente: {
+    type: "string",
+    description: "El texto de la celda reservada al logo del cliente, si la hay.",
+  },
+  noDistinguidos: {
+    type: "array",
+    description: "Qué no se pudo determinar del archivo. Nunca inventar un valor para completar.",
+    items: { type: "string" },
+  },
+} as const;
 
 const ESQUEMA = {
   type: "object",
-  properties: {
-    nombreSugerido: {
-      type: "string",
-      description: "Un nombre corto para este maestro, del estilo 'PERTEC — Ofertas técnicas'.",
-    },
-    fuenteCuerpo: {
-      type: "string",
-      description:
-        "Familia tipográfica del texto de cuerpo. Solo el nombre, o el más parecido que reconozcas " +
-        "(Helvetica, Arial, Georgia, Times New Roman, Garamond). Omitilo si no la distinguís.",
-    },
-    fuenteTitulos: { type: "string", description: "Ídem para los títulos de sección." },
-    tamanoCuerpo: medida("Tamaño del texto de cuerpo en px.", 7, 14),
-    tamanoTitulo: medida("Tamaño de los títulos de sección en px.", 10, 26),
-    tamanoPortada: medida("Tamaño del título de la portada en px.", 16, 44),
-    colorTinta: color("Color del texto principal."),
-    colorAcento: color("Color de acento: los numerales de sección, las barras, los bordes de color."),
-    colorAcentoAlterno: color("El segundo color de acento, si hay dos alternándose."),
-    colorSuave: color("Color del texto secundario y de los rótulos."),
-    colorCabecera: color("Fondo de las cabeceras de tabla."),
-    colorCabeceraTexto: color("Color del texto sobre la cabecera de tabla."),
-    colorFondoSuave: color("Fondo de las filas alternadas de las tablas."),
-    colorFondoTotal: color("Fondo de las filas de total."),
-    colorBorde: color("Color de los bordes y líneas finas."),
-    altoHeader: medida("Alto del recuadro de encabezado, en mm.", 10, 30),
-    anchoCeldaLateral: medida("Ancho de las celdas laterales del encabezado, en mm.", 18, 50),
-    margenLateral: medida("Margen izquierdo y derecho de la página, en mm.", 8, 30),
-    rotuloLogoCliente: {
-      type: "string",
-      description: "El texto de la celda reservada al logo del cliente, si la hay.",
-    },
-    noDistinguidos: {
-      type: "array",
-      description: "Qué no se pudo determinar del archivo. Nunca inventar un valor para completar.",
-      items: { type: "string" },
-    },
-  },
-  // Los únicos obligatorios. Todo token ausente es un token que el modelo no
-  // distinguió, y el saneo lo completa con el maestro de PERTEC.
-  required: ["nombreSugerido", "noDistinguidos"],
+  properties: ESQUEMA_PROPIEDADES,
+  // Todas. Un token en blanco o en 0 es un token que el modelo no distinguió, y el
+  // saneo lo completa con el maestro de PERTEC.
+  required: Object.keys(ESQUEMA_PROPIEDADES),
   additionalProperties: false,
 } as const;
 
@@ -145,8 +155,8 @@ el sistema—; solo la piel.
 
 REGLAS
 - Los colores van como hex de 6 dígitos. Si dudás entre dos tonos, elegí el que veas en más lugares.
-- No inventes. Todo lo que no puedas determinar se OMITE del resultado y va nombrado en
-  "noDistinguidos" — no lo pongas en cero ni en blanco, omitilo. El sistema
+- No inventes. Todas las claves del esquema van siempre; lo que no puedas determinar va con su valor
+  vacío —el texto en blanco, la medida en 0— y nombrado en "noDistinguidos". El sistema
   completa esos con los valores de su maestro por defecto, que es un resultado correcto; un color
   inventado, en cambio, sale impreso en un documento que se manda a un cliente.
 - Las medidas en mm son estimaciones sobre una hoja A4 (210 mm de ancho): el margen lateral es la

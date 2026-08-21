@@ -151,7 +151,12 @@ export function sanearEstilo(parcial: unknown): { estilo: EstiloMaestro; descart
     string | number,
   ][]) {
     const valor = entrada[campo];
-    if (valor === undefined || valor === null) continue;
+    // El blanco y el 0 son cómo dice el modelo "no lo distinguí": el esquema de
+    // salida no puede tener campos nullables ni opcionales sin que la API lo
+    // rechace por complejidad (ver leer-maestro.ts). No van a `descartados`
+    // porque no son valores inválidos —el modelo ya los nombra en
+    // "noDistinguidos"— y llamarlos inválidos sería decir que se equivocó.
+    if (valor === undefined || valor === null || valor === "" || valor === 0) continue;
 
     if (campo === "fuenteCuerpo" || campo === "fuenteTitulos") {
       const saneada = sanearFuente(valor, valorPorDefecto as string);
