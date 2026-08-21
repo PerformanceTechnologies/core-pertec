@@ -47,3 +47,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# la pagina ya armada del canvas de diseno: 2 MB de editor empaquetado que se
+# regenera desde los .dc.html de al lado, no hay razon para versionarla
+/.design/maqueta-oferta-tecnica.html

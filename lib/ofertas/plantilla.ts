@@ -28,9 +28,48 @@ interface SeccionArmada {
   /** "1", "2"… o "A" para el anexo. */ numero: string;
   titulo: string;
   cuerpo: string;
+  /**
+   * No partir esta sección entre dos páginas.
+   *
+   * Salió impreso: "8 CIERRE Y FIRMA" quedó al final de una página con una línea
+   * de texto y media página en blanco debajo, y el bloque de firmas apareció
+   * arriba de la siguiente, sin título — un nombre suelto abriendo una hoja. Pasa
+   * porque el bloque de firmas no se puede partir y, si no cabe, se va entero.
+   * Marcando la sección, se va entera: eso se lee como "la sección empieza en
+   * página nueva", que en un documento es normal, en vez de como un descuadre.
+   *
+   * Solo para secciones cortas por naturaleza. En una larga forzaría un salto y
+   * dejaría el hueco que se quiere evitar.
+   */
+  junto?: boolean;
 }
 
 const clp = (n: number) => "$ " + Math.round(n).toLocaleString("es-CL") + ".-";
+
+/**
+ * La identidad de la empresa, omitiendo lo que no esté cargado.
+ *
+ * Salió impreso: una oferta emitida con la identidad a medio cargar mostraba en el
+ * encabezado la palabra "RUT" sola, sin número, y la razón social en blanco. El
+ * tipo EmpresaIdentidad lo dice desde el principio —"quien renderiza debe omitir
+ * lo que esté en blanco, nunca inventarlo"— y esta plantilla no lo cumplía.
+ */
+const razonDe = (e: EmpresaIdentidad) => e.razonSocial.trim();
+const rutDe = (e: EmpresaIdentidad) => (e.rut.trim() ? `RUT ${e.rut.trim()}` : "");
+
+/**
+ * La referencia del pie, sin repetir el número de oferta.
+ *
+ * El título que trae un borrador suele llevar el número adentro ("OFERTA TÉCNICA
+ * ECONÓMICA OS 009 2026 - SERVICIO DE REEMPLAZO…"). Anteponerlo otra vez daba un
+ * pie que ocupaba línea y media y aplastaba la dirección y la paginación.
+ */
+export function referenciaDePie(numero: string | null, titulo: string): string {
+  const limpio = titulo.trim();
+  if (!numero) return limpio;
+  const compacto = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return compacto(limpio).includes(compacto(numero)) ? limpio : `${numero} · ${limpio}`;
+}
 
 /** Escapa todo lo que viene del borrador. */
 function esc(valor: unknown): string {
@@ -72,8 +111,8 @@ function hitos(items: string[]): string {
  */
 function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): SeccionArmada[] {
   const secciones: SeccionArmada[] = [];
-  const agregar = (titulo: string, cuerpo: string) =>
-    secciones.push({ numero: String(secciones.length + 1), titulo, cuerpo });
+  const agregar = (titulo: string, cuerpo: string, junto = false) =>
+    secciones.push({ numero: String(secciones.length + 1), titulo, cuerpo, junto });
 
   const id = oferta.identificacion;
   agregar(
@@ -234,6 +273,9 @@ function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): Seccion
           )
           .join("")}</div>` +
         (c.cc ? `<p class="cc">${esc(c.cc)}</p>` : ""),
+      // Corta por naturaleza —un párrafo, una o dos firmas y el cc— y la que peor
+      // queda partida.
+      true,
     );
   }
 
@@ -309,7 +351,7 @@ export function ofertaAHtml(
   const todas = anexo ? [...secciones, anexo] : secciones;
   const id = oferta.identificacion;
 
-  const referenciaPie = [id.numeroOferta, oferta.titulo].filter(Boolean).join(" · ");
+  const referenciaPie = referenciaDePie(id.numeroOferta, oferta.titulo);
   // Se revalidan acá y no solo al bajarlos: este archivo es el que interpola el
   // valor en un `src`, así que el control tiene que estar en el borde del
   // documento. Lo que no pasa vuelve al texto, que es un resultado correcto.
@@ -342,7 +384,8 @@ export function ofertaAHtml(
   }
   .header > div { padding: 3mm 4mm; display: flex; flex-direction: column; justify-content: center; }
   .header .marca { width: ${estilo.anchoCeldaLateral}mm; border-right: 1px solid ${estilo.colorBorde}; font-weight: 700; letter-spacing: .06em;
-    font-size: 9px; text-transform: uppercase; color: ${estilo.colorTinta}; }
+    font-size: 9px; text-transform: uppercase; color: ${estilo.colorTinta};
+    align-items: center; text-align: center; }
   .header .centro { flex: 1; border-right: 1px solid ${estilo.colorBorde}; flex-direction: row;
     align-items: center; justify-content: space-between; }
   .header .cliente { width: ${estilo.anchoCeldaLateral}mm; align-items: center; justify-content: center;
@@ -351,18 +394,25 @@ export function ofertaAHtml(
      imagen conservando la proporción: un logo apaisado y uno cuadrado caben los
      dos en la celda sin deformarse. align-self evita que el flex lo estire. */
   .header img { max-width: 100%; max-height: ${estilo.altoHeader - 8}mm; }
-  .header .marca img { align-self: flex-start; }
-  .header .cliente img { align-self: center; }
+  /* Centrado en su celda, las dos: el logo de la casa y el del cliente. La celda
+     ya centra vertical con justify-content, así que align-self resuelve el
+     horizontal. */
+  .header .marca img, .header .cliente img { align-self: center; }
   .header .empresa { font-weight: 700; font-size: 11px; }
   .header .rut { color: ${estilo.colorSuave}; font-size: 8.5px; }
   .header .oferta { text-align: right; font-size: 9px; color: ${estilo.colorSuave}; }
   .header .oferta b { color: ${estilo.colorTinta}; }
 
+  /* La referencia del medio se recorta con puntos suspensivos en vez de empujar a
+     la dirección y a la paginación, que son las dos que siempre tienen que leerse. */
   .footer {
     margin-top: 10mm; border-top: 1px solid ${estilo.colorBorde}; padding-top: 2mm;
-    display: flex; justify-content: space-between; gap: 6mm;
+    display: flex; justify-content: space-between; gap: 6mm; align-items: baseline;
     font-size: 7.5px; color: ${estilo.colorSuave};
   }
+  .footer .referencia { flex: 1; min-width: 0; text-align: center; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .footer .fijo { flex: none; }
 
   h2 { font-size: ${estilo.tamanoTitulo}px; font-family: ${estilo.fuenteTitulos}; text-transform: uppercase; letter-spacing: -.01em; margin: 9mm 0 3mm;
        padding-bottom: 2mm; border-bottom: 1.6px solid ${estilo.colorTinta}; display: flex; gap: 4mm;
@@ -371,7 +421,9 @@ export function ofertaAHtml(
   h2:first-of-type { margin-top: 0; }
   h3 { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; margin: 5mm 0 2mm;
        page-break-after: avoid; }
-  p { margin: 0 0 2.5mm; }
+  /* Nunca una línea sola cruzando de página: dos arriba y dos abajo como mínimo. */
+  p { margin: 0 0 2.5mm; orphans: 2; widows: 2; }
+  section.junto { page-break-inside: avoid; }
   p.nota { color: ${estilo.colorSuave}; font-size: 8.5px; }
 
   table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; page-break-inside: auto; }
@@ -404,32 +456,40 @@ export function ofertaAHtml(
   ol.hitos li:first-child { border-top: 0; }
   ol.hitos .numeral { color: ${estilo.colorAcento}; font-weight: 700; font-size: 9px; min-width: 6mm; }
 
-  .tarjetas { display: flex; flex-wrap: wrap; gap: 3mm; }
-  .tarjeta { flex: 1 1 46%; border: 1px solid ${estilo.colorFondoTotal}; border-left-width: 2.5mm; padding: 2.5mm 3mm;
+  /* Ídem: con flex, un número impar de tarjetas dejaba la última estirada a lo
+     ancho de la hoja. En rejilla, todas miden lo mismo. */
+  .tarjetas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm;
+    align-items: start; }
+  .tarjeta { border: 1px solid ${estilo.colorFondoTotal}; border-left-width: 2.5mm; padding: 2.5mm 3mm;
     page-break-inside: avoid; }
   .tarjeta.naranjo { border-left-color: ${estilo.colorAcento}; }
   .tarjeta.teal { border-left-color: ${estilo.colorAcentoAlterno}; }
   .tarjeta .cargo { text-transform: uppercase; font-size: 8.5px; letter-spacing: .05em;
     font-weight: 700; margin-bottom: 1mm; }
 
-  .aportes { display: flex; gap: 4mm; }
-  .aportes .columna { flex: 1; }
+  /* Rejilla y no flex: dos columnas exactamente iguales, y alineadas arriba
+     para que la más corta no se estire y desalinee el rayado de las filas. */
+  .aportes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm;
+    align-items: start; margin-bottom: 3mm; }
   .aportes .cabecera { background: ${estilo.colorCabecera}; color: ${estilo.colorCabeceraTexto}; padding: 2mm 3mm; font-size: 8px;
     text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin: 0; }
   .aportes ul { list-style: none; margin: 0; padding: 0; }
   .aportes li { padding: 2mm 3mm; page-break-inside: avoid; }
   .aportes li:nth-child(even) { background: ${estilo.colorFondoSuave}; }
 
-  .firmas { display: flex; gap: 12mm; margin-top: 18mm; page-break-inside: avoid; }
+  /* 18mm de aire forzado hacían que el bloque no cupiera y se fuera entero a la
+     página siguiente, dejando media hoja en blanco. */
+  .firmas { display: flex; gap: 12mm; margin-top: 10mm; page-break-inside: avoid; }
   .firmas .firma { flex: 1; }
   .firmas .linea { display: block; border-top: 1px solid ${estilo.colorTinta}; margin-bottom: 1.5mm; }
   .firmas .nombre { font-weight: 700; margin: 0; }
   .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }
   .cc { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 8mm; }
 
-  .mandantes { display: flex; flex-wrap: wrap; gap: 0 6mm; }
-  .mandantes span { flex: 0 0 calc(33.333% - 4mm); border-bottom: 1px solid ${estilo.colorFondoTotal};
-    padding: 2mm 0; }
+  /* Tres columnas iguales por rejilla: con flex y un calc, el último nombre de
+     cada fila quedaba de otro ancho y las líneas no cerraban parejas. */
+  .mandantes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 6mm; }
+  .mandantes span { border-bottom: 1px solid ${estilo.colorFondoTotal}; padding: 2mm 0; }
 
   .indice { margin-bottom: 4mm; }
   .indice li { display: flex; gap: 4mm; padding: 1.6mm 0; border-top: 1px solid ${estilo.colorFondoTotal}; list-style: none; }
@@ -442,7 +502,7 @@ export function ofertaAHtml(
   .portada .rotulo { color: ${estilo.colorAcento}; font-size: 8.5px; letter-spacing: .16em;
     text-transform: uppercase; margin-bottom: 3mm; }
   .portada h1 { font-size: ${estilo.tamanoPortada}px; font-family: ${estilo.fuenteTitulos}; line-height: 1.08; text-transform: uppercase; margin: 0 0 3mm; }
-  .portada .faena { color: ${estilo.colorSuave}; font-size: 13px; margin-bottom: 14mm; }
+  .portada .faena { color: ${estilo.colorSuave}; font-size: 13px; margin-bottom: 10mm; }
 
   /* AL FINAL a propósito: tiene la misma especificidad que .header y .footer, así
      que si fuera antes ganaría la declaración de abajo y el header saldría igual.
@@ -454,8 +514,9 @@ export function ofertaAHtml(
   <div class="header">
     <div class="marca">${logoCasa ? `<img src="${logoCasa}" alt="">` : esc(empresa.nombre)}</div>
     <div class="centro">
-      <div><div class="empresa">${esc(empresa.razonSocial)}</div>
-           <div class="rut">RUT ${esc(empresa.rut)}</div></div>
+      <div>${razonDe(empresa) ? `<div class="empresa">${esc(razonDe(empresa))}</div>` : ""}${
+        rutDe(empresa) ? `<div class="rut">${esc(rutDe(empresa))}</div>` : ""
+      }</div>
       <div class="oferta">Oferta <b>${esc(id.numeroOferta ?? "—")}</b><br>Fecha <b>${esc(id.fecha ?? "—")}</b></div>
     </div>
     <div class="cliente">${
@@ -464,9 +525,9 @@ export function ofertaAHtml(
   </div>
 
   <div class="footer">
-    <span>${esc([empresa.direccion, empresa.ciudad].filter(Boolean).join(", "))}</span>
-    <span>${esc(referenciaPie)}</span>
-    <span>Vista en pantalla</span>
+    <span class="fijo">${esc([empresa.direccion, empresa.ciudad].filter(Boolean).join(", "))}</span>
+    <span class="referencia">${esc(referenciaPie)}</span>
+    <span class="fijo">Vista en pantalla</span>
   </div>
 
   <section class="portada">
@@ -478,7 +539,7 @@ export function ofertaAHtml(
       ["Oferta N°", id.numeroOferta],
       ["Fecha", id.fecha],
       ["Cliente", id.cliente],
-      ["Preparado por", `${empresa.razonSocial} · RUT ${empresa.rut}`],
+      ["Preparado por", [razonDe(empresa) || empresa.nombre, rutDe(empresa)].filter(Boolean).join(" · ")],
     ])}</table>
 
     <h2><span class="n">·</span> Índice de contenidos</h2>
@@ -490,7 +551,9 @@ export function ofertaAHtml(
   ${todas
     .map(
       (s) =>
-        `<section><h2><span class="n">${esc(s.numero)}</span> ${esc(s.titulo)}</h2>${s.cuerpo}</section>`,
+        `<section${s.junto ? ' class="junto"' : ""}><h2><span class="n">${esc(s.numero)}</span> ${esc(
+          s.titulo,
+        )}</h2>${s.cuerpo}</section>`,
     )
     .join("")}
 </body></html>`;
@@ -504,9 +567,12 @@ export function ofertaAHtml(
  * —"Página 3 de 11"— solo existe en estas cajas: Chromium las rellena con las
  * clases `pageNumber` y `totalPages`.
  *
- * Dos cosas propias de estas plantillas que no se adivinan: heredan
- * `font-size: 0`, así que hay que declararlo en cada elemento, y no cargan CSS
- * externo, así que todo va en línea.
+ * Tres cosas propias de estas plantillas que no se adivinan: heredan
+ * `font-size: 0`, así que hay que declararlo en cada elemento; no cargan CSS
+ * externo, así que todo va en línea —y ahí una comilla doble en la tipografía
+ * cerraría el atributo, ver `fuente`—; y no heredan el `box-sizing: border-box`
+ * del documento, así que un `width: 100%` con `padding` se pasa del ancho de la
+ * hoja.
  */
 export function plantillasDeImpresion(
   oferta: OfertaCanonica,
@@ -517,28 +583,41 @@ export function plantillasDeImpresion(
   const id = oferta.identificacion;
   const logoCasa = logoSeguro(logos.casa);
   const logoCliente = logoSeguro(logos.cliente);
+  // Estas cajas van con estilos EN LÍNEA, así que una comilla doble en la
+  // tipografía cierra el atributo y se pierde todo lo que sigue. Pasó: el
+  // encabezado salía en otra fuente y sin su margen lateral —más ancho que el
+  // texto de la página— porque el `padding` venía después del `font-family`. La
+  // fuente ya se sanea con comillas simples; esto es el cinturón.
+  const fuente = estilo.fuenteCuerpo.replace(/"/g, "'");
   // Estas cajas no cargan CSS externo, así que el escalado de la imagen también
   // va en línea. El alto se ata al del encabezado para que un maestro con
   // encabezado bajo no deje el logo colgando fuera de la celda.
   const imagen = `max-width:100%;max-height:${estilo.altoHeader - 9}mm;`;
-  const referenciaPie = [id.numeroOferta, oferta.titulo].filter(Boolean).join(" \u00b7 ");
+  const referenciaPie = referenciaDePie(id.numeroOferta, oferta.titulo);
   const direccion = [empresa.direccion, empresa.ciudad].filter(Boolean).join(", ");
   const celda = "padding:2mm 3mm;display:flex;flex-direction:column;justify-content:center;";
 
   return {
-    headerTemplate: `<div style="width:100%;font-family:${estilo.fuenteCuerpo};color:${estilo.colorTinta};
+    headerTemplate: `<div style="box-sizing:border-box;width:100%;font-family:${fuente};color:${estilo.colorTinta};
         padding:0 ${estilo.margenLateral}mm;-webkit-print-color-adjust:exact;">
       <div style="display:flex;border:1px solid ${estilo.colorBorde};height:${estilo.altoHeader - 2}mm;">
         <div style="${celda}width:${estilo.anchoCeldaLateral - 2}mm;border-right:1px solid ${estilo.colorBorde};font-size:7px;font-weight:700;
-          letter-spacing:.06em;text-transform:uppercase;">${
+          letter-spacing:.06em;text-transform:uppercase;align-items:center;text-align:center;">${
             logoCasa
-              ? `<img src="${logoCasa}" alt="" style="${imagen}align-self:flex-start;">`
+              ? `<img src="${logoCasa}" alt="" style="${imagen}align-self:center;">`
               : esc(empresa.nombre)
           }</div>
         <div style="${celda}flex:1;border-right:1px solid ${estilo.colorBorde};flex-direction:row;
           align-items:center;justify-content:space-between;">
-          <div><div style="font-size:9px;font-weight:700;">${esc(empresa.razonSocial)}</div>
-            <div style="font-size:7px;color:${estilo.colorSuave};">RUT ${esc(empresa.rut)}</div></div>
+          <div>${
+            razonDe(empresa)
+              ? `<div style="font-size:9px;font-weight:700;">${esc(razonDe(empresa))}</div>`
+              : ""
+          }${
+            rutDe(empresa)
+              ? `<div style="font-size:7px;color:${estilo.colorSuave};">${esc(rutDe(empresa))}</div>`
+              : ""
+          }</div>
           <div style="font-size:7px;color:${estilo.colorSuave};text-align:right;">
             Oferta <b style="color:${estilo.colorTinta};">${esc(id.numeroOferta ?? "\u2014")}</b><br>
             Fecha <b style="color:${estilo.colorTinta};">${esc(id.fecha ?? "\u2014")}</b></div>
@@ -551,13 +630,14 @@ export function plantillasDeImpresion(
           }</div>
       </div>
     </div>`,
-    footerTemplate: `<div style="width:100%;font-family:${estilo.fuenteCuerpo};font-size:6.5px;
+    footerTemplate: `<div style="box-sizing:border-box;width:100%;font-family:${fuente};font-size:6.5px;
         color:${estilo.colorSuave};padding:0 ${estilo.margenLateral}mm;">
-      <div style="display:flex;justify-content:space-between;gap:6mm;border-top:1px solid ${estilo.colorBorde};
-        padding-top:2mm;">
-        <span>${esc(direccion)}</span>
-        <span>${esc(referenciaPie)}</span>
-        <span>P\u00e1gina <span class="pageNumber"></span> de <span class="totalPages"></span></span>
+      <div style="display:flex;justify-content:space-between;gap:6mm;align-items:baseline;
+        border-top:1px solid ${estilo.colorBorde};padding-top:2mm;">
+        <span style="flex:none;">${esc(direccion)}</span>
+        <span style="flex:1;min-width:0;text-align:center;white-space:nowrap;overflow:hidden;
+          text-overflow:ellipsis;">${esc(referenciaPie)}</span>
+        <span style="flex:none;">P\u00e1gina <span class="pageNumber"></span> de <span class="totalPages"></span></span>
       </div>
     </div>`,
   };

@@ -12,7 +12,7 @@ import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
 import { armarOferta, type LecturaLetra, type LecturaNumeros } from "../lib/ofertas/normalizar";
-import { ofertaAHtml, plantillasDeImpresion } from "../lib/ofertas/plantilla";
+import { ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
 
 /** La OS 010-2026 real, bien transcrita. */
 function os10(): OfertaCanonica {
@@ -548,6 +548,57 @@ const htmlIncompleta = ofertaAHtml(incompleta, totalesIncompleta, EMPRESA_DE_PRU
 assert.ok(!htmlIncompleta.includes("undefined"), 'una clave ausente no se imprime como "undefined"');
 assert.ok(!htmlIncompleta.includes(">Validez</th>"), "la fila de un dato que no está no se dibuja");
 assert.ok(htmlIncompleta.includes("AXINNTUS"), "y lo que sí está se imprime igual");
+
+// ── La maqueta impresa: lo que se vio imprimiendo, no leyendo ───────────────
+//
+// El pie repetía el número de oferta cuando el título ya lo traía adentro, y con
+// un título largo eso daba un pie de línea y media que aplastaba la dirección y la
+// paginación.
+assert.equal(
+  referenciaDePie("OS 009-2026", "OFERTA TÉCNICA ECONÓMICA OS 009 2026 - SERVICIO DE REEMPLAZO"),
+  "OFERTA TÉCNICA ECONÓMICA OS 009 2026 - SERVICIO DE REEMPLAZO",
+  "si el título ya trae el número, no se antepone otra vez",
+);
+assert.equal(
+  referenciaDePie("OS 010-2026", "Servicio de traslado de rollos"),
+  "OS 010-2026 · Servicio de traslado de rollos",
+  "y si no lo trae, sí",
+);
+assert.equal(referenciaDePie(null, "Servicio de traslado"), "Servicio de traslado");
+
+// La identidad a medio cargar no imprime rótulos huérfanos. Salió impreso: una
+// oferta emitida mostraba la palabra "RUT" sola, sin número.
+const aMedioCargar = { ...EMPRESA_DE_PRUEBA, razonSocial: "", rut: "" };
+const htmlSinIdentidad = ofertaAHtml(os10(), totales, aMedioCargar);
+assert.ok(!/RUT\s*</.test(htmlSinIdentidad), 'no puede quedar un "RUT" sin número');
+assert.ok(
+  !htmlSinIdentidad.includes('class="empresa"></div>'),
+  "ni una razón social en blanco ocupando su línea",
+);
+const cajasSinIdentidad = plantillasDeImpresion(os10(), aMedioCargar);
+assert.ok(!/RUT\s*</.test(cajasSinIdentidad.headerTemplate), "ni en la caja que repite Chromium");
+
+// Y la tipografía no puede llevar comillas dobles: estas cajas van con estilos en
+// línea, así que una comilla cierra el atributo style y se pierde todo lo que
+// sigue. Pasó: el encabezado salía en otra fuente, en otro color y sin su margen
+// lateral, más ancho que el texto de la página.
+const cajasDeMaqueta = plantillasDeImpresion(os10(), EMPRESA_DE_PRUEBA);
+for (const caja of [cajasDeMaqueta.headerTemplate, cajasDeMaqueta.footerTemplate]) {
+  const enLinea = caja.match(/style="[^"]*"/g) ?? [];
+  assert.ok(enLinea.length > 0, "las cajas van con estilos en línea");
+  assert.ok(
+    !/font-family:[^;"]*"/.test(caja),
+    "ninguna comilla doble puede quedar dentro de un atributo style",
+  );
+  assert.ok(
+    caja.includes("padding:0 16mm") || caja.includes("padding:0 " + ESTILO_PERTEC.margenLateral + "mm"),
+  );
+}
+assert.ok(
+  !ESTILO_PERTEC.fuenteCuerpo.includes('"'),
+  "la tipografía por defecto se cita con comillas simples",
+);
+assert.ok(!sanearEstilo({ fuenteCuerpo: "Helvetica Neue" }).estilo.fuenteCuerpo.includes('"'));
 
 // ── Lo que ve alguien cuando una subida falla ───────────────────────────────
 //

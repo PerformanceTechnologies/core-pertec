@@ -1,0 +1,16 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 794, "h": 1123, "title": "Portada", "print": "fixed" },
+    { "file": "Contenido.dc.html", "x": 894, "y": 0, "w": 794, "h": 1123, "title": "Página de contenido", "print": "fixed" }
+  ],
+  "annotations": [
+    {
+      "id": "que-es-portable",
+      "x": 0,
+      "y": -190,
+      "w": 500,
+      "text": "Maqueta real de la oferta técnica: los valores son los que hoy imprime el core.\n\nLo que muevas de PIEL —colores, tamaños, alto del encabezado— lo llevo al maestro y sale igual en todas las ofertas.\n\nLo que muevas de LUGAR (una tabla a otra columna, una sección antes que otra) es cambiar la plantilla: decímelo y lo hago a mano.\n\nEl contenido es de ejemplo, la OS 010-2026. No lo edites esperando que cambie el documento: eso lo transcribe el modelo de cada borrador."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

@@ -69,8 +69,13 @@ export interface EstiloMaestro {
  * ya salía antes de que los maestros existieran.
  */
 export const ESTILO_PERTEC: EstiloMaestro = {
-  fuenteCuerpo: '"Helvetica Neue", Arial, sans-serif',
-  fuenteTitulos: '"Helvetica Neue", Arial, sans-serif',
+  // Comillas SIMPLES, y no es cosmético: este valor se interpola tanto en un
+  // bloque <style> como dentro de un atributo style="…" de las cajas de
+  // encabezado que repite Chromium. Con comillas dobles, la primera cerraba el
+  // atributo y se perdía todo lo que venía después — la tipografía, el color y el
+  // margen lateral del encabezado, que salía más ancho que el texto de la página.
+  fuenteCuerpo: "'Helvetica Neue', Arial, sans-serif",
+  fuenteTitulos: "'Helvetica Neue', Arial, sans-serif",
   tamanoCuerpo: 10.5,
   tamanoTitulo: 15,
   tamanoPortada: 28,
@@ -120,7 +125,9 @@ function sanearFuente(valor: unknown, porDefecto: string): string {
   if (familias.length === 0) return porDefecto;
   // Se re-citan las que tienen espacios y se cierra con una genérica, para que un
   // maestro que nombre una fuente que el servidor no tiene igual imprima bien.
-  const lista = familias.map((f) => (f.includes(" ") ? `"${f}"` : f));
+  // Comilla simple: la doble rompería el atributo style="…" donde este valor
+  // termina interpolado (ver ESTILO_PERTEC).
+  const lista = familias.map((f) => (f.includes(" ") ? `'${f}'` : f));
   if (!/sans-serif|serif|monospace/.test(lista[lista.length - 1])) lista.push("sans-serif");
   return lista.join(", ");
 }
