@@ -43,10 +43,15 @@ function esc(valor: unknown): string {
 
 /** Filas de una tabla simple etiqueta/valor, salteando las vacías. */
 function filasEtiqueta(pares: [string, string | null][]): string {
-  return pares
-    .filter(([, v]) => v !== null && String(v).trim() !== "")
-    .map(([k, v]) => `<tr><th class="etiqueta">${esc(k)}</th><td>${esc(v)}</td></tr>`)
-    .join("");
+  return (
+    pares
+      // `!= null` cubre también el ausente: el modelo omite lo que el documento no
+      // trae, y con la comparación estricta una clave que falta imprimía la palabra
+      // "undefined" en la tabla de identificación.
+      .filter(([, v]) => v != null && String(v).trim() !== "")
+      .map(([k, v]) => `<tr><th class="etiqueta">${esc(k)}</th><td>${esc(v)}</td></tr>`)
+      .join("")
+  );
 }
 
 /** Lista de hitos con el numeral en naranjo, como el maestro. */

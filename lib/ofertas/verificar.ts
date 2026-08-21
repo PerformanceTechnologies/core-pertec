@@ -89,7 +89,11 @@ export function detectarInconsistencias(
 
   lineas.forEach((linea, i) => {
     const calculado = Math.round(linea.cantidad * linea.valorUnitario);
-    if (linea.valorTotalImpreso !== null && Math.abs(linea.valorTotalImpreso - calculado) > TOLERANCIA) {
+    // `!= null` y no `!== null`: el modelo omite el campo cuando el documento no
+    // imprime el total, así que acá llega ausente. Con la comparación estricta,
+    // `undefined` pasaba el filtro y la resta daba NaN — un aviso inventado en
+    // todas las líneas sin total impreso.
+    if (linea.valorTotalImpreso != null && Math.abs(linea.valorTotalImpreso - calculado) > TOLERANCIA) {
       aritmetica(
         "linea_precio",
         `Línea ${i + 1} (${recortar(linea.cargo)}): el documento imprime ` +
@@ -107,7 +111,7 @@ export function detectarInconsistencias(
   });
 
   const impreso = oferta.precio?.totalNetoImpreso ?? null;
-  if (impreso !== null && Math.abs(impreso - totales.totalNetoCalculado) > TOLERANCIA) {
+  if (impreso != null && Math.abs(impreso - totales.totalNetoCalculado) > TOLERANCIA) {
     aritmetica(
       "suma_precios",
       `El TOTAL NETO impreso es ${clp(impreso)} y la suma de las líneas da ` +
@@ -115,7 +119,7 @@ export function detectarInconsistencias(
         `${clp(Math.abs(impreso - totales.totalNetoCalculado))}.`,
     );
   }
-  if (lineas.length > 0 && impreso === null) {
+  if (lineas.length > 0 && impreso == null) {
     aritmetica(
       "falta_dato",
       "El borrador no trae un TOTAL NETO impreso, así que la suma de las líneas no se puede " +
@@ -227,7 +231,7 @@ function otraEmpresaMencionada(linea: string, nombreCliente: string): string | n
 }
 
 /** "OS 010 – 2026" → "OS 010-2026", para poder comparar. */
-function normalizarNumero(valor: string | null): string | null {
+function normalizarNumero(valor: string | null | undefined): string | null {
   if (!valor) return null;
   return valor
     .replace(/\s+/g, " ")

@@ -214,7 +214,7 @@ export default function EditorOferta({
                     <span className="font-semibold tabular-nums text-tinta">
                       {money(linea.cantidad * linea.valorUnitario)}
                     </span>
-                    {linea.valorTotalImpreso !== null && (
+                    {linea.valorTotalImpreso != null && (
                       <>
                         {" · impreso en el borrador "}
                         <span className="tabular-nums">{money(linea.valorTotalImpreso)}</span>
@@ -228,7 +228,7 @@ export default function EditorOferta({
             <Campo
               className="mt-3 max-w-[220px]"
               rotulo="Total neto impreso en el borrador"
-              valor={oferta.precio.totalNetoImpreso === null ? "" : String(oferta.precio.totalNetoImpreso)}
+              valor={oferta.precio.totalNetoImpreso == null ? "" : String(oferta.precio.totalNetoImpreso)}
               numerico
               deshabilitado={emitida}
               onChange={(v) =>

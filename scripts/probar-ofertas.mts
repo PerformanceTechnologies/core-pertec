@@ -337,6 +337,49 @@ assert.ok(cajas.headerTemplate.includes(`src="${PNG_VALIDO}"`));
 assert.ok(!cajas.headerTemplate.includes("javascript:"), "el del cliente no pasó y no se dibuja");
 assert.ok(cajas.headerTemplate.includes(ESTILO_PERTEC.rotuloLogoCliente));
 
+// ── Una oferta a la que le FALTAN claves, no que las tenga en null ───────────
+//
+// El esquema del lector dejó de marcar los campos como nullable —la API rechaza
+// un esquema con más de 16 parámetros de tipo unión— así que ahora el modelo
+// OMITE lo que el documento no trae. Todo el resto del módulo tiene que tratar
+// una clave ausente igual que la trataba en null: si no, el cambio de esquema se
+// paga en avisos inventados y en la palabra "undefined" impresa en un documento
+// que se manda a un cliente.
+const incompleta = os10();
+// Como lo devolvería el modelo hoy: sin la clave, no con la clave en null.
+delete (incompleta.identificacion as unknown as Record<string, unknown>).validez;
+delete (incompleta.identificacion as unknown as Record<string, unknown>).copia;
+delete (incompleta.precio!.lineas[0] as unknown as Record<string, unknown>).valorTotalImpreso;
+delete (incompleta.precio as unknown as Record<string, unknown>).totalNetoImpreso;
+delete (incompleta as unknown as Record<string, unknown>).metodologia;
+delete (incompleta as unknown as Record<string, unknown>).anexo;
+
+const totalesIncompleta = calcularTotales(incompleta);
+assert.equal(
+  totalesIncompleta.totalNetoCalculado,
+  15_885_200,
+  "las sumas no dependen de lo que el documento imprima",
+);
+
+const avisosIncompleta = detectarInconsistencias(incompleta, totalesIncompleta, "os10.docx");
+assert.ok(
+  !avisosIncompleta.some((a) => /NaN/.test(a.detalle)),
+  "una línea sin total impreso no se compara contra nada: no hay resta con undefined",
+);
+assert.ok(
+  !avisosIncompleta.some((a) => a.tipo === "linea_precio" && /el documento imprime/.test(a.detalle)),
+  "y no se inventa un aviso de multiplicación para una línea que no trae total",
+);
+assert.ok(
+  avisosIncompleta.some((a) => a.tipo === "falta_dato" && /TOTAL NETO/.test(a.detalle)),
+  "lo que sí corresponde es avisar que no hay total impreso contra el que verificar",
+);
+
+const htmlIncompleta = ofertaAHtml(incompleta, totalesIncompleta, EMPRESA_DE_PRUEBA);
+assert.ok(!htmlIncompleta.includes("undefined"), 'una clave ausente no se imprime como "undefined"');
+assert.ok(!htmlIncompleta.includes(">Validez</th>"), "la fila de un dato que no está no se dibuja");
+assert.ok(htmlIncompleta.includes("AXINNTUS"), "y lo que sí está se imprime igual");
+
 // ── Lo que ve alguien cuando una subida falla ───────────────────────────────
 //
 // El caso real: subir un maestro en PDF mostró "JSON.parse: unexpected character
@@ -388,7 +431,8 @@ Controles de una oferta técnica — OS 010-2026
 
 Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango e
 inyección de CSS por color, por fuente y por rótulo. Más los logos: solo pasa un
-PNG en base64, y lo que no pasa deja el encabezado en texto. Y las subidas: una
+PNG en base64, y lo que no pasa deja el encabezado en texto. Una oferta con claves
+ausentes —no en null— sale sin "undefined" y sin avisos inventados. Y las subidas: una
 página de login, un 413 y un 504 salen con su causa nombrada, no con el error del
 parser de JSON.
 

@@ -28,139 +28,183 @@ function cliente(): Anthropic {
   return new Anthropic();
 }
 
-const texto = { type: ["string", "null"] } as const;
+/**
+ * Lo que el documento no trae, no viene. Una sola regla, en el esquema y en las
+ * instrucciones.
+ *
+ * Antes cada campo ausente era `["string", "null"]` y cada sección que no aplica
+ * era un `anyOf` contra null. Eso sumaba 35 parámetros de tipo unión y la API
+ * rechaza el esquema con "Schemas contains too many parameters with union types
+ * (limit: 16)" — o sea que el lector de borradores no podía funcionar nunca.
+ *
+ * La forma correcta era la de siempre en JSON Schema: no marcar la clave como
+ * obligatoria. Ausente significa lo mismo que null significaba, y el resto del
+ * módulo lo trata igual —está probado abajo, con una oferta a la que le faltan
+ * claves de verdad— así que el cambio es del esquema, no del comportamiento.
+ */
+const texto = { type: "string" } as const;
 const listaDeTexto = { type: "array", items: { type: "string" } } as const;
 
-/** Un objeto donde todo es obligatorio y nada se agrega por fuera. */
-const objeto = (properties: Record<string, unknown>) => ({
+/** Un objeto cerrado. Lo que va en `opcionales` puede no venir: no está en el documento. */
+const objeto = (properties: Record<string, unknown>, opcionales: string[] = []) => ({
   type: "object",
   properties,
-  required: Object.keys(properties),
+  required: Object.keys(properties).filter((clave) => !opcionales.includes(clave)),
   additionalProperties: false,
 });
-
-/** Una sección que puede no aplicar: el modelo devuelve null y lo justifica. */
-const opcional = (esquema: object) => ({ anyOf: [esquema, { type: "null" }] });
 
 const FILA_DOTACION = objeto({
   cargo: { type: "string" },
   dotacion: { type: "number", description: "Personas de ese cargo, tal como está en la columna." },
 });
 
-const FILA_DOTACION_CON_REGIMEN = objeto({
-  cargo: { type: "string" },
-  dotacion: { type: "number" },
-  regimen: texto,
-});
+const FILA_DOTACION_CON_REGIMEN = objeto(
+  {
+    cargo: { type: "string" },
+    dotacion: { type: "number" },
+    regimen: texto,
+  },
+  ["regimen"],
+);
 
-const ESQUEMA = objeto({
-  titulo: { type: "string", description: "El título del servicio, tal como lo titula el documento." },
-  identificacion: objeto({
-    numeroOferta: texto,
-    fecha: texto,
-    validez: texto,
-    cliente: texto,
-    atencion: texto,
-    copia: texto,
-    referencia: texto,
-    faena: texto,
-  }),
-  alcance: opcional(
-    objeto({
-      introduccion: texto,
-      actividades: listaDeTexto,
-      trabajosPrevios: listaDeTexto,
-      personalEspecialista: { type: "array", items: FILA_DOTACION },
-    }),
-  ),
-  metodologia: opcional(
-    objeto({
+const ESQUEMA = objeto(
+  {
+    titulo: { type: "string", description: "El título del servicio, tal como lo titula el documento." },
+    identificacion: objeto(
+      {
+        numeroOferta: texto,
+        fecha: texto,
+        validez: texto,
+        cliente: texto,
+        atencion: texto,
+        copia: texto,
+        referencia: texto,
+        faena: texto,
+      },
+      // Todos: un borrador al que le falta la fecha es justo el caso que hay que
+      // poder leer, para después avisarlo.
+      ["numeroOferta", "fecha", "validez", "cliente", "atencion", "copia", "referencia", "faena"],
+    ),
+    alcance: objeto(
+      {
+        introduccion: texto,
+        actividades: listaDeTexto,
+        trabajosPrevios: listaDeTexto,
+        personalEspecialista: { type: "array", items: FILA_DOTACION },
+      },
+      ["introduccion"],
+    ),
+    metodologia: objeto({
       antesDeLaDetencion: listaDeTexto,
       duranteLaDetencion: listaDeTexto,
     }),
-  ),
-  especificaciones: opcional({
-    type: "array",
-    items: objeto({ parametro: { type: "string" }, especificacion: { type: "string" } }),
-  }),
-  organizacion: opcional(
-    objeto({
-      cuadroPersonal: { type: "array", items: FILA_DOTACION_CON_REGIMEN },
-      responsabilidades: {
-        type: "array",
-        items: objeto({ cargo: { type: "string" }, descripcion: { type: "string" } }),
+    especificaciones: {
+      type: "array",
+      items: objeto({ parametro: { type: "string" }, especificacion: { type: "string" } }),
+    },
+    organizacion: objeto(
+      {
+        cuadroPersonal: { type: "array", items: FILA_DOTACION_CON_REGIMEN },
+        responsabilidades: {
+          type: "array",
+          items: objeto({ cargo: { type: "string" }, descripcion: { type: "string" } }),
+        },
+        nota: texto,
       },
-      nota: texto,
-    }),
-  ),
-  programa: opcional(
-    objeto({
-      introduccion: texto,
-      turnos: {
-        type: "array",
-        items: objeto({
-          turno: { type: "string", description: 'El rótulo del turno: "T1", "Turno 1".' },
-          jornada: { type: "string" },
-          horas: { type: "number" },
-        }),
+      ["nota"],
+    ),
+    programa: objeto(
+      {
+        introduccion: texto,
+        turnos: {
+          type: "array",
+          items: objeto({
+            turno: { type: "string", description: 'El rótulo del turno: "T1", "Turno 1".' },
+            jornada: { type: "string" },
+            horas: { type: "number" },
+          }),
+        },
+        nota: texto,
       },
-      nota: texto,
-    }),
-  ),
-  precio: opcional(
-    objeto({
-      lineas: {
-        type: "array",
-        items: objeto({
-          cantidad: { type: "number" },
-          cargo: { type: "string", description: "La descripción de la línea, completa." },
-          unidad: { type: "string" },
-          valorUnitario: { type: "number", description: "Sin puntos ni símbolo de moneda." },
-          valorTotalImpreso: {
-            type: ["number", "null"],
-            description:
-              "El total de la línea TAL COMO ESTÁ IMPRESO. No lo calcules: si el documento no lo " +
-              "trae, devuelve null. Sirve para comprobar la multiplicación.",
-          },
-        }),
+      ["introduccion", "nota"],
+    ),
+    precio: objeto(
+      {
+        lineas: {
+          type: "array",
+          items: objeto(
+            {
+              cantidad: { type: "number" },
+              cargo: { type: "string", description: "La descripción de la línea, completa." },
+              unidad: { type: "string" },
+              valorUnitario: { type: "number", description: "Sin puntos ni símbolo de moneda." },
+              valorTotalImpreso: {
+                type: "number",
+                description:
+                  "El total de la línea TAL COMO ESTÁ IMPRESO. No lo calcules: si el documento no lo " +
+                  "trae, omití el campo. Sirve para comprobar la multiplicación.",
+              },
+            },
+            ["valorTotalImpreso"],
+          ),
+        },
+        totalNetoImpreso: {
+          type: "number",
+          description:
+            "El TOTAL NETO impreso al pie de la tabla. No lo sumes: si no está impreso, omití el campo.",
+        },
+        nota: texto,
       },
-      totalNetoImpreso: {
-        type: ["number", "null"],
-        description: "El TOTAL NETO impreso al pie de la tabla. No lo sumes: si no está impreso, null.",
+      ["totalNetoImpreso", "nota"],
+    ),
+    condicionesComerciales: listaDeTexto,
+    aportes: objeto({ pertec: listaDeTexto, cliente: listaDeTexto }),
+    cierre: objeto(
+      {
+        texto: texto,
+        firmantes: {
+          type: "array",
+          items: objeto({ nombre: { type: "string" }, cargo: { type: "string" }, empresa: texto }, [
+            "empresa",
+          ]),
+        },
+        cc: texto,
       },
-      nota: texto,
-    }),
-  ),
-  condicionesComerciales: opcional(listaDeTexto),
-  aportes: opcional(objeto({ pertec: listaDeTexto, cliente: listaDeTexto })),
-  cierre: opcional(
-    objeto({
-      texto: texto,
-      firmantes: {
-        type: "array",
-        items: objeto({ nombre: { type: "string" }, cargo: { type: "string" }, empresa: texto }),
+      ["texto", "cc"],
+    ),
+    anexo: objeto(
+      {
+        respaldoInstitucional: listaDeTexto,
+        mandantes: listaDeTexto,
+        notaEquipo: texto,
       },
-      cc: texto,
-    }),
-  ),
-  anexo: opcional(
-    objeto({
-      respaldoInstitucional: listaDeTexto,
-      mandantes: listaDeTexto,
-      notaEquipo: texto,
-    }),
-  ),
-  porConfirmar: {
-    type: "array",
-    description: "Datos ausentes o ambiguos, nombrados. Nunca adivinados.",
-    items: { type: "string" },
+      ["notaEquipo"],
+    ),
+    porConfirmar: {
+      type: "array",
+      description: "Datos ausentes o ambiguos, nombrados. Nunca adivinados.",
+      items: { type: "string" },
+    },
+    omitidas: {
+      type: "array",
+      description: "Secciones que no aplican a este servicio, con el motivo.",
+      items: objeto({ seccion: { type: "string" }, motivo: { type: "string" } }),
+    },
   },
-  omitidas: {
-    type: "array",
-    description: "Secciones que no aplican a este servicio, con el motivo.",
-    items: objeto({ seccion: { type: "string" }, motivo: { type: "string" } }),
-  },
-});
+  [
+    // Las diez secciones. Una que no aplica no viene, y el motivo va en "omitidas".
+    "alcance",
+    "metodologia",
+    "especificaciones",
+    "organizacion",
+    "programa",
+    "precio",
+    "condicionesComerciales",
+    "aportes",
+    "cierre",
+    "anexo",
+  ],
+);
 
 const INSTRUCCIONES = `Normalizas borradores de ofertas técnicas de Performance Technologies SpA (PERTEC),
 que presta servicios de vulcanización y cambio de correas transportadoras en faenas mineras y plantas.
@@ -175,7 +219,7 @@ REGLA PRINCIPAL: transcribes, no calculas.
 - NO calcules ningún total. Ni la dotación total, ni las horas del programa, ni el TOTAL NETO, ni el
   total de una línea de precio. Esos los calcula el sistema, y de paso comprueba que coincidan con lo
   impreso. Si el documento IMPRIME un total, transcríbelo en el campo que dice "impreso" —sirve de
-  control—; si no lo imprime, deja null.
+  control—; si no lo imprime, omití ese campo.
 - Podés corregir ortografía y mejorar la redacción de los párrafos narrativos, sin cambiar el
   significado técnico ni comercial. En cifras, nombres y descripciones de líneas de precio, no.
 - Todo dato ausente o ambiguo va nombrado en "porConfirmar", nunca adivinado. Sé específico: en vez de
@@ -183,8 +227,11 @@ REGLA PRINCIPAL: transcribes, no calculas.
 
 SECCIONES QUE NO APLICAN. El maestro trae todas las secciones posibles y cada oferta usa las que le
 corresponden: un traslado de rollos no tiene especificaciones de equipo vulcanizador y un cambio de
-correa sí. Si una sección no aplica, devolvé null en su campo y explicá por qué en "omitidas". No la
+correa sí. Si una sección no aplica, OMITILA del resultado y explicá por qué en "omitidas". No la
 llenes con texto de relleno ni la dejes vacía.
+
+Lo mismo vale para cualquier dato suelto: lo que el borrador no trae se omite —no va en blanco, ni en
+cero, ni con un guion— y se nombra en "porConfirmar".
 
 No te preocupes por la numeración de las secciones ni por el índice: los genera el sistema a partir de
 las secciones presentes. Vos solo decidís qué hay y qué no.

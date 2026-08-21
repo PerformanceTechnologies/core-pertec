@@ -33,14 +33,21 @@ function cliente(): Anthropic {
   return new Anthropic();
 }
 
+/**
+ * Los campos van sin `null` y sin ser obligatorios, y eso NO es un detalle de
+ * estilo: la API rechaza un esquema con más de 16 parámetros de tipo unión —
+ * "Schemas contains too many parameters with union types" — y este esquema tenía
+ * 18, uno por cada token. Marcarlos nullable era además redundante: para el saneo,
+ * un campo ausente y un campo en null significan lo mismo, "no lo distingo".
+ */
 const color = (que: string) => ({
-  type: ["string", "null"],
-  description: `${que} Como hex de 6 dígitos, por ejemplo "#1f1b16". null si no se distingue.`,
+  type: "string",
+  description: `${que} Como hex de 6 dígitos, por ejemplo "#1f1b16". Omitilo si no se distingue.`,
 });
 
 const medida = (que: string, min: number, max: number) => ({
-  type: ["number", "null"],
-  description: `${que} Entre ${min} y ${max}. null si no se puede estimar.`,
+  type: "number",
+  description: `${que} Entre ${min} y ${max}. Omitilo si no se puede estimar.`,
 });
 
 const ESQUEMA = {
@@ -51,12 +58,12 @@ const ESQUEMA = {
       description: "Un nombre corto para este maestro, del estilo 'PERTEC — Ofertas técnicas'.",
     },
     fuenteCuerpo: {
-      type: ["string", "null"],
+      type: "string",
       description:
         "Familia tipográfica del texto de cuerpo. Solo el nombre, o el más parecido que reconozcas " +
-        "(Helvetica, Arial, Georgia, Times New Roman, Garamond). null si no la distingues.",
+        "(Helvetica, Arial, Georgia, Times New Roman, Garamond). Omitilo si no la distinguís.",
     },
-    fuenteTitulos: { type: ["string", "null"], description: "Ídem para los títulos de sección." },
+    fuenteTitulos: { type: "string", description: "Ídem para los títulos de sección." },
     tamanoCuerpo: medida("Tamaño del texto de cuerpo en px.", 7, 14),
     tamanoTitulo: medida("Tamaño de los títulos de sección en px.", 10, 26),
     tamanoPortada: medida("Tamaño del título de la portada en px.", 16, 44),
@@ -73,7 +80,7 @@ const ESQUEMA = {
     anchoCeldaLateral: medida("Ancho de las celdas laterales del encabezado, en mm.", 18, 50),
     margenLateral: medida("Margen izquierdo y derecho de la página, en mm.", 8, 30),
     rotuloLogoCliente: {
-      type: ["string", "null"],
+      type: "string",
       description: "El texto de la celda reservada al logo del cliente, si la hay.",
     },
     noDistinguidos: {
@@ -82,28 +89,9 @@ const ESQUEMA = {
       items: { type: "string" },
     },
   },
-  required: [
-    "nombreSugerido",
-    "fuenteCuerpo",
-    "fuenteTitulos",
-    "tamanoCuerpo",
-    "tamanoTitulo",
-    "tamanoPortada",
-    "colorTinta",
-    "colorAcento",
-    "colorAcentoAlterno",
-    "colorSuave",
-    "colorCabecera",
-    "colorCabeceraTexto",
-    "colorFondoSuave",
-    "colorFondoTotal",
-    "colorBorde",
-    "altoHeader",
-    "anchoCeldaLateral",
-    "margenLateral",
-    "rotuloLogoCliente",
-    "noDistinguidos",
-  ],
+  // Los únicos obligatorios. Todo token ausente es un token que el modelo no
+  // distinguió, y el saneo lo completa con el maestro de PERTEC.
+  required: ["nombreSugerido", "noDistinguidos"],
   additionalProperties: false,
 } as const;
 
@@ -118,7 +106,8 @@ el sistema—; solo la piel.
 
 REGLAS
 - Los colores van como hex de 6 dígitos. Si dudás entre dos tonos, elegí el que veas en más lugares.
-- No inventes. Todo lo que no puedas determinar va en null y nombrado en "noDistinguidos". El sistema
+- No inventes. Todo lo que no puedas determinar se OMITE del resultado y va nombrado en
+  "noDistinguidos" — no lo pongas en cero ni en blanco, omitilo. El sistema
   completa esos con los valores de su maestro por defecto, que es un resultado correcto; un color
   inventado, en cambio, sale impreso en un documento que se manda a un cliente.
 - Las medidas en mm son estimaciones sobre una hoja A4 (210 mm de ancho): el margen lateral es la
