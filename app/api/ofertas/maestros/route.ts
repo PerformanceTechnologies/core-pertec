@@ -7,7 +7,10 @@ import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+// Leer el estilo de un PDF es una llamada con visión: se le da el máximo que
+// permite el plan. Vercel recorta este número al tope de su plan, así que pedir
+// más no rompe nada — y lo que de verdad bajó el tiempo fue mirar menos páginas.
+export const maxDuration = 300;
 
 /**
  * Sube un maestro de formato y guarda su estilo.

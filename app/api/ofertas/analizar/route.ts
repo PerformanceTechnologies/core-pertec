@@ -10,7 +10,10 @@ import { LIMITE_SUBIDA } from "@/lib/subidas";
 export const runtime = "nodejs";
 // Normalizar una oferta completa —diez secciones con sus tablas— tarda bastante
 // más que leer una boleta.
-export const maxDuration = 120;
+// Transcribir una oferta completa —diez secciones con sus tablas— es la lectura
+// más larga del módulo, y acá sí hay que mirar todas las páginas: se transcribe
+// el contenido, no la apariencia.
+export const maxDuration = 300;
 
 /**
  * Paso 1: sube un borrador y queda normalizado, con sus controles corridos.

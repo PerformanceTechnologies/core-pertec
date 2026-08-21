@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { PDFDocument } from "pdf-lib";
 import { extraerTexto } from "@/lib/cotizador/obra/extraer-texto";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
 import { sanearEstilo, type EstiloMaestro } from "./estilo";
@@ -22,6 +23,44 @@ import { sanearEstilo, type EstiloMaestro } from "./estilo";
  * Y se lee UNA vez: los tokens quedan guardados y son editables a mano. El formato
  * de una oferta no depende nunca de volver a interpretar el archivo.
  */
+
+/**
+ * Cuántas páginas del maestro se miran.
+ *
+ * Leer el estilo no es leer el documento: la paleta, las tipografías y las
+ * proporciones están en la portada y en la primera página con tablas. Un maestro
+ * de once páginas manda once imágenes a la API —cada página del PDF se rasteriza—
+ * y eso es lo que hacía que la lectura pasara del tiempo permitido y la función se
+ * cortara. Con cuatro páginas se ve todo lo que hay que ver y el trabajo baja casi
+ * tres veces.
+ */
+const PAGINAS_QUE_SE_MIRAN = 4;
+
+/**
+ * Las primeras páginas del PDF, como PDF.
+ *
+ * Si algo falla —un PDF cifrado, uno que pdf-lib no puede abrir— devuelve el
+ * original: recortar es una optimización, no un requisito, y no tiene por qué
+ * impedir la lectura.
+ */
+async function recortarPdf(archivo: Buffer): Promise<{ pdf: Buffer; paginas: number | null }> {
+  try {
+    const original = await PDFDocument.load(archivo);
+    const total = original.getPageCount();
+    if (total <= PAGINAS_QUE_SE_MIRAN) return { pdf: archivo, paginas: total };
+
+    const recorte = await PDFDocument.create();
+    const paginas = await recorte.copyPages(
+      original,
+      Array.from({ length: PAGINAS_QUE_SE_MIRAN }, (_, i) => i),
+    );
+    for (const pagina of paginas) recorte.addPage(pagina);
+    return { pdf: Buffer.from(await recorte.save()), paginas: total };
+  } catch (error) {
+    console.warn("[ofertas] no se pudo recortar el maestro, va completo:", error);
+    return { pdf: archivo, paginas: null };
+  }
+}
 
 function cliente(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -137,30 +176,45 @@ export async function leerMaestro(
     );
   }
 
-  const contenido: Anthropic.ContentBlockParam[] =
-    formato === "pdf"
-      ? [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: archivo.toString("base64") },
-          },
-        ]
-      : [
-          {
-            type: "text",
-            text:
-              `Contenido del maestro, extraído como texto. OJO: al ser texto no hay colores ni ` +
-              `proporciones, así que casi todo va a quedar en "noDistinguidos" — es lo correcto.\n\n` +
-              (await extraerTexto(archivo, formato, nombreArchivo)),
-          },
-        ];
+  // Cuántas páginas tenía el original, para poder decirlo después: solo se miran
+  // las primeras, y un detalle que está más adelante no va a quedar recogido.
+  let paginasDelPdf: number | null = null;
+  let contenido: Anthropic.ContentBlockParam[];
 
+  if (formato === "pdf") {
+    const recortado = await recortarPdf(archivo);
+    paginasDelPdf = recortado.paginas;
+    contenido = [
+      {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: recortado.pdf.toString("base64"),
+        },
+      },
+    ];
+  } else {
+    contenido = [
+      {
+        type: "text",
+        text:
+          `Contenido del maestro, extraído como texto. OJO: al ser texto no hay colores ni ` +
+          `proporciones, así que casi todo va a quedar en "noDistinguidos" — es lo correcto.\n\n` +
+          (await extraerTexto(archivo, formato, nombreArchivo)),
+      },
+    ];
+  }
+
+  // Describir una apariencia no es razonar sobre un problema: son veinte valores
+  // que se ven. Sin pensamiento extendido, con esfuerzo medio y con un techo de
+  // salida acorde a lo que se pide, porque lo que estaba cortando la operación era
+  // el tiempo, no la calidad — y estos tokens quedan editables a mano igual.
   const respuesta = await cliente().messages.create({
     model: "claude-sonnet-5",
-    max_tokens: 8000,
-    thinking: { type: "adaptive" },
+    max_tokens: 2000,
     system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: "high", format: { type: "json_schema", schema: ESQUEMA } },
+    output_config: { effort: "medium", format: { type: "json_schema", schema: ESQUEMA } },
     messages: [
       {
         role: "user",
@@ -190,10 +244,20 @@ export async function leerMaestro(
   };
   const { estilo, descartados } = sanearEstilo(leido);
 
+  const noDistinguidos = Array.isArray(leido.noDistinguidos) ? leido.noDistinguidos : [];
+  if (paginasDelPdf && paginasDelPdf > PAGINAS_QUE_SE_MIRAN) {
+    // Se dice, porque explica por qué un detalle que está en la página 9 del
+    // maestro no quedó recogido.
+    noDistinguidos.push(
+      `Se miraron las primeras ${PAGINAS_QUE_SE_MIRAN} páginas de ${paginasDelPdf}: ` +
+        "el estilo se ve ahí y mirarlas todas hacía que la lectura se cortara por tiempo.",
+    );
+  }
+
   return {
     nombreSugerido: String(leido.nombreSugerido ?? nombreArchivo).slice(0, 90),
     estilo,
     descartados,
-    noDistinguidos: Array.isArray(leido.noDistinguidos) ? leido.noDistinguidos : [],
+    noDistinguidos,
   };
 }
