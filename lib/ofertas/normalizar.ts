@@ -1,37 +1,102 @@
 import type { OfertaCanonica } from "./tipos";
 
 /**
- * Lo que devuelve el modelo, puesto en la forma canónica.
+ * De las dos lecturas planas a la oferta canónica.
  *
- * Existe por una restricción concreta del esquema, y conviene entenderla porque
- * dictó la forma de todo lo demás. Un esquema de salida se compila a una gramática,
- * y hay dos cosas que la hacen explotar:
+ * Este archivo existe por una restricción del esquema de salida, y esa restricción
+ * terminó dictando la forma de la lectura entera. Un esquema se compila a una
+ * gramática, y la API la rechaza cuando se pasa de grande. El camino hasta acá
+ * fueron tres rechazos, cada uno arreglando el anterior:
  *
- *  - Los tipos unión —`["string","null"]`, `anyOf` contra null—. La API corta en 16
- *    y el esquema del borrador tenía 35.
- *  - Las propiedades opcionales. Con 19 claves que pueden estar o no, la gramática
- *    tiene que admitir cualquiera de sus combinaciones, y la API responde "Schema
- *    is too complex". Fue el paso siguiente al anterior: cambiar nullable por
- *    opcional cambió una explosión por otra.
+ *  1. Cada campo ausente como `["string","null"]` y cada sección como `anyOf`
+ *     contra null: 35 tipos unión, y el tope son 16.
+ *  2. Cambiar eso por propiedades opcionales: 19 claves que pueden estar o no,
+ *     así que la gramática tiene que admitir todas sus combinaciones — "Schema is
+ *     too complex".
+ *  3. Todo obligatorio y de un solo tipo, pero un único esquema anidado de 18
+ *     objetos y 67 propiedades: "The compiled grammar is too large".
  *
- * Lo que no explota es un esquema donde TODO es obligatorio y de un solo tipo. Así
- * quedó: el modelo devuelve siempre todas las claves, y "el documento no lo trae"
- * se dice con un valor —texto en blanco, número en 0, sección con sus listas
- * vacías— en vez de con la ausencia.
+ * La conclusión, y el motivo de este archivo: **el esquema tiene que ser chico y
+ * plano, y armar la estructura es trabajo del servidor.** La lectura se parte en
+ * dos —la letra y los números— con un esquema plano cada una, y acá se juntan en
+ * la forma que el resto del módulo ya sabe tratar.
  *
- * Ese valor no es lo que el resto del módulo espera, y traducirlo es el trabajo de
- * este archivo: una sección vacía vuelve a ser null, y un total impreso en 0 vuelve
- * a ser "no está impreso". Así el cambio queda contenido acá y ni la maqueta ni los
- * controles tienen que saber nada de esto.
+ * Es la misma línea que gobierna todo el módulo, un paso más allá: el modelo
+ * transcribe, el servidor calcula. Ahora también el servidor estructura.
  *
  * Sin "server-only": es una transformación pura y se prueba con tsx.
  */
 
+/** La parte narrativa del borrador, tal como la devuelve el modelo: plana. */
+export interface LecturaLetra {
+  titulo: string;
+  numeroOferta: string;
+  fecha: string;
+  validez: string;
+  cliente: string;
+  atencion: string;
+  copia: string;
+  referencia: string;
+  faena: string;
+  alcanceIntroduccion: string;
+  alcanceActividades: string[];
+  alcanceTrabajosPrevios: string[];
+  metodologiaAntes: string[];
+  metodologiaDurante: string[];
+  especificaciones: { parametro: string; especificacion: string }[];
+  condicionesComerciales: string[];
+  aportesPertec: string[];
+  aportesCliente: string[];
+  cierreTexto: string;
+  firmantes: { nombre: string; cargo: string; empresa: string }[];
+  cierreCc: string;
+  anexoRespaldos: string[];
+  anexoMandantes: string[];
+  anexoNotaEquipo: string;
+  porConfirmar: string[];
+  omitidas: string[];
+}
+
+/** Los cuadros con cifras: lo único sobre lo que el servidor calcula. */
+export interface LecturaNumeros {
+  personalEspecialista: { cargo: string; dotacion: number }[];
+  cuadroPersonal: { cargo: string; dotacion: number; regimen: string }[];
+  responsabilidades: { cargo: string; descripcion: string }[];
+  organizacionNota: string;
+  programaIntroduccion: string;
+  turnos: { turno: string; jornada: string; horas: number }[];
+  programaNota: string;
+  lineasPrecio: {
+    cantidad: number;
+    cargo: string;
+    unidad: string;
+    valorUnitario: number;
+    valorTotalImpreso: number;
+  }[];
+  totalNetoImpreso: number;
+  precioNota: string;
+  porConfirmar: string[];
+}
+
+/** El texto, o null si vino en blanco. El esquema no admite nullables. */
+const texto = (valor: unknown): string | null => {
+  const s = typeof valor === "string" ? valor.trim() : "";
+  return s === "" ? null : s;
+};
+
+/** El número, o null si vino en 0: así dice el esquema "no está impreso". */
+const numero = (valor: unknown): number | null => (typeof valor === "number" && valor !== 0 ? valor : null);
+
+const lista = (valor: unknown): string[] =>
+  Array.isArray(valor) ? valor.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
+
+const filas = <T>(valor: unknown): T[] => (Array.isArray(valor) ? (valor as T[]) : []);
+
 /**
- * ¿Tiene algún dato de verdad?
+ * ¿La sección tiene algún dato, o vino vacía porque no aplica?
  *
- * Un 0 no cuenta como dato a este fin: es el valor que usa el modelo para decir
- * "no viene", y una sección real siempre trae además una lista o un texto.
+ * Un 0 no cuenta: es el valor con que el modelo dice "no viene", y una sección real
+ * siempre trae además una lista o un texto.
  */
 function tieneContenido(valor: unknown): boolean {
   if (valor === null || valor === undefined) return false;
@@ -43,44 +108,108 @@ function tieneContenido(valor: unknown): boolean {
   return true;
 }
 
-/** Las diez secciones que pueden no aplicar. La identificación siempre va. */
-const SECCIONES = [
-  "alcance",
-  "metodologia",
-  "especificaciones",
-  "organizacion",
-  "programa",
-  "precio",
-  "condicionesComerciales",
-  "aportes",
-  "cierre",
-  "anexo",
-] as const;
+/** Devuelve la sección, o null si está vacía: una sección vacía no aplica. */
+function seccion<T>(armada: T): T | null {
+  return tieneContenido(armada) ? armada : null;
+}
 
-export function normalizarLectura(bruto: OfertaCanonica): OfertaCanonica {
-  const oferta = { ...bruto } as unknown as Record<string, unknown>;
+export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): OfertaCanonica {
+  const especificaciones = filas<{ parametro: string; especificacion: string }>(
+    letra.especificaciones,
+  ).filter((e) => (e?.parametro ?? "").trim() !== "");
 
-  // Una sección que el modelo devolvió vacía es una sección que no aplica: vuelve
-  // a null, que es lo que la maqueta y los controles ya saben tratar.
-  for (const seccion of SECCIONES) {
-    if (!tieneContenido(oferta[seccion])) oferta[seccion] = null;
-  }
+  const condiciones = lista(letra.condicionesComerciales);
 
-  const precio = oferta.precio as OfertaCanonica["precio"];
-  if (precio) {
-    // Un total en 0 es "no está impreso". Un total impreso de exactamente $0 no
-    // existe en una oferta real, y si existiera el control de la línea en 0 lo
-    // marca igual — mientras que tratarlo como impreso daría un aviso falso:
-    // "el TOTAL NETO impreso es $0 y la suma da $15.885.200".
-    oferta.precio = {
-      ...precio,
-      totalNetoImpreso: precio.totalNetoImpreso ? precio.totalNetoImpreso : null,
-      lineas: precio.lineas.map((linea) => ({
-        ...linea,
-        valorTotalImpreso: linea.valorTotalImpreso ? linea.valorTotalImpreso : null,
+  return {
+    titulo: texto(letra.titulo) ?? "OFERTA SIN TÍTULO",
+    identificacion: {
+      numeroOferta: texto(letra.numeroOferta),
+      fecha: texto(letra.fecha),
+      validez: texto(letra.validez),
+      cliente: texto(letra.cliente),
+      atencion: texto(letra.atencion),
+      copia: texto(letra.copia),
+      referencia: texto(letra.referencia),
+      faena: texto(letra.faena),
+    },
+
+    alcance: seccion({
+      introduccion: texto(letra.alcanceIntroduccion),
+      actividades: lista(letra.alcanceActividades),
+      trabajosPrevios: lista(letra.alcanceTrabajosPrevios),
+      // El personal especialista de la sección 2.3 se lee con los números, no con
+      // la letra: es un cuadro con dotaciones y el servidor lo suma.
+      personalEspecialista: filas<{ cargo: string; dotacion: number }>(numeros.personalEspecialista),
+    }),
+
+    metodologia: seccion({
+      antesDeLaDetencion: lista(letra.metodologiaAntes),
+      duranteLaDetencion: lista(letra.metodologiaDurante),
+    }),
+
+    especificaciones: especificaciones.length > 0 ? especificaciones : null,
+
+    organizacion: seccion({
+      cuadroPersonal: filas<{ cargo: string; dotacion: number; regimen: string }>(numeros.cuadroPersonal),
+      responsabilidades: filas<{ cargo: string; descripcion: string }>(numeros.responsabilidades).filter(
+        (r) => (r?.cargo ?? "").trim() !== "",
+      ),
+      nota: texto(numeros.organizacionNota),
+    }),
+
+    programa: seccion({
+      introduccion: texto(numeros.programaIntroduccion),
+      turnos: filas<{ turno: string; jornada: string; horas: number }>(numeros.turnos),
+      nota: texto(numeros.programaNota),
+    }),
+
+    precio: seccion({
+      lineas: filas<LecturaNumeros["lineasPrecio"][number]>(numeros.lineasPrecio).map((l) => ({
+        cantidad: l.cantidad,
+        cargo: l.cargo,
+        unidad: l.unidad,
+        valorUnitario: l.valorUnitario,
+        // Un total en 0 es "no está impreso", no un total de cero pesos. Tratarlo
+        // como impreso daría el aviso falso "el documento imprime $ 0 pero
+        // 1 × $ 15.885.200 da $ 15.885.200".
+        valorTotalImpreso: numero(l.valorTotalImpreso),
       })),
-    };
-  }
+      totalNetoImpreso: numero(numeros.totalNetoImpreso),
+      nota: texto(numeros.precioNota),
+    }),
 
-  return oferta as unknown as OfertaCanonica;
+    condicionesComerciales: condiciones.length > 0 ? condiciones : null,
+
+    aportes: seccion({
+      pertec: lista(letra.aportesPertec),
+      cliente: lista(letra.aportesCliente),
+    }),
+
+    cierre: seccion({
+      texto: texto(letra.cierreTexto),
+      firmantes: filas<{ nombre: string; cargo: string; empresa: string }>(letra.firmantes)
+        .filter((f) => (f?.nombre ?? "").trim() !== "")
+        .map((f) => ({ nombre: f.nombre, cargo: f.cargo, empresa: texto(f.empresa) })),
+      cc: texto(letra.cierreCc),
+    }),
+
+    anexo: seccion({
+      respaldoInstitucional: lista(letra.anexoRespaldos),
+      mandantes: lista(letra.anexoMandantes),
+      notaEquipo: texto(letra.anexoNotaEquipo),
+    }),
+
+    // Las dos lecturas ven el mismo documento y cada una nombra lo que le faltó:
+    // van juntas y sin repetidos.
+    porConfirmar: [...new Set([...lista(letra.porConfirmar), ...lista(numeros.porConfirmar)])],
+
+    // El motivo viene como una frase sola ("Precio: el borrador no trae tabla"),
+    // porque un objeto más en el esquema es gramática que no hace falta.
+    omitidas: lista(letra.omitidas).map((linea) => {
+      const corte = linea.indexOf(":");
+      return corte > 0
+        ? { seccion: linea.slice(0, corte).trim(), motivo: linea.slice(corte + 1).trim() }
+        : { seccion: linea.trim(), motivo: "" };
+    }),
+  };
 }

@@ -11,7 +11,7 @@ import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
-import { normalizarLectura } from "../lib/ofertas/normalizar";
+import { armarOferta, type LecturaLetra, type LecturaNumeros } from "../lib/ofertas/normalizar";
 import { ofertaAHtml, plantillasDeImpresion } from "../lib/ofertas/plantilla";
 
 /** La OS 010-2026 real, bien transcrita. */
@@ -365,44 +365,146 @@ assert.deepEqual(
   "un valor vacío no es un valor inválido: no se reporta como descartado",
 );
 
-// ── La normalización de la lectura de un borrador ───────────────────────────
+// ── Armar la oferta con las dos lecturas planas ─────────────────────────────
 //
-// Por lo mismo, el modelo devuelve las diez secciones SIEMPRE, vacías cuando no
-// aplican, y los totales no impresos en 0. normalizarLectura lo traduce a la forma
-// que el resto del módulo espera: si no lo hiciera, la maqueta vería secciones
-// presentes y los controles verían totales impresos que no existen.
-const conVacias = normalizarLectura({
-  ...os10(),
-  metodologia: { antesDeLaDetencion: [], duranteLaDetencion: [] },
-  especificaciones: [],
-  aportes: { pertec: [], cliente: [] },
-  cierre: { texto: "", firmantes: [], cc: "" },
-});
-assert.equal(conVacias.metodologia, null, "una sección vacía no aplica: vuelve a null");
-assert.equal(conVacias.especificaciones, null);
-assert.equal(conVacias.aportes, null);
-assert.equal(conVacias.cierre, null);
-assert.ok(conVacias.precio, "y la que sí tiene datos se mantiene");
-assert.equal(conVacias.organizacion?.cuadroPersonal.length, 5);
+// El esquema de salida no puede ser grande —"The compiled grammar is too large"—
+// así que la lectura se parte en dos, cada una con un esquema plano, y la
+// estructura la arma el servidor. Estas pruebas son la garantía de esa costura,
+// que es lo único de la lectura que se puede verificar sin llamar a la API.
+
+/** La letra tal como la devolvería el modelo: todas las claves, vacías las que no van. */
+function letraOS10(): LecturaLetra {
+  return {
+    titulo: "Servicio de traslado de rollos nuevos de correa a CT-6 y CT-7",
+    numeroOferta: "OS 010-2026",
+    fecha: "11 de agosto de 2026",
+    validez: "31 de agosto de 2026",
+    cliente: "AXINNTUS SERVICIOS INDUSTRIALES",
+    atencion: "Sr. Alan Muñoz G.",
+    copia: "",
+    referencia: "Servicio de reemplazo de correa transportadora.",
+    faena: "Central Eléctrica Angamos — AES Andes",
+    alcanceIntroduccion: "La oferta consiste en el traslado de 06 rollos nuevos.",
+    alcanceActividades: ["Traslado de 06 rollos desde bodega", "Maniobras de izaje"],
+    alcanceTrabajosPrevios: ["Posicionamiento de grúa"],
+    // No aplica: queda vacía y nombrada en omitidas.
+    metodologiaAntes: [],
+    metodologiaDurante: [],
+    especificaciones: [],
+    condicionesComerciales: ["La validez de esta oferta es de 21 días."],
+    aportesPertec: ["Equipos móviles"],
+    aportesCliente: ["Accesos habilitados"],
+    cierreTexto: "Quedamos atentos.",
+    firmantes: [{ nombre: "Alex Oliva", cargo: "Gerente", empresa: "" }],
+    cierreCc: "",
+    anexoRespaldos: [],
+    anexoMandantes: [],
+    anexoNotaEquipo: "",
+    porConfirmar: ["La tabla de identificación no trae copia."],
+    omitidas: ["Metodología: el servicio no tiene detención de planta"],
+  };
+}
+
+/** Los números: los tres cuadros sobre los que el servidor calcula. */
+function numerosOS10(): LecturaNumeros {
+  return {
+    personalEspecialista: [],
+    cuadroPersonal: [
+      { cargo: "Planificador logístico", dotacion: 1, regimen: "Turno de día — 10 h" },
+      { cargo: "Supervisor", dotacion: 1, regimen: "Turno de día — 10 h" },
+      { cargo: "Especialista vulcanizador", dotacion: 3, regimen: "Turno de día — 10 h" },
+    ],
+    responsabilidades: [{ cargo: "Supervisor", descripcion: "1. Turno de día, 10 horas." }],
+    organizacionNota: "El servicio se ejecuta con una cuadrilla en 01 turno.",
+    programaIntroduccion: "",
+    turnos: [{ turno: "T1", jornada: "Día 1 — día", horas: 10 }],
+    programaNota: "",
+    lineasPrecio: [
+      {
+        cantidad: 1,
+        cargo: "Traslado de rollos desde bodega a CT-6 y CT-7",
+        unidad: "Global",
+        valorUnitario: 15_885_200,
+        valorTotalImpreso: 15_885_200,
+      },
+    ],
+    totalNetoImpreso: 15_885_200,
+    precioNota: "Valores en pesos chilenos, netos.",
+    porConfirmar: [],
+  };
+}
+
+const armada = armarOferta(letraOS10(), numerosOS10());
+
+// Lo que el servidor calcula tiene que salir igual que con la estructura escrita a
+// mano: es la misma oferta por otro camino.
+const totalesArmada = calcularTotales(armada);
+assert.equal(totalesArmada.dotacionTotal, 5, "la dotación sale del cuadro, sumada por el servidor");
+assert.equal(totalesArmada.horasPrograma, 10);
+assert.equal(totalesArmada.totalNetoCalculado, 15_885_200);
+assert.deepEqual(
+  detectarInconsistencias(armada, totalesArmada, "OS 010-2026.pdf").filter((a) => a.origen === "aritmetica"),
+  [],
+  "una oferta bien transcrita no tiene que dar ningún aviso de aritmética",
+);
+
+// Las secciones vacías no aplican: vuelven a null, que es lo que la maqueta espera.
+assert.equal(armada.metodologia, null, "una sección vacía no aplica");
+assert.equal(armada.especificaciones, null);
+assert.equal(armada.anexo, null);
+assert.ok(armada.alcance && armada.precio && armada.organizacion, "y las que tienen datos quedan");
+
+// El blanco vuelve a null, no a la palabra "" dando vueltas por el documento.
+assert.equal(armada.identificacion.copia, null);
+assert.equal(armada.cierre?.firmantes[0].empresa, null);
+
+// El motivo de una sección omitida viene en una sola frase, para no agregar un
+// objeto más al esquema: se parte acá.
+assert.deepEqual(armada.omitidas, [
+  { seccion: "Metodología", motivo: "el servicio no tiene detención de planta" },
+]);
+
+// Los porConfirmar de las dos lecturas se juntan sin repetidos.
+const dosVeces = armarOferta(
+  { ...letraOS10(), porConfirmar: ["Falta la fecha"] },
+  { ...numerosOS10(), porConfirmar: ["Falta la fecha", "El precio no trae unidad"] },
+);
+assert.deepEqual(dosVeces.porConfirmar, ["Falta la fecha", "El precio no trae unidad"]);
 
 // Un total en 0 es "no está impreso", no un total de cero pesos: tratarlo como
-// impreso daría el aviso falso "el TOTAL NETO impreso es $0 y la suma da $15.885.200".
-const conCeros = normalizarLectura({
-  ...os10(),
-  precio: {
-    lineas: [{ cantidad: 1, cargo: "Global", unidad: "Global", valorUnitario: 500, valorTotalImpreso: 0 }],
-    totalNetoImpreso: 0,
-    nota: "",
-  },
+// impreso daría el aviso falso "el documento imprime $ 0 pero 1 × $ 15.885.200 da
+// $ 15.885.200".
+const conCeros = armarOferta(letraOS10(), {
+  ...numerosOS10(),
+  totalNetoImpreso: 0,
+  lineasPrecio: [{ ...numerosOS10().lineasPrecio[0], valorTotalImpreso: 0 }],
 });
 assert.equal(conCeros.precio?.totalNetoImpreso, null);
 assert.equal(conCeros.precio?.lineas[0].valorTotalImpreso, null);
-const avisosCeros = detectarInconsistencias(conCeros, calcularTotales(conCeros), "os10.docx");
+const avisosCeros = detectarInconsistencias(conCeros, calcularTotales(conCeros), "os10.pdf");
 assert.ok(
-  !avisosCeros.some((a) => /impreso es \$ 0/.test(a.detalle)),
+  !avisosCeros.some((a) => /imprime \$ 0/.test(a.detalle)),
   "no se compara contra un total que no existe",
 );
-assert.ok(avisosCeros.some((a) => a.tipo === "falta_dato" && /TOTAL NETO/.test(a.detalle)));
+assert.ok(
+  avisosCeros.some((a) => a.tipo === "falta_dato" && /TOTAL NETO/.test(a.detalle)),
+  "y sí se avisa que no hay total impreso contra el que verificar",
+);
+
+// Un borrador sin tabla de precios: listas vacías, y la sección no existe.
+const sinPrecio = armarOferta(letraOS10(), {
+  ...numerosOS10(),
+  lineasPrecio: [],
+  totalNetoImpreso: 0,
+  precioNota: "",
+});
+assert.equal(sinPrecio.precio, null, "sin líneas y sin nota, la sección de precio no aplica");
+assert.equal(calcularTotales(sinPrecio).totalNetoCalculado, 0);
+
+// Y la maqueta imprime lo armado sin rastros del formato plano.
+const htmlArmada = ofertaAHtml(armada, totalesArmada, EMPRESA_DE_PRUEBA);
+assert.ok(!htmlArmada.includes("undefined") && !htmlArmada.includes("[object"));
+assert.ok(htmlArmada.includes("AXINNTUS"), "y sí lo que se transcribió");
 
 // ── Una oferta a la que le FALTAN claves, no que las tenga en null ───────────
 //
@@ -500,11 +602,12 @@ Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango e
 inyección de CSS por color, por fuente y por rótulo. Más los logos: solo pasa un
 PNG en base64, y lo que no pasa deja el encabezado en texto.
 
-El esquema de salida no admite campos nullables ni opcionales, así que "no está en
-el documento" se dice con un valor vacío: probado que un token en blanco cae al de
-PERTEC sin figurar como inválido, que una sección vacía vuelve a null, que un total
-en 0 es "no impreso" y no un total de cero pesos, y que una clave ausente no
-imprime "undefined" ni inventa avisos. Y las subidas: una
+El esquema de salida tiene que ser chico y plano —la API rechaza gramáticas
+grandes— así que la lectura va en dos partes, la letra y los números, y la
+estructura la arma el servidor. Probada esa costura: la misma OS 010-2026 armada
+desde las dos lecturas planas da los mismos totales y ningún aviso, una sección
+vacía vuelve a null, el blanco vuelve a null, los porConfirmar de las dos partes se
+juntan sin repetidos, y un total en 0 es "no impreso" y no un total de cero pesos. Y las subidas: una
 página de login, un 413 y un 504 salen con su causa nombrada, no con el error del
 parser de JSON.
 
