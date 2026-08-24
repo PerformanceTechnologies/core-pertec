@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
       "./node_modules/@sparticuz/chromium-min/**/*",
     ],
     "/api/cron/finanzas-historico": ["./node_modules/pdf-parse/**/*"],
+    // La lectura de un borrador en PDF extrae el texto con pdf-parse en vez de
+    // mandar una imagen por pagina, asi que necesita los mismos archivos.
+    "/api/ofertas/analizar": ["./node_modules/pdf-parse/**/*"],
     // Las claves son route globs (picomatch) contra el pathname, no rutas de
     // archivo -- un segmento dinamico como [id] hay que escaparlo (\\[id\\])
     // o picomatch lo interpreta como una clase de caracteres del glob y la

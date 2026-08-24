@@ -10,6 +10,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { extraerTexto } from "../lib/cotizador/obra/extraer-texto";
@@ -150,6 +151,33 @@ Extracción — misma oferta OS 010-2026 en tres formatos
 
   Excel   ${excel.length} caracteres  ≈ ${aprox(excel)} tokens
   Word    ${word.length} caracteres  ≈ ${aprox(word)} tokens
-  PDF     11 páginas → ~3.500 tokens de texto + una imagen por página (~20.000 en total)
+  PDF     leído como TEXTO con pdf-parse: la misma oferta baja de ~20.000 tokens
+          (una imagen por página) a ~1.500. Un PDF escaneado no tiene texto y ahí
+          sí va como imagen — lo decide lib/ofertas/leer.ts por caracteres/página.
 `);
 console.log("Todas las verificaciones pasaron.");
+
+// ── El PDF, leído como texto ─────────────────────────────────────────────────
+//
+// Un borrador en PDF se manda como TEXTO y no como documento: como documento, la
+// API procesa una imagen por página y esa entrada enorme dejaba al modelo sin
+// techo de salida, con la lectura cortada. Acá se comprueba con un PDF de verdad
+// —generado con la misma plantilla que imprime el sistema— que el texto sale, que
+// las cifras sobreviven y que el volumen es el que se espera.
+const pdfDePrueba = process.env.PDF_DE_PRUEBA;
+if (pdfDePrueba) {
+  const { extraerTextoDePdf } = await import("../lib/cotizador/obra/extraer-texto");
+  const { texto, paginas } = await extraerTextoDePdf(readFileSync(pdfDePrueba));
+  const porPagina = Math.round(texto.length / paginas);
+
+  assert.ok(paginas > 0, "pdf-parse tiene que reportar las páginas");
+  assert.ok(porPagina > 150, `una página con datos tiene más de 150 caracteres, tuvo ${porPagina}`);
+  assert.ok(texto.includes("15.885.200"), "las cifras de la tabla de precios sobreviven");
+  assert.ok(texto.includes("TOTAL NETO"), "y el rótulo del total también");
+  console.log(
+    `  PDF real  ${paginas} páginas → ${texto.length} caracteres ` +
+      `(~${Math.round(texto.length / 4)} tokens, ${porPagina} por página)`,
+  );
+} else {
+  console.log("  PDF real  omitido (definí PDF_DE_PRUEBA con la ruta de un PDF para ejercitarlo)");
+}

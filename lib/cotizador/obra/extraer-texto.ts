@@ -1,4 +1,5 @@
 import "server-only";
+import pdfParse from "pdf-parse";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
@@ -7,11 +8,20 @@ import type { FormatoPropuesta } from "./formatos";
 /**
  * De un archivo de oferta al texto que se le manda al modelo.
  *
- * Un PDF NO pasa por acá: se manda como documento y la API lo procesa entera —
- * texto más una imagen de cada página. Eso es lo correcto para un PDF, donde la
- * tabla está dibujada y hay que verla, pero cuesta caro: las 11 páginas de la
- * OS-10 son ~20.000 tokens de entrada, y el 85% son las imágenes de la portada,
- * el índice y el anexo de fotos.
+ * Un PDF puede ir de dos formas y la diferencia es de dos órdenes de magnitud.
+ * Como documento, la API lo procesa entero —texto MÁS una imagen de cada página—
+ * y las 11 páginas de la OS-10 son ~20.000 tokens de entrada, de los cuales el
+ * 85% son las imágenes de la portada, el índice y el anexo de fotos: páginas que
+ * no tienen ningún dato. Como texto extraído acá, la misma oferta son ~1.500.
+ *
+ * Y eso no es solo ahorro: esa entrada enorme era la que hacía que el modelo se
+ * quedara sin techo de salida y la lectura saliera cortada a la mitad.
+ *
+ * Lo que se pierde es la disposición: en un PDF las columnas de una tabla vienen
+ * pegadas ("ÍTCANTCARGOUNV. UNITV. TOTAL") y hay que inferirlas por el orden. El
+ * modelo lo hace bien y las instrucciones lo advierten; y para el caso donde el
+ * texto no existe —un PDF escaneado, que es una foto— quien llama decide mandarlo
+ * como documento (ver lib/ofertas/leer.ts).
  *
  * Un Excel y un Word no tienen páginas que rasterizar, y la API tampoco los
  * acepta como documento —los tipos son PDF, texto plano y bloques de contenido—,
@@ -28,6 +38,17 @@ import type { FormatoPropuesta } from "./formatos";
  * calcular del servidor (ver ./importar.ts). Si esta función decidiera qué filas
  * importan, un formato distinto al esperado perdería datos en silencio.
  */
+
+/**
+ * PDF → texto, con la cantidad de páginas.
+ *
+ * Las páginas sirven para decidir si el texto alcanza: un PDF escaneado devuelve
+ * casi nada por página y ahí hay que mirarlo, no leerlo.
+ */
+export async function extraerTextoDePdf(buffer: Buffer): Promise<{ texto: string; paginas: number }> {
+  const resultado = await pdfParse(buffer);
+  return { texto: resultado.text.trim(), paginas: resultado.numpages };
+}
 
 /**
  * Excel → texto.

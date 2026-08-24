@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { extraerTexto } from "@/lib/cotizador/obra/extraer-texto";
+import { extraerTexto, extraerTextoDePdf } from "@/lib/cotizador/obra/extraer-texto";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
 import type { OfertaCanonica } from "./tipos";
 import { armarOferta, type LecturaLetra, type LecturaNumeros } from "./normalizar";
@@ -35,6 +35,15 @@ import { armarOferta, type LecturaLetra, type LecturaNumeros } from "./normaliza
  * tiempo sin motivo, y el tiempo es lo que corta la función. Armar la estructura
  * con las dos partes es trabajo de ./normalizar.ts.
  */
+
+/**
+ * Cuántos caracteres de texto por página hacen que un PDF valga la pena leer.
+ *
+ * Una página de oferta con datos tiene más de mil. Una escaneada —que es una
+ * foto— devuelve casi cero, y ahí no hay nada que leer: hay que mirarla, así que
+ * ese PDF sí va como documento aunque cueste diez veces más.
+ */
+const MINIMO_TEXTO_POR_PAGINA = 150;
 
 function cliente(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -234,6 +243,11 @@ de precios. La parte narrativa la lee otra pasada; no la transcribas acá.
   cabecera es "Ítem | Cargo | Unidad | Precio"— la cantidad de cada línea es 1: el total de la línea es
   su precio. No pongas 0, porque 0 haría que el sistema calcule un total de cero pesos para una oferta
   de cien millones.
+- SI EL BORRADOR VINO DE UN PDF, las tablas llegan aplastadas: la cabecera aparece como una sola
+  palabra ("ÍTCANTCARGOUNV. UNITV. TOTAL") y los valores de cada fila vienen seguidos, en el mismo
+  orden que esa cabecera. Reconstruí las columnas por el orden y por lo que es cada dato: un monto con
+  "$" es un precio, "Global" o "Día" es la unidad. Si una celda estaba vacía en el documento, en el
+  texto simplemente no aparece nada entre dos valores — no corras los datos de columna para llenarla.
 - Los montos van sin puntos, sin espacios y sin símbolo de moneda: 15885200. Un precio en blanco va en
   0 y se nombra en "porConfirmar"; un precio impreso como "$ 0.-" también va en 0, y ahí decilo:
   probablemente está pendiente de confirmar.
@@ -310,31 +324,55 @@ export async function leerBorrador(
     );
   }
 
-  // El PDF va como documento —la API lo procesa entero, texto más una imagen por
-  // página— porque su maqueta está dibujada. Word y Excel van como texto: no
-  // tienen páginas que rasterizar y cuestan dos órdenes de magnitud menos
-  // (ver lib/cotizador/obra/extraer-texto.ts).
+  // Un PDF se lee como TEXTO, no como documento. Mandarlo como documento hace que
+  // la API procese una imagen por página —el 85% de los tokens en páginas sin un
+  // solo dato: portada, índice, anexo de fotos— y esa entrada enorme era la que
+  // dejaba al modelo sin techo de salida, con la lectura cortada a la mitad. La
+  // misma oferta como texto son ~1.500 tokens en vez de ~20.000.
   //
-  // Con cache_control, la segunda lectura del mismo documento no vuelve a pagar la
-  // entrada si llega dentro de la ventana de caché.
-  const contenido: Anthropic.ContentBlockParam[] =
-    formato === "pdf"
-      ? [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: archivo.toString("base64") },
-            cache_control: { type: "ephemeral" },
-          },
-        ]
-      : [
-          {
-            type: "text",
-            text: `Contenido del borrador, extraído de un ${
-              formato === "excel" ? "archivo de Excel" : "documento de Word"
-            }:\n\n${await extraerTexto(archivo, formato, nombreArchivo)}`,
-            cache_control: { type: "ephemeral" },
-          },
-        ];
+  // Con una excepción: un PDF escaneado no tiene texto que extraer. Ahí sí va como
+  // documento, porque hay que mirarlo.
+  //
+  // Word y Excel nunca fueron documento: la API no los acepta como tal, y no
+  // tienen páginas que rasterizar.
+  let contenido: Anthropic.ContentBlockParam[];
+
+  if (formato === "pdf") {
+    const { texto, paginas } = await extraerTextoDePdf(archivo);
+    const porPagina = paginas > 0 ? texto.length / paginas : 0;
+
+    contenido =
+      porPagina >= MINIMO_TEXTO_POR_PAGINA
+        ? [
+            {
+              type: "text",
+              text:
+                `Contenido del borrador, extraído de un PDF de ${paginas} página(s). OJO: en un PDF ` +
+                `el texto sale sin la disposición de la página, así que las columnas de una tabla ` +
+                `vienen pegadas en la cabecera —por ejemplo "ÍTCANTCARGOUNV. UNITV. TOTAL"— y los ` +
+                `valores de cada fila siguen en ESE mismo orden. Es una tabla, leela como tabla.\n\n` +
+                texto,
+              cache_control: { type: "ephemeral" },
+            },
+          ]
+        : [
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: archivo.toString("base64") },
+              cache_control: { type: "ephemeral" },
+            },
+          ];
+  } else {
+    contenido = [
+      {
+        type: "text",
+        text: `Contenido del borrador, extraído de un ${
+          formato === "excel" ? "archivo de Excel" : "documento de Word"
+        }:\n\n${await extraerTexto(archivo, formato, nombreArchivo)}`,
+        cache_control: { type: "ephemeral" },
+      },
+    ];
+  }
 
   // En paralelo: son dos lecturas independientes del mismo documento y el tiempo
   // total de la función es lo que limita. En serie tardaría el doble sin ganar
