@@ -5,7 +5,7 @@ import { listarMaestros } from "@/lib/ofertas/maestros";
 import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import { urlFirmadaLogo } from "@/lib/ofertas/logos-archivo";
 import { urlFirmadaImagen } from "@/lib/ofertas/imagenes";
-import ImagenesDelBorrador from "@/components/ofertas/ImagenesDelBorrador";
+import ImagenesDeLaOferta from "@/components/ofertas/ImagenesDeLaOferta";
 import SubirLogo from "@/components/ofertas/SubirLogo";
 import { asignarMaestroAction, elegirImagenesAction } from "../acciones";
 
@@ -142,7 +142,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         />
       </div>
 
-      <ImagenesDelBorrador
+      <ImagenesDeLaOferta
         ofertaId={oferta.id}
         imagenes={oferta.imagenes}
         urls={urlsImagenes}

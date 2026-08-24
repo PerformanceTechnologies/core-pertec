@@ -1,6 +1,7 @@
 import { verificarAccesoOfertasApi, obtenerOferta } from "@/lib/ofertas/datos";
 import { ofertaAHtmlConEmpresa } from "@/lib/ofertas/pdf";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
+import { conElRepartoDe } from "@/lib/ofertas/normalizar";
 
 export const runtime = "nodejs";
 // No levanta Chromium: arma el HTML y baja los logos y las fotos del borrador.
@@ -39,10 +40,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const cuerpo = (await request.json().catch(() => null)) as { contenido?: OfertaCanonica } | null;
   // Sin contenido en el cuerpo se dibuja lo guardado: así la vista sirve también
   // recién abierta la pantalla, antes de tocar nada.
-  const contenido = cuerpo?.contenido ?? oferta.contenido;
-  if (typeof contenido !== "object" || contenido === null) {
+  const enviado = cuerpo?.contenido ?? oferta.contenido;
+  if (typeof enviado !== "object" || enviado === null) {
     return new Response("El contenido de la oferta no es válido.", { status: 400 });
   }
+  // El reparto de imágenes sale de lo guardado, no de lo que manda el editor: esa
+  // copia puede ser anterior a la última vez que se aplicaron las imágenes, y
+  // entonces la vista saldría sin las fotos que la pantalla de al lado acaba de
+  // poner. Misma regla que al guardar (ver `conElRepartoDe`).
+  const contenido = conElRepartoDe(enviado, oferta.contenido);
 
   try {
     const html = await ofertaAHtmlConEmpresa(

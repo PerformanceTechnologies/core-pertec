@@ -6,6 +6,7 @@ import { calcularTotales, detectarInconsistencias } from "./verificar";
 import type { Inconsistencia, OfertaCanonica, SeccionConImagenes } from "./tipos";
 import type { Empresa } from "@/lib/cotizador/empresas";
 import type { ImagenGuardada } from "./imagenes";
+import { sinLaImagen } from "./normalizar";
 
 /**
  * Las ofertas guardadas.
@@ -211,6 +212,61 @@ export async function guardarContenido(
 
   if (error) throw new Error(`No se pudo guardar la oferta: ${error.message}`);
   return inconsistencias;
+}
+
+/**
+ * Suma al inventario las imágenes que alguien subió a mano.
+ *
+ * El inventario dice qué imágenes TIENE la oferta; dónde va cada una lo dice el
+ * contenido (`imagenesPorSeccion`). Por eso una imagen recién subida no aparece en
+ * el documento hasta que se le elige una sección: agregarla y ubicarla son dos
+ * decisiones distintas, y meterla sola en alguna parte sería adivinar.
+ */
+export async function agregarImagenesAlInventario(
+  id: string,
+  nuevas: ImagenGuardada[],
+): Promise<ImagenGuardada[]> {
+  const oferta = await obtenerOferta(id);
+  if (!oferta) throw new Error("La oferta no existe.");
+
+  const inventario = [...oferta.imagenes, ...nuevas];
+  const { error } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .update({ imagenes: inventario, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw new Error(`No se pudieron guardar las imágenes: ${error.message}`);
+  return inventario;
+}
+
+/**
+ * Saca una imagen del inventario y de donde estuviera puesta.
+ *
+ * Las dos cosas juntas, porque son la misma: una imagen que ya no existe pero sigue
+ * nombrada en `imagenesPorSeccion` es un número que no dibuja nada, y como firma
+ * dejaría el bloque de firma con un hueco reservado y vacío.
+ *
+ * Devuelve la que sacó, para que quien llama borre el archivo DESPUÉS de que la
+ * fila quedó guardada: al revés, un fallo al guardar dejaría el inventario
+ * apuntando a un archivo que ya no está.
+ */
+export async function quitarImagenDelInventario(id: string, indice: number): Promise<ImagenGuardada | null> {
+  const oferta = await obtenerOferta(id);
+  if (!oferta) return null;
+
+  const imagen = oferta.imagenes.find((i) => i.indice === indice);
+  if (!imagen) return null;
+
+  const inventario = oferta.imagenes.filter((i) => i.indice !== indice);
+  const contenido = sinLaImagen(oferta.contenido, indice);
+
+  const { error } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .update({ imagenes: inventario, contenido, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw new Error(`No se pudo quitar la imagen: ${error.message}`);
+  return imagen;
 }
 
 /** Cambia el maestro con que se imprime una oferta. */

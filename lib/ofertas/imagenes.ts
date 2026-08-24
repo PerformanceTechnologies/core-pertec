@@ -41,6 +41,14 @@ export interface ImagenGuardada {
   nombre: string;
   ancho: number;
   alto: number;
+  /**
+   * De dónde salió.
+   *
+   * Falta en las ofertas anteriores a que se pudieran agregar imágenes a mano, y
+   * ahí "sin origen" quiere decir "del borrador": es lo único que había. Importa
+   * para una sola cosa, y está explicada en `borrarImagen`.
+   */
+  origen?: "borrador" | "subida";
 }
 
 /**
@@ -52,53 +60,105 @@ export interface ImagenGuardada {
  * EXIF con GPS— y una imagen que sharp no puede abrir se omite sin cortar la
  * subida: el borrador vale más que una de sus imágenes.
  */
+async function normalizarYSubir(
+  imagen: ImagenExtraida,
+  origen: "borrador" | "subida",
+): Promise<ImagenGuardada> {
+  const original = sharp(imagen.contenido, { failOn: "error" });
+  const info = await original.metadata();
+  const ancho = info.width ?? 0;
+  const alto = info.height ?? 0;
+
+  const escalada = original.resize({
+    width: LADO_MAXIMO,
+    height: LADO_MAXIMO,
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+  const conAlfa = info.hasAlpha === true;
+  const contenido = conAlfa
+    ? await escalada.png({ compressionLevel: 9 }).toBuffer()
+    : await escalada.jpeg({ quality: 78, mozjpeg: true }).toBuffer();
+
+  const extension = conAlfa ? "png" : "jpg";
+  const ruta = `${randomUUID()}.${extension}`;
+  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, {
+    contentType: conAlfa ? "image/png" : "image/jpeg",
+    upsert: false,
+  });
+  if (error) throw new Error(`no se pudo guardar en el bucket: ${error.message}`);
+
+  const final = await sharp(contenido).metadata();
+  return {
+    indice: imagen.indice,
+    ruta,
+    nombre: imagen.nombre,
+    ancho: final.width ?? ancho,
+    alto: final.height ?? alto,
+    origen,
+  };
+}
+
 export async function guardarImagenesDelBorrador(imagenes: ImagenExtraida[]): Promise<ImagenGuardada[]> {
   const guardadas: ImagenGuardada[] = [];
 
   for (const imagen of imagenes) {
     try {
-      const original = sharp(imagen.contenido, { failOn: "error" });
-      const info = await original.metadata();
+      const info = await sharp(imagen.contenido, { failOn: "error" }).metadata();
       const ancho = info.width ?? 0;
       const alto = info.height ?? 0;
       if (ancho < LADO_MINIMO && alto < LADO_MINIMO) continue;
-
-      const escalada = original.resize({
-        width: LADO_MAXIMO,
-        height: LADO_MAXIMO,
-        fit: "inside",
-        withoutEnlargement: true,
-      });
-      const conAlfa = info.hasAlpha === true;
-      const contenido = conAlfa
-        ? await escalada.png({ compressionLevel: 9 }).toBuffer()
-        : await escalada.jpeg({ quality: 78, mozjpeg: true }).toBuffer();
-
-      const extension = conAlfa ? "png" : "jpg";
-      const ruta = `${randomUUID()}.${extension}`;
-      const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, {
-        contentType: conAlfa ? "image/png" : "image/jpeg",
-        upsert: false,
-      });
-      if (error) {
-        console.warn(`[ofertas] no se pudo guardar ${imagen.nombre}: ${error.message}`);
-        continue;
-      }
-
-      const final = await sharp(contenido).metadata();
-      guardadas.push({
-        indice: imagen.indice,
-        ruta,
-        nombre: imagen.nombre,
-        ancho: final.width ?? ancho,
-        alto: final.height ?? alto,
-      });
+      guardadas.push(await normalizarYSubir(imagen, "borrador"));
     } catch (error) {
+      // Una imagen que no se pudo abrir se omite sin cortar la subida: el borrador
+      // vale más que una de sus imágenes.
       console.warn(`[ofertas] la imagen ${imagen.nombre} no se pudo procesar:`, error);
     }
   }
 
   return guardadas;
+}
+
+/**
+ * El número que le toca a la próxima imagen de una oferta.
+ *
+ * Continúa la numeración del borrador en vez de rellenar huecos: el índice es la
+ * identidad de la imagen —lo que guarda `imagenesPorSeccion` y `firmaImagen`— así
+ * que reusar el de una borrada haría que la nueva aparezca donde estaba la otra.
+ * Y arranca en 1 porque el 0 significa "ninguna es la firma".
+ */
+export function proximoIndice(inventario: ImagenGuardada[]): number {
+  return inventario.reduce((mayor, imagen) => Math.max(mayor, imagen.indice), 0) + 1;
+}
+
+/**
+ * Agrega al inventario una imagen que alguien subió a mano.
+ *
+ * Dos diferencias con las del borrador, y las dos son la misma idea: acá hubo una
+ * decisión de una persona, así que el sistema no la corrige por su cuenta. No se
+ * descarta por chica —una firma escaneada o un sello miden poco y son exactamente
+ * lo que alguien querría agregar— y si no se puede procesar, se avisa en vez de
+ * omitirla en silencio.
+ */
+export async function agregarImagenSubida(
+  inventario: ImagenGuardada[],
+  nombre: string,
+  contenido: Buffer,
+): Promise<ImagenGuardada> {
+  return normalizarYSubir({ indice: proximoIndice(inventario), nombre, contenido }, "subida");
+}
+
+/**
+ * Saca una imagen del bucket. Devuelve si estaba.
+ *
+ * Solo se ofrece para las que se subieron a mano, y no por capricho: el inventario
+ * del borrador es el registro de lo que traía el archivo original, y borrar una de
+ * ahí pierde ese rastro. Para no usarla ya está "No usar", que es lo que hace falta.
+ * Una subida por error, en cambio, no es rastro de nada.
+ */
+export async function borrarImagen(imagen: ImagenGuardada): Promise<void> {
+  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([imagen.ruta]);
+  if (error) console.warn(`[ofertas] quedó una imagen sin borrar: ${error.message}`);
 }
 
 /** Borra las imágenes de una oferta que se elimina. */

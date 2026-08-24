@@ -304,3 +304,57 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
     }),
   };
 }
+
+/**
+ * El contenido sin una imagen: la saca de su sección, de su epígrafe y de la firma.
+ *
+ * Las tres cosas juntas, porque son la misma. Una imagen que ya no existe pero sigue
+ * nombrada en `imagenesPorSeccion` es un número que no dibuja nada; y como firma
+ * dejaría el bloque de cierre con el hueco de la rúbrica reservado y vacío, que es
+ * peor que no tener firma. Una sección que se queda sin ninguna imagen desaparece
+ * del reparto en vez de quedar como una lista vacía.
+ *
+ * Va acá y no en `imagenes.ts` para poder probarlo: aquel módulo habla con el bucket
+ * y esto es una función del contenido.
+ */
+export function sinLaImagen(contenido: OfertaCanonica, indice: number): OfertaCanonica {
+  const porSeccion: Partial<Record<SeccionConImagenes, number[]>> = {};
+  for (const [seccion, indices] of Object.entries(contenido.imagenesPorSeccion ?? {})) {
+    const quedan = (indices ?? []).filter((n) => n !== indice);
+    if (quedan.length > 0) porSeccion[seccion as SeccionConImagenes] = quedan;
+  }
+
+  const epigrafes = { ...(contenido.epigrafesDeImagenes ?? {}) };
+  delete epigrafes[indice];
+
+  const cierre = contenido.cierre;
+  return {
+    ...contenido,
+    imagenesPorSeccion: porSeccion,
+    epigrafesDeImagenes: epigrafes,
+    cierre: cierre && cierre.firmaImagen === indice ? { ...cierre, firmaImagen: null } : cierre,
+  };
+}
+
+/**
+ * El contenido que se está guardando, con el reparto de imágenes que hay guardado.
+ *
+ * Dos pantallas escriben sobre la misma oferta y cada una es dueña de una parte: el
+ * editor manda el texto y los montos; el panel de imágenes manda en qué sección va
+ * cada una y cuál es la firma. El editor, sin embargo, guarda el contenido ENTERO,
+ * así que sin esto pasaba lo siguiente: se aplican las imágenes, se corrige un
+ * párrafo, se guarda — y el reparto vuelve al que había cuando se abrió la pantalla,
+ * porque esa copia se cargó antes. Las fotos desaparecían del documento sin que
+ * nadie las tocara.
+ *
+ * La regla es que cada quien guarda lo suyo. Los epígrafes no están acá a propósito:
+ * esos SÍ se editan en el documento.
+ */
+export function conElRepartoDe(nuevo: OfertaCanonica, guardado: OfertaCanonica): OfertaCanonica {
+  const firma = guardado.cierre?.firmaImagen ?? null;
+  return {
+    ...nuevo,
+    imagenesPorSeccion: guardado.imagenesPorSeccion ?? {},
+    cierre: nuevo.cierre ? { ...nuevo.cierre, firmaImagen: firma } : nuevo.cierre,
+  };
+}

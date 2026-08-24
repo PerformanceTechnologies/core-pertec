@@ -11,9 +11,16 @@ import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { imagenSegura, logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
-import { armarOferta, type LecturaLetra, type LecturaNumeros } from "../lib/ofertas/normalizar";
+import {
+  armarOferta,
+  conElRepartoDe,
+  sinLaImagen,
+  type LecturaLetra,
+  type LecturaNumeros,
+} from "../lib/ofertas/normalizar";
 import { cuerpoDeTabla, ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
 import { asignarEnRuta, leerEnRuta, numeroDesdeTexto } from "../lib/ofertas/rutas";
+import { proximoIndice } from "../lib/ofertas/imagenes";
 
 /** La OS 010-2026 real, bien transcrita. */
 function os10(): OfertaCanonica {
@@ -980,6 +987,61 @@ await assert.rejects(() => leerRespuesta(new Response("kaboom", { status: 500 })
 assert.equal(avisoDeTamano(new File([new Uint8Array(1024)], "chico.pdf")), null);
 const grande = avisoDeTamano(new File([new Uint8Array(5 * 1024 * 1024)], "grande.pdf"));
 assert.ok(grande?.includes("grande.pdf") && grande.includes("5,0 MB"), grande ?? "sin aviso");
+
+// ── Agregar y quitar imágenes ───────────────────────────────────────────────
+//
+// El índice de una imagen es su identidad: es lo que guardan `imagenesPorSeccion`
+// y `firmaImagen`. Por eso la numeración CONTINÚA y no rellena huecos — si una
+// subida nueva reusara el número de una borrada, aparecería en la sección de la
+// otra, que es un error que nadie relacionaría con haber subido una foto.
+assert.equal(proximoIndice([]), 1, "el 0 significa 'ninguna es la firma': se arranca en 1");
+assert.equal(proximoIndice([{ indice: 3, ruta: "a", nombre: "a", ancho: 10, alto: 10 }]), 4);
+assert.equal(
+  proximoIndice([
+    { indice: 7, ruta: "a", nombre: "a", ancho: 10, alto: 10, origen: "borrador" },
+    { indice: 2, ruta: "b", nombre: "b", ancho: 10, alto: 10, origen: "subida" },
+  ]),
+  8,
+  "continúa desde el mayor, no desde la cantidad",
+);
+
+// Y al quitarla, la imagen se va de TODOS lados. Una que ya no existe pero sigue
+// nombrada es un número que no dibuja nada; y como firma deja el bloque de cierre
+// con el hueco de la rúbrica reservado y vacío, peor que no tener firma.
+const conImagenesPuestas = os10();
+conImagenesPuestas.imagenesPorSeccion = { metodologia: [3], anexo: [4, 5] };
+conImagenesPuestas.epigrafesDeImagenes = { 4: "Faena Angamos", 5: "Izaje" };
+conImagenesPuestas.cierre!.firmaImagen = 4;
+
+const sinLa4 = sinLaImagen(conImagenesPuestas, 4);
+assert.deepEqual(sinLa4.imagenesPorSeccion, { metodologia: [3], anexo: [5] });
+assert.deepEqual(sinLa4.epigrafesDeImagenes, { 5: "Izaje" }, "su epígrafe se va con ella");
+assert.equal(sinLa4.cierre?.firmaImagen, null, "y deja de ser la firma");
+assert.equal(conImagenesPuestas.imagenesPorSeccion?.anexo?.length, 2, "sin tocar el original");
+
+// La sección que se queda sin ninguna desaparece del reparto, en vez de quedar como
+// una lista vacía que el documento tendría que saber ignorar.
+const sinLa3 = sinLaImagen(conImagenesPuestas, 3);
+assert.deepEqual(sinLa3.imagenesPorSeccion, { anexo: [4, 5] }, "una sección vacía no queda colgando");
+assert.equal(sinLa3.cierre?.firmaImagen, 4, "y la firma de otra imagen no se toca");
+
+// Cada pantalla guarda lo suyo. El editor manda el contenido entero, pero el reparto
+// de imágenes lo decide el panel de imágenes: sin esto, aplicar las fotos y después
+// corregir un párrafo las hacía desaparecer del documento, porque la copia del editor
+// se había cargado antes.
+const editorViejo = os10();
+editorViejo.titulo = "Título corregido";
+editorViejo.imagenesPorSeccion = {};
+editorViejo.cierre!.firmaImagen = null;
+
+const enLaBase = os10();
+enLaBase.imagenesPorSeccion = { anexo: [4, 5] };
+enLaBase.cierre!.firmaImagen = 7;
+
+const guardado = conElRepartoDe(editorViejo, enLaBase);
+assert.equal(guardado.titulo, "Título corregido", "lo que el editor edita se guarda");
+assert.deepEqual(guardado.imagenesPorSeccion, { anexo: [4, 5] }, "y el reparto de imágenes no se pisa");
+assert.equal(guardado.cierre?.firmaImagen, 7, "ni la firma elegida");
 
 // ── El puente entre el papel y el dato ──────────────────────────────────────
 //

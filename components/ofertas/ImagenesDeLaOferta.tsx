@@ -1,8 +1,11 @@
 import { NOMBRE_DE_SECCION, SECCIONES_CON_IMAGENES, type SeccionConImagenes } from "@/lib/ofertas/tipos";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
+import SubirImagenes from "@/components/ofertas/SubirImagenes";
+import QuitarImagen from "@/components/ofertas/QuitarImagen";
 
 /**
- * Las imágenes que traía el borrador, para que la persona decida dónde va cada una.
+ * Las imágenes de una oferta: las que traía el borrador y las que se agreguen acá,
+ * para que la persona decida dónde va cada una.
  *
  * La elección del modelo es una propuesta: mira las medidas y el texto que rodeaba
  * al marcador, y con eso se equivoca. Omitió una foto "por no poder determinar con
@@ -15,8 +18,13 @@ import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
  * se elige la sección de cada una.
  *
  * Para decidir hay que VER, así que van las miniaturas y no una lista de números.
+ *
+ * Y lo que el borrador traía casi nunca es todo: una foto sacada después, un plano
+ * que llegó por correo, una firma escaneada. Por eso también se agregan acá, y
+ * conviven con las del archivo — la única diferencia es que una agregada se puede
+ * quitar y una del borrador no (ver QuitarImagen).
  */
-export default function ImagenesDelBorrador({
+export default function ImagenesDeLaOferta({
   ofertaId,
   imagenes,
   urls,
@@ -34,13 +42,17 @@ export default function ImagenesDelBorrador({
   editable: boolean;
   accion: (formData: FormData) => Promise<void>;
 }) {
-  if (imagenes.length === 0) return null;
+  // Sin imágenes el panel sigue existiendo, porque ahora es de donde se agregan. En
+  // una oferta emitida, en cambio, no hay nada que hacer con él.
+  if (imagenes.length === 0 && !editable) return null;
 
   /** En qué sección está una imagen hoy, o "" si no se usa. */
   const seccionDe = (indice: number): string =>
     SECCIONES_CON_IMAGENES.find((seccion) => (porSeccion[seccion] ?? []).includes(indice)) ?? "";
 
   const enUso = imagenes.filter((imagen) => seccionDe(imagen.indice) !== "").length;
+  const agregadas = imagenes.filter((imagen) => imagen.origen === "subida").length;
+  const delBorrador = imagenes.length - agregadas;
 
   return (
     <form action={accion} className="mt-6 rounded-xl border border-borde bg-crema/40 p-4">
@@ -48,17 +60,18 @@ export default function ImagenesDelBorrador({
 
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-condensed text-sm font-bold uppercase tracking-wide text-tinta">
-          Imágenes del borrador
+          Imágenes del documento
         </p>
         <p className="text-[11px] text-tinta/45">
-          {imagenes.length} encontrada{imagenes.length === 1 ? "" : "s"} · {enUso} en el documento
+          {delBorrador} del borrador
+          {agregadas > 0 && ` · ${agregadas} agregada${agregadas === 1 ? "" : "s"}`} · {enUso} en el documento
         </p>
       </div>
       <p className="mt-0.5 max-w-[85ch] text-[11px] text-pretty text-tinta/45">
         Cada imagen sale en la sección que elijas, donde estaba en el borrador: un diagrama del trabajo va en
         la metodología y las fotos de faena en el anexo. El sistema propuso una ubicación mirando el texto que
         la rodeaba y su tamaño; el logo y el membrete quedan sin sección a propósito, porque el encabezado ya
-        los pone.
+        los pone. Podés agregar las que falten: se suman sin sección, hasta que elijas dónde va cada una.
       </p>
 
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -101,21 +114,27 @@ export default function ImagenesDelBorrador({
                 <span className="text-[10px] tabular-nums text-tinta/40">
                   {imagen.ancho}×{imagen.alto} · nº {imagen.indice}
                 </span>
-                <label className="flex cursor-pointer items-center gap-1">
-                  <input
-                    type="radio"
-                    name="firma"
-                    value={imagen.indice}
-                    defaultChecked={firma === imagen.indice}
-                    disabled={!editable}
-                    className="h-3 w-3 accent-teal"
-                  />
-                  <span className="text-[10px] text-tinta/45">Firma</span>
-                </label>
+                <div className="flex items-center gap-2.5">
+                  {imagen.origen === "subida" && editable && (
+                    <QuitarImagen ofertaId={ofertaId} indice={imagen.indice} />
+                  )}
+                  <label className="flex cursor-pointer items-center gap-1">
+                    <input
+                      type="radio"
+                      name="firma"
+                      value={imagen.indice}
+                      defaultChecked={firma === imagen.indice}
+                      disabled={!editable}
+                      className="h-3 w-3 accent-teal"
+                    />
+                    <span className="text-[10px] text-tinta/45">Firma</span>
+                  </label>
+                </div>
               </div>
             </div>
           );
         })}
+        {editable && <SubirImagenes ofertaId={ofertaId} />}
       </div>
 
       {editable && (
