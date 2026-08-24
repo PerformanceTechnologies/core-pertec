@@ -54,6 +54,60 @@ export default function EditorOferta({
     return { totales: t, problemas: detectarInconsistencias(oferta, t, archivoOrigen ?? "") };
   }, [oferta, archivoOrigen]);
 
+  // Las filas nuevas nacen vacías a propósito: una fila con datos de ejemplo se
+  // emite tal cual si alguien no la completa, y eso ya pasó en otros formularios.
+  const filaPrecio = () => ({
+    cantidad: 1,
+    cargo: "",
+    unidad: "",
+    valorUnitario: 0,
+    valorTotalImpreso: null,
+  });
+  const filaDotacion = () => ({ cargo: "", dotacion: 1, regimen: null });
+  const filaTurno = () => ({ turno: "", jornada: "", horas: 0 });
+  const filaEspecificacion = () => ({ parametro: "", especificacion: "" });
+  const filaResponsabilidad = () => ({ cargo: "", descripcion: "" });
+  const filaFirmante = () => ({ nombre: "", cargo: "", empresa: null });
+
+  // Qué secciones no están en esta oferta y se pueden crear vacías.
+  const faltantes = [
+    {
+      titulo: "Precio del servicio",
+      falta: !oferta.precio,
+      crear: (b: OfertaCanonica) => {
+        b.precio = { lineas: [filaPrecio()], totalNetoImpreso: null, nota: null };
+      },
+    },
+    {
+      titulo: "Especificaciones técnicas",
+      falta: !oferta.especificaciones,
+      crear: (b: OfertaCanonica) => {
+        b.especificaciones = [filaEspecificacion()];
+      },
+    },
+    {
+      titulo: "Dotación y organización",
+      falta: !oferta.organizacion,
+      crear: (b: OfertaCanonica) => {
+        b.organizacion = { cuadroPersonal: [filaDotacion()], responsabilidades: [], nota: null };
+      },
+    },
+    {
+      titulo: "Programa y plazos",
+      falta: !oferta.programa,
+      crear: (b: OfertaCanonica) => {
+        b.programa = { introduccion: null, turnos: [filaTurno()], nota: null };
+      },
+    },
+    {
+      titulo: "Cierre y firma",
+      falta: !oferta.cierre,
+      crear: (b: OfertaCanonica) => {
+        b.cierre = { texto: null, firmantes: [filaFirmante()], cc: null, firmaImagen: null };
+      },
+    },
+  ].filter((seccion) => seccion.falta);
+
   const cambiar = (fn: (borrador: OfertaCanonica) => void) => {
     setOferta((previa) => {
       // Copia profunda: hay ediciones que tocan arrays anidados (las líneas de
@@ -209,21 +263,45 @@ export default function EditorOferta({
                       }
                     />
                   </div>
-                  <p className="mt-2 text-[11px] text-tinta/45">
-                    Total de la línea{" "}
-                    <span className="font-semibold tabular-nums text-tinta">
-                      {money(linea.cantidad * linea.valorUnitario)}
-                    </span>
-                    {linea.valorTotalImpreso != null && (
-                      <>
-                        {" · impreso en el borrador "}
-                        <span className="tabular-nums">{money(linea.valorTotalImpreso)}</span>
-                      </>
-                    )}
-                  </p>
+                  <div className="mt-2 flex items-end justify-between gap-2">
+                    <p className="text-[11px] text-tinta/45">
+                      Total de la línea{" "}
+                      <span className="font-semibold tabular-nums text-tinta">
+                        {money(linea.cantidad * linea.valorUnitario)}
+                      </span>
+                      {linea.valorTotalImpreso != null && (
+                        <>
+                          {" · impreso en el borrador "}
+                          <span className="tabular-nums">{money(linea.valorTotalImpreso)}</span>
+                        </>
+                      )}
+                    </p>
+                    <BotonQuitar
+                      deshabilitado={emitida}
+                      onClick={() =>
+                        cambiar((b) => {
+                          b.precio!.lineas.splice(i, 1);
+                        })
+                      }
+                    />
+                  </div>
                 </div>
               ))}
+              {oferta.precio.lineas.length === 0 && (
+                <p className="text-xs text-tinta/45">
+                  El borrador no traía líneas de precio. Agregá las que correspondan.
+                </p>
+              )}
             </div>
+            <BotonAgregar
+              texto="Agregar línea"
+              deshabilitado={emitida}
+              onClick={() =>
+                cambiar((b) => {
+                  b.precio!.lineas.push(filaPrecio());
+                })
+              }
+            />
 
             <Campo
               className="mt-3 max-w-[220px]"
@@ -244,7 +322,7 @@ export default function EditorOferta({
         )}
 
         {/* ── Dotación ───────────────────────────────────────────────── */}
-        {oferta.organizacion && oferta.organizacion.cuadroPersonal.length > 0 && (
+        {oferta.organizacion && (
           <section className={`${TARJETA} p-5`}>
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
@@ -256,7 +334,7 @@ export default function EditorOferta({
             </div>
             <div className="mt-3 flex flex-col gap-2">
               {oferta.organizacion.cuadroPersonal.map((fila, i) => (
-                <div key={i} className="grid grid-cols-[1fr_80px_1fr] gap-2">
+                <div key={i} className="grid grid-cols-[1fr_80px_1fr_28px] gap-2">
                   <Campo
                     rotulo={i === 0 ? "Cargo" : ""}
                     valor={fila.cargo}
@@ -288,14 +366,36 @@ export default function EditorOferta({
                       })
                     }
                   />
+                  <BotonQuitar
+                    deshabilitado={emitida}
+                    onClick={() =>
+                      cambiar((b) => {
+                        b.organizacion!.cuadroPersonal.splice(i, 1);
+                      })
+                    }
+                  />
                 </div>
               ))}
+              {oferta.organizacion.cuadroPersonal.length === 0 && (
+                <p className="text-xs text-tinta/45">
+                  El borrador no traía cuadro de personal. Agregá los cargos que correspondan.
+                </p>
+              )}
             </div>
+            <BotonAgregar
+              texto="Agregar cargo"
+              deshabilitado={emitida}
+              onClick={() =>
+                cambiar((b) => {
+                  b.organizacion!.cuadroPersonal.push(filaDotacion());
+                })
+              }
+            />
           </section>
         )}
 
         {/* ── Programa ───────────────────────────────────────────────── */}
-        {oferta.programa && oferta.programa.turnos.length > 0 && (
+        {oferta.programa && (
           <section className={`${TARJETA} p-5`}>
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
@@ -308,7 +408,7 @@ export default function EditorOferta({
             </div>
             <div className="mt-3 flex flex-col gap-2">
               {oferta.programa.turnos.map((turno, i) => (
-                <div key={i} className="grid grid-cols-[90px_1fr_90px] gap-2">
+                <div key={i} className="grid grid-cols-[90px_1fr_90px_28px] gap-2">
                   <Campo
                     rotulo={i === 0 ? "Turno" : ""}
                     valor={turno.turno}
@@ -340,9 +440,31 @@ export default function EditorOferta({
                       })
                     }
                   />
+                  <BotonQuitar
+                    deshabilitado={emitida}
+                    onClick={() =>
+                      cambiar((b) => {
+                        b.programa!.turnos.splice(i, 1);
+                      })
+                    }
+                  />
                 </div>
               ))}
+              {oferta.programa.turnos.length === 0 && (
+                <p className="text-xs text-tinta/45">
+                  El borrador no traía turnos. Agregá los que correspondan.
+                </p>
+              )}
             </div>
+            <BotonAgregar
+              texto="Agregar turno"
+              deshabilitado={emitida}
+              onClick={() =>
+                cambiar((b) => {
+                  b.programa!.turnos.push(filaTurno());
+                })
+              }
+            />
             <p className="mt-2 text-[11px] text-tinta/45">
               La barra de avance del PDF se calcula sola con estas horas.
             </p>
@@ -350,14 +472,14 @@ export default function EditorOferta({
         )}
 
         {/* ── Especificaciones técnicas ───────────────────────────────── */}
-        {oferta.especificaciones && oferta.especificaciones.length > 0 && (
+        {oferta.especificaciones && (
           <section className={`${TARJETA} p-5`}>
             <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
               Especificaciones técnicas
             </h2>
             <div className="mt-3 flex flex-col gap-2">
               {oferta.especificaciones.map((e, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1.6fr] gap-2">
+                <div key={i} className="grid grid-cols-[1fr_1.6fr_28px] gap-2">
                   <Campo
                     rotulo={i === 0 ? "Parámetro" : ""}
                     valor={e.parametro}
@@ -378,14 +500,36 @@ export default function EditorOferta({
                       })
                     }
                   />
+                  <BotonQuitar
+                    deshabilitado={emitida}
+                    onClick={() =>
+                      cambiar((b) => {
+                        b.especificaciones!.splice(i, 1);
+                      })
+                    }
+                  />
                 </div>
               ))}
+              {oferta.especificaciones.length === 0 && (
+                <p className="text-xs text-tinta/45">
+                  El borrador no traía especificaciones. Agregá las que correspondan.
+                </p>
+              )}
             </div>
+            <BotonAgregar
+              texto="Agregar especificación"
+              deshabilitado={emitida}
+              onClick={() =>
+                cambiar((b) => {
+                  b.especificaciones!.push(filaEspecificacion());
+                })
+              }
+            />
           </section>
         )}
 
         {/* ── Responsabilidades por cargo ─────────────────────────────── */}
-        {oferta.organizacion && oferta.organizacion.responsabilidades.length > 0 && (
+        {oferta.organizacion && (
           <section className={`${TARJETA} p-5`}>
             <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
               Organización del servicio
@@ -395,7 +539,7 @@ export default function EditorOferta({
             </p>
             <div className="mt-3 flex flex-col gap-2">
               {oferta.organizacion.responsabilidades.map((r, i) => (
-                <div key={i} className="grid grid-cols-[1fr_2fr] gap-2">
+                <div key={i} className="grid grid-cols-[1fr_2fr_28px] gap-2">
                   <Campo
                     rotulo={i === 0 ? "Cargo" : ""}
                     valor={r.cargo}
@@ -417,14 +561,36 @@ export default function EditorOferta({
                       })
                     }
                   />
+                  <BotonQuitar
+                    deshabilitado={emitida}
+                    onClick={() =>
+                      cambiar((b) => {
+                        b.organizacion!.responsabilidades.splice(i, 1);
+                      })
+                    }
+                  />
                 </div>
               ))}
+              {oferta.organizacion.responsabilidades.length === 0 && (
+                <p className="text-xs text-tinta/45">
+                  No hay responsabilidades por cargo. Agregá las que correspondan.
+                </p>
+              )}
             </div>
+            <BotonAgregar
+              texto="Agregar cargo"
+              deshabilitado={emitida}
+              onClick={() =>
+                cambiar((b) => {
+                  b.organizacion!.responsabilidades.push(filaResponsabilidad());
+                })
+              }
+            />
           </section>
         )}
 
         {/* ── Firmantes ──────────────────────────────────────────────── */}
-        {oferta.cierre && oferta.cierre.firmantes.length > 0 && (
+        {oferta.cierre && (
           <section className={`${TARJETA} p-5`}>
             <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
               Cierre y firma
@@ -443,7 +609,7 @@ export default function EditorOferta({
             />
             <div className="mt-3 flex flex-col gap-2">
               {oferta.cierre.firmantes.map((f, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_1fr] gap-2">
+                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_28px] gap-2">
                   <Campo
                     rotulo={i === 0 ? "Nombre" : ""}
                     valor={f.nombre}
@@ -474,7 +640,60 @@ export default function EditorOferta({
                       })
                     }
                   />
+                  <BotonQuitar
+                    deshabilitado={emitida}
+                    onClick={() =>
+                      cambiar((b) => {
+                        b.cierre!.firmantes.splice(i, 1);
+                      })
+                    }
+                  />
                 </div>
+              ))}
+              {oferta.cierre.firmantes.length === 0 && (
+                <p className="text-xs text-tinta/45">
+                  El borrador no traía firmantes. Agregá los que correspondan.
+                </p>
+              )}
+            </div>
+            <BotonAgregar
+              texto="Agregar firmante"
+              deshabilitado={emitida}
+              onClick={() =>
+                cambiar((b) => {
+                  b.cierre!.firmantes.push(filaFirmante());
+                })
+              }
+            />
+          </section>
+        )}
+
+        {/* ── Secciones que el borrador no traía ────────────────────── */}
+        {/*
+            Sin esto no se puede "agregar" donde no hay nada: una sección ausente no
+            dibuja tarjeta, así que no había dónde apretar. El sistema omite lo que
+            el borrador no trae —eso está bien— pero una oferta se completa a mano
+            tanto como se transcribe.
+         */}
+        {!emitida && faltantes.length > 0 && (
+          <section className={`${TARJETA} p-4`}>
+            <p className="font-condensed text-sm font-bold uppercase tracking-wide text-tinta">
+              Agregar una sección que no está
+            </p>
+            <p className="mt-0.5 text-[11px] text-pretty text-tinta/45">
+              El borrador no las traía, así que el documento no las imprime. Se pueden agregar y completar a
+              mano.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {faltantes.map((falta) => (
+                <button
+                  key={falta.titulo}
+                  type="button"
+                  onClick={() => cambiar(falta.crear)}
+                  className="rounded-lg border border-borde px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-tinta/70 transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+                >
+                  + {falta.titulo}
+                </button>
               ))}
             </div>
           </section>
@@ -734,6 +953,55 @@ function Campo({
         />
       )}
     </label>
+  );
+}
+
+/**
+ * Quitar una fila de una tabla.
+ *
+ * Chico y sin color: sacar una fila es una acción destructiva pero cotidiana —una
+ * línea de precio que quedó de otra oferta— y un botón rojo grande al lado de cada
+ * fila convierte la tabla en un campo minado.
+ */
+function BotonQuitar({ onClick, deshabilitado }: { onClick: () => void; deshabilitado: boolean }) {
+  if (deshabilitado) return <span />;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Quitar esta fila"
+      aria-label="Quitar esta fila"
+      className="self-end rounded-md px-1.5 py-1.5 text-tinta/30 transition-colors hover:bg-crema hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+    >
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
+/** Agregar una fila al final de una tabla. */
+function BotonAgregar({
+  onClick,
+  texto,
+  deshabilitado,
+}: {
+  onClick: () => void;
+  texto: string;
+  deshabilitado: boolean;
+}) {
+  if (deshabilitado) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-borde px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-tinta/70 transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+    >
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M8 3.5v9M3.5 8h9" strokeLinecap="round" />
+      </svg>
+      {texto}
+    </button>
   );
 }
 

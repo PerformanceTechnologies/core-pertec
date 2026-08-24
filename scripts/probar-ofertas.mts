@@ -703,6 +703,52 @@ assert.ok(
 );
 assert.ok(!sanearEstilo({ fuenteCuerpo: "Helvetica Neue" }).estilo.fuenteCuerpo.includes('"'));
 
+// ── Una fila agregada y no completada no se imprime ─────────────────────────
+//
+// Desde que el editor permite agregar filas, "la agregué y no la completé" es un
+// caso normal. Una fila en blanco en el cuadro de personal o en la tabla de precios
+// de un documento que se manda a un cliente es peor que no tenerla.
+const conFilasVacias = os10();
+conFilasVacias.organizacion!.cuadroPersonal.push({ cargo: "", dotacion: 1, regimen: null });
+conFilasVacias.precio!.lineas.push({
+  cantidad: 1,
+  cargo: "",
+  unidad: "",
+  valorUnitario: 0,
+  valorTotalImpreso: null,
+});
+conFilasVacias.programa!.turnos.push({ turno: "", jornada: "", horas: 0 });
+
+const htmlVacias = ofertaAHtml(conFilasVacias, calcularTotales(conFilasVacias), EMPRESA_DE_PRUEBA);
+// Las filas de la tabla de personal: cinco reales más la del total, no seis más.
+assert.equal(
+  (htmlVacias.match(/<td>Planificador logístico<\/td>|<td>Supervisor<\/td>/g) ?? []).length,
+  2,
+  "las filas con cargo se imprimen",
+);
+assert.ok(!htmlVacias.includes('<td></td><td class="num">1</td>'), "y la vacía no");
+// Una línea de precio con descripción pero sin monto SÍ se imprime: el control de
+// "valor unitario en 0" la marca para que alguien la revise.
+const conLineaSinMonto = os10();
+conLineaSinMonto.precio!.lineas.push({
+  cantidad: 1,
+  cargo: "Grúa, rigger + elementos de izaje",
+  unidad: "",
+  valorUnitario: 0,
+  valorTotalImpreso: null,
+});
+const htmlSinMonto = ofertaAHtml(conLineaSinMonto, calcularTotales(conLineaSinMonto), EMPRESA_DE_PRUEBA);
+assert.ok(
+  htmlSinMonto.includes("Grúa, rigger + elementos de izaje"),
+  "una línea sin monto pero con descripción se imprime igual",
+);
+assert.ok(
+  detectarInconsistencias(conLineaSinMonto, calcularTotales(conLineaSinMonto), "os10.docx").some(
+    (a) => a.tipo === "linea_precio" && /valor unitario en 0/.test(a.detalle),
+  ),
+  "y queda marcada para revisar",
+);
+
 // ── Las imágenes que traía el borrador ──────────────────────────────────────
 //
 // Un .docx lleva adentro el membrete, los diagramas y las fotos de faena. El

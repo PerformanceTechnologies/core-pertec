@@ -344,6 +344,7 @@ function armarSecciones(
         `<table class="tabla"><colgroup><col style="width:14%"><col style="width:28%"><col style="width:12%"><col></colgroup>
           <thead><tr><th>Turno</th><th>Jornada</th><th class="num">Horas</th><th>Avance acumulado</th></tr></thead>
           <tbody>${p.turnos
+            .filter((turno) => turno.turno.trim() !== "" || turno.horas !== 0)
             .map((t) => {
               acumulado += t.horas;
               const ancho = Math.round((acumulado / totales.horasPrograma) * 100);
@@ -369,6 +370,10 @@ function armarSecciones(
         <colgroup><col style="width:6%"><col style="width:8%"><col><col style="width:10%"><col style="width:15%"><col style="width:15%"></colgroup>
         <thead><tr><th>Ít</th><th class="num">Cant</th><th>Cargo</th><th>Un</th><th class="num">V. Unit</th><th class="num">V. Total</th></tr></thead>
         <tbody>${pr.lineas
+          // Una línea sin descripción y sin monto es una fila que alguien agregó y no
+          // completó: no se imprime. Con una de las dos cosas, sí — y el control de
+          // "valor unitario en 0" la marca para que se revise.
+          .filter((linea) => linea.cargo.trim() !== "" || linea.valorUnitario !== 0)
           .map(
             (l, i) =>
               `<tr><td>${i + 1}.</td><td class="num">${esc(String(l.cantidad).padStart(2, "0"))}</td>
@@ -446,6 +451,14 @@ function armarSecciones(
   return secciones;
 }
 
+/**
+ * Una fila vacía no se imprime.
+ *
+ * Desde que el editor permite agregar filas, "agregué una y no la completé" es un
+ * caso normal — y una fila en blanco en el cuadro de personal de una oferta que se
+ * manda a un cliente es peor que no tenerla. Es la misma regla que ya regía para
+ * las tarjetas de responsabilidades: vaciar el cargo la saca.
+ */
 function tablaDotacion(
   filas: { cargo: string; dotacion: number; regimen?: string | null }[],
   total: number,
@@ -458,6 +471,7 @@ function tablaDotacion(
     ? `<tr><th>Cargo</th><th class="num">Dotación</th><th>Régimen</th></tr>`
     : `<tr><th>Cargo</th><th class="num">Dotación</th></tr>`;
   return `<table class="tabla">${columnas}<thead>${encabezado}</thead><tbody>${filas
+    .filter((fila) => fila.cargo.trim() !== "")
     .map(
       (f) =>
         `<tr><td>${esc(f.cargo)}</td><td class="num">${esc(f.dotacion)}</td>${
