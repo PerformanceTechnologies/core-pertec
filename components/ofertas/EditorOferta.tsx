@@ -874,18 +874,9 @@ export default function EditorOferta({
             </button>
           )}
 
-          {/* La vista rápida no pasa por Chromium: arranca al instante y muestra
-              la MISMA maqueta que después se imprime, así que sirve para corregir
-              sin esperar. El PDF queda para el resultado final. */}
-          <a
-            href={`/api/ofertas/${id}/pdf?formato=html`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-borde px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
-          >
-            Vista rápida
-          </a>
-
+          {/* Ya no está la "vista rápida": abría en otra pestaña la misma maqueta
+              que ahora se ve —y se edita— en la pestaña Documento. Dos botones para
+              lo mismo es de lo que hace que una pantalla no se entienda. */}
           <a
             href={`/api/ofertas/${id}/pdf`}
             target="_blank"
@@ -896,14 +887,20 @@ export default function EditorOferta({
           </a>
 
           {!emitida && (
-            <a
-              href={`/api/ofertas/${id}/pdf?emitir=1`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-teal/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-teal transition hover:bg-teal/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
-            >
-              Emitir
-            </a>
+            <>
+              <a
+                href={`/api/ofertas/${id}/pdf?emitir=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-teal/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-teal transition hover:bg-teal/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
+              >
+                Emitir
+              </a>
+              <p className="mt-1.5 text-[10px] text-pretty text-tinta/40">
+                Emitir descarga el PDF y deja la oferta de solo lectura. Guardá antes: se emite lo último
+                guardado.
+              </p>
+            </>
           )}
 
           {mensaje && <p className="mt-2 text-xs font-medium text-teal">{mensaje}</p>}
