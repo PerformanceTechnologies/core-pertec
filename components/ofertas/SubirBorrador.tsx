@@ -57,7 +57,7 @@ export default function SubirBorrador() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_220px_auto]">
         <label className="block">
           <span className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
-            Borrador (Word, PDF o Excel)
+            Borrador (mejor en Word)
           </span>
           <input
             type="file"

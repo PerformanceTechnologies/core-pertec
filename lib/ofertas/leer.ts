@@ -240,7 +240,16 @@ de precios. La parte narrativa la lee otra pasada; no la transcribas acá.
 - Si el borrador de verdad no trae precios ni programa en ninguna parte —ni en tabla ni en el texto—
   dejá esas listas vacías.`;
 
-/** Una de las dos lecturas. Misma mecánica, distinto esquema y distinta consigna. */
+/**
+ * Una de las dos lecturas. Misma mecánica, distinto esquema y distinta consigna.
+ *
+ * El tope de salida hay que pensarlo contando el pensamiento extendido: cuenta
+ * contra `max_tokens` igual que el JSON. Con una oferta larga —dos listas de
+ * aportes de veinte ítems, especificaciones sacadas de la prosa— los 12.000 que
+ * había se agotaban pensando y la respuesta salía cortada a la mitad, sin JSON
+ * válido. Tampoco conviene poner un número enorme: a la velocidad de salida del
+ * modelo, 30.000 tokens no entran en el tiempo de la función.
+ */
 async function leerParte<T>(
   contenido: Anthropic.ContentBlockParam[],
   instrucciones: string,
@@ -265,12 +274,19 @@ async function leerParte<T>(
     .finalMessage();
 
   if (respuesta.stop_reason === "refusal") {
-    throw new Error(`El modelo no pudo procesar "${nombreArchivo}". Cargá la oferta a mano.`);
+    throw new Error(
+      `El modelo no pudo procesar "${nombreArchivo}". Revisá que el archivo sea la oferta y no otro ` +
+        "documento.",
+    );
   }
   if (respuesta.stop_reason === "max_tokens") {
+    // El mensaje anterior decía "se agotó el presupuesto de tokens", que se lee
+    // como que la cuenta se quedó sin saldo. No es eso: es el tope de largo de
+    // ESTA respuesta, que está unas líneas más arriba en este archivo.
     throw new Error(
-      `La lectura de "${nombreArchivo}" quedó incompleta: se agotó el presupuesto de tokens. ` +
-        "Probá dividiendo el borrador o cargalo a mano.",
+      `La lectura de "${nombreArchivo}" quedó incompleta: la respuesta llegó a su tope de largo. ` +
+        "No tiene que ver con el saldo de la cuenta. Si tenés el borrador en Word, subí el .docx en " +
+        "vez del PDF: se lee como texto y ocupa una fracción.",
     );
   }
 
@@ -329,7 +345,7 @@ export async function leerBorrador(
       INSTRUCCIONES_LETRA,
       ESQUEMA_LETRA,
       `Transcribí la letra de este borrador (archivo: ${nombreArchivo}).`,
-      12000,
+      20000,
       nombreArchivo,
     ),
     leerParte<LecturaNumeros>(
@@ -337,7 +353,7 @@ export async function leerBorrador(
       INSTRUCCIONES_NUMEROS,
       ESQUEMA_NUMEROS,
       `Transcribí los cuadros con cifras de este borrador (archivo: ${nombreArchivo}).`,
-      8000,
+      14000,
       nombreArchivo,
     ),
   ]);
