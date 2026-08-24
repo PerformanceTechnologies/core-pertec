@@ -40,14 +40,47 @@ import type { FormatoPropuesta } from "./formatos";
  */
 
 /**
- * PDF → texto, con la cantidad de páginas.
+ * PDF → texto, página por página.
  *
- * Las páginas sirven para decidir si el texto alcanza: un PDF escaneado devuelve
- * casi nada por página y ahí hay que mirarlo, no leerlo.
+ * Se devuelve el texto SEPARADO por página y no como un bloque, porque en un PDF
+ * es lo único que ubica a las imágenes: se extraen aparte (ver
+ * ./extraer-imagenes-pdf.ts) y de ellas se sabe en qué página se dibujan, no en
+ * qué punto del párrafo. Con el texto por página, el marcador [IMAGEN n] se puede
+ * poner al final de la página donde estaba, que es una aproximación buena: las
+ * fotos del anexo están en las páginas del anexo y el membrete en la primera.
+ *
+ * La cantidad de páginas también sirve para decidir si el texto alcanza: un PDF
+ * escaneado devuelve casi nada por página y ahí hay que mirarlo, no leerlo.
+ *
+ * El render por página replica el de pdf-parse —un salto de línea cuando cambia la
+ * coordenada Y— porque su implementación no está expuesta y la necesitamos igual
+ * para no cambiar cómo se lee el texto.
  */
-export async function extraerTextoDePdf(buffer: Buffer): Promise<{ texto: string; paginas: number }> {
-  const resultado = await pdfParse(buffer);
-  return { texto: resultado.text.trim(), paginas: resultado.numpages };
+export async function extraerTextoDePdf(
+  buffer: Buffer,
+): Promise<{ texto: string; paginas: number; porPagina: string[] }> {
+  const porPagina: string[] = [];
+
+  const resultado = await pdfParse(buffer, {
+    pagerender: async (pagina: {
+      getTextContent: (opciones: unknown) => Promise<{ items: { str: string; transform: number[] }[] }>;
+    }) => {
+      const contenido = await pagina.getTextContent({
+        normalizeWhitespace: false,
+        disableCombineTextItems: false,
+      });
+      let ultimaY: number | undefined;
+      let texto = "";
+      for (const item of contenido.items) {
+        texto += ultimaY === item.transform[5] || ultimaY === undefined ? item.str : `\n${item.str}`;
+        ultimaY = item.transform[5];
+      }
+      porPagina.push(texto);
+      return texto;
+    },
+  } as Parameters<typeof pdfParse>[1]);
+
+  return { texto: resultado.text.trim(), paginas: resultado.numpages, porPagina };
 }
 
 /**
@@ -145,9 +178,17 @@ function textoDeCelda(celda: ExcelJS.Cell): string {
 export interface ImagenExtraida {
   /** 1, 2, 3… El mismo número que el marcador [IMAGEN n] del texto. */
   indice: number;
-  /** El nombre dentro del .docx: "image4.png". Sirve para diagnosticar. */
+  /** El nombre dentro del archivo: "image4.png". Sirve para diagnosticar. */
   nombre: string;
   contenido: Buffer;
+  /**
+   * En qué página se dibuja. Solo la saben los PDF.
+   *
+   * En un .docx el marcador va en su lugar exacto dentro del texto y esto no hace
+   * falta; en un PDF el texto y las imágenes se extraen por caminos distintos y la
+   * página es lo único que las ubica.
+   */
+  pagina?: number;
 }
 
 /**

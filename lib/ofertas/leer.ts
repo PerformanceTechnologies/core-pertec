@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { extraerDeArchivo, extraerTextoDePdf, type ImagenExtraida } from "@/lib/cotizador/obra/extraer-texto";
+import { extraerImagenesDePdf } from "@/lib/cotizador/obra/extraer-imagenes-pdf";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
 import type { OfertaCanonica } from "./tipos";
 import { armarOferta, type LecturaLetra, type LecturaNumeros } from "./normalizar";
@@ -381,30 +382,52 @@ export async function leerBorrador(
   let imagenes: ImagenExtraida[] = [];
 
   if (formato === "pdf") {
-    const { texto, paginas } = await extraerTextoDePdf(archivo);
-    const porPagina = paginas > 0 ? texto.length / paginas : 0;
+    const { texto, paginas, porPagina } = await extraerTextoDePdf(archivo);
+    const porPaginaTexto = texto.length / Math.max(1, paginas);
 
-    contenido =
-      porPagina >= MINIMO_TEXTO_POR_PAGINA
-        ? [
-            {
-              type: "text",
-              text:
-                `Contenido del borrador, extraído de un PDF de ${paginas} página(s). OJO: en un PDF ` +
-                `el texto sale sin la disposición de la página, así que las columnas de una tabla ` +
-                `vienen pegadas en la cabecera —por ejemplo "ÍTCANTCARGOUNV. UNITV. TOTAL"— y los ` +
-                `valores de cada fila siguen en ESE mismo orden. Es una tabla, leela como tabla.\n\n` +
-                texto,
-              cache_control: { type: "ephemeral" },
-            },
-          ]
-        : [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: archivo.toString("base64") },
-              cache_control: { type: "ephemeral" },
-            },
-          ];
+    if (porPaginaTexto >= MINIMO_TEXTO_POR_PAGINA) {
+      // Las imágenes de un PDF se sacan del archivo y no del texto, así que de
+      // ellas se sabe la PÁGINA y no el punto del párrafo. El marcador va al final
+      // del texto de su página, que ubica bien lo que hay que ubicar: las fotos
+      // del anexo están en las páginas del anexo y el membrete en la primera.
+      imagenes = await extraerImagenesDePdf(archivo);
+
+      const conMarcadores = porPagina
+        .map((textoDePagina, i) => {
+          const marcadores = imagenes
+            .filter((imagen) => imagen.pagina === i + 1)
+            .map((imagen) => `[IMAGEN ${imagen.indice}]`)
+            .join(" ");
+          return `── Página ${i + 1} ──\n${textoDePagina}${marcadores ? `\n${marcadores}` : ""}`;
+        })
+        .join("\n\n");
+
+      contenido = [
+        {
+          type: "text",
+          text:
+            `Contenido del borrador, extraído de un PDF de ${paginas} página(s). DOS COSAS:\n` +
+            `1) En un PDF el texto sale sin la disposición de la página, así que las columnas de una ` +
+            `tabla vienen pegadas en la cabecera —por ejemplo "ÍTCANTCARGOUNV. UNITV. TOTAL"— y los ` +
+            `valores de cada fila siguen en ESE mismo orden. Es una tabla, leela como tabla.\n` +
+            (imagenes.length
+              ? `2) El PDF trae ${imagenes.length} imagen(es). Cada marcador [IMAGEN n] está al final ` +
+                `del texto de la página donde se dibuja esa imagen — no en el punto exacto del ` +
+                `párrafo, que en un PDF no se puede saber.\n`
+              : "2) El PDF no trae imágenes.\n") +
+            `\n${conMarcadores}`,
+          cache_control: { type: "ephemeral" },
+        },
+      ];
+    } else {
+      contenido = [
+        {
+          type: "document",
+          source: { type: "base64", media_type: "application/pdf", data: archivo.toString("base64") },
+          cache_control: { type: "ephemeral" },
+        },
+      ];
+    }
   } else {
     const leido = await extraerDeArchivo(archivo, formato, nombreArchivo);
     imagenes = leido.imagenes;

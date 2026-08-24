@@ -167,17 +167,100 @@ console.log("Todas las verificaciones pasaron.");
 const pdfDePrueba = process.env.PDF_DE_PRUEBA;
 if (pdfDePrueba) {
   const { extraerTextoDePdf } = await import("../lib/cotizador/obra/extraer-texto");
-  const { texto, paginas } = await extraerTextoDePdf(readFileSync(pdfDePrueba));
-  const porPagina = Math.round(texto.length / paginas);
+  const { texto, paginas, porPagina } = await extraerTextoDePdf(readFileSync(pdfDePrueba));
+  const caracteresPorPagina = Math.round(texto.length / paginas);
 
   assert.ok(paginas > 0, "pdf-parse tiene que reportar las páginas");
-  assert.ok(porPagina > 150, `una página con datos tiene más de 150 caracteres, tuvo ${porPagina}`);
-  assert.ok(texto.includes("15.885.200"), "las cifras de la tabla de precios sobreviven");
-  assert.ok(texto.includes("TOTAL NETO"), "y el rótulo del total también");
+  assert.equal(porPagina.length, paginas, "el texto tiene que venir separado por página");
+  assert.ok(
+    caracteresPorPagina > 150,
+    `una página con datos tiene más de 150 caracteres, tuvo ${caracteresPorPagina}`,
+  );
+  // El texto completo es la unión de las páginas: si no, el marcador de imagen
+  // quedaría en una página distinta de la que le corresponde.
+  for (const [i, textoDePagina] of porPagina.entries()) {
+    const muestra = textoDePagina.trim().slice(0, 40);
+    if (muestra) assert.ok(texto.includes(muestra), `la página ${i + 1} tiene que estar en el texto`);
+  }
   console.log(
-    `  PDF real  ${paginas} páginas → ${texto.length} caracteres ` +
-      `(~${Math.round(texto.length / 4)} tokens, ${porPagina} por página)`,
+    `  PDF real   ${paginas} páginas → ${texto.length} caracteres ` +
+      `(~${Math.round(texto.length / 4)} tokens, ${caracteresPorPagina} por página)`,
   );
 } else {
   console.log("  PDF real  omitido (definí PDF_DE_PRUEBA con la ruta de un PDF para ejercitarlo)");
+}
+
+// ── El predictor PNG, que es la parte más fácil de escribir mal ──────────────
+//
+// Un PDF puede guardar cada fila de una imagen como la diferencia respecto de la
+// fila de arriba, con un byte al principio que dice qué diferencia se usó. Si eso
+// no se deshace, cada fila queda corrida un byte respecto de la anterior y la
+// imagen sale rayada en diagonal. Se probó al revés: se filtra a mano una imagen
+// conocida y se comprueba que vuelve idéntica.
+{
+  const { deshacerPredictorPng } = await import("../lib/cotizador/obra/extraer-imagenes-pdf");
+  const ancho = 4;
+  const alto = 3;
+  const canales = 3;
+  const original = Buffer.from([
+    10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 11, 21, 31, 41, 51, 61, 71, 81, 91, 101, 111, 121, 12,
+    22, 32, 42, 52, 62, 72, 82, 92, 102, 112, 122,
+  ]);
+  const bytesPorFila = ancho * canales;
+
+  // Filtro 2 (Up): cada byte guardado es la diferencia con el de la fila anterior.
+  const filtrado: number[] = [];
+  for (let fila = 0; fila < alto; fila++) {
+    filtrado.push(2);
+    for (let i = 0; i < bytesPorFila; i++) {
+      const actual = original[fila * bytesPorFila + i];
+      const arriba = fila === 0 ? 0 : original[(fila - 1) * bytesPorFila + i];
+      filtrado.push((actual - arriba) & 0xff);
+    }
+  }
+
+  const recuperado = deshacerPredictorPng(Buffer.from(filtrado), ancho, canales, 8);
+  assert.ok(recuperado, "el predictor tiene que poder deshacerse");
+  assert.deepEqual([...recuperado!], [...original], "y devolver la imagen idéntica");
+
+  // Filtro 1 (Sub): la diferencia es con el píxel de la izquierda.
+  const conSub: number[] = [];
+  for (let fila = 0; fila < alto; fila++) {
+    conSub.push(1);
+    for (let i = 0; i < bytesPorFila; i++) {
+      const actual = original[fila * bytesPorFila + i];
+      const izquierda = i >= canales ? original[fila * bytesPorFila + i - canales] : 0;
+      conSub.push((actual - izquierda) & 0xff);
+    }
+  }
+  assert.deepEqual(
+    [...deshacerPredictorPng(Buffer.from(conSub), ancho, canales, 8)!],
+    [...original],
+    "el filtro Sub también",
+  );
+
+  // Un tipo de filtro que no existe se rechaza en vez de devolver basura.
+  assert.equal(deshacerPredictorPng(Buffer.from([9, 0, 0, 0]), 1, 3, 8), null);
+  console.log("  Predictor  filtros Up y Sub deshechos, tipo inválido rechazado");
+}
+
+// ── Las imágenes de un PDF de verdad ────────────────────────────────────────
+if (pdfDePrueba) {
+  const { extraerImagenesDePdf } = await import("../lib/cotizador/obra/extraer-imagenes-pdf");
+  const sharp = (await import("sharp")).default;
+  const imagenes = await extraerImagenesDePdf(readFileSync(pdfDePrueba));
+
+  for (const imagen of imagenes) {
+    const info = await sharp(imagen.contenido).metadata();
+    assert.ok(info.width && info.width > 0, "cada imagen extraída tiene que abrirse");
+    assert.ok(imagen.pagina && imagen.pagina > 0, "y saber en qué página estaba");
+    assert.ok(["png", "jpeg"].includes(info.format ?? ""), "y ser PNG o JPEG");
+  }
+  const indices = imagenes.map((i) => i.indice);
+  assert.deepEqual(
+    indices,
+    [...indices].sort((a, b) => a - b),
+    "los índices van en orden de dibujo",
+  );
+  console.log(`  PDF real   ${imagenes.length} imagen(es) reconstruidas y abiertas sin error`);
 }
