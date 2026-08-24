@@ -36,7 +36,23 @@ const BUCKET = "logos";
  * vectoriales, y es lo que hace que un SVG se rasterice nítido en vez de a 72 dpi.
  */
 export async function normalizarLogo(contenido: Buffer): Promise<Buffer> {
-  return sharp(contenido, { density: 300, failOn: "error" })
+  const entrada = sharp(contenido, { density: 300, failOn: "error" });
+
+  // Recorte del borde uniforme ANTES de escalar. Un logo exportado suele traer
+  // margen transparente alrededor de la marca, y ese margen se escala junto con
+  // ella: el resultado entra en la celda del encabezado pero la marca se ve
+  // chica, con aire que nadie pidió. Recortando, la marca ocupa su caja.
+  //
+  // Si el recorte falla —una imagen de un solo color no tiene borde que quitar—
+  // se sigue con la original: es una mejora, no un requisito.
+  let base = entrada;
+  try {
+    base = sharp(await entrada.trim().toBuffer(), { failOn: "error" });
+  } catch {
+    base = sharp(contenido, { density: 300, failOn: "error" });
+  }
+
+  return base
     .resize({
       width: CAJA_LOGO.ancho,
       height: CAJA_LOGO.alto,

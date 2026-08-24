@@ -98,6 +98,38 @@ export const ESTILO_PERTEC: EstiloMaestro = {
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
+/**
+ * Contraste mínimo entre un fondo y el texto que va encima.
+ *
+ * Salió impreso: un maestro leído de un PDF volvió con colorFondoTotal en #1a1a1a
+ * —el mismo valor que colorTinta— y la fila de total del programa salió como una
+ * banda negra con el texto negro adentro, invisible. Y el mismo token dibuja las
+ * líneas finas del índice y de los hitos, así que además todo el documento quedó
+ * con reglas negras en lugar de hairlines suaves.
+ *
+ * Que un hex sea válido no alcanza: un color tiene un ROL, y un fondo que lleva
+ * texto encima tiene que poder leerse. 3:1 es el piso de la norma para texto
+ * grande; para un documento impreso alcanza y no rechaza paletas oscuras
+ * legítimas.
+ */
+const CONTRASTE_MINIMO = 3;
+
+/** Luminancia relativa (WCAG 2.x) de un hex de 6 dígitos. */
+function luminancia(hex: string): number {
+  const canal = (i: number) => {
+    const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * canal(0) + 0.7152 * canal(1) + 0.0722 * canal(2);
+}
+
+/** Razón de contraste entre dos colores. 1 = idénticos, 21 = blanco sobre negro. */
+function contraste(a: string, b: string): number {
+  const la = luminancia(a);
+  const lb = luminancia(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
 /** Los rangos de cada medida. Fuera de esto, el documento se rompe. */
 const LIMITES: Record<string, [number, number]> = {
   tamanoCuerpo: [7, 14],
@@ -198,5 +230,41 @@ export function sanearEstilo(parcial: unknown): { estilo: EstiloMaestro; descart
     destino[campo] = color.toLowerCase();
   }
 
+  // Los pares fondo/texto se revisan al final, cuando ya están todos saneados:
+  // un color puede ser un hex perfecto y aun así hacer ilegible lo que lleva
+  // encima, y eso no se ve mirando el valor solo.
+  asegurarContraste(estilo, descartados, "colorFondoSuave", "colorTinta", "las filas alternadas");
+  asegurarContraste(estilo, descartados, "colorFondoTotal", "colorTinta", "las filas de total");
+  asegurarContraste(estilo, descartados, "colorCabecera", "colorCabeceraTexto", "las cabeceras de tabla");
+
   return { estilo, descartados };
+}
+
+/**
+ * Deja legible un par fondo/texto, o lo devuelve al maestro de PERTEC.
+ *
+ * Primero cede el FONDO, que es el que suele venir mal —un relleno que tenía que
+ * ser claro y volvió con el color de la tinta—. Si con eso todavía no alcanza,
+ * cede también el texto. Lo que se descarta se nombra: un maestro que vuelve al
+ * formato de PERTEC sin decir por qué se lee como que no funcionó.
+ */
+function asegurarContraste(
+  estilo: EstiloMaestro,
+  descartados: string[],
+  campoFondo: "colorFondoSuave" | "colorFondoTotal" | "colorCabecera",
+  campoTexto: "colorTinta" | "colorCabeceraTexto",
+  donde: string,
+): void {
+  const razon = () => contraste(estilo[campoFondo], estilo[campoTexto]);
+  if (razon() >= CONTRASTE_MINIMO) return;
+
+  descartados.push(
+    `${campoFondo} (con ${estilo[campoTexto]} encima dejaba ${donde} ilegible: contraste ` +
+      `${razon().toFixed(1)}:1, mínimo ${CONTRASTE_MINIMO}:1)`,
+  );
+  estilo[campoFondo] = ESTILO_PERTEC[campoFondo];
+  if (razon() >= CONTRASTE_MINIMO) return;
+
+  descartados.push(`${campoTexto} (seguía sin contraste sobre ${donde})`);
+  estilo[campoTexto] = ESTILO_PERTEC[campoTexto];
 }

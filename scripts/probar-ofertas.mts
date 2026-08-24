@@ -261,6 +261,44 @@ for (const ataque of ["Arial; } body { display:none } .x {", "Arial, url(http://
 // nombre una fuente que el servidor no tiene igual imprima bien.
 assert.ok(sanearEstilo({ fuenteCuerpo: "Futura" }).estilo.fuenteCuerpo.endsWith("sans-serif"));
 
+// ── Un color válido que igual deja el documento ilegible ────────────────────
+//
+// El caso real: un maestro leído de un PDF volvió con colorFondoTotal en #1a1a1a,
+// el MISMO valor que colorTinta. Los dos hexes son perfectos, así que ningún
+// control por valor los rechazaba — y la fila de total del programa salió como una
+// banda negra con el texto negro adentro. El mismo token dibuja las líneas del
+// índice y de los hitos, así que además todo el documento quedó con reglas negras.
+const sinContraste = sanearEstilo({
+  colorTinta: "#1a1a1a",
+  colorAcento: "#e05a2b",
+  colorCabecera: "#1a1a1a",
+  colorCabeceraTexto: "#ffffff",
+  colorFondoSuave: "#f4f4f4",
+  colorFondoTotal: "#1a1a1a",
+});
+assert.equal(
+  sinContraste.estilo.colorFondoTotal,
+  ESTILO_PERTEC.colorFondoTotal,
+  "un fondo del color de la tinta vuelve al de PERTEC",
+);
+assert.equal(sinContraste.estilo.colorTinta, "#1a1a1a", "y la tinta, que estaba bien, se respeta");
+assert.equal(sinContraste.estilo.colorAcento, "#e05a2b", "igual que el acento");
+assert.equal(sinContraste.estilo.colorFondoSuave, "#f4f4f4", "y el fondo que sí contrastaba se mantiene");
+assert.ok(
+  sinContraste.descartados.some((d) => d.includes("colorFondoTotal") && /ilegible/.test(d)),
+  "y se dice por qué, no en silencio",
+);
+
+// Cabecera oscura con texto blanco: legítimo, no se toca.
+const cabeceraOscura = sanearEstilo({ colorCabecera: "#0b0b0b", colorCabeceraTexto: "#ffffff" });
+assert.equal(cabeceraOscura.estilo.colorCabecera, "#0b0b0b");
+assert.deepEqual(cabeceraOscura.descartados, [], "una paleta oscura bien armada pasa entera");
+
+// Y una cabecera clara con texto claro: cede primero el fondo.
+const cabeceraClara = sanearEstilo({ colorCabecera: "#fafafa", colorCabeceraTexto: "#ffffff" });
+assert.equal(cabeceraClara.estilo.colorCabecera, ESTILO_PERTEC.colorCabecera);
+assert.ok(cabeceraClara.descartados.some((d) => d.includes("colorCabecera")));
+
 // El rótulo no puede traer marcado.
 assert.equal(sanearEstilo({ rotuloLogoCliente: "<img src=x>" }).estilo.rotuloLogoCliente, "img src=x");
 
@@ -711,8 +749,10 @@ Controles de una oferta técnica — OS 010-2026
   total neto calculado  $${totales.totalNetoCalculado.toLocaleString("es-CL")}
   avisos en la correcta ${sinProblemas.length}
 
-Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango e
-inyección de CSS por color, por fuente y por rótulo. Más los logos: solo pasa un
+Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango,
+inyección de CSS por color, por fuente y por rótulo, y un par fondo/texto sin
+contraste — dos hexes perfectos que dejaban la fila de total como una banda negra
+con el texto negro adentro. Más los logos: solo pasa un
 PNG en base64, y lo que no pasa deja el encabezado en texto.
 
 El esquema de salida tiene que ser chico y plano —la API rechaza gramáticas

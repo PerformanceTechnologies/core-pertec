@@ -208,6 +208,11 @@ cifras —dotación, turnos, precios— los lee otra pasada; no los transcribas 
   significado técnico ni comercial. En nombres propios y en cifras, no.
 - Las listas van con un elemento por ítem del documento, sin numerarlos: la numeración la pone el
   sistema.
+- LAS LISTAS DE METODOLOGÍA LLEVAN SOLO PASOS. Una frase que dice cuánto dura el trabajo ("realizar la
+  actividad en 48 horas, 2 días") o en cuántos turnos se ejecuta ("4 turnos de 12 horas en turnos día y
+  noche") NO es un paso de la secuencia: es el programa, y lo transcribe la otra lectura a partir de esa
+  misma frase. No la agregues al final de "durante la detención" — quedaría dos veces en el documento,
+  una como paso y otra como programa.
 - LAS ESPECIFICACIONES CASI NUNCA VIENEN EN TABLA. Suelen estar en un párrafo técnico y hay que
   separarlas en parámetro y valor. Ejemplo real: "La cinta es del tipo EP800/4, de 63\" de ancho. El
   equipo vulcanizador a utilizar constará de tres pares de platos rectangulares 33\" x 78\" y 13 pares
