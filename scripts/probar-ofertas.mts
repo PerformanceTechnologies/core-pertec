@@ -13,6 +13,7 @@ import { imagenSegura, logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
 import { armarOferta, type LecturaLetra, type LecturaNumeros } from "../lib/ofertas/normalizar";
 import { cuerpoDeTabla, ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
+import { asignarEnRuta, leerEnRuta, numeroDesdeTexto } from "../lib/ofertas/rutas";
 
 /** La OS 010-2026 real, bien transcrita. */
 function os10(): OfertaCanonica {
@@ -762,13 +763,38 @@ conFilasVacias.precio!.lineas.push({
 conFilasVacias.programa!.turnos.push({ turno: "", jornada: "", horas: 0 });
 
 const htmlVacias = ofertaAHtml(conFilasVacias, calcularTotales(conFilasVacias), EMPRESA_DE_PRUEBA);
-// Las filas de la tabla de personal: cinco reales más la del total, no seis más.
-assert.equal(
-  (htmlVacias.match(/<td>Planificador logístico<\/td>|<td>Supervisor<\/td>/g) ?? []).length,
-  2,
-  "las filas con cargo se imprimen",
+// Las filas con cargo se imprimen; la vacía no deja una celda de cargo en blanco.
+assert.ok(htmlVacias.includes("Planificador logístico"), "las filas con cargo se imprimen");
+assert.ok(htmlVacias.includes("Supervisor"));
+assert.ok(
+  !/data-campo="organizacion\.cuadroPersonal\.\d+\.cargo"><\/td>/.test(htmlVacias),
+  "y una fila sin cargo no se dibuja",
 );
-assert.ok(!htmlVacias.includes('<td></td><td class="num">1</td>'), "y la vacía no");
+// Y las que sobreviven conservan su índice REAL. Con la vacía ARRIBA, la primera
+// fila impresa es la 1 de la oferta, no la 0: si la ruta usara el índice de la
+// lista ya filtrada, editar esa fila en el documento escribiría en otra, en
+// silencio, que es lo peor que puede hacer un editor.
+const vaciaArriba = os10();
+vaciaArriba.organizacion!.cuadroPersonal.unshift({ cargo: "", dotacion: 1, regimen: null });
+vaciaArriba.precio!.lineas.unshift({
+  cantidad: 0,
+  cargo: "",
+  unidad: "",
+  valorUnitario: 0,
+  valorTotalImpreso: null,
+});
+const htmlVaciaArriba = ofertaAHtml(vaciaArriba, calcularTotales(vaciaArriba), EMPRESA_DE_PRUEBA);
+assert.ok(
+  htmlVaciaArriba.includes('data-campo="organizacion.cuadroPersonal.1.cargo">Planificador logístico'),
+  "la ruta de una fila apunta a su posición en la oferta, no en la tabla impresa",
+);
+assert.ok(
+  htmlVaciaArriba.includes('data-campo="precio.lineas.1.cargo"'),
+  "y lo mismo en las líneas de precio",
+);
+// El número de ítem que se lee en el papel, en cambio, sí es correlativo.
+assert.ok(htmlVaciaArriba.includes("<tr><td>1.</td>"), "el ítem impreso arranca en 1 igual");
+
 // Una línea de precio con descripción pero sin monto SÍ se imprime: el control de
 // "valor unitario en 0" la marca para que alguien la revise.
 const conLineaSinMonto = os10();
@@ -955,6 +981,71 @@ assert.equal(avisoDeTamano(new File([new Uint8Array(1024)], "chico.pdf")), null)
 const grande = avisoDeTamano(new File([new Uint8Array(5 * 1024 * 1024)], "grande.pdf"));
 assert.ok(grande?.includes("grande.pdf") && grande.includes("5,0 MB"), grande ?? "sin aviso");
 
+// ── El puente entre el papel y el dato ──────────────────────────────────────
+//
+// Editar sobre el documento se apoya en una sola cosa: que cada texto impreso
+// lleve la ruta del dato que lo produjo. Una ruta que apunta a un campo que no
+// existe —o peor, al de OTRA fila— hace que la edición escriba en silencio en el
+// lugar equivocado, que es la peor falla posible acá. Por eso se comprueban todas
+// las del documento, no una muestra.
+const CAMPO_IMPRESO = /data-campo="([^"]+)"(?: data-tipo="(numero)")?>([^<]*)</g;
+const desescapar = (texto: string) =>
+  texto
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
+
+let camposAtados = 0;
+for (const [, ruta, tipo, impreso] of htmlFotos.matchAll(CAMPO_IMPRESO)) {
+  camposAtados += 1;
+  const valor = leerEnRuta(conFotos, ruta);
+  assert.notEqual(valor, undefined, `la ruta "${ruta}" no lleva a ningún dato de la oferta`);
+  // Un campo en null se imprime con el texto que pone la plantilla por defecto
+  // —la nota del precio— y ahí no hay nada que comparar.
+  if (valor === null) continue;
+  if (tipo === "numero") {
+    assert.equal(numeroDesdeTexto(desescapar(impreso)), valor, `el número impreso en ${ruta}`);
+  } else {
+    assert.equal(desescapar(impreso), String(valor), `el texto impreso en ${ruta}`);
+  }
+}
+// El número exacto no importa; que sean muchos, sí: si un cambio dejara la mitad
+// del documento sin atar, la prueba de arriba pasaría igual.
+assert.ok(camposAtados > 40, `el documento se edita por sus campos (encontrados: ${camposAtados})`);
+
+// El tipo lo manda el dato, no lo que se tipeó: un campo numérico sigue siendo
+// número —si no, calcularTotales sumaría textos— y uno que era null vuelve a null
+// al dejarlo en blanco, que es como la plantilla sabe que no tiene que imprimirlo.
+const editada = os10();
+assert.ok(asignarEnRuta(editada, "precio.lineas.0.valorUnitario", "$ 20.000.-", "numero"));
+assert.strictEqual(editada.precio!.lineas[0].valorUnitario, 20_000);
+assert.equal(calcularTotales(editada).totalNetoCalculado, 20_000, "y el total lo vuelve a calcular");
+assert.ok(asignarEnRuta(editada, "programa.turnos.0.horas", "12"));
+assert.strictEqual(editada.programa!.turnos[0].horas, 12, "el tipo sale del dato, sin declararlo");
+assert.ok(asignarEnRuta(editada, "programa.nota", "   "));
+assert.strictEqual(editada.programa!.nota, null, "vaciar un campo opcional lo devuelve a null");
+assert.ok(asignarEnRuta(editada, "identificacion.atencion", "Sr.\u00a0Alan Mu\u00f1oz"));
+assert.equal(editada.identificacion.atencion, "Sr. Alan Muñoz", "el espacio duro del navegador no se guarda");
+
+// Una ruta que no existe no crea nada, y ninguna toca el prototipo: la ruta viene
+// del DOM, y aunque hoy la escriba el servidor, el que la lee no tiene por qué
+// confiar en ella.
+assert.ok(!asignarEnRuta(editada, "precio.lineas.9.cargo", "x"), "una fila que no existe no se inventa");
+assert.ok(!asignarEnRuta(editada, "__proto__.colado", "x"));
+assert.ok(!asignarEnRuta(editada, "identificacion.constructor.prototype.colado", "x"));
+assert.equal(({} as Record<string, unknown>).colado, undefined, "nada se coló al prototipo");
+
+// Y el ida y vuelta completo: lo que se escribe por la ruta sale impreso en los DOS
+// lugares donde el documento muestra ese dato, la portada y la tabla de la sección 1.
+assert.ok(asignarEnRuta(editada, "identificacion.numeroOferta", "OS 011-2026"));
+const htmlEditada = ofertaAHtml(editada, calcularTotales(editada), EMPRESA_DE_PRUEBA);
+assert.equal(
+  (htmlEditada.match(/data-campo="identificacion\.numeroOferta">OS 011-2026</g) ?? []).length,
+  2,
+  "el dato editado sale en la portada y en la identificación",
+);
+
 console.log(`
 Controles de una oferta técnica — OS 010-2026
 
@@ -982,6 +1073,14 @@ vacía vuelve a null, el blanco vuelve a null, los porConfirmar de las dos parte
 juntan sin repetidos, y un total en 0 es "no impreso" y no un total de cero pesos. Y las subidas: una
 página de login, un 413 y un 504 salen con su causa nombrada, no con el error del
 parser de JSON.
+
+Editar sobre el documento: cada texto impreso lleva la ruta del dato que lo
+produjo, y se comprueban TODAS —que existan, que apunten a la fila correcta aunque
+haya vacías arriba, y que el texto impreso sea el dato—. El tipo lo manda el dato:
+un número sigue siendo número y un campo vaciado vuelve a null. Una ruta inventada
+no crea nada y ninguna toca el prototipo. Lo que pasa DENTRO del navegador
+—contenteditable, el Enter, pegar desde Word, los totales recalculándose— va en
+"npm run probar-edicion", que abre un Chromium de verdad.
 
 Detectados en los ocho borradores defectuosos: número mezclado, suma que no da,
 línea mal multiplicada, celda sin recalcular, dotación doble, sección heredada,

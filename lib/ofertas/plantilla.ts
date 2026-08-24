@@ -46,7 +46,15 @@ interface SeccionArmada {
   clave?: SeccionConImagenes;
 }
 
-const clp = (n: number) => "$ " + Math.round(n).toLocaleString("es-CL") + ".-";
+/**
+ * Un monto tal como se lee en el papel.
+ *
+ * Se exporta porque el editor sobre el documento recalcula las celdas de total
+ * mientras se escribe, y tiene que escribirlas con este formato exacto: si armara
+ * el suyo, el número cambiaría de aspecto al tipear y volvería al original recién
+ * al guardar.
+ */
+export const clp = (n: number) => "$ " + Math.round(n).toLocaleString("es-CL") + ".-";
 
 /**
  * La identidad de la empresa, omitiendo lo que no esté cargado.
@@ -90,17 +98,43 @@ function esc(valor: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Filas de una tabla simple etiqueta/valor, salteando las vacías. */
-function filasEtiqueta(pares: [string, string | null][]): string {
+/**
+ * Filas de una tabla simple etiqueta/valor, salteando las vacías.
+ *
+ * Cada valor lleva `data-campo` con la ruta del dato dentro de la oferta. Eso es lo
+ * que permite editar SOBRE el documento sin perder la estructura: lo que se toca en
+ * pantalla sigue siendo ese campo y no un pedazo de HTML suelto. En el PDF los
+ * atributos no se ven; en el editor son el puente entre el papel y el dato.
+ */
+function filasEtiqueta(pares: [string, string | null, string?][]): string {
   return (
     pares
       // `!= null` cubre también el ausente: el modelo omite lo que el documento no
       // trae, y con la comparación estricta una clave que falta imprimía la palabra
       // "undefined" en la tabla de identificación.
       .filter(([, v]) => v != null && String(v).trim() !== "")
-      .map(([k, v]) => `<tr><th class="etiqueta">${esc(k)}</th><td>${esc(v)}</td></tr>`)
+      .map(([k, v, ruta]) => `<tr><th class="etiqueta">${esc(k)}</th><td${campo(ruta)}>${esc(v)}</td></tr>`)
       .join("")
   );
+}
+
+/** El atributo que ata un texto del documento a su campo, o nada. */
+function campo(ruta?: string, tipo?: "numero"): string {
+  if (!ruta) return "";
+  return ` data-campo="${ruta}"${tipo ? ` data-tipo="${tipo}"` : ""}`;
+}
+
+/**
+ * Filtra filas sin perder el índice real.
+ *
+ * Las filas vacías no se imprimen —eso ya era así—, pero desde que cada celda lleva
+ * su `data-campo` el índice tiene que seguir siendo la posición dentro de la oferta
+ * y no la de la lista ya filtrada. Con `filter().map((f, i) => …)` no lo es: basta
+ * una fila vacía arriba para que editar la tercera fila de la pantalla escriba en la
+ * cuarta del dato, en silencio.
+ */
+function conIndice<T>(filas: T[], sirve: (fila: T) => boolean): { fila: T; i: number }[] {
+  return filas.map((fila, i) => ({ fila, i })).filter(({ fila }) => sirve(fila));
 }
 
 /**
@@ -158,12 +192,12 @@ const ITEMS_PEGADOS_AL_TITULO = 3;
 const MAXIMO_LISTA_ENTERA = 6;
 
 /** Los <li> de un tramo, con el numeral siguiendo la cuenta global. */
-function itemsDeHitos(items: string[], desde: number): string {
+function itemsDeHitos(items: string[], desde: number, ruta?: string): string {
   return items
     .map(
       (texto, i) =>
         `<li><span class="numeral">${String(desde + i + 1).padStart(2, "0")}</span>` +
-        `<span>${esc(texto)}</span></li>`,
+        `<span${campo(ruta ? `${ruta}.${desde + i}` : undefined)}>${esc(texto)}</span></li>`,
     )
     .join("");
 }
@@ -181,12 +215,15 @@ function itemsDeHitos(items: string[], desde: number): string {
  * el primero de cada tramo: si fuera por tramo, en los cortes quedarían dos
  * ítems pegados sin línea.
  */
-function hitos(items: string[], titulo?: string): string {
+function hitos(items: string[], titulo?: string, ruta?: string): string {
   if (items.length === 0) return "";
   const encabezado = titulo ? `<h3>${esc(titulo)}</h3>` : "";
 
   if (items.length <= MAXIMO_LISTA_ENTERA) {
-    return `<div class="grupo">${encabezado}<ol class="hitos primera">${itemsDeHitos(items, 0)}</ol></div>`;
+    return (
+      `<div class="grupo">${encabezado}` +
+      `<ol class="hitos primera">${itemsDeHitos(items, 0, ruta)}</ol></div>`
+    );
   }
 
   const cabeza = items.slice(0, ITEMS_PEGADOS_AL_TITULO);
@@ -194,9 +231,10 @@ function hitos(items: string[], titulo?: string): string {
   const medio = items.slice(ITEMS_PEGADOS_AL_TITULO, items.length - 2);
 
   return (
-    `<div class="grupo">${encabezado}<ol class="hitos primera">${itemsDeHitos(cabeza, 0)}</ol></div>` +
-    (medio.length ? `<ol class="hitos">${itemsDeHitos(medio, ITEMS_PEGADOS_AL_TITULO)}</ol>` : "") +
-    `<div class="grupo"><ol class="hitos">${itemsDeHitos(cola, items.length - 2)}</ol></div>`
+    `<div class="grupo">${encabezado}` +
+    `<ol class="hitos primera">${itemsDeHitos(cabeza, 0, ruta)}</ol></div>` +
+    (medio.length ? `<ol class="hitos">${itemsDeHitos(medio, ITEMS_PEGADOS_AL_TITULO, ruta)}</ol>` : "") +
+    `<div class="grupo"><ol class="hitos">${itemsDeHitos(cola, items.length - 2, ruta)}</ol></div>`
   );
 }
 
@@ -250,7 +288,9 @@ function grillaDeImagenes(
         return (
           `<figure${imagen.apaisada ? ' class="ancha"' : ""}>` +
           `<img src="${imagen.uri}" alt="">` +
-          `<figcaption>${numero}${epigrafe ? `. ${esc(epigrafe)}` : ""}</figcaption>` +
+          `<figcaption>${numero}${
+            epigrafe ? `. <span${campo(`epigrafesDeImagenes.${indice}`)}>${esc(epigrafe)}</span>` : ""
+          }</figcaption>` +
           `</figure>`
         );
       })
@@ -293,30 +333,30 @@ function armarSecciones(
   agregar(
     "Identificación de la oferta",
     `<table class="datos">${filasEtiqueta([
-      ["Oferta N°", id.numeroOferta],
-      ["Fecha", id.fecha],
-      ["Validez", id.validez],
-      ["Cliente", id.cliente],
-      ["Atención", id.atencion],
-      ["Copia", id.copia],
-      ["Referencia", id.referencia],
-      ["Faena", id.faena],
+      ["Oferta N°", id.numeroOferta, "identificacion.numeroOferta"],
+      ["Fecha", id.fecha, "identificacion.fecha"],
+      ["Validez", id.validez, "identificacion.validez"],
+      ["Cliente", id.cliente, "identificacion.cliente"],
+      ["Atención", id.atencion, "identificacion.atencion"],
+      ["Copia", id.copia, "identificacion.copia"],
+      ["Referencia", id.referencia, "identificacion.referencia"],
+      ["Faena", id.faena, "identificacion.faena"],
     ])}</table>`,
   );
 
   if (oferta.alcance) {
     const a = oferta.alcance;
-    let cuerpo = a.introduccion ? `<p>${esc(a.introduccion)}</p>` : "";
+    let cuerpo = a.introduccion ? `<p${campo("alcance.introduccion")}>${esc(a.introduccion)}</p>` : "";
     if (a.actividades.length) {
-      cuerpo += hitos(a.actividades, "Actividades comprendidas");
+      cuerpo += hitos(a.actividades, "Actividades comprendidas", "alcance.actividades");
     }
     if (a.trabajosPrevios.length) {
-      cuerpo += hitos(a.trabajosPrevios, "Trabajos previos considerados");
+      cuerpo += hitos(a.trabajosPrevios, "Trabajos previos considerados", "alcance.trabajosPrevios");
     }
     if (a.personalEspecialista.length) {
       cuerpo +=
         `<h3>Personal especialista considerado</h3>` +
-        tablaDotacion(a.personalEspecialista, totales.dotacionTotal, false);
+        tablaDotacion(a.personalEspecialista, totales.dotacionTotal, "alcance.personalEspecialista", false);
     }
     if (cuerpo) agregar("Alcance del servicio", cuerpo, "alcance");
   }
@@ -325,10 +365,18 @@ function armarSecciones(
     const m = oferta.metodologia;
     let cuerpo = "";
     if (m.antesDeLaDetencion.length) {
-      cuerpo += hitos(m.antesDeLaDetencion, "Antes de la detención de planta");
+      cuerpo += hitos(
+        m.antesDeLaDetencion,
+        "Antes de la detención de planta",
+        "metodologia.antesDeLaDetencion",
+      );
     }
     if (m.duranteLaDetencion.length) {
-      cuerpo += hitos(m.duranteLaDetencion, "Durante la detención de planta");
+      cuerpo += hitos(
+        m.duranteLaDetencion,
+        "Durante la detención de planta",
+        "metodologia.duranteLaDetencion",
+      );
     }
     if (cuerpo) agregar("Metodología y secuencia de trabajo", cuerpo, "metodologia");
   }
@@ -339,10 +387,12 @@ function armarSecciones(
       `<table class="tabla"><colgroup><col style="width:34%"><col></colgroup>
         <thead><tr><th>Parámetro</th><th>Especificación</th></tr></thead>
         ${cuerpoDeTabla(
-          oferta.especificaciones
-            // Igual que las tarjetas: sin parámetro, la fila no existe.
-            .filter((e) => e.parametro.trim() !== "")
-            .map((e) => `<tr><td>${esc(e.parametro)}</td><td>${esc(e.especificacion)}</td></tr>`),
+          // Igual que las tarjetas: sin parámetro, la fila no existe.
+          conIndice(oferta.especificaciones, (e) => e.parametro.trim() !== "").map(
+            ({ fila: e, i }) =>
+              `<tr><td${campo(`especificaciones.${i}.parametro`)}>${esc(e.parametro)}</td>` +
+              `<td${campo(`especificaciones.${i}.especificacion`)}>${esc(e.especificacion)}</td></tr>`,
+          ),
         )}</table>`,
       "especificaciones",
     );
@@ -350,21 +400,24 @@ function armarSecciones(
 
   if (oferta.organizacion) {
     const o = oferta.organizacion;
-    let cuerpo = o.nota ? `<p>${esc(o.nota)}</p>` : "";
+    let cuerpo = o.nota ? `<p${campo("organizacion.nota")}>${esc(o.nota)}</p>` : "";
     if (o.cuadroPersonal.length) {
-      cuerpo += `<h3>Cuadro de personal</h3>${tablaDotacion(o.cuadroPersonal, totales.dotacionTotal, true)}`;
+      cuerpo += `<h3>Cuadro de personal</h3>${tablaDotacion(o.cuadroPersonal, totales.dotacionTotal, "organizacion.cuadroPersonal", true)}`;
     }
     // Una responsabilidad sin cargo no se dibuja: vaciar el cargo en el editor es
     // la forma de sacar una tarjeta que quedó de otra oferta.
-    const responsabilidades = o.responsabilidades.filter((r) => r.cargo.trim() !== "");
+    const responsabilidades = conIndice(o.responsabilidades, (r) => r.cargo.trim() !== "");
     if (responsabilidades.length) {
       cuerpo +=
         `<h3>Organización del servicio</h3><div class="tarjetas">` +
         responsabilidades
           .map(
-            (r, i) =>
-              `<div class="tarjeta ${i % 2 === 0 ? "naranjo" : "teal"}">
-                 <p class="cargo">${esc(r.cargo)}</p><p>${esc(r.descripcion)}</p></div>`,
+            // El color alterna por posición impresa, no por índice del dato: si no, una
+            // tarjeta salteada deja dos del mismo color pegadas.
+            ({ fila: r, i }, orden) =>
+              `<div class="tarjeta ${orden % 2 === 0 ? "naranjo" : "teal"}">
+                 <p class="cargo"${campo(`organizacion.responsabilidades.${i}.cargo`)}>${esc(r.cargo)}</p>
+                 <p${campo(`organizacion.responsabilidades.${i}.descripcion`)}>${esc(r.descripcion)}</p></div>`,
           )
           .join("") +
         `</div>`;
@@ -377,24 +430,30 @@ function armarSecciones(
     let acumulado = 0;
     agregar(
       "Programa y plazos",
-      (p.introduccion ? `<p>${esc(p.introduccion)}</p>` : "") +
+      (p.introduccion ? `<p${campo("programa.introduccion")}>${esc(p.introduccion)}</p>` : "") +
         `<table class="tabla"><colgroup><col style="width:14%"><col style="width:28%"><col style="width:12%"><col></colgroup>
           <thead><tr><th>Turno</th><th>Jornada</th><th class="num">Horas</th><th>Avance acumulado</th></tr></thead>
           ${cuerpoDeTabla(
-            p.turnos
-              .filter((turno) => turno.turno.trim() !== "" || turno.horas !== 0)
-              .map((t) => {
+            conIndice(p.turnos, (turno) => turno.turno.trim() !== "" || turno.horas !== 0).map(
+              ({ fila: t, i }) => {
                 acumulado += t.horas;
                 const ancho = Math.round((acumulado / totales.horasPrograma) * 100);
-                return `<tr><td>${esc(t.turno)}</td><td>${esc(t.jornada)}</td><td class="num">${esc(t.horas)}</td>
-                  <td><span class="barra"><span style="width:${ancho}%"></span></span>
-                  <span class="avance">${esc(acumulado)} h de ${esc(totales.horasPrograma)} h</span></td></tr>`;
-              }),
+                return (
+                  `<tr><td${campo(`programa.turnos.${i}.turno`)}>${esc(t.turno)}</td>` +
+                  `<td${campo(`programa.turnos.${i}.jornada`)}>${esc(t.jornada)}</td>` +
+                  `<td class="num"${campo(`programa.turnos.${i}.horas`, "numero")}>${esc(t.horas)}</td>` +
+                  `<td data-calculado="avance"><span class="barra"><span style="width:${ancho}%"></span></span>
+                  <span class="avance">${esc(acumulado)} h de ${esc(totales.horasPrograma)} h</span></td></tr>`
+                );
+              },
+            ),
             `<tr class="total"><td>Total</td>
-              <td>${esc(totales.cantidadTurnos)} turno${totales.cantidadTurnos === 1 ? "" : "s"}</td>
-              <td class="num">${esc(totales.horasPrograma)}</td><td></td></tr>`,
+              <td data-calculado="turnos">${esc(totales.cantidadTurnos)} turno${
+                totales.cantidadTurnos === 1 ? "" : "s"
+              }</td>
+              <td class="num" data-calculado="horas">${esc(totales.horasPrograma)}</td><td></td></tr>`,
           )}</table>` +
-        (p.nota ? `<p class="nota">${esc(p.nota)}</p>` : ""),
+        (p.nota ? `<p class="nota"${campo("programa.nota")}>${esc(p.nota)}</p>` : ""),
       "programa",
     );
   }
@@ -407,40 +466,53 @@ function armarSecciones(
         <colgroup><col style="width:6%"><col style="width:8%"><col><col style="width:10%"><col style="width:15%"><col style="width:15%"></colgroup>
         <thead><tr><th>Ít</th><th class="num">Cant</th><th>Cargo</th><th>Un</th><th class="num">V. Unit</th><th class="num">V. Total</th></tr></thead>
         ${cuerpoDeTabla(
-          pr.lineas
-            // Una línea sin descripción y sin monto es una fila que alguien agregó y no
-            // completó: no se imprime. Con una de las dos cosas, sí — y el control de
-            // "valor unitario en 0" la marca para que se revise.
-            .filter((linea) => linea.cargo.trim() !== "" || linea.valorUnitario !== 0)
-            .map(
-              (l, i) =>
-                `<tr><td>${i + 1}.</td><td class="num">${esc(String(l.cantidad).padStart(2, "0"))}</td>
-                 <td>${esc(l.cargo)}</td><td>${esc(l.unidad)}</td>
-                 <td class="num">${clp(l.valorUnitario)}</td>
-                 <td class="num">${clp(l.cantidad * l.valorUnitario)}</td></tr>`,
-            ),
+          // Una línea sin descripción y sin monto es una fila que alguien agregó y no
+          // completó: no se imprime. Con una de las dos cosas, sí — y el control de
+          // "valor unitario en 0" la marca para que se revise.
+          conIndice(pr.lineas, (linea) => linea.cargo.trim() !== "" || linea.valorUnitario !== 0).map(
+            // El número de ítem es el del papel —1, 2, 3 sin saltos— y el de la ruta es
+            // el del dato: no tienen por qué coincidir.
+            ({ fila: l, i }, orden) =>
+              `<tr><td>${orden + 1}.</td>` +
+              `<td class="num"${campo(`precio.lineas.${i}.cantidad`, "numero")}>${esc(
+                String(l.cantidad).padStart(2, "0"),
+              )}</td>` +
+              `<td${campo(`precio.lineas.${i}.cargo`)}>${esc(l.cargo)}</td>` +
+              `<td${campo(`precio.lineas.${i}.unidad`)}>${esc(l.unidad)}</td>` +
+              `<td class="num"${campo(`precio.lineas.${i}.valorUnitario`, "numero")}>${clp(
+                l.valorUnitario,
+              )}</td>` +
+              `<td class="num" data-calculado="linea">${clp(l.cantidad * l.valorUnitario)}</td></tr>`,
+          ),
           `<tr class="total"><td colspan="5">Total neto — no incluye IVA</td>
-            <td class="num">${clp(totales.totalNetoCalculado)}</td></tr>`,
+            <td class="num" data-calculado="totalNeto">${clp(totales.totalNetoCalculado)}</td></tr>`,
         )}</table>` +
-        `<p class="nota">${esc(pr.nota ?? "Valores en pesos chilenos, netos. Los precios ofrecidos no incluyen IVA.")}</p>`,
+        `<p class="nota"${campo("precio.nota")}>${esc(
+          pr.nota ?? "Valores en pesos chilenos, netos. Los precios ofrecidos no incluyen IVA.",
+        )}</p>`,
       "precio",
     );
   }
 
   if (oferta.condicionesComerciales?.length) {
-    agregar("Condiciones comerciales", hitos(oferta.condicionesComerciales), "condiciones");
+    agregar(
+      "Condiciones comerciales",
+      hitos(oferta.condicionesComerciales, undefined, "condicionesComerciales"),
+      "condiciones",
+    );
   }
 
   if (oferta.aportes && (oferta.aportes.pertec.length || oferta.aportes.cliente.length)) {
-    const columna = (titulo: string, items: string[]) =>
+    const columna = (titulo: string, items: string[], ruta: string) =>
       `<div class="columna"><p class="cabecera">${esc(titulo)}</p>
-         <ul>${items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
+         <ul>${items.map((t, i) => `<li${campo(`${ruta}.${i}`)}>${esc(t)}</li>`).join("")}</ul></div>`;
     agregar(
       "Aportes de las partes",
-      `<div class="aportes">${columna("Aportes de PERTEC", oferta.aportes.pertec)}${columna(
-        `Aportes del cliente`,
-        oferta.aportes.cliente,
-      )}</div>`,
+      `<div class="aportes">${columna(
+        "Aportes de PERTEC",
+        oferta.aportes.pertec,
+        "aportes.pertec",
+      )}${columna(`Aportes del cliente`, oferta.aportes.cliente, "aportes.cliente")}</div>`,
       "aportes",
     );
   }
@@ -450,7 +522,7 @@ function armarSecciones(
     const hayRubrica = imagenSegura(imagenes[c.firmaImagen ?? -1]?.uri);
     agregar(
       "Cierre y firma",
-      (c.texto ? `<p>${esc(c.texto)}</p>` : "") +
+      (c.texto ? `<p${campo("cierre.texto")}>${esc(c.texto)}</p>` : "") +
         `<div class="firmas">${c.firmantes
           .map((f, i) => {
             // La rúbrica va ARRIBA de la línea, apoyada en ella, como en un papel
@@ -468,8 +540,13 @@ function armarSecciones(
                     rubrica ? `<img class="rubrica" src="${rubrica}" alt="">` : ""
                   }</span>`
                 : "") +
-              `<span class="linea"></span><p class="nombre">${esc(f.nombre)}</p>
-                 <p class="cargo">${esc(f.cargo)}${f.empresa ? `<br>${esc(f.empresa)}` : ""}</p></div>`
+              `<span class="linea"></span>` +
+              `<p class="nombre"${campo(`cierre.firmantes.${i}.nombre`)}>${esc(f.nombre)}</p>` +
+              `<p class="cargo"><span${campo(`cierre.firmantes.${i}.cargo`)}>${esc(f.cargo)}</span>` +
+              (f.empresa
+                ? `<br><span${campo(`cierre.firmantes.${i}.empresa`)}>${esc(f.empresa)}</span>`
+                : "") +
+              `</p></div>`
             );
           })
           .join("")}</div>` +
@@ -477,7 +554,7 @@ function armarSecciones(
         // mano va el RUT y la sucursal, que es lo que hace del bloque una firma y
         // no dos nombres sueltos.
         (identidadDeFirma(empresa) ? `<p class="identidad">${esc(identidadDeFirma(empresa))}</p>` : "") +
-        (c.cc ? `<p class="cc">${esc(c.cc)}</p>` : ""),
+        (c.cc ? `<p class="cc"${campo("cierre.cc")}>${esc(c.cc)}</p>` : ""),
       "cierre",
       // Corta por naturaleza —un párrafo, una o dos firmas y el cc— y la que peor
       // queda partida.
@@ -499,6 +576,7 @@ function armarSecciones(
 function tablaDotacion(
   filas: { cargo: string; dotacion: number; regimen?: string | null }[],
   total: number,
+  ruta: string,
   conRegimen: boolean,
 ): string {
   const columnas = conRegimen
@@ -510,15 +588,14 @@ function tablaDotacion(
   return (
     `<table class="tabla">${columnas}<thead>${encabezado}</thead>` +
     cuerpoDeTabla(
-      filas
-        .filter((fila) => fila.cargo.trim() !== "")
-        .map(
-          (f) =>
-            `<tr><td>${esc(f.cargo)}</td><td class="num">${esc(f.dotacion)}</td>${
-              conRegimen ? `<td>${esc(f.regimen ?? "")}</td>` : ""
-            }</tr>`,
-        ),
-      `<tr class="total"><td>Total</td><td class="num">${esc(total)}</td>${
+      conIndice(filas, (fila) => fila.cargo.trim() !== "").map(
+        ({ fila: f, i }) =>
+          `<tr><td${campo(`${ruta}.${i}.cargo`)}>${esc(f.cargo)}</td>` +
+          `<td class="num"${campo(`${ruta}.${i}.dotacion`, "numero")}>${esc(f.dotacion)}</td>` +
+          (conRegimen ? `<td${campo(`${ruta}.${i}.regimen`)}>${esc(f.regimen ?? "")}</td>` : "") +
+          `</tr>`,
+      ),
+      `<tr class="total"><td>Total</td><td class="num" data-calculado="dotacion">${esc(total)}</td>${
         conRegimen ? "<td></td>" : ""
       }</tr>`,
     ) +
@@ -541,8 +618,11 @@ function armarAnexo(
   if (anexo?.respaldoInstitucional.length) {
     const [primero, ...resto] = anexo.respaldoInstitucional;
     cuerpo +=
-      `<div class="grupo"><h3>Respaldo institucional</h3><p>${esc(primero)}</p></div>` +
-      resto.map((parrafo) => `<p>${esc(parrafo)}</p>`).join("");
+      `<div class="grupo"><h3>Respaldo institucional</h3>` +
+      `<p${campo("anexo.respaldoInstitucional.0")}>${esc(primero)}</p></div>` +
+      resto
+        .map((parrafo, i) => `<p${campo(`anexo.respaldoInstitucional.${i + 1}`)}>${esc(parrafo)}</p>`)
+        .join("");
   }
   if (anexo?.mandantes.length) {
     // Título, rejilla y nota en un solo grupo. Salió impreso partido en dos: tres
@@ -552,7 +632,9 @@ function armarAnexo(
     cuerpo +=
       `<div class="grupo">` +
       `<h3>Principales mandantes y contratos ejecutados con nuestro personal</h3>` +
-      `<div class="mandantes">${anexo!.mandantes.map((m) => `<span>${esc(m)}</span>`).join("")}</div>` +
+      `<div class="mandantes">${anexo!.mandantes
+        .map((m, i) => `<span${campo(`anexo.mandantes.${i}`)}>${esc(m)}</span>`)
+        .join("")}</div>` +
       `</div>`;
   }
 
@@ -565,11 +647,11 @@ function armarAnexo(
   if (grilla) {
     cuerpo +=
       `<div class="grupo"><h3>Fotografías de referencia</h3>` +
-      (anexo?.notaEquipo ? `<p class="nota">${esc(anexo.notaEquipo)}</p>` : "") +
+      (anexo?.notaEquipo ? `<p class="nota"${campo("anexo.notaEquipo")}>${esc(anexo.notaEquipo)}</p>` : "") +
       `</div>` +
       grilla;
   } else if (anexo?.notaEquipo) {
-    cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
+    cuerpo += `<p${campo("anexo.notaEquipo")}>${esc(anexo.notaEquipo)}</p>`;
   }
 
   if (!cuerpo) return null;
@@ -867,12 +949,12 @@ export function ofertaAHtml(
 
   <section class="portada">
     <p class="rotulo">Oferta técnica y económica</p>
-    <h1>${esc(oferta.titulo)}</h1>
-    ${id.faena ? `<p class="faena">${esc(id.faena)}</p>` : ""}
+    <h1${campo("titulo")}>${esc(oferta.titulo)}</h1>
+    ${id.faena ? `<p class="faena"${campo("identificacion.faena")}>${esc(id.faena)}</p>` : ""}
     <table class="datos limpia">${filasEtiqueta([
-      ["Oferta N°", id.numeroOferta],
-      ["Fecha", id.fecha],
-      ["Cliente", id.cliente],
+      ["Oferta N°", id.numeroOferta, "identificacion.numeroOferta"],
+      ["Fecha", id.fecha, "identificacion.fecha"],
+      ["Cliente", id.cliente, "identificacion.cliente"],
       ["Preparado por", [razonDe(empresa) || empresa.nombre, rutDe(empresa)].filter(Boolean).join(" · ")],
     ])}</table>
 

@@ -11,7 +11,8 @@
     "probar-importacion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-importacion.mts",
     "probar-nombre": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-nombre-cotizacion.mts",
     "probar-extraccion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-extraccion.mts",
-    "probar-ofertas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ofertas.mts"
+    "probar-ofertas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ofertas.mts",
+    "probar-edicion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-edicion.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -40,6 +41,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "playwright": "^1.49.1",

@@ -1,0 +1,313 @@
+/**
+ * ¿Se puede de verdad editar el documento adentro del iframe?
+ *
+ * El editor se apoya en supuestos que no se comprueban leyendo código: que con
+ * `sandbox="allow-same-origin"` (y sin `allow-scripts`) la página puede manejar el
+ * DOM del iframe, qué llega en `textContent`, qué hace el Enter y qué pega el
+ * portapapeles. Esto ejercita el módulo REAL —lib/ofertas/edicion-dom.ts, empacado
+ * con esbuild— en el Chromium de verdad.
+ */
+import { createServer } from "node:http";
+import assert from "node:assert/strict";
+
+import { chromium } from "playwright";
+import * as esbuild from "esbuild";
+import { ofertaAHtml } from "../lib/ofertas/plantilla";
+import { calcularTotales } from "../lib/ofertas/verificar";
+import type { OfertaCanonica } from "../lib/ofertas/tipos";
+import type { prepararDocumento } from "../lib/ofertas/edicion-dom";
+
+/** Lo que la prueba deja en el `window` de la página para poder mirarlo después. */
+interface VentanaDePrueba {
+  /** La copia que edita el módulo, igual que el `modelo` del componente. */
+  modelo: OfertaCanonica;
+  /** Lo que el módulo avisó hacia afuera, que es lo que la página guardaría. */
+  avisos: { ruta: string; texto: string; tipo?: string }[];
+  alto: number;
+  Edicion: { prepararDocumento: typeof prepararDocumento };
+}
+
+const oferta: OfertaCanonica = {
+  titulo: "Servicio de traslado de rollos nuevos de correa a CT-6 y CT-7",
+  identificacion: {
+    numeroOferta: "OS 010-2026",
+    fecha: "11 de agosto de 2026",
+    validez: "31 de agosto de 2026",
+    cliente: "AXINNTUS SERVICIOS INDUSTRIALES",
+    atencion: "Sr. Alan Muñoz G.",
+    copia: null,
+    referencia: "Traslado de rollos a CT-6 y CT-7.",
+    faena: "Central Eléctrica Angamos",
+  },
+  alcance: {
+    introduccion: "La oferta consiste en el traslado de 06 rollos nuevos.",
+    actividades: ["Traslado de 06 rollos desde bodega", "Maniobras de izaje"],
+    trabajosPrevios: [],
+    personalEspecialista: [],
+  },
+  metodologia: null,
+  especificaciones: null,
+  organizacion: {
+    cuadroPersonal: [
+      { cargo: "Supervisor", dotacion: 1, regimen: "Turno de día — 10 h" },
+      { cargo: "Rigger", dotacion: 2, regimen: "Turno de día — 10 h" },
+    ],
+    responsabilidades: [{ cargo: "Supervisor", descripcion: "Dirige la maniobra." }],
+    nota: "El servicio se ejecuta con una cuadrilla en 01 turno.",
+  },
+  programa: {
+    introduccion: "Duración total de 10 horas.",
+    turnos: [
+      { turno: "T1", jornada: "Día 1 — día", horas: 10 },
+      { turno: "T2", jornada: "Día 2 — día", horas: 6 },
+    ],
+    nota: null,
+  },
+  precio: {
+    lineas: [
+      {
+        cantidad: 1,
+        cargo: "Traslado de rollos.",
+        unidad: "Global",
+        valorUnitario: 15885200,
+        valorTotalImpreso: 15885200,
+      },
+      {
+        cantidad: 2,
+        cargo: "Arriendo de grúa.",
+        unidad: "Día",
+        valorUnitario: 500000,
+        valorTotalImpreso: 1000000,
+      },
+    ],
+    totalNetoImpreso: 16885200,
+    nota: null,
+  },
+  condicionesComerciales: ["La validez de esta oferta es de 21 días."],
+  aportes: { pertec: ["Personal especializado"], cliente: ["Carretes de cinta nueva"] },
+  cierre: {
+    texto: "Quedamos a disposición.",
+    firmantes: [
+      { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: "Performance Technologies SpA" },
+    ],
+    cc: "CC: Gcia. Gral. / Archivo.",
+    firmaImagen: null,
+  },
+  anexo: {
+    respaldoInstitucional: ["PERTEC es una empresa nacional."],
+    mandantes: ["Minera Franke"],
+    notaEquipo: null,
+  },
+  porConfirmar: [],
+  imagenesPorSeccion: {},
+  epigrafesDeImagenes: {},
+  omitidas: [],
+};
+
+/** Una identidad cargada, para que el encabezado y la firma salgan completos. */
+const empresa = {
+  id: "prueba",
+  nombre: "PERFORMANCE TECHNOLOGIES",
+  razonSocial: "Performance Technologies SpA",
+  rut: "77.777.777-7",
+  direccion: "Av. Siempre Viva 123",
+  ciudad: "Antofagasta",
+  email: "contacto@pertec.cl",
+  telefono: "+56 9 1234 5678",
+  representanteLegal: "Alex Oliva",
+  activo: true,
+  logoRuta: null,
+  logoNombre: null,
+};
+
+const documento = ofertaAHtml(oferta, calcularTotales(oferta), empresa);
+
+// El módulo real, empacado para poder inyectarlo en la página.
+const { outputFiles } = await esbuild.build({
+  entryPoints: ["lib/ofertas/edicion-dom.ts"],
+  bundle: true,
+  format: "iife",
+  globalName: "Edicion",
+  write: false,
+});
+const guion = outputFiles[0].text;
+
+const padre = `<!doctype html><meta charset="utf-8"><body style="margin:0">
+  <iframe id="marco" sandbox="allow-same-origin" style="width:100%;height:900px;border:0"></iframe></body>`;
+
+const servidor = createServer((_peticion, respuesta) => {
+  respuesta.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  respuesta.end(padre);
+});
+await new Promise<void>((listo) => servidor.listen(4599, listo));
+
+const navegador = await chromium.launch({ headless: true });
+try {
+  const pagina = await navegador.newPage();
+  pagina.on("pageerror", (e: Error) => console.error("[error en la página]", e.message));
+  await pagina.goto("http://localhost:4599/");
+  // tsx compila este archivo con esbuild y `keepNames`, que mete una llamada a
+  // __name en cada función. Las que viajan a page.evaluate se serializan con ella
+  // adentro, así que en la página tiene que existir.
+  await pagina.evaluate("globalThis.__name = (f) => f");
+  await pagina.addScriptTag({ content: guion });
+
+  // Monta el documento y engancha el editor, igual que hace el componente.
+  const montaje = await pagina.evaluate(async ([html, datos]: string[]) => {
+    const marco = document.getElementById("marco") as HTMLIFrameElement;
+    await new Promise<void>((listo) => {
+      marco.addEventListener("load", () => listo(), { once: true });
+      marco.srcdoc = html;
+    });
+    const doc = marco.contentDocument;
+    if (!doc) return { error: "la página no puede tocar el documento del iframe" };
+
+    const ventana = window as unknown as VentanaDePrueba;
+    ventana.modelo = JSON.parse(datos);
+    ventana.avisos = [];
+    ventana.alto = 0;
+    ventana.Edicion.prepararDocumento(doc, {
+      editable: true,
+      oferta: () => ventana.modelo,
+      alEditar: (ruta: string, texto: string, tipo?: string) => ventana.avisos.push({ ruta, texto, tipo }),
+      alMedir: (alto: number) => (ventana.alto = alto),
+    });
+
+    const cliente = doc.querySelector<HTMLElement>('[data-campo="identificacion.cliente"]');
+    return {
+      campos: doc.querySelectorAll("[data-campo]").length,
+      calculadas: doc.querySelectorAll("[data-calculado]").length,
+      editable: cliente?.isContentEditable === true,
+      alto: ventana.alto as number,
+    };
+  }, [documento, JSON.stringify(oferta)]);
+  console.log(montaje);
+  assert.ok(!("error" in montaje), "la página tiene que poder tocar el documento del iframe");
+  assert.ok(montaje.editable, "los campos tienen que quedar editables");
+  assert.ok((montaje.campos ?? 0) > 40 && (montaje.calculadas ?? 0) > 3);
+  assert.ok((montaje.alto ?? 0) > 500, "el alto del documento tiene que medirse para la página");
+
+  const enfocar = (selector: string) =>
+    pagina.evaluate((sel: string) => {
+      const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+      const campo = doc.querySelector<HTMLElement>(sel)!;
+      campo.focus();
+      doc.getSelection()!.selectAllChildren(campo);
+    }, selector);
+
+  // ── 1. Escribir un texto, con Enter incluido ──────────────────────────────
+  await enfocar('[data-campo="identificacion.cliente"]');
+  await pagina.keyboard.type("MINERA ESCONDIDA");
+  await pagina.keyboard.press("Enter");
+
+  const texto = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const copias = [...doc.querySelectorAll<HTMLElement>('[data-campo="identificacion.cliente"]')];
+    return {
+      impreso: copias.map((c) => c.textContent),
+      marcado: copias[0].innerHTML,
+      enElDato: ventana.modelo.identificacion.cliente,
+      avisado: ventana.avisos.at(-1),
+      // El Enter tiene que haber soltado el campo, no partido el texto.
+      enfocado: doc.activeElement === copias[0],
+    };
+  });
+  console.log(texto);
+  assert.deepEqual(
+    texto.impreso,
+    ["MINERA ESCONDIDA", "MINERA ESCONDIDA"],
+    "lo tecleado sale en los dos lugares donde el documento muestra ese dato",
+  );
+  assert.ok(!texto.marcado.includes("<"), "y queda como texto plano, sin marcado");
+  assert.ok(!texto.impreso[0]!.includes("\n"), "el Enter no puede meter saltos de línea en el dato");
+  assert.equal(texto.enElDato, "MINERA ESCONDIDA", "el dato de la oferta quedó escrito");
+  assert.equal(texto.avisado?.ruta, "identificacion.cliente", "y la página se enteró");
+  assert.equal(texto.enfocado, false, "el Enter cierra la edición");
+
+  // ── 2. Un monto: recalcula la línea y el total, y se reformatea al salir ───
+  await enfocar('[data-campo="precio.lineas.1.valorUnitario"]');
+  await pagina.keyboard.type("750000");
+
+  const mientras = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const filas = [...doc.querySelectorAll<HTMLElement>('[data-calculado="linea"]')];
+    return {
+      lineas: filas.map((f) => f.textContent),
+      total: doc.querySelector<HTMLElement>('[data-calculado="totalNeto"]')!.textContent,
+      enElDato: (window as unknown as VentanaDePrueba).modelo.precio!.lineas[1].valorUnitario,
+    };
+  });
+  console.log(mientras);
+  assert.equal(mientras.enElDato, 750_000, "el monto se guarda como número, no como texto");
+  assert.equal(mientras.lineas[1], "$ 1.500.000.-", "la línea se recalcula mientras se escribe");
+  assert.equal(mientras.total, "$ 17.385.200.-", "y el total neto también");
+
+  // Al salir del campo vuelve al formato del papel.
+  await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    (doc.activeElement as HTMLElement).blur();
+  });
+  const formateado = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    return doc.querySelector<HTMLElement>('[data-campo="precio.lineas.1.valorUnitario"]')!.textContent;
+  });
+  assert.equal(formateado, "$ 750.000.-", "al soltar el campo el número vuelve al formato del papel");
+
+  // ── 3. Las horas del programa mueven el total y el avance ─────────────────
+  await enfocar('[data-campo="programa.turnos.1.horas"]');
+  await pagina.keyboard.type("14");
+  const programa = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    return {
+      horas: doc.querySelector<HTMLElement>('[data-calculado="horas"]')!.textContent,
+      avances: [...doc.querySelectorAll<HTMLElement>('[data-calculado="avance"] .avance')].map(
+        (a) => a.textContent,
+      ),
+      ancho: doc.querySelector<HTMLElement>('[data-calculado="avance"] .barra > span')!.style.width,
+    };
+  });
+  console.log(programa);
+  assert.equal(programa.horas, "24", "el total de horas se recalcula");
+  assert.deepEqual(programa.avances, ["10 h de 24 h", "24 h de 24 h"], "y el avance acumulado también");
+  assert.equal(programa.ancho, "42%", "la barra sigue al dato");
+
+  // ── 4. Las celdas calculadas no se pueden escribir ────────────────────────
+  const calculada = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const celda = doc.querySelector<HTMLElement>('[data-calculado="totalNeto"]')!;
+    return { editable: celda.isContentEditable, ayuda: celda.title };
+  });
+  assert.equal(calculada.editable, false, "un total no se escribe a mano");
+  assert.ok(calculada.ayuda.includes("servidor"));
+
+  // ── 5. Pegar desde Word entra como texto ──────────────────────────────────
+  await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const campo = doc.querySelector<HTMLElement>('[data-campo="alcance.introduccion"]')!;
+    campo.focus();
+    doc.getSelection()!.selectAllChildren(campo);
+    const datos = new DataTransfer();
+    datos.setData("text/plain", "Traslado\n  de seis rollos\tnuevos.");
+    datos.setData("text/html", '<b style="color:red">Traslado</b> de seis rollos nuevos.');
+    campo.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: datos, bubbles: true, cancelable: true }),
+    );
+  });
+  const pegado = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const campo = doc.querySelector<HTMLElement>('[data-campo="alcance.introduccion"]')!;
+    return {
+      marcado: campo.innerHTML,
+      enElDato: (window as unknown as VentanaDePrueba).modelo.alcance!.introduccion,
+    };
+  });
+  console.log(pegado);
+  assert.ok(!pegado.marcado.includes("<b"), "pegar desde Word no puede traer marcado");
+  assert.equal(pegado.enElDato, "Traslado de seis rollos nuevos.", "los saltos y tabulaciones se limpian");
+
+  console.log("\nLa edición sobre el documento funciona en el navegador.");
+} finally {
+  await navegador.close();
+  servidor.close();
+}
