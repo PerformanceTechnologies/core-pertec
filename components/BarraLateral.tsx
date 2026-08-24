@@ -80,6 +80,36 @@ function leerEsDesktopServidor() {
   return false;
 }
 
+/**
+ * Las pantallas de adentro de un módulo, para que se vean desde el menú.
+ *
+ * Hasta ahora solo se llegaba a ellas desde links dentro del propio módulo, así
+ * que quien entraba por primera vez no tenía forma de saber que existían: los
+ * formatos de las ofertas, las empresas emisoras del cotizador y los catálogos de
+ * precios estaban a un clic de distancia y a cero pistas de distancia.
+ *
+ * Solo se dibujan cuando el módulo está abierto: el menú tiene que decir dónde
+ * estás parado, no listar todo lo que hay.
+ *
+ * Panel Finanzas no está acá a propósito, aunque también tenga pantallas adentro:
+ * las suyas se conceden por usuario (ver lib/finanzas-subpaneles-usuario.ts, donde
+ * "facturas-ih" además deniega por defecto), y listarlas sin consultar ese permiso
+ * mostraría puertas cerradas. Su propia portada ya las presenta con su descripción.
+ */
+const SECCIONES_DE_MODULO: Record<string, { href: string; nombre: string }[]> = {
+  "/ofertas": [
+    { href: "/ofertas", nombre: "Ofertas" },
+    { href: "/ofertas/maestros", nombre: "Maestros de formato" },
+    { href: "/ofertas/logos", nombre: "Logos" },
+  ],
+  "/cotizador": [
+    { href: "/cotizador", nombre: "Cotizaciones" },
+    { href: "/cotizador/empresas", nombre: "Empresas emisoras" },
+    { href: "/cotizador/catalogos", nombre: "Catálogos de precios" },
+    { href: "/cotizador/parametros", nombre: "Parámetros legales" },
+  ],
+};
+
 function esRutaActiva(href: string, pathname: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -236,11 +266,7 @@ export default function BarraLateral({
             const Icono = obtenerIcono(app.icono);
             const deshabilitada = app.estado === "mantenimiento";
             const href =
-              app.tipo === "interna"
-                ? app.url
-                : app.url.startsWith("http")
-                  ? app.url
-                  : `https://${app.url}`;
+              app.tipo === "interna" ? app.url : app.url.startsWith("http") ? app.url : `https://${app.url}`;
 
             if (deshabilitada) {
               return (
@@ -266,14 +292,24 @@ export default function BarraLateral({
 
             const activa = esRutaActiva(href, pathname);
             const clases = clasesItem(activa, colapsado);
-            const titulo = colapsado ? app.nombre : undefined;
+            // La descripción de la app, en el tooltip: "Panel Odoo" o "Cotizador"
+            // no dicen mucho de afuera, y el dato ya está cargado.
+            const titulo = [app.nombre, app.descripcion].filter(Boolean).join(" — ");
+            const secciones = SECCIONES_DE_MODULO[href] ?? [];
 
             if (app.tipo === "interna") {
               return (
-                <Link key={app.id} href={href} title={titulo} className={clases}>
-                  <Icono size={17} stroke={1.75} aria-hidden />
-                  {!colapsado && <span className="truncate">{app.nombre}</span>}
-                </Link>
+                <div key={app.id}>
+                  <Link href={href} title={titulo} className={clases}>
+                    <Icono size={17} stroke={1.75} aria-hidden />
+                    {!colapsado && <span className="truncate">{app.nombre}</span>}
+                  </Link>
+                  {/* Plegado no hay lugar para esto, y desplegarlo al pasar el mouse
+                      taparía el resto del menú. */}
+                  {activa && !colapsado && secciones.length > 0 && (
+                    <SeccionesDelModulo secciones={secciones} base={href} pathname={pathname} />
+                  )}
+                </div>
               );
             }
 
@@ -433,12 +469,7 @@ export default function BarraLateral({
         </button>
       </div>
 
-      {abierta && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 lg:hidden"
-          onClick={cerrarMenu}
-        />
-      )}
+      {abierta && <div className="fixed inset-0 z-50 bg-black/40 lg:hidden" onClick={cerrarMenu} />}
 
       <aside
         style={colapsado ? { width: ANCHO_COLAPSADO } : undefined}
@@ -468,10 +499,45 @@ export default function BarraLateral({
         {contenido}
       </aside>
 
-      {buscadorAbierto && (
-        <BuscadorGlobal alCerrar={cerrarBuscador} apps={apps} esAdmin={esAdmin} />
-      )}
+      {buscadorAbierto && <BuscadorGlobal alCerrar={cerrarBuscador} apps={apps} esAdmin={esAdmin} />}
     </>
+  );
+}
+
+/**
+ * Las pantallas del módulo abierto, colgando de él.
+ *
+ * La primera es la portada del módulo y las demás son sus pantallas internas. Se
+ * marca activa la interna que calce, y si no calza ninguna, la portada: sin eso,
+ * "Ofertas" quedaba encendida también estando en Maestros, porque su ruta es
+ * prefijo de todas las de adentro.
+ */
+function SeccionesDelModulo({
+  secciones,
+  base,
+  pathname,
+}: {
+  secciones: { href: string; nombre: string }[];
+  base: string;
+  pathname: string;
+}) {
+  const interna = secciones.find((s) => s.href !== base && esRutaActiva(s.href, pathname));
+  const activa = interna?.href ?? base;
+
+  return (
+    <div className="mb-1 ml-[18px] mt-0.5 flex flex-col border-l border-borde pl-2">
+      {secciones.map((seccion) => (
+        <Link
+          key={seccion.href}
+          href={seccion.href}
+          className={`truncate rounded-md px-2 py-1 text-[12px] transition ${
+            seccion.href === activa ? "font-medium text-naranjo" : "text-tinta/55 hover:text-naranjo"
+          }`}
+        >
+          {seccion.nombre}
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -489,7 +555,11 @@ function EnlaceNav({
   children: ReactNode;
 }) {
   return (
-    <Link href={href} title={colapsado ? String(children) : undefined} className={clasesItem(activo, colapsado)}>
+    <Link
+      href={href}
+      title={colapsado ? String(children) : undefined}
+      className={clasesItem(activo, colapsado)}
+    >
       {icono}
       {!colapsado && <span className="truncate">{children}</span>}
     </Link>
