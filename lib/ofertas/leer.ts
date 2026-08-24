@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { extraerDeArchivo, extraerTextoDePdf, type ImagenExtraida } from "@/lib/cotizador/obra/extraer-texto";
+import sharp from "sharp";
 import { extraerImagenesDePdf } from "@/lib/cotizador/obra/extraer-imagenes-pdf";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
 import type { OfertaCanonica } from "./tipos";
@@ -230,8 +231,12 @@ cifras —dotación, turnos, precios— los lee otra pasada; no los transcribas 
       "firmaImagen".
     · El LOGO de la empresa NO es ninguna de las dos cosas, y suele ser la primera imagen del
       documento o la última: el sistema pone el logo por su cuenta. Omitilo.
-  Una imagen que no sabés qué es, omitila y decilo en "porConfirmar": es mejor que no salga que
-  aparezca el membrete en el medio del anexo.
+  ANTE LA DUDA, LA IMAGEN VA. Una foto y un diagrama terminan los dos en el anexo, así que no hace
+  falta distinguirlos: si podría ser cualquiera de las dos, incluila. Lo único que se omite es lo que
+  claramente es un logo o un membrete — se reconocen por ser anchos y bajos (proporción mayor a 2.5:1),
+  por repetirse, o por estar en la primera página antes del título. Omitir una foto por no estar
+  seguro deja el anexo vacío, que es peor que una foto de más: la persona que revisa puede sacarla, y
+  ve las que quedaron afuera.
 - LAS LISTAS DE METODOLOGÍA LLEVAN SOLO PASOS. Una frase que dice cuánto dura el trabajo ("realizar la
   actividad en 48 horas, 2 días") o en cuántos turnos se ejecuta ("4 turnos de 12 horas en turnos día y
   noche") NO es un paso de la secuencia: es el programa, y lo transcribe la otra lectura a partir de esa
@@ -293,6 +298,38 @@ de precios. La parte narrativa la lee otra pasada; no la transcribas acá.
  * válido. Tampoco conviene poner un número enorme: a la velocidad de salida del
  * modelo, 30.000 tokens no entran en el tiempo de la función.
  */
+/**
+ * El inventario de imágenes, para que el modelo pueda distinguirlas.
+ *
+ * El marcador solo dice DÓNDE estaba una imagen. Sin las medidas, decidir si es
+ * una foto, un diagrama o un logo es adivinar — y pasó: el modelo omitió una
+ * imagen de 1162×667 px "por no poder determinar con certeza" qué era, y el anexo
+ * salió vacío. Las proporciones lo resuelven casi solas: un membrete es ancho y
+ * bajo, una foto de faena es grande y de proporción de cámara.
+ */
+async function inventarioDeImagenes(imagenes: ImagenExtraida[]): Promise<string> {
+  if (imagenes.length === 0) return "";
+
+  const lineas = await Promise.all(
+    imagenes.map(async (imagen) => {
+      let medidas = "medidas desconocidas";
+      try {
+        const info = await sharp(imagen.contenido).metadata();
+        if (info.width && info.height) {
+          medidas = `${info.width}×${info.height} px (proporción ${(info.width / info.height).toFixed(2)}:1)`;
+        }
+      } catch {
+        // Una imagen que sharp no abre igual va listada: el modelo la ubica por su
+        // posición y el servidor la descarta al guardar.
+      }
+      const donde = imagen.pagina ? `, página ${imagen.pagina}` : "";
+      return `[IMAGEN ${imagen.indice}]: ${medidas}${donde}`;
+    }),
+  );
+
+  return `\n\nLAS IMÁGENES QUE TRAE EL BORRADOR:\n${lineas.join("\n")}\n`;
+}
+
 async function leerParte<T>(
   contenido: Anthropic.ContentBlockParam[],
   instrucciones: string,
@@ -415,6 +452,7 @@ export async function leerBorrador(
                 `del texto de la página donde se dibuja esa imagen — no en el punto exacto del ` +
                 `párrafo, que en un PDF no se puede saber.\n`
               : "2) El PDF no trae imágenes.\n") +
+            (await inventarioDeImagenes(imagenes)) +
             `\n${conMarcadores}`,
           cache_control: { type: "ephemeral" },
         },
@@ -442,7 +480,9 @@ export async function leerBorrador(
             ? `. Trae ${imagenes.length} imagen(es), marcadas como [IMAGEN n] en el lugar exacto ` +
               `donde estaban`
             : "") +
-          `:\n\n${leido.texto}`,
+          `:` +
+          (await inventarioDeImagenes(imagenes)) +
+          `\n\n${leido.texto}`,
         cache_control: { type: "ephemeral" },
       },
     ];

@@ -124,6 +124,16 @@ export async function imagenesParaDocumento(
   const pedidas = inventario.filter((i) => indices.includes(i.indice));
   const resueltas: Record<number, ImagenDibujable> = {};
 
+  // Un documento que pide imágenes contra un inventario vacío es un cable
+  // desconectado, no una oferta sin fotos. Pasó: la ruta del PDF no le pasaba el
+  // inventario y las seis fotos no se dibujaban, sin que nada lo dijera.
+  if (indices.length > 0 && inventario.length === 0) {
+    console.warn(
+      `[ofertas] el documento pide ${indices.length} imagen(es) y el inventario llegó vacío: ` +
+        "revisar que quien llama esté pasando oferta.imagenes.",
+    );
+  }
+
   await Promise.all(
     pedidas.map(async (imagen) => {
       const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(imagen.ruta);

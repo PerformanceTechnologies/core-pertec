@@ -49,7 +49,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       });
     }
 
-    const pdf = await ofertaAPdf(oferta.contenido, oferta.empresa, oferta.maestroId, oferta.logoClienteRuta);
+    const pdf = await ofertaAPdf(
+      oferta.contenido,
+      oferta.empresa,
+      oferta.maestroId,
+      oferta.logoClienteRuta,
+      oferta.imagenes,
+    );
 
     if (parametros.get("emitir") === "1" && oferta.estado !== "emitida") {
       await marcarEmitida(id);

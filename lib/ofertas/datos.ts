@@ -239,6 +239,55 @@ export async function guardarLogoCliente(
   if (error) throw new Error(`No se pudo guardar el logo del cliente: ${error.message}`);
 }
 
+/**
+ * Cambia qué imágenes del borrador usa el documento.
+ *
+ * La elección del modelo es una PROPUESTA, no la última palabra: mira medidas y
+ * contexto, y con eso se equivoca —omitió una foto de 1162×667 px "por no estar
+ * seguro" y el anexo salió vacío—. Acá la persona ve las miniaturas y decide, que
+ * es el mismo reparto que gobierna el resto del módulo.
+ *
+ * Se escribe sobre el contenido y se vuelven a correr los controles, como cualquier
+ * corrección: si la sección de anexo o de cierre no existía, se crea con lo mínimo,
+ * porque elegir una foto es decir que el anexo aplica.
+ */
+export async function guardarImagenesElegidas(
+  id: string,
+  fotos: number[],
+  firma: number | null,
+): Promise<void> {
+  const oferta = await obtenerOferta(id);
+  if (!oferta) return;
+
+  const contenido: OfertaCanonica = {
+    ...oferta.contenido,
+    anexo:
+      fotos.length > 0
+        ? {
+            respaldoInstitucional: oferta.contenido.anexo?.respaldoInstitucional ?? [],
+            mandantes: oferta.contenido.anexo?.mandantes ?? [],
+            notaEquipo: oferta.contenido.anexo?.notaEquipo ?? null,
+            fotos,
+          }
+        : oferta.contenido.anexo
+          ? { ...oferta.contenido.anexo, fotos: [] }
+          : null,
+    cierre:
+      firma !== null
+        ? {
+            texto: oferta.contenido.cierre?.texto ?? null,
+            firmantes: oferta.contenido.cierre?.firmantes ?? [],
+            cc: oferta.contenido.cierre?.cc ?? null,
+            firmaImagen: firma,
+          }
+        : oferta.contenido.cierre
+          ? { ...oferta.contenido.cierre, firmaImagen: null }
+          : null,
+  };
+
+  await guardarContenido(id, contenido, oferta.archivoOrigen);
+}
+
 export async function marcarEmitida(id: string): Promise<void> {
   await supabaseAdmin
     .from("ofertas_documentos")

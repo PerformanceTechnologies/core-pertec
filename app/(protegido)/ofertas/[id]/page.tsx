@@ -4,8 +4,10 @@ import EditorOferta from "@/components/ofertas/EditorOferta";
 import { listarMaestros } from "@/lib/ofertas/maestros";
 import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import { urlFirmadaLogo } from "@/lib/ofertas/logos-archivo";
+import { urlFirmadaImagen } from "@/lib/ofertas/imagenes";
+import ImagenesDelBorrador from "@/components/ofertas/ImagenesDelBorrador";
 import SubirLogo from "@/components/ofertas/SubirLogo";
-import { asignarMaestroAction } from "../acciones";
+import { asignarMaestroAction, elegirImagenesAction } from "../acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,15 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
     urlFirmadaLogo(empresa?.logoRuta ?? null),
     urlFirmadaLogo(oferta.logoClienteRuta),
   ]);
+
+  // Las miniaturas de lo que traía el borrador: para elegir hay que ver.
+  const urlsImagenes: Record<number, string> = {};
+  await Promise.all(
+    oferta.imagenes.map(async (imagen) => {
+      const url = await urlFirmadaImagen(imagen.ruta);
+      if (url) urlsImagenes[imagen.indice] = url;
+    }),
+  );
 
   return (
     <div className="animar-entrada max-w-[1300px]">
@@ -130,6 +141,16 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
           deshabilitado={oferta.estado === "emitida"}
         />
       </div>
+
+      <ImagenesDelBorrador
+        ofertaId={oferta.id}
+        imagenes={oferta.imagenes}
+        urls={urlsImagenes}
+        fotos={oferta.contenido.anexo?.fotos ?? []}
+        firma={oferta.contenido.cierre?.firmaImagen ?? null}
+        editable={oferta.estado === "borrador"}
+        accion={elegirImagenesAction}
+      />
 
       <EditorOferta
         id={oferta.id}

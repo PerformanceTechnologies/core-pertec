@@ -100,16 +100,14 @@ export async function POST(request: Request) {
     const bytes = Buffer.from(await archivo.arrayBuffer());
     const { contenido, imagenes } = await leerBorrador(bytes, archivo.type, archivo.name);
 
-    // Las imágenes se guardan DESPUÉS de leer bien: si la lectura falla, no queda
-    // un puñado de archivos huérfanos en el bucket. Y solo las que el documento va
-    // a usar —el modelo ya descartó los logos— para no guardar el membrete.
-    const usadas = new Set([
-      ...(contenido.anexo?.fotos ?? []),
-      ...(contenido.cierre?.firmaImagen ? [contenido.cierre.firmaImagen] : []),
-    ]);
-    const guardadas = await guardarImagenesDelBorrador(
-      imagenes.filter((imagen) => usadas.has(imagen.indice)),
-    );
+    // Se guardan TODAS, no solo las que el modelo eligió. La elección del modelo es
+    // una propuesta y se equivoca —omitió una foto de 1162×667 px "por no estar
+    // seguro" y el anexo salió vacío—, así que la persona tiene que poder agregar
+    // las que quedaron afuera. Si no están guardadas, no hay nada que agregar.
+    //
+    // Después de leer bien, eso sí: una lectura que falla no deja archivos
+    // huérfanos en el bucket.
+    const guardadas = await guardarImagenesDelBorrador(imagenes);
 
     const { id, inconsistencias } = await crearOferta(
       contenido,
