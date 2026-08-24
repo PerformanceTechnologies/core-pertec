@@ -146,7 +146,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         ofertaId={oferta.id}
         imagenes={oferta.imagenes}
         urls={urlsImagenes}
-        fotos={oferta.contenido.anexo?.fotos ?? []}
+        porSeccion={oferta.contenido.imagenesPorSeccion ?? {}}
         firma={oferta.contenido.cierre?.firmaImagen ?? null}
         editable={oferta.estado === "borrador"}
         accion={elegirImagenesAction}

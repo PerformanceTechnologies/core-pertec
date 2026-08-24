@@ -107,5 +107,6 @@ export async function ofertaAHtmlConEmpresa(
  */
 function imagenesQueUsa(oferta: OfertaCanonica): number[] {
   const firma = oferta.cierre?.firmaImagen;
-  return [...(oferta.anexo?.fotos ?? []), ...(firma ? [firma] : [])];
+  const enSecciones = Object.values(oferta.imagenesPorSeccion ?? {}).flat();
+  return [...enSecciones, ...(firma ? [firma] : [])];
 }

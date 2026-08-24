@@ -145,8 +145,6 @@ export interface Anexo {
   respaldoInstitucional: string[];
   mandantes: string[];
   notaEquipo: string | null;
-  /** Las fotos de referencia del borrador, por número de imagen y en orden. */
-  fotos: number[];
 }
 
 /**
@@ -156,6 +154,53 @@ export interface Anexo {
  * un dato no está o es ambiguo, se nombra acá y se ve en pantalla, en vez de
  * aparecer completado con algo verosímil.
  */
+/**
+ * Las secciones donde puede ir una imagen del borrador.
+ *
+ * Un borrador no pone todas sus imágenes juntas: el diagrama de disposición de
+ * equipos está en medio de la metodología, las fotos de faena en el anexo y la
+ * firma escaneada junto al nombre del firmante. Que salgan DONDE ESTABAN es la
+ * diferencia entre reproducir el documento y hacer un collage al final.
+ */
+export type SeccionConImagenes =
+  | "alcance"
+  | "metodologia"
+  | "especificaciones"
+  | "organizacion"
+  | "programa"
+  | "precio"
+  | "condiciones"
+  | "aportes"
+  | "cierre"
+  | "anexo";
+
+export const SECCIONES_CON_IMAGENES: SeccionConImagenes[] = [
+  "alcance",
+  "metodologia",
+  "especificaciones",
+  "organizacion",
+  "programa",
+  "precio",
+  "condiciones",
+  "aportes",
+  "cierre",
+  "anexo",
+];
+
+/** Cómo se llama cada sección en pantalla, para poder elegir a mano. */
+export const NOMBRE_DE_SECCION: Record<SeccionConImagenes, string> = {
+  alcance: "Alcance del servicio",
+  metodologia: "Metodología",
+  especificaciones: "Especificaciones técnicas",
+  organizacion: "Dotación y organización",
+  programa: "Programa y plazos",
+  precio: "Precio del servicio",
+  condiciones: "Condiciones comerciales",
+  aportes: "Aportes de las partes",
+  cierre: "Cierre y firma",
+  anexo: "Anexo",
+};
+
 export interface OfertaCanonica {
   identificacion: Identificacion;
   /** Título del servicio, tal como lo titula el documento. */
@@ -174,6 +219,14 @@ export interface OfertaCanonica {
   porConfirmar: string[];
   /** Secciones omitidas y por qué, tal como las reporta el modelo. */
   omitidas: { seccion: string; motivo: string }[];
+  /**
+   * Qué imágenes del borrador van en cada sección, por número y en orden.
+   *
+   * Son ÍNDICES del inventario de la oferta, no rutas: el modelo dice dónde estaba
+   * cada imagen y el servidor sabe dónde la guardó (ver lib/ofertas/imagenes.ts).
+   * Una sección que no aparece en el mapa no lleva imágenes.
+   */
+  imagenesPorSeccion: Partial<Record<SeccionConImagenes, number[]>>;
 }
 
 /**

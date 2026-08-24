@@ -86,9 +86,9 @@ function os10(): OfertaCanonica {
       respaldoInstitucional: ["PERTEC es una empresa nacional…"],
       mandantes: ["Minera Franke"],
       notaEquipo: null,
-      fotos: [],
     },
     porConfirmar: [],
+    imagenesPorSeccion: {},
     omitidas: [
       { seccion: "4 Especificaciones técnicas", motivo: "El servicio es un traslado, no un empalme." },
     ],
@@ -440,7 +440,7 @@ function letraOS10(): LecturaLetra {
     anexoRespaldos: [],
     anexoMandantes: [],
     anexoNotaEquipo: "",
-    anexoFotos: [],
+    ubicacionImagenes: [],
     firmaImagen: 0,
     porConfirmar: ["La tabla de identificación no trae copia."],
     omitidas: ["Metodología: el servicio no tiene detención de planta"],
@@ -722,22 +722,57 @@ for (const ataque of [
   assert.equal(imagenSegura(ataque), null, `no debe aceptar como imagen: ${ataque}`);
 }
 
-// Los números que reparte el modelo se limpian: repetidos, ceros y basura fuera.
-// Una foto dos veces sería la misma foto dos veces en el documento.
+// El reparto por sección se limpia: repetidos, ceros, fracciones y secciones que
+// no existen. Una imagen dos veces en la misma sección sería la misma imagen dos
+// veces en el documento.
 const conImagenes = armarOferta(
-  { ...letraOS10(), anexoFotos: [3, 4, 4, 0, -2, 5.5, 7] as number[], firmaImagen: 9 },
+  {
+    ...letraOS10(),
+    ubicacionImagenes: [
+      { imagen: 3, seccion: "metodologia" },
+      { imagen: 4, seccion: "anexo" },
+      { imagen: 4, seccion: "anexo" },
+      { imagen: 0, seccion: "anexo" },
+      { imagen: -2, seccion: "anexo" },
+      { imagen: 5.5, seccion: "anexo" },
+      { imagen: 7, seccion: "portada" },
+      { imagen: 8, seccion: "anexo" },
+    ],
+    firmaImagen: 9,
+  },
   numerosOS10(),
 );
-assert.deepEqual(conImagenes.anexo?.fotos, [3, 4, 7], "sin repetidos, sin cero y sin fracciones");
+assert.deepEqual(conImagenes.imagenesPorSeccion.metodologia, [3], "cada una en su sección");
+assert.deepEqual(conImagenes.imagenesPorSeccion.anexo, [4, 8], "sin repetidos, sin cero, sin fracciones");
+assert.equal(
+  (conImagenes.imagenesPorSeccion as Record<string, number[]>).portada,
+  undefined,
+  "una sección que no existe se descarta",
+);
 assert.equal(conImagenes.cierre?.firmaImagen, 9);
 
 // Y el 0 del esquema significa "no hay firma", no la imagen número cero.
 const sinFirma = armarOferta({ ...letraOS10(), firmaImagen: 0 }, numerosOS10());
 assert.equal(sinFirma.cierre?.firmaImagen, null);
 
-// Al dibujar: la foto ancha ocupa la fila completa, la que no tiene imagen no se
-// dibuja, y la firma va solo en el primer firmante.
-const conFotos = armarOferta({ ...letraOS10(), anexoFotos: [3, 4, 99], firmaImagen: 7 }, numerosOS10());
+// Al dibujar, lo que de verdad se pidió: cada imagen sale DONDE ESTABA. El
+// diagrama de la metodología tiene que quedar dentro de esa sección, no al final.
+const conFotos = armarOferta(
+  {
+    ...letraOS10(),
+    // Con metodología de verdad: sin ella la sección no existe y la imagen caería
+    // al anexo, que es el respaldo probado más abajo.
+    metodologiaAntes: ["Instalar atril en la cola de la correa."],
+    metodologiaDurante: ["Corte de cinta usada."],
+    ubicacionImagenes: [
+      { imagen: 3, seccion: "metodologia" },
+      { imagen: 4, seccion: "anexo" },
+      { imagen: 99, seccion: "anexo" },
+    ],
+    firmaImagen: 7,
+  },
+  numerosOS10(),
+);
 const htmlFotos = ofertaAHtml(conFotos, calcularTotales(conFotos), EMPRESA_DE_PRUEBA, undefined, undefined, {
   3: { uri: JPEG_VALIDO, apaisada: true },
   4: { uri: PNG_VALIDO, apaisada: false },
@@ -750,6 +785,40 @@ assert.equal(
 );
 assert.ok(htmlFotos.includes('<figure class="ancha">'), "la apaisada ocupa la fila completa");
 assert.equal((htmlFotos.match(/class="rubrica"/g) ?? []).length, 1, "una firma, no una por firmante");
+
+// La prueba que importa: la grilla del diagrama está DENTRO de la sección de
+// metodología, antes de que empiece la siguiente sección.
+// El título de la SECCIÓN, no su línea del índice de la portada: el índice lista
+// todos los títulos y buscar el texto suelto caía ahí.
+const metodologia = htmlFotos.indexOf("Metodología y secuencia de trabajo</h2>");
+const siguiente = htmlFotos.indexOf("<h2", metodologia + 10);
+const grillaAncha = htmlFotos.indexOf('<figure class="ancha">');
+assert.ok(
+  metodologia > 0 && grillaAncha > metodologia && grillaAncha < siguiente,
+  "el diagrama sale en la metodología, no al final del documento",
+);
+
+// Y el respaldo: una imagen asignada a una sección que este documento NO tiene no
+// puede desaparecer. Elegir una imagen y que no salga en ninguna parte es lo peor
+// que puede hacer esa pantalla, así que cae al anexo.
+const sinEsaSeccion = armarOferta(
+  { ...letraOS10(), ubicacionImagenes: [{ imagen: 3, seccion: "especificaciones" }], firmaImagen: 0 },
+  { ...numerosOS10() },
+);
+const htmlRescatada = ofertaAHtml(
+  sinEsaSeccion,
+  calcularTotales(sinEsaSeccion),
+  EMPRESA_DE_PRUEBA,
+  undefined,
+  undefined,
+  { 3: { uri: JPEG_VALIDO, apaisada: false } },
+);
+assert.equal(sinEsaSeccion.especificaciones, null, "el borrador no trae especificaciones");
+assert.equal(
+  (htmlRescatada.match(/<figure/g) ?? []).length,
+  1,
+  "la imagen sale igual, en el anexo, en vez de perderse",
+);
 
 // Una imagen que no pasa el control no se dibuja, y no rompe el documento.
 const htmlRoto = ofertaAHtml(conFotos, calcularTotales(conFotos), EMPRESA_DE_PRUEBA, undefined, undefined, {
@@ -812,9 +881,11 @@ inyección de CSS por color, por fuente y por rótulo, y un par fondo/texto sin
 contraste — dos hexes perfectos que dejaban la fila de total como una banda negra
 con el texto negro adentro. Más los logos: solo pasa un
 PNG en base64, y lo que no pasa deja el encabezado en texto. Las imágenes del
-borrador —las fotos de faena y la firma— se reparten por número: repetidos, ceros y
-fracciones se limpian, una apaisada ocupa la fila completa, y un número sin imagen
-guardada simplemente no se dibuja.
+borrador salen DONDE ESTABAN: cada una lleva su sección, el diagrama queda dentro de
+la metodología y las fotos en el anexo. Se limpian repetidos, ceros, fracciones y
+secciones inexistentes; una apaisada ocupa la fila completa; un número sin imagen
+guardada no se dibuja; y una asignada a una sección que el documento no tiene cae al
+anexo en vez de perderse.
 
 El esquema de salida tiene que ser chico y plano —la API rechaza gramáticas
 grandes— así que la lectura va en dos partes, la letra y los números, y la

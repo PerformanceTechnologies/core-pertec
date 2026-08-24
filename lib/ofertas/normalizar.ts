@@ -1,4 +1,4 @@
-import type { OfertaCanonica } from "./tipos";
+import { SECCIONES_CON_IMAGENES, type OfertaCanonica, type SeccionConImagenes } from "./tipos";
 
 /**
  * De las dos lecturas planas a la oferta canónica.
@@ -53,8 +53,8 @@ export interface LecturaLetra {
   anexoRespaldos: string[];
   anexoMandantes: string[];
   anexoNotaEquipo: string;
-  /** Los números de [IMAGEN n] que son fotos o diagramas del trabajo. */
-  anexoFotos: number[];
+  /** Dónde estaba cada imagen del borrador: número de marcador y sección. */
+  ubicacionImagenes: { imagen: number; seccion: string }[];
   /** El número de [IMAGEN n] que es la firma escaneada. 0 = no hay. */
   firmaImagen: number;
   porConfirmar: string[];
@@ -151,6 +151,37 @@ function sinCantidad(numeros: LecturaNumeros): boolean {
   return lineas.length > 0 && lineas.every((l) => !(typeof l.cantidad === "number" && l.cantidad > 0));
 }
 
+/**
+ * El reparto de imágenes por sección, saneado.
+ *
+ * Se descarta lo que no es un índice válido, lo que apunta a una sección que no
+ * existe y los repetidos: una imagen dos veces en la misma sección sería la misma
+ * imagen dos veces en el documento. El orden dentro de cada sección es el que
+ * traía el borrador, que es el que la persona ve en las miniaturas.
+ *
+ * Que el número corresponda a una imagen guardada lo comprueba quien la dibuja
+ * —solo él tiene el inventario—, así que acá se limpia la forma.
+ */
+function repartoDeImagenes(
+  ubicaciones: LecturaLetra["ubicacionImagenes"],
+): Partial<Record<SeccionConImagenes, number[]>> {
+  const reparto: Partial<Record<SeccionConImagenes, number[]>> = {};
+  if (!Array.isArray(ubicaciones)) return reparto;
+
+  for (const entrada of ubicaciones) {
+    const indice = Number(entrada?.imagen);
+    const seccion = String(entrada?.seccion ?? "").trim() as SeccionConImagenes;
+    if (!Number.isInteger(indice) || indice <= 0) continue;
+    if (!SECCIONES_CON_IMAGENES.includes(seccion)) continue;
+
+    const enLaSeccion = reparto[seccion] ?? [];
+    if (!enLaSeccion.includes(indice)) enLaSeccion.push(indice);
+    reparto[seccion] = enLaSeccion;
+  }
+
+  return reparto;
+}
+
 export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): OfertaCanonica {
   const especificaciones = filas<{ parametro: string; especificacion: string }>(
     letra.especificaciones,
@@ -236,7 +267,6 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
       respaldoInstitucional: lista(letra.anexoRespaldos),
       mandantes: lista(letra.anexoMandantes),
       notaEquipo: texto(letra.anexoNotaEquipo),
-      fotos: indices(letra.anexoFotos),
     }),
 
     // Las dos lecturas ven el mismo documento y cada una nombra lo que le faltó:
@@ -254,6 +284,8 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
           : []),
       ]),
     ],
+
+    imagenesPorSeccion: repartoDeImagenes(letra.ubicacionImagenes),
 
     // El motivo viene como una frase sola ("Precio: el borrador no trae tabla"),
     // porque un objeto más en el esquema es gramática que no hace falta.

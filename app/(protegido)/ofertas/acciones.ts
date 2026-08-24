@@ -9,6 +9,7 @@ import {
   obtenerOferta,
 } from "@/lib/ofertas/datos";
 import { borrarImagenes } from "@/lib/ofertas/imagenes";
+import { SECCIONES_CON_IMAGENES, type SeccionConImagenes } from "@/lib/ofertas/tipos";
 
 /**
  * Borra una oferta del listado.
@@ -52,11 +53,12 @@ export async function asignarMaestroAction(formData: FormData) {
 }
 
 /**
- * Guarda qué imágenes del borrador van al documento.
+ * Guarda dónde va cada imagen del borrador.
  *
- * Los números se validan contra el INVENTARIO de esa oferta, no contra lo que
- * venga en el formulario: un índice que no existe no dibuja nada, pero tampoco
- * tiene por qué quedar guardado.
+ * El formulario manda un campo "seccion-<n>" por imagen: la sección elegida, o
+ * vacío para no usarla. Se valida todo contra el INVENTARIO de esa oferta y contra
+ * la lista de secciones que existen — un índice inventado o una sección que no
+ * existe no dibuja nada, pero tampoco tiene por qué quedar guardado.
  */
 export async function elegirImagenesAction(formData: FormData) {
   await exigirAccesoOfertas();
@@ -66,15 +68,18 @@ export async function elegirImagenesAction(formData: FormData) {
   const oferta = await obtenerOferta(id);
   if (!oferta || oferta.estado === "emitida") return;
 
-  const existentes = new Set(oferta.imagenes.map((imagen) => imagen.indice));
-  const fotos = formData
-    .getAll("foto")
-    .map((valor) => Number(valor))
-    .filter((indice) => existentes.has(indice));
+  // En el orden del inventario, que es el del documento y el de las miniaturas.
+  const porSeccion: Partial<Record<SeccionConImagenes, number[]>> = {};
+  for (const imagen of oferta.imagenes) {
+    const elegida = String(formData.get(`seccion-${imagen.indice}`) ?? "") as SeccionConImagenes;
+    if (!SECCIONES_CON_IMAGENES.includes(elegida)) continue;
+    porSeccion[elegida] = [...(porSeccion[elegida] ?? []), imagen.indice];
+  }
 
+  const existentes = new Set(oferta.imagenes.map((imagen) => imagen.indice));
   const firmaCruda = Number(formData.get("firma") ?? 0);
   const firma = existentes.has(firmaCruda) ? firmaCruda : null;
 
-  await guardarImagenesElegidas(id, fotos, firma);
+  await guardarImagenesElegidas(id, porSeccion, firma);
   revalidatePath(`/ofertas/${id}`);
 }

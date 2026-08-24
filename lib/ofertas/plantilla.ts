@@ -1,5 +1,5 @@
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
-import type { OfertaCanonica, TotalesOferta } from "./tipos";
+import type { OfertaCanonica, SeccionConImagenes, TotalesOferta } from "./tipos";
 import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
 import { SIN_LOGOS, imagenSegura, logoSeguro, type ImagenDibujable, type LogosDocumento } from "./logo";
 
@@ -42,6 +42,8 @@ interface SeccionArmada {
    * dejaría el hueco que se quiere evitar.
    */
   junto?: boolean;
+  /** Qué sección es, para saber qué imágenes le tocan y cuáles quedaron sin lugar. */
+  clave?: SeccionConImagenes;
 }
 
 const clp = (n: number) => "$ " + Math.round(n).toLocaleString("es-CL") + ".-";
@@ -155,6 +157,36 @@ function hitos(items: string[], titulo?: string): string {
 }
 
 /**
+ * La grilla de imágenes de una sección, o "" si no tiene.
+ *
+ * Las imágenes salen DONDE ESTABAN en el borrador y no todas juntas al final: un
+ * diagrama entre dos pasos del trabajo pertenece a la metodología, y sacarlo de ahí
+ * para pegarlo en el anexo convierte el documento en un collage.
+ *
+ * Cada figura va en su celda del mismo alto, con la imagen centrada adentro: con
+ * altos naturales las filas no alinean y se lee como imágenes tiradas. Una más
+ * ancha que 1.6:1 ocupa la fila completa, porque un diagrama a media página no se
+ * lee.
+ */
+function grillaDeImagenes(numeros: number[] | undefined, imagenes: Record<number, ImagenDibujable>): string {
+  const usables = (numeros ?? [])
+    .map((indice) => imagenes[indice])
+    .filter((imagen): imagen is ImagenDibujable => imagenSegura(imagen?.uri) !== null);
+  if (usables.length === 0) return "";
+
+  return (
+    `<div class="fotos">` +
+    usables
+      .map(
+        (imagen) =>
+          `<figure${imagen.apaisada ? ' class="ancha"' : ""}><img src="${imagen.uri}" alt=""></figure>`,
+      )
+      .join("") +
+    `</div>`
+  );
+}
+
+/**
  * Arma las secciones que SÍ aplican, en orden, y les asigna su número.
  *
  * Esta función es la que hace innecesario "renumerar": el número de cada sección
@@ -166,8 +198,16 @@ function armarSecciones(
   imagenes: Record<number, ImagenDibujable>,
 ): SeccionArmada[] {
   const secciones: SeccionArmada[] = [];
-  const agregar = (titulo: string, cuerpo: string, junto = false) =>
-    secciones.push({ numero: String(secciones.length + 1), titulo, cuerpo, junto });
+  const agregar = (titulo: string, cuerpo: string, clave?: SeccionConImagenes, junto = false) =>
+    secciones.push({
+      numero: String(secciones.length + 1),
+      titulo,
+      // La grilla de la sección va al final de su cuerpo, que es donde estaba en el
+      // borrador respecto del texto que la rodea.
+      cuerpo: cuerpo + (clave ? grillaDeImagenes(oferta.imagenesPorSeccion?.[clave], imagenes) : ""),
+      junto,
+      clave,
+    });
 
   const id = oferta.identificacion;
   agregar(
@@ -198,7 +238,7 @@ function armarSecciones(
         `<h3>Personal especialista considerado</h3>` +
         tablaDotacion(a.personalEspecialista, totales.dotacionTotal, false);
     }
-    if (cuerpo) agregar("Alcance del servicio", cuerpo);
+    if (cuerpo) agregar("Alcance del servicio", cuerpo, "alcance");
   }
 
   if (oferta.metodologia) {
@@ -210,7 +250,7 @@ function armarSecciones(
     if (m.duranteLaDetencion.length) {
       cuerpo += hitos(m.duranteLaDetencion, "Durante la detención de planta");
     }
-    if (cuerpo) agregar("Metodología y secuencia de trabajo", cuerpo);
+    if (cuerpo) agregar("Metodología y secuencia de trabajo", cuerpo, "metodologia");
   }
 
   if (oferta.especificaciones?.length) {
@@ -223,6 +263,7 @@ function armarSecciones(
           .filter((e) => e.parametro.trim() !== "")
           .map((e) => `<tr><td>${esc(e.parametro)}</td><td>${esc(e.especificacion)}</td></tr>`)
           .join("")}</tbody></table>`,
+      "especificaciones",
     );
   }
 
@@ -247,7 +288,7 @@ function armarSecciones(
           .join("") +
         `</div>`;
     }
-    if (cuerpo) agregar("Dotación y organización del servicio", cuerpo);
+    if (cuerpo) agregar("Dotación y organización del servicio", cuerpo, "organizacion");
   }
 
   if (oferta.programa?.turnos.length) {
@@ -272,6 +313,7 @@ function armarSecciones(
               <td class="num">${esc(totales.horasPrograma)}</td><td></td></tr>
           </tbody></table>` +
         (p.nota ? `<p class="nota">${esc(p.nota)}</p>` : ""),
+      "programa",
     );
   }
 
@@ -295,11 +337,12 @@ function armarSecciones(
             <td class="num">${clp(totales.totalNetoCalculado)}</td></tr>
         </tbody></table>` +
         `<p class="nota">${esc(pr.nota ?? "Valores en pesos chilenos, netos. Los precios ofrecidos no incluyen IVA.")}</p>`,
+      "precio",
     );
   }
 
   if (oferta.condicionesComerciales?.length) {
-    agregar("Condiciones comerciales", hitos(oferta.condicionesComerciales));
+    agregar("Condiciones comerciales", hitos(oferta.condicionesComerciales), "condiciones");
   }
 
   if (oferta.aportes && (oferta.aportes.pertec.length || oferta.aportes.cliente.length)) {
@@ -312,6 +355,7 @@ function armarSecciones(
         `Aportes del cliente`,
         oferta.aportes.cliente,
       )}</div>`,
+      "aportes",
     );
   }
 
@@ -335,6 +379,7 @@ function armarSecciones(
           })
           .join("")}</div>` +
         (c.cc ? `<p class="cc">${esc(c.cc)}</p>` : ""),
+      "cierre",
       // Corta por naturaleza —un párrafo, una o dos firmas y el cc— y la que peor
       // queda partida.
       true,
@@ -370,17 +415,21 @@ function tablaDotacion(
 /** El anexo: se numera con letra, no con número, igual que en el maestro. */
 function armarAnexo(
   anexo: OfertaCanonica["anexo"],
+  fotos: number[] | undefined,
   imagenes: Record<number, ImagenDibujable>,
 ): SeccionArmada | null {
-  if (!anexo) return null;
+  // Con fotos elegidas la sección existe aunque no traiga texto: si no, elegir una
+  // foto para el anexo de un borrador que no tiene anexo escrito la hacía
+  // desaparecer sin decir nada.
+  if (!anexo && !(fotos ?? []).length) return null;
   let cuerpo = "";
-  if (anexo.respaldoInstitucional.length) {
+  if (anexo?.respaldoInstitucional.length) {
     const [primero, ...resto] = anexo.respaldoInstitucional;
     cuerpo +=
       `<div class="grupo"><h3>Respaldo institucional</h3><p>${esc(primero)}</p></div>` +
       resto.map((parrafo) => `<p>${esc(parrafo)}</p>`).join("");
   }
-  if (anexo.mandantes.length) {
+  if (anexo?.mandantes.length) {
     // Título, rejilla y nota en un solo grupo. Salió impreso partido en dos: tres
     // mandantes al pie de una página y los otros tres abriendo la siguiente, con
     // una hoja casi vacía detrás. Es una rejilla de seis nombres, siempre corta:
@@ -388,33 +437,23 @@ function armarAnexo(
     cuerpo +=
       `<div class="grupo">` +
       `<h3>Principales mandantes y contratos ejecutados con nuestro personal</h3>` +
-      `<div class="mandantes">${anexo.mandantes.map((m) => `<span>${esc(m)}</span>`).join("")}</div>` +
+      `<div class="mandantes">${anexo!.mandantes.map((m) => `<span>${esc(m)}</span>`).join("")}</div>` +
       `</div>`;
   }
-  // Las fotos, al final del anexo y en la grilla. Cada una en su propio grupo:
-  // una foto partida entre dos páginas no es una foto.
-  const fotos = (anexo.fotos ?? [])
-    .map((indice) => imagenes[indice])
-    .filter((imagen): imagen is ImagenDibujable => imagenSegura(imagen?.uri) !== null);
-  if (fotos.length) {
-    // La nota del borrador es el epígrafe de estas fotos —"Fotografías de referencia
-    // incluidas: CODELCO - División Radomiro Tomic…"— y estaba puesta junto a los
-    // mandantes, que no es su lugar. Con su título y su epígrafe, la sección se lee
-    // como una sección y no como imágenes tiradas al final.
+
+  // Las fotos del anexo, con su título y con la nota del borrador como epígrafe.
+  //
+  // La nota estaba antes junto a los mandantes y no es de ahí: en un borrador dice
+  // "Fotografías de referencia incluidas: CODELCO - División Radomiro Tomic…", que
+  // es exactamente el epígrafe de estas fotos.
+  const grilla = grillaDeImagenes(fotos, imagenes);
+  if (grilla) {
     cuerpo +=
       `<div class="grupo"><h3>Fotografías de referencia</h3>` +
-      (anexo.notaEquipo ? `<p class="nota">${esc(anexo.notaEquipo)}</p>` : "") +
+      (anexo?.notaEquipo ? `<p class="nota">${esc(anexo.notaEquipo)}</p>` : "") +
       `</div>` +
-      `<div class="fotos">` +
-      fotos
-        .map(
-          (imagen) =>
-            `<figure${imagen.apaisada ? ' class="ancha"' : ""}>` +
-            `<img src="${imagen.uri}" alt=""></figure>`,
-        )
-        .join("") +
-      `</div>`;
-  } else if (anexo.notaEquipo) {
+      grilla;
+  } else if (anexo?.notaEquipo) {
     cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
   }
 
@@ -450,7 +489,16 @@ export function ofertaAHtml(
   imagenes: Record<number, ImagenDibujable> = {},
 ): string {
   const secciones = armarSecciones(oferta, totales, imagenes);
-  const anexo = armarAnexo(oferta.anexo, imagenes);
+  // Una imagen asignada a una sección que este documento no tiene —fotos en
+  // "especificaciones" cuando no hay especificaciones— no se pierde: cae al anexo.
+  // Elegir una imagen y que no aparezca en ninguna parte es lo peor que puede hacer
+  // esa pantalla.
+  const emitidas = new Set(secciones.map((seccion) => seccion.clave).filter(Boolean));
+  const enElAnexo = oferta.imagenesPorSeccion?.anexo ?? [];
+  const huerfanas = Object.entries(oferta.imagenesPorSeccion ?? {})
+    .filter(([clave]) => clave !== "anexo" && !emitidas.has(clave as SeccionConImagenes))
+    .flatMap(([, indices]) => indices ?? []);
+  const anexo = armarAnexo(oferta.anexo, [...enElAnexo, ...huerfanas], imagenes);
   const todas = anexo ? [...secciones, anexo] : secciones;
   const id = oferta.identificacion;
 

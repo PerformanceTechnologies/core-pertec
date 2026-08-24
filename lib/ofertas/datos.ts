@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { calcularTotales, detectarInconsistencias } from "./verificar";
-import type { Inconsistencia, OfertaCanonica } from "./tipos";
+import type { Inconsistencia, OfertaCanonica, SeccionConImagenes } from "./tipos";
 import type { Empresa } from "@/lib/cotizador/empresas";
 import type { ImagenGuardada } from "./imagenes";
 
@@ -240,20 +240,20 @@ export async function guardarLogoCliente(
 }
 
 /**
- * Cambia qué imágenes del borrador usa el documento.
+ * Cambia dónde va cada imagen del borrador.
  *
  * La elección del modelo es una PROPUESTA, no la última palabra: mira medidas y
- * contexto, y con eso se equivoca —omitió una foto de 1162×667 px "por no estar
- * seguro" y el anexo salió vacío—. Acá la persona ve las miniaturas y decide, que
- * es el mismo reparto que gobierna el resto del módulo.
+ * contexto, y con eso se equivoca. Acá la persona ve las miniaturas, elige la
+ * sección de cada una y la firma, que es el mismo reparto que gobierna el resto
+ * del módulo.
  *
- * Se escribe sobre el contenido y se vuelven a correr los controles, como cualquier
- * corrección: si la sección de anexo o de cierre no existía, se crea con lo mínimo,
- * porque elegir una foto es decir que el anexo aplica.
+ * Se escribe sobre el contenido y se vuelven a correr los controles, como
+ * cualquier corrección. Si la sección de cierre no existía y se elige una firma, se
+ * crea con lo mínimo: elegir una firma es decir que el cierre aplica.
  */
 export async function guardarImagenesElegidas(
   id: string,
-  fotos: number[],
+  porSeccion: Partial<Record<SeccionConImagenes, number[]>>,
   firma: number | null,
 ): Promise<void> {
   const oferta = await obtenerOferta(id);
@@ -261,17 +261,7 @@ export async function guardarImagenesElegidas(
 
   const contenido: OfertaCanonica = {
     ...oferta.contenido,
-    anexo:
-      fotos.length > 0
-        ? {
-            respaldoInstitucional: oferta.contenido.anexo?.respaldoInstitucional ?? [],
-            mandantes: oferta.contenido.anexo?.mandantes ?? [],
-            notaEquipo: oferta.contenido.anexo?.notaEquipo ?? null,
-            fotos,
-          }
-        : oferta.contenido.anexo
-          ? { ...oferta.contenido.anexo, fotos: [] }
-          : null,
+    imagenesPorSeccion: porSeccion,
     cierre:
       firma !== null
         ? {

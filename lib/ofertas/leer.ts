@@ -113,12 +113,21 @@ const ESQUEMA_LETRA = objeto({
   anexoRespaldos: listaDeTexto,
   anexoMandantes: { ...listaDeTexto, description: "Nombres de mandantes y contratos ejecutados." },
   anexoNotaEquipo: texto,
-  anexoFotos: {
+  ubicacionImagenes: {
     type: "array",
     description:
-      "Los números de los marcadores [IMAGEN n] que son fotos o diagramas del trabajo, en orden. " +
-      "Lista vacía si el borrador no trae ninguna.",
-    items: { type: "number" },
+      "Dónde va cada imagen del borrador: una entrada por imagen que se usa, con el número del " +
+      "marcador y la sección donde ESTABA en el documento original. Lista vacía si no hay ninguna " +
+      "o si todas son logos.",
+    items: objeto({
+      imagen: { type: "number", description: "El número del marcador [IMAGEN n]." },
+      seccion: {
+        type: "string",
+        description:
+          "Una de: alcance, metodologia, especificaciones, organizacion, programa, precio, " +
+          "condiciones, aportes, cierre, anexo.",
+      },
+    }),
   },
   firmaImagen: {
     type: "number",
@@ -223,20 +232,22 @@ cifras —dotación, turnos, precios— los lee otra pasada; no los transcribas 
   significado técnico ni comercial. En nombres propios y en cifras, no.
 - Las listas van con un elemento por ítem del documento, sin numerarlos: la numeración la pone el
   sistema.
-- LAS IMÁGENES DEL BORRADOR. El texto trae marcadores "[IMAGEN 1]", "[IMAGEN 2]"… en el lugar exacto
-  donde estaba cada imagen, y hay que repartirlas por ese contexto:
-    · Las fotos y los diagramas del trabajo van en "anexoFotos", en orden. Suelen caer después de un
-      párrafo del tipo "Fotografías de referencia incluidas" o dentro de la metodología.
-    · Una firma escaneada —la rúbrica a mano, junto al nombre y el cargo del firmante— va en
+- LAS IMÁGENES DEL BORRADOR. El texto trae marcadores "[IMAGEN 1]", "[IMAGEN 2]"… donde estaba cada
+  imagen. Cada una va en "ubicacionImagenes" con LA SECCIÓN DONDE ESTABA, no todas juntas al final:
+  un borrador pone el diagrama de disposición de equipos en medio de la metodología y las fotos de
+  faena en el anexo, y así tienen que salir. Mirá qué texto rodea al marcador y elegí esa sección.
+    · Un diagrama entre dos pasos del trabajo → "metodologia".
+    · Fotos después de un párrafo del tipo "Fotografías de referencia incluidas" o del respaldo de la
+      empresa → "anexo".
+    · Una tabla o un esquema de equipo → "especificaciones".
+    · Una firma escaneada —la rúbrica a mano junto al nombre del firmante— NO va acá: va en
       "firmaImagen".
-    · El LOGO de la empresa NO es ninguna de las dos cosas, y suele ser la primera imagen del
-      documento o la última: el sistema pone el logo por su cuenta. Omitilo.
-  ANTE LA DUDA, LA IMAGEN VA. Una foto y un diagrama terminan los dos en el anexo, así que no hace
-  falta distinguirlos: si podría ser cualquiera de las dos, incluila. Lo único que se omite es lo que
-  claramente es un logo o un membrete — se reconocen por ser anchos y bajos (proporción mayor a 2.5:1),
-  por repetirse, o por estar en la primera página antes del título. Omitir una foto por no estar
-  seguro deja el anexo vacío, que es peor que una foto de más: la persona que revisa puede sacarla, y
-  ve las que quedaron afuera.
+    · El LOGO o el membrete de la empresa no van en ninguna sección: el sistema pone el logo por su
+      cuenta. Omitilos. Se reconocen por ser anchos y bajos (proporción mayor a 2.5:1), por repetirse,
+      o por estar en la primera página antes del título.
+  ANTE LA DUDA, LA IMAGEN VA, y si no está claro en qué sección estaba, va en "anexo". Omitir una foto
+  por no estar seguro deja el documento sin ella; la persona que revisa ve todas las imágenes con su
+  miniatura y puede moverlas de sección o sacarlas.
 - LAS LISTAS DE METODOLOGÍA LLEVAN SOLO PASOS. Una frase que dice cuánto dura el trabajo ("realizar la
   actividad en 48 horas, 2 días") o en cuántos turnos se ejecuta ("4 turnos de 12 horas en turnos día y
   noche") NO es un paso de la secuencia: es el programa, y lo transcribe la otra lectura a partir de esa
