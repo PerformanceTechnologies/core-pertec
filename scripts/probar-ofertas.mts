@@ -491,6 +491,68 @@ assert.ok(
   "y sí se avisa que no hay total impreso contra el que verificar",
 );
 
+// Una tabla de precios SIN columna de cantidad, que es el caso más común y el que
+// daba un total de cero pesos para una oferta de cien millones: el modelo ponía 0
+// —correcto, no estaba impreso— y el servidor multiplicaba 0 × precio en cada
+// línea. La cantidad de una línea sin columna de cantidad es 1.
+const sinColumnaCantidad = armarOferta(letraOS10(), {
+  ...numerosOS10(),
+  totalNetoImpreso: 0,
+  lineasPrecio: [
+    {
+      cantidad: 0,
+      cargo: "Cambio y empalme CT-6",
+      unidad: "Global",
+      valorUnitario: 100_032_910,
+      valorTotalImpreso: 0,
+    },
+    { cantidad: 0, cargo: "Enrollador", unidad: "Día", valorUnitario: 2_700_000, valorTotalImpreso: 0 },
+    {
+      cantidad: 0,
+      cargo: "Grúa, rigger + elementos de izaje",
+      unidad: "",
+      valorUnitario: 0,
+      valorTotalImpreso: 0,
+    },
+    { cantidad: 0, cargo: "Núcleos metálicos", unidad: "Uni", valorUnitario: 500_000, valorTotalImpreso: 0 },
+  ],
+});
+assert.deepEqual(
+  sinColumnaCantidad.precio?.lineas.map((l) => l.cantidad),
+  [1, 1, 1, 1],
+  "sin columna de cantidad, cada línea es una unidad de lo que dice",
+);
+assert.equal(
+  calcularTotales(sinColumnaCantidad).totalNetoCalculado,
+  103_232_910,
+  "y el total es la suma de los precios, no cero",
+);
+assert.ok(
+  sinColumnaCantidad.porConfirmar.some((p) => /no trae columna de cantidad/.test(p)),
+  "lo que el servidor asumió se dice, porque es tan revisable como lo que faltó",
+);
+
+// Una cantidad que SÍ vino impresa se respeta tal cual.
+const conCantidad = armarOferta(letraOS10(), {
+  ...numerosOS10(),
+  lineasPrecio: [
+    {
+      cantidad: 3,
+      cargo: "Turno extra",
+      unidad: "Día",
+      valorUnitario: 1_000_000,
+      valorTotalImpreso: 3_000_000,
+    },
+  ],
+  totalNetoImpreso: 3_000_000,
+});
+assert.equal(conCantidad.precio?.lineas[0].cantidad, 3);
+assert.equal(calcularTotales(conCantidad).totalNetoCalculado, 3_000_000);
+assert.ok(
+  !conCantidad.porConfirmar.some((p) => /columna de cantidad/.test(p)),
+  "y entonces no se avisa nada",
+);
+
 // Un borrador sin tabla de precios: listas vacías, y la sección no existe.
 const sinPrecio = armarOferta(letraOS10(), {
   ...numerosOS10(),

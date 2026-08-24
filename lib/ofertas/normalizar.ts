@@ -84,6 +84,21 @@ const texto = (valor: unknown): string | null => {
   return s === "" ? null : s;
 };
 
+/**
+ * La cantidad de una línea de precio.
+ *
+ * Muchas tablas de precio no traen columna de cantidad —"Ítem | Cargo | Unidad |
+ * Precio"— y ahí cada línea es una unidad de lo que dice: el total de la línea es
+ * su precio. El modelo, con la instrucción de no inventar, devolvía 0, y el
+ * servidor multiplicaba 0 × precio: una oferta de cien millones daba un total
+ * calculado de $ 0.
+ *
+ * Una cantidad de 0 no significa nada en una oferta —una línea que no se cobra no
+ * es una línea— así que tomarla como 1 es la lectura correcta, no un parche. Y se
+ * anota en "porConfirmar", porque quien revisa tiene que poder verlo.
+ */
+const cantidadDe = (valor: unknown): number => (typeof valor === "number" && valor > 0 ? valor : 1);
+
 /** El número, o null si vino en 0: así dice el esquema "no está impreso". */
 const numero = (valor: unknown): number | null => (typeof valor === "number" && valor !== 0 ? valor : null);
 
@@ -111,6 +126,12 @@ function tieneContenido(valor: unknown): boolean {
 /** Devuelve la sección, o null si está vacía: una sección vacía no aplica. */
 function seccion<T>(armada: T): T | null {
   return tieneContenido(armada) ? armada : null;
+}
+
+/** ¿Ninguna línea trajo cantidad? Entonces la tabla no tenía esa columna. */
+function sinCantidad(numeros: LecturaNumeros): boolean {
+  const lineas = filas<LecturaNumeros["lineasPrecio"][number]>(numeros.lineasPrecio);
+  return lineas.length > 0 && lineas.every((l) => !(typeof l.cantidad === "number" && l.cantidad > 0));
 }
 
 export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): OfertaCanonica {
@@ -165,7 +186,7 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
 
     precio: seccion({
       lineas: filas<LecturaNumeros["lineasPrecio"][number]>(numeros.lineasPrecio).map((l) => ({
-        cantidad: l.cantidad,
+        cantidad: cantidadDe(l.cantidad),
         cargo: l.cargo,
         unidad: l.unidad,
         valorUnitario: l.valorUnitario,
@@ -200,8 +221,20 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
     }),
 
     // Las dos lecturas ven el mismo documento y cada una nombra lo que le faltó:
-    // van juntas y sin repetidos.
-    porConfirmar: [...new Set([...lista(letra.porConfirmar), ...lista(numeros.porConfirmar)])],
+    // van juntas y sin repetidos. Y se suma lo que el servidor tuvo que asumir,
+    // que es tan revisable como lo que faltó.
+    porConfirmar: [
+      ...new Set([
+        ...lista(letra.porConfirmar),
+        ...lista(numeros.porConfirmar),
+        ...(sinCantidad(numeros)
+          ? [
+              "La tabla de precios no trae columna de cantidad: se tomó 1 por línea, " +
+                "así que el total de cada línea es su precio.",
+            ]
+          : []),
+      ]),
+    ],
 
     // El motivo viene como una frase sola ("Precio: el borrador no trae tabla"),
     // porque un objeto más en el esquema es gramática que no hace falta.

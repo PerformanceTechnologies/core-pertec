@@ -181,7 +181,13 @@ REGLA PRINCIPAL: transcribís, no calculás.
 
 TODAS las claves del esquema van siempre. Lo que el borrador no trae se dice con un valor vacío —texto
 en blanco, número en 0, lista vacía— y se nombra en "porConfirmar". Nunca lo adivines ni pongas un
-guion o un "N/A" como si fuera el dato.`;
+guion o un "N/A" como si fuera el dato.
+
+QUÉ VA EN "porConfirmar". Solo lo que una PERSONA tiene que decidir o corregir antes de emitir: un
+precio en blanco, un monto en 0 que parece pendiente, una fecha o un nombre ambiguos, dos partes del
+documento que dicen cosas distintas. NO describas la forma del documento —"no trae cuadro de
+responsabilidades", "no hay tabla de turnos"—: una sección que no está, el sistema simplemente no la
+imprime, y llenar la lista con eso hace que nadie la lea.`;
 
 const INSTRUCCIONES_LETRA = `${PREAMBULO}
 
@@ -193,6 +199,11 @@ cifras —dotación, turnos, precios— los lee otra pasada; no los transcribas 
   significado técnico ni comercial. En nombres propios y en cifras, no.
 - Las listas van con un elemento por ítem del documento, sin numerarlos: la numeración la pone el
   sistema.
+- LAS ESPECIFICACIONES CASI NUNCA VIENEN EN TABLA. Suelen estar en un párrafo técnico y hay que
+  separarlas en parámetro y valor. Ejemplo real: "La cinta es del tipo EP800/4, de 63\" de ancho. El
+  equipo vulcanizador a utilizar constará de tres pares de platos rectangulares 33\" x 78\" y 13 pares
+  de rieles de 92 a 96\"" son tres filas — Cinta / EP800/4, 63\" de ancho · Platos / 3 pares
+  rectangulares de 33\" x 78\" · Rieles / 13 pares de 92 a 96\". Está escrito, solo que en prosa.
 - SECCIONES QUE NO APLICAN: el maestro trae todas las secciones posibles y cada oferta usa las que le
   corresponden — un traslado de rollos no tiene especificaciones de equipo vulcanizador y un cambio de
   correa sí. Si una sección no aplica, dejá sus campos vacíos y nombrala en "omitidas" con el motivo.
@@ -208,11 +219,26 @@ de precios. La parte narrativa la lee otra pasada; no la transcribas acá.
   total de una línea de precio. Esos los calcula el sistema, y de paso comprueba que coincidan con lo
   impreso. Si el documento IMPRIME un total, transcribilo en el campo que dice "impreso" —sirve de
   control—; si no lo imprime, poné 0.
-- Una fila por cargo y una fila por turno, tal como están en el documento. Si un cargo aparece con
-  dotación 3, va una sola fila con dotación 3, no tres filas.
-- Los montos van sin puntos, sin espacios y sin símbolo de moneda: 15885200.
-- Si el borrador no trae tabla de precios o no trae programa, dejá esas listas vacías y nombralo en
-  "porConfirmar".`;
+- Una fila por cargo y una fila por turno. Si un cargo aparece con dotación 3, va una sola fila con
+  dotación 3, no tres filas.
+- LOS CUADROS MUCHAS VECES NO SON TABLAS. Un borrador escribe la cuadrilla y el programa en el texto,
+  y hay que armar las filas con lo que dice. Dos ejemplos reales:
+    · "Cambio y empalme CT-6, con cuadrilla día y noche, la que está conformada por: 2 Supervisores /
+      2 APR / 4 M1 vulcanizador / 4 M2 vulcanizador / 6 Ayudantes vulcanizadores" son CINCO filas de
+      cuadroPersonal, con su dotación y con régimen "Día y noche".
+    · "para ser ejecutado en 4 turnos de 12 horas (2 días efectivos) en turnos día y noche" son CUATRO
+      filas de turnos de 12 horas cada una: T1 y T3 de día, T2 y T4 de noche.
+  Eso no es inventar: está escrito, solo que en un párrafo. Lo que no se puede hacer es sumar —ni las
+  personas, ni las horas, ni los totales—; eso lo hace el sistema con las filas que transcribas.
+- LA CANTIDAD DE UNA LÍNEA DE PRECIO. Si la tabla no trae columna de cantidad —pasa seguido, la
+  cabecera es "Ítem | Cargo | Unidad | Precio"— la cantidad de cada línea es 1: el total de la línea es
+  su precio. No pongas 0, porque 0 haría que el sistema calcule un total de cero pesos para una oferta
+  de cien millones.
+- Los montos van sin puntos, sin espacios y sin símbolo de moneda: 15885200. Un precio en blanco va en
+  0 y se nombra en "porConfirmar"; un precio impreso como "$ 0.-" también va en 0, y ahí decilo:
+  probablemente está pendiente de confirmar.
+- Si el borrador de verdad no trae precios ni programa en ninguna parte —ni en tabla ni en el texto—
+  dejá esas listas vacías.`;
 
 /** Una de las dos lecturas. Misma mecánica, distinto esquema y distinta consigna. */
 async function leerParte<T>(
