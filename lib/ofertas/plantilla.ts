@@ -389,10 +389,7 @@ function armarAnexo(
       `<div class="grupo">` +
       `<h3>Principales mandantes y contratos ejecutados con nuestro personal</h3>` +
       `<div class="mandantes">${anexo.mandantes.map((m) => `<span>${esc(m)}</span>`).join("")}</div>` +
-      (anexo.notaEquipo ? `<p>${esc(anexo.notaEquipo)}</p>` : "") +
       `</div>`;
-  } else if (anexo.notaEquipo) {
-    cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
   }
   // Las fotos, al final del anexo y en la grilla. Cada una en su propio grupo:
   // una foto partida entre dos páginas no es una foto.
@@ -400,7 +397,14 @@ function armarAnexo(
     .map((indice) => imagenes[indice])
     .filter((imagen): imagen is ImagenDibujable => imagenSegura(imagen?.uri) !== null);
   if (fotos.length) {
+    // La nota del borrador es el epígrafe de estas fotos —"Fotografías de referencia
+    // incluidas: CODELCO - División Radomiro Tomic…"— y estaba puesta junto a los
+    // mandantes, que no es su lugar. Con su título y su epígrafe, la sección se lee
+    // como una sección y no como imágenes tiradas al final.
     cuerpo +=
+      `<div class="grupo"><h3>Fotografías de referencia</h3>` +
+      (anexo.notaEquipo ? `<p class="nota">${esc(anexo.notaEquipo)}</p>` : "") +
+      `</div>` +
       `<div class="fotos">` +
       fotos
         .map(
@@ -410,6 +414,8 @@ function armarAnexo(
         )
         .join("") +
       `</div>`;
+  } else if (anexo.notaEquipo) {
+    cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
   }
 
   if (!cuerpo) return null;
@@ -598,18 +604,21 @@ export function ofertaAHtml(
   /* Las fotos del anexo: dos por fila, cada una entera o en la página siguiente.
      el avoid va en la figura y no en la grilla: la grilla puede tener seis
      fotos y no cabe en media página, pero una foto partida en dos no es una foto. */
-  .fotos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm;
-    align-items: start; }
-  .fotos figure { margin: 0; page-break-inside: avoid; }
+  /* Celdas del MISMO alto y la imagen centrada adentro. Con altos naturales la
+     grilla quedaba despareja —cada foto de su tamaño, las filas sin alinear— y se
+     leía como un montón de imágenes al final en vez de un anexo. La celda uniforme
+     cuesta algo de aire alrededor de las fotos más cuadradas; a cambio, cierra. */
+  .fotos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm; }
+  .fotos figure { margin: 0; height: 66mm; page-break-inside: avoid; }
   /* Una foto ancha o un diagrama ocupan la fila completa: a media página no se leen. */
-  .fotos figure.ancha { grid-column: 1 / -1; }
+  .fotos figure.ancha { grid-column: 1 / -1; height: 82mm; }
   /* Se ajusta por contain y no por cover: varias de estas imágenes son collages
      con texto adentro, y recortarlas se come justo lo que explican. Que las filas
      queden de altos distintos es el precio correcto. */
   /* La caja de la imagen se ajusta a la imagen, no al revés: con width:100% el
      borde trazaba la celda y la foto quedaba con bandas blancas a los costados. */
-  .fotos img { width: auto; height: auto; max-width: 100%; max-height: 95mm; display: block;
-    margin: 0 auto; border: 1px solid ${estilo.colorBorde}; }
+  .fotos img { width: 100%; height: 100%; object-fit: contain; display: block;
+    background: ${estilo.colorFondoSuave}; border: 1px solid ${estilo.colorBorde}; }
   .firmas .nombre { font-weight: 700; margin: 0; }
   .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }
   .cc { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 6mm; }
