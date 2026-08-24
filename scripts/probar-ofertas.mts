@@ -12,7 +12,7 @@ import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { imagenSegura, logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
 import { armarOferta, type LecturaLetra, type LecturaNumeros } from "../lib/ofertas/normalizar";
-import { ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
+import { cuerpoDeTabla, ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
 
 /** La OS 010-2026 real, bien transcrita. */
 function os10(): OfertaCanonica {
@@ -703,6 +703,48 @@ assert.ok(
 );
 assert.ok(!sanearEstilo({ fuenteCuerpo: "Helvetica Neue" }).estilo.fuenteCuerpo.includes('"'));
 
+// ── Una tabla no se parte dejando el total solo ─────────────────────────────
+//
+// Salió impreso: la tabla de precios terminó con sus cinco líneas al pie de una
+// página y la fila de TOTAL NETO sola en la siguiente, bajo una cabecera repetida
+// que no encabezaba nada. Un <table> acepta varios <tbody> y el navegador respeta
+// break-inside en un tbody, así que el cuerpo se parte en tramos: la cola SIEMPRE
+// viaja con su fila de total.
+const fila = (n: number) => `<tr><td>${n}</td></tr>`;
+const total = '<tr class="total"><td>Total</td></tr>';
+
+// Corta: entera, en un solo tramo que no se parte.
+const corta = cuerpoDeTabla([1, 2, 3].map(fila), total);
+assert.equal((corta.match(/<tbody/g) ?? []).length, 1, "una tabla corta va entera");
+assert.ok(corta.includes('class="junta"'), "y en un tramo que no se parte");
+assert.ok(corta.indexOf(total) > corta.indexOf(fila(3)), "el total va al final");
+
+// Larga: tres tramos, y el total viaja pegado a las últimas filas.
+const larga = cuerpoDeTabla(
+  Array.from({ length: 12 }, (_, i) => fila(i + 1)),
+  total,
+);
+assert.equal((larga.match(/<tbody/g) ?? []).length, 3, "cabeza, medio y cola");
+const cola = larga.slice(larga.lastIndexOf("<tbody"));
+assert.ok(cola.includes('class="junta"'), "la cola no se parte");
+assert.ok(
+  cola.includes(fila(11)) && cola.includes(fila(12)) && cola.includes(total),
+  "y lleva las dos últimas filas junto al total",
+);
+assert.ok(!cola.includes(fila(10)), "el resto fluye libre");
+
+// Sin filas: el total no puede quedar huérfano de tabla.
+assert.ok(cuerpoDeTabla([], total).includes(total));
+assert.equal(cuerpoDeTabla([]), "<tbody></tbody>");
+
+// Y en el documento entero: la tabla de precios de la OS 010 y su total quedan en
+// el mismo tramo.
+const htmlTabla = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA);
+assert.ok(
+  htmlTabla.lastIndexOf("<tbody", htmlTabla.indexOf("Total neto")) ===
+    htmlTabla.lastIndexOf('<tbody class="junta"', htmlTabla.indexOf("Total neto")),
+  "el total está dentro de un tramo que no se parte",
+);
 // ── Una fila agregada y no completada no se imprime ─────────────────────────
 //
 // Desde que el editor permite agregar filas, "la agregué y no la completé" es un

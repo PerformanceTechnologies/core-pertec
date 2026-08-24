@@ -104,6 +104,42 @@ function filasEtiqueta(pares: [string, string | null][]): string {
 }
 
 /**
+ * El cuerpo de una tabla, partido en grupos que no se cortan mal.
+ *
+ * Salió impreso, y es lo mismo que pasaba con las listas: el navegador parte donde
+ * le toca. Una tabla de precios terminó con sus cinco líneas al pie de una página y
+ * la fila de TOTAL NETO sola en la siguiente, debajo de una cabecera repetida que
+ * no encabezaba nada. Y el cronograma quedó con T1 y T2 en una hoja y T3, T4 y el
+ * total en la otra.
+ *
+ * Un `<table>` acepta VARIOS `<tbody>`, y el navegador sí respeta
+ * `break-inside: avoid` en un tbody. Así que el cuerpo se parte en tramos con la
+ * misma regla que las listas: una tabla corta va entera, y una larga mantiene juntas
+ * la cabeza y —sobre todo— la cola con su fila de total, que es la que nunca puede
+ * quedar sola.
+ */
+const FILAS_TABLA_ENTERA = 8;
+const FILAS_PEGADAS = 2;
+
+export function cuerpoDeTabla(filas: string[], filaDeTotal = ""): string {
+  if (filas.length === 0) return `<tbody>${filaDeTotal}</tbody>`;
+
+  if (filas.length <= FILAS_TABLA_ENTERA) {
+    return `<tbody class="junta">${filas.join("")}${filaDeTotal}</tbody>`;
+  }
+
+  const cabeza = filas.slice(0, FILAS_PEGADAS);
+  const cola = filas.slice(-FILAS_PEGADAS);
+  const medio = filas.slice(FILAS_PEGADAS, filas.length - FILAS_PEGADAS);
+
+  return (
+    `<tbody class="junta">${cabeza.join("")}</tbody>` +
+    (medio.length ? `<tbody>${medio.join("")}</tbody>` : "") +
+    `<tbody class="junta">${cola.join("")}${filaDeTotal}</tbody>`
+  );
+}
+
+/**
  * Cuántos ítems se quedan pegados al título de una lista.
  *
  * Salió impreso: "ANTES DE LA DETENCIÓN DE PLANTA" quedó al pie de una página con
@@ -302,11 +338,12 @@ function armarSecciones(
       "Especificaciones técnicas y equipo",
       `<table class="tabla"><colgroup><col style="width:34%"><col></colgroup>
         <thead><tr><th>Parámetro</th><th>Especificación</th></tr></thead>
-        <tbody>${oferta.especificaciones
-          // Igual que las tarjetas: sin parámetro, la fila no existe.
-          .filter((e) => e.parametro.trim() !== "")
-          .map((e) => `<tr><td>${esc(e.parametro)}</td><td>${esc(e.especificacion)}</td></tr>`)
-          .join("")}</tbody></table>`,
+        ${cuerpoDeTabla(
+          oferta.especificaciones
+            // Igual que las tarjetas: sin parámetro, la fila no existe.
+            .filter((e) => e.parametro.trim() !== "")
+            .map((e) => `<tr><td>${esc(e.parametro)}</td><td>${esc(e.especificacion)}</td></tr>`),
+        )}</table>`,
       "especificaciones",
     );
   }
@@ -343,20 +380,20 @@ function armarSecciones(
       (p.introduccion ? `<p>${esc(p.introduccion)}</p>` : "") +
         `<table class="tabla"><colgroup><col style="width:14%"><col style="width:28%"><col style="width:12%"><col></colgroup>
           <thead><tr><th>Turno</th><th>Jornada</th><th class="num">Horas</th><th>Avance acumulado</th></tr></thead>
-          <tbody>${p.turnos
-            .filter((turno) => turno.turno.trim() !== "" || turno.horas !== 0)
-            .map((t) => {
-              acumulado += t.horas;
-              const ancho = Math.round((acumulado / totales.horasPrograma) * 100);
-              return `<tr><td>${esc(t.turno)}</td><td>${esc(t.jornada)}</td><td class="num">${esc(t.horas)}</td>
-                <td><span class="barra"><span style="width:${ancho}%"></span></span>
-                <span class="avance">${esc(acumulado)} h de ${esc(totales.horasPrograma)} h</span></td></tr>`;
-            })
-            .join("")}
-            <tr class="total"><td>Total</td>
+          ${cuerpoDeTabla(
+            p.turnos
+              .filter((turno) => turno.turno.trim() !== "" || turno.horas !== 0)
+              .map((t) => {
+                acumulado += t.horas;
+                const ancho = Math.round((acumulado / totales.horasPrograma) * 100);
+                return `<tr><td>${esc(t.turno)}</td><td>${esc(t.jornada)}</td><td class="num">${esc(t.horas)}</td>
+                  <td><span class="barra"><span style="width:${ancho}%"></span></span>
+                  <span class="avance">${esc(acumulado)} h de ${esc(totales.horasPrograma)} h</span></td></tr>`;
+              }),
+            `<tr class="total"><td>Total</td>
               <td>${esc(totales.cantidadTurnos)} turno${totales.cantidadTurnos === 1 ? "" : "s"}</td>
-              <td class="num">${esc(totales.horasPrograma)}</td><td></td></tr>
-          </tbody></table>` +
+              <td class="num">${esc(totales.horasPrograma)}</td><td></td></tr>`,
+          )}</table>` +
         (p.nota ? `<p class="nota">${esc(p.nota)}</p>` : ""),
       "programa",
     );
@@ -369,22 +406,22 @@ function armarSecciones(
       `<table class="tabla precios">
         <colgroup><col style="width:6%"><col style="width:8%"><col><col style="width:10%"><col style="width:15%"><col style="width:15%"></colgroup>
         <thead><tr><th>Ít</th><th class="num">Cant</th><th>Cargo</th><th>Un</th><th class="num">V. Unit</th><th class="num">V. Total</th></tr></thead>
-        <tbody>${pr.lineas
-          // Una línea sin descripción y sin monto es una fila que alguien agregó y no
-          // completó: no se imprime. Con una de las dos cosas, sí — y el control de
-          // "valor unitario en 0" la marca para que se revise.
-          .filter((linea) => linea.cargo.trim() !== "" || linea.valorUnitario !== 0)
-          .map(
-            (l, i) =>
-              `<tr><td>${i + 1}.</td><td class="num">${esc(String(l.cantidad).padStart(2, "0"))}</td>
-               <td>${esc(l.cargo)}</td><td>${esc(l.unidad)}</td>
-               <td class="num">${clp(l.valorUnitario)}</td>
-               <td class="num">${clp(l.cantidad * l.valorUnitario)}</td></tr>`,
-          )
-          .join("")}
-          <tr class="total"><td colspan="5">Total neto — no incluye IVA</td>
-            <td class="num">${clp(totales.totalNetoCalculado)}</td></tr>
-        </tbody></table>` +
+        ${cuerpoDeTabla(
+          pr.lineas
+            // Una línea sin descripción y sin monto es una fila que alguien agregó y no
+            // completó: no se imprime. Con una de las dos cosas, sí — y el control de
+            // "valor unitario en 0" la marca para que se revise.
+            .filter((linea) => linea.cargo.trim() !== "" || linea.valorUnitario !== 0)
+            .map(
+              (l, i) =>
+                `<tr><td>${i + 1}.</td><td class="num">${esc(String(l.cantidad).padStart(2, "0"))}</td>
+                 <td>${esc(l.cargo)}</td><td>${esc(l.unidad)}</td>
+                 <td class="num">${clp(l.valorUnitario)}</td>
+                 <td class="num">${clp(l.cantidad * l.valorUnitario)}</td></tr>`,
+            ),
+          `<tr class="total"><td colspan="5">Total neto — no incluye IVA</td>
+            <td class="num">${clp(totales.totalNetoCalculado)}</td></tr>`,
+        )}</table>` +
         `<p class="nota">${esc(pr.nota ?? "Valores en pesos chilenos, netos. Los precios ofrecidos no incluyen IVA.")}</p>`,
       "precio",
     );
@@ -470,17 +507,23 @@ function tablaDotacion(
   const encabezado = conRegimen
     ? `<tr><th>Cargo</th><th class="num">Dotación</th><th>Régimen</th></tr>`
     : `<tr><th>Cargo</th><th class="num">Dotación</th></tr>`;
-  return `<table class="tabla">${columnas}<thead>${encabezado}</thead><tbody>${filas
-    .filter((fila) => fila.cargo.trim() !== "")
-    .map(
-      (f) =>
-        `<tr><td>${esc(f.cargo)}</td><td class="num">${esc(f.dotacion)}</td>${
-          conRegimen ? `<td>${esc(f.regimen ?? "")}</td>` : ""
-        }</tr>`,
-    )
-    .join("")}<tr class="total"><td>Total</td><td class="num">${esc(total)}</td>${
-    conRegimen ? "<td></td>" : ""
-  }</tr></tbody></table>`;
+  return (
+    `<table class="tabla">${columnas}<thead>${encabezado}</thead>` +
+    cuerpoDeTabla(
+      filas
+        .filter((fila) => fila.cargo.trim() !== "")
+        .map(
+          (f) =>
+            `<tr><td>${esc(f.cargo)}</td><td class="num">${esc(f.dotacion)}</td>${
+              conRegimen ? `<td>${esc(f.regimen ?? "")}</td>` : ""
+            }</tr>`,
+        ),
+      `<tr class="total"><td>Total</td><td class="num">${esc(total)}</td>${
+        conRegimen ? "<td></td>" : ""
+      }</tr>`,
+    ) +
+    `</table>`
+  );
 }
 
 /** El anexo: se numera con letra, no con número, igual que en el maestro. */
@@ -679,8 +722,10 @@ export function ofertaAHtml(
   .datos.limpia th.etiqueta, .datos.limpia td { padding: 1.4mm 3mm 1.4mm 0; }
 
   /* Una cabecera de tabla sola al pie de una página no dice nada: se va con sus
-     primeras filas. */
+     primeras filas. Y los tramos del cuerpo —ver cuerpoDeTabla— no se parten:
+     es lo que impide que la fila de total abra una página sola. */
   thead { page-break-after: avoid; }
+  tbody.junta { page-break-inside: avoid; }
   .tabla thead th { background: ${estilo.colorCabecera}; color: ${estilo.colorCabeceraTexto}; text-align: left; padding: 2mm 3mm;
     font-size: 8px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
   .tabla td { padding: 2mm 3mm; vertical-align: top; }
