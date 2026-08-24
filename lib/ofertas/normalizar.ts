@@ -54,7 +54,7 @@ export interface LecturaLetra {
   anexoMandantes: string[];
   anexoNotaEquipo: string;
   /** Dónde estaba cada imagen del borrador: número de marcador y sección. */
-  ubicacionImagenes: { imagen: number; seccion: string }[];
+  ubicacionImagenes: { imagen: number; seccion: string; epigrafe?: string }[];
   /** El número de [IMAGEN n] que es la firma escaneada. 0 = no hay. */
   firmaImagen: number;
   porConfirmar: string[];
@@ -162,11 +162,13 @@ function sinCantidad(numeros: LecturaNumeros): boolean {
  * Que el número corresponda a una imagen guardada lo comprueba quien la dibuja
  * —solo él tiene el inventario—, así que acá se limpia la forma.
  */
-function repartoDeImagenes(
-  ubicaciones: LecturaLetra["ubicacionImagenes"],
-): Partial<Record<SeccionConImagenes, number[]>> {
+function repartoDeImagenes(ubicaciones: LecturaLetra["ubicacionImagenes"]): {
+  reparto: Partial<Record<SeccionConImagenes, number[]>>;
+  epigrafes: Record<number, string>;
+} {
   const reparto: Partial<Record<SeccionConImagenes, number[]>> = {};
-  if (!Array.isArray(ubicaciones)) return reparto;
+  const epigrafes: Record<number, string> = {};
+  if (!Array.isArray(ubicaciones)) return { reparto, epigrafes };
 
   for (const entrada of ubicaciones) {
     const indice = Number(entrada?.imagen);
@@ -177,12 +179,16 @@ function repartoDeImagenes(
     const enLaSeccion = reparto[seccion] ?? [];
     if (!enLaSeccion.includes(indice)) enLaSeccion.push(indice);
     reparto[seccion] = enLaSeccion;
+
+    const epigrafe = texto(entrada?.epigrafe);
+    if (epigrafe) epigrafes[indice] = epigrafe;
   }
 
-  return reparto;
+  return { reparto, epigrafes };
 }
 
 export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): OfertaCanonica {
+  const reparto = repartoDeImagenes(letra.ubicacionImagenes);
   const especificaciones = filas<{ parametro: string; especificacion: string }>(
     letra.especificaciones,
   ).filter((e) => (e?.parametro ?? "").trim() !== "");
@@ -285,7 +291,8 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
       ]),
     ],
 
-    imagenesPorSeccion: repartoDeImagenes(letra.ubicacionImagenes),
+    imagenesPorSeccion: reparto.reparto,
+    epigrafesDeImagenes: reparto.epigrafes,
 
     // El motivo viene como una frase sola ("Precio: el borrador no trae tabla"),
     // porque un objeto más en el esquema es gramática que no hace falta.

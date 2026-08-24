@@ -227,6 +227,13 @@ export interface OfertaCanonica {
    * Una sección que no aparece en el mapa no lleva imágenes.
    */
   imagenesPorSeccion: Partial<Record<SeccionConImagenes, number[]>>;
+  /**
+   * El pie de cada imagen, por número, tal como lo traía el borrador.
+   *
+   * La numeración del pie —"01.", "02."— la pone el documento al imprimir, como
+   * la de las secciones: contar a mano es lo que se rompe entre versiones.
+   */
+  epigrafesDeImagenes: Record<number, string>;
 }
 
 /**

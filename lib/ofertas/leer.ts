@@ -127,6 +127,13 @@ const ESQUEMA_LETRA = objeto({
           "Una de: alcance, metodologia, especificaciones, organizacion, programa, precio, " +
           "condiciones, aportes, cierre, anexo.",
       },
+      epigrafe: {
+        type: "string",
+        description:
+          "El pie de la imagen, si el borrador lo trae escrito al lado o adentro de ella: " +
+          '"Maniobra de izaje de carrete con grúa", "Disposición de equipos correa CT-6". Una frase, ' +
+          "sin numerarla. En blanco si no hay.",
+      },
     }),
   },
   firmaImagen: {
@@ -236,6 +243,8 @@ cifras —dotación, turnos, precios— los lee otra pasada; no los transcribas 
   imagen. Cada una va en "ubicacionImagenes" con LA SECCIÓN DONDE ESTABA, no todas juntas al final:
   un borrador pone el diagrama de disposición de equipos en medio de la metodología y las fotos de
   faena en el anexo, y así tienen que salir. Mirá qué texto rodea al marcador y elegí esa sección.
+    · Si al lado o adentro de la imagen hay un pie escrito, transcribilo en "epigrafe" tal cual, sin
+      numerarlo: la numeración la pone el sistema.
     · Un diagrama entre dos pasos del trabajo → "metodologia".
     · Fotos después de un párrafo del tipo "Fotografías de referencia incluidas" o del respaldo de la
       empresa → "anexo".

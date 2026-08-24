@@ -89,6 +89,7 @@ function os10(): OfertaCanonica {
     },
     porConfirmar: [],
     imagenesPorSeccion: {},
+    epigrafesDeImagenes: {},
     omitidas: [
       { seccion: "4 Especificaciones técnicas", motivo: "El servicio es un traslado, no un empalme." },
     ],
@@ -353,8 +354,10 @@ const conLogos = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA, ESTILO_PERTEC, 
 });
 assert.equal(
   (conLogos.match(/<img src="data:image\/png;base64,/g) ?? []).length,
-  3,
-  "van tres: la celda izquierda, la del cliente y el de la portada",
+  2,
+  // Dos y no tres: la portada NO repite el logo. El encabezado se repite en todas
+  // las páginas, incluida ella, así que salía dos veces en la primera.
+  "van dos: la celda izquierda y la del cliente",
 );
 assert.ok(!conLogos.includes(ESTILO_PERTEC.rotuloLogoCliente), "con logo, el rótulo no se imprime");
 
@@ -655,20 +658,16 @@ assert.ok(htmlIncompleta.includes("AXINNTUS"), "y lo que sí está se imprime ig
 
 // ── La maqueta impresa: lo que se vio imprimiendo, no leyendo ───────────────
 //
-// El pie repetía el número de oferta cuando el título ya lo traía adentro, y con
-// un título largo eso daba un pie de línea y media que aplastaba la dirección y la
-// paginación.
+// El pie lleva número y cliente, no el título: la propuesta hecha a mano pone
+// "OS 009 – 2026 · CT-6 · Axinntus Serv. Ind." y con el título completo el pie
+// ocupaba línea y media y aplastaba la dirección y la paginación.
 assert.equal(
-  referenciaDePie("OS 009-2026", "OFERTA TÉCNICA ECONÓMICA OS 009 2026 - SERVICIO DE REEMPLAZO"),
-  "OFERTA TÉCNICA ECONÓMICA OS 009 2026 - SERVICIO DE REEMPLAZO",
-  "si el título ya trae el número, no se antepone otra vez",
+  referenciaDePie("OS 009-2026", "AXINNTUS SERVICIOS INDUSTRIALES", "OFERTA TÉCNICA ECONÓMICA…"),
+  "OS 009-2026 · AXINNTUS SERVICIOS INDUSTRIALES",
 );
-assert.equal(
-  referenciaDePie("OS 010-2026", "Servicio de traslado de rollos"),
-  "OS 010-2026 · Servicio de traslado de rollos",
-  "y si no lo trae, sí",
-);
-assert.equal(referenciaDePie(null, "Servicio de traslado"), "Servicio de traslado");
+assert.equal(referenciaDePie("OS 010-2026", null, "Servicio de traslado"), "OS 010-2026");
+// Sin número ni cliente queda el título, que es mejor que un pie vacío.
+assert.equal(referenciaDePie(null, null, "Servicio de traslado"), "Servicio de traslado");
 
 // La identidad a medio cargar no imprime rótulos huérfanos. Salió impreso: una
 // oferta emitida mostraba la palabra "RUT" sola, sin número.

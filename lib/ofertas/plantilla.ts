@@ -66,11 +66,13 @@ const rutDe = (e: EmpresaIdentidad) => (e.rut.trim() ? `RUT ${e.rut.trim()}` : "
  * ECONÓMICA OS 009 2026 - SERVICIO DE REEMPLAZO…"). Anteponerlo otra vez daba un
  * pie que ocupaba línea y media y aplastaba la dirección y la paginación.
  */
-export function referenciaDePie(numero: string | null, titulo: string): string {
-  const limpio = titulo.trim();
-  if (!numero) return limpio;
-  const compacto = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return compacto(limpio).includes(compacto(numero)) ? limpio : `${numero} · ${limpio}`;
+export function referenciaDePie(numero: string | null, cliente: string | null, titulo: string): string {
+  // Número y cliente, no el título. La propuesta hecha a mano pone
+  // "OS 009 – 2026 · CT-6 · Axinntus Serv. Ind.": corto y suficiente para saber de
+  // qué documento es esta hoja. El título completo ocupaba línea y media y había
+  // que recortarlo con puntos suspensivos, que es peor que no ponerlo.
+  const partes = [numero?.trim(), cliente?.trim()].filter(Boolean);
+  return partes.length ? partes.join(" · ") : titulo.trim();
 }
 
 /** Escapa todo lo que viene del borrador. */
@@ -157,6 +159,22 @@ function hitos(items: string[], titulo?: string): string {
 }
 
 /**
+ * Numera los subtítulos de una sección: 3.1, 3.2, 3.3…
+ *
+ * Como con las secciones, el número NO se transcribe: se cuenta al armar. La
+ * propuesta hecha a mano numera así y sirve para lo que sirve un número —poder
+ * decir "la secuencia 4.2" en otra parte del documento— pero mantenerlo a mano
+ * entre versiones es justo lo que se rompe.
+ */
+function numerarSubsecciones(cuerpo: string, numeroDeSeccion: string): string {
+  let n = 0;
+  return cuerpo.replace(/<h3>/g, () => {
+    n += 1;
+    return `<h3><span class="sub">${numeroDeSeccion}.${n}</span> `;
+  });
+}
+
+/**
  * La grilla de imágenes de una sección, o "" si no tiene.
  *
  * Las imágenes salen DONDE ESTABAN en el borrador y no todas juntas al final: un
@@ -168,19 +186,32 @@ function hitos(items: string[], titulo?: string): string {
  * ancha que 1.6:1 ocupa la fila completa, porque un diagrama a media página no se
  * lee.
  */
-function grillaDeImagenes(numeros: number[] | undefined, imagenes: Record<number, ImagenDibujable>): string {
+function grillaDeImagenes(
+  numeros: number[] | undefined,
+  imagenes: Record<number, ImagenDibujable>,
+  epigrafes: Record<number, string> = {},
+): string {
   const usables = (numeros ?? [])
-    .map((indice) => imagenes[indice])
-    .filter((imagen): imagen is ImagenDibujable => imagenSegura(imagen?.uri) !== null);
+    .map((indice) => ({ indice, imagen: imagenes[indice] }))
+    .filter((par) => imagenSegura(par.imagen?.uri) !== null);
   if (usables.length === 0) return "";
 
   return (
     `<div class="fotos">` +
     usables
-      .map(
-        (imagen) =>
-          `<figure${imagen.apaisada ? ' class="ancha"' : ""}><img src="${imagen.uri}" alt=""></figure>`,
-      )
+      .map(({ indice, imagen }, i) => {
+        // El número del pie lo pone el documento, como el de las secciones: en la
+        // propuesta hecha a mano cada foto va numerada con su epígrafe, y contar a
+        // mano es justo lo que se desordena entre versiones.
+        const numero = String(i + 1).padStart(2, "0");
+        const epigrafe = epigrafes[indice];
+        return (
+          `<figure${imagen.apaisada ? ' class="ancha"' : ""}>` +
+          `<img src="${imagen.uri}" alt="">` +
+          `<figcaption>${numero}${epigrafe ? `. ${esc(epigrafe)}` : ""}</figcaption>` +
+          `</figure>`
+        );
+      })
       .join("") +
     `</div>`
   );
@@ -204,7 +235,13 @@ function armarSecciones(
       titulo,
       // La grilla de la sección va al final de su cuerpo, que es donde estaba en el
       // borrador respecto del texto que la rodea.
-      cuerpo: cuerpo + (clave ? grillaDeImagenes(oferta.imagenesPorSeccion?.[clave], imagenes) : ""),
+      cuerpo: numerarSubsecciones(
+        cuerpo +
+          (clave
+            ? grillaDeImagenes(oferta.imagenesPorSeccion?.[clave], imagenes, oferta.epigrafesDeImagenes ?? {})
+            : ""),
+        String(secciones.length + 1),
+      ),
       junto,
       clave,
     });
@@ -417,6 +454,7 @@ function armarAnexo(
   anexo: OfertaCanonica["anexo"],
   fotos: number[] | undefined,
   imagenes: Record<number, ImagenDibujable>,
+  epigrafes: Record<number, string>,
 ): SeccionArmada | null {
   // Con fotos elegidas la sección existe aunque no traiga texto: si no, elegir una
   // foto para el anexo de un borrador que no tiene anexo escrito la hacía
@@ -446,7 +484,7 @@ function armarAnexo(
   // La nota estaba antes junto a los mandantes y no es de ahí: en un borrador dice
   // "Fotografías de referencia incluidas: CODELCO - División Radomiro Tomic…", que
   // es exactamente el epígrafe de estas fotos.
-  const grilla = grillaDeImagenes(fotos, imagenes);
+  const grilla = grillaDeImagenes(fotos, imagenes, epigrafes);
   if (grilla) {
     cuerpo +=
       `<div class="grupo"><h3>Fotografías de referencia</h3>` +
@@ -498,11 +536,16 @@ export function ofertaAHtml(
   const huerfanas = Object.entries(oferta.imagenesPorSeccion ?? {})
     .filter(([clave]) => clave !== "anexo" && !emitidas.has(clave as SeccionConImagenes))
     .flatMap(([, indices]) => indices ?? []);
-  const anexo = armarAnexo(oferta.anexo, [...enElAnexo, ...huerfanas], imagenes);
+  const anexo = armarAnexo(
+    oferta.anexo,
+    [...enElAnexo, ...huerfanas],
+    imagenes,
+    oferta.epigrafesDeImagenes ?? {},
+  );
   const todas = anexo ? [...secciones, anexo] : secciones;
   const id = oferta.identificacion;
 
-  const referenciaPie = referenciaDePie(id.numeroOferta, oferta.titulo);
+  const referenciaPie = referenciaDePie(id.numeroOferta, id.cliente, oferta.titulo);
   // Se revalidan acá y no solo al bajarlos: este archivo es el que interpola el
   // valor en un `src`, así que el control tiene que estar en el borde del
   // documento. Lo que no pasa vuelve al texto, que es un resultado correcto.
@@ -575,10 +618,15 @@ export function ofertaAHtml(
   h2:first-of-type { margin-top: 0; }
   h3 { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; margin: 4mm 0 1.6mm;
        page-break-after: avoid; }
+  h3 .sub { color: ${estilo.colorAcento}; }
   /* Nunca una línea sola cruzando de página: dos arriba y dos abajo como mínimo. */
   p { margin: 0 0 2.5mm; orphans: 2; widows: 2; }
   section.junto { page-break-inside: avoid; }
-  p.nota { color: ${estilo.colorSuave}; font-size: 8.5px; }
+  /* Una nota de sección es una referencia cruzada —"la secuencia 4.2 se ejecuta
+     dentro de los turnos de la sección 7"— y en la propuesta hecha a mano va con
+     una barra al costado, no como un párrafo más. */
+  p.nota { color: ${estilo.colorSuave}; font-size: 8.5px; padding-left: 3mm;
+    border-left: 1.2px solid ${estilo.colorAcentoAlterno}; }
 
   table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; page-break-inside: auto; }
   tr { page-break-inside: avoid; }
@@ -589,6 +637,12 @@ export function ofertaAHtml(
   /* Separador por contraste con el fondo de la fila, no un blanco fijo: con un
      maestro de paleta oscura un blanco acá sería una raya. */
   .datos tr + tr th, .datos tr + tr td { border-top: 1px solid ${estilo.colorCabeceraTexto}; }
+  /* En la portada, sin bloque de fondo: la propuesta hecha a mano deja los datos
+     sueltos sobre el papel y el aire hace el trabajo. Adentro, en la sección de
+     identificación, sí van con fondo. */
+  .datos.limpia th.etiqueta, .datos.limpia td { background: transparent; }
+  .datos.limpia tr + tr th, .datos.limpia tr + tr td { border-top: 0; }
+  .datos.limpia th.etiqueta, .datos.limpia td { padding: 1.4mm 3mm 1.4mm 0; }
 
   /* Una cabecera de tabla sola al pie de una página no dice nada: se va con sus
      primeras filas. */
@@ -657,15 +711,21 @@ export function ofertaAHtml(
      leía como un montón de imágenes al final en vez de un anexo. La celda uniforme
      cuesta algo de aire alrededor de las fotos más cuadradas; a cambio, cierra. */
   .fotos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm; }
-  .fotos figure { margin: 0; height: 66mm; page-break-inside: avoid; }
+  .fotos figure { margin: 0; page-break-inside: avoid; }
+  .fotos figure img { height: 60mm; }
+  .fotos figure.ancha img { height: 76mm; }
+  /* El pie va DEBAJO de la imagen y fuera de su marco, como en la propuesta
+     hecha a mano: numerado por el sistema y con el epígrafe del borrador. */
+  .fotos figcaption { margin-top: 1.5mm; font-size: 8px; color: ${estilo.colorSuave};
+    line-height: 1.35; }
   /* Una foto ancha o un diagrama ocupan la fila completa: a media página no se leen. */
-  .fotos figure.ancha { grid-column: 1 / -1; height: 82mm; }
+  .fotos figure.ancha { grid-column: 1 / -1; }
   /* Se ajusta por contain y no por cover: varias de estas imágenes son collages
      con texto adentro, y recortarlas se come justo lo que explican. Que las filas
      queden de altos distintos es el precio correcto. */
   /* La caja de la imagen se ajusta a la imagen, no al revés: con width:100% el
      borde trazaba la celda y la foto quedaba con bandas blancas a los costados. */
-  .fotos img { width: 100%; height: 100%; object-fit: contain; display: block;
+  .fotos img { width: 100%; object-fit: contain; display: block;
     background: ${estilo.colorFondoSuave}; border: 1px solid ${estilo.colorBorde}; }
   .firmas .nombre { font-weight: 700; margin: 0; }
   .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }
@@ -681,12 +741,15 @@ export function ofertaAHtml(
   .indice li { display: flex; gap: 4mm; padding: 1.6mm 0; border-top: 1px solid ${estilo.colorFondoTotal}; list-style: none; }
   .indice .n { color: ${estilo.colorAcento}; font-weight: 700; min-width: 6mm; }
   .portada { page-break-after: always; }
-  /* En la portada el logo va grande: es la única página que alguien mira antes
-     de leer nada. */
-  .portada .logo { margin-bottom: 9mm; }
-  .portada .logo img { max-height: 20mm; max-width: 90mm; }
+  /* La portada NO lleva el logo aparte: el encabezado se repite en todas las
+     páginas, incluida ella, así que salía dos veces. La propuesta hecha a mano
+     tampoco lo repite. */
   .portada .rotulo { color: ${estilo.colorAcento}; font-size: 8.5px; letter-spacing: .16em;
     text-transform: uppercase; margin-bottom: 3mm; }
+  /* La regla corta bajo el rótulo, como en la propuesta hecha a mano: ancla el
+     título en la página en vez de dejarlo flotando. */
+  .portada .rotulo::after { content: ""; display: block; width: 26mm; margin-top: 2.5mm;
+    border-top: 1.2px solid ${estilo.colorAcento}; }
   .portada h1 { font-size: ${estilo.tamanoPortada}px; font-family: ${estilo.fuenteTitulos}; line-height: 1.08; text-transform: uppercase; margin: 0 0 3mm; }
   .portada .faena { color: ${estilo.colorSuave}; font-size: 13px; margin-bottom: 10mm; }
 
@@ -717,11 +780,10 @@ export function ofertaAHtml(
   </div>
 
   <section class="portada">
-    ${logoCasa ? `<div class="logo"><img src="${logoCasa}" alt=""></div>` : ""}
     <p class="rotulo">Oferta técnica y económica</p>
     <h1>${esc(oferta.titulo)}</h1>
     ${id.faena ? `<p class="faena">${esc(id.faena)}</p>` : ""}
-    <table class="datos">${filasEtiqueta([
+    <table class="datos limpia">${filasEtiqueta([
       ["Oferta N°", id.numeroOferta],
       ["Fecha", id.fecha],
       ["Cliente", id.cliente],
@@ -779,7 +841,7 @@ export function plantillasDeImpresion(
   // va en línea. El alto se ata al del encabezado para que un maestro con
   // encabezado bajo no deje el logo colgando fuera de la celda.
   const imagen = `max-width:100%;max-height:${estilo.altoHeader - 9}mm;`;
-  const referenciaPie = referenciaDePie(id.numeroOferta, oferta.titulo);
+  const referenciaPie = referenciaDePie(id.numeroOferta, id.cliente, oferta.titulo);
   const direccion = [empresa.direccion, empresa.ciudad].filter(Boolean).join(", ");
   const celda = "padding:2mm 3mm;display:flex;flex-direction:column;justify-content:center;";
 
