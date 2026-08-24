@@ -95,14 +95,11 @@ export default function ImagenesDeLaOferta({
         <input type="hidden" name="id" value={ofertaId} />
 
         <p className="max-w-[85ch] text-[11px] text-pretty text-tinta/45">
-          <b className="font-semibold text-tinta/65">
-            La forma corta es arrastrarlas: en la pestaña Documento, cada foto se lleva hasta la sección donde
-            va y se ve ahí mismo.
-          </b>{" "}
-          Acá está lo demás: agregar las que falten, sacar las que sobren y decir de quién es cada rúbrica. El
-          desplegable hace lo mismo que arrastrar, por si preferís elegir de una lista. El sistema propuso una
-          ubicación mirando el texto que rodeaba a cada imagen en el borrador y su tamaño; el logo y el
-          membrete quedan sin sección a propósito, porque el encabezado ya los pone.
+          Cada imagen sale en la sección que elijas, donde estaba en el borrador: un diagrama del trabajo va
+          en la metodología y las fotos de faena en el anexo. El sistema propuso una ubicación mirando el
+          texto que la rodeaba y su tamaño; el logo y el membrete quedan sin sección a propósito, porque el
+          encabezado ya los pone. Podés agregar las que falten: se suman sin sección, hasta que elijas dónde
+          va cada una.
         </p>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

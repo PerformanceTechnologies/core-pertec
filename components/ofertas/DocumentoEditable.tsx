@@ -1,13 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 import { asignarEnRuta } from "@/lib/ofertas/rutas";
-import { prepararDocumento, TIPO_ARRASTRE } from "@/lib/ofertas/edicion-dom";
-import { NOMBRE_DE_SECCION, type SeccionConImagenes } from "@/lib/ofertas/tipos";
-import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
-import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
+import { prepararDocumento } from "@/lib/ofertas/edicion-dom";
 import RuedaCarga from "@/components/RuedaCarga";
 
 /**
@@ -55,23 +51,13 @@ export default function DocumentoEditable({
   oferta,
   editable,
   onCambio,
-  imagenes,
-  urls,
-  porSeccion,
 }: {
   id: string;
   oferta: OfertaCanonica;
   editable: boolean;
   /** La misma función con la que edita el formulario: hay un solo estado. */
   onCambio: (aplicar: (borrador: OfertaCanonica) => void) => void;
-  /** El inventario de la oferta, para el cajón de fotos. */
-  imagenes: ImagenGuardada[];
-  /** Índice → URL firmada y corta, para la miniatura. */
-  urls: Record<number, string>;
-  /** Dónde está puesta cada una hoy, según lo GUARDADO: la ubicación se guarda sola. */
-  porSeccion: Partial<Record<SeccionConImagenes, number[]>>;
 }) {
-  const router = useRouter();
   const marco = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -79,7 +65,6 @@ export default function DocumentoEditable({
   // Cambiarla vuelve a pedir la maqueta: es lo que renumera las secciones y saca las
   // filas que quedaron vacías, que son cambios de estructura y los hace el servidor.
   const [revision, setRevision] = useState(0);
-  const [moviendo, setMoviendo] = useState<string | null>(null);
 
   // La copia con la que trabaja el documento. Las ediciones se aplican acá al
   // instante —para poder recalcular los totales en la misma tecla— y además viajan
@@ -130,73 +115,6 @@ export default function DocumentoEditable({
     return () => control.abort();
   }, [id, revision]);
 
-  /**
-   * Pone una foto en una sección, o la saca. Guarda al instante.
-   *
-   * La ubicación no espera a "Guardar cambios" y es a propósito: soltar una foto en
-   * un lugar ES la decisión. Además así no se mezcla con el texto que alguien esté
-   * escribiendo sin guardar — son dos caminos distintos hacia la misma oferta.
-   */
-  const ubicar = useCallback(
-    async (indice: number, seccion: string | null) => {
-      setMoviendo(seccion ? "Poniendo la foto…" : "Sacando la foto…");
-      setError(null);
-      try {
-        const respuesta = await fetch(`/api/ofertas/${id}/ubicar-imagen`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ indice, seccion }),
-        });
-        await leerRespuesta(respuesta);
-        // Volver a pedir la maqueta es lo que la dibuja en su lugar, con su número de
-        // pie y su epígrafe: esa estructura la arma el servidor, no esta pantalla.
-        setRevision((r) => r + 1);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "No se pudo mover la foto.");
-      } finally {
-        setMoviendo(null);
-      }
-    },
-    [id, router],
-  );
-
-  /** Archivos soltados desde el escritorio: se suben y caen donde los soltaron. */
-  const subirYUbicar = useCallback(
-    async (archivos: File[], seccion: string) => {
-      setError(null);
-      try {
-        for (const [posicion, archivo] of archivos.entries()) {
-          const aviso = avisoDeTamano(archivo);
-          if (aviso) throw new Error(aviso);
-          setMoviendo(
-            archivos.length > 1 ? `Subiendo ${posicion + 1} de ${archivos.length}…` : "Subiendo la foto…",
-          );
-          const cuerpo = new FormData();
-          cuerpo.set("archivo", archivo);
-          const respuesta = await fetch(`/api/ofertas/${id}/imagenes`, { method: "POST", body: cuerpo });
-          const { agregadas } = await leerRespuesta<{ agregadas: number[] }>(respuesta);
-          // Subir y ubicar son dos pasos porque son dos decisiones distintas en todo
-          // el resto del módulo; acá el gesto es uno solo y los encadena.
-          for (const indice of agregadas) {
-            await fetch(`/api/ofertas/${id}/ubicar-imagen`, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ indice, seccion }),
-            });
-          }
-        }
-        setRevision((r) => r + 1);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "No se pudo subir la foto.");
-      } finally {
-        setMoviendo(null);
-      }
-    },
-    [id, router],
-  );
-
   const preparar = useCallback(() => {
     const doc = marco.current?.contentDocument;
     // El `about:blank` con el que nace un iframe también dispara load.
@@ -216,11 +134,8 @@ export default function DocumentoEditable({
       alMedir: (alto) => {
         if (marco.current) marco.current.style.height = `${alto}px`;
       },
-      alSoltarImagen: (indice, seccion) => void ubicar(indice, seccion),
-      alSoltarArchivos: (archivos, seccion) => void subirYUbicar(archivos, seccion),
-      alQuitarImagen: (indice) => void ubicar(indice, null),
     });
-  }, [editable, ubicar, subirYUbicar]);
+  }, [editable]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -249,62 +164,6 @@ export default function DocumentoEditable({
         <p className="rounded-lg border border-red-600/30 bg-red-600/[0.06] px-3 py-2 text-xs text-red-700">
           {error}
         </p>
-      )}
-
-      {/* ── El cajón de fotos ──────────────────────────────────────────────
-          Al lado del documento y no en otra pantalla: para decidir dónde va una
-          foto hay que ver las dos cosas a la vez. Se arrastra desde acá hasta la
-          sección donde va, que es el gesto que antes eran un desplegable, un botón
-          "Aplicar" y un viaje de ida y vuelta para ver el resultado. */}
-      {editable && imagenes.length > 0 && (
-        <div className="rounded-xl border border-borde bg-crema/40 p-3">
-          <p className="text-[11px] text-pretty text-tinta/50">
-            Arrastrá una foto hasta la sección del documento donde va. También podés soltar archivos del
-            escritorio directamente sobre el documento, y sacarlas con la × de cada foto.
-            {moviendo && <span className="ml-2 font-medium text-naranjo">{moviendo}</span>}
-          </p>
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-            {imagenes.map((imagen) => {
-              const puesta = (Object.keys(porSeccion) as SeccionConImagenes[]).find((clave) =>
-                (porSeccion[clave] ?? []).includes(imagen.indice),
-              );
-              return (
-                <div
-                  key={imagen.indice}
-                  draggable
-                  onDragStart={(evento) => {
-                    evento.dataTransfer.setData(TIPO_ARRASTRE, String(imagen.indice));
-                    evento.dataTransfer.effectAllowed = "move";
-                  }}
-                  title={puesta ? `En ${NOMBRE_DE_SECCION[puesta]}` : "Todavía no está en el documento"}
-                  className={`w-[104px] shrink-0 cursor-grab rounded-lg border bg-superficie p-1.5 transition active:cursor-grabbing ${
-                    puesta ? "border-naranjo/50" : "border-borde hover:border-naranjo/40"
-                  }`}
-                >
-                  <div className="flex h-16 items-center justify-center overflow-hidden rounded bg-white">
-                    {urls[imagen.indice] ? (
-                      // Sin next/image: bucket privado con URL firmada y corta.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={urls[imagen.indice]}
-                        alt=""
-                        draggable={false}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    ) : (
-                      <span className="text-[10px] uppercase tracking-wide text-tinta/30">
-                        nº {imagen.indice}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 truncate text-[10px] text-tinta/45">
-                    {puesta ? NOMBRE_DE_SECCION[puesta] : "Sin ubicar"}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       )}
 
       <div className="overflow-hidden rounded-xl border border-borde bg-white">

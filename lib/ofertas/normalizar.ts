@@ -398,28 +398,3 @@ function firmaGuardadaDe(cierre: Cierre | null | undefined, nombre: string): num
   const posicion = cierre.firmantes.findIndex((f) => f.nombre.trim().toLocaleLowerCase("es-CL") === buscado);
   return posicion === -1 ? null : firmaDe(cierre, posicion);
 }
-
-/**
- * El contenido con una imagen puesta en una sección, o sacada de todas.
- *
- * Es lo que ocurre al arrastrar una foto sobre el documento. Sale primero de donde
- * estuviera: una imagen vive en UNA sección —si apareciera en dos, el documento la
- * dibujaría dos veces— así que mover es sacar y poner, no solo poner.
- *
- * Va al final de la sección porque es donde se ve que llegó algo nuevo. Reordenarlas
- * dentro de la sección es otra cosa y todavía no existe.
- */
-export function conLaImagenEn(
-  contenido: OfertaCanonica,
-  indice: number,
-  seccion: SeccionConImagenes | null,
-): OfertaCanonica {
-  const porSeccion: Partial<Record<SeccionConImagenes, number[]>> = {};
-  for (const [clave, indices] of Object.entries(contenido.imagenesPorSeccion ?? {})) {
-    const quedan = (indices ?? []).filter((n) => n !== indice);
-    if (quedan.length > 0) porSeccion[clave as SeccionConImagenes] = quedan;
-  }
-  if (seccion) porSeccion[seccion] = [...(porSeccion[seccion] ?? []), indice];
-
-  return { ...contenido, imagenesPorSeccion: porSeccion };
-}

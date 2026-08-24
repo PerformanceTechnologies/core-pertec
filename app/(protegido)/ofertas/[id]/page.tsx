@@ -202,8 +202,6 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         inicial={oferta.contenido}
         estado={oferta.estado}
         archivoOrigen={oferta.archivoOrigen}
-        imagenes={oferta.imagenes}
-        urlsImagenes={urlsImagenes}
       />
     </div>
   );

@@ -286,7 +286,7 @@ function grillaDeImagenes(
         const numero = String(i + 1).padStart(2, "0");
         const epigrafe = epigrafes[indice];
         return (
-          `<figure data-imagen="${indice}"${imagen.apaisada ? ' class="ancha"' : ""}>` +
+          `<figure${imagen.apaisada ? ' class="ancha"' : ""}>` +
           `<img src="${imagen.uri}" alt="">` +
           `<figcaption>${numero}${
             epigrafe ? `. <span${campo(`epigrafesDeImagenes.${indice}`)}>${esc(epigrafe)}</span>` : ""
@@ -662,7 +662,6 @@ function armarAnexo(
     numero: "A",
     titulo: "Anexo — respaldos y experiencia en trabajos similares",
     cuerpo,
-    clave: "anexo",
   };
 }
 
@@ -971,12 +970,9 @@ export function ofertaAHtml(
   ${todas
     .map(
       (s) =>
-        `<section${s.junto ? ' class="junto"' : ""}${
-          // Las que aceptan imágenes se nombran en el marcado: es lo que permite
-          // arrastrarles una foto encima y que el editor sepa dónde cayó. Las que
-          // no la aceptan no llevan el atributo, así que no son blanco de nada.
-          s.clave ? ` data-seccion="${s.clave}"` : ""
-        }><h2><span class="n">${esc(s.numero)}</span> ${esc(s.titulo)}</h2>${s.cuerpo}</section>`,
+        `<section${s.junto ? ' class="junto"' : ""}><h2><span class="n">${esc(s.numero)}</span> ${esc(
+          s.titulo,
+        )}</h2>${s.cuerpo}</section>`,
     )
     .join("")}
 </body></html>`;
