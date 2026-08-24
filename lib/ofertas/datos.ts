@@ -5,6 +5,7 @@ import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { calcularTotales, detectarInconsistencias } from "./verificar";
 import type { Inconsistencia, OfertaCanonica } from "./tipos";
 import type { Empresa } from "@/lib/cotizador/empresas";
+import type { ImagenGuardada } from "./imagenes";
 
 /**
  * Las ofertas guardadas.
@@ -19,7 +20,7 @@ import type { Empresa } from "@/lib/cotizador/empresas";
 const COLUMNAS = `
   id, nombre, numero_oferta, cliente, faena, empresa, contenido, inconsistencias,
   estado, archivo_origen, maestro_id, logo_cliente_ruta, logo_cliente_nombre,
-  creado_en, actualizado_en
+  imagenes, creado_en, actualizado_en
 `;
 
 export interface OfertaResumen {
@@ -41,6 +42,13 @@ export interface OfertaResumen {
    */
   logoClienteRuta: string | null;
   logoClienteNombre: string | null;
+  /**
+   * Las imágenes que traía el borrador, en el orden en que aparecían.
+   *
+   * El contenido canónico se refiere a ellas por número —`anexo.fotos: [3, 4]`—
+   * y este inventario dice dónde quedó cada una. Ver lib/ofertas/imagenes.ts.
+   */
+  imagenes: ImagenGuardada[];
   actualizadoEn: string;
 }
 
@@ -65,6 +73,7 @@ interface Fila {
   maestro_id: string | null;
   logo_cliente_ruta: string | null;
   logo_cliente_nombre: string | null;
+  imagenes: ImagenGuardada[] | null;
   creado_en: string;
   actualizado_en: string;
 }
@@ -84,6 +93,7 @@ function filaAGuardada(f: Fila): OfertaGuardada {
     maestroId: f.maestro_id,
     logoClienteRuta: f.logo_cliente_ruta,
     logoClienteNombre: f.logo_cliente_nombre,
+    imagenes: f.imagenes ?? [],
     archivoOrigen: f.archivo_origen,
     creadoEn: f.creado_en,
     actualizadoEn: f.actualizado_en,
@@ -147,6 +157,7 @@ export async function crearOferta(
   empresa: Empresa,
   archivoOrigen: string,
   creadoPor: string,
+  imagenes: ImagenGuardada[] = [],
 ): Promise<{ id: string; inconsistencias: Inconsistencia[] }> {
   const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), archivoOrigen);
 
@@ -162,6 +173,7 @@ export async function crearOferta(
       inconsistencias,
       estado: "borrador",
       archivo_origen: archivoOrigen,
+      imagenes,
       creado_por: creadoPor,
     })
     .select("id")

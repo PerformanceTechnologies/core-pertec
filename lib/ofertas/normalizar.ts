@@ -53,6 +53,10 @@ export interface LecturaLetra {
   anexoRespaldos: string[];
   anexoMandantes: string[];
   anexoNotaEquipo: string;
+  /** Los números de [IMAGEN n] que son fotos o diagramas del trabajo. */
+  anexoFotos: number[];
+  /** El número de [IMAGEN n] que es la firma escaneada. 0 = no hay. */
+  firmaImagen: number;
   porConfirmar: string[];
   omitidas: string[];
 }
@@ -98,6 +102,19 @@ const texto = (valor: unknown): string | null => {
  * anota en "porConfirmar", porque quien revisa tiene que poder verlo.
  */
 const cantidadDe = (valor: unknown): number => (typeof valor === "number" && valor > 0 ? valor : 1);
+
+/**
+ * Los números de imagen que el modelo repartió, saneados.
+ *
+ * Solo enteros positivos y sin repetidos: una foto dos veces sería la misma foto
+ * dos veces en el documento, y un índice que no existe no dibuja nada. Que el
+ * número corresponda a una imagen guardada lo comprueba quien la va a dibujar
+ * —solo él tiene el inventario— así que acá se limpia la forma, no el contenido.
+ */
+const indices = (valor: unknown): number[] =>
+  Array.isArray(valor)
+    ? [...new Set(valor.filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n > 0))]
+    : [];
 
 /** El número, o null si vino en 0: así dice el esquema "no está impreso". */
 const numero = (valor: unknown): number | null => (typeof valor === "number" && valor !== 0 ? valor : null);
@@ -207,6 +224,7 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
     }),
 
     cierre: seccion({
+      firmaImagen: indices([letra.firmaImagen])[0] ?? null,
       texto: texto(letra.cierreTexto),
       firmantes: filas<{ nombre: string; cargo: string; empresa: string }>(letra.firmantes)
         .filter((f) => (f?.nombre ?? "").trim() !== "")
@@ -218,6 +236,7 @@ export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): Ofert
       respaldoInstitucional: lista(letra.anexoRespaldos),
       mandantes: lista(letra.anexoMandantes),
       notaEquipo: texto(letra.anexoNotaEquipo),
+      fotos: indices(letra.anexoFotos),
     }),
 
     // Las dos lecturas ven el mismo documento y cada una nombra lo que le faltó:

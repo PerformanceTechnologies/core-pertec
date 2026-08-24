@@ -1,7 +1,7 @@
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import type { OfertaCanonica, TotalesOferta } from "./tipos";
 import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
-import { SIN_LOGOS, logoSeguro, type LogosDocumento } from "./logo";
+import { SIN_LOGOS, imagenSegura, logoSeguro, type ImagenDibujable, type LogosDocumento } from "./logo";
 
 /**
  * El maestro del formato de ofertas técnicas, como código.
@@ -160,7 +160,11 @@ function hitos(items: string[], titulo?: string): string {
  * Esta función es la que hace innecesario "renumerar": el número de cada sección
  * es su posición en esta lista, calculada al momento de generar el PDF.
  */
-function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): SeccionArmada[] {
+function armarSecciones(
+  oferta: OfertaCanonica,
+  totales: TotalesOferta,
+  imagenes: Record<number, ImagenDibujable>,
+): SeccionArmada[] {
   const secciones: SeccionArmada[] = [];
   const agregar = (titulo: string, cuerpo: string, junto = false) =>
     secciones.push({ numero: String(secciones.length + 1), titulo, cuerpo, junto });
@@ -317,11 +321,18 @@ function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): Seccion
       "Cierre y firma",
       (c.texto ? `<p>${esc(c.texto)}</p>` : "") +
         `<div class="firmas">${c.firmantes
-          .map(
-            (f) =>
-              `<div class="firma"><span class="linea"></span><p class="nombre">${esc(f.nombre)}</p>
-                 <p class="cargo">${esc(f.cargo)}${f.empresa ? `<br>${esc(f.empresa)}` : ""}</p></div>`,
-          )
+          .map((f, i) => {
+            // La rúbrica va ARRIBA de la línea, apoyada en ella, como en un papel
+            // firmado. Y solo en el primer firmante: el borrador trae una firma
+            // escaneada, no una por persona.
+            const rubrica = i === 0 ? imagenSegura(imagenes[c.firmaImagen ?? -1]?.uri) : null;
+            return (
+              `<div class="firma">` +
+              (rubrica ? `<img class="rubrica" src="${rubrica}" alt="">` : "") +
+              `<span class="linea"></span><p class="nombre">${esc(f.nombre)}</p>
+                 <p class="cargo">${esc(f.cargo)}${f.empresa ? `<br>${esc(f.empresa)}` : ""}</p></div>`
+            );
+          })
           .join("")}</div>` +
         (c.cc ? `<p class="cc">${esc(c.cc)}</p>` : ""),
       // Corta por naturaleza —un párrafo, una o dos firmas y el cc— y la que peor
@@ -357,7 +368,10 @@ function tablaDotacion(
 }
 
 /** El anexo: se numera con letra, no con número, igual que en el maestro. */
-function armarAnexo(anexo: OfertaCanonica["anexo"]): SeccionArmada | null {
+function armarAnexo(
+  anexo: OfertaCanonica["anexo"],
+  imagenes: Record<number, ImagenDibujable>,
+): SeccionArmada | null {
   if (!anexo) return null;
   let cuerpo = "";
   if (anexo.respaldoInstitucional.length) {
@@ -380,6 +394,24 @@ function armarAnexo(anexo: OfertaCanonica["anexo"]): SeccionArmada | null {
   } else if (anexo.notaEquipo) {
     cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
   }
+  // Las fotos, al final del anexo y en la grilla. Cada una en su propio grupo:
+  // una foto partida entre dos páginas no es una foto.
+  const fotos = (anexo.fotos ?? [])
+    .map((indice) => imagenes[indice])
+    .filter((imagen): imagen is ImagenDibujable => imagenSegura(imagen?.uri) !== null);
+  if (fotos.length) {
+    cuerpo +=
+      `<div class="fotos">` +
+      fotos
+        .map(
+          (imagen) =>
+            `<figure${imagen.apaisada ? ' class="ancha"' : ""}>` +
+            `<img src="${imagen.uri}" alt=""></figure>`,
+        )
+        .join("") +
+      `</div>`;
+  }
+
   if (!cuerpo) return null;
   return {
     numero: "A",
@@ -406,9 +438,13 @@ export function ofertaAHtml(
   // Los logos, ya resueltos a data URI por logos-archivo.ts. Sin logos el
   // encabezado sale en texto, igual que antes de que se pudieran subir.
   logos: LogosDocumento = SIN_LOGOS,
+  // Las imágenes del borrador que el documento va a dibujar, por número de
+  // marcador y ya resueltas a data URI (ver lib/ofertas/imagenes.ts). Las que no
+  // estén acá simplemente no se dibujan.
+  imagenes: Record<number, ImagenDibujable> = {},
 ): string {
-  const secciones = armarSecciones(oferta, totales);
-  const anexo = armarAnexo(oferta.anexo);
+  const secciones = armarSecciones(oferta, totales, imagenes);
+  const anexo = armarAnexo(oferta.anexo, imagenes);
   const todas = anexo ? [...secciones, anexo] : secciones;
   const id = oferta.identificacion;
 
@@ -556,6 +592,24 @@ export function ofertaAHtml(
   .firmas { display: flex; gap: 12mm; margin-top: 6mm; page-break-inside: avoid; }
   .firmas .firma { flex: 1; }
   .firmas .linea { display: block; border-top: 1px solid ${estilo.colorTinta}; margin-bottom: 1.5mm; }
+  /* La rúbrica se apoya en la línea: sin margen abajo y con la línea justo debajo. */
+  .firmas .rubrica { display: block; max-height: 16mm; max-width: 60mm; margin-bottom: 1mm; }
+
+  /* Las fotos del anexo: dos por fila, cada una entera o en la página siguiente.
+     el avoid va en la figura y no en la grilla: la grilla puede tener seis
+     fotos y no cabe en media página, pero una foto partida en dos no es una foto. */
+  .fotos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm;
+    align-items: start; }
+  .fotos figure { margin: 0; page-break-inside: avoid; }
+  /* Una foto ancha o un diagrama ocupan la fila completa: a media página no se leen. */
+  .fotos figure.ancha { grid-column: 1 / -1; }
+  /* Se ajusta por contain y no por cover: varias de estas imágenes son collages
+     con texto adentro, y recortarlas se come justo lo que explican. Que las filas
+     queden de altos distintos es el precio correcto. */
+  /* La caja de la imagen se ajusta a la imagen, no al revés: con width:100% el
+     borde trazaba la celda y la foto quedaba con bandas blancas a los costados. */
+  .fotos img { width: auto; height: auto; max-width: 100%; max-height: 95mm; display: block;
+    margin: 0 auto; border: 1px solid ${estilo.colorBorde}; }
   .firmas .nombre { font-weight: 700; margin: 0; }
   .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }
   .cc { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 6mm; }

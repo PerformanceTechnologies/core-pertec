@@ -38,6 +38,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         oferta.empresa,
         oferta.maestroId,
         oferta.logoClienteRuta,
+        oferta.imagenes,
       );
       return new Response(html, {
         headers: {

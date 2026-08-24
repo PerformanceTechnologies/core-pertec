@@ -63,6 +63,19 @@ const LIMITE_DATA_URI = 2 * 1024 * 1024;
  */
 const DATA_URI_PNG = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
 
+/**
+ * Ídem para las imágenes del borrador, que además pueden ser JPEG.
+ *
+ * Las fotos de faena se guardan como JPEG —una foto en PNG pesa cuatro veces más—
+ * así que el control acepta los dos tipos que produce el servidor y ninguno más.
+ * Los logos siguen con el control estricto de PNG: ese camino no produce otra cosa
+ * y no hay razón para aflojarlo.
+ */
+const DATA_URI_IMAGEN = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** Tope de una imagen del documento: una foto de faena normalizada pesa mucho menos. */
+const LIMITE_IMAGEN = 4 * 1024 * 1024;
+
 export interface LogosDocumento {
   /** El de la empresa que emite. Va en la celda izquierda del encabezado. */
   casa: string | null;
@@ -92,4 +105,32 @@ export function logoSeguro(valor: string | null | undefined): string | null {
   if (typeof valor !== "string") return null;
   if (valor.length > LIMITE_DATA_URI) return null;
   return DATA_URI_PNG.test(valor) ? valor : null;
+}
+
+/**
+ * Una imagen del borrador lista para dibujar.
+ *
+ * `apaisada` lo decide el servidor, que es quien tiene las dimensiones: una foto
+ * ancha o un diagrama técnico a media página no se lee, así que ocupa el ancho
+ * completo. La plantilla solo mira la bandera.
+ */
+export interface ImagenDibujable {
+  uri: string;
+  apaisada: boolean;
+}
+
+/** A partir de esta proporción, una imagen va al ancho completo. */
+export const PROPORCION_APAISADA = 1.6;
+
+/**
+ * Una imagen del borrador tal como puede entrar al documento, o null.
+ *
+ * Mismo criterio que `logoSeguro`: lo que no pasa no se dibuja, y el documento
+ * sale igual. Una foto que falta es una foto que falta; un documento roto es otra
+ * cosa.
+ */
+export function imagenSegura(valor: string | null | undefined): string | null {
+  if (typeof valor !== "string") return null;
+  if (valor.length > LIMITE_IMAGEN) return null;
+  return DATA_URI_IMAGEN.test(valor) ? valor : null;
 }

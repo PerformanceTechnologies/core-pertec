@@ -6,6 +6,7 @@ import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
 import { esFormatoDeLogo, LIMITE_SUBIDA_LOGO } from "@/lib/ofertas/logo";
 import { normalizarLogo, subirLogo } from "@/lib/ofertas/logos-archivo";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
+import { guardarImagenesDelBorrador } from "@/lib/ofertas/imagenes";
 
 export const runtime = "nodejs";
 // Normalizar una oferta completa —diez secciones con sus tablas— tarda bastante
@@ -96,12 +97,27 @@ export async function POST(request: Request) {
   }
 
   try {
-    const contenido = await leerBorrador(
-      Buffer.from(await archivo.arrayBuffer()),
-      archivo.type,
-      archivo.name,
+    const bytes = Buffer.from(await archivo.arrayBuffer());
+    const { contenido, imagenes } = await leerBorrador(bytes, archivo.type, archivo.name);
+
+    // Las imágenes se guardan DESPUÉS de leer bien: si la lectura falla, no queda
+    // un puñado de archivos huérfanos en el bucket. Y solo las que el documento va
+    // a usar —el modelo ya descartó los logos— para no guardar el membrete.
+    const usadas = new Set([
+      ...(contenido.anexo?.fotos ?? []),
+      ...(contenido.cierre?.firmaImagen ? [contenido.cierre.firmaImagen] : []),
+    ]);
+    const guardadas = await guardarImagenesDelBorrador(
+      imagenes.filter((imagen) => usadas.has(imagen.indice)),
     );
-    const { id, inconsistencias } = await crearOferta(contenido, empresa, archivo.name, usuario.id);
+
+    const { id, inconsistencias } = await crearOferta(
+      contenido,
+      empresa,
+      archivo.name,
+      usuario.id,
+      guardadas,
+    );
 
     // El logo va después de que la oferta existe: al revés, un archivo subido
     // para una oferta que no se llegó a crear queda huérfano en el bucket. Y si

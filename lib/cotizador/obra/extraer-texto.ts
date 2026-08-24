@@ -141,7 +141,29 @@ function textoDeCelda(celda: ExcelJS.Cell): string {
  * juntas—, los títulos quedan lejos de sus tablas y una oferta con dos tablas se
  * vuelve ambigua justo donde no puede serlo.
  */
-async function wordATexto(buffer: Buffer): Promise<string> {
+/** Una imagen incrustada en el borrador, en el orden en que aparece. */
+export interface ImagenExtraida {
+  /** 1, 2, 3… El mismo número que el marcador [IMAGEN n] del texto. */
+  indice: number;
+  /** El nombre dentro del .docx: "image4.png". Sirve para diagnosticar. */
+  nombre: string;
+  contenido: Buffer;
+}
+
+/**
+ * Word → texto e imágenes.
+ *
+ * Las imágenes salen EN ORDEN y el texto lleva un marcador `[IMAGEN n]` en el
+ * lugar donde estaban. Eso es lo que hace que después se puedan repartir bien: el
+ * modelo ve "Por Performance Services [IMAGEN 9] Alfonso Hachim Fulgeri" y sabe
+ * que esa imagen es la firma, y ve las que caen bajo "Fotografías de referencia
+ * incluidas" y sabe que son del anexo. Sin el marcador, un puñado de imágenes
+ * sueltas no se puede ubicar.
+ *
+ * El rId de cada `a:blip` se resuelve contra word/_rels/document.xml.rels, que es
+ * el que dice qué archivo de word/media/ le corresponde.
+ */
+async function wordATextoEImagenes(buffer: Buffer): Promise<{ texto: string; imagenes: ImagenExtraida[] }> {
   const zip = await JSZip.loadAsync(buffer);
   const documento = zip.file("word/document.xml");
   if (!documento) {
@@ -149,23 +171,82 @@ async function wordATexto(buffer: Buffer): Promise<string> {
   }
 
   const parser = new XMLParser({ preserveOrder: true, ignoreAttributes: false });
+  const relaciones = await mapaDeRelaciones(zip, parser);
   const arbol = parser.parse(await documento.async("string")) as NodoOrdenado[];
 
   const cuerpo = hijosDe(hijosDe(arbol, "w:document"), "w:body");
   const partes: string[] = [];
+  // Los rId en orden de aparición: el mismo archivo puede estar dos veces y cada
+  // aparición es un marcador distinto.
+  const enOrden: string[] = [];
+
   for (const nodo of cuerpo) {
     if ("w:p" in nodo) {
-      const texto = textoDeParrafoWord(nodo["w:p"] as NodoOrdenado[]);
+      const texto = textoDeParrafoWord(nodo["w:p"] as NodoOrdenado[], enOrden);
       if (texto) partes.push(texto);
     } else if ("w:tbl" in nodo) {
       partes.push("", ...filasDeTablaWord(nodo["w:tbl"] as NodoOrdenado[]), "");
     }
   }
 
-  return partes
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const imagenes: ImagenExtraida[] = [];
+  for (const [i, rId] of enOrden.entries()) {
+    const ruta = relaciones.get(rId);
+    if (!ruta) continue;
+    const archivo = zip.file(`word/${ruta}`);
+    if (!archivo) continue;
+    imagenes.push({
+      indice: i + 1,
+      nombre: ruta.split("/").pop() ?? ruta,
+      contenido: Buffer.from(await archivo.async("arraybuffer")),
+    });
+  }
+
+  return {
+    texto: partes
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
+    imagenes,
+  };
+}
+
+/** rId → "media/image4.png", desde word/_rels/document.xml.rels. */
+async function mapaDeRelaciones(zip: JSZip, parser: XMLParser): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  const rels = zip.file("word/_rels/document.xml.rels");
+  if (!rels) return mapa;
+
+  const arbol = parser.parse(await rels.async("string")) as NodoOrdenado[];
+  for (const nodo of hijosDe(arbol, "Relationships")) {
+    if (!("Relationship" in nodo)) continue;
+    const atributos = (nodo[":@"] ?? {}) as Record<string, string>;
+    if (!String(atributos["@_Type"] ?? "").endsWith("/image")) continue;
+    // Un Target externo (una imagen enlazada, no incrustada) no está en el zip.
+    if (atributos["@_TargetMode"] === "External") continue;
+    mapa.set(atributos["@_Id"], atributos["@_Target"]);
+  }
+  return mapa;
+}
+
+/** Los rId de las imágenes de un run, en orden, buscando en profundidad. */
+function rIdsDeImagenes(nodo: unknown, encontrados: string[]): void {
+  if (Array.isArray(nodo)) {
+    for (const hijo of nodo) rIdsDeImagenes(hijo, encontrados);
+    return;
+  }
+  if (!nodo || typeof nodo !== "object") return;
+
+  for (const [clave, valor] of Object.entries(nodo as Record<string, unknown>)) {
+    if (clave === ":@") continue;
+    if (clave === "a:blip") {
+      const atributos = ((nodo as Record<string, unknown>)[":@"] ?? {}) as Record<string, string>;
+      const rId = atributos["@_r:embed"];
+      if (rId) encontrados.push(rId);
+      continue;
+    }
+    rIdsDeImagenes(valor, encontrados);
+  }
 }
 
 /**
@@ -223,7 +304,7 @@ function filasDeTablaWord(tabla: NodoOrdenado[]): string[] {
 }
 
 /** El texto de un párrafo: la concatenación de sus fragmentos, en orden. */
-function textoDeParrafoWord(parrafo: NodoOrdenado[]): string {
+function textoDeParrafoWord(parrafo: NodoOrdenado[], imagenes?: string[]): string {
   const fragmentos: string[] = [];
 
   for (const nodo of parrafo) {
@@ -231,6 +312,14 @@ function textoDeParrafoWord(parrafo: NodoOrdenado[]): string {
     if (!run) continue;
 
     for (const hijo of run) {
+      // Una imagen deja un marcador en el texto, en su lugar exacto: es lo que
+      // permite después decir cuál es la firma y cuáles las fotos del anexo.
+      if (imagenes && "w:drawing" in hijo) {
+        const antes = imagenes.length;
+        rIdsDeImagenes(hijo["w:drawing"], imagenes);
+        for (let i = antes; i < imagenes.length; i++) fragmentos.push(` [IMAGEN ${i + 1}] `);
+        continue;
+      }
       if ("w:t" in hijo) {
         // En modo preserveOrder el texto viene como [{ "#text": "..." }].
         for (const t of (hijo["w:t"] as NodoOrdenado[]) ?? []) {
@@ -246,19 +335,38 @@ function textoDeParrafoWord(parrafo: NodoOrdenado[]): string {
   return fragmentos.join("").replace(/\s+/g, " ").trim();
 }
 
-/** El texto de un Excel o un Word. Un PDF no pasa por acá. */
-export async function extraerTexto(
+/**
+ * El texto de un Excel o un Word, con las imágenes del Word si trae.
+ *
+ * El texto de un Word lleva marcadores `[IMAGEN n]` donde estaban las imágenes.
+ * Quien no las use puede pedir el texto limpio con `extraerTexto`, que es lo que
+ * hace el importador del Cotizador: ahí los marcadores serían ruido.
+ */
+export async function extraerDeArchivo(
   buffer: Buffer,
   formato: Exclude<FormatoPropuesta, "pdf">,
   nombreArchivo: string,
-): Promise<string> {
-  const texto = formato === "excel" ? await excelATexto(buffer) : await wordATexto(buffer);
+): Promise<{ texto: string; imagenes: ImagenExtraida[] }> {
+  const leido =
+    formato === "excel"
+      ? { texto: await excelATexto(buffer), imagenes: [] as ImagenExtraida[] }
+      : await wordATextoEImagenes(buffer);
 
-  if (texto.replace(/[\s|#]/g, "").length < 40) {
+  if (leido.texto.replace(/[\s|#]/g, "").replace(/\[IMAGEN \d+\]/g, "").length < 40) {
     throw new Error(
       `"${nombreArchivo}" no tiene texto legible: puede estar vacío, ser un archivo de imágenes ` +
         "o venir protegido. Si la oferta está escaneada, súbela como PDF.",
     );
   }
-  return texto;
+  return leido;
+}
+
+/** El texto solo, sin los marcadores de imagen. Un PDF no pasa por acá. */
+export async function extraerTexto(
+  buffer: Buffer,
+  formato: Exclude<FormatoPropuesta, "pdf">,
+  nombreArchivo: string,
+): Promise<string> {
+  const { texto } = await extraerDeArchivo(buffer, formato, nombreArchivo);
+  return texto.replace(/\s*\[IMAGEN \d+\]\s*/g, " ").replace(/[ \t]{2,}/g, " ");
 }

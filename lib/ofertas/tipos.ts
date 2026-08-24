@@ -130,6 +130,14 @@ export interface Cierre {
   firmantes: { nombre: string; cargo: string; empresa: string | null }[];
   /** "CC: Gcia. Gral. / Archivo." */
   cc: string | null;
+  /**
+   * La firma escaneada que traía el borrador, por número de imagen.
+   *
+   * Es un ÍNDICE y no una ruta a propósito: el modelo dice cuál de las imágenes
+   * del borrador es la firma —lo sabe por el contexto donde estaba— y el servidor
+   * sabe dónde la guardó. Ver lib/ofertas/imagenes.ts.
+   */
+  firmaImagen: number | null;
 }
 
 /** A · ANEXO */
@@ -137,6 +145,8 @@ export interface Anexo {
   respaldoInstitucional: string[];
   mandantes: string[];
   notaEquipo: string | null;
+  /** Las fotos de referencia del borrador, por número de imagen y en orden. */
+  fotos: number[];
 }
 
 /**

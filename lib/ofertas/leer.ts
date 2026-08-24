@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { extraerTexto, extraerTextoDePdf } from "@/lib/cotizador/obra/extraer-texto";
+import { extraerDeArchivo, extraerTextoDePdf, type ImagenExtraida } from "@/lib/cotizador/obra/extraer-texto";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
 import type { OfertaCanonica } from "./tipos";
 import { armarOferta, type LecturaLetra, type LecturaNumeros } from "./normalizar";
@@ -111,6 +111,19 @@ const ESQUEMA_LETRA = objeto({
   anexoRespaldos: listaDeTexto,
   anexoMandantes: { ...listaDeTexto, description: "Nombres de mandantes y contratos ejecutados." },
   anexoNotaEquipo: texto,
+  anexoFotos: {
+    type: "array",
+    description:
+      "Los números de los marcadores [IMAGEN n] que son fotos o diagramas del trabajo, en orden. " +
+      "Lista vacía si el borrador no trae ninguna.",
+    items: { type: "number" },
+  },
+  firmaImagen: {
+    type: "number",
+    description:
+      "El número del marcador [IMAGEN n] que es la firma escaneada del firmante. 0 si no hay firma " +
+      "escaneada en el borrador.",
+  },
   porConfirmar: {
     ...listaDeTexto,
     description: "Datos ausentes o ambiguos, nombrados. Nunca adivinados.",
@@ -208,6 +221,16 @@ cifras —dotación, turnos, precios— los lee otra pasada; no los transcribas 
   significado técnico ni comercial. En nombres propios y en cifras, no.
 - Las listas van con un elemento por ítem del documento, sin numerarlos: la numeración la pone el
   sistema.
+- LAS IMÁGENES DEL BORRADOR. El texto trae marcadores "[IMAGEN 1]", "[IMAGEN 2]"… en el lugar exacto
+  donde estaba cada imagen, y hay que repartirlas por ese contexto:
+    · Las fotos y los diagramas del trabajo van en "anexoFotos", en orden. Suelen caer después de un
+      párrafo del tipo "Fotografías de referencia incluidas" o dentro de la metodología.
+    · Una firma escaneada —la rúbrica a mano, junto al nombre y el cargo del firmante— va en
+      "firmaImagen".
+    · El LOGO de la empresa NO es ninguna de las dos cosas, y suele ser la primera imagen del
+      documento o la última: el sistema pone el logo por su cuenta. Omitilo.
+  Una imagen que no sabés qué es, omitila y decilo en "porConfirmar": es mejor que no salga que
+  aparezca el membrete en el medio del anexo.
 - LAS LISTAS DE METODOLOGÍA LLEVAN SOLO PASOS. Una frase que dice cuánto dura el trabajo ("realizar la
   actividad en 48 horas, 2 días") o en cuántos turnos se ejecuta ("4 turnos de 12 horas en turnos día y
   noche") NO es un paso de la secuencia: es el programa, y lo transcribe la otra lectura a partir de esa
@@ -316,11 +339,23 @@ async function leerParte<T>(
   return JSON.parse(salida.text) as T;
 }
 
+/**
+ * Lo que sale de leer un borrador: la oferta y las imágenes que traía.
+ *
+ * Las imágenes vienen aparte del contenido porque son cosas distintas: el
+ * contenido dice qué imagen va dónde (por número) y esta lista trae los bytes,
+ * que el servidor guarda y el contenido nunca ve.
+ */
+export interface BorradorLeido {
+  contenido: OfertaCanonica;
+  imagenes: ImagenExtraida[];
+}
+
 export async function leerBorrador(
   archivo: Buffer,
   mimeType: string,
   nombreArchivo: string,
-): Promise<OfertaCanonica> {
+): Promise<BorradorLeido> {
   const formato = formatoDe(mimeType, nombreArchivo);
   if (!formato) {
     throw new Error(
@@ -341,6 +376,9 @@ export async function leerBorrador(
   // Word y Excel nunca fueron documento: la API no los acepta como tal, y no
   // tienen páginas que rasterizar.
   let contenido: Anthropic.ContentBlockParam[];
+  // Un PDF no entrega sus imágenes: pdf-parse extrae texto, no ilustraciones. Las
+  // fotos de un borrador se recuperan del .docx, que es donde de verdad están.
+  let imagenes: ImagenExtraida[] = [];
 
   if (formato === "pdf") {
     const { texto, paginas } = await extraerTextoDePdf(archivo);
@@ -368,12 +406,20 @@ export async function leerBorrador(
             },
           ];
   } else {
+    const leido = await extraerDeArchivo(archivo, formato, nombreArchivo);
+    imagenes = leido.imagenes;
     contenido = [
       {
         type: "text",
-        text: `Contenido del borrador, extraído de un ${
-          formato === "excel" ? "archivo de Excel" : "documento de Word"
-        }:\n\n${await extraerTexto(archivo, formato, nombreArchivo)}`,
+        text:
+          `Contenido del borrador, extraído de un ${
+            formato === "excel" ? "archivo de Excel" : "documento de Word"
+          }` +
+          (imagenes.length
+            ? `. Trae ${imagenes.length} imagen(es), marcadas como [IMAGEN n] en el lugar exacto ` +
+              `donde estaban`
+            : "") +
+          `:\n\n${leido.texto}`,
         cache_control: { type: "ephemeral" },
       },
     ];
@@ -401,5 +447,5 @@ export async function leerBorrador(
     ),
   ]);
 
-  return armarOferta(letra, numeros);
+  return { contenido: armarOferta(letra, numeros), imagenes };
 }

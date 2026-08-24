@@ -7,6 +7,7 @@ import { calcularTotales } from "./verificar";
 import type { OfertaCanonica } from "./tipos";
 import { estiloParaOferta } from "./maestros";
 import { logosParaDocumento } from "./logos-archivo";
+import { imagenesParaDocumento, type ImagenGuardada } from "./imagenes";
 
 /**
  * La oferta, impresa.
@@ -31,6 +32,7 @@ export async function ofertaAPdf(
   nombreEmpresa: Empresa,
   maestroId: string | null = null,
   logoClienteRuta: string | null = null,
+  inventario: ImagenGuardada[] = [],
 ): Promise<Buffer> {
   const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
   if (!empresa) {
@@ -45,11 +47,12 @@ export async function ofertaAPdf(
   // Los logos vienen de otro lado a propósito: el del maestro es la piel y el
   // logo es la identidad. El de la casa sale de la empresa emisora —se sube una
   // vez— y el del cliente, de esta oferta. Ninguno de los dos sale del maestro.
-  const [estilo, logos] = await Promise.all([
+  const [estilo, logos, imagenes] = await Promise.all([
     estiloParaOferta(maestroId),
     logosParaDocumento(empresa, logoClienteRuta),
+    imagenesParaDocumento(inventario, imagenesQueUsa(oferta)),
   ]);
-  const html = ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos);
+  const html = ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos, imagenes);
 
   const browser = await lanzarNavegador();
   try {
@@ -84,12 +87,25 @@ export async function ofertaAHtmlConEmpresa(
   nombreEmpresa: Empresa,
   maestroId: string | null = null,
   logoClienteRuta: string | null = null,
+  inventario: ImagenGuardada[] = [],
 ): Promise<string> {
   const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
   if (!empresa) throw new Error(`No se encontró la identidad de "${nombreEmpresa}".`);
-  const [estilo, logos] = await Promise.all([
+  const [estilo, logos, imagenes] = await Promise.all([
     estiloParaOferta(maestroId),
     logosParaDocumento(empresa, logoClienteRuta),
+    imagenesParaDocumento(inventario, imagenesQueUsa(oferta)),
   ]);
-  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos);
+  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos, imagenes);
+}
+
+/**
+ * Qué imágenes del inventario pide este documento.
+ *
+ * Una oferta puede traer ocho imágenes del borrador y dibujar cinco: bajar las
+ * tres que no se usan es peso al PDF por nada.
+ */
+function imagenesQueUsa(oferta: OfertaCanonica): number[] {
+  const firma = oferta.cierre?.firmaImagen;
+  return [...(oferta.anexo?.fotos ?? []), ...(firma ? [firma] : [])];
 }

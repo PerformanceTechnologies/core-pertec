@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from "../lib/ofertas/verificar";
 import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
-import { logoSeguro } from "../lib/ofertas/logo";
+import { imagenSegura, logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
 import { armarOferta, type LecturaLetra, type LecturaNumeros } from "../lib/ofertas/normalizar";
 import { ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
@@ -80,11 +80,13 @@ function os10(): OfertaCanonica {
         },
       ],
       cc: "CC: Gcia. Gral. / Archivo.",
+      firmaImagen: null,
     },
     anexo: {
       respaldoInstitucional: ["PERTEC es una empresa nacional…"],
       mandantes: ["Minera Franke"],
       notaEquipo: null,
+      fotos: [],
     },
     porConfirmar: [],
     omitidas: [
@@ -438,6 +440,8 @@ function letraOS10(): LecturaLetra {
     anexoRespaldos: [],
     anexoMandantes: [],
     anexoNotaEquipo: "",
+    anexoFotos: [],
+    firmaImagen: 0,
     porConfirmar: ["La tabla de identificación no trae copia."],
     omitidas: ["Metodología: el servicio no tiene detención de planta"],
   };
@@ -700,6 +704,60 @@ assert.ok(
 );
 assert.ok(!sanearEstilo({ fuenteCuerpo: "Helvetica Neue" }).estilo.fuenteCuerpo.includes('"'));
 
+// ── Las imágenes que traía el borrador ──────────────────────────────────────
+//
+// Un .docx lleva adentro el membrete, los diagramas y las fotos de faena. El
+// modelo dice cuál es cuál por el marcador [IMAGEN n] que ve en su lugar, y el
+// contenido canónico guarda solo NÚMEROS: las rutas las sabe el servidor. Acá se
+// comprueba la costura de esos números.
+const JPEG_VALIDO = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAA==";
+assert.equal(imagenSegura(JPEG_VALIDO), JPEG_VALIDO, "una foto va como JPEG");
+assert.equal(imagenSegura(PNG_VALIDO), PNG_VALIDO, "y un diagrama con transparencia como PNG");
+for (const ataque of [
+  'data:image/jpeg;base64,AAAA" onerror="alert(1)',
+  "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+  "http://ajeno/foto.jpg",
+  "",
+]) {
+  assert.equal(imagenSegura(ataque), null, `no debe aceptar como imagen: ${ataque}`);
+}
+
+// Los números que reparte el modelo se limpian: repetidos, ceros y basura fuera.
+// Una foto dos veces sería la misma foto dos veces en el documento.
+const conImagenes = armarOferta(
+  { ...letraOS10(), anexoFotos: [3, 4, 4, 0, -2, 5.5, 7] as number[], firmaImagen: 9 },
+  numerosOS10(),
+);
+assert.deepEqual(conImagenes.anexo?.fotos, [3, 4, 7], "sin repetidos, sin cero y sin fracciones");
+assert.equal(conImagenes.cierre?.firmaImagen, 9);
+
+// Y el 0 del esquema significa "no hay firma", no la imagen número cero.
+const sinFirma = armarOferta({ ...letraOS10(), firmaImagen: 0 }, numerosOS10());
+assert.equal(sinFirma.cierre?.firmaImagen, null);
+
+// Al dibujar: la foto ancha ocupa la fila completa, la que no tiene imagen no se
+// dibuja, y la firma va solo en el primer firmante.
+const conFotos = armarOferta({ ...letraOS10(), anexoFotos: [3, 4, 99], firmaImagen: 7 }, numerosOS10());
+const htmlFotos = ofertaAHtml(conFotos, calcularTotales(conFotos), EMPRESA_DE_PRUEBA, undefined, undefined, {
+  3: { uri: JPEG_VALIDO, apaisada: true },
+  4: { uri: PNG_VALIDO, apaisada: false },
+  7: { uri: PNG_VALIDO, apaisada: false },
+});
+assert.equal(
+  (htmlFotos.match(/<figure/g) ?? []).length,
+  2,
+  "la 99 no tiene imagen guardada: no se dibuja, y el documento sale igual",
+);
+assert.ok(htmlFotos.includes('<figure class="ancha">'), "la apaisada ocupa la fila completa");
+assert.equal((htmlFotos.match(/class="rubrica"/g) ?? []).length, 1, "una firma, no una por firmante");
+
+// Una imagen que no pasa el control no se dibuja, y no rompe el documento.
+const htmlRoto = ofertaAHtml(conFotos, calcularTotales(conFotos), EMPRESA_DE_PRUEBA, undefined, undefined, {
+  3: { uri: 'data:image/jpeg;base64,AA" onerror="alert(1)', apaisada: false },
+});
+assert.ok(!htmlRoto.includes("onerror"), "ninguna imagen puede colar un atributo");
+assert.ok(!htmlRoto.includes("<figure"), "y si ninguna pasa, la grilla no se dibuja");
+
 // ── Lo que ve alguien cuando una subida falla ───────────────────────────────
 //
 // El caso real: subir un maestro en PDF mostró "JSON.parse: unexpected character
@@ -753,7 +811,10 @@ Y el saneo del estilo de un maestro: hex inválido, tamaño fuera de rango,
 inyección de CSS por color, por fuente y por rótulo, y un par fondo/texto sin
 contraste — dos hexes perfectos que dejaban la fila de total como una banda negra
 con el texto negro adentro. Más los logos: solo pasa un
-PNG en base64, y lo que no pasa deja el encabezado en texto.
+PNG en base64, y lo que no pasa deja el encabezado en texto. Las imágenes del
+borrador —las fotos de faena y la firma— se reparten por número: repetidos, ceros y
+fracciones se limpian, una apaisada ocupa la fila completa, y un número sin imagen
+guardada simplemente no se dibuja.
 
 El esquema de salida tiene que ser chico y plano —la API rechaza gramáticas
 grandes— así que la lectura va en dos partes, la letra y los números, y la
