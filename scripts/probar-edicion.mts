@@ -23,6 +23,8 @@ interface VentanaDePrueba {
   modelo: OfertaCanonica;
   /** Lo que el módulo avisó hacia afuera, que es lo que la página guardaría. */
   avisos: { ruta: string; texto: string; tipo?: string }[];
+  /** Lo que el módulo reportó al soltar o al sacar una foto. */
+  sueltas: { indice?: number; seccion?: string; archivos?: string[]; quitada?: number }[];
   alto: number;
   Edicion: { prepararDocumento: typeof prepararDocumento };
 }
@@ -99,10 +101,13 @@ const oferta: OfertaCanonica = {
     notaEquipo: null,
   },
   porConfirmar: [],
-  imagenesPorSeccion: {},
+  imagenesPorSeccion: { anexo: [1] },
   epigrafesDeImagenes: {},
   omitidas: [],
 };
+
+const PNG_VALIDO =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
 
 /** Una identidad cargada, para que el encabezado y la firma salgan completos. */
 const empresa = {
@@ -120,7 +125,9 @@ const empresa = {
   logoNombre: null,
 };
 
-const documento = ofertaAHtml(oferta, calcularTotales(oferta), empresa);
+const documento = ofertaAHtml(oferta, calcularTotales(oferta), empresa, undefined, undefined, {
+  1: { uri: PNG_VALIDO, apaisada: false },
+});
 
 // El módulo real, empacado para poder inyectarlo en la página.
 const { outputFiles } = await esbuild.build({
@@ -132,8 +139,18 @@ const { outputFiles } = await esbuild.build({
 });
 const guion = outputFiles[0].text;
 
+// El cajón de fotos vive en la PÁGINA y el documento adentro del iframe, así que
+// el arrastre tiene que cruzar de uno al otro. Eso no se puede comprobar con
+// eventos sintéticos: hay que arrastrar de verdad.
 const padre = `<!doctype html><meta charset="utf-8"><body style="margin:0">
-  <iframe id="marco" sandbox="allow-same-origin" style="width:100%;height:900px;border:0"></iframe></body>`;
+  <div id="cajon" draggable="true" style="width:120px;height:60px;background:#c85217;color:#fff">foto 6</div>
+  <iframe id="marco" sandbox="allow-same-origin" style="width:100%;height:2400px;border:0"></iframe>
+  <script>
+    document.getElementById("cajon").addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("application/x-imagen-oferta", "6");
+      e.dataTransfer.effectAllowed = "move";
+    });
+  </script></body>`;
 
 const servidor = createServer((_peticion, respuesta) => {
   respuesta.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -143,7 +160,7 @@ await new Promise<void>((listo) => servidor.listen(4599, listo));
 
 const navegador = await chromium.launch({ headless: true });
 try {
-  const pagina = await navegador.newPage();
+  const pagina = await navegador.newPage({ viewport: { width: 1280, height: 1800 } });
   pagina.on("pageerror", (e: Error) => console.error("[error en la página]", e.message));
   await pagina.goto("http://localhost:4599/");
   // tsx compila este archivo con esbuild y `keepNames`, que mete una llamada a
@@ -153,34 +170,42 @@ try {
   await pagina.addScriptTag({ content: guion });
 
   // Monta el documento y engancha el editor, igual que hace el componente.
-  const montaje = await pagina.evaluate(async ([html, datos]: string[]) => {
-    const marco = document.getElementById("marco") as HTMLIFrameElement;
-    await new Promise<void>((listo) => {
-      marco.addEventListener("load", () => listo(), { once: true });
-      marco.srcdoc = html;
-    });
-    const doc = marco.contentDocument;
-    if (!doc) return { error: "la página no puede tocar el documento del iframe" };
+  const montaje = await pagina.evaluate(
+    async ([html, datos]: string[]) => {
+      const marco = document.getElementById("marco") as HTMLIFrameElement;
+      await new Promise<void>((listo) => {
+        marco.addEventListener("load", () => listo(), { once: true });
+        marco.srcdoc = html;
+      });
+      const doc = marco.contentDocument;
+      if (!doc) return { error: "la página no puede tocar el documento del iframe" };
 
-    const ventana = window as unknown as VentanaDePrueba;
-    ventana.modelo = JSON.parse(datos);
-    ventana.avisos = [];
-    ventana.alto = 0;
-    ventana.Edicion.prepararDocumento(doc, {
-      editable: true,
-      oferta: () => ventana.modelo,
-      alEditar: (ruta: string, texto: string, tipo?: string) => ventana.avisos.push({ ruta, texto, tipo }),
-      alMedir: (alto: number) => (ventana.alto = alto),
-    });
+      const ventana = window as unknown as VentanaDePrueba;
+      ventana.modelo = JSON.parse(datos);
+      ventana.avisos = [];
+      ventana.sueltas = [];
+      ventana.alto = 0;
+      ventana.Edicion.prepararDocumento(doc, {
+        editable: true,
+        oferta: () => ventana.modelo,
+        alEditar: (ruta: string, texto: string, tipo?: string) => ventana.avisos.push({ ruta, texto, tipo }),
+        alMedir: (alto: number) => (ventana.alto = alto),
+        alSoltarImagen: (indice: number, seccion: string) => ventana.sueltas.push({ indice, seccion }),
+        alSoltarArchivos: (archivos: File[], seccion: string) =>
+          ventana.sueltas.push({ archivos: archivos.map((a) => a.name), seccion }),
+        alQuitarImagen: (indice: number) => ventana.sueltas.push({ quitada: indice }),
+      });
 
-    const cliente = doc.querySelector<HTMLElement>('[data-campo="identificacion.cliente"]');
-    return {
-      campos: doc.querySelectorAll("[data-campo]").length,
-      calculadas: doc.querySelectorAll("[data-calculado]").length,
-      editable: cliente?.isContentEditable === true,
-      alto: ventana.alto as number,
-    };
-  }, [documento, JSON.stringify(oferta)]);
+      const cliente = doc.querySelector<HTMLElement>('[data-campo="identificacion.cliente"]');
+      return {
+        campos: doc.querySelectorAll("[data-campo]").length,
+        calculadas: doc.querySelectorAll("[data-calculado]").length,
+        editable: cliente?.isContentEditable === true,
+        alto: ventana.alto as number,
+      };
+    },
+    [documento, JSON.stringify(oferta)],
+  );
   console.log(montaje);
   assert.ok(!("error" in montaje), "la página tiene que poder tocar el documento del iframe");
   assert.ok(montaje.editable, "los campos tienen que quedar editables");
@@ -305,6 +330,81 @@ try {
   console.log(pegado);
   assert.ok(!pegado.marcado.includes("<b"), "pegar desde Word no puede traer marcado");
   assert.equal(pegado.enElDato, "Traslado de seis rollos nuevos.", "los saltos y tabulaciones se limpian");
+
+  // ── 6. Arrastrar una foto hasta una sección ───────────────────────────────
+  const arrastre = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const alcance = doc.querySelector<HTMLElement>('section[data-seccion="alcance"]')!;
+
+    const datos = new DataTransfer();
+    datos.setData("application/x-imagen-oferta", "4");
+    const encima = new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true });
+    alcance.dispatchEvent(encima);
+    const marcada = alcance.className;
+    // Sin preventDefault el navegador no considera soltable la zona.
+    const admiteSoltar = encima.defaultPrevented;
+
+    alcance.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+    return {
+      marcada,
+      admiteSoltar,
+      sigueMarcada: alcance.className,
+      soltada: ventana.sueltas.at(-1),
+      // Una sección que no lleva imágenes no es blanco de nada.
+      secciones: doc.querySelectorAll("section[data-seccion]").length,
+    };
+  });
+  console.log(arrastre);
+  assert.ok(arrastre.marcada.includes("recibiendo"), "la sección de destino se marca mientras se arrastra");
+  assert.ok(arrastre.admiteSoltar, "y admite que se suelte");
+  assert.ok(!arrastre.sigueMarcada.includes("recibiendo"), "al soltar se desmarca");
+  assert.deepEqual(arrastre.soltada, { indice: 4, seccion: "alcance" }, "la foto cae en la sección correcta");
+  assert.ok(arrastre.secciones >= 3, "hay varias secciones que aceptan fotos");
+
+  // Un archivo del escritorio también cae, y en la misma sección.
+  const conArchivo = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const datos = new DataTransfer();
+    datos.items.add(new File(["x"], "faena.jpg", { type: "image/jpeg" }));
+    const destino = doc.querySelector<HTMLElement>('section[data-seccion="anexo"]')!;
+    destino.dispatchEvent(
+      new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true }),
+    );
+    destino.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+    return ventana.sueltas.at(-1);
+  });
+  console.log(conArchivo);
+  assert.deepEqual(
+    conArchivo,
+    { archivos: ["faena.jpg"], seccion: "anexo" },
+    "los archivos del escritorio también",
+  );
+
+  // ── 7. Sacar una foto del documento con su × ──────────────────────────────
+  const quitada = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const boton = doc.querySelector<HTMLElement>('figure[data-imagen="1"] .quitar-foto');
+    boton?.click();
+    return { hayBoton: Boolean(boton), ultima: ventana.sueltas.at(-1) };
+  });
+  console.log(quitada);
+  assert.ok(quitada.hayBoton, "cada foto del documento tiene su × para sacarla");
+  assert.deepEqual(quitada.ultima, { quitada: 1 }, "y avisa cuál se sacó");
+
+  // ── 8. El arrastre de verdad, cruzando del cajón al documento ─────────────
+  await pagina
+    .locator("#cajon")
+    .dragTo(pagina.frameLocator("#marco").locator('section[data-seccion="alcance"]'));
+  const cruzado = await pagina.evaluate(() => (window as unknown as VentanaDePrueba).sueltas.at(-1));
+  console.log(cruzado);
+  assert.deepEqual(
+    cruzado,
+    { indice: 6, seccion: "alcance" },
+    "arrastrar desde el cajón de la página hasta una sección del iframe",
+  );
 
   console.log("\nLa edición sobre el documento funciona en el navegador.");
 } finally {

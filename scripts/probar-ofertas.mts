@@ -904,7 +904,7 @@ assert.equal(
   2,
   "la 99 no tiene imagen guardada: no se dibuja, y el documento sale igual",
 );
-assert.ok(htmlFotos.includes('<figure class="ancha">'), "la apaisada ocupa la fila completa");
+assert.ok(/<figure data-imagen="3" class="ancha">/.test(htmlFotos), "la apaisada ocupa la fila completa");
 assert.equal((htmlFotos.match(/class="rubrica"/g) ?? []).length, 1, "una firma, no una por firmante");
 
 // La prueba que importa: la grilla del diagrama está DENTRO de la sección de
@@ -913,7 +913,7 @@ assert.equal((htmlFotos.match(/class="rubrica"/g) ?? []).length, 1, "una firma, 
 // todos los títulos y buscar el texto suelto caía ahí.
 const metodologia = htmlFotos.indexOf("Metodología y secuencia de trabajo</h2>");
 const siguiente = htmlFotos.indexOf("<h2", metodologia + 10);
-const grillaAncha = htmlFotos.indexOf('<figure class="ancha">');
+const grillaAncha = htmlFotos.search(/<figure data-imagen="\d+" class="ancha">/);
 assert.ok(
   metodologia > 0 && grillaAncha > metodologia && grillaAncha < siguiente,
   "el diagrama sale en la metodología, no al final del documento",

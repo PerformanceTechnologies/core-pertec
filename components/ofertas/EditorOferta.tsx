@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { firmaDe, type Inconsistencia, type OfertaCanonica } from "@/lib/ofertas/tipos";
+import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
 import { calcularTotales, detectarInconsistencias } from "@/lib/ofertas/verificar";
 import { money } from "@/lib/cotizador/formato";
 import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
@@ -37,11 +38,16 @@ export default function EditorOferta({
   inicial,
   estado,
   archivoOrigen,
+  imagenes,
+  urlsImagenes,
 }: {
   id: string;
   inicial: OfertaCanonica;
   estado: "borrador" | "emitida";
   archivoOrigen: string | null;
+  /** El inventario de la oferta: el cajón de fotos del documento sale de acá. */
+  imagenes: ImagenGuardada[];
+  urlsImagenes: Record<number, string>;
 }) {
   const router = useRouter();
   const [oferta, setOferta] = useState<OfertaCanonica>(inicial);
@@ -173,7 +179,17 @@ export default function EditorOferta({
         </div>
 
         {vista === "documento" ? (
-          <DocumentoEditable id={id} oferta={oferta} editable={!emitida} onCambio={cambiar} />
+          <DocumentoEditable
+            id={id}
+            oferta={oferta}
+            editable={!emitida}
+            onCambio={cambiar}
+            imagenes={imagenes}
+            urls={urlsImagenes}
+            // De lo GUARDADO y no del estado de esta pantalla: la ubicación de una
+            // foto se guarda sola al soltarla, y no viaja en "Guardar cambios".
+            porSeccion={inicial.imagenesPorSeccion ?? {}}
+          />
         ) : (
           <>
             {/* ── Identificación ─────────────────────────────────────────── */}

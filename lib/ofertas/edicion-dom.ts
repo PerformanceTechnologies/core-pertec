@@ -24,6 +24,17 @@ import { clp } from "./plantilla";
 /** El naranjo de la aplicación. Adentro del iframe no llegan sus variables CSS. */
 const ACENTO = "#c85217";
 
+/**
+ * Cómo viaja una foto del cajón al documento.
+ *
+ * Un tipo propio y no "text/plain": si fuera texto, arrastrar una palabra desde
+ * cualquier parte de la pantalla parecería una foto, y soltar en una sección haría
+ * cualquier cosa. Además el navegador deja leer los TIPOS mientras se arrastra
+ * —el contenido no—, así que esto es lo único que permite decidir si una sección
+ * puede recibir lo que viene antes de que lo suelten.
+ */
+export const TIPO_ARRASTRE = "application/x-imagen-oferta";
+
 const ESTILO_DEL_EDITOR = `
   body { padding: 8mm 10mm; background: #fff; }
   [data-campo] { border-radius: 2px; }
@@ -34,6 +45,26 @@ const ESTILO_DEL_EDITOR = `
   [data-campo]:empty::after { content: "Escribir aquí"; color: #b9b4ad; font-style: italic; }
   [data-calculado] { cursor: not-allowed; }
   [data-calculado]:hover { box-shadow: inset 0 0 0 1px ${ACENTO}55; }
+
+  /* La sección que va a recibir la foto. El borde se dibuja por fuera con un
+     outline y no con un border, que correría el texto de lugar justo cuando hay
+     algo flotando encima. */
+  section[data-seccion].recibiendo {
+    outline: 2px dashed ${ACENTO}; outline-offset: 4px; background: ${ACENTO}09;
+  }
+  section[data-seccion].recibiendo::after {
+    content: "Soltar acá"; display: block; margin-top: 3mm; text-align: center;
+    font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: ${ACENTO};
+  }
+
+  /* La × para sacar una foto del documento: aparece al pasar por encima. */
+  .fotos figure { position: relative; }
+  .fotos figure .quitar-foto {
+    position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0;
+    border: 1px solid ${ACENTO}55; border-radius: 999px; background: #fff; color: ${ACENTO};
+    font: 700 13px/1 sans-serif; cursor: pointer; opacity: 0; transition: opacity .12s;
+  }
+  .fotos figure:hover .quitar-foto, .fotos figure .quitar-foto:focus { opacity: 1; }
 `;
 
 /**
@@ -51,6 +82,12 @@ export function textoImpreso(ruta: string, valor: number): string {
 }
 
 export interface OpcionesDeEdicion {
+  /** Soltaron sobre una sección una foto que ya está en la oferta. */
+  alSoltarImagen?: (indice: number, seccion: string) => void;
+  /** Soltaron sobre una sección archivos del escritorio: hay que subirlos primero. */
+  alSoltarArchivos?: (archivos: File[], seccion: string) => void;
+  /** Apretaron la × de una foto del documento. */
+  alQuitarImagen?: (indice: number) => void;
   /** Una oferta emitida se mira, no se toca. */
   editable: boolean;
   /**
@@ -159,6 +196,7 @@ export function prepararDocumento(doc: Document, opciones: OpcionesDeEdicion): (
   doc.addEventListener("beforeinput", alAntesDeEscribir);
   doc.addEventListener("paste", alPegar);
   doc.addEventListener("focusout", alSalir);
+  const soltarArrastre = prepararArrastre(doc, opciones);
 
   return () => {
     medidor?.disconnect();
@@ -166,6 +204,108 @@ export function prepararDocumento(doc: Document, opciones: OpcionesDeEdicion): (
     doc.removeEventListener("beforeinput", alAntesDeEscribir);
     doc.removeEventListener("paste", alPegar);
     doc.removeEventListener("focusout", alSalir);
+    soltarArrastre();
+  };
+}
+
+/**
+ * Poner y sacar fotos arrastrándolas sobre el documento.
+ *
+ * Lo que había antes era un desplegable por foto y un botón para aplicar todo
+ * junto: para saber dónde iba a salir cada una había que imaginarse el documento.
+ * Acá se suelta la foto en el lugar donde va y se ve ahí.
+ *
+ * Dos cosas se pueden soltar: una foto que ya está en la oferta —viene del cajón de
+ * al lado, con su número— y archivos del escritorio, que primero hay que subir. Las
+ * dos caen en la sección que esté debajo del cursor, y ninguna cae en las secciones
+ * que no llevan imágenes, que no tienen el atributo y por lo tanto no son blanco.
+ */
+function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => void {
+  const puedeRecibir = Boolean(opciones.alSoltarImagen || opciones.alSoltarArchivos);
+  if (!puedeRecibir && !opciones.alQuitarImagen) return () => {};
+
+  // La × de cada foto ya dibujada. Se agrega al DOM de la pantalla y no a la
+  // plantilla: en el PDF no existe, y este documento se vuelve a armar entero cada
+  // vez que se refresca la vista.
+  if (opciones.alQuitarImagen) {
+    for (const figura of doc.querySelectorAll<HTMLElement>("figure[data-imagen]")) {
+      const boton = doc.createElement("button");
+      boton.type = "button";
+      boton.className = "quitar-foto";
+      boton.title = "Sacar esta foto del documento";
+      boton.setAttribute("aria-label", "Sacar esta foto del documento");
+      boton.textContent = "\u00d7";
+      boton.addEventListener("click", (evento) => {
+        evento.preventDefault();
+        opciones.alQuitarImagen?.(Number(figura.dataset.imagen));
+      });
+      figura.appendChild(boton);
+    }
+  }
+
+  if (!puedeRecibir) return () => {};
+
+  let recibiendo: HTMLElement | null = null;
+  const marcar = (seccion: HTMLElement | null) => {
+    if (recibiendo === seccion) return;
+    recibiendo?.classList.remove("recibiendo");
+    seccion?.classList.add("recibiendo");
+    recibiendo = seccion;
+  };
+
+  /** La sección bajo el cursor, si lo que viene se puede soltar ahí. */
+  const blanco = (evento: DragEvent): HTMLElement | null => {
+    const tipos = evento.dataTransfer?.types ?? [];
+    const traeFoto = tipos.includes(TIPO_ARRASTRE);
+    const traeArchivos = tipos.includes("Files");
+    if (!traeFoto && !traeArchivos) return null;
+    if (traeFoto && !opciones.alSoltarImagen) return null;
+    if (!traeFoto && !opciones.alSoltarArchivos) return null;
+    const nodo = evento.target as Element | null;
+    if (!nodo || typeof nodo.closest !== "function") return null;
+    return nodo.closest<HTMLElement>("section[data-seccion]");
+  };
+
+  const alArrastrar = (evento: DragEvent) => {
+    const seccion = blanco(evento);
+    marcar(seccion);
+    if (!seccion) return;
+    // Sin esto el navegador no considera la zona soltable —y con archivos, además,
+    // abre el archivo soltado en la pestaña.
+    evento.preventDefault();
+    if (evento.dataTransfer) evento.dataTransfer.dropEffect = "move";
+  };
+
+  const alSalirDelArrastre = (evento: DragEvent) => {
+    // relatedTarget vacío = el puntero se fue del documento entero.
+    if (!evento.relatedTarget) marcar(null);
+  };
+
+  const alSoltar = (evento: DragEvent) => {
+    const seccion = blanco(evento);
+    marcar(null);
+    if (!seccion) return;
+    evento.preventDefault();
+    const clave = seccion.dataset.seccion;
+    if (!clave) return;
+
+    const numero = evento.dataTransfer?.getData(TIPO_ARRASTRE);
+    if (numero) {
+      opciones.alSoltarImagen?.(Number(numero), clave);
+      return;
+    }
+    const archivos = [...(evento.dataTransfer?.files ?? [])];
+    if (archivos.length > 0) opciones.alSoltarArchivos?.(archivos, clave);
+  };
+
+  doc.addEventListener("dragover", alArrastrar);
+  doc.addEventListener("dragleave", alSalirDelArrastre);
+  doc.addEventListener("drop", alSoltar);
+  return () => {
+    marcar(null);
+    doc.removeEventListener("dragover", alArrastrar);
+    doc.removeEventListener("dragleave", alSalirDelArrastre);
+    doc.removeEventListener("drop", alSoltar);
   };
 }
 
