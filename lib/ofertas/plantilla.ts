@@ -59,6 +59,12 @@ const clp = (n: number) => "$ " + Math.round(n).toLocaleString("es-CL") + ".-";
 const razonDe = (e: EmpresaIdentidad) => e.razonSocial.trim();
 const rutDe = (e: EmpresaIdentidad) => (e.rut.trim() ? `RUT ${e.rut.trim()}` : "");
 
+/** "RUT 77.889.868-3 · Martínez de Rozas N° 4467, Santiago", saltando lo que falte. */
+function identidadDeFirma(e: EmpresaIdentidad): string {
+  const lugar = [e.direccion.trim(), e.ciudad.trim()].filter(Boolean).join(", ");
+  return [rutDe(e), lugar].filter(Boolean).join(" · ");
+}
+
 /**
  * La referencia del pie, sin repetir el número de oferta.
  *
@@ -227,6 +233,7 @@ function armarSecciones(
   oferta: OfertaCanonica,
   totales: TotalesOferta,
   imagenes: Record<number, ImagenDibujable>,
+  empresa: EmpresaIdentidad,
 ): SeccionArmada[] {
   const secciones: SeccionArmada[] = [];
   const agregar = (titulo: string, cuerpo: string, clave?: SeccionConImagenes, junto = false) =>
@@ -398,6 +405,7 @@ function armarSecciones(
 
   if (oferta.cierre) {
     const c = oferta.cierre;
+    const hayRubrica = imagenSegura(imagenes[c.firmaImagen ?? -1]?.uri);
     agregar(
       "Cierre y firma",
       (c.texto ? `<p>${esc(c.texto)}</p>` : "") +
@@ -406,15 +414,27 @@ function armarSecciones(
             // La rúbrica va ARRIBA de la línea, apoyada en ella, como en un papel
             // firmado. Y solo en el primer firmante: el borrador trae una firma
             // escaneada, no una por persona.
-            const rubrica = i === 0 ? imagenSegura(imagenes[c.firmaImagen ?? -1]?.uri) : null;
+            //
+            // El hueco se reserva para TODOS cuando hay rúbrica, aunque solo uno la
+            // tenga: si no, la línea del que firma queda más abajo que la del que
+            // no, y el bloque sale desalineado.
+            const rubrica = i === 0 ? hayRubrica : null;
             return (
               `<div class="firma">` +
-              (rubrica ? `<img class="rubrica" src="${rubrica}" alt="">` : "") +
+              (hayRubrica
+                ? `<span class="hueco-rubrica">${
+                    rubrica ? `<img class="rubrica" src="${rubrica}" alt="">` : ""
+                  }</span>`
+                : "") +
               `<span class="linea"></span><p class="nombre">${esc(f.nombre)}</p>
                  <p class="cargo">${esc(f.cargo)}${f.empresa ? `<br>${esc(f.empresa)}` : ""}</p></div>`
             );
           })
           .join("")}</div>` +
+        // La identidad de quien firma, bajo las firmas: en la propuesta hecha a
+        // mano va el RUT y la sucursal, que es lo que hace del bloque una firma y
+        // no dos nombres sueltos.
+        (identidadDeFirma(empresa) ? `<p class="identidad">${esc(identidadDeFirma(empresa))}</p>` : "") +
         (c.cc ? `<p class="cc">${esc(c.cc)}</p>` : ""),
       "cierre",
       // Corta por naturaleza —un párrafo, una o dos firmas y el cc— y la que peor
@@ -526,7 +546,7 @@ export function ofertaAHtml(
   // estén acá simplemente no se dibujan.
   imagenes: Record<number, ImagenDibujable> = {},
 ): string {
-  const secciones = armarSecciones(oferta, totales, imagenes);
+  const secciones = armarSecciones(oferta, totales, imagenes, empresa);
   // Una imagen asignada a una sección que este documento no tiene —fotos en
   // "especificaciones" cuando no hay especificaciones— no se pierde: cae al anexo.
   // Elegir una imagen y que no aparezca en ninguna parte es lo peor que puede hacer
@@ -698,10 +718,16 @@ export function ofertaAHtml(
      página siguiente, dejando media hoja en blanco. */
   /* Una línea de firma necesita una línea clara, no diez milímetros de nada. */
   .firmas { display: flex; gap: 12mm; margin-top: 6mm; page-break-inside: avoid; }
-  .firmas .firma { flex: 1; }
+  /* La línea de firma NO ocupa el ancho de la hoja. Con un solo firmante quedaba de
+     borde a borde y se leía como otro separador de sección, justo debajo del de la
+     cabecera. En la propuesta hecha a mano cada firma toma poco menos de media
+     columna, y con dos firmantes entran las dos. */
+  .firmas .firma { flex: 0 1 78mm; max-width: 78mm; }
   .firmas .linea { display: block; border-top: 1px solid ${estilo.colorTinta}; margin-bottom: 1.5mm; }
-  /* La rúbrica se apoya en la línea: sin margen abajo y con la línea justo debajo. */
-  .firmas .rubrica { display: block; max-height: 16mm; max-width: 60mm; margin-bottom: 1mm; }
+  /* El hueco de la rúbrica mide lo mismo para todos los firmantes, así las líneas
+     quedan a la misma altura; la firma se apoya en su línea, como en un papel. */
+  .firmas .hueco-rubrica { display: flex; align-items: flex-end; height: 17mm; margin-bottom: 1mm; }
+  .firmas .rubrica { display: block; max-height: 17mm; max-width: 62mm; }
 
   /* Las fotos del anexo: dos por fila, cada una entera o en la página siguiente.
      el avoid va en la figura y no en la grilla: la grilla puede tener seis
@@ -729,6 +755,7 @@ export function ofertaAHtml(
     background: ${estilo.colorFondoSuave}; border: 1px solid ${estilo.colorBorde}; }
   .firmas .nombre { font-weight: 700; margin: 0; }
   .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }
+  .identidad { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 5mm; }
   .cc { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 6mm; }
 
   /* Tres columnas iguales por rejilla: con flex y un calc, el último nombre de
