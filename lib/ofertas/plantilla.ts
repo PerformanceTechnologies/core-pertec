@@ -93,14 +93,65 @@ function filasEtiqueta(pares: [string, string | null][]): string {
   );
 }
 
-/** Lista de hitos con el numeral en naranjo, como el maestro. */
-function hitos(items: string[]): string {
-  return `<ol class="hitos">${items
+/**
+ * Cuántos ítems se quedan pegados al título de una lista.
+ *
+ * Salió impreso: "ANTES DE LA DETENCIÓN DE PLANTA" quedó al pie de una página con
+ * UN ítem debajo y los otros tres en la siguiente. Y en otra corrida, el título
+ * del bloque siguiente no cupo y dejó media página en blanco. Las dos cosas son
+ * el mismo defecto: el navegador parte donde le toca, y un título con un ítem
+ * suelto no dice nada.
+ *
+ * Con tres, el bloque ya se lee como un bloque. El servidor sabe cuántos ítems
+ * hay antes de imprimir, así que puede decidir qué mantener junto en vez de
+ * dejarlo al azar de dónde cae el corte.
+ */
+const ITEMS_PEGADOS_AL_TITULO = 3;
+
+/** Una lista corta entra entera en cualquier hueco razonable: no se parte nunca. */
+const MAXIMO_LISTA_ENTERA = 6;
+
+/** Los <li> de un tramo, con el numeral siguiendo la cuenta global. */
+function itemsDeHitos(items: string[], desde: number): string {
+  return items
     .map(
-      (t, i) =>
-        `<li><span class="numeral">${String(i + 1).padStart(2, "0")}</span><span>${esc(t)}</span></li>`,
+      (texto, i) =>
+        `<li><span class="numeral">${String(desde + i + 1).padStart(2, "0")}</span>` +
+        `<span>${esc(texto)}</span></li>`,
     )
-    .join("")}</ol>`;
+    .join("");
+}
+
+/**
+ * Una lista de hitos que no se puede partir mal.
+ *
+ * Corta, va entera. Larga, se parte en tres tramos: el título con los primeros
+ * ítems, el medio que puede fluir libremente, y los dos últimos juntos — así
+ * tampoco queda un ítem solo abriendo una página. Cada tramo cerrado va en un
+ * `.grupo`, que es lo único que el navegador respeta de verdad
+ * (`break-inside: avoid`).
+ *
+ * El separador es un `border-top` en cada ítem menos el primero de la lista, no
+ * el primero de cada tramo: si fuera por tramo, en los cortes quedarían dos
+ * ítems pegados sin línea.
+ */
+function hitos(items: string[], titulo?: string): string {
+  if (items.length === 0) return "";
+  const encabezado = titulo ? `<h3>${esc(titulo)}</h3>` : "";
+
+  if (items.length <= MAXIMO_LISTA_ENTERA) {
+    return `<div class="grupo">${encabezado}<ol class="hitos primera">${itemsDeHitos(items, 0)}</ol></div>`;
+  }
+
+  const cabeza = items.slice(0, ITEMS_PEGADOS_AL_TITULO);
+  const cola = items.slice(-2);
+  const medio = items.slice(ITEMS_PEGADOS_AL_TITULO, items.length - 2);
+
+  return (
+    `<div class="grupo">${encabezado}<ol class="hitos primera">${itemsDeHitos(cabeza, 0)}</ol></div>` +
+    (medio.length ? `<ol class="hitos">${itemsDeHitos(medio, ITEMS_PEGADOS_AL_TITULO)}</ol>` : "") +
+    `<div class="grupo"><ol class="hitos">${itemsDeHitos(cola, items.length - 2)}</ol></div>`
+  );
 }
 
 /**
@@ -133,10 +184,10 @@ function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): Seccion
     const a = oferta.alcance;
     let cuerpo = a.introduccion ? `<p>${esc(a.introduccion)}</p>` : "";
     if (a.actividades.length) {
-      cuerpo += `<h3>Actividades comprendidas</h3>${hitos(a.actividades)}`;
+      cuerpo += hitos(a.actividades, "Actividades comprendidas");
     }
     if (a.trabajosPrevios.length) {
-      cuerpo += `<h3>Trabajos previos considerados</h3>${hitos(a.trabajosPrevios)}`;
+      cuerpo += hitos(a.trabajosPrevios, "Trabajos previos considerados");
     }
     if (a.personalEspecialista.length) {
       cuerpo +=
@@ -150,10 +201,10 @@ function armarSecciones(oferta: OfertaCanonica, totales: TotalesOferta): Seccion
     const m = oferta.metodologia;
     let cuerpo = "";
     if (m.antesDeLaDetencion.length) {
-      cuerpo += `<h3>Antes de la detención de planta</h3>${hitos(m.antesDeLaDetencion)}`;
+      cuerpo += hitos(m.antesDeLaDetencion, "Antes de la detención de planta");
     }
     if (m.duranteLaDetencion.length) {
-      cuerpo += `<h3>Durante la detención de planta</h3>${hitos(m.duranteLaDetencion)}`;
+      cuerpo += hitos(m.duranteLaDetencion, "Durante la detención de planta");
     }
     if (cuerpo) agregar("Metodología y secuencia de trabajo", cuerpo);
   }
@@ -310,15 +361,25 @@ function armarAnexo(anexo: OfertaCanonica["anexo"]): SeccionArmada | null {
   if (!anexo) return null;
   let cuerpo = "";
   if (anexo.respaldoInstitucional.length) {
+    const [primero, ...resto] = anexo.respaldoInstitucional;
     cuerpo +=
-      `<h3>Respaldo institucional</h3>` + anexo.respaldoInstitucional.map((p) => `<p>${esc(p)}</p>`).join("");
+      `<div class="grupo"><h3>Respaldo institucional</h3><p>${esc(primero)}</p></div>` +
+      resto.map((parrafo) => `<p>${esc(parrafo)}</p>`).join("");
   }
   if (anexo.mandantes.length) {
+    // Título, rejilla y nota en un solo grupo. Salió impreso partido en dos: tres
+    // mandantes al pie de una página y los otros tres abriendo la siguiente, con
+    // una hoja casi vacía detrás. Es una rejilla de seis nombres, siempre corta:
+    // no hay razón para que se parta nunca.
     cuerpo +=
+      `<div class="grupo">` +
       `<h3>Principales mandantes y contratos ejecutados con nuestro personal</h3>` +
-      `<div class="mandantes">${anexo.mandantes.map((m) => `<span>${esc(m)}</span>`).join("")}</div>`;
+      `<div class="mandantes">${anexo.mandantes.map((m) => `<span>${esc(m)}</span>`).join("")}</div>` +
+      (anexo.notaEquipo ? `<p>${esc(anexo.notaEquipo)}</p>` : "") +
+      `</div>`;
+  } else if (anexo.notaEquipo) {
+    cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
   }
-  if (anexo.notaEquipo) cuerpo += `<p>${esc(anexo.notaEquipo)}</p>`;
   if (!cuerpo) return null;
   return {
     numero: "A",
@@ -414,12 +475,15 @@ export function ofertaAHtml(
     overflow: hidden; text-overflow: ellipsis; }
   .footer .fijo { flex: none; }
 
-  h2 { font-size: ${estilo.tamanoTitulo}px; font-family: ${estilo.fuenteTitulos}; text-transform: uppercase; letter-spacing: -.01em; margin: 9mm 0 3mm;
+  /* El ritmo vertical, medido en la OS 009: con los valores anteriores el documento
+     pedía 30mm más de los que tenía y arrastraba una sexta hoja con un solo bloque
+     adentro. Bajar el aire de los títulos no lo aprieta, lo ordena. */
+  h2 { font-size: ${estilo.tamanoTitulo}px; font-family: ${estilo.fuenteTitulos}; text-transform: uppercase; letter-spacing: -.01em; margin: 7.5mm 0 2.5mm;
        padding-bottom: 2mm; border-bottom: 1.6px solid ${estilo.colorTinta}; display: flex; gap: 4mm;
        align-items: baseline; page-break-after: avoid; }
   h2 .n { color: ${estilo.colorAcento}; font-weight: 700; }
   h2:first-of-type { margin-top: 0; }
-  h3 { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; margin: 5mm 0 2mm;
+  h3 { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; margin: 4mm 0 1.6mm;
        page-break-after: avoid; }
   /* Nunca una línea sola cruzando de página: dos arriba y dos abajo como mínimo. */
   p { margin: 0 0 2.5mm; orphans: 2; widows: 2; }
@@ -436,6 +500,9 @@ export function ofertaAHtml(
      maestro de paleta oscura un blanco acá sería una raya. */
   .datos tr + tr th, .datos tr + tr td { border-top: 1px solid ${estilo.colorCabeceraTexto}; }
 
+  /* Una cabecera de tabla sola al pie de una página no dice nada: se va con sus
+     primeras filas. */
+  thead { page-break-after: avoid; }
   .tabla thead th { background: ${estilo.colorCabecera}; color: ${estilo.colorCabeceraTexto}; text-align: left; padding: 2mm 3mm;
     font-size: 8px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
   .tabla td { padding: 2mm 3mm; vertical-align: top; }
@@ -450,10 +517,16 @@ export function ofertaAHtml(
   .barra > span { display: block; height: 100%; background: ${estilo.colorAcento}; }
   .avance { font-size: 8px; color: ${estilo.colorSuave}; margin-left: 2mm; }
 
-  ol.hitos { list-style: none; margin: 0 0 3mm; padding: 0; }
+  /* Los tramos de una lista comparten el margen inferior: solo el último lo lleva,
+     para que partir una lista no agregue aire en el medio. */
+  ol.hitos { list-style: none; margin: 0; padding: 0; }
+  ol.hitos:last-child, .grupo:last-child ol.hitos { margin-bottom: 3mm; }
   ol.hitos li { display: flex; gap: 3mm; padding: 1.6mm 0; border-top: 1px solid ${estilo.colorFondoTotal};
     page-break-inside: avoid; }
-  ol.hitos li:first-child { border-top: 0; }
+  /* Solo el primero de la lista completa, no el de cada tramo. */
+  ol.hitos.primera li:first-child { border-top: 0; }
+  /* Lo único que el navegador respeta de verdad para no partir un bloque. */
+  .grupo { page-break-inside: avoid; }
   ol.hitos .numeral { color: ${estilo.colorAcento}; font-weight: 700; font-size: 9px; min-width: 6mm; }
 
   /* Ídem: con flex, un número impar de tarjetas dejaba la última estirada a lo
@@ -479,16 +552,18 @@ export function ofertaAHtml(
 
   /* 18mm de aire forzado hacían que el bloque no cupiera y se fuera entero a la
      página siguiente, dejando media hoja en blanco. */
-  .firmas { display: flex; gap: 12mm; margin-top: 10mm; page-break-inside: avoid; }
+  /* Una línea de firma necesita una línea clara, no diez milímetros de nada. */
+  .firmas { display: flex; gap: 12mm; margin-top: 6mm; page-break-inside: avoid; }
   .firmas .firma { flex: 1; }
   .firmas .linea { display: block; border-top: 1px solid ${estilo.colorTinta}; margin-bottom: 1.5mm; }
   .firmas .nombre { font-weight: 700; margin: 0; }
   .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }
-  .cc { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 8mm; }
+  .cc { color: ${estilo.colorSuave}; font-size: 8.5px; margin-top: 6mm; }
 
   /* Tres columnas iguales por rejilla: con flex y un calc, el último nombre de
      cada fila quedaba de otro ancho y las líneas no cerraban parejas. */
-  .mandantes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 6mm; }
+  .mandantes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 6mm;
+    page-break-inside: avoid; }
   .mandantes span { border-bottom: 1px solid ${estilo.colorFondoTotal}; padding: 2mm 0; }
 
   .indice { margin-bottom: 4mm; }
