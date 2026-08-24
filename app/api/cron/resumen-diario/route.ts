@@ -25,7 +25,7 @@ export const SLUG_APP = "mi-dia";
 // al siguiente. El reenvío lo impide enviado_en, así que las corridas de más no
 // mandan nada dos veces: son dos consultas y siguen de largo.
 //
-// Son entradas separadas y no un rango horario ("30 10-19 * * 1-5") porque el plan
+// Son entradas separadas y no un rango horario ("30 10-19 * * *") porque el plan
 // Hobby de Vercel exige que cada expresión corra como máximo una vez al día: un
 // rango hace FALLAR EL DEPLOY, no la ejecución. Y su precisión es por hora (±59
 // min), así que la hora exacta de cada corrida es aproximada — otra razón para que
@@ -33,6 +33,13 @@ export const SLUG_APP = "mi-dia";
 //
 // El tope de las 15:00 es a propósito: un "resumen de la mañana" que llega a las
 // siete de la tarde ya no sirve de nada, y es mejor que le llegue mañana temprano.
+//
+// Y va TODOS los días, sábado y domingo incluidos: no hay ninguna guarda de día de
+// semana, ni acá ni en el agendado. La decisión es del usuario y tiene sentido —
+// el correo del cliente no distingue el día— con una consecuencia que conviene
+// saber: un fin de semana con la bandeja quieta genera igual el resumen (una
+// llamada al modelo por persona) y manda un aviso que dirá poco. Si molesta, el
+// arreglo es no mandar cuando no hay nada que contar, no volver a excluir el día.
 const HORA_MINIMA_CHILE = 7;
 const HORA_MAXIMA_CHILE = 15;
 
