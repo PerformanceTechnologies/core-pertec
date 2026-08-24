@@ -1,5 +1,5 @@
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
-import type { OfertaCanonica, SeccionConImagenes, TotalesOferta } from "./tipos";
+import { firmaDe, type OfertaCanonica, type SeccionConImagenes, type TotalesOferta } from "./tipos";
 import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
 import { SIN_LOGOS, imagenSegura, logoSeguro, type ImagenDibujable, type LogosDocumento } from "./logo";
 
@@ -519,20 +519,23 @@ function armarSecciones(
 
   if (oferta.cierre) {
     const c = oferta.cierre;
-    const hayRubrica = imagenSegura(imagenes[c.firmaImagen ?? -1]?.uri);
+    // La rúbrica de cada uno, resuelta antes de dibujar: hace falta saber si HAY
+    // alguna para decidir el hueco de todos.
+    const rubricas = c.firmantes.map((_, i) => imagenSegura(imagenes[firmaDe(c, i) ?? -1]?.uri));
+    const hayRubrica = rubricas.some(Boolean);
     agregar(
       "Cierre y firma",
       (c.texto ? `<p${campo("cierre.texto")}>${esc(c.texto)}</p>` : "") +
         `<div class="firmas">${c.firmantes
           .map((f, i) => {
             // La rúbrica va ARRIBA de la línea, apoyada en ella, como en un papel
-            // firmado. Y solo en el primer firmante: el borrador trae una firma
-            // escaneada, no una por persona.
+            // firmado. Cada firmante lleva la suya: una propuesta firmada por dos
+            // personas lleva dos rúbricas distintas, no la misma dos veces.
             //
-            // El hueco se reserva para TODOS cuando hay rúbrica, aunque solo uno la
+            // El hueco se reserva para TODOS cuando hay alguna, aunque solo uno la
             // tenga: si no, la línea del que firma queda más abajo que la del que
             // no, y el bloque sale desalineado.
-            const rubrica = i === 0 ? hayRubrica : null;
+            const rubrica = rubricas[i];
             return (
               `<div class="firma">` +
               (hayRubrica

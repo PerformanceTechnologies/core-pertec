@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Inconsistencia, OfertaCanonica } from "@/lib/ofertas/tipos";
+import { firmaDe, type Inconsistencia, type OfertaCanonica } from "@/lib/ofertas/tipos";
 import { calcularTotales, detectarInconsistencias } from "@/lib/ofertas/verificar";
 import { money } from "@/lib/cotizador/formato";
 import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
@@ -69,7 +69,7 @@ export default function EditorOferta({
   const filaTurno = () => ({ turno: "", jornada: "", horas: 0 });
   const filaEspecificacion = () => ({ parametro: "", especificacion: "" });
   const filaResponsabilidad = () => ({ cargo: "", descripcion: "" });
-  const filaFirmante = () => ({ nombre: "", cargo: "", empresa: null });
+  const filaFirmante = () => ({ nombre: "", cargo: "", empresa: null, firmaImagen: null });
 
   // Qué secciones no están en esta oferta y se pueden crear vacías.
   const faltantes = [
@@ -307,13 +307,12 @@ export default function EditorOferta({
                             </>
                           )}
                         </p>
-                        <BotonQuitar
+                        <ControlesDeFila
                           deshabilitado={emitida}
-                          onClick={() =>
-                            cambiar((b) => {
-                              b.precio!.lineas.splice(i, 1);
-                            })
-                          }
+                          indice={i}
+                          total={oferta.precio!.lineas.length}
+                          lista={(b) => b.precio!.lineas}
+                          cambiar={cambiar}
                         />
                       </div>
                     </div>
@@ -367,7 +366,7 @@ export default function EditorOferta({
                 </div>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.organizacion.cuadroPersonal.map((fila, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_1fr_28px] gap-2">
+                    <div key={i} className="grid grid-cols-[1fr_80px_1fr_auto] gap-2">
                       <Campo
                         rotulo={i === 0 ? "Cargo" : ""}
                         valor={fila.cargo}
@@ -399,13 +398,12 @@ export default function EditorOferta({
                           })
                         }
                       />
-                      <BotonQuitar
+                      <ControlesDeFila
                         deshabilitado={emitida}
-                        onClick={() =>
-                          cambiar((b) => {
-                            b.organizacion!.cuadroPersonal.splice(i, 1);
-                          })
-                        }
+                        indice={i}
+                        total={oferta.organizacion!.cuadroPersonal.length}
+                        lista={(b) => b.organizacion!.cuadroPersonal}
+                        cambiar={cambiar}
                       />
                     </div>
                   ))}
@@ -441,7 +439,7 @@ export default function EditorOferta({
                 </div>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.programa.turnos.map((turno, i) => (
-                    <div key={i} className="grid grid-cols-[90px_1fr_90px_28px] gap-2">
+                    <div key={i} className="grid grid-cols-[90px_1fr_90px_auto] gap-2">
                       <Campo
                         rotulo={i === 0 ? "Turno" : ""}
                         valor={turno.turno}
@@ -473,13 +471,12 @@ export default function EditorOferta({
                           })
                         }
                       />
-                      <BotonQuitar
+                      <ControlesDeFila
                         deshabilitado={emitida}
-                        onClick={() =>
-                          cambiar((b) => {
-                            b.programa!.turnos.splice(i, 1);
-                          })
-                        }
+                        indice={i}
+                        total={oferta.programa!.turnos.length}
+                        lista={(b) => b.programa!.turnos}
+                        cambiar={cambiar}
                       />
                     </div>
                   ))}
@@ -512,7 +509,7 @@ export default function EditorOferta({
                 </h2>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.especificaciones.map((e, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1.6fr_28px] gap-2">
+                    <div key={i} className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
                       <Campo
                         rotulo={i === 0 ? "Parámetro" : ""}
                         valor={e.parametro}
@@ -533,13 +530,12 @@ export default function EditorOferta({
                           })
                         }
                       />
-                      <BotonQuitar
+                      <ControlesDeFila
                         deshabilitado={emitida}
-                        onClick={() =>
-                          cambiar((b) => {
-                            b.especificaciones!.splice(i, 1);
-                          })
-                        }
+                        indice={i}
+                        total={oferta.especificaciones!.length}
+                        lista={(b) => b.especificaciones!}
+                        cambiar={cambiar}
                       />
                     </div>
                   ))}
@@ -572,7 +568,7 @@ export default function EditorOferta({
                 </p>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.organizacion.responsabilidades.map((r, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_2fr_28px] gap-2">
+                    <div key={i} className="grid grid-cols-[1fr_2fr_auto] gap-2">
                       <Campo
                         rotulo={i === 0 ? "Cargo" : ""}
                         valor={r.cargo}
@@ -594,13 +590,12 @@ export default function EditorOferta({
                           })
                         }
                       />
-                      <BotonQuitar
+                      <ControlesDeFila
                         deshabilitado={emitida}
-                        onClick={() =>
-                          cambiar((b) => {
-                            b.organizacion!.responsabilidades.splice(i, 1);
-                          })
-                        }
+                        indice={i}
+                        total={oferta.organizacion!.responsabilidades.length}
+                        lista={(b) => b.organizacion!.responsabilidades}
+                        cambiar={cambiar}
                       />
                     </div>
                   ))}
@@ -642,45 +637,53 @@ export default function EditorOferta({
                 />
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.cierre.firmantes.map((f, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_1fr_28px] gap-2">
-                      <Campo
-                        rotulo={i === 0 ? "Nombre" : ""}
-                        valor={f.nombre}
-                        deshabilitado={emitida}
-                        onChange={(v) =>
-                          cambiar((b) => {
-                            b.cierre!.firmantes[i].nombre = v;
-                          })
-                        }
-                      />
-                      <Campo
-                        rotulo={i === 0 ? "Cargo" : ""}
-                        valor={f.cargo}
-                        deshabilitado={emitida}
-                        onChange={(v) =>
-                          cambiar((b) => {
-                            b.cierre!.firmantes[i].cargo = v;
-                          })
-                        }
-                      />
-                      <Campo
-                        rotulo={i === 0 ? "Empresa" : ""}
-                        valor={f.empresa ?? ""}
-                        deshabilitado={emitida}
-                        onChange={(v) =>
-                          cambiar((b) => {
-                            b.cierre!.firmantes[i].empresa = v || null;
-                          })
-                        }
-                      />
-                      <BotonQuitar
-                        deshabilitado={emitida}
-                        onClick={() =>
-                          cambiar((b) => {
-                            b.cierre!.firmantes.splice(i, 1);
-                          })
-                        }
-                      />
+                    <div key={i} className="flex flex-col gap-1">
+                      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
+                        <Campo
+                          rotulo={i === 0 ? "Nombre" : ""}
+                          valor={f.nombre}
+                          deshabilitado={emitida}
+                          onChange={(v) =>
+                            cambiar((b) => {
+                              b.cierre!.firmantes[i].nombre = v;
+                            })
+                          }
+                        />
+                        <Campo
+                          rotulo={i === 0 ? "Cargo" : ""}
+                          valor={f.cargo}
+                          deshabilitado={emitida}
+                          onChange={(v) =>
+                            cambiar((b) => {
+                              b.cierre!.firmantes[i].cargo = v;
+                            })
+                          }
+                        />
+                        <Campo
+                          rotulo={i === 0 ? "Empresa" : ""}
+                          valor={f.empresa ?? ""}
+                          deshabilitado={emitida}
+                          onChange={(v) =>
+                            cambiar((b) => {
+                              b.cierre!.firmantes[i].empresa = v || null;
+                            })
+                          }
+                        />
+                        <ControlesDeFila
+                          deshabilitado={emitida}
+                          indice={i}
+                          total={oferta.cierre!.firmantes.length}
+                          lista={(b) => b.cierre!.firmantes}
+                          cambiar={cambiar}
+                        />
+                      </div>
+                      {/* La rúbrica se elige arriba, en Imágenes del documento: acá
+                          solo se dice si la tiene, que es lo que no se podía saber. */}
+                      <p className="text-[10px] text-tinta/40">
+                        {firmaDe(oferta.cierre!, i) !== null
+                          ? `Firma con la imagen n° ${firmaDe(oferta.cierre!, i)}`
+                          : "Sin rúbrica: sale solo la línea y el nombre"}
+                      </p>
                     </div>
                   ))}
                   {oferta.cierre.firmantes.length === 0 && (
@@ -989,26 +992,88 @@ function Campo({
 }
 
 /**
- * Quitar una fila de una tabla.
+ * Los controles de una fila: subirla, bajarla y sacarla.
  *
- * Chico y sin color: sacar una fila es una acción destructiva pero cotidiana —una
- * línea de precio que quedó de otra oferta— y un botón rojo grande al lado de cada
- * fila convierte la tabla en un campo minado.
+ * Discretos y sin color hasta que se pasa el mouse por encima. Sacar una fila es
+ * frecuente y correcto —una línea de precio que quedó de otra oferta— pero tres
+ * botones marcados al lado de cada fila convierten la tabla en un campo minado.
+ *
+ * El orden importa de verdad y no es decoración: las actividades, los turnos y las
+ * líneas de precio se leen como una secuencia, así que una fila agregada al final
+ * casi nunca va al final. Antes, para moverla, había que reescribir las dos.
+ *
+ * `lista` devuelve el arreglo DENTRO del borrador que se está por modificar, y no
+ * el arreglo actual: `cambiar` trabaja sobre una copia profunda, y mover elementos
+ * en el original no cambiaría nada de lo que se guarda.
  */
-function BotonQuitar({ onClick, deshabilitado }: { onClick: () => void; deshabilitado: boolean }) {
+function ControlesDeFila({
+  lista,
+  cambiar,
+  indice,
+  total,
+  deshabilitado,
+}: {
+  lista: (borrador: OfertaCanonica) => unknown[];
+  cambiar: (fn: (borrador: OfertaCanonica) => void) => void;
+  indice: number;
+  total: number;
+  deshabilitado: boolean;
+}) {
   if (deshabilitado) return <span />;
+
+  const mover = (salto: number) =>
+    cambiar((borrador) => {
+      const filas = lista(borrador);
+      const destino = indice + salto;
+      if (destino < 0 || destino >= filas.length) return;
+      [filas[indice], filas[destino]] = [filas[destino], filas[indice]];
+    });
+
+  const clases =
+    "rounded-md px-1.5 py-1.5 text-tinta/30 transition-colors hover:bg-crema hover:text-naranjo disabled:pointer-events-none disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo";
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title="Quitar esta fila"
-      aria-label="Quitar esta fila"
-      className="self-end rounded-md px-1.5 py-1.5 text-tinta/30 transition-colors hover:bg-crema hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
-    >
-      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" strokeLinecap="round" />
-      </svg>
-    </button>
+    <span className="flex shrink-0 items-center self-end">
+      <button
+        type="button"
+        onClick={() => mover(-1)}
+        disabled={indice === 0}
+        title="Subir esta fila"
+        aria-label="Subir esta fila"
+        className={clases}
+      >
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M8 12.5v-9M4 7.5 8 3.5l4 4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={() => mover(1)}
+        disabled={indice >= total - 1}
+        title="Bajar esta fila"
+        aria-label="Bajar esta fila"
+        className={clases}
+      >
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M8 3.5v9M4 8.5l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          cambiar((borrador) => {
+            lista(borrador).splice(indice, 1);
+          })
+        }
+        title="Quitar esta fila"
+        aria-label="Quitar esta fila"
+        className={`${clases} hover:text-red-600 focus-visible:outline-red-600`}
+      >
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" strokeLinecap="round" />
+        </svg>
+      </button>
+    </span>
   );
 }
 

@@ -55,10 +55,15 @@ export async function asignarMaestroAction(formData: FormData) {
 /**
  * Guarda dónde va cada imagen del borrador.
  *
- * El formulario manda un campo "seccion-<n>" por imagen: la sección elegida, o
- * vacío para no usarla. Se valida todo contra el INVENTARIO de esa oferta y contra
- * la lista de secciones que existen — un índice inventado o una sección que no
- * existe no dibuja nada, pero tampoco tiene por qué quedar guardado.
+ * El formulario manda un campo "seccion-<n>" por imagen con lo elegido: vacío para
+ * no usarla, la clave de una sección, o "firma-<i>" para que sea la rúbrica del
+ * firmante que está en esa posición. Un solo control por imagen y no uno para la
+ * sección más otro para la firma: son la misma pregunta —dónde va esta imagen— y
+ * separarlas permitía contestar las dos a la vez.
+ *
+ * Se valida todo contra el INVENTARIO de esa oferta, contra la lista de secciones
+ * que existen y contra los firmantes que tiene: un índice inventado no dibuja nada,
+ * pero tampoco tiene por qué quedar guardado.
  */
 export async function elegirImagenesAction(formData: FormData) {
   await exigirAccesoOfertas();
@@ -68,18 +73,28 @@ export async function elegirImagenesAction(formData: FormData) {
   const oferta = await obtenerOferta(id);
   if (!oferta || oferta.estado === "emitida") return;
 
+  const cuantosFirmantes = oferta.contenido.cierre?.firmantes.length ?? 0;
   // En el orden del inventario, que es el del documento y el de las miniaturas.
   const porSeccion: Partial<Record<SeccionConImagenes, number[]>> = {};
+  const firmas = new Map<number, number>();
+
   for (const imagen of oferta.imagenes) {
-    const elegida = String(formData.get(`seccion-${imagen.indice}`) ?? "") as SeccionConImagenes;
-    if (!SECCIONES_CON_IMAGENES.includes(elegida)) continue;
-    porSeccion[elegida] = [...(porSeccion[elegida] ?? []), imagen.indice];
+    const elegida = String(formData.get(`seccion-${imagen.indice}`) ?? "");
+
+    if (elegida.startsWith("firma-")) {
+      const firmante = Number(elegida.slice("firma-".length));
+      if (!Number.isInteger(firmante) || firmante < 0 || firmante >= cuantosFirmantes) continue;
+      // Si dos imágenes dicen ser la rúbrica de la misma persona gana la primera
+      // del inventario: alguien tiene que ganar, y que sea siempre la misma.
+      if (!firmas.has(firmante)) firmas.set(firmante, imagen.indice);
+      continue;
+    }
+
+    const seccion = elegida as SeccionConImagenes;
+    if (!SECCIONES_CON_IMAGENES.includes(seccion)) continue;
+    porSeccion[seccion] = [...(porSeccion[seccion] ?? []), imagen.indice];
   }
 
-  const existentes = new Set(oferta.imagenes.map((imagen) => imagen.indice));
-  const firmaCruda = Number(formData.get("firma") ?? 0);
-  const firma = existentes.has(firmaCruda) ? firmaCruda : null;
-
-  await guardarImagenesElegidas(id, porSeccion, firma);
+  await guardarImagenesElegidas(id, porSeccion, firmas);
   revalidatePath(`/ofertas/${id}`);
 }

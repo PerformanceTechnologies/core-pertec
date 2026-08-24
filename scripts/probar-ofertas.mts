@@ -20,6 +20,7 @@ import {
 } from "../lib/ofertas/normalizar";
 import { cuerpoDeTabla, ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
 import { asignarEnRuta, leerEnRuta, numeroDesdeTexto } from "../lib/ofertas/rutas";
+import { firmaDe } from "../lib/ofertas/tipos";
 import { proximoIndice } from "../lib/ofertas/imagenes";
 
 /** La OS 010-2026 real, bien transcrita. */
@@ -988,6 +989,66 @@ assert.equal(avisoDeTamano(new File([new Uint8Array(1024)], "chico.pdf")), null)
 const grande = avisoDeTamano(new File([new Uint8Array(5 * 1024 * 1024)], "grande.pdf"));
 assert.ok(grande?.includes("grande.pdf") && grande.includes("5,0 MB"), grande ?? "sin aviso");
 
+// ── Una rúbrica por firmante ────────────────────────────────────────────────
+//
+// Una propuesta puede ir firmada por dos personas y cada una firma con la suya.
+// El modelo, en cambio, informa UNA sola —un borrador trae una firma escaneada—
+// así que las dos formas tienen que convivir: lo que leyó el modelo vale como la
+// del primero mientras nadie elija otra cosa.
+const legado = os10();
+assert.equal(firmaDe(legado.cierre!, 0), null, "sin firma leída, el primero no firma con imagen");
+legado.cierre!.firmaImagen = 7;
+assert.equal(firmaDe(legado.cierre!, 0), 7, "la firma del borrador es la del primer firmante");
+assert.equal(firmaDe(legado.cierre!, 1), null, "y solo la del primero");
+
+// En cuanto alguien elige en pantalla, manda lo elegido — incluso para decir que
+// esa persona NO firma con imagen. Por eso "ausente" y "null" no son lo mismo: si
+// null cayera al valor del borrador, quitar una rúbrica no tendría efecto.
+const elegido = os10();
+elegido.cierre!.firmaImagen = 7;
+elegido.cierre!.firmantes[0].firmaImagen = null;
+assert.equal(firmaDe(elegido.cierre!, 0), null, "una elección en null no vuelve a la del borrador");
+
+// Dos firmantes, dos rúbricas distintas, y el hueco reservado para los dos.
+const aCuatroManos = os10();
+aCuatroManos.cierre!.firmantes = [
+  { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: null, firmaImagen: 7 },
+  { nombre: "Rodrigo Moraga", cargo: "Jefe de Operaciones", empresa: null, firmaImagen: 4 },
+];
+const htmlDosFirmas = ofertaAHtml(
+  aCuatroManos,
+  calcularTotales(aCuatroManos),
+  EMPRESA_DE_PRUEBA,
+  undefined,
+  undefined,
+  { 4: { uri: JPEG_VALIDO, apaisada: false }, 7: { uri: PNG_VALIDO, apaisada: false } },
+);
+assert.equal((htmlDosFirmas.match(/class="rubrica"/g) ?? []).length, 2, "cada firmante firma con la suya");
+assert.ok(htmlDosFirmas.includes(`<img class="rubrica" src="${PNG_VALIDO}"`), "la del primero");
+assert.ok(htmlDosFirmas.includes(`<img class="rubrica" src="${JPEG_VALIDO}"`), "y la del segundo");
+
+// Con uno solo firmando, el hueco se reserva igual para los dos: si no, la línea
+// del que firma queda más abajo que la del que no y el bloque sale desalineado.
+const soloUnaFirma = os10();
+soloUnaFirma.cierre!.firmantes = [
+  { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: null, firmaImagen: 7 },
+  { nombre: "Rodrigo Moraga", cargo: "Jefe de Operaciones", empresa: null, firmaImagen: null },
+];
+const htmlUnaFirma = ofertaAHtml(
+  soloUnaFirma,
+  calcularTotales(soloUnaFirma),
+  EMPRESA_DE_PRUEBA,
+  undefined,
+  undefined,
+  { 7: { uri: PNG_VALIDO, apaisada: false } },
+);
+assert.equal(
+  (htmlUnaFirma.match(/class="hueco-rubrica"/g) ?? []).length,
+  2,
+  "el hueco se reserva para los dos",
+);
+assert.equal((htmlUnaFirma.match(/class="rubrica"/g) ?? []).length, 1, "pero la rúbrica es una sola");
+
 // ── Agregar y quitar imágenes ───────────────────────────────────────────────
 //
 // El índice de una imagen es su identidad: es lo que guardan `imagenesPorSeccion`
@@ -1013,17 +1074,23 @@ conImagenesPuestas.imagenesPorSeccion = { metodologia: [3], anexo: [4, 5] };
 conImagenesPuestas.epigrafesDeImagenes = { 4: "Faena Angamos", 5: "Izaje" };
 conImagenesPuestas.cierre!.firmaImagen = 4;
 
+conImagenesPuestas.cierre!.firmantes = [
+  { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: null, firmaImagen: 4 },
+  { nombre: "Rodrigo Moraga", cargo: "Jefe de Operaciones", empresa: null, firmaImagen: 5 },
+];
+
 const sinLa4 = sinLaImagen(conImagenesPuestas, 4);
 assert.deepEqual(sinLa4.imagenesPorSeccion, { metodologia: [3], anexo: [5] });
 assert.deepEqual(sinLa4.epigrafesDeImagenes, { 5: "Izaje" }, "su epígrafe se va con ella");
-assert.equal(sinLa4.cierre?.firmaImagen, null, "y deja de ser la firma");
+assert.equal(firmaDe(sinLa4.cierre!, 0), null, "y deja de ser la rúbrica de quien firmaba con ella");
+assert.equal(firmaDe(sinLa4.cierre!, 1), 5, "sin tocar la del otro firmante");
 assert.equal(conImagenesPuestas.imagenesPorSeccion?.anexo?.length, 2, "sin tocar el original");
 
 // La sección que se queda sin ninguna desaparece del reparto, en vez de quedar como
 // una lista vacía que el documento tendría que saber ignorar.
 const sinLa3 = sinLaImagen(conImagenesPuestas, 3);
 assert.deepEqual(sinLa3.imagenesPorSeccion, { anexo: [4, 5] }, "una sección vacía no queda colgando");
-assert.equal(sinLa3.cierre?.firmaImagen, 4, "y la firma de otra imagen no se toca");
+assert.equal(firmaDe(sinLa3.cierre!, 0), 4, "y la rúbrica de otra imagen no se toca");
 
 // Cada pantalla guarda lo suyo. El editor manda el contenido entero, pero el reparto
 // de imágenes lo decide el panel de imágenes: sin esto, aplicar las fotos y después
@@ -1041,7 +1108,31 @@ enLaBase.cierre!.firmaImagen = 7;
 const guardado = conElRepartoDe(editorViejo, enLaBase);
 assert.equal(guardado.titulo, "Título corregido", "lo que el editor edita se guarda");
 assert.deepEqual(guardado.imagenesPorSeccion, { anexo: [4, 5] }, "y el reparto de imágenes no se pisa");
-assert.equal(guardado.cierre?.firmaImagen, 7, "ni la firma elegida");
+assert.equal(firmaDe(guardado.cierre!, 0), 7, "ni la rúbrica elegida");
+
+// Y la parte delicada: la rúbrica se reencuentra con su firmante POR EL NOMBRE.
+// El editor puede haber movido los firmantes desde que se cargó esa copia, y por
+// posición la firma de una persona terminaría debajo del nombre de otra — que es
+// exactamente lo que un documento firmado no puede hacer.
+const reordenado = os10();
+reordenado.cierre!.firmantes = [
+  { nombre: "Rodrigo Moraga", cargo: "Jefe de Operaciones", empresa: null },
+  { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: null },
+];
+const enLaBaseDosFirmas = os10();
+enLaBaseDosFirmas.cierre!.firmantes = [
+  { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: null, firmaImagen: 7 },
+  { nombre: "Rodrigo Moraga", cargo: "Jefe de Operaciones", empresa: null, firmaImagen: 4 },
+];
+const trasReordenar = conElRepartoDe(reordenado, enLaBaseDosFirmas);
+assert.equal(firmaDe(trasReordenar.cierre!, 0), 4, "la rúbrica sigue a Rodrigo, que ahora va primero");
+assert.equal(firmaDe(trasReordenar.cierre!, 1), 7, "y la de Alfonso lo sigue a él");
+
+// Si el nombre ya no está, la rúbrica se pierde: era de alguien que ya no firma, y
+// heredarla al que ocupó su lugar sería peor que no tenerla.
+const otroFirmante = os10();
+otroFirmante.cierre!.firmantes = [{ nombre: "Persona Nueva", cargo: "Gerente", empresa: null }];
+assert.equal(firmaDe(conElRepartoDe(otroFirmante, enLaBaseDosFirmas).cierre!, 0), null);
 
 // ── El puente entre el papel y el dato ──────────────────────────────────────
 //
@@ -1135,6 +1226,13 @@ vacía vuelve a null, el blanco vuelve a null, los porConfirmar de las dos parte
 juntan sin repetidos, y un total en 0 es "no impreso" y no un total de cero pesos. Y las subidas: una
 página de login, un 413 y un 504 salen con su causa nombrada, no con el error del
 parser de JSON.
+
+Las firmas: una por firmante, porque una propuesta puede ir firmada por dos
+personas. Lo que leyó el modelo —que informa una sola— vale como la del primero
+mientras nadie elija; en cuanto alguien elige, manda lo elegido, incluso para
+decir que esa persona no firma con imagen. Al reordenar firmantes cada rúbrica
+sigue a SU persona, por el nombre y no por la posición, y si ese nombre ya no
+está se pierde en vez de heredarse.
 
 Editar sobre el documento: cada texto impreso lleva la ruta del dato que lo
 produjo, y se comprueban TODAS —que existan, que apunten a la fila correcta aunque

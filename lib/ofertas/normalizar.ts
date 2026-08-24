@@ -1,4 +1,10 @@
-import { SECCIONES_CON_IMAGENES, type OfertaCanonica, type SeccionConImagenes } from "./tipos";
+import {
+  SECCIONES_CON_IMAGENES,
+  firmaDe,
+  type Cierre,
+  type OfertaCanonica,
+  type SeccionConImagenes,
+} from "./tipos";
 
 /**
  * De las dos lecturas planas a la oferta canónica.
@@ -332,7 +338,18 @@ export function sinLaImagen(contenido: OfertaCanonica, indice: number): OfertaCa
     ...contenido,
     imagenesPorSeccion: porSeccion,
     epigrafesDeImagenes: epigrafes,
-    cierre: cierre && cierre.firmaImagen === indice ? { ...cierre, firmaImagen: null } : cierre,
+    cierre: cierre
+      ? {
+          ...cierre,
+          // De la de cada firmante y de la del borrador: la imagen se fue, y una
+          // rúbrica que apunta a un archivo que no está deja el hueco reservado y
+          // vacío, que se lee como un documento sin firmar.
+          firmantes: cierre.firmantes.map((f, i) =>
+            firmaDe(cierre, i) === indice ? { ...f, firmaImagen: null } : f,
+          ),
+          firmaImagen: cierre.firmaImagen === indice ? null : cierre.firmaImagen,
+        }
+      : cierre,
   };
 }
 
@@ -351,10 +368,33 @@ export function sinLaImagen(contenido: OfertaCanonica, indice: number): OfertaCa
  * esos SÍ se editan en el documento.
  */
 export function conElRepartoDe(nuevo: OfertaCanonica, guardado: OfertaCanonica): OfertaCanonica {
-  const firma = guardado.cierre?.firmaImagen ?? null;
+  const guardadoCierre = guardado.cierre;
   return {
     ...nuevo,
     imagenesPorSeccion: guardado.imagenesPorSeccion ?? {},
-    cierre: nuevo.cierre ? { ...nuevo.cierre, firmaImagen: firma } : nuevo.cierre,
+    cierre: nuevo.cierre
+      ? {
+          ...nuevo.cierre,
+          // La rúbrica se reencuentra con su firmante POR EL NOMBRE y no por la
+          // posición: el editor puede haber agregado, sacado o movido firmantes
+          // desde que se cargó esa copia, y por índice la firma de una persona
+          // terminaría debajo del nombre de otra. Si ese nombre ya no está, la
+          // rúbrica se pierde, que es lo correcto: era de alguien que ya no firma.
+          firmantes: nuevo.cierre.firmantes.map((f) => ({
+            ...f,
+            firmaImagen: firmaGuardadaDe(guardadoCierre, f.nombre),
+          })),
+          firmaImagen: guardadoCierre?.firmaImagen ?? null,
+        }
+      : nuevo.cierre,
   };
+}
+
+/** La rúbrica que tenía guardada quien se llama así, o null. */
+function firmaGuardadaDe(cierre: Cierre | null | undefined, nombre: string): number | null {
+  if (!cierre) return null;
+  const buscado = nombre.trim().toLocaleLowerCase("es-CL");
+  if (buscado === "") return null;
+  const posicion = cierre.firmantes.findIndex((f) => f.nombre.trim().toLocaleLowerCase("es-CL") === buscado);
+  return posicion === -1 ? null : firmaDe(cierre, posicion);
 }

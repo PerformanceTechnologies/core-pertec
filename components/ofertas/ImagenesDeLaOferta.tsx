@@ -1,4 +1,10 @@
-import { NOMBRE_DE_SECCION, SECCIONES_CON_IMAGENES, type SeccionConImagenes } from "@/lib/ofertas/tipos";
+import {
+  NOMBRE_DE_SECCION,
+  SECCIONES_CON_IMAGENES,
+  firmaDe,
+  type Cierre,
+  type SeccionConImagenes,
+} from "@/lib/ofertas/tipos";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
 import SubirImagenes from "@/components/ofertas/SubirImagenes";
 import QuitarImagen from "@/components/ofertas/QuitarImagen";
@@ -33,7 +39,7 @@ export default function ImagenesDeLaOferta({
   imagenes,
   urls,
   porSeccion,
-  firma,
+  cierre,
   editable,
   accion,
 }: {
@@ -42,7 +48,8 @@ export default function ImagenesDeLaOferta({
   /** Índice → URL firmada, corta, para la miniatura. */
   urls: Record<number, string>;
   porSeccion: Partial<Record<SeccionConImagenes, number[]>>;
-  firma: number | null;
+  /** De acá salen los firmantes: una rúbrica es de alguien, no del documento. */
+  cierre: Cierre | null;
   editable: boolean;
   accion: (formData: FormData) => Promise<void>;
 }) {
@@ -50,11 +57,21 @@ export default function ImagenesDeLaOferta({
   // una oferta emitida, en cambio, no hay nada que hacer con él.
   if (imagenes.length === 0 && !editable) return null;
 
-  /** En qué sección está una imagen hoy, o "" si no se usa. */
-  const seccionDe = (indice: number): string =>
-    SECCIONES_CON_IMAGENES.find((seccion) => (porSeccion[seccion] ?? []).includes(indice)) ?? "";
+  // Los firmantes, con la posición que el formulario va a mandar de vuelta. Uno sin
+  // nombre igual aparece: existe en el documento y su rúbrica tiene dónde ir.
+  const firmantes = (cierre?.firmantes ?? []).map((f, i) => ({
+    valor: `firma-${i}`,
+    nombre: f.nombre.trim() || `Firmante ${i + 1}`,
+    imagen: cierre ? firmaDe(cierre, i) : null,
+  }));
 
-  const enUso = imagenes.filter((imagen) => seccionDe(imagen.indice) !== "").length;
+  /** Qué es hoy una imagen: su sección, la rúbrica de alguien, o nada. */
+  const destinoDe = (indice: number): string =>
+    SECCIONES_CON_IMAGENES.find((seccion) => (porSeccion[seccion] ?? []).includes(indice)) ??
+    firmantes.find((f) => f.imagen === indice)?.valor ??
+    "";
+
+  const enUso = imagenes.filter((imagen) => destinoDe(imagen.indice) !== "").length;
   const agregadas = imagenes.filter((imagen) => imagen.origen === "subida").length;
   const delBorrador = imagenes.length - agregadas;
 
@@ -88,12 +105,12 @@ export default function ImagenesDeLaOferta({
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {imagenes.map((imagen) => {
             const url = urls[imagen.indice];
-            const seccion = seccionDe(imagen.indice);
+            const destino = destinoDe(imagen.indice);
             return (
               <div
                 key={imagen.indice}
                 className={`rounded-lg border p-2 transition ${
-                  seccion ? "border-naranjo/60 bg-superficie" : "border-borde bg-superficie/50"
+                  destino ? "border-naranjo/60 bg-superficie" : "border-borde bg-superficie/50"
                 }`}
               >
                 <div className="flex h-24 items-center justify-center overflow-hidden rounded bg-white">
@@ -109,7 +126,7 @@ export default function ImagenesDeLaOferta({
 
                 <select
                   name={`seccion-${imagen.indice}`}
-                  defaultValue={seccion}
+                  defaultValue={destino}
                   disabled={!editable}
                   className="mt-2 h-[30px] w-full rounded-lg border border-borde bg-superficie px-2 text-[11px] text-tinta outline-none focus:border-naranjo/50 disabled:opacity-60"
                 >
@@ -119,28 +136,27 @@ export default function ImagenesDeLaOferta({
                       {NOMBRE_DE_SECCION[clave]}
                     </option>
                   ))}
+                  {/* Las rúbricas van en el MISMO desplegable y no en un control
+                      aparte: es la misma pregunta —dónde va esta imagen— y con dos
+                      controles se podían contestar las dos a la vez. */}
+                  {firmantes.length > 0 && (
+                    <optgroup label="Rúbrica de">
+                      {firmantes.map((f) => (
+                        <option key={f.valor} value={f.valor}>
+                          {f.nombre}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
 
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <span className="text-[10px] tabular-nums text-tinta/40">
                     {imagen.ancho}×{imagen.alto} · nº {imagen.indice}
                   </span>
-                  <div className="flex items-center gap-2.5">
-                    {imagen.origen === "subida" && editable && (
-                      <QuitarImagen ofertaId={ofertaId} indice={imagen.indice} />
-                    )}
-                    <label className="flex cursor-pointer items-center gap-1">
-                      <input
-                        type="radio"
-                        name="firma"
-                        value={imagen.indice}
-                        defaultChecked={firma === imagen.indice}
-                        disabled={!editable}
-                        className="h-3 w-3 accent-teal"
-                      />
-                      <span className="text-[10px] text-tinta/45">Firma</span>
-                    </label>
-                  </div>
+                  {imagen.origen === "subida" && editable && (
+                    <QuitarImagen ofertaId={ofertaId} indice={imagen.indice} />
+                  )}
                 </div>
               </div>
             );
@@ -149,24 +165,12 @@ export default function ImagenesDeLaOferta({
         </div>
 
         {editable && (
-          <div className="mt-3 flex flex-wrap items-center gap-4">
-            <button
-              type="submit"
-              className="rounded-lg border border-borde px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
-            >
-              Aplicar al documento
-            </button>
-            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-tinta/45">
-              <input
-                type="radio"
-                name="firma"
-                value="0"
-                defaultChecked={firma === null}
-                className="h-3 w-3"
-              />
-              Ninguna es la firma
-            </label>
-          </div>
+          <button
+            type="submit"
+            className="mt-3 rounded-lg border border-borde px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+          >
+            Aplicar al documento
+          </button>
         )}
       </form>
     </Plegable>

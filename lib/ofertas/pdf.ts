@@ -4,7 +4,7 @@ import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import type { Empresa } from "@/lib/cotizador/empresas";
 import { ofertaAHtml, plantillasDeImpresion } from "./plantilla";
 import { calcularTotales } from "./verificar";
-import type { OfertaCanonica } from "./tipos";
+import { firmaDe, type OfertaCanonica } from "./tipos";
 import { estiloParaOferta } from "./maestros";
 import { logosParaDocumento } from "./logos-archivo";
 import { imagenesParaDocumento, type ImagenGuardada } from "./imagenes";
@@ -106,7 +106,12 @@ export async function ofertaAHtmlConEmpresa(
  * tres que no se usan es peso al PDF por nada.
  */
 function imagenesQueUsa(oferta: OfertaCanonica): number[] {
-  const firma = oferta.cierre?.firmaImagen;
+  const cierre = oferta.cierre;
+  // Una por firmante, no una sola: si el segundo firma con su propia rúbrica y acá
+  // no se pide, el documento sale con el hueco vacío y nadie sabe por qué.
+  const firmas = cierre
+    ? cierre.firmantes.map((_, i) => firmaDe(cierre, i)).filter((n): n is number => n != null)
+    : [];
   const enSecciones = Object.values(oferta.imagenesPorSeccion ?? {}).flat();
-  return [...enSecciones, ...(firma ? [firma] : [])];
+  return [...enSecciones, ...firmas];
 }

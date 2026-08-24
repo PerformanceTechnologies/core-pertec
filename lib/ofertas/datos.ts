@@ -300,35 +300,37 @@ export async function guardarLogoCliente(
  *
  * La elección del modelo es una PROPUESTA, no la última palabra: mira medidas y
  * contexto, y con eso se equivoca. Acá la persona ve las miniaturas, elige la
- * sección de cada una y la firma, que es el mismo reparto que gobierna el resto
- * del módulo.
+ * sección de cada una y de quién es cada rúbrica, que es el mismo reparto que
+ * gobierna el resto del módulo.
  *
- * Se escribe sobre el contenido y se vuelven a correr los controles, como
- * cualquier corrección. Si la sección de cierre no existía y se elige una firma, se
- * crea con lo mínimo: elegir una firma es decir que el cierre aplica.
+ * Las firmas vienen por posición del firmante —`firmas.get(0)` es la del primero—
+ * porque es lo que la pantalla acaba de mostrar, y se escriben ADENTRO de cada
+ * firmante para que después la rúbrica siga a la persona si alguien reordena la
+ * lista. La del borrador queda en null: existía como "la firma" de una época en la
+ * que había una sola, y con las elegidas escritas ya no tiene a quién representar.
+ *
+ * Se escribe sobre el contenido y se vuelven a correr los controles, como cualquier
+ * corrección.
  */
 export async function guardarImagenesElegidas(
   id: string,
   porSeccion: Partial<Record<SeccionConImagenes, number[]>>,
-  firma: number | null,
+  firmas: Map<number, number>,
 ): Promise<void> {
   const oferta = await obtenerOferta(id);
   if (!oferta) return;
+  const cierre = oferta.contenido.cierre;
 
   const contenido: OfertaCanonica = {
     ...oferta.contenido,
     imagenesPorSeccion: porSeccion,
-    cierre:
-      firma !== null
-        ? {
-            texto: oferta.contenido.cierre?.texto ?? null,
-            firmantes: oferta.contenido.cierre?.firmantes ?? [],
-            cc: oferta.contenido.cierre?.cc ?? null,
-            firmaImagen: firma,
-          }
-        : oferta.contenido.cierre
-          ? { ...oferta.contenido.cierre, firmaImagen: null }
-          : null,
+    cierre: cierre
+      ? {
+          ...cierre,
+          firmantes: cierre.firmantes.map((f, i) => ({ ...f, firmaImagen: firmas.get(i) ?? null })),
+          firmaImagen: null,
+        }
+      : cierre,
   };
 
   await guardarContenido(id, contenido, oferta.archivoOrigen);

@@ -124,10 +124,29 @@ export interface Aportes {
   cliente: string[];
 }
 
+/** Quien firma la oferta. */
+export interface Firmante {
+  nombre: string;
+  cargo: string;
+  empresa: string | null;
+  /**
+   * Su rúbrica escaneada, por número de imagen.
+   *
+   * Va en el firmante y no en el cierre porque una propuesta puede ir firmada por
+   * dos personas —el gerente y el jefe de operaciones— y cada una firma con la
+   * suya. Guardarla acá adentro además hace que la rúbrica siga a la persona
+   * cuando se reordenan los firmantes, en vez de quedarse pegada a una posición.
+   *
+   * Ausente (`undefined`) significa "nunca se eligió" y cae a la firma del
+   * borrador; `null` significa "esta persona no firma con imagen".
+   */
+  firmaImagen?: number | null;
+}
+
 /** 10 · CIERRE Y FIRMA */
 export interface Cierre {
   texto: string | null;
-  firmantes: { nombre: string; cargo: string; empresa: string | null }[];
+  firmantes: Firmante[];
   /** "CC: Gcia. Gral. / Archivo." */
   cc: string | null;
   /**
@@ -136,8 +155,28 @@ export interface Cierre {
    * Es un ÍNDICE y no una ruta a propósito: el modelo dice cuál de las imágenes
    * del borrador es la firma —lo sabe por el contexto donde estaba— y el servidor
    * sabe dónde la guardó. Ver lib/ofertas/imagenes.ts.
+   *
+   * El modelo informa UNA sola: un borrador trae una firma escaneada, no una por
+   * persona. Desde que cada firmante puede tener la suya, esto es lo que leyó el
+   * modelo y vale como la del primero mientras nadie elija otra cosa (ver
+   * `firmaDe`); en cuanto alguien elige en pantalla, manda lo elegido.
    */
   firmaImagen: number | null;
+}
+
+/**
+ * La rúbrica que le toca a un firmante, o null.
+ *
+ * Existe para que la plantilla, el PDF y la pantalla contesten lo mismo. La
+ * distinción entre "no está" y "es null" es la que sostiene la compatibilidad: una
+ * oferta guardada antes de que hubiera una firma por persona no tiene el campo, y
+ * ahí la del borrador es la del primer firmante. Una vez que alguien elige, el
+ * campo existe —aunque sea en null— y esa elección manda.
+ */
+export function firmaDe(cierre: Cierre, indice: number): number | null {
+  const propia = cierre.firmantes[indice]?.firmaImagen;
+  if (propia !== undefined) return propia;
+  return indice === 0 ? cierre.firmaImagen : null;
 }
 
 /** A · ANEXO */
