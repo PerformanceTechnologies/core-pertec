@@ -7,7 +7,12 @@ import ListaBodegasClickeable from "./ListaBodegasClickeable";
 import TarjetaBase from "./TarjetaBase";
 
 /**
- * Bodega: el inventario de Odoo, por bodega.
+ * Inventario: el stock de Odoo, por bodega.
+ *
+ * El rótulo es "Inventario" —el módulo de Odoo— y lo que se lista adentro son
+ * bodegas, que es lo que hay dentro de ese módulo. No son sinónimos: un inventario
+ * está repartido en varias bodegas, y la pregunta que contesta esta tarjeta es
+ * justamente cómo está repartido.
  *
  * Es el único módulo cuyo registro no es un documento con una fecha sino un lugar,
  * así que la tarjeta no muestra "los últimos cinco" sino TODAS las bodegas: son
@@ -43,7 +48,7 @@ export default async function TarjetaBodega({
 
   return (
     <TarjetaBase
-      titulo="Bodega"
+      titulo="Inventario"
       acento="grisSuave"
       icono="building"
       ejecucion={ejecucion}

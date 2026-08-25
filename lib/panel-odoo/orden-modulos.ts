@@ -11,7 +11,10 @@ export const NOMBRES_MODULO: Record<ModuloVisiblePanelOdoo, string> = {
   proyectos: "Proyectos",
   ventas: "Ventas y Arriendo",
   compras: "Compras",
-  bodega: "Bodega",
+  // La clave es "bodega" y el rótulo "Inventario", y no es un descuido: en Odoo,
+  // Inventario es el módulo y una bodega es un lugar adentro. La tarjeta muestra el
+  // módulo, y lo que lista adentro son bodegas.
+  bodega: "Inventario",
 };
 
 // Orden global (no por usuario) -- lo configura un admin y aplica igual
