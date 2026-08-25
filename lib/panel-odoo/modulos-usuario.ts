@@ -10,6 +10,7 @@ export const MODULOS_PANEL_ODOO = [
   "proyectos",
   "ventas",
   "compras",
+  "bodega",
 ] as const;
 export type ModuloVisiblePanelOdoo = (typeof MODULOS_PANEL_ODOO)[number];
 

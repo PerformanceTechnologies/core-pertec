@@ -11,6 +11,7 @@ export const NOMBRES_MODULO: Record<ModuloVisiblePanelOdoo, string> = {
   proyectos: "Proyectos",
   ventas: "Ventas y Arriendo",
   compras: "Compras",
+  bodega: "Bodega",
 };
 
 // Orden global (no por usuario) -- lo configura un admin y aplica igual

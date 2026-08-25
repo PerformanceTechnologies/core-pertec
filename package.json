@@ -12,7 +12,8 @@
     "probar-nombre": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-nombre-cotizacion.mts",
     "probar-extraccion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-extraccion.mts",
     "probar-ofertas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ofertas.mts",
-    "probar-edicion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-edicion.mts"
+    "probar-edicion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-edicion.mts",
+    "probar-bodega": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bodega.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

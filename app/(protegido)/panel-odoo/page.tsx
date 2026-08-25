@@ -14,6 +14,7 @@ import TarjetaFlota from "@/components/panel-odoo/TarjetaFlota";
 import TarjetaProyectos from "@/components/panel-odoo/TarjetaProyectos";
 import TarjetaVentas from "@/components/panel-odoo/TarjetaVentas";
 import TarjetaCompras from "@/components/panel-odoo/TarjetaCompras";
+import TarjetaBodega from "@/components/panel-odoo/TarjetaBodega";
 import type { ModuloVisiblePanelOdoo } from "@/lib/panel-odoo/modulos-usuario";
 import type { ReactNode } from "react";
 
@@ -61,6 +62,7 @@ export default async function PanelOdooPage({
     compras: <TarjetaCompras key="compras" companyId={companyId} ejecucion={ejecuciones.compras} />,
     flota: <TarjetaFlota key="flota" companyId={companyId} ejecucion={ejecuciones.flota} />,
     proyectos: <TarjetaProyectos key="proyectos" ejecucion={ejecuciones.proyectos} />,
+    bodega: <TarjetaBodega key="bodega" companyId={companyId} ejecucion={ejecuciones.bodega} />,
   };
   const modulosARenderizar = ordenModulos.filter((m) => modulosVisibles.includes(m));
 

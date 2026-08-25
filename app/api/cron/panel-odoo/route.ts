@@ -7,6 +7,7 @@ import { sincronizarFlota } from "@/lib/panel-odoo/sincronizar-flota";
 import { sincronizarProyectos } from "@/lib/panel-odoo/sincronizar-proyectos";
 import { sincronizarVentas } from "@/lib/panel-odoo/sincronizar-ventas";
 import { sincronizarCompras } from "@/lib/panel-odoo/sincronizar-compras";
+import { sincronizarBodega } from "@/lib/panel-odoo/sincronizar-bodega";
 import { registrarEjecucionOdoo, fallaronLasUltimasDos, type ModuloOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
 import { enviarCorreoSoporte } from "@/lib/notificaciones";
 
@@ -32,6 +33,7 @@ const SINCRONIZADORES: Record<ModuloOdoo, () => Promise<number>> = {
   proyectos: sincronizarProyectos,
   ventas: sincronizarVentas,
   compras: sincronizarCompras,
+  bodega: sincronizarBodega,
 };
 
 // Ramifica por ?modulo=, mismo patron que app/api/cron/finanzas-historico
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Parametro ?modulo= invalido. Usa facturas | contabilidad | crm | gastos | flota | proyectos | ventas | compras.",
+          "Parametro ?modulo= invalido. Usa facturas | contabilidad | crm | gastos | flota | proyectos | ventas | compras | bodega.",
       },
       { status: 400 }
     );

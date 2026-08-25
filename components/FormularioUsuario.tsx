@@ -12,6 +12,7 @@ const ETIQUETAS_MODULO_ODOO: Record<string, string> = {
   compras: "Compras",
   flota: "Flota",
   proyectos: "Proyectos",
+  bodega: "Bodega",
 };
 
 export default function FormularioUsuario({

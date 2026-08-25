@@ -12,7 +12,8 @@ type TablaConOdooId =
   | "panel_odoo_flota"
   | "panel_odoo_flota_documentos"
   | "panel_odoo_proyectos"
-  | "panel_odoo_tareas";
+  | "panel_odoo_tareas"
+  | "panel_odoo_bodegas";
 
 /**
  * Borra de la caché lo que Odoo ya no devuelve.

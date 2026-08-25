@@ -788,3 +788,89 @@ export async function listarComprasRecientes(companyId: number, limite = 5): Pro
     .limit(limite);
   return (data ?? []) as FilaCompra[];
 }
+
+// ── Bodega ───────────────────────────────────────────────────────────────────
+//
+// El registro que se lista acá es un LUGAR, no un documento: una bodega con sus
+// totales, y adentro el detalle de qué hay. Por eso hay dos consultas, y por eso
+// el detalle se pide por bodega y no todo junto — una bodega con mil productos no
+// tiene por qué viajar entera para dibujar una tarjeta.
+
+export interface FilaBodega {
+  odoo_id: number;
+  nombre: string;
+  codigo: string | null;
+  productos_distintos: number;
+  unidades: number;
+  unidades_reservadas: number;
+  valor_inventario: number;
+  transferencias_pendientes: number;
+  transferencias_atrasadas: number;
+}
+
+export interface FilaStockBodega {
+  producto_odoo_id: number;
+  producto_nombre: string;
+  codigo: string | null;
+  categoria: string | null;
+  unidad: string | null;
+  cantidad: number;
+  reservada: number;
+  costo_unitario: number;
+  valor: number;
+}
+
+export interface KpisBodega {
+  valorTotal: number;
+  unidadesTotal: number;
+  productosDistintos: number;
+  transferenciasPendientes: number;
+  transferenciasAtrasadas: number;
+  /** Para el gráfico de ranking: cuánto vale cada bodega, que es la comparación que importa acá. */
+  porBodega: { nombre: string; valor: number }[];
+}
+
+export async function listarBodegas(companyId: number): Promise<FilaBodega[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_bodegas")
+    .select(
+      "odoo_id, nombre, codigo, productos_distintos, unidades, unidades_reservadas, valor_inventario, transferencias_pendientes, transferencias_atrasadas",
+    )
+    .eq("company_id", companyId)
+    .order("valor_inventario", { ascending: false });
+  return (data ?? []) as FilaBodega[];
+}
+
+export async function obtenerKpisBodega(companyId: number): Promise<KpisBodega> {
+  const bodegas = await listarBodegas(companyId);
+
+  return {
+    valorTotal: bodegas.reduce((suma, b) => suma + b.valor_inventario, 0),
+    unidadesTotal: bodegas.reduce((suma, b) => suma + b.unidades, 0),
+    // Sumar los distintos de cada bodega cuenta dos veces un producto que está en
+    // dos: es "productos por bodega", y como tal se rotula en la tarjeta.
+    productosDistintos: bodegas.reduce((suma, b) => suma + b.productos_distintos, 0),
+    transferenciasPendientes: bodegas.reduce((suma, b) => suma + b.transferencias_pendientes, 0),
+    transferenciasAtrasadas: bodegas.reduce((suma, b) => suma + b.transferencias_atrasadas, 0),
+    // Un ranking y no una serie de tiempo: acá no hay meses, hay lugares, y la
+    // pregunta es cuál concentra el inventario.
+    porBodega: bodegas.map((b) => ({ nombre: b.nombre, valor: b.valor_inventario })),
+  };
+}
+
+/**
+ * El detalle de una bodega: qué hay adentro, lo más valioso primero.
+ *
+ * Con tope, porque esto va a un modal y no a un reporte: la bodega completa se ve
+ * en Odoo. El tope se dice en pantalla para que nadie lea 50 filas como si fueran
+ * todas.
+ */
+export async function listarStockDeBodega(bodegaId: number, limite = 50): Promise<FilaStockBodega[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_bodega_stock")
+    .select("producto_odoo_id, producto_nombre, codigo, categoria, unidad, cantidad, reservada, costo_unitario, valor")
+    .eq("bodega_odoo_id", bodegaId)
+    .order("valor", { ascending: false })
+    .limit(limite);
+  return (data ?? []) as FilaStockBodega[];
+}

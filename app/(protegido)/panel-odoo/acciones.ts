@@ -13,6 +13,7 @@ import { sincronizarFlota } from "@/lib/panel-odoo/sincronizar-flota";
 import { sincronizarProyectos } from "@/lib/panel-odoo/sincronizar-proyectos";
 import { sincronizarVentas } from "@/lib/panel-odoo/sincronizar-ventas";
 import { sincronizarCompras } from "@/lib/panel-odoo/sincronizar-compras";
+import { sincronizarBodega } from "@/lib/panel-odoo/sincronizar-bodega";
 import { registrarEjecucionOdoo, type ModuloOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
 
 const SINCRONIZADORES: Record<ModuloOdoo, () => Promise<number>> = {
@@ -24,6 +25,7 @@ const SINCRONIZADORES: Record<ModuloOdoo, () => Promise<number>> = {
   proyectos: sincronizarProyectos,
   ventas: sincronizarVentas,
   compras: sincronizarCompras,
+  bodega: sincronizarBodega,
 };
 
 export interface ResultadoSincronizacionManual {
