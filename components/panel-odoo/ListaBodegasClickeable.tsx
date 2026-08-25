@@ -22,6 +22,10 @@ export default function ListaBodegasClickeable({
   tope: number;
 }) {
   const [seleccionada, setSeleccionada] = useState<FilaBodega | null>(null);
+  // Sin costos cargados en Odoo, la columna de plata es una fila de "$0": se muestran
+  // las unidades, que es lo que de verdad diferencia una bodega de otra.
+  const hayValor = bodegas.some((b) => b.valor_inventario > 0);
+  const cantidad = (valor: number) => valor.toLocaleString("es-CL", { maximumFractionDigits: 0 });
 
   if (bodegas.length === 0) {
     return <p className="mt-3 text-xs text-tinta/40">Sin bodegas registradas todavía.</p>;
@@ -52,7 +56,9 @@ export default function ListaBodegasClickeable({
               </span>
             )}
             <span className="ml-3 shrink-0 text-tinta/45">{b.productos_distintos} prod.</span>
-            <span className="ml-3 shrink-0 font-semibold text-tinta">{money(b.valor_inventario)}</span>
+            <span className="ml-3 shrink-0 font-semibold text-tinta">
+              {hayValor ? money(b.valor_inventario) : `${cantidad(b.unidades)} u.`}
+            </span>
           </button>
         ))}
       </div>

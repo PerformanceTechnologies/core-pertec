@@ -826,8 +826,18 @@ export interface KpisBodega {
   productosDistintos: number;
   transferenciasPendientes: number;
   transferenciasAtrasadas: number;
-  /** Para el gráfico de ranking: cuánto vale cada bodega, que es la comparación que importa acá. */
-  porBodega: { nombre: string; valor: number }[];
+  /**
+   * Si Odoo tiene costos cargados en estos productos.
+   *
+   * En esta instancia no los tiene: los 894 productos con stock valen 0 a costo
+   * estándar. Un panel que titula "$0" se lee como un panel roto, así que la
+   * tarjeta pregunta esto y muestra lo que sí tiene datos. Cuando alguien cargue
+   * los costos en Odoo, el valorizado aparece solo.
+   */
+  hayValorizacion: boolean;
+  /** Ranking por valor y por unidades: se dibuja el que tenga datos. */
+  porBodegaValor: { nombre: string; valor: number }[];
+  porBodegaUnidades: { nombre: string; valor: number }[];
 }
 
 export async function listarBodegas(companyId: number): Promise<FilaBodega[]> {
@@ -837,24 +847,31 @@ export async function listarBodegas(companyId: number): Promise<FilaBodega[]> {
       "odoo_id, nombre, codigo, productos_distintos, unidades, unidades_reservadas, valor_inventario, transferencias_pendientes, transferencias_atrasadas",
     )
     .eq("company_id", companyId)
-    .order("valor_inventario", { ascending: false });
+    // Por unidades como segundo criterio, no por adorno: sin costos cargados TODAS
+    // valen 0 y el orden quedaría al azar, distinto en cada carga de la página.
+    .order("valor_inventario", { ascending: false })
+    .order("unidades", { ascending: false });
   return (data ?? []) as FilaBodega[];
 }
 
 export async function obtenerKpisBodega(companyId: number): Promise<KpisBodega> {
   const bodegas = await listarBodegas(companyId);
 
+  const valorTotal = bodegas.reduce((suma, b) => suma + b.valor_inventario, 0);
+
   return {
-    valorTotal: bodegas.reduce((suma, b) => suma + b.valor_inventario, 0),
+    valorTotal,
     unidadesTotal: bodegas.reduce((suma, b) => suma + b.unidades, 0),
     // Sumar los distintos de cada bodega cuenta dos veces un producto que está en
     // dos: es "productos por bodega", y como tal se rotula en la tarjeta.
     productosDistintos: bodegas.reduce((suma, b) => suma + b.productos_distintos, 0),
     transferenciasPendientes: bodegas.reduce((suma, b) => suma + b.transferencias_pendientes, 0),
     transferenciasAtrasadas: bodegas.reduce((suma, b) => suma + b.transferencias_atrasadas, 0),
+    hayValorizacion: valorTotal > 0,
     // Un ranking y no una serie de tiempo: acá no hay meses, hay lugares, y la
     // pregunta es cuál concentra el inventario.
-    porBodega: bodegas.map((b) => ({ nombre: b.nombre, valor: b.valor_inventario })),
+    porBodegaValor: bodegas.map((b) => ({ nombre: b.nombre, valor: b.valor_inventario })),
+    porBodegaUnidades: bodegas.map((b) => ({ nombre: b.nombre, valor: b.unidades })),
   };
 }
 
@@ -868,9 +885,13 @@ export async function obtenerKpisBodega(companyId: number): Promise<KpisBodega> 
 export async function listarStockDeBodega(bodegaId: number, limite = 50): Promise<FilaStockBodega[]> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_bodega_stock")
-    .select("producto_odoo_id, producto_nombre, codigo, categoria, unidad, cantidad, reservada, costo_unitario, valor")
+    .select(
+      "producto_odoo_id, producto_nombre, codigo, categoria, unidad, cantidad, reservada, costo_unitario, valor",
+    )
     .eq("bodega_odoo_id", bodegaId)
+    // Ídem: con todos los valores en 0, la cantidad es lo que ordena de verdad.
     .order("valor", { ascending: false })
+    .order("cantidad", { ascending: false })
     .limit(limite);
   return (data ?? []) as FilaStockBodega[];
 }

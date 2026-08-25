@@ -1,6 +1,20 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+/**
+ * Los modulos del panel.
+ *
+ * OJO al agregar uno: este nombre tambien es un DATO, y tres tablas lo validan
+ * contra una copia de esta misma lista —panel_odoo_sync_ejecuciones,
+ * panel_odoo_modulos_orden y usuario_odoo_modulos, cada una con un CHECK—, asi que
+ * hace falta una migracion que las amplie.
+ *
+ * Sin eso el modulo falla de la peor forma posible: el sync lee Odoo y escribe su
+ * cache, pero al registrar la ejecucion viola el CHECK y la ruta devuelve 500. La
+ * tarjeta queda sin "hace X min" y sin mensaje de error, el workflow de GitHub marca
+ * el job en rojo, y lo unico que se ve en pantalla es una tarjeta que parece vacia
+ * cuando en realidad los datos estaban. Paso con "bodega".
+ */
 export const MODULOS_PANEL_ODOO = [
   "facturas",
   "contabilidad",
