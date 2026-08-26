@@ -9,6 +9,7 @@ import { money } from "@/lib/cotizador/formato";
 import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
 import RuedaCarga from "@/components/RuedaCarga";
 import DocumentoEditable from "@/components/ofertas/DocumentoEditable";
+import CajonDeFotos from "@/components/ofertas/CajonDeFotos";
 
 /**
  * Paso 2: revisar y corregir antes de emitir.
@@ -185,17 +186,7 @@ export default function EditorOferta({
         </div>
 
         {vista === "documento" ? (
-          <DocumentoEditable
-            id={id}
-            oferta={oferta}
-            editable={!emitida}
-            onCambio={cambiar}
-            imagenes={imagenes}
-            urls={urlsImagenes}
-            // De lo GUARDADO y no del estado de esta pantalla: la ubicación de una
-            // foto se guarda sola al soltarla, y no viaja en "Guardar cambios".
-            porSeccion={inicial.imagenesPorSeccion ?? {}}
-          />
+          <DocumentoEditable id={id} oferta={oferta} editable={!emitida} onCambio={cambiar} />
         ) : (
           <>
             {/* ── Identificación ─────────────────────────────────────────── */}
@@ -854,6 +845,18 @@ export default function EditorOferta({
 
       {/* ── Columna derecha: controles y acciones ────────────────────── */}
       <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
+        {/* Las fotos, arriba de todo y solo con el documento a la vista: es al lado
+            del papel donde sirven, porque se arrastran hasta él. En el formulario no
+            aparecen — ahí las fotos se ubican con el desplegable del panel. */}
+        {vista === "documento" && !emitida && (
+          <CajonDeFotos
+            imagenes={imagenes}
+            urls={urlsImagenes}
+            // De lo GUARDADO y no del estado de esta pantalla: la ubicación de una
+            // foto se guarda sola al soltarla, y no viaja en "Guardar cambios".
+            porSeccion={inicial.imagenesPorSeccion ?? {}}
+          />
+        )}
         <section className={`${TARJETA} p-4`}>
           <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
             Por revisar

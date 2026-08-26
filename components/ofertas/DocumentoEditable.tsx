@@ -4,9 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 import { asignarEnRuta } from "@/lib/ofertas/rutas";
-import { prepararDocumento, TIPO_ARRASTRE } from "@/lib/ofertas/edicion-dom";
-import { NOMBRE_DE_SECCION, type SeccionConImagenes } from "@/lib/ofertas/tipos";
-import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
+import { prepararDocumento } from "@/lib/ofertas/edicion-dom";
 import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
 import RuedaCarga from "@/components/RuedaCarga";
 
@@ -55,21 +53,12 @@ export default function DocumentoEditable({
   oferta,
   editable,
   onCambio,
-  imagenes,
-  urls,
-  porSeccion,
 }: {
   id: string;
   oferta: OfertaCanonica;
   editable: boolean;
   /** La misma función con la que edita el formulario: hay un solo estado. */
   onCambio: (aplicar: (borrador: OfertaCanonica) => void) => void;
-  /** El inventario de la oferta, para el cajón de fotos. */
-  imagenes: ImagenGuardada[];
-  /** Índice → URL firmada y corta, para la miniatura. */
-  urls: Record<number, string>;
-  /** Dónde está puesta cada una hoy, según lo GUARDADO: la ubicación se guarda sola. */
-  porSeccion: Partial<Record<SeccionConImagenes, number[]>>;
 }) {
   const router = useRouter();
   const marco = useRef<HTMLIFrameElement>(null);
@@ -229,6 +218,9 @@ export default function DocumentoEditable({
           {editable
             ? "Escribí directamente sobre el documento. Los totales, la numeración y el índice los pone el servidor; para agregar o quitar filas, usá el formulario."
             : "La oferta está emitida: el documento es de solo lectura."}
+          {/* El aviso va acá y no junto a las fotos: al soltar una, la vista está en
+              el documento, que es donde se espera ver que algo pasó. */}
+          {moviendo && <span className="ml-2 font-medium text-naranjo">{moviendo}</span>}
         </p>
         <button
           type="button"
@@ -249,62 +241,6 @@ export default function DocumentoEditable({
         <p className="rounded-lg border border-red-600/30 bg-red-600/[0.06] px-3 py-2 text-xs text-red-700">
           {error}
         </p>
-      )}
-
-      {/* ── El cajón de fotos ──────────────────────────────────────────────
-          Al lado del documento y no en otra pantalla: para decidir dónde va una
-          foto hay que ver las dos cosas a la vez. Se arrastra desde acá hasta la
-          sección donde va, que es el gesto que antes eran un desplegable, un botón
-          "Aplicar" y un viaje de ida y vuelta para ver el resultado. */}
-      {editable && imagenes.length > 0 && (
-        <div className="min-w-0 rounded-xl border border-borde bg-crema/40 p-3">
-          <p className="text-[11px] text-pretty text-tinta/50">
-            Arrastrá una foto hasta la sección del documento donde va. También podés soltar archivos del
-            escritorio directamente sobre el documento, y sacarlas con la × de cada foto.
-            {moviendo && <span className="ml-2 font-medium text-naranjo">{moviendo}</span>}
-          </p>
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-            {imagenes.map((imagen) => {
-              const puesta = (Object.keys(porSeccion) as SeccionConImagenes[]).find((clave) =>
-                (porSeccion[clave] ?? []).includes(imagen.indice),
-              );
-              return (
-                <div
-                  key={imagen.indice}
-                  draggable
-                  onDragStart={(evento) => {
-                    evento.dataTransfer.setData(TIPO_ARRASTRE, String(imagen.indice));
-                    evento.dataTransfer.effectAllowed = "move";
-                  }}
-                  title={puesta ? `En ${NOMBRE_DE_SECCION[puesta]}` : "Todavía no está en el documento"}
-                  className={`w-[104px] shrink-0 cursor-grab rounded-lg border bg-superficie p-1.5 transition active:cursor-grabbing ${
-                    puesta ? "border-naranjo/50" : "border-borde hover:border-naranjo/40"
-                  }`}
-                >
-                  <div className="flex h-16 items-center justify-center overflow-hidden rounded bg-white">
-                    {urls[imagen.indice] ? (
-                      // Sin next/image: bucket privado con URL firmada y corta.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={urls[imagen.indice]}
-                        alt=""
-                        draggable={false}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    ) : (
-                      <span className="text-[10px] uppercase tracking-wide text-tinta/30">
-                        nº {imagen.indice}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 truncate text-[10px] text-tinta/45">
-                    {puesta ? NOMBRE_DE_SECCION[puesta] : "Sin ubicar"}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       )}
 
       <div className="overflow-hidden rounded-xl border border-borde bg-white p-4 sm:p-6">
