@@ -8,7 +8,12 @@ import { sincronizarProyectos } from "@/lib/panel-odoo/sincronizar-proyectos";
 import { sincronizarVentas } from "@/lib/panel-odoo/sincronizar-ventas";
 import { sincronizarCompras } from "@/lib/panel-odoo/sincronizar-compras";
 import { sincronizarBodega } from "@/lib/panel-odoo/sincronizar-bodega";
-import { registrarEjecucionOdoo, fallaronLasUltimasDos, type ModuloOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
+import {
+  registrarEjecucionOdoo,
+  fallaronLasUltimasDos,
+  sincronizarConReintento,
+  type ModuloOdoo,
+} from "@/lib/panel-odoo/sync-ejecuciones";
 import { enviarCorreoSoporte } from "@/lib/notificaciones";
 
 export const maxDuration = 60; // limite del plan Hobby de Vercel
@@ -57,7 +62,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const registros = await sincronizar();
+    const registros = await sincronizarConReintento(sincronizar);
     await registrarEjecucionOdoo(modulo, true, registros);
     return NextResponse.json({ ok: true, modulo, registros });
   } catch (error) {

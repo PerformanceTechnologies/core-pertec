@@ -27,6 +27,39 @@ export async function registrarEjecucionOdoo(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Corre un sync y reintenta UNA vez si el error fue de reloj desfasado.
+ *
+ * "JWT issued at future" no lo dice Odoo: lo dice Supabase al recibir un token
+ * cuyo instante de emisión le parece futuro, y eso pasa cuando el reloj del
+ * contenedor donde corre la función va unos segundos adelantado respecto del suyo.
+ * No es un problema de ningún módulo —le pegó a gastos, contabilidad y crm en el
+ * mismo día, cuatro veces sobre 34 corridas— y a los segundos ya no ocurre.
+ *
+ * Sin esto, cada una de esas veces deja un job en rojo, un correo de GitHub y una
+ * tarjeta con el dato de media hora antes. Y lo peor: entrena a no mirar los
+ * correos, que es justo lo que no se quiere cuando un sync falle de verdad.
+ *
+ * Reintentar es seguro porque un sync es idempotente: escribe con upsert sobre la
+ * misma clave, así que correrlo dos veces deja lo mismo que correrlo una. Se
+ * reintenta SOLO ante este error y SOLO una vez: cualquier otra falla —Odoo caído,
+ * un campo que no existe— tiene que seguir saliendo en rojo enseguida.
+ */
+const ERROR_DE_RELOJ = /jwt issued at future/i;
+
+export async function sincronizarConReintento(sincronizar: () => Promise<number>): Promise<number> {
+  try {
+    return await sincronizar();
+  } catch (error) {
+    const mensaje = error instanceof Error ? error.message : String(error);
+    if (!ERROR_DE_RELOJ.test(mensaje)) throw error;
+
+    console.warn("[panel-odoo] reloj desfasado con Supabase, reintentando una vez:", mensaje);
+    await new Promise((listo) => setTimeout(listo, 2000));
+    return await sincronizar();
+  }
+}
+
 // Para el indicador "hace X min" de cada tarjeta: la ultima ejecucion (exitosa
 // o no) de cada modulo.
 export async function obtenerUltimasEjecuciones(): Promise<Record<ModuloOdoo, EjecucionOdoo | null>> {

@@ -14,7 +14,11 @@ import { sincronizarProyectos } from "@/lib/panel-odoo/sincronizar-proyectos";
 import { sincronizarVentas } from "@/lib/panel-odoo/sincronizar-ventas";
 import { sincronizarCompras } from "@/lib/panel-odoo/sincronizar-compras";
 import { sincronizarBodega } from "@/lib/panel-odoo/sincronizar-bodega";
-import { registrarEjecucionOdoo, type ModuloOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
+import {
+  registrarEjecucionOdoo,
+  sincronizarConReintento,
+  type ModuloOdoo,
+} from "@/lib/panel-odoo/sync-ejecuciones";
 
 const SINCRONIZADORES: Record<ModuloOdoo, () => Promise<number>> = {
   facturas: sincronizarFacturas,
@@ -46,7 +50,7 @@ export async function sincronizarAhoraAction(): Promise<ResultadoSincronizacionM
   const resultados = await Promise.all(
     modulos.map(async (modulo): Promise<ResultadoSincronizacionManual> => {
       try {
-        const registros = await SINCRONIZADORES[modulo]();
+        const registros = await sincronizarConReintento(SINCRONIZADORES[modulo]);
         await registrarEjecucionOdoo(modulo, true, registros);
         return { modulo, exito: true, registros };
       } catch (error) {
