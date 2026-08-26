@@ -1,4 +1,4 @@
-import type { OfertaCanonica } from "./tipos";
+import { NOMBRE_DE_SECCION, type OfertaCanonica, type SeccionConImagenes } from "./tipos";
 import { asignarEnRuta, numeroDesdeTexto } from "./rutas";
 import { calcularTotales } from "./verificar";
 import { clp } from "./plantilla";
@@ -36,7 +36,14 @@ const ACENTO = "#c85217";
 export const TIPO_ARRASTRE = "application/x-imagen-oferta";
 
 const ESTILO_DEL_EDITOR = `
-  body { padding: 8mm 10mm; background: #fff; }
+  /* Ni un milímetro de espacio acá adentro.
+     Este estilo se inyecta sobre un documento YA dibujado, así que cualquier cosa
+     que ocupe lugar lo corre. Tenía "body { padding: 8mm 10mm }" para darle aire al
+     editar, y el efecto era que al abrir la pestaña Documento las 264 cajas del
+     documento se movían 10 mm a la derecha y 8 mm abajo, y el texto reflowaba en un
+     ancho menor: dejaba de ser el resultado y pasaba a ser una aproximación movida.
+     El aire ahora lo pone el marco, por fuera del papel (ver DocumentoEditable). */
+  body { background: #fff; }
   [data-campo] { border-radius: 2px; }
   [data-campo]:hover { background: ${ACENTO}14; }
   [data-campo]:focus { background: #fff; outline: 2px solid ${ACENTO}; outline-offset: 1px; }
@@ -52,9 +59,16 @@ const ESTILO_DEL_EDITOR = `
   section[data-seccion].recibiendo {
     outline: 2px dashed ${ACENTO}; outline-offset: 4px; background: ${ACENTO}09;
   }
+  /* El rótulo va FLOTANDO sobre la sección y no como un bloque adentro: como
+     bloque agregaba su alto a la sección justo mientras la foto estaba encima, y
+     todo lo que venía abajo se corría en el peor momento posible. Con position
+     absolute no ocupa lugar, y el "position: relative" de la sección se declara
+     junto para que se ubique respecto de ella. */
+  section[data-seccion] { position: relative; }
   section[data-seccion].recibiendo::after {
-    content: "Soltar acá"; display: block; margin-top: 3mm; text-align: center;
-    font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: ${ACENTO};
+    content: attr(data-soltar); position: absolute; top: 2px; right: 2px;
+    padding: 1px 6px; border-radius: 999px; background: ${ACENTO}; color: #fff;
+    font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
   }
 
   /* La × para sacar una foto del documento: aparece al pasar por encima. */
@@ -249,7 +263,16 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
   const marcar = (seccion: HTMLElement | null) => {
     if (recibiendo === seccion) return;
     recibiendo?.classList.remove("recibiendo");
-    seccion?.classList.add("recibiendo");
+    if (seccion) {
+      // El rótulo dice EN QUÉ sección va a caer: con el documento desplazado y una
+      // foto flotando bajo el cursor, eso es lo que no se puede leer del recuadro
+      // solo. Va el nombre corto y no el título impreso: "Anexo — respaldos y
+      // experiencia en trabajos similares" hacía una pastilla de media página.
+      const clave = seccion.dataset.seccion as SeccionConImagenes | undefined;
+      const nombre = clave ? NOMBRE_DE_SECCION[clave] : undefined;
+      seccion.dataset.soltar = nombre ? `Soltar en ${nombre}` : "Soltar acá";
+      seccion.classList.add("recibiendo");
+    }
     recibiendo = seccion;
   };
 

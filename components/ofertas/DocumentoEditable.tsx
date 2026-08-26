@@ -307,7 +307,7 @@ export default function DocumentoEditable({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-borde bg-white">
+      <div className="overflow-hidden rounded-xl border border-borde bg-white p-4 sm:p-6">
         {html ? (
           <iframe
             ref={marco}

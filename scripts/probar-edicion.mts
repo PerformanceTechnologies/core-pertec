@@ -25,6 +25,9 @@ interface VentanaDePrueba {
   avisos: { ruta: string; texto: string; tipo?: string }[];
   /** Lo que el módulo reportó al soltar o al sacar una foto. */
   sueltas: { indice?: number; seccion?: string; archivos?: string[]; quitada?: number }[];
+  /** Las cajas de cada elemento del documento, para comparar antes y después. */
+  medidas: { el: Element; caja: { x: number; y: number; w: number; h: number } }[];
+  medir: () => { corridos: string[]; total: number };
   alto: number;
   Edicion: { prepararDocumento: typeof prepararDocumento };
 }
@@ -181,6 +184,37 @@ try {
       if (!doc) return { error: "la página no puede tocar el documento del iframe" };
 
       const ventana = window as unknown as VentanaDePrueba;
+
+      // La maqueta ANTES de que el editor la toque. Se guardan las referencias a los
+      // nodos y no un índice: montar el editor agrega elementos —los botones de
+      // quitar, la hoja de estilos— y con índices se compararían nodos distintos.
+      const caja = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return {
+          x: Math.round(r.x * 100) / 100,
+          y: Math.round(r.y * 100) / 100,
+          w: Math.round(r.width * 100) / 100,
+          h: Math.round(r.height * 100) / 100,
+        };
+      };
+      const comoEsta = () => [...doc.body.querySelectorAll("*")].map((el) => ({ el, caja: caja(el) }));
+      const nombre = (el: Element) =>
+        `${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : ""}`;
+
+      ventana.medidas = comoEsta();
+      ventana.medir = () => {
+        const corridos: string[] = [];
+        for (const { el, caja: antes } of ventana.medidas) {
+          const ahora = caja(el);
+          if (ahora.x !== antes.x || ahora.y !== antes.y || ahora.w !== antes.w || ahora.h !== antes.h) {
+            corridos.push(
+              `${nombre(el)}: ${antes.x},${antes.y} ${antes.w}x${antes.h} -> ${ahora.x},${ahora.y} ${ahora.w}x${ahora.h}`,
+            );
+          }
+        }
+        return { corridos: corridos.slice(0, 8), total: corridos.length };
+      };
+
       ventana.modelo = JSON.parse(datos);
       ventana.avisos = [];
       ventana.sueltas = [];
@@ -198,6 +232,8 @@ try {
 
       const cliente = doc.querySelector<HTMLElement>('[data-campo="identificacion.cliente"]');
       return {
+        // Lo que se movió al montar el editor sobre la maqueta ya dibujada.
+        movidosAlMontar: ventana.medir(),
         campos: doc.querySelectorAll("[data-campo]").length,
         calculadas: doc.querySelectorAll("[data-calculado]").length,
         editable: cliente?.isContentEditable === true,
@@ -211,6 +247,42 @@ try {
   assert.ok(montaje.editable, "los campos tienen que quedar editables");
   assert.ok((montaje.campos ?? 0) > 40 && (montaje.calculadas ?? 0) > 3);
   assert.ok((montaje.alto ?? 0) > 500, "el alto del documento tiene que medirse para la página");
+
+  // ── 0. Montar el editor NO puede mover la maqueta ─────────────────────────
+  //
+  // La prueba que faltaba. Editar sobre el documento sirve porque lo que se ve es
+  // el resultado: si al montar el editor el documento se corre —aunque sea unos
+  // milímetros— deja de ser el resultado y pasa a ser una aproximación, y encima
+  // se nota como un salto al abrir la pestaña.
+  console.log("al montar:", montaje.movidosAlMontar);
+  assert.equal(
+    montaje.movidosAlMontar?.total,
+    0,
+    `montar el editor movió ${montaje.movidosAlMontar?.total} elementos:\n  ${(montaje.movidosAlMontar?.corridos ?? []).join("\n  ")}`,
+  );
+
+  // Y tampoco puede moverla mientras se arrastra una foto por encima: la señal de
+  // "acá se puede soltar" tiene que dibujarse SOBRE el documento, no adentro.
+  const alArrastrar = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const seccion = doc.querySelector<HTMLElement>('section[data-seccion="anexo"]')!;
+    // Igual que lo hace el módulo al arrastrar por encima: el nombre CORTO.
+    seccion.dataset.soltar = "Soltar en Anexo";
+    seccion.classList.add("recibiendo");
+    const medida = ventana.medir();
+    const rotulo = seccion.dataset.soltar;
+    seccion.classList.remove("recibiendo");
+    return { ...medida, rotulo };
+  });
+  console.log("al arrastrar por encima:", alArrastrar);
+  assert.equal(
+    alArrastrar.total,
+    0,
+    `la marca de "soltar acá" movió ${alArrastrar.total} elementos:\n  ${alArrastrar.corridos.join("\n  ")}`,
+  );
+  // Y dice DÓNDE va a caer, con el nombre de la sección tal como está impreso.
+  assert.equal(alArrastrar.rotulo, "Soltar en Anexo", "el rótulo nombra la sección por su nombre corto");
 
   const enfocar = (selector: string) =>
     pagina.evaluate((sel: string) => {
