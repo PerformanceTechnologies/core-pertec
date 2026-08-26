@@ -257,7 +257,7 @@ export default function DocumentoEditable({
           sección donde va, que es el gesto que antes eran un desplegable, un botón
           "Aplicar" y un viaje de ida y vuelta para ver el resultado. */}
       {editable && imagenes.length > 0 && (
-        <div className="rounded-xl border border-borde bg-crema/40 p-3">
+        <div className="min-w-0 rounded-xl border border-borde bg-crema/40 p-3">
           <p className="text-[11px] text-pretty text-tinta/50">
             Arrastrá una foto hasta la sección del documento donde va. También podés soltar archivos del
             escritorio directamente sobre el documento, y sacarlas con la × de cada foto.

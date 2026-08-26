@@ -152,7 +152,13 @@ export default function EditorOferta({
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-      <div className="flex flex-col gap-5">
+      {/* min-w-0: sin esto, una columna 1fr no se achica más allá del ancho mínimo
+          de su contenido, y el cajón de fotos —once miniaturas de 104px en una tira
+          horizontal— la estiraba a 1250px. La rejilla pasaba a medir 1614 y se salía
+          de los 1300 del contenedor: la columna de controles y el borde derecho del
+          documento quedaban fuera de la pantalla, cortados. Es el mismo defecto que
+          el layout del área protegida ya documenta para el Gantt de Proyectos. */}
+      <div className="flex min-w-0 flex-col gap-5">
         {/* El documento primero: es donde se corrige mirando el resultado. El
             formulario queda para lo que cambia la estructura —agregar una fila,
             crear una sección— que en el documento no se puede hacer sin volver a
