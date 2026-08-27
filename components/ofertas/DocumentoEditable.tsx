@@ -213,10 +213,15 @@ export default function DocumentoEditable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Una sola fila: el aviso y el botón compartían el ancho pero el texto era
+          tan largo que envolvía y el botón terminaba solo en su propia línea, con lo
+          que la pantalla sumaba dos filas de chrome antes del papel. Acortado, entran
+          los dos juntos. Lo que se sacó —que la numeración y los totales los pone el
+          servidor— ya lo dice el encabezado de la pantalla. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-[11px] text-pretty text-tinta/50">
           {editable
-            ? "Escribí directamente sobre el documento. Los totales, la numeración y el índice los pone el servidor; para agregar o quitar filas, usá el formulario."
+            ? "Escribí sobre el documento. Para agregar o quitar filas, usá el formulario."
             : "La oferta está emitida: el documento es de solo lectura."}
           {/* El aviso va acá y no junto a las fotos: al soltar una, la vista está en
               el documento, que es donde se espera ver que algo pasó. */}

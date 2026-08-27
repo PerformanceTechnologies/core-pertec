@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { TARJETA } from "@/lib/estilos";
 
 /**
  * Una sección que se pliega y dice su estado cerrada.
@@ -33,11 +32,15 @@ export default function Plegable({
   children: ReactNode;
 }) {
   return (
-    <details open={abierto} className={`${TARJETA} group overflow-hidden`}>
+    // Sin la sombra de las tarjetas del core, y a propósito: esto no es una pieza de
+    // contenido sino un ajuste que casi siempre está cerrado. Con sombra, tres de
+    // estos apilados pesaban igual que el documento y la pantalla se leía como una
+    // pila de cosas sin jerarquía.
+    <details open={abierto} className="group overflow-hidden rounded-xl border border-borde bg-superficie">
       {/* El estado va PEGADO al título y no al otro extremo de la fila: alineado a
           la derecha, en una pantalla ancha queda a diez centímetros del nombre de la
           sección y se lee como un dato suelto de otra cosa. */}
-      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 transition-colors hover:bg-crema/40 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-crema/40 [&::-webkit-details-marker]:hidden">
         <span className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
           <svg
             viewBox="0 0 16 16"

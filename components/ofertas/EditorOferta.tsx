@@ -159,7 +159,7 @@ export default function EditorOferta({
           de los 1300 del contenedor: la columna de controles y el borde derecho del
           documento quedaban fuera de la pantalla, cortados. Es el mismo defecto que
           el layout del área protegida ya documenta para el Gantt de Proyectos. */}
-      <div className="flex min-w-0 flex-col gap-5">
+      <div className="flex min-w-0 flex-col gap-4">
         {/* El documento primero: es donde se corrige mirando el resultado. El
             formulario queda para lo que cambia la estructura —agregar una fila,
             crear una sección— que en el documento no se puede hacer sin volver a
@@ -975,10 +975,8 @@ export default function EditorOferta({
               ))}
             </ul>
           )}
-        </section>
 
-        <section className={`${TARJETA} p-4`}>
-          <dl className="flex flex-col gap-1 text-xs">
+          <dl className="mt-4 flex flex-col gap-1 border-t border-borde pt-3 text-xs">
             <Linea rotulo="Dotación total" valor={String(totales.dotacionTotal)} />
             <Linea
               rotulo="Programa"
