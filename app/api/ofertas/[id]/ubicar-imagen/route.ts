@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { guardarContenido, obtenerOferta, verificarAccesoOfertasApi } from "@/lib/ofertas/datos";
+import { accesoAOfertaApi, guardarContenido } from "@/lib/ofertas/datos";
 import { conLaImagenEn } from "@/lib/ofertas/normalizar";
 import { leerDestino } from "@/lib/ofertas/destino-imagen";
 
@@ -20,12 +20,12 @@ export const maxDuration = 30;
  * por otro camino (ver `conElRepartoDe`).
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoOfertasApi();
-  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   const { id } = await params;
+  // Un solo guard: sesión, acceso a la app y que la oferta sea de quien la pide.
+  const acceso = await accesoAOfertaApi(id);
+  if (!acceso.oferta) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
 
-  const oferta = await obtenerOferta(id);
-  if (!oferta) return NextResponse.json({ error: "La oferta no existe." }, { status: 404 });
+  const oferta = acceso.oferta;
   if (oferta.estado === "emitida") {
     return NextResponse.json({ error: "La oferta ya está emitida." }, { status: 409 });
   }

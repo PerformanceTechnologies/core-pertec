@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verificarAccesoOfertasApi, guardarLogoCliente, obtenerOferta } from "@/lib/ofertas/datos";
+import { accesoAOfertaApi, verificarAccesoOfertasApi, guardarLogoCliente } from "@/lib/ofertas/datos";
 import { guardarLogoEmpresa, obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import { esEmpresaValida } from "@/lib/cotizador/empresas";
 import { esFormatoDeLogo, LIMITE_SUBIDA_LOGO } from "@/lib/ofertas/logo";
@@ -57,8 +57,11 @@ async function resolverDestino(
   }
 
   if (destino === "cliente") {
-    const oferta = await obtenerOferta(clave);
-    if (!oferta) return { error: "La oferta no existe.", estado: 404 };
+    // El logo del cliente es de UNA oferta, así que se pide con el mismo guard que
+    // todo lo que recibe su id: si no es de quien lo pide, para él no existe.
+    const acceso = await accesoAOfertaApi(clave);
+    if (!acceso.oferta) return { error: acceso.error, estado: acceso.status };
+    const oferta = acceso.oferta;
     // Igual que el maestro: una emitida ya salió con un formato y una marca, y
     // cambiárselos dejaría el registro diciendo algo distinto de lo que recibió el
     // cliente.

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { exigirAccesoOfertas, obtenerOfertaOSalir } from "@/lib/ofertas/datos";
+import { exigirOferta } from "@/lib/ofertas/datos";
 import EditorOferta from "@/components/ofertas/EditorOferta";
 import { listarMaestros } from "@/lib/ofertas/maestros";
 import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
@@ -27,9 +27,10 @@ export const dynamic = "force-dynamic";
  * texto de la oferta.
  */
 export default async function OfertaPage({ params }: { params: Promise<{ id: string }> }) {
-  await exigirAccesoOfertas();
   const { id } = await params;
-  const oferta = await obtenerOfertaOSalir(id);
+  // Trae la oferta y verifica que sea de quien la pide: filtrar el listado no
+  // alcanza, porque la URL de una oferta ajena se puede pegar a mano.
+  const { oferta } = await exigirOferta(id);
   const [maestros, empresa] = await Promise.all([listarMaestros(), obtenerEmpresaPorNombre(oferta.empresa)]);
   // Dos logos y dos dueños distintos: el de la casa es de la empresa emisora y
   // sirve para todas sus ofertas, así que se sube una vez en /ofertas/logos; el

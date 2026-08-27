@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verificarAccesoOfertasApi, guardarContenido, obtenerOferta } from "@/lib/ofertas/datos";
+import { accesoAOfertaApi, guardarContenido } from "@/lib/ofertas/datos";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 import { conElRepartoDe } from "@/lib/ofertas/normalizar";
 
@@ -7,12 +7,12 @@ export const runtime = "nodejs";
 
 /** Guarda las correcciones hechas en pantalla y devuelve los controles al día. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoOfertasApi();
-  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   const { id } = await params;
+  // Un solo guard: sesión, acceso a la app y que la oferta sea de quien la pide.
+  const acceso = await accesoAOfertaApi(id);
+  if (!acceso.oferta) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
 
-  const oferta = await obtenerOferta(id);
-  if (!oferta) return NextResponse.json({ error: "La oferta no existe." }, { status: 404 });
+  const oferta = acceso.oferta;
   if (oferta.estado === "emitida") {
     return NextResponse.json(
       { error: "La oferta ya está emitida. Duplicala si necesitás cambiarla." },

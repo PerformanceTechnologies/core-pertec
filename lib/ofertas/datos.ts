@@ -7,6 +7,8 @@ import type { Inconsistencia, OfertaCanonica, SeccionConImagenes } from "./tipos
 import type { Empresa } from "@/lib/cotizador/empresas";
 import { duplicarImagenes, type ImagenGuardada } from "./imagenes";
 import { contenidoDuplicado, sinLaImagen } from "./normalizar";
+import { puedeVerOferta } from "./permisos";
+import type { UsuarioConAcceso } from "@/lib/tipos";
 
 /**
  * Las ofertas guardadas.
@@ -21,7 +23,7 @@ import { contenidoDuplicado, sinLaImagen } from "./normalizar";
 const COLUMNAS = `
   id, nombre, numero_oferta, cliente, faena, empresa, contenido, inconsistencias,
   estado, archivo_origen, maestro_id, logo_cliente_ruta, logo_cliente_nombre,
-  imagenes, emision, creado_en, actualizado_en
+  imagenes, emision, creado_por, creado_en, actualizado_en
 `;
 
 export interface OfertaResumen {
@@ -52,6 +54,8 @@ export interface OfertaResumen {
   imagenes: ImagenGuardada[];
   /** Qué se hizo al emitir, o null si todavía no se emitió. */
   emision: RegistroEmision | null;
+  /** Quién la creó. Null en cargas manuales: ver puedeVerOferta. */
+  creadoPor: string | null;
   actualizadoEn: string;
 }
 
@@ -105,6 +109,7 @@ interface Fila {
   logo_cliente_nombre: string | null;
   imagenes: ImagenGuardada[] | null;
   emision: RegistroEmision | null;
+  creado_por: string | null;
   creado_en: string;
   actualizado_en: string;
 }
@@ -126,6 +131,7 @@ function filaAGuardada(f: Fila): OfertaGuardada {
     logoClienteNombre: f.logo_cliente_nombre,
     imagenes: f.imagenes ?? [],
     emision: f.emision ?? null,
+    creadoPor: f.creado_por ?? null,
     archivoOrigen: f.archivo_origen,
     creadoEn: f.creado_en,
     actualizadoEn: f.actualizado_en,
@@ -152,12 +158,21 @@ export async function verificarAccesoOfertasApi() {
   return verificarAccesoAppApi("ofertas");
 }
 
-export async function listarOfertas(): Promise<OfertaResumen[]> {
-  const { data } = await supabaseAdmin
-    .from("ofertas_documentos")
-    .select(COLUMNAS)
-    .order("actualizado_en", { ascending: false });
+/**
+ * El listado que le corresponde a quien mira: las suyas, o todas si es admin.
+ *
+ * Recibe el usuario y no un booleano ni un id opcional, y por lo mismo que en el
+ * Cotizador: así no existe la forma de llamarla "sin filtro" por descuido, que es el
+ * error que dejaría el portafolio completo a la vista de todos.
+ *
+ * El filtro va en la consulta y no en memoria: traer todo y descartar después
+ * significa mandar por la red ofertas que quien mira no puede ver.
+ */
+export async function listarOfertas(usuario: UsuarioConAcceso): Promise<OfertaResumen[]> {
+  let consulta = supabaseAdmin.from("ofertas_documentos").select(COLUMNAS);
+  if (usuario.rol !== "admin") consulta = consulta.eq("creado_por", usuario.id);
 
+  const { data } = await consulta.order("actualizado_en", { ascending: false });
   return ((data ?? []) as unknown as Fila[]).map(filaAGuardada);
 }
 
@@ -167,11 +182,46 @@ export async function obtenerOferta(id: string): Promise<OfertaGuardada | null> 
   return data ? filaAGuardada(data as unknown as Fila) : null;
 }
 
-/** Como `obtenerOferta`, pero redirige si no existe: para las páginas. */
-export async function obtenerOfertaOSalir(id: string): Promise<OfertaGuardada> {
+/**
+ * El guard de UNA oferta, para páginas y Server Actions: sesión, acceso a la app y
+ * que la oferta sea de quien la pide.
+ *
+ * Filtrar el listado no es control de acceso: sin esto, pegar la URL de la oferta de
+ * otro seguía abriendo el editor con sus precios, y las acciones seguían aceptando el
+ * id de cualquiera. Redirige al listado tanto si no existe como si no le
+ * corresponde: distinguir los dos casos contaría si el id existe.
+ */
+export async function exigirOferta(id: string): Promise<{ usuario: UsuarioConAcceso; oferta: OfertaGuardada }> {
+  const usuario = await exigirAccesoOfertas();
   const oferta = await obtenerOferta(id);
-  if (!oferta) redirect("/ofertas");
-  return oferta;
+  if (!oferta || !puedeVerOferta(oferta, usuario)) redirect("/ofertas");
+  return { usuario, oferta };
+}
+
+/**
+ * Lo mismo para las RUTAS de API, que responden con un status en vez de redirigir.
+ *
+ * Devuelve la oferta ya verificada, y no solo el permiso, a propósito: todas las
+ * rutas de `[id]` necesitaban las dos cosas y las pedían por separado, así que la
+ * comprobación de dueño era una línea más que había que acordarse de escribir en la
+ * próxima ruta. Acá no se puede olvidar: sin oferta no hay nada con qué seguir.
+ *
+ * "No es tuya" contesta 404 y no 403: para quien la pide, no existe.
+ */
+export async function accesoAOfertaApi(
+  id: string,
+): Promise<
+  | { oferta: OfertaGuardada; usuario: UsuarioConAcceso; error?: undefined; status?: undefined }
+  | { oferta?: undefined; usuario?: undefined; error: string; status: number }
+> {
+  const acceso = await verificarAccesoOfertasApi();
+  if (!acceso.usuario) return { error: acceso.error, status: acceso.status };
+
+  const oferta = await obtenerOferta(id);
+  if (!oferta || !puedeVerOferta(oferta, acceso.usuario)) {
+    return { error: "La oferta no existe.", status: 404 };
+  }
+  return { oferta, usuario: acceso.usuario };
 }
 
 /** El nombre del listado: número de oferta y servicio, acotado. */

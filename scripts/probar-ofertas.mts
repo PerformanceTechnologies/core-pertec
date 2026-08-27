@@ -30,6 +30,9 @@ import {
   referenciaDePie,
 } from "../lib/ofertas/plantilla";
 import { esFirma, leerDestino, textoDeFirma } from "../lib/ofertas/destino-imagen";
+import { puedeVerOferta } from "../lib/ofertas/permisos";
+import { FILTROS_VACIOS, filtrarOfertas, hayFiltros, type FiltrosDeOfertas } from "../lib/ofertas/filtros";
+import type { OfertaResumen } from "../lib/ofertas/datos";
 import {
   TITULO_NUEVO,
   TITULO_NUEVO_SECCION,
@@ -1196,6 +1199,139 @@ for (const ruta of queImprimen) {
       'va a desplegar bien y fallar al primer uso con "Cannot find module .../browsers.json"',
   );
 }
+
+// ── Cada uno ve sus ofertas ─────────────────────────────────────────────────
+//
+// Una oferta tiene precios, márgenes y dotación de un cliente concreto. La regla es
+// de una línea y se equivoca en silencio: si falla de más, alguien deja de ver su
+// propio trabajo; si falla de menos, ve el del cliente de otro.
+const ANA = "11111111-1111-1111-1111-111111111111";
+const BETO = "22222222-2222-2222-2222-222222222222";
+const comoUsuario = (id: string, rol: "admin" | "usuario") =>
+  ({ id, correo: `${id}@pertec.cl`, nombre: null, rol, activo: true, apps: [], rolesExtra: {} }) as
+    unknown as Parameters<typeof puedeVerOferta>[1];
+
+assert.equal(puedeVerOferta({ creadoPor: ANA }, comoUsuario(ANA, "usuario")), true);
+assert.equal(puedeVerOferta({ creadoPor: BETO }, comoUsuario(ANA, "usuario")), false);
+assert.equal(puedeVerOferta({ creadoPor: BETO }, comoUsuario(ANA, "admin")), true, "el admin ve todas");
+// Sin dueño la ve solo el admin: mostrársela a todos filtraría datos de un cliente,
+// y esconderla de todos la perdería en silencio. Y un id vacío no puede calzar con
+// un creado_por en null, que filtraría el portafolio entero de una sola vez.
+assert.equal(puedeVerOferta({ creadoPor: null }, comoUsuario(ANA, "usuario")), false);
+assert.equal(puedeVerOferta({ creadoPor: null }, comoUsuario("", "usuario")), false);
+assert.equal(puedeVerOferta({ creadoPor: null }, comoUsuario(ANA, "admin")), true);
+
+// Y la regla aplicada en cada punto por donde se entra a UNA oferta. Es la parte
+// frágil: no la regla, acordarse de usarla en la próxima ruta.
+const rutasDeOferta = readdirSync(new URL("../app/api/ofertas", import.meta.url), {
+  recursive: true,
+  withFileTypes: true,
+})
+  .filter((e) => e.isFile() && e.name === "route.ts")
+  .map((e) => `${e.parentPath}/${e.name}`);
+assert.ok(rutasDeOferta.length >= 7, `se encontraron ${rutasDeOferta.length} rutas de ofertas`);
+
+for (const archivo of rutasDeOferta) {
+  const fuente = readFileSync(archivo, "utf8");
+  // Las que trabajan sobre una oferta que YA existe: las de "[id]" y la de logos,
+  // que recibe la oferta en "clave". Las otras no tienen dueño que verificar:
+  // "analizar" es la que crea la oferta —y ahí anota el dueño— y "maestros" es del
+  // formato, que es de la casa y no de una oferta.
+  const trabajaSobreUna = archivo.includes("/[id]/") || archivo.endsWith("/logos/route.ts");
+  if (!trabajaSobreUna) continue;
+  assert.ok(
+    fuente.includes("accesoAOfertaApi"),
+    `${archivo.slice(archivo.indexOf("/app/api"))} trabaja sobre una oferta por su id: tiene que pasar ` +
+      "por accesoAOfertaApi, que además del acceso a la app verifica de quién es",
+  );
+}
+
+// Lo mismo del lado de las Server Actions.
+for (const accion of [
+  "eliminarOfertaAction",
+  "duplicarOfertaAction",
+  "asignarMaestroAction",
+  "elegirImagenesAction",
+]) {
+  const cuerpo = acciones.slice(acciones.indexOf(`export async function ${accion}`));
+  assert.ok(
+    cuerpo.slice(0, cuerpo.indexOf("\n}")).includes("exigirOferta("),
+    `${accion} recibe el id de una oferta: tiene que pasar por exigirOferta, no solo por exigirAccesoOfertas`,
+  );
+}
+
+// ── Buscar y filtrar el listado ─────────────────────────────────────────────
+const comoOferta = (parte: Partial<OfertaResumen>): OfertaResumen =>
+  ({
+    id: parte.nombre ?? "x",
+    nombre: "OS 010-2026 · TRASLADO DE ROLLOS",
+    numeroOferta: "OS 010-2026",
+    cliente: "AXINNTUS SERVICIOS INDUSTRIALES",
+    faena: "Angamos",
+    empresa: "PERFORMANCE TECHNOLOGIES",
+    estado: "borrador",
+    cantidadInconsistencias: 0,
+    maestroId: null,
+    logoClienteRuta: null,
+    logoClienteNombre: null,
+    imagenes: [],
+    emision: null,
+    creadoPor: ANA,
+    actualizadoEn: "2026-08-20T12:00:00.000Z",
+    ...parte,
+  }) as OfertaResumen;
+
+const listado = [
+  comoOferta({ nombre: "OS 010-2026 · TRASLADO DE ROLLOS", creadoPor: ANA }),
+  comoOferta({
+    nombre: "OS 011-2026 · CAMBIO DE CORREA CT-7",
+    cliente: "CODELCO",
+    faena: "Radomiro",
+    estado: "emitida",
+    cantidadInconsistencias: 3,
+    creadoPor: BETO,
+    actualizadoEn: "2026-08-27T09:00:00.000Z",
+  }),
+  comoOferta({
+    nombre: "OS 012-2026 · EMPALMES",
+    empresa: "PERFORMANCE SERVICES",
+    cantidadInconsistencias: 1,
+    actualizadoEn: "2026-07-01T09:00:00.000Z",
+  }),
+];
+const cuales = (f: Partial<FiltrosDeOfertas>, autores: Record<string, string> = {}) =>
+  filtrarOfertas(listado, { ...FILTROS_VACIOS, ...f }, autores).map((o) => o.numeroOferta ?? o.nombre);
+
+assert.equal(cuales({}).length, 3, "sin filtros pasan todas");
+// El texto busca por lo que uno recuerda de una oferta, no solo por su nombre.
+assert.deepEqual(cuales({ texto: "codelco" }), ["OS 010-2026"], "por cliente");
+assert.deepEqual(cuales({ texto: "radomiro" }), ["OS 010-2026"], "por faena");
+assert.deepEqual(cuales({ texto: "empalmes" }), ["OS 010-2026"], "por el nombre del servicio");
+assert.deepEqual(cuales({ texto: "  CODELCO  " }), ["OS 010-2026"], "sin distinguir mayúsculas ni espacios");
+assert.deepEqual(cuales({ texto: "nada de esto" }), [], "y no inventa coincidencias");
+
+assert.equal(cuales({ estado: "emitida" }).length, 1);
+assert.equal(cuales({ estado: "borrador" }).length, 2);
+assert.equal(cuales({ empresa: "PERFORMANCE SERVICES" }).length, 1);
+assert.equal(cuales({ soloPorRevisar: true }).length, 2, "solo las que tienen algo que mirar");
+
+// Las fechas se comparan como texto "aaaa-mm-dd", que es lo que entrega el input de
+// fecha: así no hay husos horarios en el medio moviendo un día.
+assert.equal(cuales({ desde: "2026-08-01" }).length, 2);
+assert.equal(cuales({ hasta: "2026-08-20" }).length, 2);
+assert.equal(cuales({ desde: "2026-08-20", hasta: "2026-08-20" }).length, 1, "el día exacto entra");
+
+// Los filtros se acumulan, no se reemplazan.
+assert.equal(cuales({ estado: "borrador", soloPorRevisar: true }).length, 1);
+
+// Buscar por autor solo sirve cuando el listado trae ofertas de más de una persona,
+// que es el caso del admin: es cómo se queda con las de una sola sin otro control.
+assert.deepEqual(cuales({ texto: "beto" }, { [BETO]: "Beto Pérez" }), ["OS 010-2026"]);
+assert.deepEqual(cuales({ texto: "beto" }), [], "sin los nombres cargados no hay por dónde buscarlo");
+
+assert.equal(hayFiltros(FILTROS_VACIOS), false);
+assert.equal(hayFiltros({ ...FILTROS_VACIOS, texto: " " }), false, "un espacio no es un filtro puesto");
+assert.equal(hayFiltros({ ...FILTROS_VACIOS, soloPorRevisar: true }), true);
 
 // ── Y el diálogo de emisión tiene que estar donde se pueda ver ──────────────
 //

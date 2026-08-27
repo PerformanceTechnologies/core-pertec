@@ -1,4 +1,4 @@
-import { verificarAccesoOfertasApi, marcarEmitida, obtenerOferta } from "@/lib/ofertas/datos";
+import { accesoAOfertaApi, marcarEmitida } from "@/lib/ofertas/datos";
 import { ofertaAHtmlConEmpresa, ofertaAPdf } from "@/lib/ofertas/pdf";
 import { nombreDeArchivoDeOferta } from "@/lib/ofertas/emision";
 import { leerPdfEmitido } from "@/lib/ofertas/pdf-archivo";
@@ -23,13 +23,12 @@ export const maxDuration = 60;
  * armarlo, no hay razón para que ese documento pueda ejecutar nada.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoOfertasApi();
-  // Esta ruta devuelve un PDF o HTML, no JSON: el error va en texto plano.
-  if (!acceso.usuario) return new Response(acceso.error, { status: acceso.status });
   const { id } = await params;
-
-  const oferta = await obtenerOferta(id);
-  if (!oferta) return new Response("La oferta no existe.", { status: 404 });
+  // Un solo guard: sesión, acceso a la app y que la oferta sea de quien la pide.
+  // Esta ruta devuelve un PDF o HTML, no JSON: el error va en texto plano.
+  const acceso = await accesoAOfertaApi(id);
+  if (!acceso.oferta) return new Response(acceso.error, { status: acceso.status });
+  const oferta = acceso.oferta;
 
   const parametros = new URL(request.url).searchParams;
 

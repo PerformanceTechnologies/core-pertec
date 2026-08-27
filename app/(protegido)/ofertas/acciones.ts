@@ -6,9 +6,8 @@ import {
   asignarMaestro,
   duplicarOferta,
   eliminarOferta,
-  exigirAccesoOfertas,
+  exigirOferta,
   guardarImagenesElegidas,
-  obtenerOferta,
 } from "@/lib/ofertas/datos";
 import { borrarImagenes } from "@/lib/ofertas/imagenes";
 import { borrarPdfEmitido } from "@/lib/ofertas/pdf-archivo";
@@ -21,13 +20,16 @@ import { SECCIONES_CON_IMAGENES, type SeccionConImagenes } from "@/lib/ofertas/t
  * es lo único que queda de lo que se mandó. Si de verdad hay que sacarla, alguien
  * con acceso a la base lo hace a conciencia, no por un clic al lado del nombre.
  */
+// Las acciones que reciben un id pasan por exigirOferta y no por
+// exigirAccesoOfertas: además del acceso a la app, verifica que la oferta sea de
+// quien la manda. Sin eso, cualquiera con la app podía editar, duplicar o borrar la
+// de otro mandando el id.
 export async function eliminarOfertaAction(formData: FormData) {
-  await exigirAccesoOfertas();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
-  const oferta = await obtenerOferta(id);
-  if (!oferta || oferta.estado === "emitida") return;
+  const { oferta } = await exigirOferta(id);
+  if (oferta.estado === "emitida") return;
 
   // Los archivos primero: si se borra la fila y falla el bucket, quedan archivos que
   // nada nombra y nadie va a encontrar.
@@ -48,10 +50,10 @@ export async function duplicarOfertaAction(formData: FormData) {
   // El guard ya devuelve el usuario, y su ID es lo que espera la columna: pasarle el
   // correo hacía fallar el insert —creado_por es un uuid— y la pantalla mostraba
   // "A server error occurred" sin más.
-  const usuario = await exigirAccesoOfertas();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
+  const { usuario } = await exigirOferta(id);
   const nuevo = await duplicarOferta(id, usuario.id);
   if (!nuevo) return;
 
@@ -68,13 +70,12 @@ export async function duplicarOfertaAction(formData: FormData) {
  * registro diciendo algo distinto de lo que recibió el cliente.
  */
 export async function asignarMaestroAction(formData: FormData) {
-  await exigirAccesoOfertas();
   const id = String(formData.get("id") ?? "");
   const maestroId = String(formData.get("maestroId") ?? "");
   if (!id) return;
 
-  const oferta = await obtenerOferta(id);
-  if (!oferta || oferta.estado === "emitida") return;
+  const { oferta } = await exigirOferta(id);
+  if (oferta.estado === "emitida") return;
 
   await asignarMaestro(id, maestroId || null);
   revalidatePath(`/ofertas/${id}`);
@@ -94,12 +95,11 @@ export async function asignarMaestroAction(formData: FormData) {
  * pero tampoco tiene por qué quedar guardado.
  */
 export async function elegirImagenesAction(formData: FormData) {
-  await exigirAccesoOfertas();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
-  const oferta = await obtenerOferta(id);
-  if (!oferta || oferta.estado === "emitida") return;
+  const { oferta } = await exigirOferta(id);
+  if (oferta.estado === "emitida") return;
 
   const cuantosFirmantes = oferta.contenido.cierre?.firmantes.length ?? 0;
   // En el orden del inventario, que es el del documento y el de las miniaturas.

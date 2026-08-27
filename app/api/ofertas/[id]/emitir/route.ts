@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   guardarEmision,
-  obtenerOferta,
-  verificarAccesoOfertasApi,
+  accesoAOfertaApi,
   type RegistroEmision,
 } from "@/lib/ofertas/datos";
 import { ofertaAPdf } from "@/lib/ofertas/pdf";
@@ -35,12 +34,11 @@ export const maxDuration = 300;
  * salga no invalida las otras. Lo que NO se hace es fingir que salió.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoOfertasApi();
-  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   const { id } = await params;
-
-  const oferta = await obtenerOferta(id);
-  if (!oferta) return NextResponse.json({ error: "La oferta no existe." }, { status: 404 });
+  // Un solo guard: sesión, acceso a la app y que la oferta sea de quien la pide.
+  const acceso = await accesoAOfertaApi(id);
+  if (!acceso.oferta) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
+  const { oferta, usuario } = acceso;
 
   const cuerpo = (await request.json().catch(() => null)) as {
     guardarEnWorkspace?: boolean;
@@ -100,7 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (quiereCorreo) {
     // Delegado: sale de la cuenta de quien emite, no de un buzón de sistema. Sin
     // cuenta conectada no se manda y se dice por qué, en vez de fallar con un 500.
-    const token = await accessTokenDeUsuario(acceso.usuario.id);
+    const token = await accessTokenDeUsuario(usuario.id);
     if (token.estado !== "ok") {
       problemas.push(
         "El correo no se envió: tu cuenta de Microsoft no está conectada. Entrá a Mi Día y volvé a iniciar sesión.",
@@ -128,7 +126,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // vale. Lo que falló va en `problemas` y la pantalla lo muestra.
   const registro: RegistroEmision = {
     emitidaEn: new Date().toISOString(),
-    emitidaPor: acceso.usuario.correo,
+    emitidaPor: usuario.correo,
     enviadoA,
     copias: enviadoA.length > 0 ? copias : [],
     enWorkspace,

@@ -1,4 +1,4 @@
-import { verificarAccesoOfertasApi, obtenerOferta } from "@/lib/ofertas/datos";
+import { accesoAOfertaApi } from "@/lib/ofertas/datos";
 import { ofertaAHtmlConEmpresa } from "@/lib/ofertas/pdf";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 import { conElRepartoDe } from "@/lib/ofertas/normalizar";
@@ -29,13 +29,12 @@ export const maxDuration = 60;
  * `allow-scripts`, que es el otro lado de la misma reja.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoOfertasApi();
-  // Devuelve HTML, no JSON: el error va en texto plano.
-  if (!acceso.usuario) return new Response(acceso.error, { status: acceso.status });
   const { id } = await params;
-
-  const oferta = await obtenerOferta(id);
-  if (!oferta) return new Response("La oferta no existe.", { status: 404 });
+  // Un solo guard: sesión, acceso a la app y que la oferta sea de quien la pide.
+  // Devuelve HTML, no JSON: el error va en texto plano.
+  const acceso = await accesoAOfertaApi(id);
+  if (!acceso.oferta) return new Response(acceso.error, { status: acceso.status });
+  const oferta = acceso.oferta;
 
   const cuerpo = (await request.json().catch(() => null)) as { contenido?: OfertaCanonica } | null;
   // Sin contenido en el cuerpo se dibuja lo guardado: así la vista sirve también

@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import {
   agregarImagenesAlInventario,
-  obtenerOferta,
   quitarImagenDelInventario,
-  verificarAccesoOfertasApi,
+  accesoAOfertaApi,
 } from "@/lib/ofertas/datos";
 import { agregarImagenSubida, borrarImagen, type ImagenGuardada } from "@/lib/ofertas/imagenes";
 import { esFormatoDeLogo } from "@/lib/ofertas/logo";
@@ -38,10 +37,17 @@ export const maxDuration = 30;
  * pierde en cada caso, y que el archivo de origen sigue nombrado en la oferta.
  */
 
-/** Una oferta en borrador de esta empresa, o el motivo por el que no se puede tocar. */
+/**
+ * Una oferta en borrador que además sea de quien la pide, o el motivo por el que no
+ * se puede tocar.
+ *
+ * El guard va acá adentro y no en cada método: los dos —subir y quitar— pasaban por
+ * este helper, así que es el único lugar donde hay que acordarse.
+ */
 async function ofertaEditable(id: string) {
-  const oferta = await obtenerOferta(id);
-  if (!oferta) return { error: "La oferta no existe.", estado: 404 as const };
+  const acceso = await accesoAOfertaApi(id);
+  if (!acceso.oferta) return { error: acceso.error, estado: acceso.status };
+  const oferta = acceso.oferta;
   // Igual que el logo y el maestro: una emitida ya salió, y cambiarle las imágenes
   // dejaría el registro diciendo algo distinto de lo que recibió el cliente.
   if (oferta.estado === "emitida") {
@@ -51,8 +57,6 @@ async function ofertaEditable(id: string) {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoOfertasApi();
-  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   const { id } = await params;
 
   const resuelto = await ofertaEditable(id);
@@ -114,8 +118,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoOfertasApi();
-  if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   const { id } = await params;
 
   const resuelto = await ofertaEditable(id);
