@@ -947,6 +947,7 @@ export default function EditorOferta({
             formulario no aparecen — ahí se ubican con el desplegable del panel. */}
         {vista === "documento" && !emitida && (
           <CajonDeFotos
+            ofertaId={id}
             imagenes={imagenes}
             urls={urlsImagenes}
             // De lo GUARDADO y no del estado de esta pantalla: la ubicación de una

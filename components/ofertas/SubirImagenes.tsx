@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import RuedaCarga from "@/components/RuedaCarga";
 import { FORMATOS_LOGO } from "@/lib/ofertas/logo";
-import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
+import { subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
 
 /**
  * Agregar imágenes al inventario de una oferta.
@@ -31,21 +31,12 @@ export default function SubirImagenes({ ofertaId }: { ofertaId: string }) {
     setError(null);
     let subidas = 0;
     try {
-      for (const archivo of archivos) {
-        const grande = avisoDeTamano(archivo);
-        if (grande) throw new Error(grande);
-
-        setProgreso(archivos.length > 1 ? `${subidas + 1} de ${archivos.length}` : "");
-        const cuerpo = new FormData();
-        cuerpo.set("archivo", archivo);
-        const respuesta = await fetch(`/api/ofertas/${ofertaId}/imagenes`, {
-          method: "POST",
-          body: cuerpo,
-        });
-        await leerRespuesta(respuesta);
-        subidas += 1;
-      }
+      // Las reglas de la subida están en lib/ofertas/subir-imagenes.ts, compartidas
+      // con el cajón de fotos del documento: de a una por request, tope avisado antes
+      // de mandar, y lo que ya subió queda subido aunque después falle una.
+      subidas = (await subirImagenesDeOferta(ofertaId, archivos, setProgreso)).subidas;
     } catch (e) {
+      subidas = subidaParcial(e)?.subidas ?? 0;
       setError(e instanceof Error ? e.message : "No se pudo subir la imagen.");
     } finally {
       setCargando(false);

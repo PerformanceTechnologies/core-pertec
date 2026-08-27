@@ -1,6 +1,11 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TIPO_ARRASTRE } from "@/lib/ofertas/edicion-dom";
+import { FORMATOS_LOGO } from "@/lib/ofertas/logo";
+import { subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
+import RuedaCarga from "@/components/RuedaCarga";
 import { NOMBRE_DE_SECCION, type SeccionConImagenes } from "@/lib/ofertas/tipos";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
 import { TARJETA } from "@/lib/estilos";
@@ -17,19 +22,50 @@ import { TARJETA } from "@/lib/estilos";
  * No sabe nada del documento: solo pone el número de la foto en el arrastre. Quien
  * lo recibe es el documento del iframe (ver lib/ofertas/edicion-dom.ts), así que
  * este componente y aquel se pueden mover de lugar sin tocarse.
+ *
+ * Y de acá también se agregan: el cajón es donde uno está mirando cuando se da
+ * cuenta de que falta una foto, así que mandarlo a otro panel a buscar el botón es
+ * hacerlo ir y volver. Las reglas de la subida son las mismas del panel y viven en
+ * un solo lugar (lib/ofertas/subir-imagenes.ts).
  */
 export default function CajonDeFotos({
+  ofertaId,
   imagenes,
   urls,
   porSeccion,
 }: {
+  ofertaId: string;
   imagenes: ImagenGuardada[];
   /** Índice → URL firmada y corta, para la miniatura. */
   urls: Record<number, string>;
   /** Dónde está puesta cada una, según lo guardado. */
   porSeccion: Partial<Record<SeccionConImagenes, number[]>>;
 }) {
-  if (imagenes.length === 0) return null;
+  const router = useRouter();
+  const entrada = useRef<HTMLInputElement>(null);
+  const [subiendo, setSubiendo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [encima, setEncima] = useState(false);
+
+  const subir = async (archivos: File[]) => {
+    if (archivos.length === 0) return;
+    setSubiendo("Subiendo…");
+    setError(null);
+    let subidas = 0;
+    try {
+      subidas = (
+        await subirImagenesDeOferta(ofertaId, archivos, (texto) => setSubiendo(`Subiendo ${texto}`.trim()))
+      ).subidas;
+    } catch (e) {
+      subidas = subidaParcial(e)?.subidas ?? 0;
+      setError(e instanceof Error ? e.message : "No se pudo subir la foto.");
+    } finally {
+      setSubiendo(null);
+      if (entrada.current) entrada.current.value = "";
+      // Lo que alcanzó a subir tiene que aparecer, aunque después una haya fallado.
+      if (subidas > 0) router.refresh();
+    }
+  };
 
   const seccionDe = (indice: number) =>
     (Object.keys(porSeccion) as SeccionConImagenes[]).find((clave) =>
@@ -38,16 +74,38 @@ export default function CajonDeFotos({
   const sinUbicar = imagenes.filter((imagen) => !seccionDe(imagen.indice)).length;
 
   return (
-    <section className={`${TARJETA} p-4`}>
+    // Soltar archivos sobre la tarjeta entera y no solo sobre el "+": cuando alguien
+    // arrastra una foto desde el escritorio apunta al cajón, no a un botón de 80px.
+    <section
+      onDragOver={(evento) => {
+        if (!evento.dataTransfer.types.includes("Files")) return;
+        evento.preventDefault();
+        setEncima(true);
+      }}
+      onDragLeave={() => setEncima(false)}
+      onDrop={(evento) => {
+        if (!evento.dataTransfer.types.includes("Files")) return;
+        evento.preventDefault();
+        setEncima(false);
+        void subir([...evento.dataTransfer.files]);
+      }}
+      className={`${TARJETA} p-4 transition ${encima ? "ring-2 ring-naranjo/60" : ""}`}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">Fotos</h2>
         <span className={`text-[11px] ${sinUbicar > 0 ? "text-naranjo" : "text-tinta/45"}`}>
-          {sinUbicar > 0 ? `${sinUbicar} sin ubicar` : "todas ubicadas"}
+          {subiendo ??
+            (imagenes.length === 0
+              ? "ninguna todavía"
+              : sinUbicar > 0
+                ? `${sinUbicar} sin ubicar`
+                : "todas ubicadas")}
         </span>
       </div>
       <p className="mt-0.5 text-[11px] text-pretty text-tinta/45">
-        Arrastrá una hasta la sección del documento donde va. También podés soltar archivos del escritorio
-        sobre el documento, y sacarlas con la × de cada foto.
+        {imagenes.length === 0
+          ? "Agregá las fotos del trabajo y después arrastrá cada una hasta la sección del documento donde va."
+          : "Arrastrá una hasta la sección del documento donde va, y sacala con la × de cada foto. Podés soltar archivos acá o sobre el documento."}
       </p>
       {/* Arrastrar es de mouse: en una pantalla táctil no hay gesto equivalente en la
           web sin reescribir el arrastre a mano. En vez de dejar un cajón que no
@@ -106,6 +164,45 @@ export default function CajonDeFotos({
           );
         })}
       </div>
+
+      {/* El botón va FUERA de la rejilla y no como una celda más: la rejilla corta a
+          las tres filas y sigue con scroll, así que con nueve fotos el "+" quedaba
+          abajo, dentro del área que hay que desplazar — o sea, escondido justo lo que
+          hay que encontrar. Acá está siempre a la vista y es un blanco más grande. */}
+      <button
+        type="button"
+        onClick={() => entrada.current?.click()}
+        disabled={subiendo !== null}
+        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-borde bg-crema/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-tinta/55 transition hover:border-naranjo/60 hover:bg-naranjo/[0.04] hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo disabled:opacity-40"
+      >
+        {subiendo ? (
+          <RuedaCarga />
+        ) : (
+          <svg
+            viewBox="0 0 16 16"
+            width="13"
+            height="13"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            aria-hidden="true"
+          >
+            <path d="M8 3.5v9M3.5 8h9" strokeLinecap="round" />
+          </svg>
+        )}
+        {subiendo ?? "Agregar fotos"}
+      </button>
+
+      <input
+        ref={entrada}
+        type="file"
+        accept={FORMATOS_LOGO}
+        multiple
+        className="hidden"
+        onChange={(evento) => void subir([...(evento.target.files ?? [])])}
+      />
+
+      {error && <p className="mt-2 text-[11px] font-medium text-pretty text-red-600">{error}</p>}
     </section>
   );
 }
