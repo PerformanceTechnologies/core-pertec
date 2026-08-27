@@ -188,7 +188,8 @@ export async function crearOferta(
   contenido: OfertaCanonica,
   empresa: Empresa,
   archivoOrigen: string,
-  creadoPor: string,
+  /** El ID del usuario (uuid), no su correo: es lo que espera la columna. */
+  creadoPorUsuarioId: string,
   imagenes: ImagenGuardada[] = [],
 ): Promise<{ id: string; inconsistencias: Inconsistencia[] }> {
   const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), archivoOrigen);
@@ -206,7 +207,7 @@ export async function crearOferta(
       estado: "borrador",
       archivo_origen: archivoOrigen,
       imagenes,
-      creado_por: creadoPor,
+      creado_por: creadoPorUsuarioId,
     })
     .select("id")
     .single();
@@ -401,7 +402,7 @@ export async function guardarEmision(id: string, emision: RegistroEmision): Prom
  * que borrar una oferta rompiera la otra. Lo que no se copia es la emisión: un
  * duplicado nace en borrador y no ha sido emitido nunca.
  */
-export async function duplicarOferta(id: string, creadoPor: string): Promise<string | null> {
+export async function duplicarOferta(id: string, creadoPorUsuarioId: string): Promise<string | null> {
   const oferta = await obtenerOferta(id);
   if (!oferta) return null;
 
@@ -427,7 +428,8 @@ export async function duplicarOferta(id: string, creadoPor: string): Promise<str
       logo_cliente_ruta: oferta.logoClienteRuta,
       logo_cliente_nombre: oferta.logoClienteNombre,
       imagenes,
-      creado_por: creadoPor,
+      // El ID del usuario, no su correo: la columna es uuid.
+      creado_por: creadoPorUsuarioId,
     })
     .select("id")
     .single();

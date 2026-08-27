@@ -1053,6 +1053,18 @@ assert.equal(
 );
 assert.equal((htmlUnaFirma.match(/class="rubrica"/g) ?? []).length, 1, "pero la rúbrica es una sola");
 
+// Y una guarda chica sobre el fuente, del mismo tipo que las de abajo: la acción de
+// duplicar tiene que sacar el usuario del guard —que devuelve el usuario completo— y
+// no de la sesión. Pasarle el correo hacía fallar el insert, porque creado_por es un
+// uuid, y en pantalla eso se veía como "A server error occurred" sin más pistas.
+const acciones = readFileSync(new URL("../app/(protegido)/ofertas/acciones.ts", import.meta.url), "utf8");
+const duplicar = acciones.slice(acciones.indexOf("export async function duplicarOfertaAction"));
+const cuerpoDeDuplicar = duplicar.slice(0, duplicar.indexOf("\n}"));
+assert.ok(
+  /duplicarOferta\(id,\s*usuario\.id\)/.test(cuerpoDeDuplicar),
+  "duplicar tiene que pasar el ID del usuario: creado_por es uuid, no el correo",
+);
+
 // ── Duplicar: qué se copia y qué NO ─────────────────────────────────────────
 //
 // Duplicar existe porque los controles de este módulo se escribieron para detectar

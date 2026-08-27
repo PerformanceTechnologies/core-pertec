@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import {
   asignarMaestro,
   duplicarOferta,
@@ -46,12 +45,14 @@ export async function eliminarOfertaAction(formData: FormData) {
  * subir un borrador. Duplicar no la toca: crea un documento nuevo.
  */
 export async function duplicarOfertaAction(formData: FormData) {
-  await exigirAccesoOfertas();
+  // El guard ya devuelve el usuario, y su ID es lo que espera la columna: pasarle el
+  // correo hacía fallar el insert —creado_por es un uuid— y la pantalla mostraba
+  // "A server error occurred" sin más.
+  const usuario = await exigirAccesoOfertas();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
-  const sesion = await auth();
-  const nuevo = await duplicarOferta(id, sesion?.user?.email ?? "desconocido");
+  const nuevo = await duplicarOferta(id, usuario.id);
   if (!nuevo) return;
 
   revalidatePath("/ofertas");
