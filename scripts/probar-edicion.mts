@@ -713,6 +713,41 @@ try {
     "vaciarlo borra la clave: el documento vuelve al rótulo del maestro en vez de quedar sin título",
   );
 
+  // ── 9b. Un campo enfocado se tiene que poder LEER ─────────────────────────
+  //
+  // Los encabezados de columna son texto claro sobre una franja oscura, y el campo
+  // editable es un span dentro de la celda: al enfocarlo, el fondo blanco del editor
+  // dejaba texto blanco sobre blanco y se escribía a ciegas. Se comprueba con el
+  // color calculado y no mirando el CSS, porque lo que importa es lo que gana en la
+  // cascada dentro del documento del maestro.
+  const contraste = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const medir = (selector: string) => {
+      const campo = doc.querySelector<HTMLElement>(selector)!;
+      campo.focus();
+      const estilo = doc.defaultView!.getComputedStyle(campo);
+      return { color: estilo.color, fondo: estilo.backgroundColor };
+    };
+    return {
+      // Un encabezado del maestro y uno de una tabla libre: los dos van sobre la
+      // franja oscura.
+      precio: medir('[data-campo="rotulos.col-precio-cargo"]'),
+      libre: medir('[data-campo="bloques.0.tabla.columnas.0"]'),
+      // Y uno normal, sobre el papel blanco, que no tenía el problema: la regla no
+      // puede haberlo cambiado.
+      normal: medir('[data-campo="alcance.introduccion"]'),
+    };
+  });
+  console.log(contraste);
+  for (const [donde, medida] of Object.entries(contraste)) {
+    assert.equal(medida.fondo, "rgb(255, 255, 255)", `el campo enfocado va sobre blanco (${donde})`);
+    assert.equal(
+      medida.color,
+      "rgb(23, 20, 17)",
+      `y con tinta oscura, para que se lea lo que se escribe (${donde})`,
+    );
+  }
+
   // ── 10. Agregar y sacar estructura desde el documento ─────────────────────
   //
   // Los botones no están en la maqueta: los pone el editor, en la esquina de lo que

@@ -31,6 +31,9 @@ import { clp } from "./plantilla";
 /** El naranjo de la aplicación. Adentro del iframe no llegan sus variables CSS. */
 const ACENTO = "#c85217";
 
+/** La tinta de la aplicación, para el campo enfocado: fondo blanco, texto oscuro. */
+const TINTA = "#171411";
+
 /**
  * Cómo viaja una foto del cajón al documento.
  *
@@ -53,7 +56,14 @@ const ESTILO_DEL_EDITOR = `
   body { background: #fff; }
   [data-campo] { border-radius: 2px; }
   [data-campo]:hover { background: ${ACENTO}14; }
-  [data-campo]:focus { background: #fff; outline: 2px solid ${ACENTO}; outline-offset: 1px; }
+  /* El color va JUNTO con el fondo, siempre.
+     Los encabezados de columna son texto claro sobre una franja oscura, y como el
+     campo editable es un span DENTRO de la celda, poner solo el fondo blanco al
+     enfocarlo dejaba texto blanco sobre blanco: se escribía a ciegas. Pasa en todos
+     los rótulos que viven sobre un fondo de color —los encabezados de tabla, las
+     cabeceras de Aportes, la fila de total— así que se arregla en la regla, no caso
+     por caso. */
+  [data-campo]:focus { background: #fff; color: ${TINTA}; outline: 2px solid ${ACENTO}; outline-offset: 1px; }
   /* Un campo vacío no ocupa lugar y no se puede pinchar: se le deja un hueco con su
      marca. El contenido de un ::after no es editable, así que no entra al dato. */
   [data-campo]:empty::after { content: "Escribir aquí"; color: #b9b4ad; font-style: italic; }
