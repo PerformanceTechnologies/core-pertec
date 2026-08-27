@@ -36,6 +36,15 @@ const nextConfig: NextConfig = {
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium-min/**/*",
     ],
+    // Emitir imprime el MISMO PDF que la ruta de arriba —una sola vez, para
+    // descargarlo, guardarlo en SharePoint y adjuntarlo al correo— asi que necesita
+    // los mismos archivos. Sin esta entrada compila igual y falla recien en Vercel
+    // con "Cannot find module .../playwright-core/browsers.json": cualquier ruta
+    // nueva que imprima necesita la suya, y scripts/probar-ofertas.mts lo comprueba.
+    "/api/ofertas/\\[id\\]/emitir": [
+      "./node_modules/playwright-core/**/*",
+      "./node_modules/@sparticuz/chromium-min/**/*",
+    ],
   },
 };
 

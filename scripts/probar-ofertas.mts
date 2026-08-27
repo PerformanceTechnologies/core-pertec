@@ -6,7 +6,7 @@
  */
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from "../lib/ofertas/verificar";
 import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
@@ -1051,6 +1051,47 @@ assert.equal(
 );
 assert.equal((htmlUnaFirma.match(/class="rubrica"/g) ?? []).length, 1, "pero la rúbrica es una sola");
 
+// ── Toda ruta que imprima tiene que llevar su Chromium al bundle ────────────
+//
+// Otra comprobación sobre el fuente, y por el mismo motivo que la de abajo: este
+// defecto no se ve en ninguna parte hasta que ya está en producción. Vercel arma
+// cada ruta con los archivos que su análisis estático detecta, y playwright-core
+// carga browsers.json de forma dinámica, así que no lo detecta. La ruta compila,
+// despliega, y falla al primer uso con "Cannot find module
+// .../playwright-core/browsers.json" — que pasó, con la ruta de emitir.
+//
+// Se recorre app/api buscando quién imprime y se exige que cada uno tenga su
+// entrada en outputFileTracingIncludes. La clave escapa los segmentos dinámicos
+// (\\[id\\]) porque son globs de picomatch: sin escapar, "[id]" es una clase de
+// caracteres y la ruta nunca coincide —eso también está documentado en el config—.
+const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+const rutasApi = readdirSync(new URL("../app/api", import.meta.url), {
+  recursive: true,
+  withFileTypes: true,
+})
+  .filter((e) => e.isFile() && e.name === "route.ts")
+  .map((e) => {
+    // parentPath es absoluto: se recorta desde "app/api" para armar el pathname.
+    const desde = e.parentPath.indexOf("/app/api/");
+    return desde === -1 ? "/api" : `/api${e.parentPath.slice(desde + "/app/api".length)}`;
+  });
+
+const queImprimen = rutasApi.filter((ruta) => {
+  const archivo = new URL(`../app${ruta}/route.ts`, import.meta.url);
+  const fuente = readFileSync(archivo, "utf8");
+  return /ofertaAPdf|lanzarNavegador|eco-pdf/.test(fuente);
+});
+
+assert.ok(queImprimen.length >= 2, `se esperaban varias rutas que impriman, hay ${queImprimen.length}`);
+for (const ruta of queImprimen) {
+  const clave = ruta.replace(/\[([^\]]+)\]/g, "\\\\[$1\\\\]");
+  assert.ok(
+    config.includes(`"${clave}"`),
+    `la ruta ${ruta} imprime con Chromium y no tiene entrada en outputFileTracingIncludes: ` +
+      'va a desplegar bien y fallar al primer uso con "Cannot find module .../browsers.json"',
+  );
+}
+
 // ── Y el diálogo de emisión tiene que estar donde se pueda ver ──────────────
 //
 // Esta comprobación mira el código fuente, que no es lo habitual, y existe por una
@@ -1304,6 +1345,12 @@ mientras nadie elija; en cuanto alguien elige, manda lo elegido, incluso para
 decir que esa persona no firma con imagen. Al reordenar firmantes cada rúbrica
 sigue a SU persona, por el nombre y no por la posición, y si ese nombre ya no
 está se pierde en vez de heredarse.
+
+Dos comprobaciones sobre el código, que no es lo habitual y acá se justifica: que el
+diálogo de emisión no quede dentro de una pestaña —ahí el botón no hace nada y ni el
+compilador ni el build lo ven— y que toda ruta que imprima con Chromium tenga su
+entrada de archivos en next.config.ts, porque si falta despliega bien y falla al
+primer uso. Las dos fallas ya ocurrieron.
 
 Emitir: el nombre del archivo que queda en la carpeta compartida se limpia de los
 caracteres que SharePoint rechaza —y del punto final que Windows recorta solo— antes
