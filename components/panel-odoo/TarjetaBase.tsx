@@ -9,8 +9,15 @@ import type { EjecucionOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
 import ModalExpandirTarjeta from "./ModalExpandirTarjeta";
 
 // Un acento de color por modulo (de la paleta de marca existente, ninguno
-// nuevo) para que las 4 tarjetas se distingan de un vistazo -- fondo
-// tintado clarito (no blanco puro) + titulo en ese mismo color.
+// nuevo) para que las tarjetas se distingan de un vistazo: la superficie del
+// tema con un lavado de ese color encima + titulo en ese mismo color.
+//
+// El fondo y el borde salen de `.tarjeta-modulo` + `.acento-*` (globals.css) y
+// no de utilidades de Tailwind. El primer intento era `bg-naranjo/[0.06]`, un
+// tinte SIN superficie propia: en claro pasaba, y en oscuro la tarjeta era una
+// mancha marron directamente sobre el fondo de la pagina -- dejaba de leerse
+// como una tarjeta. Con color-mix contra la superficie, el mismo lavado
+// funciona en los dos temas.
 //
 // "boton" es el estilo del botón de expandir: fondo tintado SIEMPRE visible
 // (no solo al hover) + resplandor de color al pasar el mouse, para que se
@@ -18,38 +25,32 @@ import ModalExpandirTarjeta from "./ModalExpandirTarjeta";
 // avisa que hay algo ahí (feedback de un usuario real tras probarlo).
 const ACENTOS = {
   naranjo: {
-    bg: "bg-naranjo/[0.06]",
-    border: "border-naranjo/20",
+    bg: "tarjeta-modulo acento-naranjo",
     titulo: "text-naranjo",
     boton: "text-naranjo bg-naranjo/10 ring-1 ring-naranjo/25 hover:bg-naranjo/20 hover:ring-naranjo/50 hover:shadow-[0_0_12px_2px_rgba(200,82,23,0.35)]",
   },
   teal: {
-    bg: "bg-teal/[0.06]",
-    border: "border-teal/20",
+    bg: "tarjeta-modulo acento-teal",
     titulo: "text-teal",
     boton: "text-teal bg-teal/10 ring-1 ring-teal/25 hover:bg-teal/20 hover:ring-teal/50 hover:shadow-[0_0_12px_2px_rgba(0,160,128,0.35)]",
   },
   naranjoSuave: {
-    bg: "bg-naranjo-suave/[0.08]",
-    border: "border-naranjo-suave/25",
+    bg: "tarjeta-modulo acento-naranjo-suave",
     titulo: "text-naranjo-suave",
     boton: "text-naranjo-suave bg-naranjo-suave/10 ring-1 ring-naranjo-suave/25 hover:bg-naranjo-suave/20 hover:ring-naranjo-suave/50 hover:shadow-[0_0_12px_2px_rgba(224,122,61,0.35)]",
   },
   tealSuave: {
-    bg: "bg-teal-suave/[0.08]",
-    border: "border-teal-suave/25",
+    bg: "tarjeta-modulo acento-teal-suave",
     titulo: "text-teal-suave",
     boton: "text-teal-suave bg-teal-suave/10 ring-1 ring-teal-suave/25 hover:bg-teal-suave/20 hover:ring-teal-suave/50 hover:shadow-[0_0_12px_2px_rgba(53,184,155,0.35)]",
   },
   gris: {
-    bg: "bg-gris/[0.08]",
-    border: "border-gris/25",
+    bg: "tarjeta-modulo acento-gris",
     titulo: "text-gris",
     boton: "text-gris bg-gris/10 ring-1 ring-gris/25 hover:bg-gris/20 hover:ring-gris/50 hover:shadow-[0_0_12px_2px_rgba(140,133,120,0.35)]",
   },
   grisSuave: {
-    bg: "bg-gris-suave/[0.1]",
-    border: "border-gris-suave/30",
+    bg: "tarjeta-modulo acento-gris-suave",
     titulo: "text-gris",
     boton: "text-gris bg-gris/10 ring-1 ring-gris/25 hover:bg-gris/20 hover:ring-gris/50 hover:shadow-[0_0_12px_2px_rgba(140,133,120,0.35)]",
   },
@@ -80,7 +81,7 @@ export default function TarjetaBase({
   const Icono = obtenerIcono(icono);
 
   return (
-    <div className={`rounded-xl border ${clases.border} ${clases.bg} p-4`}>
+    <div className={`rounded-xl border ${clases.bg} p-4`}>
       <div className="flex items-center justify-between gap-2">
         <p className={`flex min-w-0 items-center gap-1.5 truncate font-condensed text-base font-bold uppercase tracking-wide ${clases.titulo}`}>
           {/* eslint-disable-next-line react-hooks/static-components --

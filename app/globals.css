@@ -55,6 +55,147 @@
   background-color: color-mix(in srgb, var(--color-superficie) 60%, transparent);
 }
 
+/* ── El modo oscuro de lo que no se puede pintar con un token ──────────────
+   Todo lo que sigue existe por la misma razón: hay colores que en claro están
+   bien y al invertir el tema quedan mal o directamente ilegibles, y no alcanza
+   con cambiar la paleta porque el problema es el ROL del color, no su valor.
+   Las reglas van fuera de @layer, como la de bg-white de arriba, así que le
+   ganan a las utilidades sin tener que tocar cada componente. */
+
+/* 1. El bloque de máximo contraste (bg-tinta con texto claro encima).
+   En claro es tinta plena sobre la página clara. Invertido pasaba a ser casi
+   blanco —el objeto más brillante de la pantalla— y encima con `text-white`
+   arriba: texto blanco sobre fondo casi blanco, ilegible. En oscuro sube un
+   escalón desde la superficie de las tarjetas, que es lo que un bloque
+   destacado tiene que hacer en una pantalla oscura. */
+[data-theme="dark"] .bg-tinta {
+  background-color: color-mix(in srgb, var(--color-superficie) 84%, var(--color-tinta));
+}
+/* Para el texto que va ENCIMA de ese bloque y no es blanco puro: en claro es
+   crema, en oscuro tiene que volverse claro también, no seguir el tema. */
+.texto-sobre-contraste {
+  color: var(--color-crema);
+}
+[data-theme="dark"] .texto-sobre-contraste {
+  color: var(--color-tinta);
+}
+
+/* 2. La escala roja de los avisos. `bg-red-50` es un rosa clarísimo: en una
+   pantalla oscura es un parche encendido, y el texto rojo oscuro encima
+   (red-600/red-700) queda por debajo del contraste mínimo. Se retiñe la caja
+   contra la superficie y se aclara el texto, que es lo que hace cualquier
+   paleta bien hecha al pasar a oscuro. */
+[data-theme="dark"] .bg-red-50 {
+  background-color: color-mix(in srgb, var(--color-superficie) 86%, #dc2626);
+}
+[data-theme="dark"] .bg-red-100 {
+  background-color: color-mix(in srgb, var(--color-superficie) 78%, #dc2626);
+}
+[data-theme="dark"] .border-red-200,
+[data-theme="dark"] .border-red-300 {
+  border-color: color-mix(in srgb, #f87171 38%, transparent);
+}
+[data-theme="dark"] .divide-red-100 > * + * {
+  border-color: color-mix(in srgb, #f87171 24%, transparent);
+}
+[data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-red-700 {
+  color: #f87171;
+}
+
+/* 3. Los gráficos (Recharts).
+   Los rótulos de los ejes se dibujan como `fill` de un <text> del SVG y su
+   valor por omisión es un gris oscuro pensado para fondo claro. No se puede
+   arreglar desde el componente con una variable CSS: Recharts los pone como
+   atributo de presentación, y `var()` ahí no se resuelve. */
+.recharts-cartesian-axis-tick text,
+.recharts-label,
+.recharts-pie-label-text {
+  fill: var(--color-gris);
+}
+/* El relleno de un área al 15% del color sobre fondo claro es un velo; sobre
+   fondo oscuro es un bloque marrón macizo del que la línea casi no se despega.
+   En oscuro se baja el relleno y manda la línea, que es el dato. */
+[data-theme="dark"] .recharts-area-area {
+  fill-opacity: 0.1;
+}
+
+/* 4. Las tarjetas de Panel Odoo.
+   Cada módulo tiene su color y la tarjeta lo llevaba como fondo tintado al 6%
+   —sin superficie propia—, así que en claro se leía como una tarjeta apenas
+   teñida y en oscuro como una mancha marrón o verdosa directamente sobre el
+   fondo de la página: dejaba de parecer una tarjeta. Ahora el fondo es la
+   superficie del tema con un lavado del color del módulo encima, que es lo
+   mismo que se veía en claro y lo correcto en oscuro. */
+.tarjeta-modulo {
+  background-color: color-mix(in srgb, var(--color-superficie) 94%, var(--acento-modulo, transparent));
+  border-color: color-mix(in srgb, var(--acento-modulo, var(--color-borde)) 22%, transparent);
+}
+[data-theme="dark"] .tarjeta-modulo {
+  /* Un poco más de color y de borde: sobre fondo oscuro, un 6% de tinte no se
+     distingue de la superficie plana. */
+  background-color: color-mix(in srgb, var(--color-superficie) 90%, var(--acento-modulo, transparent));
+  border-color: color-mix(in srgb, var(--acento-modulo, var(--color-borde)) 30%, transparent);
+}
+.acento-naranjo {
+  --acento-modulo: var(--color-naranjo);
+}
+.acento-naranjo-suave {
+  --acento-modulo: var(--color-naranjo-suave);
+}
+.acento-teal {
+  --acento-modulo: var(--color-teal);
+}
+.acento-teal-suave {
+  --acento-modulo: var(--color-teal-suave);
+}
+.acento-gris {
+  --acento-modulo: var(--color-gris);
+}
+.acento-gris-suave {
+  --acento-modulo: var(--color-gris-suave);
+}
+
+/* 5. La banda de Mi Día.
+   Es el bloque de máximo contraste de esa pantalla y en claro funciona: un
+   degradado de tinta sobre la página clara. Invertido se volvía una placa casi
+   blanca del ancho de la pantalla, con el texto oscuro encima: lo más brillante
+   de la interfaz justo donde se entra. En oscuro mantiene el degradado pero
+   hacia arriba desde la superficie, y el texto acompaña. */
+.banda-contraste {
+  --texto-banda: var(--color-crema);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-tinta) 72%, var(--color-crema)) 0%,
+    color-mix(in srgb, var(--color-tinta) 84%, var(--color-crema)) 100%
+  );
+}
+[data-theme="dark"] .banda-contraste {
+  --texto-banda: var(--color-tinta);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-superficie) 80%, var(--color-tinta)) 0%,
+    var(--color-superficie) 100%
+  );
+}
+/* Los cuatro niveles de texto que usa la banda. Son los mismos que tenía con
+   crema/65, crema/45 y crema/30, pero atados al token que se invierte. */
+.texto-banda {
+  color: var(--texto-banda);
+}
+.texto-banda-65 {
+  color: color-mix(in srgb, var(--texto-banda) 65%, transparent);
+}
+.texto-banda-45 {
+  color: color-mix(in srgb, var(--texto-banda) 45%, transparent);
+}
+.texto-banda-30 {
+  color: color-mix(in srgb, var(--texto-banda) 30%, transparent);
+}
+.borde-banda {
+  border-color: color-mix(in srgb, var(--texto-banda) 12%, transparent);
+}
+
 html {
   /* Reserva siempre el ancho de la barra de scroll vertical, la haya o no.
      Sin esto, cambiar a una vista más alta que la anterior (ej. una pestaña

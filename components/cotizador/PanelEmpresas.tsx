@@ -166,7 +166,7 @@ export default function PanelEmpresas({
                   type="button"
                   onClick={() => guardar(empresa)}
                   disabled={!puedeEditar || guardando === empresa.id}
-                  className="rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 disabled:cursor-default disabled:opacity-40"
+                  className="texto-sobre-contraste rounded-md bg-tinta px-4 py-2 text-xs font-semibold uppercase tracking-wide transition hover:bg-tinta/85 disabled:cursor-default disabled:opacity-40"
                 >
                   {guardando === empresa.id ? "Guardando..." : "Guardar"}
                 </button>

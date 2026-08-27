@@ -354,29 +354,24 @@ export default async function MiDiaPage() {
           agarra volumen y el título queda en la parte más clara, que es donde
           entra la vista.
 
-          Los dos tonos salen del mismo tinta mezclado con crema, no son colores
-          nuevos. En modo oscuro la banda se invierte —tinta pasa a ser claro y
-          crema oscuro— igual que ya lo hacía con bg-tinta plano: sigue siendo el
-          bloque de máximo contraste de la página, solo que al revés. */}
-      <header
-        className="rounded-2xl px-6 py-7 sm:px-8 sm:py-9"
-        style={{
-          backgroundImage:
-            "linear-gradient(135deg, color-mix(in srgb, var(--color-tinta) 72%, var(--color-crema)) 0%, color-mix(in srgb, var(--color-tinta) 84%, var(--color-crema)) 100%)",
-        }}
-      >
+          El degradado y los cuatro niveles de texto viven en `.banda-contraste`
+          (globals.css) porque en modo oscuro NO se invierten: invertidos, la
+          banda pasaba a ser una placa casi blanca del ancho de la pantalla —lo
+          más brillante de la interfaz, justo donde se entra—. En oscuro el
+          degradado sube desde la superficie y el texto acompaña. */}
+      <header className="banda-contraste rounded-2xl px-6 py-7 sm:px-8 sm:py-9">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
               <span className="h-px w-6 bg-naranjo" />
               Mi día
             </span>
-            <h1 className="mt-3 font-condensed text-4xl font-bold uppercase leading-[0.95] tracking-tight text-crema sm:text-5xl">
+            <h1 className="texto-banda mt-3 font-condensed text-4xl font-bold uppercase leading-[0.95] tracking-tight sm:text-5xl">
               {diaSemana},
               <br />
               {resto.join(", ")}
             </h1>
-            <p className="mt-4 max-w-[52ch] text-sm text-pretty text-crema/65">
+            <p className="texto-banda-65 mt-4 max-w-[52ch] text-sm text-pretty">
               Resumen de tu correo de los últimos días y de las reuniones de hoy y los próximos. Cada fila
               abre el mensaje o la cita en Outlook.
             </p>
@@ -398,7 +393,7 @@ async function Cifras({ datos }: { datos: Promise<DatosResumen> }) {
   const r = estado.datos.resumen;
 
   return (
-    <dl className="grid shrink-0 grid-cols-2 gap-y-5 rounded-xl border border-crema/10 px-5 py-4 sm:grid-cols-4 sm:gap-y-0 lg:min-w-[30rem]">
+    <dl className="borde-banda grid shrink-0 grid-cols-2 gap-y-5 rounded-xl border px-5 py-4 sm:grid-cols-4 sm:gap-y-0 lg:min-w-[30rem]">
       <Cifra
         etiqueta="Correos"
         valor={r.conteos.total}
@@ -795,19 +790,19 @@ function Cifra({
   detalleAlineado?: "izquierda" | "derecha";
 }) {
   const color =
-    resalte === "teal" ? "text-teal-suave" : resalte === "naranjo" ? "text-naranjo-suave" : "text-crema";
+    resalte === "teal" ? "text-teal-suave" : resalte === "naranjo" ? "text-naranjo-suave" : "texto-banda";
   return (
     <div
       tabIndex={detalle ? 0 : undefined}
       className={`group relative px-4 outline-none first:pl-0 last:pr-0 focus-visible:ring-1 focus-visible:ring-naranjo/60 ${
-        ultima ? "" : "sm:border-r sm:border-crema/10"
+        ultima ? "" : "borde-banda sm:border-r"
       }`}
     >
       <dd className={`font-condensed text-3xl font-bold leading-none tracking-tight tabular-nums ${color}`}>
         {valor}
       </dd>
-      <dt className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-crema/45">{etiqueta}</dt>
-      <dd className="mt-1 text-[10px] leading-tight text-crema/30">{pie}</dd>
+      <dt className="texto-banda-45 mt-2 text-[10px] font-semibold uppercase tracking-[0.12em]">{etiqueta}</dt>
+      <dd className="texto-banda-30 mt-1 text-[10px] leading-tight">{pie}</dd>
       {detalle && <Popover alineado={detalleAlineado}>{detalle}</Popover>}
     </div>
   );

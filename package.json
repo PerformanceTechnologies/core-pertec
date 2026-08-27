@@ -13,6 +13,7 @@
     "probar-extraccion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-extraccion.mts",
     "probar-ofertas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ofertas.mts",
     "probar-edicion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-edicion.mts",
+    "probar-tema": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-tema-oscuro.mts",
     "probar-visibilidad": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-visibilidad-cotizaciones.mts",
     "probar-bodega": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bodega.mts"
   },

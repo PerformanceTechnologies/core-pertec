@@ -25,6 +25,32 @@ import { money } from "@/lib/cotizador/formato";
 const NARANJO = "#c85217";
 const TEAL = "#00a080";
 const GRIS = "#8c8578";
+/**
+ * El tooltip, con los colores del tema.
+ *
+ * Recharts dibuja el suyo con estilos EN LÍNEA y en blanco fijo: en modo oscuro
+ * quedaba una placa blanca con el rótulo del mes en gris clarito arriba —invisible—
+ * flotando sobre la pantalla oscura. Se le pasan variables CSS y no colores: son
+ * estilos en línea, pero `var()` en un style de un div se resuelve al pintar, así
+ * que el mismo objeto sirve para los dos temas.
+ *
+ * `cursor` es la banda que Recharts pinta detrás de la barra apuntada: por omisión
+ * es un gris claro sólido, que en oscuro era un bloque encendido al costado del
+ * dato.
+ */
+const TOOLTIP_TEMA = {
+  contentStyle: {
+    background: "var(--color-superficie)",
+    border: "1px solid var(--color-borde)",
+    borderRadius: "8px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+    fontSize: "11px",
+  },
+  labelStyle: { color: "var(--color-tinta)", fontWeight: 600 },
+  itemStyle: { padding: "1px 0" },
+  cursor: { fill: "var(--color-tinta)", fillOpacity: 0.06 },
+} as const;
+
 const ALTO_GRAFICO = "h-24"; // 96px -- compacto a proposito, son tarjetas resumen, no reportes
 const ALTO_GRAFICO_EXPANDIDO = "h-56"; // 224px -- version grande para el modal de detalle
 
@@ -48,7 +74,7 @@ export function GraficoAreaSimple({
         <AreaChart data={datos} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
           <XAxis dataKey="mes" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis hide={!expandido} tick={{ fontSize: 10 }} width={expandido ? 44 : 0} />
-          <Tooltip formatter={(v) => money(Number(v))} labelClassName="text-xs" />
+          <Tooltip {...TOOLTIP_TEMA} formatter={(v) => money(Number(v))} />
           <Area type="monotone" dataKey={dataKey} stroke={NARANJO} fill={NARANJO} fillOpacity={0.15} strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
@@ -71,7 +97,7 @@ export function GraficoBarrasDobles({
         <BarChart data={datos} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
           <XAxis dataKey="mes" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis hide={!expandido} tick={{ fontSize: 10 }} width={expandido ? 44 : 0} />
-          <Tooltip formatter={(v) => money(Number(v))} />
+          <Tooltip {...TOOLTIP_TEMA} formatter={(v) => money(Number(v))} />
           <Bar dataKey="ingreso" fill={TEAL} radius={[3, 3, 0, 0]} maxBarSize={expandido ? 40 : 28} />
           <Bar dataKey="gasto" fill={NARANJO} radius={[3, 3, 0, 0]} maxBarSize={expandido ? 40 : 28} />
         </BarChart>
@@ -119,7 +145,7 @@ function crearTooltipConDetalle(nameKey: string, dataKey: string, formatear: (v:
     const item = payload[0].payload as Record<string, unknown>;
     const detalle = Array.isArray(item.detalle) ? (item.detalle as string[]) : [];
     return (
-      <div className="max-w-[240px] rounded-lg border border-borde bg-white p-2.5 text-xs shadow-lg">
+      <div className="max-w-[240px] rounded-lg border border-borde bg-superficie p-2.5 text-xs shadow-lg">
         <p className="font-semibold text-tinta">
           {String(item[nameKey] ?? "")} ({formatear(Number(item[dataKey] ?? 0))})
         </p>
@@ -187,9 +213,9 @@ export function GraficoDona({
               ))}
             </Pie>
             {mostrarDetalle ? (
-              <Tooltip content={crearTooltipConDetalle(nameKey, dataKey, formatear)} />
+              <Tooltip {...TOOLTIP_TEMA} content={crearTooltipConDetalle(nameKey, dataKey, formatear)} />
             ) : (
-              <Tooltip formatter={(v) => formatear(Number(v))} />
+              <Tooltip {...TOOLTIP_TEMA} formatter={(v) => formatear(Number(v))} />
             )}
           </PieChart>
         </ResponsiveContainer>
@@ -256,9 +282,9 @@ export function GraficoBarrasRanking({
             tickLine={false}
           />
           {mostrarDetalle ? (
-            <Tooltip content={crearTooltipConDetalle(nameKey, dataKey, formatear)} />
+            <Tooltip {...TOOLTIP_TEMA} content={crearTooltipConDetalle(nameKey, dataKey, formatear)} />
           ) : (
-            <Tooltip formatter={(v) => formatear(Number(v))} />
+            <Tooltip {...TOOLTIP_TEMA} formatter={(v) => formatear(Number(v))} />
           )}
           <Bar
             dataKey={dataKey}
@@ -332,6 +358,7 @@ export function GraficoBarraApilada({
             <XAxis type="number" hide />
             <YAxis type="category" dataKey="total" hide />
             <Tooltip
+              {...TOOLTIP_TEMA}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={(valor: any, key: any) => {
                 const indice = Number(String(key).replace("seg", ""));
