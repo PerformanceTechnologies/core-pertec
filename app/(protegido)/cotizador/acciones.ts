@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   exigirAccesoCotizador,
+  exigirCotizacion,
   crearCotizacion,
   actualizarInputCotizacion,
   actualizarMetaCotizacion,
@@ -36,8 +37,11 @@ export async function crearCotizacionAction(form: FormData) {
   redirect(`/cotizador/${cotizacion.id}`);
 }
 
+// Las acciones que reciben un id usan exigirCotizacion y no exigirAccesoCotizador:
+// además del rol, verifica que la cotización sea de quien la manda. Sin eso,
+// cualquiera con la app podía editar, emitir o borrar la de otro mandando el id.
 export async function actualizarMetaCotizacionAction(id: string, form: FormData) {
-  await exigirAccesoCotizador("editar_cotizacion");
+  await exigirCotizacion(id, "editar_cotizacion");
   await actualizarMetaCotizacion(id, leerDatosMeta(form));
   revalidatePath(`/cotizador/${id}`);
   revalidatePath("/cotizador");
@@ -51,7 +55,7 @@ export async function actualizarMetaCotizacionAction(id: string, form: FormData)
 // Acepta las dos formas de entrada (motor y obra); actualizarInputCotizacion
 // verifica que el tipo calce con el de la cotización antes de calcular.
 export async function actualizarInputCotizacionAction(id: string, input: EntradaCotizacion) {
-  await exigirAccesoCotizador("editar_cotizacion");
+  await exigirCotizacion(id, "editar_cotizacion");
   const summary = await actualizarInputCotizacion(id, input);
   revalidatePath(`/cotizador/${id}`);
   revalidatePath("/cotizador");
@@ -59,22 +63,22 @@ export async function actualizarInputCotizacionAction(id: string, input: Entrada
 }
 
 export async function marcarEmitidaAction(id: string) {
-  await exigirAccesoCotizador("marcar_emitida");
+  await exigirCotizacion(id, "marcar_emitida");
   await marcarEmitida(id);
   revalidatePath(`/cotizador/${id}`);
   revalidatePath("/cotizador");
 }
 
 export async function crearNuevaVersionAction(id: string) {
-  const { usuario } = await exigirAccesoCotizador("crear_nueva_version");
+  const { usuario } = await exigirCotizacion(id, "crear_nueva_version");
   const nueva = await crearNuevaVersion(id, usuario.id);
   revalidatePath("/cotizador");
   redirect(`/cotizador/${nueva.id}`);
 }
 
 export async function eliminarCotizacionAction(form: FormData) {
-  await exigirAccesoCotizador("eliminar_cotizacion");
   const id = String(form.get("id"));
+  await exigirCotizacion(id, "eliminar_cotizacion");
   await eliminarCotizacion(id);
   revalidatePath("/cotizador");
 }

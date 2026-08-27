@@ -10,7 +10,12 @@ import { calcularObra } from "./cotizador/obra/calculo";
 import { DIVISOR_HH_DEFECTO, TIPO_OBRA, type ObraInput, type ObraResult } from "./cotizador/obra/tipos";
 import type { Empresa } from "./cotizador/empresas";
 import { normalizarNombreCotizacion } from "./cotizador/nombre-cotizacion";
-import { puedeEnCotizador, type AccionCotizador, type RolCotizador } from "./permisos-cotizador";
+import {
+  puedeEnCotizador,
+  puedeVerCotizacion,
+  type AccionCotizador,
+  type RolCotizador,
+} from "./permisos-cotizador";
 import type { UsuarioConAcceso } from "./tipos";
 
 const SLUG_APP = "cotizador";
@@ -65,6 +70,8 @@ export interface CotizacionResumen {
   // corresponden a un Excel real. Se rotula en la UI y se excluye de los KPI
   // del dashboard — ver comentario de la columna es_demo en la DB.
   esDemo: boolean;
+  /** Quién la creó. Null en cargas manuales antiguas: ver puedeVerCotizacion. */
+  creadoPor: string | null;
   actualizadoEn: string;
   summary: ResumenCotizacion;
 }
@@ -108,7 +115,8 @@ export interface ResumenCotizacion {
 }
 
 const COLUMNAS_RESUMEN = `
-  id, nombre, empresa, cliente, faena, tipo_servicio, rev, estado, emitida, es_demo, actualizado_en, summary
+  id, nombre, empresa, cliente, faena, tipo_servicio, rev, estado, emitida, es_demo, creado_por,
+  actualizado_en, summary
 `;
 const COLUMNAS_COMPLETA = `${COLUMNAS_RESUMEN}, creado_en, input, parametros_set_id, parametros_snapshot`;
 
@@ -123,6 +131,7 @@ interface FilaResumen {
   estado: string;
   emitida: boolean;
   es_demo: boolean;
+  creado_por: string | null;
   actualizado_en: string;
   summary: ResumenCotizacion;
 }
@@ -146,6 +155,7 @@ function filaAResumen(f: FilaResumen): CotizacionResumen {
     estado: f.estado,
     emitida: f.emitida,
     esDemo: f.es_demo ?? false,
+    creadoPor: f.creado_por ?? null,
     actualizadoEn: f.actualizado_en,
     summary: f.summary,
   };
@@ -258,13 +268,53 @@ function incrementarRev(rev: string): string {
   return `Rev${String(n).padStart(2, "0")}`;
 }
 
-export async function listarCotizaciones(): Promise<CotizacionResumen[]> {
-  const { data } = await supabaseAdmin
-    .from("cotizaciones")
-    .select(COLUMNAS_RESUMEN)
-    .order("actualizado_en", { ascending: false });
+/**
+ * El listado que le corresponde a quien mira.
+ *
+ * Recibe el resultado de `exigirAccesoCotizador()` tal cual —`{ usuario, rol }`—
+ * y no un booleano ni un id opcional: así no existe la forma de llamarla "sin
+ * filtro" por descuido, que es exactamente el error que dejaría el portafolio
+ * completo a la vista de todos otra vez.
+ *
+ * El filtro se hace en la consulta y no en memoria: traer todo y descartar
+ * después significa mandar por la red cotizaciones que quien mira no puede ver.
+ */
+export async function listarCotizaciones(quien: {
+  usuario: UsuarioConAcceso;
+  rol: RolCotizador;
+}): Promise<CotizacionResumen[]> {
+  let consulta = supabaseAdmin.from("cotizaciones").select(COLUMNAS_RESUMEN);
 
+  if (quien.rol !== "admin") {
+    // Las suyas, más las de ejemplo (que son de todos) — misma regla que
+    // puedeVerCotizacion, escrita en el lenguaje del filtro de Supabase.
+    consulta = consulta.or(`creado_por.eq.${quien.usuario.id},es_demo.is.true`);
+  }
+
+  const { data } = await consulta.order("actualizado_en", { ascending: false });
   return ((data ?? []) as unknown as FilaResumen[]).map(filaAResumen);
+}
+
+/**
+ * Guard para todo lo que trabaja sobre UNA cotización: sesión, acceso a la app,
+ * rol suficiente para la acción, y que la cotización sea de quien la pide.
+ *
+ * Filtrar el listado no es control de acceso: sin esto, pegar la URL de la
+ * cotización de otro seguía abriendo el editor con sus precios, y las Server
+ * Actions seguían aceptando el id de cualquiera. Por eso todas las páginas,
+ * rutas y acciones que reciben un id pasan por acá.
+ *
+ * Redirige al listado tanto si la cotización no existe como si no le
+ * corresponde: distinguir los dos casos contaría si el id existe.
+ */
+export async function exigirCotizacion(
+  id: string,
+  accion?: AccionCotizador,
+): Promise<{ usuario: UsuarioConAcceso; rol: RolCotizador; cotizacion: CotizacionCompleta }> {
+  const { usuario, rol } = await exigirAccesoCotizador(accion);
+  const cotizacion = await obtenerCotizacion(id);
+  if (!cotizacion || !puedeVerCotizacion(cotizacion, usuario.id, rol)) redirect("/cotizador");
+  return { usuario, rol, cotizacion };
 }
 
 export async function obtenerCotizacion(id: string): Promise<CotizacionCompleta | null> {

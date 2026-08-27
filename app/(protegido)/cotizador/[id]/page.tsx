@@ -1,16 +1,17 @@
-import { notFound } from "next/navigation";
-import { esObra, exigirAccesoCotizador, obtenerCotizacion } from "@/lib/cotizador";
+import { esObra, exigirCotizacion } from "@/lib/cotizador";
 import { listarCatalogoCargos } from "@/lib/cotizador/catalogo-cargos";
 import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import EditorCotizacion from "@/components/cotizador/EditorCotizacion";
 import EditorObra from "@/components/cotizador/obra/EditorObra";
 
 export default async function CotizacionPage({ params }: { params: Promise<{ id: string }> }) {
-  const { usuario, rol } = await exigirAccesoCotizador();
   const { id } = await params;
-
-  const [cotizacion, catalogoCargos] = await Promise.all([obtenerCotizacion(id), listarCatalogoCargos()]);
-  if (!cotizacion) notFound();
+  // Trae la cotización y verifica que sea de quien la pide: filtrar el listado
+  // no alcanza, porque la URL de una cotización ajena se puede pegar a mano.
+  const [{ usuario, rol, cotizacion }, catalogoCargos] = await Promise.all([
+    exigirCotizacion(id),
+    listarCatalogoCargos(),
+  ]);
 
   // La identidad legal depende de la empresa de la cotización, así que se pide
   // recién acá (no en paralelo con las de arriba).

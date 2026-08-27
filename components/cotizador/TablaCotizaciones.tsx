@@ -29,9 +29,16 @@ function etiquetaEstado(estado: string): string {
 export default function TablaCotizaciones({
   cotizaciones,
   puedeEliminar,
+  autores,
 }: {
   cotizaciones: CotizacionResumen[];
   puedeEliminar: boolean;
+  /**
+   * id de usuario → nombre, solo cuando el listado trae cotizaciones de más de
+   * una persona (es decir, cuando mira el admin). Para el resto está vacío: todo
+   * lo que ven es propio y repetir su nombre en cada fila no informa nada.
+   */
+  autores?: Record<string, string>;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [empresaFiltro, setEmpresaFiltro] = useState<string>("todas");
@@ -39,6 +46,10 @@ export default function TablaCotizaciones({
   const [estadoFiltro, setEstadoFiltro] = useState<string>("todos");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
+
+  /** El nombre de quien la creó, o null si no corresponde mostrarlo. */
+  const autorDe = (c: CotizacionResumen): string | null =>
+    (c.creadoPor && autores?.[c.creadoPor]) || null;
 
   const filtradas = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -53,10 +64,13 @@ export default function TablaCotizaciones({
       return (
         c.nombre.toLowerCase().includes(texto) ||
         (c.cliente ?? "").toLowerCase().includes(texto) ||
-        (c.faena ?? "").toLowerCase().includes(texto)
+        (c.faena ?? "").toLowerCase().includes(texto) ||
+        // Para el admin, que ve las de todos, buscar por nombre de la persona es
+        // la forma de quedarse con las de una sola sin agregar otro filtro.
+        (autores?.[c.creadoPor ?? ""] ?? "").toLowerCase().includes(texto)
       );
     });
-  }, [cotizaciones, busqueda, empresaFiltro, tipoFiltro, estadoFiltro, fechaDesde, fechaHasta]);
+  }, [cotizaciones, autores, busqueda, empresaFiltro, tipoFiltro, estadoFiltro, fechaDesde, fechaHasta]);
 
   const hayFiltrosActivos =
     busqueda.trim() !== "" ||
@@ -210,6 +224,7 @@ export default function TablaCotizaciones({
                   </Link>
                   <p className="truncate text-[11px] font-normal text-tinta/35" title={c.empresa}>
                     {c.empresa} · Rev. {c.rev}
+                    {autorDe(c) && ` · ${autorDe(c)}`}
                   </p>
                   {c.esDemo && <EtiquetaEjemplo />}
                 </td>
@@ -268,6 +283,7 @@ export default function TablaCotizaciones({
                 </p>
                 <p className="truncate text-[11px] text-tinta/35">
                   {c.empresa} · Rev. {c.rev}
+                  {autorDe(c) && ` · ${autorDe(c)}`}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1.5">

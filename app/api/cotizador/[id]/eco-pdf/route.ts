@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
-import { esObra, obtenerCotizacion } from "@/lib/cotizador";
+import { esObra, obtenerCotizacion, resolverRolCotizador } from "@/lib/cotizador";
+import { puedeVerCotizacion } from "@/lib/permisos-cotizador";
 import { calcularCotizacion } from "@/lib/cotizador/motor/consolidacion";
 import { generarEcoPdf } from "@/lib/cotizador/eco-pdf";
 import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
@@ -27,7 +28,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const cotizacion = await obtenerCotizacion(id);
-  if (!cotizacion) {
+  // El PDF trae los precios y los márgenes completos, así que se cuida igual que
+  // la pantalla: si la cotización no es de quien la pide, para él no existe.
+  // (Acá no se puede usar exigirCotizacion, que redirige: una ruta de API
+  // responde con un status.)
+  const rol = await resolverRolCotizador(acceso.usuario);
+  if (!cotizacion || !puedeVerCotizacion(cotizacion, acceso.usuario.id, rol)) {
     return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 });
   }
 

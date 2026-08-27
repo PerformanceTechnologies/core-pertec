@@ -11,9 +11,12 @@ import { crearCotizacionAction } from "@/app/(protegido)/cotizador/acciones";
 export default function PanelCotizador({
   cotizaciones,
   rol,
+  autores,
 }: {
   cotizaciones: CotizacionResumen[];
   rol: RolCotizador;
+  /** id → nombre de quien creó cada cotización; solo llega cuando mira el admin. */
+  autores?: Record<string, string>;
 }) {
   const puedeCrear = puedeEnCotizador(rol, "crear_cotizacion");
   const puedeEliminar = puedeEnCotizador(rol, "eliminar_cotizacion");
@@ -144,7 +147,7 @@ export default function PanelCotizador({
           partida: en vez de una obra en blanco, una propuesta ya escrita. */}
       {puedeCrear && <ImportarPropuesta />}
 
-      <TablaCotizaciones cotizaciones={cotizaciones} puedeEliminar={puedeEliminar} />
+      <TablaCotizaciones cotizaciones={cotizaciones} puedeEliminar={puedeEliminar} autores={autores} />
     </div>
   );
 }
