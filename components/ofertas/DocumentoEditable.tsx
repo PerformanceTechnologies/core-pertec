@@ -115,7 +115,13 @@ export default function DocumentoEditable({
         setError(e instanceof Error ? e.message : "No se pudo armar el documento.");
       })
       .finally(() => {
-        if (!control.signal.aborted) setCargando(false);
+        if (control.signal.aborted) return;
+        setCargando(false);
+        // Acá se apaga el aviso de la foto, y no cuando termina de guardarse: entre
+        // el guardado y el documento nuevo hay un segundo largo en el que el servidor
+        // está armando la maqueta. Apagarlo antes dejaba justo ese tramo en silencio,
+        // que es el que se lee como "no hizo nada".
+        setMoviendo(null);
       });
 
     return () => control.abort();
@@ -130,10 +136,12 @@ export default function DocumentoEditable({
    * escribiendo sin guardar — son dos caminos distintos hacia la misma oferta.
    */
   const ubicar = useCallback(
-    async (indice: number, destino: string | null) => {
+    async (indice: number, destino: string | null, deLaFirma = false) => {
       setMoviendo(
         destino === null
-          ? "Sacando la foto…"
+          ? deLaFirma
+            ? "Sacando la firma…"
+            : "Sacando la foto…"
           : esFirma(destino)
             ? "Poniendo la firma…"
             : "Poniendo la foto…",
@@ -147,12 +155,13 @@ export default function DocumentoEditable({
         });
         await leerRespuesta(respuesta);
         // Volver a pedir la maqueta es lo que la dibuja en su lugar, con su número de
-        // pie y su epígrafe: esa estructura la arma el servidor, no esta pantalla.
+        // pie y su epígrafe: esa estructura la arma el servidor, no esta pantalla. El
+        // aviso sigue prendido hasta que ese documento llega (ver el efecto de más
+        // arriba).
         setRevision((r) => r + 1);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "No se pudo mover la foto.");
-      } finally {
         setMoviendo(null);
       }
     },
@@ -195,18 +204,20 @@ export default function DocumentoEditable({
             });
           }
         }
+        setMoviendo("Armando el documento…");
         setRevision((r) => r + 1);
         router.refresh();
       } catch (e) {
         subidas = subidaParcial(e)?.subidas ?? subidas;
         setError(e instanceof Error ? e.message : "No se pudo subir la foto.");
-      } finally {
-        setMoviendo(null);
         // Lo que alcanzó a subir tiene que aparecer en el cajón y en el documento,
-        // aunque una de las siguientes haya fallado.
+        // aunque una de las siguientes haya fallado. Si no subió nada, no hay
+        // documento nuevo que esperar y el aviso se apaga acá.
         if (subidas > 0) {
           setRevision((r) => r + 1);
           router.refresh();
+        } else {
+          setMoviendo(null);
         }
       }
     },
@@ -234,12 +245,29 @@ export default function DocumentoEditable({
       },
       alSoltarImagen: (indice, destino) => void ubicar(indice, destino),
       alSoltarArchivos: (archivos, destino) => void subirYUbicar(archivos, destino),
-      alQuitarImagen: (indice) => void ubicar(indice, null),
+      alQuitarImagen: (indice, deLaFirma) => void ubicar(indice, null, deLaFirma),
     });
   }, [editable, ubicar, subirYUbicar]);
 
   return (
     <div className="flex flex-col gap-3">
+      {/* La señal de "estoy haciendo algo con esta foto", anclada a la ventana.
+          Tiene que estar acá y no solo en la línea de arriba: el documento mide
+          varias pantallas de alto, y una foto se suelta —o se saca con su ×— con la
+          vista en el medio del anexo, a mil píxeles de cualquier barra de la página.
+          Ahí el único aviso quedaba fuera de la pantalla y el sistema parecía no
+          hacer nada. Sin position sticky a propósito: el papel está dentro de un
+          contenedor con overflow, y ahí sticky no se pega a la ventana. */}
+      {moviendo && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="animar-entrada fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-borde bg-superficie px-4 py-2 text-xs font-medium text-tinta shadow-lg"
+        >
+          <RuedaCarga />
+          {moviendo}
+        </div>
+      )}
       {/* Una sola fila: el aviso y el botón compartían el ancho pero el texto era
           tan largo que envolvía y el botón terminaba solo en su propia línea, con lo
           que la pantalla sumaba dos filas de chrome antes del papel. Acortado, entran
@@ -288,7 +316,15 @@ export default function DocumentoEditable({
             srcDoc={html}
             onLoad={preparar}
             sandbox="allow-same-origin"
-            className="block w-full min-w-[680px]"
+            /* Mientras se está guardando una foto el documento se atenúa y no recibe
+               el mouse: lo que se ve es la maqueta ANTERIOR —la nueva se está
+               armando en el servidor— y sin esta señal parecía que soltar la foto no
+               había hecho nada. Además evita el segundo soltado sobre un documento
+               que está a punto de ser reemplazado. La opacidad no mueve ni un
+               milímetro de la maqueta, que es la regla de esta pantalla. */
+            className={`block w-full min-w-[680px] transition-opacity ${
+              moviendo ? "pointer-events-none opacity-50" : ""
+            }`}
           />
         ) : (
           <div className="flex h-64 items-center justify-center gap-2 text-xs text-tinta/45">

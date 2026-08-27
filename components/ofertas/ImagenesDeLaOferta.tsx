@@ -10,6 +10,7 @@ import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
 import SubirImagenes from "@/components/ofertas/SubirImagenes";
 import QuitarImagen from "@/components/ofertas/QuitarImagen";
 import Plegable from "@/components/Plegable";
+import BotonEnviar from "@/components/BotonEnviar";
 
 /**
  * Las imágenes de una oferta: las que traía el borrador y las que se agreguen acá,
@@ -173,12 +174,15 @@ export default function ImagenesDeLaOferta({
         </div>
 
         {editable && (
-          <button
-            type="submit"
+          // Con la rueda mientras corre la acción: aplicar toca todo el reparto de
+          // imágenes y el documento se rearma entero, así que hay un par de segundos
+          // en los que sin esto el botón parecía no haber hecho nada.
+          <BotonEnviar
+            cargando="Aplicando…"
             className="mt-3 rounded-lg border border-borde px-4 py-2 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
           >
             Aplicar al documento
-          </button>
+          </BotonEnviar>
         )}
       </form>
     </Plegable>

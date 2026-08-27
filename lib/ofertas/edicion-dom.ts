@@ -129,8 +129,14 @@ export interface OpcionesDeEdicion {
    * ubicar: traer una foto de una carpeta al documento no puede terminar en nada.
    */
   alSoltarArchivos?: (archivos: File[], destino: string | null) => void;
-  /** Apretaron la × de una foto del documento. */
-  alQuitarImagen?: (indice: number) => void;
+  /**
+   * Apretaron la × de una foto del documento.
+   *
+   * `deLaFirma` distingue la rúbrica de una foto del cuerpo. Solo sirve para
+   * decirlo en pantalla —"Sacando la firma…"— pero es la diferencia entre un aviso
+   * que confirma lo que se acaba de apretar y uno genérico que no confirma nada.
+   */
+  alQuitarImagen?: (indice: number, deLaFirma: boolean) => void;
   /** Una oferta emitida se mira, no se toca. */
   editable: boolean;
   /**
@@ -348,7 +354,7 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
       boton.textContent = "\u00d7";
       boton.addEventListener("click", (evento) => {
         evento.preventDefault();
-        opciones.alQuitarImagen?.(Number(imagen.dataset.imagen));
+        opciones.alQuitarImagen?.(Number(imagen.dataset.imagen), esFirma);
       });
       donde.appendChild(boton);
     }

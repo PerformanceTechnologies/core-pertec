@@ -47,6 +47,11 @@ export default function CajonDeFotos({
   const [subiendo, setSubiendo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [encima, setEncima] = useState(false);
+  // Cuál foto está en el aire. Alcanza con el número: se saca de a una, y así la
+  // señal aparece SOBRE la miniatura que se apretó. El aviso del encabezado dice que
+  // el cajón está ocupado, pero no cuál de las nueve fotos se está yendo, que es lo
+  // que uno quiere confirmar justo después de apretar una × de 16 px.
+  const [ocupada, setOcupada] = useState<number | null>(null);
 
   const subir = async (archivos: File[]) => {
     if (archivos.length === 0) return;
@@ -72,6 +77,7 @@ export default function CajonDeFotos({
   const quitar = async (indice: number, delBorrador: boolean) => {
     if (!window.confirm(avisoDeQuitar(delBorrador))) return;
     setSubiendo("Quitando…");
+    setOcupada(indice);
     setError(null);
     try {
       await quitarImagenDeOferta(ofertaId, indice);
@@ -80,6 +86,7 @@ export default function CajonDeFotos({
       setError(e instanceof Error ? e.message : "No se pudo quitar la foto.");
     } finally {
       setSubiendo(null);
+      setOcupada(null);
     }
   };
 
@@ -140,10 +147,11 @@ export default function CajonDeFotos({
       <div className="mt-3 grid max-h-[262px] grid-cols-4 gap-2 overflow-y-auto [grid-auto-rows:82px] sm:grid-cols-3">
         {imagenes.map((imagen) => {
           const puesta = seccionDe(imagen.indice);
+          const enElAire = ocupada === imagen.indice;
           return (
             <div
               key={imagen.indice}
-              draggable
+              draggable={!enElAire}
               onDragStart={(evento) => {
                 evento.dataTransfer.setData(TIPO_ARRASTRE, String(imagen.indice));
                 evento.dataTransfer.effectAllowed = "move";
@@ -170,7 +178,20 @@ export default function CajonDeFotos({
               >
                 ×
               </button>
-              <div className="flex h-14 items-center justify-center overflow-hidden rounded bg-white">
+              {/* La foto que se está yendo se atenúa y muestra la rueda encima. Es la
+                  misma idea que el documento atenuado mientras se guarda: lo que se
+                  ve todavía es el estado anterior, y sin decirlo parece que la × no
+                  hizo nada. */}
+              {enElAire && (
+                <span className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-superficie/70">
+                  <RuedaCarga />
+                </span>
+              )}
+              <div
+                className={`flex h-14 items-center justify-center overflow-hidden rounded bg-white transition-opacity ${
+                  enElAire ? "opacity-40" : ""
+                }`}
+              >
                 {urls[imagen.indice] ? (
                   // Sin next/image: bucket privado con URL firmada y corta.
                   // eslint-disable-next-line @next/next/no-img-element

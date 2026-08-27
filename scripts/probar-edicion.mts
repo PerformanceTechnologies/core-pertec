@@ -24,7 +24,13 @@ interface VentanaDePrueba {
   /** Lo que el módulo avisó hacia afuera, que es lo que la página guardaría. */
   avisos: { ruta: string; texto: string; tipo?: string }[];
   /** Lo que el módulo reportó al soltar o al sacar una foto. */
-  sueltas: { indice?: number; destino?: string | null; archivos?: string[]; quitada?: number }[];
+  sueltas: {
+    indice?: number;
+    destino?: string | null;
+    archivos?: string[];
+    quitada?: number;
+    deLaFirma?: boolean;
+  }[];
   /** Las cajas de cada elemento del documento, para comparar antes y después. */
   medidas: { el: Element; caja: { x: number; y: number; w: number; h: number } }[];
   medir: () => { corridos: string[]; total: number };
@@ -251,7 +257,8 @@ try {
         alSoltarArchivos: (archivos: File[], destino: string | null) => {
           ventana.sueltas.push({ archivos: archivos.map((a) => a.name), destino });
         },
-        alQuitarImagen: (indice: number) => ventana.sueltas.push({ quitada: indice }),
+        alQuitarImagen: (indice: number, deLaFirma: boolean) =>
+          ventana.sueltas.push({ quitada: indice, deLaFirma }),
       });
 
       const cliente = doc.querySelector<HTMLElement>('[data-campo="identificacion.cliente"]');
@@ -593,7 +600,11 @@ try {
   });
   console.log(quitada);
   assert.ok(quitada.hayBoton, "cada foto del documento tiene su × para sacarla");
-  assert.deepEqual(quitada.ultima, { quitada: 1 }, "y avisa cuál se sacó");
+  assert.deepEqual(
+    quitada.ultima,
+    { quitada: 1, deLaFirma: false },
+    "y avisa cuál se sacó, y que es una foto del cuerpo",
+  );
 
   // La rúbrica también tiene su ×. Se podía poner una firma arrastrándola y después
   // no había cómo sacarla desde el documento, que es la mitad del trabajo: la firma
@@ -624,8 +635,8 @@ try {
   );
   assert.deepEqual(
     firmaQuitada.ultima,
-    { quitada: 2 },
-    "y avisa el número de la imagen que era la rúbrica",
+    { quitada: 2, deLaFirma: true },
+    "y avisa el número de la imagen que era la rúbrica, y que es una firma: es lo que deja decir 'Sacando la firma…' y no un aviso genérico",
   );
 
   // ── 8. El arrastre de verdad, cruzando del cajón al documento ─────────────
