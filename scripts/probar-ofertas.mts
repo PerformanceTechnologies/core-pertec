@@ -1030,8 +1030,8 @@ const htmlDosFirmas = ofertaAHtml(
   { 4: { uri: JPEG_VALIDO, apaisada: false }, 7: { uri: PNG_VALIDO, apaisada: false } },
 );
 assert.equal((htmlDosFirmas.match(/class="rubrica"/g) ?? []).length, 2, "cada firmante firma con la suya");
-assert.ok(htmlDosFirmas.includes(`<img class="rubrica" src="${PNG_VALIDO}"`), "la del primero");
-assert.ok(htmlDosFirmas.includes(`<img class="rubrica" src="${JPEG_VALIDO}"`), "y la del segundo");
+assert.ok(htmlDosFirmas.includes(`data-imagen="7" src="${PNG_VALIDO}"`), "la del primero");
+assert.ok(htmlDosFirmas.includes(`data-imagen="4" src="${JPEG_VALIDO}"`), "y la del segundo");
 
 // El bloque de cada firmante lleva su `data-firma`: es el blanco al que se arrastra
 // la rúbrica sobre el documento. Va en el bloque y no en el hueco de la rúbrica
@@ -1042,6 +1042,18 @@ assert.ok(
   htmlDosFirmas.includes('data-firma="0"') && htmlDosFirmas.includes('data-firma="1"'),
   "cada firmante tiene su bloque marcado para recibir la rúbrica arrastrada",
 );
+// Y la rúbrica dibujada lleva SU número, envuelta en su caja: es lo que le da la ×
+// para sacarla. Sin esto se podía poner una firma arrastrándola y no había forma de
+// sacarla desde el documento.
+assert.ok(
+  htmlDosFirmas.includes('<span class="rubrica-caja"><img class="rubrica" data-imagen="7"'),
+  "la rúbrica del primero se puede identificar y sacar",
+);
+assert.ok(
+  htmlDosFirmas.includes('data-imagen="4"') && htmlDosFirmas.includes('class="rubrica-caja"'),
+  "y la del segundo también",
+);
+
 const htmlSinNingunaFirma = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA);
 assert.ok(
   htmlSinNingunaFirma.includes('data-firma="0"'),

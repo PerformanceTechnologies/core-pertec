@@ -78,14 +78,24 @@ const ESTILO_DEL_EDITOR = `
      mientras la foto está encima. */
   [data-firma].recibiendo::after { top: auto; bottom: -14px; right: auto; left: 0; }
 
-  /* La × para sacar una foto del documento: aparece al pasar por encima. */
-  .fotos figure { position: relative; }
-  .fotos figure .quitar-foto {
+  /* La × para sacar una foto del documento: aparece al pasar por encima. La rúbrica
+     tiene la suya, en la esquina de la firma: se podía poner una firma arrastrándola
+     y después no había cómo sacarla, que es la mitad del trabajo. */
+  .fotos figure, .firmas .rubrica-caja { position: relative; }
+  .quitar-foto {
     position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0;
     border: 1px solid ${ACENTO}55; border-radius: 999px; background: #fff; color: ${ACENTO};
     font: 700 13px/1 sans-serif; cursor: pointer; opacity: 0; transition: opacity .12s;
   }
-  .fotos figure:hover .quitar-foto, .fotos figure .quitar-foto:focus { opacity: 1; }
+  .fotos figure:hover .quitar-foto,
+  .firmas .rubrica-caja:hover .quitar-foto,
+  .quitar-foto:focus { opacity: 1; }
+  /* La rúbrica es chica y clara: la × va pegada a su esquina y un poco más chica,
+     que con el tamaño de las del cuerpo tapaba media firma. */
+  /* Adentro de la esquina y no colgando por fuera: el bloque del primer firmante
+     arranca en el margen izquierdo de la hoja, y una rúbrica angosta dejaba la × del
+     lado de afuera del papel, cortada. Adentro no se puede cortar nunca. */
+  .firmas .quitar-foto { top: 1px; right: 1px; width: 16px; height: 16px; font-size: 11px; }
 `;
 
 /**
@@ -314,18 +324,33 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
   // plantilla: en el PDF no existe, y este documento se vuelve a armar entero cada
   // vez que se refresca la vista.
   if (opciones.alQuitarImagen) {
+    // Las fotos del cuerpo y las rúbricas del cierre: las dos son imágenes puestas
+    // en el documento y se sacan igual. La rúbrica lleva el atributo en la imagen
+    // misma y el botón va en la caja que la envuelve, para que caiga en la esquina de
+    // la firma y no en la del hueco, que es más grande.
+    const conBoton: [HTMLElement, HTMLElement][] = [];
     for (const figura of doc.querySelectorAll<HTMLElement>("figure[data-imagen]")) {
+      conBoton.push([figura, figura]);
+    }
+    for (const rubrica of doc.querySelectorAll<HTMLElement>("img.rubrica[data-imagen]")) {
+      const caja = rubrica.closest<HTMLElement>(".rubrica-caja");
+      if (caja) conBoton.push([rubrica, caja]);
+    }
+
+    for (const [imagen, donde] of conBoton) {
+      const esFirma = donde !== imagen;
+      const rotulo = esFirma ? "Sacar esta firma del documento" : "Sacar esta foto del documento";
       const boton = doc.createElement("button");
       boton.type = "button";
       boton.className = "quitar-foto";
-      boton.title = "Sacar esta foto del documento";
-      boton.setAttribute("aria-label", "Sacar esta foto del documento");
+      boton.title = rotulo;
+      boton.setAttribute("aria-label", rotulo);
       boton.textContent = "\u00d7";
       boton.addEventListener("click", (evento) => {
         evento.preventDefault();
-        opciones.alQuitarImagen?.(Number(figura.dataset.imagen));
+        opciones.alQuitarImagen?.(Number(imagen.dataset.imagen));
       });
-      figura.appendChild(boton);
+      donde.appendChild(boton);
     }
   }
 

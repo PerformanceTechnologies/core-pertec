@@ -104,7 +104,14 @@ const oferta: OfertaCanonica = {
     // Dos, a propósito: con uno solo, "cayó en el firmante correcto" no distingue
     // de "cayó en el único que había".
     firmantes: [
-      { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: "Performance Technologies SpA" },
+      // El primero firma con una rúbrica puesta: hace falta para probar que se
+      // pueda SACAR, que es la otra mitad de poder ponerla.
+      {
+        nombre: "Alfonso Hachim Fulgeri",
+        cargo: "Gerente General",
+        empresa: "Performance Technologies SpA",
+        firmaImagen: 2,
+      },
       { nombre: "Camila Reyes Toro", cargo: "Jefa de Operaciones", empresa: null },
     ],
     cc: "CC: Gcia. Gral. / Archivo.",
@@ -142,6 +149,7 @@ const empresa = {
 
 const documento = ofertaAHtml(oferta, calcularTotales(oferta), empresa, undefined, undefined, {
   1: { uri: PNG_VALIDO, apaisada: false },
+  2: { uri: PNG_VALIDO, apaisada: false },
 });
 
 // El módulo real, empacado para poder inyectarlo en la página.
@@ -586,6 +594,39 @@ try {
   console.log(quitada);
   assert.ok(quitada.hayBoton, "cada foto del documento tiene su × para sacarla");
   assert.deepEqual(quitada.ultima, { quitada: 1 }, "y avisa cuál se sacó");
+
+  // La rúbrica también tiene su ×. Se podía poner una firma arrastrándola y después
+  // no había cómo sacarla desde el documento, que es la mitad del trabajo: la firma
+  // es la imagen que más se equivoca —la del gerente en la oferta que firma otro— y
+  // la que más urgente es poder deshacer.
+  const firmaQuitada = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const boton = doc.querySelector<HTMLElement>('.rubrica-caja .quitar-foto');
+    // En la esquina de la rúbrica y no en la del hueco, que es más grande y no dice
+    // dónde está la imagen.
+    const dentroDeLaCaja = boton?.parentElement?.classList.contains("rubrica-caja") === true;
+    boton?.click();
+    return {
+      hayBoton: Boolean(boton),
+      dentroDeLaCaja,
+      rotulo: boton?.getAttribute("aria-label"),
+      ultima: ventana.sueltas.at(-1),
+    };
+  });
+  console.log(firmaQuitada);
+  assert.ok(firmaQuitada.hayBoton, "la rúbrica puesta tiene su × para sacarla del documento");
+  assert.ok(firmaQuitada.dentroDeLaCaja, "y va en la esquina de la firma");
+  assert.equal(
+    firmaQuitada.rotulo,
+    "Sacar esta firma del documento",
+    "el rótulo dice firma y no foto: es lo que se está sacando",
+  );
+  assert.deepEqual(
+    firmaQuitada.ultima,
+    { quitada: 2 },
+    "y avisa el número de la imagen que era la rúbrica",
+  );
 
   // ── 8. El arrastre de verdad, cruzando del cajón al documento ─────────────
   await pagina

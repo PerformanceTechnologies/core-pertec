@@ -521,8 +521,11 @@ function armarSecciones(
     const c = oferta.cierre;
     // La rúbrica de cada uno, resuelta antes de dibujar: hace falta saber si HAY
     // alguna para decidir el hueco de todos.
-    const rubricas = c.firmantes.map((_, i) => imagenSegura(imagenes[firmaDe(c, i) ?? -1]?.uri));
-    const hayRubrica = rubricas.some(Boolean);
+    const rubricas = c.firmantes.map((_, i) => {
+      const numero = firmaDe(c, i);
+      return { numero, uri: imagenSegura(imagenes[numero ?? -1]?.uri) };
+    });
+    const hayRubrica = rubricas.some((r) => Boolean(r.uri));
     agregar(
       "Cierre y firma",
       (c.texto ? `<p${campo("cierre.texto")}>${esc(c.texto)}</p>` : "") +
@@ -536,6 +539,12 @@ function armarSecciones(
             // tenga: si no, la línea del que firma queda más abajo que la del que
             // no, y el bloque sale desalineado.
             const rubrica = rubricas[i];
+            // La rúbrica lleva su número de imagen, igual que las fotos del cuerpo:
+            // es lo que le permite tener su × para sacarla. Antes se podía poner una
+            // firma arrastrándola y después no había forma de sacarla desde el
+            // documento — solo el desplegable del panel—, que es la mitad del
+            // trabajo.
+            const marca = rubrica.numero === null ? "" : ` data-imagen="${rubrica.numero}"`;
             return (
               // `data-firma` es el blanco del arrastre: se puede llevar una foto del
               // cajón —o un archivo del escritorio— hasta el bloque de esta persona
@@ -545,7 +554,9 @@ function armarSecciones(
               `<div class="firma" data-firma="${i}">` +
               (hayRubrica
                 ? `<span class="hueco-rubrica">${
-                    rubrica ? `<img class="rubrica" src="${rubrica}" alt="">` : ""
+                    rubrica.uri
+                      ? `<span class="rubrica-caja"><img class="rubrica"${marca} src="${rubrica.uri}" alt=""></span>`
+                      : ""
                   }</span>`
                 : "") +
               `<span class="linea"></span>` +
@@ -877,6 +888,10 @@ export function ofertaAHtml(
   /* El hueco de la rúbrica mide lo mismo para todos los firmantes, así las líneas
      quedan a la misma altura; la firma se apoya en su línea, como en un papel. */
   .firmas .hueco-rubrica { display: flex; align-items: flex-end; height: 17mm; margin-bottom: 1mm; }
+  /* La caja existe para que la × de sacar la firma se pueda ubicar en la esquina de
+     la rúbrica y no en la del hueco, que es más grande y no dice dónde está la
+     imagen. En el PDF no hace nada: es un inline-block del tamaño de su imagen. */
+  .firmas .rubrica-caja { display: inline-block; max-width: 62mm; }
   .firmas .rubrica { display: block; max-height: 17mm; max-width: 62mm; }
 
   /* Las fotos del anexo: dos por fila, cada una entera o en la página siguiente.
