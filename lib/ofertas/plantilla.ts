@@ -537,7 +537,12 @@ function armarSecciones(
             // no, y el bloque sale desalineado.
             const rubrica = rubricas[i];
             return (
-              `<div class="firma">` +
+              // `data-firma` es el blanco del arrastre: se puede llevar una foto del
+              // cajón —o un archivo del escritorio— hasta el bloque de esta persona
+              // y esa foto queda como su rúbrica. Va en el bloque entero y no en el
+              // hueco de la rúbrica porque el hueco no existe hasta que hay alguna
+              // firma, y justamente el caso que importa es el de la primera.
+              `<div class="firma" data-firma="${i}">` +
               (hayRubrica
                 ? `<span class="hueco-rubrica">${
                     rubrica ? `<img class="rubrica" src="${rubrica}" alt="">` : ""

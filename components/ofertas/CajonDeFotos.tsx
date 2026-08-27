@@ -121,7 +121,7 @@ export default function CajonDeFotos({
       <p className="mt-0.5 text-[11px] text-pretty text-tinta/45">
         {imagenes.length === 0
           ? "Agregá las fotos del trabajo y después arrastrá cada una hasta la sección del documento donde va."
-          : "Arrastrá una hasta la sección del documento donde va, y sacala con la × de cada foto. Podés soltar archivos acá o sobre el documento."}
+          : "Arrastrá una hasta la sección del documento donde va —o hasta la línea de firma, si es la rúbrica— y sacala con la × de cada foto. Podés soltar archivos acá o sobre el documento."}
       </p>
       {/* Arrastrar es de mouse: en una pantalla táctil no hay gesto equivalente en la
           web sin reescribir el arrastre a mano. En vez de dejar un cajón que no

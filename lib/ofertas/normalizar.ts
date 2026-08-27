@@ -1,3 +1,4 @@
+import type { DestinoDeImagen } from "./destino-imagen";
 import {
   SECCIONES_CON_IMAGENES,
   firmaDe,
@@ -400,28 +401,63 @@ function firmaGuardadaDe(cierre: Cierre | null | undefined, nombre: string): num
 }
 
 /**
- * El contenido con una imagen puesta en una sección, o sacada de todas.
+ * El contenido con una imagen puesta en su destino, o sacada de todos.
  *
  * Es lo que ocurre al arrastrar una foto sobre el documento. Sale primero de donde
- * estuviera: una imagen vive en UNA sección —si apareciera en dos, el documento la
- * dibujaría dos veces— así que mover es sacar y poner, no solo poner.
+ * estuviera: una imagen vive en UN lugar —si apareciera en dos, el documento la
+ * dibujaría dos veces— así que mover es sacar y poner, no solo poner. Y "donde
+ * estuviera" incluye ser la rúbrica de alguien: arrastrar la firma a una sección la
+ * saca del cierre, y arrastrar una foto del anexo al cierre la saca del anexo.
  *
- * Va al final de la sección porque es donde se ve que llegó algo nuevo. Reordenarlas
- * dentro de la sección es otra cosa y todavía no existe.
+ * En una sección va al final, porque es donde se ve que llegó algo nuevo.
+ * Reordenarlas dentro de la sección es otra cosa y todavía no existe.
+ *
+ * Como rúbrica reemplaza a la que tuviera ese firmante: una persona firma con una
+ * sola. La anterior no se borra de la oferta, queda sin ubicar en el cajón.
  */
 export function conLaImagenEn(
   contenido: OfertaCanonica,
   indice: number,
-  seccion: SeccionConImagenes | null,
+  destino: DestinoDeImagen | null,
 ): OfertaCanonica {
   const porSeccion: Partial<Record<SeccionConImagenes, number[]>> = {};
   for (const [clave, indices] of Object.entries(contenido.imagenesPorSeccion ?? {})) {
     const quedan = (indices ?? []).filter((n) => n !== indice);
     if (quedan.length > 0) porSeccion[clave as SeccionConImagenes] = quedan;
   }
-  if (seccion) porSeccion[seccion] = [...(porSeccion[seccion] ?? []), indice];
+  if (destino?.tipo === "seccion") {
+    porSeccion[destino.seccion] = [...(porSeccion[destino.seccion] ?? []), indice];
+  }
 
-  return { ...contenido, imagenesPorSeccion: porSeccion };
+  const cierre = contenido.cierre;
+  return {
+    ...contenido,
+    imagenesPorSeccion: porSeccion,
+    cierre: cierre
+      ? {
+          ...cierre,
+          firmantes: cierre.firmantes.map((f, i) => {
+            if (destino?.tipo === "firma" && destino.firmante === i) {
+              return { ...f, firmaImagen: indice };
+            }
+            // Se escribe null explícito —y no se deja el campo sin poner— porque
+            // ausente significa "nunca se eligió" y cae a la firma del borrador
+            // (ver firmaDe): sin esto, mover la firma del borrador a una sección la
+            // dejaba dibujada igual en el cierre.
+            return firmaDe(cierre, i) === indice ? { ...f, firmaImagen: null } : f;
+          }),
+          // Lo mismo por el otro lado: si la que el modelo leyó como firma se usó
+          // para otra cosa, deja de ser la firma del borrador. Si no, alcanzaba con
+          // agregar después un firmante en la primera posición —que nace sin campo,
+          // y por lo tanto hereda esta— para que la imagen volviera a salir como
+          // rúbrica estando además en una sección.
+          firmaImagen:
+            cierre.firmaImagen === indice && !(destino?.tipo === "firma" && destino.firmante === 0)
+              ? null
+              : cierre.firmaImagen,
+        }
+      : cierre,
+  };
 }
 
 /**

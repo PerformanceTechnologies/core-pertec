@@ -5,6 +5,7 @@ import {
   type Cierre,
   type SeccionConImagenes,
 } from "@/lib/ofertas/tipos";
+import { textoDeFirma } from "@/lib/ofertas/destino-imagen";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
 import SubirImagenes from "@/components/ofertas/SubirImagenes";
 import QuitarImagen from "@/components/ofertas/QuitarImagen";
@@ -60,7 +61,7 @@ export default function ImagenesDeLaOferta({
   // Los firmantes, con la posición que el formulario va a mandar de vuelta. Uno sin
   // nombre igual aparece: existe en el documento y su rúbrica tiene dónde ir.
   const firmantes = (cierre?.firmantes ?? []).map((f, i) => ({
-    valor: `firma-${i}`,
+    valor: textoDeFirma(i),
     nombre: f.nombre.trim() || `Firmante ${i + 1}`,
     imagen: cierre ? firmaDe(cierre, i) : null,
   }));
@@ -96,8 +97,8 @@ export default function ImagenesDeLaOferta({
 
         <p className="max-w-[85ch] text-[11px] text-pretty text-tinta/45">
           <b className="font-semibold text-tinta/65">
-            La forma corta es arrastrarlas: en la pestaña Documento, cada foto se lleva hasta la sección donde
-            va y se ve ahí mismo.
+            La forma corta es arrastrarlas: en la pestaña Documento, cada foto se lleva hasta la sección
+            donde va —o hasta la línea de firma, si es una rúbrica— y se ve ahí mismo.
           </b>{" "}
           Acá está lo demás: agregar las que falten, sacar las que sobren y decir de quién es cada rúbrica. El
           desplegable hace lo mismo que arrastrar, por si preferís elegir de una lista. El sistema propuso una

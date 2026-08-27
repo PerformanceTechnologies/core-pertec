@@ -24,10 +24,19 @@ interface VentanaDePrueba {
   /** Lo que el módulo avisó hacia afuera, que es lo que la página guardaría. */
   avisos: { ruta: string; texto: string; tipo?: string }[];
   /** Lo que el módulo reportó al soltar o al sacar una foto. */
-  sueltas: { indice?: number; seccion?: string | null; archivos?: string[]; quitada?: number }[];
+  sueltas: { indice?: number; destino?: string | null; archivos?: string[]; quitada?: number }[];
   /** Las cajas de cada elemento del documento, para comparar antes y después. */
   medidas: { el: Element; caja: { x: number; y: number; w: number; h: number } }[];
   medir: () => { corridos: string[]; total: number };
+  /**
+   * Vuelve a tomar la maqueta como referencia.
+   *
+   * Hace falta porque `medir` compara SIEMPRE contra la referencia, y las pruebas
+   * de escritura que corren en el medio cambian el ancho de los textos que
+   * editan —eso es lo que tienen que hacer—. Sin volver a medir, una comprobación
+   * de geometría posterior acusaría esos cambios legítimos.
+   */
+  rebase: () => void;
   alto: number;
   Edicion: { prepararDocumento: typeof prepararDocumento };
 }
@@ -92,8 +101,11 @@ const oferta: OfertaCanonica = {
   aportes: { pertec: ["Personal especializado"], cliente: ["Carretes de cinta nueva"] },
   cierre: {
     texto: "Quedamos a disposición.",
+    // Dos, a propósito: con uno solo, "cayó en el firmante correcto" no distingue
+    // de "cayó en el único que había".
     firmantes: [
       { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: "Performance Technologies SpA" },
+      { nombre: "Camila Reyes Toro", cargo: "Jefa de Operaciones", empresa: null },
     ],
     cc: "CC: Gcia. Gral. / Archivo.",
     firmaImagen: null,
@@ -202,6 +214,9 @@ try {
         `${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : ""}`;
 
       ventana.medidas = comoEsta();
+      ventana.rebase = () => {
+        ventana.medidas = comoEsta();
+      };
       ventana.medir = () => {
         const corridos: string[] = [];
         for (const { el, caja: antes } of ventana.medidas) {
@@ -224,9 +239,9 @@ try {
         oferta: () => ventana.modelo,
         alEditar: (ruta: string, texto: string, tipo?: string) => ventana.avisos.push({ ruta, texto, tipo }),
         alMedir: (alto: number) => (ventana.alto = alto),
-        alSoltarImagen: (indice: number, seccion: string) => ventana.sueltas.push({ indice, seccion }),
-        alSoltarArchivos: (archivos: File[], seccion: string | null) => {
-          ventana.sueltas.push({ archivos: archivos.map((a) => a.name), seccion });
+        alSoltarImagen: (indice: number, destino: string) => ventana.sueltas.push({ indice, destino }),
+        alSoltarArchivos: (archivos: File[], destino: string | null) => {
+          ventana.sueltas.push({ archivos: archivos.map((a) => a.name), destino });
         },
         alQuitarImagen: (indice: number) => ventana.sueltas.push({ quitada: indice }),
       });
@@ -432,8 +447,74 @@ try {
   assert.ok(arrastre.marcada.includes("recibiendo"), "la sección de destino se marca mientras se arrastra");
   assert.ok(arrastre.admiteSoltar, "y admite que se suelte");
   assert.ok(!arrastre.sigueMarcada.includes("recibiendo"), "al soltar se desmarca");
-  assert.deepEqual(arrastre.soltada, { indice: 4, seccion: "alcance" }, "la foto cae en la sección correcta");
+  assert.deepEqual(arrastre.soltada, { indice: 4, destino: "alcance" }, "la foto cae en la sección correcta");
   assert.ok(arrastre.secciones >= 3, "hay varias secciones que aceptan fotos");
+
+  // ── 6b. Arrastrar una foto hasta la LÍNEA DE FIRMA ────────────────────────
+  //
+  // La rúbrica es la imagen de la que más obvio es dónde va, y era la única que
+  // había que ir a buscar a un desplegable. Tres cosas se comprueban acá: que el
+  // bloque del firmante sea blanco, que gane sobre la sección del cierre —que
+  // también recibe imágenes y lo contiene—, y que el rótulo diga de QUIÉN va a ser
+  // la firma, que es lo único que distingue un bloque del otro cuando hay dos.
+  const firma = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    // La segunda: si cayera en la primera no se sabría si eligió o si acertó.
+    const bloque = doc.querySelector<HTMLElement>('[data-firma="1"]')!;
+    const nombre = bloque.querySelector(".nombre")!.textContent;
+
+    ventana.rebase();
+    const datos = new DataTransfer();
+    datos.setData("application/x-imagen-oferta", "4");
+    // Se despacha sobre el nodo de más adentro, como cuando el cursor está encima
+    // del nombre: el módulo tiene que subir hasta el bloque.
+    const adentro = bloque.querySelector<HTMLElement>(".nombre")!;
+    const encima = new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true });
+    adentro.dispatchEvent(encima);
+
+    const marcado = bloque.className;
+    const rotulo = bloque.dataset.soltar;
+    const seccionMarcada = doc.querySelector<HTMLElement>('section[data-seccion="cierre"]')!.className;
+    // El recuadro de la firma tampoco puede mover el documento: mismo criterio que
+    // el de la sección, y acá el bloque es chico y está al final de una página. La
+    // referencia se vuelve a tomar acá porque las pruebas de escritura de más arriba
+    // ya cambiaron —con razón— el ancho de los textos que editaron.
+    const medida = ventana.medir();
+
+    adentro.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+    return {
+      marcado,
+      rotulo,
+      nombre,
+      seccionMarcada,
+      admiteSoltar: encima.defaultPrevented,
+      sigueMarcado: bloque.className,
+      soltada: ventana.sueltas.at(-1),
+      cuantos: doc.querySelectorAll("[data-firma]").length,
+      movidos: medida,
+    };
+  });
+  console.log(firma);
+  // Y una firma escaneada arrastrada DESDE UNA CARPETA hasta la línea de firma: es
+  // el camino corto de verdad —el archivo ni pasa por el cajón— y el que más se va a
+  // usar, porque la firma vive en un archivo suelto, no en el borrador.
+  const firmaDesdeCarpeta = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const datos = new DataTransfer();
+    datos.items.add(new File(["x"], "firma-alfonso.png", { type: "image/png" }));
+    const bloque = doc.querySelector<HTMLElement>('[data-firma="0"]')!;
+    bloque.dispatchEvent(new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true }));
+    bloque.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+    return ventana.sueltas.at(-1);
+  });
+  console.log(firmaDesdeCarpeta);
+  assert.deepEqual(
+    firmaDesdeCarpeta,
+    { archivos: ["firma-alfonso.png"], destino: "firma-0" },
+    "un archivo del escritorio soltado en la línea de firma se sube y queda como rúbrica",
+  );
 
   // Un archivo del escritorio también cae, y en la misma sección.
   const conArchivo = await pagina.evaluate(() => {
@@ -451,7 +532,7 @@ try {
   console.log(conArchivo);
   assert.deepEqual(
     conArchivo,
-    { archivos: ["faena.jpg"], seccion: "anexo" },
+    { archivos: ["faena.jpg"], destino: "anexo" },
     "los archivos del escritorio también",
   );
 
@@ -473,7 +554,7 @@ try {
   assert.ok(enLaPortada.admiteSoltar, "la portada tiene que aceptar un archivo del escritorio");
   assert.deepEqual(
     enLaPortada.ultima,
-    { archivos: ["plano.png"], seccion: null },
+    { archivos: ["plano.png"], destino: null },
     "cae sin sección, para quedar en el cajón sin ubicar",
   );
 
@@ -514,8 +595,26 @@ try {
   console.log(cruzado);
   assert.deepEqual(
     cruzado,
-    { indice: 6, seccion: "alcance" },
+    { indice: 6, destino: "alcance" },
     "arrastrar desde el cajón de la página hasta una sección del iframe",
+  );
+
+  // Y lo mismo hasta la línea de firma, que es el destino nuevo: el arrastre real
+  // es el único que ejercita el cruce de realms (ver el comentario de arriba).
+  // El bloque de firma está al final del documento, a unos 2100 px del borde. El
+  // arrastre real necesita ver el origen Y el destino a la vez: si hay que desplazar
+  // la página con el botón apretado, el soltado llega en otras coordenadas y cae en
+  // otra parte —comprobado: caía en el alcance—. Se agranda la ventana en vez de
+  // desplazar. El alto de la ventana no cambia la maqueta: el iframe tiene alto fijo
+  // y el documento mide en milímetros.
+  await pagina.setViewportSize({ width: 1280, height: 2600 });
+  await pagina.locator("#cajon").dragTo(pagina.frameLocator("#marco").locator('[data-firma="0"]'));
+  const firmaCruzada = await pagina.evaluate(() => (window as unknown as VentanaDePrueba).sueltas.at(-1));
+  console.log(firmaCruzada);
+  assert.deepEqual(
+    firmaCruzada,
+    { indice: 6, destino: "firma-0" },
+    "arrastrar desde el cajón de la página hasta la firma del iframe",
   );
 
   console.log("\nLa edición sobre el documento funciona en el navegador.");

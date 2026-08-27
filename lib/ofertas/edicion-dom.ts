@@ -1,5 +1,6 @@
 import { NOMBRE_DE_SECCION, type OfertaCanonica, type SeccionConImagenes } from "./tipos";
 import { asignarEnRuta, numeroDesdeTexto } from "./rutas";
+import { textoDeFirma } from "./destino-imagen";
 import { calcularTotales } from "./verificar";
 import { clp } from "./plantilla";
 
@@ -53,23 +54,29 @@ const ESTILO_DEL_EDITOR = `
   [data-calculado] { cursor: not-allowed; }
   [data-calculado]:hover { box-shadow: inset 0 0 0 1px ${ACENTO}55; }
 
-  /* La sección que va a recibir la foto. El borde se dibuja por fuera con un
-     outline y no con un border, que correría el texto de lugar justo cuando hay
-     algo flotando encima. */
-  section[data-seccion].recibiendo {
+  /* Lo que va a recibir la foto: una sección, o el bloque de un firmante. El borde
+     se dibuja por fuera con un outline y no con un border, que correría el texto de
+     lugar justo cuando hay algo flotando encima. */
+  section[data-seccion].recibiendo, [data-firma].recibiendo {
     outline: 2px dashed ${ACENTO}; outline-offset: 4px; background: ${ACENTO}09;
   }
+
   /* El rótulo va FLOTANDO sobre la sección y no como un bloque adentro: como
      bloque agregaba su alto a la sección justo mientras la foto estaba encima, y
      todo lo que venía abajo se corría en el peor momento posible. Con position
      absolute no ocupa lugar, y el "position: relative" de la sección se declara
      junto para que se ubique respecto de ella. */
-  section[data-seccion] { position: relative; }
-  section[data-seccion].recibiendo::after {
+  section[data-seccion], [data-firma] { position: relative; }
+  section[data-seccion].recibiendo::after, [data-firma].recibiendo::after {
     content: attr(data-soltar); position: absolute; top: 2px; right: 2px;
     padding: 1px 6px; border-radius: 999px; background: ${ACENTO}; color: #fff;
     font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
   }
+  /* En la firma el rótulo va ABAJO Y AFUERA. Arriba a la derecha —donde va en una
+     sección— es exactamente donde se apoya la rúbrica, y adentro tapaba el cargo de
+     la persona. Afuera se cruza con la línea del RUT, que es texto fijo y solo
+     mientras la foto está encima. */
+  [data-firma].recibiendo::after { top: auto; bottom: -14px; right: auto; left: 0; }
 
   /* La × para sacar una foto del documento: aparece al pasar por encima. */
   .fotos figure { position: relative; }
@@ -96,16 +103,22 @@ export function textoImpreso(ruta: string, valor: number): string {
 }
 
 export interface OpcionesDeEdicion {
-  /** Soltaron sobre una sección una foto que ya está en la oferta. */
-  alSoltarImagen?: (indice: number, seccion: string) => void;
+  /**
+   * Soltaron sobre el documento una foto que ya está en la oferta.
+   *
+   * `destino` es el texto de un destino (ver lib/ofertas/destino-imagen.ts): la
+   * clave de una sección, o "firma-<i>" si la soltaron sobre el bloque de un
+   * firmante, que es cómo se pone una rúbrica arrastrándola.
+   */
+  alSoltarImagen?: (indice: number, destino: string) => void;
   /**
    * Soltaron archivos del escritorio sobre el documento.
    *
-   * `seccion` es null cuando cayeron donde no se reciben imágenes —la portada, el
+   * `destino` es null cuando cayeron donde no se reciben imágenes —la portada, el
    * hueco entre dos secciones—. Ahí el archivo igual se suma a la oferta y queda sin
    * ubicar: traer una foto de una carpeta al documento no puede terminar en nada.
    */
-  alSoltarArchivos?: (archivos: File[], seccion: string | null) => void;
+  alSoltarArchivos?: (archivos: File[], destino: string | null) => void;
   /** Apretaron la × de una foto del documento. */
   alQuitarImagen?: (indice: number) => void;
   /** Una oferta emitida se mira, no se toca. */
@@ -237,9 +250,62 @@ export function prepararDocumento(doc: Document, opciones: OpcionesDeEdicion): (
  *
  * Dos cosas se pueden soltar: una foto que ya está en la oferta —viene del cajón de
  * al lado, con su número— y archivos del escritorio, que primero hay que subir. Las
- * dos caen en la sección que esté debajo del cursor, y ninguna cae en las secciones
- * que no llevan imágenes, que no tienen el atributo y por lo tanto no son blanco.
+ * dos caen en lo que esté debajo del cursor, y no hay blanco donde no puede ir una
+ * imagen: las secciones que no llevan imágenes no tienen el atributo.
+ *
+ * Y lo que está debajo del cursor puede ser el bloque de un firmante: la rúbrica es
+ * una imagen más y se pone igual que las otras, arrastrándola hasta donde va. Antes
+ * era lo único que había que ir a buscar a un desplegable, siendo justamente la
+ * imagen que más obvio es DÓNDE va. El bloque de firma gana sobre la sección que lo
+ * contiene —el cierre también recibe imágenes— porque es el blanco más preciso: si
+ * alguien apunta a la línea de firma, quiere firmar ahí.
  */
+/** Un lugar del documento que puede recibir una imagen. */
+interface Blanco {
+  /** El elemento que se ilumina. */
+  elemento: HTMLElement;
+  /** El destino, en el formato que entiende leerDestino. */
+  destino: string;
+  /** Lo que dice la pastilla mientras la foto está encima. */
+  rotulo: string;
+}
+
+/**
+ * Qué puede recibir la imagen, mirando desde el elemento que está bajo el cursor
+ * hacia arriba.
+ *
+ * Sin `instanceof HTMLElement`, por la misma razón que en el resto del módulo: el
+ * elemento vive en el documento del iframe, y ese constructor es el de ESTA página.
+ */
+function blancoEn(destino: EventTarget | null): Blanco | null {
+  const nodo = destino as Element | null;
+  if (!nodo || typeof nodo.closest !== "function") return null;
+
+  const firma = nodo.closest<HTMLElement>("[data-firma]");
+  if (firma) {
+    // El nombre sale del documento y no del modelo: es lo que la persona está
+    // leyendo en ese momento, y así el rótulo dice "Soltar como firma de Alfonso
+    // Hachim Fulgeri" aunque el nombre se acabe de tipear y todavía no se guarde.
+    const nombre = firma.querySelector(".nombre")?.textContent?.trim();
+    return {
+      elemento: firma,
+      destino: textoDeFirma(Number(firma.dataset.firma)),
+      rotulo: nombre ? `Soltar como firma de ${nombre}` : "Soltar como la firma",
+    };
+  }
+
+  const seccion = nodo.closest<HTMLElement>("section[data-seccion]");
+  if (!seccion?.dataset.seccion) return null;
+  // Va el nombre corto y no el título impreso: "Anexo — respaldos y experiencia en
+  // trabajos similares" hacía una pastilla de media página.
+  const nombre = NOMBRE_DE_SECCION[seccion.dataset.seccion as SeccionConImagenes];
+  return {
+    elemento: seccion,
+    destino: seccion.dataset.seccion,
+    rotulo: nombre ? `Soltar en ${nombre}` : "Soltar acá",
+  };
+}
+
 function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => void {
   const puedeRecibir = Boolean(opciones.alSoltarImagen || opciones.alSoltarArchivos);
   if (!puedeRecibir && !opciones.alQuitarImagen) return () => {};
@@ -266,47 +332,39 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
   if (!puedeRecibir) return () => {};
 
   let recibiendo: HTMLElement | null = null;
-  const marcar = (seccion: HTMLElement | null) => {
-    if (recibiendo === seccion) return;
+  const marcar = (blanco: Blanco | null) => {
+    if (recibiendo === blanco?.elemento) return;
     recibiendo?.classList.remove("recibiendo");
-    if (seccion) {
-      // El rótulo dice EN QUÉ sección va a caer: con el documento desplazado y una
-      // foto flotando bajo el cursor, eso es lo que no se puede leer del recuadro
-      // solo. Va el nombre corto y no el título impreso: "Anexo — respaldos y
-      // experiencia en trabajos similares" hacía una pastilla de media página.
-      const clave = seccion.dataset.seccion as SeccionConImagenes | undefined;
-      const nombre = clave ? NOMBRE_DE_SECCION[clave] : undefined;
-      seccion.dataset.soltar = nombre ? `Soltar en ${nombre}` : "Soltar acá";
-      seccion.classList.add("recibiendo");
+    if (blanco) {
+      // El rótulo dice DÓNDE va a caer: con el documento desplazado y una foto
+      // flotando bajo el cursor, eso es lo que no se puede leer del recuadro solo.
+      blanco.elemento.dataset.soltar = blanco.rotulo;
+      blanco.elemento.classList.add("recibiendo");
     }
-    recibiendo = seccion;
+    recibiendo = blanco?.elemento ?? null;
   };
 
-  /** Qué trae el arrastre y sobre qué sección está, si está sobre alguna. */
+  /** Qué trae el arrastre y sobre qué está, si está sobre algo. */
   const lectura = (evento: DragEvent) => {
     const tipos = evento.dataTransfer?.types ?? [];
-    const nodo = evento.target as Element | null;
     return {
       traeFoto: tipos.includes(TIPO_ARRASTRE) && Boolean(opciones.alSoltarImagen),
       traeArchivos: tipos.includes("Files") && Boolean(opciones.alSoltarArchivos),
-      seccion:
-        nodo && typeof nodo.closest === "function"
-          ? nodo.closest<HTMLElement>("section[data-seccion]")
-          : null,
+      blanco: blancoEn(evento.target),
     };
   };
 
   const alArrastrar = (evento: DragEvent) => {
-    const { traeFoto, traeArchivos, seccion } = lectura(evento);
+    const { traeFoto, traeArchivos, blanco } = lectura(evento);
     if (!traeFoto && !traeArchivos) return;
-    marcar(seccion);
+    marcar(blanco);
 
-    // Una foto que ya está en la oferta necesita una sección: moverla a ninguna parte
+    // Una foto que ya está en la oferta necesita un destino: moverla a ninguna parte
     // no significa nada. Un archivo del escritorio, en cambio, se acepta caiga donde
-    // caiga —si no cayó en una sección igual entra a la oferta y queda sin ubicar—,
+    // caiga —si no cayó en un blanco igual entra a la oferta y queda sin ubicar—,
     // porque traer una foto de una carpeta al documento no puede terminar en que no
     // pasó nada.
-    if (!traeArchivos && !seccion) return;
+    if (!traeArchivos && !blanco) return;
 
     // Sin esto el navegador no considera la zona soltable —y con archivos, además,
     // abre el archivo soltado en la pestaña.
@@ -320,13 +378,13 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
   };
 
   const alSoltar = (evento: DragEvent) => {
-    const { traeFoto, traeArchivos, seccion } = lectura(evento);
+    const { traeFoto, traeArchivos, blanco } = lectura(evento);
     marcar(null);
 
-    if (traeFoto && seccion?.dataset.seccion) {
+    if (traeFoto && blanco) {
       evento.preventDefault();
       const numero = evento.dataTransfer?.getData(TIPO_ARRASTRE);
-      if (numero) opciones.alSoltarImagen?.(Number(numero), seccion.dataset.seccion);
+      if (numero) opciones.alSoltarImagen?.(Number(numero), blanco.destino);
       return;
     }
 
@@ -334,7 +392,7 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
     const archivos = [...(evento.dataTransfer?.files ?? [])];
     if (archivos.length === 0) return;
     evento.preventDefault();
-    opciones.alSoltarArchivos?.(archivos, seccion?.dataset.seccion ?? null);
+    opciones.alSoltarArchivos?.(archivos, blanco?.destino ?? null);
   };
 
   doc.addEventListener("dragover", alArrastrar);

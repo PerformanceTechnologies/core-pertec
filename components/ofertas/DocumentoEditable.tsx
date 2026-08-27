@@ -7,6 +7,7 @@ import { asignarEnRuta } from "@/lib/ofertas/rutas";
 import { prepararDocumento } from "@/lib/ofertas/edicion-dom";
 import { leerRespuesta } from "@/lib/subidas";
 import { subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
+import { esFirma } from "@/lib/ofertas/destino-imagen";
 import RuedaCarga from "@/components/RuedaCarga";
 
 /**
@@ -121,21 +122,28 @@ export default function DocumentoEditable({
   }, [id, revision]);
 
   /**
-   * Pone una foto en una sección, o la saca. Guarda al instante.
+   * Pone una foto donde va —una sección o la rúbrica de un firmante—, o la saca.
+   * Guarda al instante.
    *
    * La ubicación no espera a "Guardar cambios" y es a propósito: soltar una foto en
    * un lugar ES la decisión. Además así no se mezcla con el texto que alguien esté
    * escribiendo sin guardar — son dos caminos distintos hacia la misma oferta.
    */
   const ubicar = useCallback(
-    async (indice: number, seccion: string | null) => {
-      setMoviendo(seccion ? "Poniendo la foto…" : "Sacando la foto…");
+    async (indice: number, destino: string | null) => {
+      setMoviendo(
+        destino === null
+          ? "Sacando la foto…"
+          : esFirma(destino)
+            ? "Poniendo la firma…"
+            : "Poniendo la foto…",
+      );
       setError(null);
       try {
         const respuesta = await fetch(`/api/ofertas/${id}/ubicar-imagen`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ indice, seccion }),
+          body: JSON.stringify({ indice, destino }),
         });
         await leerRespuesta(respuesta);
         // Volver a pedir la maqueta es lo que la dibuja en su lugar, con su número de
@@ -154,13 +162,19 @@ export default function DocumentoEditable({
   /**
    * Archivos soltados desde el escritorio: se suben y caen donde los soltaron.
    *
-   * Con `seccion` en null —cayeron en la portada o entre dos secciones— igual se
+   * Con `destino` en null —cayeron en la portada o entre dos secciones— igual se
    * suben y quedan en el cajón sin ubicar. Traer una foto de una carpeta hasta el
    * documento es una intención clarísima; que no pase nada por haber apuntado unos
    * milímetros al lado sería lo peor que puede hacer esta pantalla.
+   *
+   * Sobre el bloque de un firmante entra UNA: una persona firma con una rúbrica, no
+   * con tres. Va la primera del lote y las demás quedan en el cajón sin ubicar, en
+   * vez de reemplazarse una encima de la otra y dejar la última, que sería el
+   * resultado más difícil de explicar. Arrastrar la firma escaneada directo desde la
+   * carpeta hasta la línea de firma es, de hecho, para lo que existe este camino.
    */
   const subirYUbicar = useCallback(
-    async (archivos: File[], seccion: string | null) => {
+    async (archivos: File[], destino: string | null) => {
       setError(null);
       let subidas = 0;
       try {
@@ -171,12 +185,13 @@ export default function DocumentoEditable({
           setMoviendo(`Subiendo ${texto}`.trim() + "…"),
         );
         subidas = agregadas.length;
-        if (seccion) {
-          for (const indice of agregadas) {
+        if (destino) {
+          const aUbicar = esFirma(destino) ? agregadas.slice(0, 1) : agregadas;
+          for (const indice of aUbicar) {
             await fetch(`/api/ofertas/${id}/ubicar-imagen`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ indice, seccion }),
+              body: JSON.stringify({ indice, destino }),
             });
           }
         }
@@ -217,8 +232,8 @@ export default function DocumentoEditable({
       alMedir: (alto) => {
         if (marco.current) marco.current.style.height = `${alto}px`;
       },
-      alSoltarImagen: (indice, seccion) => void ubicar(indice, seccion),
-      alSoltarArchivos: (archivos, seccion) => void subirYUbicar(archivos, seccion),
+      alSoltarImagen: (indice, destino) => void ubicar(indice, destino),
+      alSoltarArchivos: (archivos, destino) => void subirYUbicar(archivos, destino),
       alQuitarImagen: (indice) => void ubicar(indice, null),
     });
   }, [editable, ubicar, subirYUbicar]);

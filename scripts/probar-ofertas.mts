@@ -18,10 +18,12 @@ import {
   contenidoDuplicado,
   fechaEnPalabras,
   sinLaImagen,
+  conLaImagenEn,
   type LecturaLetra,
   type LecturaNumeros,
 } from "../lib/ofertas/normalizar";
 import { cuerpoDeTabla, ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
+import { esFirma, leerDestino, textoDeFirma } from "../lib/ofertas/destino-imagen";
 import { asignarEnRuta, leerEnRuta, numeroDesdeTexto } from "../lib/ofertas/rutas";
 import { firmaDe } from "../lib/ofertas/tipos";
 import { proximoIndice } from "../lib/ofertas/imagenes";
@@ -1031,6 +1033,21 @@ assert.equal((htmlDosFirmas.match(/class="rubrica"/g) ?? []).length, 2, "cada fi
 assert.ok(htmlDosFirmas.includes(`<img class="rubrica" src="${PNG_VALIDO}"`), "la del primero");
 assert.ok(htmlDosFirmas.includes(`<img class="rubrica" src="${JPEG_VALIDO}"`), "y la del segundo");
 
+// El bloque de cada firmante lleva su `data-firma`: es el blanco al que se arrastra
+// la rúbrica sobre el documento. Va en el bloque y no en el hueco de la rúbrica
+// porque el hueco no existe hasta que hay alguna firma, y el caso que importa es
+// justamente poner la primera. Lo que pasa al soltar se prueba en el navegador
+// (npm run probar-edicion); acá se comprueba que el blanco exista.
+assert.ok(
+  htmlDosFirmas.includes('data-firma="0"') && htmlDosFirmas.includes('data-firma="1"'),
+  "cada firmante tiene su bloque marcado para recibir la rúbrica arrastrada",
+);
+const htmlSinNingunaFirma = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA);
+assert.ok(
+  htmlSinNingunaFirma.includes('data-firma="0"'),
+  "y el blanco existe también cuando todavía no hay ninguna rúbrica, que es cuando hace falta",
+);
+
 // Con uno solo firmando, el hueco se reserva igual para los dos: si no, la línea
 // del que firma queda más abajo que la del que no y el bloque sale desalineado.
 const soloUnaFirma = os10();
@@ -1261,6 +1278,66 @@ assert.deepEqual(sinLa4.epigrafesDeImagenes, { 5: "Izaje" }, "su epígrafe se va
 assert.equal(firmaDe(sinLa4.cierre!, 0), null, "y deja de ser la rúbrica de quien firmaba con ella");
 assert.equal(firmaDe(sinLa4.cierre!, 1), 5, "sin tocar la del otro firmante");
 assert.equal(conImagenesPuestas.imagenesPorSeccion?.anexo?.length, 2, "sin tocar el original");
+
+// ── Poner una imagen donde va: sección o rúbrica ────────────────────────────
+//
+// Es lo que hace el arrastre sobre el documento. La firma se arrastra igual que
+// cualquier foto —hasta la línea de firma de la persona— así que un destino puede
+// ser una sección o un firmante, y una imagen vive en UNO: si apareciera en dos, el
+// documento la dibujaría dos veces.
+const firmaDelDos = conLaImagenEn(conImagenesPuestas, 3, { tipo: "firma", firmante: 1 });
+assert.equal(firmaDe(firmaDelDos.cierre!, 1), 3, "la imagen queda como rúbrica de ese firmante");
+assert.deepEqual(
+  firmaDelDos.imagenesPorSeccion,
+  { anexo: [4, 5] },
+  "y sale de la sección donde estaba: no puede estar en las dos",
+);
+assert.equal(firmaDe(firmaDelDos.cierre!, 0), 4, "sin tocar la del otro firmante");
+
+// La rúbrica que tenía ese firmante no se borra de la oferta: queda sin ubicar, en el
+// cajón, lista para ponerse en otra parte. Reemplazar no es eliminar.
+assert.ok(
+  !Object.values(firmaDelDos.imagenesPorSeccion ?? {})
+    .flat()
+    .includes(3),
+  "la reemplazada no se queda además en una sección",
+);
+
+// El camino inverso, que es el que rompía: llevar la firma a una sección tiene que
+// sacarla del cierre. Y no alcanza con dejar el campo sin poner, porque ausente
+// significa "nunca se eligió" y cae a la firma del borrador (ver firmaDe).
+const firmaAlAnexo = conLaImagenEn(conImagenesPuestas, 4, { tipo: "seccion", seccion: "anexo" });
+assert.equal(firmaDe(firmaAlAnexo.cierre!, 0), null, "deja de ser la rúbrica de quien firmaba con ella");
+assert.deepEqual(firmaAlAnexo.imagenesPorSeccion, { metodologia: [3], anexo: [5, 4] });
+assert.equal(
+  firmaAlAnexo.cierre!.firmaImagen,
+  null,
+  "y deja de ser la firma del borrador: si no, un firmante agregado después en la primera posición la heredaría estando ya en una sección",
+);
+
+// Con destino null se saca de todo, que es lo que hace la × de cada foto.
+const aNingunaParte = conLaImagenEn(conImagenesPuestas, 5, null);
+assert.deepEqual(aNingunaParte.imagenesPorSeccion, { metodologia: [3], anexo: [4] });
+assert.equal(firmaDe(aNingunaParte.cierre!, 1), null, "y también deja de ser rúbrica");
+assert.equal(conImagenesPuestas.imagenesPorSeccion?.anexo?.length, 2, "sin tocar el original");
+
+// ── El texto con el que viaja un destino ────────────────────────────────────
+//
+// El mismo string lo escribe el desplegable del panel, lo pone el DOM al arrastrar y
+// lo lee la ruta que guarda. Las tres respuestas de leerDestino son distintas y la
+// diferencia importa: vacío es "no usar" —una elección válida— y desconocido es un
+// error que hay que rechazar. Tratarlos igual haría que un destino mal escrito saque
+// la foto del documento en silencio.
+assert.deepEqual(leerDestino("anexo", 2), { tipo: "seccion", seccion: "anexo" });
+assert.deepEqual(leerDestino(textoDeFirma(1), 2), { tipo: "firma", firmante: 1 });
+assert.equal(leerDestino("", 2), null, "vacío es 'no usar'");
+assert.equal(leerDestino(null, 2), null);
+assert.equal(leerDestino("portada", 2), undefined, "una sección que no lleva imágenes no es destino");
+assert.equal(leerDestino("firma-2", 2), undefined, "ni un firmante que esta oferta no tiene");
+assert.equal(leerDestino("firma-x", 2), undefined);
+assert.equal(leerDestino("firma--1", 2), undefined);
+assert.equal(leerDestino(textoDeFirma(0), 0), undefined, "ni una firma en una oferta sin firmantes");
+assert.ok(esFirma(textoDeFirma(3)) && !esFirma("anexo"), "y se distingue una firma de una sección");
 
 // La sección que se queda sin ninguna desaparece del reparto, en vez de quedar como
 // una lista vacía que el documento tendría que saber ignorar.

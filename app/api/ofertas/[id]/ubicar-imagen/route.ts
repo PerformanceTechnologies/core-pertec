@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { guardarContenido, obtenerOferta, verificarAccesoOfertasApi } from "@/lib/ofertas/datos";
 import { conLaImagenEn } from "@/lib/ofertas/normalizar";
-import { SECCIONES_CON_IMAGENES, type SeccionConImagenes } from "@/lib/ofertas/tipos";
+import { leerDestino } from "@/lib/ofertas/destino-imagen";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 /**
- * Poner una imagen en una sección del documento, o sacarla.
+ * Poner una imagen donde va —una sección o la rúbrica de un firmante—, o sacarla.
  *
  * Es lo que ocurre al arrastrar una foto sobre el documento y soltarla. Guarda al
  * instante, sin pasar por "Guardar cambios", y es a propósito: soltar una foto en un
@@ -30,21 +30,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "La oferta ya está emitida." }, { status: 409 });
   }
 
-  const cuerpo = (await request.json().catch(() => null)) as { indice?: unknown; seccion?: unknown } | null;
+  const cuerpo = (await request.json().catch(() => null)) as { indice?: unknown; destino?: unknown } | null;
 
   const indice = Number(cuerpo?.indice);
   if (!oferta.imagenes.some((imagen) => imagen.indice === indice)) {
     return NextResponse.json({ error: "Esa imagen no está en la oferta." }, { status: 404 });
   }
 
-  // null saca la imagen del documento; cualquier otra cosa tiene que ser una sección
-  // que exista, no la que venga escrita en el cuerpo del request.
-  const pedida = cuerpo?.seccion;
-  if (pedida !== null && !SECCIONES_CON_IMAGENES.includes(pedida as SeccionConImagenes)) {
-    return NextResponse.json({ error: "Esa sección no existe." }, { status: 400 });
+  // Vacío o nulo saca la imagen del documento; lo demás tiene que ser una sección
+  // que exista o un firmante que exista en ESTA oferta, no lo que venga escrito en
+  // el cuerpo del request. `undefined` es "no lo reconozco" y se rechaza: tratarlo
+  // como "no usar" haría que un destino mal escrito saque la foto en silencio.
+  const destino = leerDestino(
+    typeof cuerpo?.destino === "string" ? cuerpo.destino : null,
+    oferta.contenido.cierre?.firmantes.length ?? 0,
+  );
+  if (destino === undefined) {
+    return NextResponse.json({ error: "Ese destino no existe en esta oferta." }, { status: 400 });
   }
-  const seccion = pedida === null ? null : (pedida as SeccionConImagenes);
 
-  await guardarContenido(id, conLaImagenEn(oferta.contenido, indice, seccion), oferta.archivoOrigen);
-  return NextResponse.json({ indice, seccion });
+  await guardarContenido(id, conLaImagenEn(oferta.contenido, indice, destino), oferta.archivoOrigen);
+  return NextResponse.json({ indice, destino });
 }
