@@ -243,7 +243,12 @@ export default function DocumentoEditable({
         </p>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-borde bg-white p-4 sm:p-6">
+      {/* En un teléfono el documento NO se reflowa: es una hoja A4 con medidas en
+          milímetros, y apretarla a 375px la deja ilegible y distinta del PDF. Se
+          conserva su ancho y se recorre de lado, como cualquier PDF en un teléfono.
+          El aire lateral se saca en chico: con 375px de pantalla, 24 de padding a
+          cada lado es una décima parte del documento. */}
+      <div className="overflow-x-auto rounded-xl border border-borde bg-white p-2 sm:p-6">
         {html ? (
           <iframe
             ref={marco}
@@ -251,7 +256,7 @@ export default function DocumentoEditable({
             srcDoc={html}
             onLoad={preparar}
             sandbox="allow-same-origin"
-            className="block w-full"
+            className="block w-full min-w-[680px]"
           />
         ) : (
           <div className="flex h-64 items-center justify-center gap-2 text-xs text-tinta/45">

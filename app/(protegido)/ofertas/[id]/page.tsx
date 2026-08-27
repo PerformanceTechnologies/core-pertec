@@ -115,7 +115,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
               <p className="mt-0.5 text-[11px] text-tinta/45">
                 Es el de la empresa emisora: el mismo en todas sus ofertas.
               </p>
-              <div className="mt-3 flex items-center gap-4">
+              <div className="mt-3 flex flex-wrap items-center gap-4">
                 <div className="flex h-16 w-32 shrink-0 items-center justify-center rounded-lg border border-borde bg-white p-1.5">
                   {urlLogoCasa ? (
                     /* eslint-disable-next-line @next/next/no-img-element */

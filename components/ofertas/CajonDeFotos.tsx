@@ -49,6 +49,13 @@ export default function CajonDeFotos({
         Arrastrá una hasta la sección del documento donde va. También podés soltar archivos del escritorio
         sobre el documento, y sacarlas con la × de cada foto.
       </p>
+      {/* Arrastrar es de mouse: en una pantalla táctil no hay gesto equivalente en la
+          web sin reescribir el arrastre a mano. En vez de dejar un cajón que no
+          responde, se dice dónde está el camino que sí funciona. */}
+      <p className="mt-1.5 text-[11px] text-pretty text-tinta/45 sm:hidden">
+        Desde un teléfono el arrastre no funciona: ubicalas con el desplegable de cada foto, en{" "}
+        <span className="font-medium text-tinta/65">Imágenes del documento</span>.
+      </p>
 
       {/* Con tope de alto y su propio scroll: con veinte fotos, la columna crecería
           más que la pantalla y el botón de guardar quedaría abajo, inalcanzable. El
@@ -56,7 +63,7 @@ export default function CajonDeFotos({
           que el corte cae SIEMPRE entre filas: una fila cortada al medio se lee como
           algo roto, no como algo que sigue más abajo. Sin fijar la fila, el alto
           depende de cuánto mida la etiqueta y el corte se desalinea solo. */}
-      <div className="mt-3 grid max-h-[262px] grid-cols-3 gap-2 overflow-y-auto [grid-auto-rows:82px]">
+      <div className="mt-3 grid max-h-[262px] grid-cols-4 gap-2 overflow-y-auto [grid-auto-rows:82px] sm:grid-cols-3">
         {imagenes.map((imagen) => {
           const puesta = seccionDe(imagen.indice);
           return (

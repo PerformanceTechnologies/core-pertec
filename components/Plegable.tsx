@@ -38,7 +38,7 @@ export default function Plegable({
           la derecha, en una pantalla ancha queda a diez centímetros del nombre de la
           sección y se lee como un dato suelto de otra cosa. */}
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 transition-colors hover:bg-crema/40 [&::-webkit-details-marker]:hidden">
-        <span className="flex min-w-0 items-baseline gap-2.5">
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
           <svg
             viewBox="0 0 16 16"
             width="11"

@@ -379,9 +379,10 @@ export default function EditorOferta({
                 </div>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.organizacion.cuadroPersonal.map((fila, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_1fr_auto] gap-2">
+                    <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_80px_1fr_auto]">
                       <Campo
-                        rotulo={i === 0 ? "Cargo" : ""}
+                        rotulo="Cargo"
+                        repetido={i > 0}
                         valor={fila.cargo}
                         deshabilitado={emitida}
                         onChange={(v) =>
@@ -391,7 +392,8 @@ export default function EditorOferta({
                         }
                       />
                       <Campo
-                        rotulo={i === 0 ? "Dotación" : ""}
+                        rotulo="Dotación"
+                        repetido={i > 0}
                         valor={String(fila.dotacion)}
                         numerico
                         deshabilitado={emitida}
@@ -402,7 +404,8 @@ export default function EditorOferta({
                         }
                       />
                       <Campo
-                        rotulo={i === 0 ? "Régimen" : ""}
+                        rotulo="Régimen"
+                        repetido={i > 0}
                         valor={fila.regimen ?? ""}
                         deshabilitado={emitida}
                         onChange={(v) =>
@@ -452,9 +455,10 @@ export default function EditorOferta({
                 </div>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.programa.turnos.map((turno, i) => (
-                    <div key={i} className="grid grid-cols-[90px_1fr_90px_auto] gap-2">
+                    <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[90px_1fr_90px_auto]">
                       <Campo
-                        rotulo={i === 0 ? "Turno" : ""}
+                        rotulo="Turno"
+                        repetido={i > 0}
                         valor={turno.turno}
                         deshabilitado={emitida}
                         onChange={(v) =>
@@ -464,7 +468,8 @@ export default function EditorOferta({
                         }
                       />
                       <Campo
-                        rotulo={i === 0 ? "Jornada" : ""}
+                        rotulo="Jornada"
+                        repetido={i > 0}
                         valor={turno.jornada}
                         deshabilitado={emitida}
                         onChange={(v) =>
@@ -474,7 +479,8 @@ export default function EditorOferta({
                         }
                       />
                       <Campo
-                        rotulo={i === 0 ? "Horas" : ""}
+                        rotulo="Horas"
+                        repetido={i > 0}
                         valor={String(turno.horas)}
                         numerico
                         deshabilitado={emitida}
@@ -522,9 +528,10 @@ export default function EditorOferta({
                 </h2>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.especificaciones.map((e, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
+                    <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.6fr_auto]">
                       <Campo
-                        rotulo={i === 0 ? "Parámetro" : ""}
+                        rotulo="Parámetro"
+                        repetido={i > 0}
                         valor={e.parametro}
                         deshabilitado={emitida}
                         onChange={(v) =>
@@ -534,7 +541,8 @@ export default function EditorOferta({
                         }
                       />
                       <Campo
-                        rotulo={i === 0 ? "Especificación" : ""}
+                        rotulo="Especificación"
+                        repetido={i > 0}
                         valor={e.especificacion}
                         deshabilitado={emitida}
                         onChange={(v) =>
@@ -581,9 +589,10 @@ export default function EditorOferta({
                 </p>
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.organizacion.responsabilidades.map((r, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_2fr_auto] gap-2">
+                    <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_2fr_auto]">
                       <Campo
-                        rotulo={i === 0 ? "Cargo" : ""}
+                        rotulo="Cargo"
+                        repetido={i > 0}
                         valor={r.cargo}
                         deshabilitado={emitida}
                         onChange={(v) =>
@@ -593,7 +602,8 @@ export default function EditorOferta({
                         }
                       />
                       <Campo
-                        rotulo={i === 0 ? "Qué hace" : ""}
+                        rotulo="Qué hace"
+                        repetido={i > 0}
                         valor={r.descripcion}
                         multilinea
                         deshabilitado={emitida}
@@ -651,9 +661,10 @@ export default function EditorOferta({
                 <div className="mt-3 flex flex-col gap-2">
                   {oferta.cierre.firmantes.map((f, i) => (
                     <div key={i} className="flex flex-col gap-1">
-                      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
                         <Campo
-                          rotulo={i === 0 ? "Nombre" : ""}
+                          rotulo="Nombre"
+                          repetido={i > 0}
                           valor={f.nombre}
                           deshabilitado={emitida}
                           onChange={(v) =>
@@ -663,7 +674,8 @@ export default function EditorOferta({
                           }
                         />
                         <Campo
-                          rotulo={i === 0 ? "Cargo" : ""}
+                          rotulo="Cargo"
+                          repetido={i > 0}
                           valor={f.cargo}
                           deshabilitado={emitida}
                           onChange={(v) =>
@@ -673,7 +685,8 @@ export default function EditorOferta({
                           }
                         />
                         <Campo
-                          rotulo={i === 0 ? "Empresa" : ""}
+                          rotulo="Empresa"
+                          repetido={i > 0}
                           valor={f.empresa ?? ""}
                           deshabilitado={emitida}
                           onChange={(v) =>
@@ -843,8 +856,11 @@ export default function EditorOferta({
         )}
       </div>
 
-      {/* ── Columna derecha: controles y acciones ────────────────────── */}
-      <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
+      {/* ── Columna derecha: controles y acciones ──────────────────────
+          En pantalla chica va PRIMERO: apilada debajo, "Guardar cambios" quedaba al
+          final de un documento de varias páginas, que es justo lo que nadie va a
+          buscar scrolleando. En grande vuelve a su lugar, a la derecha y sticky. */}
+      <div className="order-first flex flex-col gap-4 lg:order-none lg:sticky lg:top-6 lg:self-start">
         {/* Las fotos, arriba de todo y solo con el documento a la vista: es al lado
             del papel donde sirven, porque se arrastran hasta él. En el formulario no
             aparecen — ahí las fotos se ubican con el desplegable del panel. */}
@@ -977,6 +993,7 @@ function Campo({
   multilinea = false,
   deshabilitado = false,
   className = "",
+  repetido = false,
 }: {
   rotulo: string;
   valor: string;
@@ -985,13 +1002,26 @@ function Campo({
   multilinea?: boolean;
   deshabilitado?: boolean;
   className?: string;
+  /**
+   * Esta celda repite el rótulo de la fila de arriba.
+   *
+   * En una tabla ancha el rótulo va UNA vez, en la primera fila, y las de abajo se
+   * leen por su columna. Apiladas en un teléfono no hay columna que las explique,
+   * así que el rótulo se dibuja siempre y se esconde recién cuando la tabla vuelve
+   * a ser tabla.
+   */
+  repetido?: boolean;
 }) {
   const clases =
     "mt-1 w-full rounded-lg border border-borde bg-superficie px-2.5 py-1.5 text-sm text-tinta outline-none focus:border-naranjo/50 disabled:bg-crema/60 disabled:text-tinta/60";
   return (
     <label className={`block ${className}`}>
       {rotulo && (
-        <span className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
+        <span
+          className={`block text-[10px] font-semibold uppercase tracking-wide text-tinta/45 ${
+            repetido ? "sm:hidden" : ""
+          }`}
+        >
           {rotulo}
         </span>
       )}
@@ -1058,7 +1088,7 @@ function ControlesDeFila({
     "rounded-md px-1.5 py-1.5 text-tinta/30 transition-colors hover:bg-crema hover:text-naranjo disabled:pointer-events-none disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo";
 
   return (
-    <span className="flex shrink-0 items-center self-end">
+    <span className="flex shrink-0 items-center justify-self-end self-end">
       <button
         type="button"
         onClick={() => mover(-1)}

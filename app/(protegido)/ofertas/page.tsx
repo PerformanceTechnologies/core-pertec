@@ -62,8 +62,10 @@ export default async function OfertasPage() {
             )}
           </p>
 
-          <div className={`mt-2 overflow-hidden ${TARJETA}`}>
+          <div className={`mt-2 overflow-x-auto ${TARJETA}`}>
             <table className="w-full text-sm">
+              {/* Los anchos se declaran para pantalla grande; en chica dos columnas
+                  no se dibujan (hidden) y el resto se reparte el espacio solo. */}
               <colgroup>
                 <col />
                 <col style={{ width: "22%" }} />
@@ -74,18 +76,18 @@ export default async function OfertasPage() {
               </colgroup>
               <thead>
                 <tr className="border-b border-borde text-left text-[11px] uppercase tracking-wide text-tinta/45">
-                  <th className="px-4 py-3 font-medium">Oferta</th>
-                  <th className="px-4 py-3 font-medium">Cliente</th>
-                  <th className="px-4 py-3 font-medium">Estado</th>
-                  <th className="px-4 py-3 font-medium">Por revisar</th>
-                  <th className="px-4 py-3 font-medium">Modificada</th>
+                  <th className="px-3 py-3 font-medium sm:px-4">Oferta</th>
+                  <th className="hidden px-4 py-3 font-medium sm:table-cell">Cliente</th>
+                  <th className="px-3 py-3 font-medium sm:px-4">Estado</th>
+                  <th className="hidden px-4 py-3 font-medium sm:table-cell">Por revisar</th>
+                  <th className="hidden px-4 py-3 font-medium sm:table-cell">Modificada</th>
                   <th className="px-4 py-3 font-medium" />
                 </tr>
               </thead>
               <tbody>
                 {ofertas.map((o) => (
                   <tr key={o.id} className="border-b border-borde/60 last:border-0">
-                    <td className="px-4 py-3">
+                    <td className="break-words px-3 py-3 sm:px-4">
                       <Link
                         href={`/ofertas/${o.id}`}
                         className="font-medium text-tinta transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
@@ -93,9 +95,24 @@ export default async function OfertasPage() {
                         {o.nombre}
                       </Link>
                       {o.faena && <span className="block text-[11px] text-tinta/45">{o.faena}</span>}
+                      {/* El cliente y la fecha, que en chico no tienen columna, se leen
+                          acá abajo: esconder una columna no puede ser perder el dato. */}
+                      {/* Lo de las tres columnas que en un teléfono no se dibujan.
+                          El ancho mínimo de una tabla es la suma de sus columnas, y
+                          "Por revisar" no baja de lo que mide su propio título: con
+                          seis columnas la tabla no cabía y quedaba cortada. */}
+                      <span className="mt-0.5 block text-[11px] text-tinta/45 sm:hidden">
+                        {o.cliente ?? "Sin cliente"} · {fechaCl(o.actualizadoEn)}
+                        {o.cantidadInconsistencias > 0 && (
+                          <span className="font-semibold text-naranjo">
+                            {" "}
+                            · {o.cantidadInconsistencias} por revisar
+                          </span>
+                        )}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-tinta/70">{o.cliente ?? "—"}</td>
-                    <td className="px-4 py-3">
+                    <td className="hidden px-4 py-3 text-tinta/70 sm:table-cell">{o.cliente ?? "—"}</td>
+                    <td className="px-3 py-3 sm:px-4">
                       <span
                         className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${
                           o.estado === "emitida" ? "bg-teal/10 text-teal" : "bg-gris/10 text-gris"
@@ -104,17 +121,17 @@ export default async function OfertasPage() {
                         {o.estado === "emitida" ? "Emitida" : "Borrador"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 tabular-nums">
+                    <td className="hidden px-4 py-3 tabular-nums sm:table-cell">
                       {o.cantidadInconsistencias === 0 ? (
                         <span className="text-teal">Nada</span>
                       ) : (
                         <span className="font-semibold text-naranjo">{o.cantidadInconsistencias}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[11px] tabular-nums text-tinta/50">
+                    <td className="hidden px-4 py-3 text-[11px] tabular-nums text-tinta/50 sm:table-cell">
                       {fechaCl(o.actualizadoEn)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right sm:px-4">
                       {/* Solo los borradores: una emitida ya salió para afuera y su
                           registro es lo único que queda de lo que se mandó. */}
                       {o.estado === "borrador" && (

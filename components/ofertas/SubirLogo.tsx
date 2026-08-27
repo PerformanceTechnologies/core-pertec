@@ -86,7 +86,7 @@ export default function SubirLogo({
       <p className="font-condensed text-sm font-bold uppercase tracking-wide text-tinta">{titulo}</p>
       {nota && <p className="mt-0.5 text-[11px] text-pretty text-tinta/45">{nota}</p>}
 
-      <div className="mt-3 flex items-center gap-4">
+      <div className="mt-3 flex flex-wrap items-center gap-4">
         {/* Sin next/image: es un archivo de un bucket privado y una URL firmada,
             así que no tiene por qué pasar por el optimizador ni quedar cacheado
             en un CDN. */}
@@ -101,7 +101,7 @@ export default function SubirLogo({
 
         <div className="min-w-0">
           {nombreActual && <p className="truncate text-[11px] text-tinta/55">{nombreActual}</p>}
-          <div className="mt-1 flex items-center gap-3">
+          <div className="mt-1 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={() => entrada.current?.click()}
