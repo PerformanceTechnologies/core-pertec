@@ -861,9 +861,90 @@ export default function EditorOferta({
           final de un documento de varias páginas, que es justo lo que nadie va a
           buscar scrolleando. En grande vuelve a su lugar, a la derecha y sticky. */}
       <div className="order-first flex flex-col gap-4 lg:order-none lg:sticky lg:top-6 lg:self-start">
-        {/* Las fotos, arriba de todo y solo con el documento a la vista: es al lado
-            del papel donde sirven, porque se arrastran hasta él. En el formulario no
-            aparecen — ahí las fotos se ubican con el desplegable del panel. */}
+        {/* ── Las acciones, primeras y con peso propio ──────────────────
+            Estaban al pie de la columna, debajo de las fotos, los avisos y los
+            totales: había que scrollear la columna entera para encontrar "Guardar
+            cambios", que es lo que más se busca de esta pantalla. Acá arriba y en su
+            propia tarjeta se ven al entrar, y los tres se leen como botones: el que
+            guarda pintado, el del PDF con fondo, y emitir en teal, que es el color
+            con el que este core marca lo que cierra un proceso. */}
+        <section className={`${TARJETA} flex flex-col gap-2 p-4`}>
+          {!emitida && (
+            <button
+              type="button"
+              onClick={guardar}
+              disabled={guardando}
+              className={`${BOTON_PRIMARIO} inline-flex w-full items-center justify-center gap-2 py-3 text-sm disabled:opacity-40`}
+            >
+              {guardando && <RuedaCarga />}
+              {guardando ? "Guardando…" : "Guardar cambios"}
+            </button>
+          )}
+
+          {/* Ya no está la "vista rápida": abría en otra pestaña la misma maqueta que
+              ahora se ve —y se edita— en la pestaña Documento. Dos botones para lo
+              mismo es de lo que hace que una pantalla no se entienda. */}
+          <a
+            href={`/api/ofertas/${id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-borde bg-crema/70 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:bg-crema hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              aria-hidden="true"
+            >
+              <path d="M8 2v8m0 0L5 7m3 3 3-3M3 12.5h10" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Ver el PDF
+          </a>
+
+          {!emitida && (
+            <>
+              <a
+                href={`/api/ofertas/${id}/pdf?emitir=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-teal/60 bg-teal/[0.09] px-4 py-3 text-sm font-semibold uppercase tracking-wide text-teal transition hover:bg-teal/[0.16] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Emitir
+              </a>
+              <p className="text-[10px] text-pretty text-tinta/40">
+                Emitir descarga el PDF y deja la oferta de solo lectura. Guardá antes: se emite lo último
+                guardado.
+              </p>
+            </>
+          )}
+
+          {mensaje && <p className="text-xs font-medium text-teal">{mensaje}</p>}
+          {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+          {emitida && (
+            <p className="text-[11px] text-pretty text-tinta/45">
+              Esta oferta está emitida, así que quedó de solo lectura. El PDF se puede volver a descargar
+              cuando haga falta.
+            </p>
+          )}
+        </section>
+
+        {/* Las fotos, después de las acciones y solo con el documento a la vista: es
+            al lado del papel donde sirven, porque se arrastran hasta él. En el
+            formulario no aparecen — ahí se ubican con el desplegable del panel. */}
         {vista === "documento" && !emitida && (
           <CajonDeFotos
             imagenes={imagenes}
@@ -905,56 +986,6 @@ export default function EditorOferta({
             />
             <Linea rotulo="Total neto" valor={money(totales.totalNetoCalculado)} />
           </dl>
-
-          {!emitida && (
-            <button
-              type="button"
-              onClick={guardar}
-              disabled={guardando}
-              className={`${BOTON_PRIMARIO} mt-4 inline-flex w-full items-center justify-center gap-2 disabled:opacity-40`}
-            >
-              {guardando && <RuedaCarga />}
-              {guardando ? "Guardando…" : "Guardar cambios"}
-            </button>
-          )}
-
-          {/* Ya no está la "vista rápida": abría en otra pestaña la misma maqueta
-              que ahora se ve —y se edita— en la pestaña Documento. Dos botones para
-              lo mismo es de lo que hace que una pantalla no se entienda. */}
-          <a
-            href={`/api/ofertas/${id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-borde px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
-          >
-            Ver el PDF
-          </a>
-
-          {!emitida && (
-            <>
-              <a
-                href={`/api/ofertas/${id}/pdf?emitir=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-teal/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-teal transition hover:bg-teal/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
-              >
-                Emitir
-              </a>
-              <p className="mt-1.5 text-[10px] text-pretty text-tinta/40">
-                Emitir descarga el PDF y deja la oferta de solo lectura. Guardá antes: se emite lo último
-                guardado.
-              </p>
-            </>
-          )}
-
-          {mensaje && <p className="mt-2 text-xs font-medium text-teal">{mensaje}</p>}
-          {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
-          {emitida && (
-            <p className="mt-3 text-[11px] text-pretty text-tinta/45">
-              Esta oferta está emitida, así que quedó de solo lectura. El PDF se puede volver a descargar
-              cuando haga falta.
-            </p>
-          )}
         </section>
 
         {oferta.omitidas.length > 0 && (
