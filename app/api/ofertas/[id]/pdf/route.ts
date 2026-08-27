@@ -1,5 +1,6 @@
 import { verificarAccesoOfertasApi, marcarEmitida, obtenerOferta } from "@/lib/ofertas/datos";
 import { ofertaAHtmlConEmpresa, ofertaAPdf } from "@/lib/ofertas/pdf";
+import { nombreDeArchivoDeOferta } from "@/lib/ofertas/emision";
 
 export const runtime = "nodejs";
 // Chromium arranca, carga la plantilla e imprime: el ECO-1 del Cotizador usa el
@@ -61,11 +62,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       await marcarEmitida(id);
     }
 
-    const nombre = (oferta.numeroOferta ?? "oferta").replace(/[^\w.-]+/g, "_");
+    // `?descargar=1` baja el archivo en vez de abrirlo, y con el nombre que sirve
+    // para archivarlo: "OS 009-2026 — AXINNTUS.pdf" y no "OS_009_2026.pdf". El
+    // nombre va también en RFC 5987 porque los guiones largos y los acentos no
+    // sobreviven un `filename=` a secas.
+    const nombre = nombreDeArchivoDeOferta(oferta.numeroOferta, oferta.cliente);
+    const ascii = nombre.replace(/[^\w.\- ]+/g, "_");
+    const disposicion =
+      parametros.get("descargar") === "1"
+        ? `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(nombre)}`
+        : `inline; filename="${ascii}"`;
+
     return new Response(new Uint8Array(pdf), {
       headers: {
         "content-type": "application/pdf",
-        "content-disposition": `inline; filename="${nombre}.pdf"`,
+        "content-disposition": disposicion,
         // Un documento comercial no se cachea en ningún intermediario.
         "cache-control": "private, no-store",
       },

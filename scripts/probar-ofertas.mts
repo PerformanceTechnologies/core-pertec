@@ -22,6 +22,7 @@ import { cuerpoDeTabla, ofertaAHtml, plantillasDeImpresion, referenciaDePie } fr
 import { asignarEnRuta, leerEnRuta, numeroDesdeTexto } from "../lib/ofertas/rutas";
 import { firmaDe } from "../lib/ofertas/tipos";
 import { proximoIndice } from "../lib/ofertas/imagenes";
+import { correosValidos, nombreDeArchivoDeOferta } from "../lib/ofertas/emision";
 
 /** La OS 010-2026 real, bien transcrita. */
 function os10(): OfertaCanonica {
@@ -1049,6 +1050,56 @@ assert.equal(
 );
 assert.equal((htmlUnaFirma.match(/class="rubrica"/g) ?? []).length, 1, "pero la rúbrica es una sola");
 
+// ── La emisión: el nombre del archivo y a quién se le manda ─────────────────
+//
+// Lo demás del paso —imprimir, subir a SharePoint, mandar por Graph— no se puede
+// probar sin credenciales. Lo que sí tiene reglas propias es esto, y las dos fallan
+// de formas que nadie relacionaría con la emisión: un nombre con un carácter que
+// SharePoint rechaza vuelve como un 400 sin explicación, y un correo mal tipeado se
+// manda a una dirección inventada.
+
+assert.equal(
+  nombreDeArchivoDeOferta("OS 010-2026", "AXINNTUS SERVICIOS INDUSTRIALES"),
+  "OS 010-2026 — AXINNTUS SERVICIOS INDUSTRIALES.pdf",
+  "el archivo se llama como lo buscaría una persona en una carpeta compartida",
+);
+// Los caracteres que SharePoint no acepta en un nombre se limpian ACÁ, no en el
+// borde de Graph: "Correa 12\" / 24\"" es un nombre de cliente perfectamente normal.
+assert.equal(
+  nombreDeArchivoDeOferta("OS 11", 'Minera "El Litio" / Planta 2'),
+  "OS 11 — Minera El Litio Planta 2.pdf",
+  "un nombre con comillas o barras no puede llegar a SharePoint",
+);
+assert.equal(nombreDeArchivoDeOferta(null, null), "Oferta técnica.pdf", "sin datos, un nombre igual");
+assert.equal(
+  nombreDeArchivoDeOferta("OS 12.", null),
+  "OS 12.pdf",
+  "un punto al final lo recorta Windows solo",
+);
+assert.ok(
+  nombreDeArchivoDeOferta("OS 13", "x".repeat(400)).length <= 125,
+  "un nombre larguísimo se corta antes de que lo corte el servidor",
+);
+
+// Los destinatarios salen de un campo escrito a mano: la gente pega comas, punto y
+// coma y saltos de línea en la misma línea.
+assert.deepEqual(correosValidos("uno@pertec.cl, dos@axinntus.cl;  tres@aes.com"), [
+  "uno@pertec.cl",
+  "dos@axinntus.cl",
+  "tres@aes.com",
+]);
+// Copiar un contacto de Outlook pega el nombre y el correo entre signos: se manda al
+// correo, no al texto entero. Sin esto llegaba "<alan@axinntus.cl>" con los signos
+// adentro —pasaba el control de forma— y Graph rechazaba el envío completo.
+assert.deepEqual(correosValidos("Alan Muñoz <alan@axinntus.cl>"), ["alan@axinntus.cl"]);
+assert.deepEqual(correosValidos("sin-arroba, otro@sin-punto"), [], "lo que no es un correo se descarta");
+assert.deepEqual(
+  correosValidos("Uno@Pertec.cl, uno@pertec.cl"),
+  ["uno@pertec.cl"],
+  "el mismo correo dos veces se manda una vez",
+);
+assert.deepEqual(correosValidos(""), [], "un campo vacío es no enviar, no enviar a nadie");
+
 // ── Agregar y quitar imágenes ───────────────────────────────────────────────
 //
 // El índice de una imagen es su identidad: es lo que guardan `imagenesPorSeccion`
@@ -1233,6 +1284,13 @@ mientras nadie elija; en cuanto alguien elige, manda lo elegido, incluso para
 decir que esa persona no firma con imagen. Al reordenar firmantes cada rúbrica
 sigue a SU persona, por el nombre y no por la posición, y si ese nombre ya no
 está se pierde en vez de heredarse.
+
+Emitir: el nombre del archivo que queda en la carpeta compartida se limpia de los
+caracteres que SharePoint rechaza —y del punto final que Windows recorta solo— antes
+de que Graph devuelva un 400 sin explicación; y los destinatarios salen de un campo
+escrito a mano, así que se aceptan comas, punto y coma y saltos, se extrae el correo
+de un contacto pegado de Outlook, se descarta lo que no es correo y no se manda dos
+veces al mismo.
 
 Editar sobre el documento: cada texto impreso lleva la ruta del dato que lo
 produjo, y se comprueban TODAS —que existan, que apunten a la fila correcta aunque

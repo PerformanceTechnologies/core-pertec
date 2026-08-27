@@ -21,7 +21,7 @@ import { sinLaImagen } from "./normalizar";
 const COLUMNAS = `
   id, nombre, numero_oferta, cliente, faena, empresa, contenido, inconsistencias,
   estado, archivo_origen, maestro_id, logo_cliente_ruta, logo_cliente_nombre,
-  imagenes, creado_en, actualizado_en
+  imagenes, emision, creado_en, actualizado_en
 `;
 
 export interface OfertaResumen {
@@ -50,7 +50,28 @@ export interface OfertaResumen {
    * y este inventario dice dónde quedó cada una. Ver lib/ofertas/imagenes.ts.
    */
   imagenes: ImagenGuardada[];
+  /** Qué se hizo al emitir, o null si todavía no se emitió. */
+  emision: RegistroEmision | null;
   actualizadoEn: string;
+}
+
+/**
+ * El registro de una emisión.
+ *
+ * Hasta ahora "emitida" era solo un estado: no había forma de saber si el documento
+ * llegó a alguien. Esto es lo que lo hace verificable — y por eso guarda también los
+ * problemas: una emisión donde el correo no salió tiene que quedar registrada como
+ * tal, no como una emisión limpia.
+ */
+export interface RegistroEmision {
+  emitidaEn: string;
+  emitidaPor: string;
+  enviadoA: string[];
+  copias: string[];
+  /** La URL en SharePoint, o null si no se pidió guardarla. */
+  enWorkspace: string | null;
+  nombreArchivo: string;
+  problemas: string[];
 }
 
 export interface OfertaGuardada extends OfertaResumen {
@@ -75,6 +96,7 @@ interface Fila {
   logo_cliente_ruta: string | null;
   logo_cliente_nombre: string | null;
   imagenes: ImagenGuardada[] | null;
+  emision: RegistroEmision | null;
   creado_en: string;
   actualizado_en: string;
 }
@@ -95,6 +117,7 @@ function filaAGuardada(f: Fila): OfertaGuardada {
     logoClienteRuta: f.logo_cliente_ruta,
     logoClienteNombre: f.logo_cliente_nombre,
     imagenes: f.imagenes ?? [],
+    emision: f.emision ?? null,
     archivoOrigen: f.archivo_origen,
     creadoEn: f.creado_en,
     actualizadoEn: f.actualizado_en,
@@ -341,6 +364,21 @@ export async function marcarEmitida(id: string): Promise<void> {
     .from("ofertas_documentos")
     .update({ estado: "emitida", actualizado_en: new Date().toISOString() })
     .eq("id", id);
+}
+
+/**
+ * Marca la oferta como emitida y anota qué se hizo con el PDF.
+ *
+ * Las dos cosas en un solo update: si el estado quedara emitido y el registro no, la
+ * oferta diría "emitida" sin poder decir a quién se le mandó, que es justo el
+ * agujero que este registro viene a tapar.
+ */
+export async function guardarEmision(id: string, emision: RegistroEmision): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .update({ estado: "emitida", emision, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(`No se pudo registrar la emisión: ${error.message}`);
 }
 
 export async function eliminarOferta(id: string): Promise<void> {

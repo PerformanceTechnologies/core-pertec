@@ -4,12 +4,14 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { firmaDe, type Inconsistencia, type OfertaCanonica } from "@/lib/ofertas/tipos";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
+import type { RegistroEmision } from "@/lib/ofertas/datos";
 import { calcularTotales, detectarInconsistencias } from "@/lib/ofertas/verificar";
-import { money } from "@/lib/cotizador/formato";
+import { fechaCl, money } from "@/lib/cotizador/formato";
 import { BOTON_PRIMARIO, TARJETA } from "@/lib/estilos";
 import RuedaCarga from "@/components/RuedaCarga";
 import DocumentoEditable from "@/components/ofertas/DocumentoEditable";
 import CajonDeFotos from "@/components/ofertas/CajonDeFotos";
+import ModalEmitir from "@/components/ofertas/ModalEmitir";
 
 /**
  * Paso 2: revisar y corregir antes de emitir.
@@ -41,11 +43,14 @@ export default function EditorOferta({
   archivoOrigen,
   imagenes,
   urlsImagenes,
+  emision,
 }: {
   id: string;
   inicial: OfertaCanonica;
   estado: "borrador" | "emitida";
   archivoOrigen: string | null;
+  /** Qué se hizo al emitir, si ya se emitió. */
+  emision: RegistroEmision | null;
   /** El inventario de la oferta: el cajón de fotos del documento sale de acá. */
   imagenes: ImagenGuardada[];
   urlsImagenes: Record<number, string>;
@@ -53,6 +58,7 @@ export default function EditorOferta({
   const router = useRouter();
   const [oferta, setOferta] = useState<OfertaCanonica>(inicial);
   const [vista, setVista] = useState<"documento" | "formulario">("documento");
+  const [emitiendo, setEmitiendo] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -243,6 +249,17 @@ export default function EditorOferta({
                 }
               />
             </section>
+
+            {emitiendo && (
+              <ModalEmitir
+                id={id}
+                numeroOferta={oferta.identificacion.numeroOferta}
+                cliente={oferta.identificacion.cliente}
+                titulo={oferta.titulo}
+                atencion={oferta.identificacion.atencion}
+                onCerrar={() => setEmitiendo(false)}
+              />
+            )}
 
             {/* ── Precio ─────────────────────────────────────────────────── */}
             {oferta.precio && (
@@ -906,10 +923,12 @@ export default function EditorOferta({
 
           {!emitida && (
             <>
-              <a
-                href={`/api/ofertas/${id}/pdf?emitir=1`}
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* Ya no es un link a la ruta del PDF con ?emitir=1: emitir es un paso
+                  con destinos —descargar, guardar en el workspace, mandar por
+                  correo— y el registro de lo que se hizo. Ver ModalEmitir. */}
+              <button
+                type="button"
+                onClick={() => setEmitiendo(true)}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-teal/60 bg-teal/[0.09] px-4 py-3 text-sm font-semibold uppercase tracking-wide text-teal transition hover:bg-teal/[0.16] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
               >
                 <svg
@@ -924,10 +943,10 @@ export default function EditorOferta({
                   <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 Emitir
-              </a>
+              </button>
               <p className="text-[10px] text-pretty text-tinta/40">
-                Emitir descarga el PDF y deja la oferta de solo lectura. Guardá antes: se emite lo último
-                guardado.
+                Al emitir se elige qué hacer con el PDF: descargarlo, guardarlo en el workspace o enviarlo por
+                correo. La oferta queda de solo lectura, así que guardá antes: se emite lo último guardado.
               </p>
             </>
           )}
@@ -935,10 +954,49 @@ export default function EditorOferta({
           {mensaje && <p className="text-xs font-medium text-teal">{mensaje}</p>}
           {error && <p className="text-xs font-medium text-red-600">{error}</p>}
           {emitida && (
-            <p className="text-[11px] text-pretty text-tinta/45">
-              Esta oferta está emitida, así que quedó de solo lectura. El PDF se puede volver a descargar
-              cuando haga falta.
-            </p>
+            <>
+              <a
+                href={`/api/ofertas/${id}/pdf?descargar=1`}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-borde bg-crema/70 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+              >
+                Descargar el PDF
+              </a>
+              <p className="text-[11px] text-pretty text-tinta/45">
+                Esta oferta está emitida, así que quedó de solo lectura.
+              </p>
+              {/* Qué se hizo al emitirla. Sin esto, "emitida" es un estado que no se
+                  puede verificar: nadie sabe si el documento llegó a alguien. */}
+              {emision && (
+                <dl className="flex flex-col gap-1 border-t border-borde pt-2 text-[11px]">
+                  <Linea rotulo="Emitida" valor={fechaCl(emision.emitidaEn)} />
+                  {emision.enviadoA.length > 0 && (
+                    <Linea rotulo="Enviada a" valor={emision.enviadoA.join(", ")} />
+                  )}
+                  {emision.enWorkspace && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="shrink-0 text-tinta/55">Workspace</dt>
+                      <dd className="min-w-0 truncate text-right font-medium">
+                        {emision.enWorkspace.startsWith("http") ? (
+                          <a
+                            href={emision.enWorkspace}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-naranjo underline"
+                          >
+                            Abrir el archivo
+                          </a>
+                        ) : (
+                          emision.enWorkspace
+                        )}
+                      </dd>
+                    </div>
+                  )}
+                  {emision.problemas.length > 0 && (
+                    <p className="mt-1 text-pretty text-red-600">{emision.problemas.join(" · ")}</p>
+                  )}
+                </dl>
+              )}
+            </>
           )}
         </section>
 
