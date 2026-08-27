@@ -240,6 +240,59 @@ export const NOMBRE_DE_SECCION: Record<SeccionConImagenes, string> = {
   anexo: "Anexo",
 };
 
+/**
+ * Las secciones del documento, incluida la que no lleva imágenes.
+ *
+ * `identificacion` no está en SECCIONES_CON_IMAGENES —una tabla de datos no lleva
+ * fotos— pero sí puede llevar un bloque libre y tiene su rótulo, así que para eso
+ * hace falta nombrar a las once.
+ */
+export type SeccionDelDocumento = "identificacion" | SeccionConImagenes;
+
+export const SECCIONES_DEL_DOCUMENTO: SeccionDelDocumento[] = [
+  "identificacion",
+  ...SECCIONES_CON_IMAGENES,
+];
+
+/**
+ * Una tabla que la arma quien escribe: sus columnas y sus celdas, sin forma fija.
+ *
+ * Las tablas del maestro —precio, dotación, turnos— tienen columnas con nombre y
+ * tipo porque el servidor las suma: sabe cuál es el valor unitario y cuál la
+ * cantidad, y de ahí salen el total neto y los avisos de "la suma no da". Esta no
+ * suma nada, y justamente por eso puede tener las columnas que haga falta.
+ *
+ * Todo texto, incluidas las celdas con números: sin una columna declarada como
+ * numérica no hay nada que calcular, y guardar "12" como número no cambiaría lo
+ * que se imprime.
+ */
+export interface TablaLibre {
+  columnas: string[];
+  /** Una fila por arreglo, una celda por columna. */
+  filas: string[][];
+}
+
+/**
+ * Un subtítulo con su contenido, agregado a mano dentro de una sección.
+ *
+ * El maestro define QUÉ lleva una oferta, y eso es lo que hace que el sistema pueda
+ * numerar, indexar, sumar y controlar. Pero un servicio siempre tiene algo que el
+ * maestro no previó —una condición de acceso a la faena, un cuadro de repuestos— y
+ * hasta ahora la única salida era meterlo apretado en un ítem de otra lista.
+ *
+ * Un bloque es esa salida, y es explícita: va DENTRO de una sección, se numera con
+ * los demás subtítulos de esa sección (3.1, 3.2, 3.3…) y aparece en el documento
+ * donde corresponde. Lo que no hace es participar de ningún cálculo ni de ningún
+ * control: es texto que alguien escribió y se imprime tal cual.
+ */
+export interface BloqueLibre {
+  /** En qué sección va. Un bloque de una sección omitida no se dibuja. */
+  en: SeccionDelDocumento;
+  titulo: string;
+  parrafos: string[];
+  tabla: TablaLibre | null;
+}
+
 export interface OfertaCanonica {
   identificacion: Identificacion;
   /** Título del servicio, tal como lo titula el documento. */
@@ -273,6 +326,25 @@ export interface OfertaCanonica {
    * la de las secciones: contar a mano es lo que se rompe entre versiones.
    */
   epigrafesDeImagenes: Record<number, string>;
+  /**
+   * Los rótulos que se cambiaron, por clave.
+   *
+   * Los títulos de sección, los subtítulos y los encabezados de columna los pone el
+   * maestro, y está bien que sea así: son lo que hace que dos ofertas de PERTEC se
+   * parezcan entre sí. Pero el cliente que pide "Alcance de los trabajos" en vez de
+   * "Alcance del servicio" existe, y hasta ahora eso obligaba a tocar el código.
+   *
+   * Una clave que no está significa "usa el del maestro", y por eso el mapa arranca
+   * vacío y solo guarda lo que de verdad se cambió: así una oferta vieja sigue
+   * mostrando el rótulo vigente, y un cambio en el maestro llega a todas las que no
+   * lo pisaron. Las claves las define la plantilla (ver `ROTULOS` en plantilla.ts).
+   *
+   * Lo que NUNCA es un rótulo es un número: el "3.2" y el "1." de la lista los
+   * cuenta la plantilla al imprimir, y siguen fuera de esto.
+   */
+  rotulos?: Record<string, string>;
+  /** Los subtítulos agregados a mano, en orden dentro de cada sección. */
+  bloques?: BloqueLibre[];
 }
 
 /**

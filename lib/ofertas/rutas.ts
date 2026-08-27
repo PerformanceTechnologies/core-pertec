@@ -64,6 +64,39 @@ export function leerEnRuta(raiz: unknown, ruta: string): unknown {
 }
 
 /**
+ * Los rótulos son un diccionario, no una estructura fija.
+ *
+ * El resto de las rutas apunta a algo que YA existe —si la clave no está, el
+ * documento en pantalla quedó viejo y no escribir es mejor que inventar—. Con los
+ * rótulos es al revés: que la clave NO esté es lo normal, significa "usa el del
+ * maestro", y escribirla por primera vez es exactamente lo que hay que poder hacer.
+ */
+const PREFIJO_ROTULOS = "rotulos.";
+
+/**
+ * Cambia un rótulo, o lo devuelve al del maestro si se deja en blanco.
+ *
+ * Vaciarlo BORRA la clave en vez de guardar "": un título vacío deja un hueco
+ * numerado sin nombre en el documento, y lo que alguien quiere al vaciar un rótulo
+ * que había cambiado es volver al de siempre.
+ */
+function asignarRotulo(raiz: unknown, clave: string, texto: string): boolean {
+  // Una sola clave, sin tramos: los rótulos no anidan.
+  if (clave === "" || clave.includes(".") || CLAVES_PROHIBIDAS.has(clave)) return false;
+  if (raiz === null || typeof raiz !== "object") return false;
+
+  const contenido = raiz as { rotulos?: Record<string, string> };
+  const limpio = texto.replace(/\u00a0/g, " ").trim();
+  if (limpio === "") {
+    if (contenido.rotulos) delete contenido.rotulos[clave];
+    return true;
+  }
+  if (!contenido.rotulos || typeof contenido.rotulos !== "object") contenido.rotulos = {};
+  contenido.rotulos[clave] = limpio;
+  return true;
+}
+
+/**
  * Escribe un texto del documento en su campo, respetando el tipo que había.
  *
  * Devuelve si escribió: una ruta que no existe no crea nada.
@@ -75,6 +108,10 @@ export function leerEnRuta(raiz: unknown, ruta: string): unknown {
  * guarden igual, porque la plantilla omite la fila solo cuando falta.
  */
 export function asignarEnRuta(raiz: unknown, ruta: string, texto: string, tipo?: "numero"): boolean {
+  if (ruta.startsWith(PREFIJO_ROTULOS)) {
+    return asignarRotulo(raiz, ruta.slice(PREFIJO_ROTULOS.length), texto);
+  }
+
   const destino = ubicar(raiz, ruta);
   if (!destino) return false;
   const { contenedor, clave } = destino;

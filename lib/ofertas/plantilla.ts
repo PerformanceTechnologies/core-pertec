@@ -1,5 +1,13 @@
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
-import { firmaDe, type OfertaCanonica, type SeccionConImagenes, type TotalesOferta } from "./tipos";
+import {
+  firmaDe,
+  type BloqueLibre,
+  type OfertaCanonica,
+  type SeccionConImagenes,
+  type SeccionDelDocumento,
+  type TotalesOferta,
+} from "./tipos";
+import { bloqueConContenido, bloquesDe } from "./estructura";
 import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
 import { SIN_LOGOS, imagenSegura, logoSeguro, type ImagenDibujable, type LogosDocumento } from "./logo";
 
@@ -26,7 +34,17 @@ import { SIN_LOGOS, imagenSegura, logoSeguro, type ImagenDibujable, type LogosDo
 /** Una sección ya numerada, lista para el índice y para el cuerpo. */
 interface SeccionArmada {
   /** "1", "2"… o "A" para el anexo. */ numero: string;
+  /** El título ya resuelto: el del maestro, o el que cambió esta oferta. */
   titulo: string;
+  /** Su clave de rótulo, para poder editar el título sobre el documento. */
+  rotulo: string;
+  /**
+   * Qué sección es, para el editor.
+   *
+   * Distinto de `clave`: esa dice "acepta imágenes" y por eso la identificación no
+   * la tiene. Un subtítulo agregado a mano, en cambio, puede ir en cualquiera.
+   */
+  en: SeccionDelDocumento;
   cuerpo: string;
   /**
    * No partir esta sección entre dos páginas.
@@ -113,9 +131,117 @@ function filasEtiqueta(pares: [string, string | null, string?][]): string {
       // trae, y con la comparación estricta una clave que falta imprimía la palabra
       // "undefined" en la tabla de identificación.
       .filter(([, v]) => v != null && String(v).trim() !== "")
-      .map(([k, v, ruta]) => `<tr><th class="etiqueta">${esc(k)}</th><td${campo(ruta)}>${esc(v)}</td></tr>`)
+      // La etiqueta llega YA dibujada (es un rótulo editable), el valor se escapa acá.
+      .map(([k, v, ruta]) => `<tr><th class="etiqueta">${k}</th><td${campo(ruta)}>${esc(v)}</td></tr>`)
       .join("")
   );
+}
+
+/**
+ * Todos los rótulos del documento, con el texto del maestro.
+ *
+ * Están acá y no repartidos por la plantilla para que exista una lista: es lo que se
+ * puede cambiar por oferta, y una clave que se escriba mal en un solo lugar sería un
+ * título que no se puede editar y nadie sabría por qué. La prueba recorre esta lista
+ * y comprueba que cada clave salga en el documento.
+ *
+ * El número NUNCA es parte del rótulo: el "3.2", el "01." y el "A" los cuenta la
+ * plantilla al armar, que es lo que hace innecesario renumerar a mano.
+ */
+export const ROTULOS: Record<string, string> = {
+  // Los títulos de sección. También son los que aparecen en el índice.
+  "s-identificacion": "Identificación de la oferta",
+  "s-alcance": "Alcance del servicio",
+  "s-metodologia": "Metodología y secuencia de trabajo",
+  "s-especificaciones": "Especificaciones técnicas y equipo",
+  "s-organizacion": "Dotación y organización del servicio",
+  "s-programa": "Programa y plazos",
+  "s-precio": "Precio del servicio",
+  "s-condiciones": "Condiciones comerciales",
+  "s-aportes": "Aportes de las partes",
+  "s-cierre": "Cierre y firma",
+  "s-anexo": "Anexo — respaldos y experiencia en trabajos similares",
+
+  // Los subtítulos que trae el maestro.
+  "alcance-actividades": "Actividades comprendidas",
+  "alcance-previos": "Trabajos previos considerados",
+  "alcance-personal": "Personal especialista considerado",
+  "metodologia-antes": "Antes de la detención de planta",
+  "metodologia-durante": "Durante la detención de planta",
+  "organizacion-cuadro": "Cuadro de personal",
+  "organizacion-servicio": "Organización del servicio",
+  "anexo-respaldo": "Respaldo institucional",
+  "anexo-mandantes": "Principales mandantes y contratos ejecutados con nuestro personal",
+  "anexo-fotos": "Fotografías de referencia",
+  "aportes-pertec": "Aportes de PERTEC",
+  "aportes-cliente": "Aportes del cliente",
+
+  // Las etiquetas de la tabla de identificación.
+  "id-numero": "Oferta N°",
+  "id-fecha": "Fecha",
+  "id-validez": "Validez",
+  "id-cliente": "Cliente",
+  "id-atencion": "Atención",
+  "id-copia": "Copia",
+  "id-referencia": "Referencia",
+  "id-faena": "Faena",
+  "id-preparado": "Preparado por",
+
+  // Los encabezados de columna. Cambiar el nombre de una columna es cosa de quien
+  // escribe; cuál columna suma el servidor, no — de eso salen el total neto, la
+  // dotación y las horas, y los avisos de que no cuadran.
+  "col-dotacion-cargo": "Cargo",
+  "col-dotacion-dotacion": "Dotación",
+  "col-dotacion-regimen": "Régimen",
+  "col-especificaciones-parametro": "Parámetro",
+  "col-especificaciones-especificacion": "Especificación",
+  "col-programa-turno": "Turno",
+  "col-programa-jornada": "Jornada",
+  "col-programa-horas": "Horas",
+  "col-programa-avance": "Avance acumulado",
+  "col-precio-item": "Ít",
+  "col-precio-cantidad": "Cant",
+  "col-precio-cargo": "Cargo",
+  "col-precio-unidad": "Un",
+  "col-precio-unitario": "V. Unit",
+  "col-precio-total": "V. Total",
+  "fila-total": "Total",
+  "fila-total-neto": "Total neto — no incluye IVA",
+};
+
+/** El rótulo de cada sección, para poder ir de la sección a su clave. */
+const ROTULO_DE_SECCION: Record<SeccionDelDocumento, string> = {
+  identificacion: "s-identificacion",
+  alcance: "s-alcance",
+  metodologia: "s-metodologia",
+  especificaciones: "s-especificaciones",
+  organizacion: "s-organizacion",
+  programa: "s-programa",
+  precio: "s-precio",
+  condiciones: "s-condiciones",
+  aportes: "s-aportes",
+  cierre: "s-cierre",
+  anexo: "s-anexo",
+};
+
+interface Rotulador {
+  /** El texto que corresponde: el de la oferta si lo cambiaron, si no el del maestro. */
+  texto: (clave: string) => string;
+  /** Ese texto, envuelto para poder editarlo sobre el documento. */
+  html: (clave: string) => string;
+}
+
+function rotulador(contenido: OfertaCanonica): Rotulador {
+  const texto = (clave: string) => {
+    const propio = contenido.rotulos?.[clave];
+    return typeof propio === "string" && propio.trim() !== "" ? propio : (ROTULOS[clave] ?? "");
+  };
+  return {
+    texto,
+    // El span va DENTRO del <h2>/<h3>/<th> y no en su lugar: el número de sección y
+    // el de subsección son hermanos suyos y no se editan.
+    html: (clave) => `<span${campo(`rotulos.${clave}`)}>${esc(texto(clave))}</span>`,
+  };
 }
 
 /** El atributo que ata un texto del documento a su campo, o nada. */
@@ -215,9 +341,9 @@ function itemsDeHitos(items: string[], desde: number, ruta?: string): string {
  * el primero de cada tramo: si fuera por tramo, en los cortes quedarían dos
  * ítems pegados sin línea.
  */
-function hitos(items: string[], titulo?: string, ruta?: string): string {
+function hitos(items: string[], tituloHtml?: string, ruta?: string): string {
   if (items.length === 0) return "";
-  const encabezado = titulo ? `<h3>${esc(titulo)}</h3>` : "";
+  const encabezado = tituloHtml ? `<h3>${tituloHtml}</h3>` : "";
 
   if (items.length <= MAXIMO_LISTA_ENTERA) {
     return (
@@ -300,6 +426,68 @@ function grillaDeImagenes(
 }
 
 /**
+ * Los subtítulos agregados a mano de una sección.
+ *
+ * Se dibujan con el mismo marcado que los del maestro —un `<h3>` en su grupo, los
+ * párrafos debajo, la tabla con el estilo de las otras— así que se numeran con ellos
+ * (numerarSubsecciones) y no se leen como un injerto. Lo único que los distingue en
+ * el marcado es `data-bloque`, que es lo que le permite al editor ponerles los
+ * controles de agregar y sacar; en el PDF ese atributo no hace nada.
+ *
+ * `data-libre` marca lo que se puede sacar de a uno: un párrafo, una columna, una
+ * fila. Igual que con las fotos, los botones no van en la plantilla: son del editor.
+ */
+function bloquesHtml(contenido: OfertaCanonica, en: SeccionDelDocumento, paraEditar: boolean): string {
+  return bloquesDe(contenido, en)
+    .filter(({ bloque }) => paraEditar || bloqueConContenido(bloque))
+    .map(({ bloque, i }) => bloqueHtml(bloque, i))
+    .join("");
+}
+
+function bloqueHtml(bloque: BloqueLibre, i: number): string {
+  const parrafos = bloque.parrafos
+    .map(
+      (texto, j) =>
+        `<p data-libre="parrafo" data-parrafo="${j}"${campo(`bloques.${i}.parrafos.${j}`)}>${esc(texto)}</p>`,
+    )
+    .join("");
+
+  const tabla = bloque.tabla;
+  const tablaHtml = tabla
+    ? `<table class="tabla libre" data-tabla="${i}">` +
+      `<thead><tr>${tabla.columnas
+        .map(
+          (nombre, c) =>
+            `<th data-libre="columna" data-columna="${c}"${campo(
+              `bloques.${i}.tabla.columnas.${c}`,
+            )}>${esc(nombre)}</th>`,
+        )
+        .join("")}</tr></thead>` +
+      cuerpoDeTabla(
+        tabla.filas.map(
+          (fila, f) =>
+            `<tr data-libre="fila" data-fila="${f}">${fila
+              .map(
+                (celda, c) =>
+                  `<td${campo(`bloques.${i}.tabla.filas.${f}.${c}`)}>${esc(celda)}</td>`,
+              )
+              .join("")}</tr>`,
+        ),
+      ) +
+      `</table>`
+    : "";
+
+  // El título va en su grupo con el primer párrafo, igual que los hitos: un
+  // subtítulo solo al pie de una página no dice nada.
+  return (
+    `<div class="bloque" data-bloque="${i}">` +
+    `<div class="grupo"><h3><span${campo(`bloques.${i}.titulo`)}>${esc(bloque.titulo)}</span></h3>${parrafos}</div>` +
+    tablaHtml +
+    `</div>`
+  );
+}
+
+/**
  * Arma las secciones que SÍ aplican, en orden, y les asigna su número.
  *
  * Esta función es la que hace innecesario "renumerar": el número de cada sección
@@ -310,16 +498,33 @@ function armarSecciones(
   totales: TotalesOferta,
   imagenes: Record<number, ImagenDibujable>,
   empresa: EmpresaIdentidad,
+  paraEditar: boolean,
 ): SeccionArmada[] {
   const secciones: SeccionArmada[] = [];
-  const agregar = (titulo: string, cuerpo: string, clave?: SeccionConImagenes, junto = false) =>
+  const r = rotulador(oferta);
+
+  // `en` es la sección, y de ahí sale su rótulo: el título ya no está escrito acá,
+  // porque se puede cambiar por oferta (ver ROTULOS).
+  const agregar = (en: SeccionDelDocumento, cuerpo: string, junto = false) => {
+    const clave = en === "identificacion" ? undefined : en;
+    const bloques = bloquesHtml(oferta, en, paraEditar);
+    // Una sección sin nada adentro no se dibuja —es la regla de siempre: si no
+    // aplica, se omite, y la numeración de las que quedan se corrige sola—. Un
+    // subtítulo agregado a mano SÍ cuenta como contenido: puede ser lo único que
+    // tenga esa sección en esta oferta.
+    if (cuerpo === "" && bloques === "") return;
     secciones.push({
       numero: String(secciones.length + 1),
-      titulo,
-      // La grilla de la sección va al final de su cuerpo, que es donde estaba en el
-      // borrador respecto del texto que la rodea.
+      titulo: r.texto(ROTULO_DE_SECCION[en]),
+      rotulo: ROTULO_DE_SECCION[en],
+      en,
+      // Los subtítulos agregados a mano van después del contenido del maestro y
+      // antes de las fotos: son texto de la sección, y la grilla cierra la sección.
+      // La grilla va al final porque es donde estaba en el borrador respecto del
+      // texto que la rodea.
       cuerpo: numerarSubsecciones(
         cuerpo +
+          bloques +
           (clave
             ? grillaDeImagenes(oferta.imagenesPorSeccion?.[clave], imagenes, oferta.epigrafesDeImagenes ?? {})
             : ""),
@@ -328,19 +533,20 @@ function armarSecciones(
       junto,
       clave,
     });
+  };
 
   const id = oferta.identificacion;
   agregar(
-    "Identificación de la oferta",
+    "identificacion",
     `<table class="datos">${filasEtiqueta([
-      ["Oferta N°", id.numeroOferta, "identificacion.numeroOferta"],
-      ["Fecha", id.fecha, "identificacion.fecha"],
-      ["Validez", id.validez, "identificacion.validez"],
-      ["Cliente", id.cliente, "identificacion.cliente"],
-      ["Atención", id.atencion, "identificacion.atencion"],
-      ["Copia", id.copia, "identificacion.copia"],
-      ["Referencia", id.referencia, "identificacion.referencia"],
-      ["Faena", id.faena, "identificacion.faena"],
+      [r.html("id-numero"), id.numeroOferta, "identificacion.numeroOferta"],
+      [r.html("id-fecha"), id.fecha, "identificacion.fecha"],
+      [r.html("id-validez"), id.validez, "identificacion.validez"],
+      [r.html("id-cliente"), id.cliente, "identificacion.cliente"],
+      [r.html("id-atencion"), id.atencion, "identificacion.atencion"],
+      [r.html("id-copia"), id.copia, "identificacion.copia"],
+      [r.html("id-referencia"), id.referencia, "identificacion.referencia"],
+      [r.html("id-faena"), id.faena, "identificacion.faena"],
     ])}</table>`,
   );
 
@@ -348,44 +554,41 @@ function armarSecciones(
     const a = oferta.alcance;
     let cuerpo = a.introduccion ? `<p${campo("alcance.introduccion")}>${esc(a.introduccion)}</p>` : "";
     if (a.actividades.length) {
-      cuerpo += hitos(a.actividades, "Actividades comprendidas", "alcance.actividades");
+      cuerpo += hitos(a.actividades, r.html("alcance-actividades"), "alcance.actividades");
     }
     if (a.trabajosPrevios.length) {
-      cuerpo += hitos(a.trabajosPrevios, "Trabajos previos considerados", "alcance.trabajosPrevios");
+      cuerpo += hitos(a.trabajosPrevios, r.html("alcance-previos"), "alcance.trabajosPrevios");
     }
     if (a.personalEspecialista.length) {
       cuerpo +=
-        `<h3>Personal especialista considerado</h3>` +
-        tablaDotacion(a.personalEspecialista, totales.dotacionTotal, "alcance.personalEspecialista", false);
+        `<h3>${r.html("alcance-personal")}</h3>` +
+        tablaDotacion(a.personalEspecialista, totales.dotacionTotal, "alcance.personalEspecialista", false, r);
     }
-    if (cuerpo) agregar("Alcance del servicio", cuerpo, "alcance");
+    agregar("alcance", cuerpo);
   }
 
   if (oferta.metodologia) {
     const m = oferta.metodologia;
     let cuerpo = "";
     if (m.antesDeLaDetencion.length) {
-      cuerpo += hitos(
-        m.antesDeLaDetencion,
-        "Antes de la detención de planta",
-        "metodologia.antesDeLaDetencion",
-      );
+      cuerpo += hitos(m.antesDeLaDetencion, r.html("metodologia-antes"), "metodologia.antesDeLaDetencion");
     }
     if (m.duranteLaDetencion.length) {
       cuerpo += hitos(
         m.duranteLaDetencion,
-        "Durante la detención de planta",
+        r.html("metodologia-durante"),
         "metodologia.duranteLaDetencion",
       );
     }
-    if (cuerpo) agregar("Metodología y secuencia de trabajo", cuerpo, "metodologia");
+    agregar("metodologia", cuerpo);
   }
 
   if (oferta.especificaciones?.length) {
     agregar(
-      "Especificaciones técnicas y equipo",
+      "especificaciones",
       `<table class="tabla"><colgroup><col style="width:34%"><col></colgroup>
-        <thead><tr><th>Parámetro</th><th>Especificación</th></tr></thead>
+        <thead><tr><th>${r.html("col-especificaciones-parametro")}</th>
+          <th>${r.html("col-especificaciones-especificacion")}</th></tr></thead>
         ${cuerpoDeTabla(
           // Igual que las tarjetas: sin parámetro, la fila no existe.
           conIndice(oferta.especificaciones, (e) => e.parametro.trim() !== "").map(
@@ -394,7 +597,6 @@ function armarSecciones(
               `<td${campo(`especificaciones.${i}.especificacion`)}>${esc(e.especificacion)}</td></tr>`,
           ),
         )}</table>`,
-      "especificaciones",
     );
   }
 
@@ -402,14 +604,14 @@ function armarSecciones(
     const o = oferta.organizacion;
     let cuerpo = o.nota ? `<p${campo("organizacion.nota")}>${esc(o.nota)}</p>` : "";
     if (o.cuadroPersonal.length) {
-      cuerpo += `<h3>Cuadro de personal</h3>${tablaDotacion(o.cuadroPersonal, totales.dotacionTotal, "organizacion.cuadroPersonal", true)}`;
+      cuerpo += `<h3>${r.html("organizacion-cuadro")}</h3>${tablaDotacion(o.cuadroPersonal, totales.dotacionTotal, "organizacion.cuadroPersonal", true, r)}`;
     }
     // Una responsabilidad sin cargo no se dibuja: vaciar el cargo en el editor es
     // la forma de sacar una tarjeta que quedó de otra oferta.
     const responsabilidades = conIndice(o.responsabilidades, (r) => r.cargo.trim() !== "");
     if (responsabilidades.length) {
       cuerpo +=
-        `<h3>Organización del servicio</h3><div class="tarjetas">` +
+        `<h3>${r.html("organizacion-servicio")}</h3><div class="tarjetas">` +
         responsabilidades
           .map(
             // El color alterna por posición impresa, no por índice del dato: si no, una
@@ -422,17 +624,19 @@ function armarSecciones(
           .join("") +
         `</div>`;
     }
-    if (cuerpo) agregar("Dotación y organización del servicio", cuerpo, "organizacion");
+    agregar("organizacion", cuerpo);
   }
 
   if (oferta.programa?.turnos.length) {
     const p = oferta.programa;
     let acumulado = 0;
     agregar(
-      "Programa y plazos",
+      "programa",
       (p.introduccion ? `<p${campo("programa.introduccion")}>${esc(p.introduccion)}</p>` : "") +
         `<table class="tabla"><colgroup><col style="width:14%"><col style="width:28%"><col style="width:12%"><col></colgroup>
-          <thead><tr><th>Turno</th><th>Jornada</th><th class="num">Horas</th><th>Avance acumulado</th></tr></thead>
+          <thead><tr><th>${r.html("col-programa-turno")}</th><th>${r.html("col-programa-jornada")}</th>
+            <th class="num">${r.html("col-programa-horas")}</th>
+            <th>${r.html("col-programa-avance")}</th></tr></thead>
           ${cuerpoDeTabla(
             conIndice(p.turnos, (turno) => turno.turno.trim() !== "" || turno.horas !== 0).map(
               ({ fila: t, i }) => {
@@ -447,24 +651,26 @@ function armarSecciones(
                 );
               },
             ),
-            `<tr class="total"><td>Total</td>
+            `<tr class="total"><td>${r.html("fila-total")}</td>
               <td data-calculado="turnos">${esc(totales.cantidadTurnos)} turno${
                 totales.cantidadTurnos === 1 ? "" : "s"
               }</td>
               <td class="num" data-calculado="horas">${esc(totales.horasPrograma)}</td><td></td></tr>`,
           )}</table>` +
         (p.nota ? `<p class="nota"${campo("programa.nota")}>${esc(p.nota)}</p>` : ""),
-      "programa",
     );
   }
 
   if (oferta.precio?.lineas.length) {
     const pr = oferta.precio;
     agregar(
-      "Precio del servicio",
+      "precio",
       `<table class="tabla precios">
         <colgroup><col style="width:6%"><col style="width:8%"><col><col style="width:10%"><col style="width:15%"><col style="width:15%"></colgroup>
-        <thead><tr><th>Ít</th><th class="num">Cant</th><th>Cargo</th><th>Un</th><th class="num">V. Unit</th><th class="num">V. Total</th></tr></thead>
+        <thead><tr><th>${r.html("col-precio-item")}</th><th class="num">${r.html("col-precio-cantidad")}</th>
+          <th>${r.html("col-precio-cargo")}</th><th>${r.html("col-precio-unidad")}</th>
+          <th class="num">${r.html("col-precio-unitario")}</th>
+          <th class="num">${r.html("col-precio-total")}</th></tr></thead>
         ${cuerpoDeTabla(
           // Una línea sin descripción y sin monto es una fila que alguien agregó y no
           // completó: no se imprime. Con una de las dos cosas, sí — y el control de
@@ -484,36 +690,30 @@ function armarSecciones(
               )}</td>` +
               `<td class="num" data-calculado="linea">${clp(l.cantidad * l.valorUnitario)}</td></tr>`,
           ),
-          `<tr class="total"><td colspan="5">Total neto — no incluye IVA</td>
+          `<tr class="total"><td colspan="5">${r.html("fila-total-neto")}</td>
             <td class="num" data-calculado="totalNeto">${clp(totales.totalNetoCalculado)}</td></tr>`,
         )}</table>` +
         `<p class="nota"${campo("precio.nota")}>${esc(
           pr.nota ?? "Valores en pesos chilenos, netos. Los precios ofrecidos no incluyen IVA.",
         )}</p>`,
-      "precio",
     );
   }
 
   if (oferta.condicionesComerciales?.length) {
-    agregar(
-      "Condiciones comerciales",
-      hitos(oferta.condicionesComerciales, undefined, "condicionesComerciales"),
-      "condiciones",
-    );
+    agregar("condiciones", hitos(oferta.condicionesComerciales, undefined, "condicionesComerciales"));
   }
 
   if (oferta.aportes && (oferta.aportes.pertec.length || oferta.aportes.cliente.length)) {
-    const columna = (titulo: string, items: string[], ruta: string) =>
-      `<div class="columna"><p class="cabecera">${esc(titulo)}</p>
+    const columna = (tituloHtml: string, items: string[], ruta: string) =>
+      `<div class="columna"><p class="cabecera">${tituloHtml}</p>
          <ul>${items.map((t, i) => `<li${campo(`${ruta}.${i}`)}>${esc(t)}</li>`).join("")}</ul></div>`;
     agregar(
-      "Aportes de las partes",
+      "aportes",
       `<div class="aportes">${columna(
-        "Aportes de PERTEC",
+        r.html("aportes-pertec"),
         oferta.aportes.pertec,
         "aportes.pertec",
-      )}${columna(`Aportes del cliente`, oferta.aportes.cliente, "aportes.cliente")}</div>`,
-      "aportes",
+      )}${columna(r.html("aportes-cliente"), oferta.aportes.cliente, "aportes.cliente")}</div>`,
     );
   }
 
@@ -527,7 +727,7 @@ function armarSecciones(
     });
     const hayRubrica = rubricas.some((r) => Boolean(r.uri));
     agregar(
-      "Cierre y firma",
+      "cierre",
       (c.texto ? `<p${campo("cierre.texto")}>${esc(c.texto)}</p>` : "") +
         `<div class="firmas">${c.firmantes
           .map((f, i) => {
@@ -574,7 +774,6 @@ function armarSecciones(
         // no dos nombres sueltos.
         (identidadDeFirma(empresa) ? `<p class="identidad">${esc(identidadDeFirma(empresa))}</p>` : "") +
         (c.cc ? `<p class="cc"${campo("cierre.cc")}>${esc(c.cc)}</p>` : ""),
-      "cierre",
       // Corta por naturaleza —un párrafo, una o dos firmas y el cc— y la que peor
       // queda partida.
       true,
@@ -597,13 +796,16 @@ function tablaDotacion(
   total: number,
   ruta: string,
   conRegimen: boolean,
+  r: Rotulador,
 ): string {
   const columnas = conRegimen
     ? `<colgroup><col><col style="width:16%"><col style="width:30%"></colgroup>`
     : `<colgroup><col><col style="width:20%"></colgroup>`;
-  const encabezado = conRegimen
-    ? `<tr><th>Cargo</th><th class="num">Dotación</th><th>Régimen</th></tr>`
-    : `<tr><th>Cargo</th><th class="num">Dotación</th></tr>`;
+  const encabezado =
+    `<tr><th>${r.html("col-dotacion-cargo")}</th>` +
+    `<th class="num">${r.html("col-dotacion-dotacion")}</th>` +
+    (conRegimen ? `<th>${r.html("col-dotacion-regimen")}</th>` : "") +
+    `</tr>`;
   return (
     `<table class="tabla">${columnas}<thead>${encabezado}</thead>` +
     cuerpoDeTabla(
@@ -614,7 +816,7 @@ function tablaDotacion(
           (conRegimen ? `<td${campo(`${ruta}.${i}.regimen`)}>${esc(f.regimen ?? "")}</td>` : "") +
           `</tr>`,
       ),
-      `<tr class="total"><td>Total</td><td class="num" data-calculado="dotacion">${esc(total)}</td>${
+      `<tr class="total"><td>${r.html("fila-total")}</td><td class="num" data-calculado="dotacion">${esc(total)}</td>${
         conRegimen ? "<td></td>" : ""
       }</tr>`,
     ) +
@@ -628,16 +830,18 @@ function armarAnexo(
   fotos: number[] | undefined,
   imagenes: Record<number, ImagenDibujable>,
   epigrafes: Record<number, string>,
+  r: Rotulador,
+  bloques: string,
 ): SeccionArmada | null {
   // Con fotos elegidas la sección existe aunque no traiga texto: si no, elegir una
   // foto para el anexo de un borrador que no tiene anexo escrito la hacía
   // desaparecer sin decir nada.
-  if (!anexo && !(fotos ?? []).length) return null;
+  if (!anexo && !(fotos ?? []).length && bloques === "") return null;
   let cuerpo = "";
   if (anexo?.respaldoInstitucional.length) {
     const [primero, ...resto] = anexo.respaldoInstitucional;
     cuerpo +=
-      `<div class="grupo"><h3>Respaldo institucional</h3>` +
+      `<div class="grupo"><h3>${r.html("anexo-respaldo")}</h3>` +
       `<p${campo("anexo.respaldoInstitucional.0")}>${esc(primero)}</p></div>` +
       resto
         .map((parrafo, i) => `<p${campo(`anexo.respaldoInstitucional.${i + 1}`)}>${esc(parrafo)}</p>`)
@@ -650,7 +854,7 @@ function armarAnexo(
     // no hay razón para que se parta nunca.
     cuerpo +=
       `<div class="grupo">` +
-      `<h3>Principales mandantes y contratos ejecutados con nuestro personal</h3>` +
+      `<h3>${r.html("anexo-mandantes")}</h3>` +
       `<div class="mandantes">${anexo!.mandantes
         .map((m, i) => `<span${campo(`anexo.mandantes.${i}`)}>${esc(m)}</span>`)
         .join("")}</div>` +
@@ -665,7 +869,7 @@ function armarAnexo(
   const grilla = grillaDeImagenes(fotos, imagenes, epigrafes);
   if (grilla) {
     cuerpo +=
-      `<div class="grupo"><h3>Fotografías de referencia</h3>` +
+      `<div class="grupo"><h3>${r.html("anexo-fotos")}</h3>` +
       (anexo?.notaEquipo ? `<p class="nota"${campo("anexo.notaEquipo")}>${esc(anexo.notaEquipo)}</p>` : "") +
       `</div>` +
       grilla;
@@ -673,10 +877,16 @@ function armarAnexo(
     cuerpo += `<p${campo("anexo.notaEquipo")}>${esc(anexo.notaEquipo)}</p>`;
   }
 
+  // Los bloques agregados a mano van al final, con el mismo marcado que los
+  // subtítulos del anexo. Sin numerar, como el resto de esta sección: el anexo va
+  // con letra y sus subtítulos nunca se numeraron.
+  cuerpo += bloques;
   if (!cuerpo) return null;
   return {
     numero: "A",
-    titulo: "Anexo — respaldos y experiencia en trabajos similares",
+    titulo: r.texto("s-anexo"),
+    rotulo: "s-anexo",
+    en: "anexo",
     cuerpo,
     clave: "anexo",
   };
@@ -704,8 +914,17 @@ export function ofertaAHtml(
   // marcador y ya resueltas a data URI (ver lib/ofertas/imagenes.ts). Las que no
   // estén acá simplemente no se dibujan.
   imagenes: Record<number, ImagenDibujable> = {},
+  /**
+   * Para editar sobre el documento, no para imprimir.
+   *
+   * Lo único que cambia: un subtítulo agregado a mano y todavía vacío se dibuja. En
+   * el PDF no, porque sería un título numerado y en blanco en el documento que va al
+   * cliente; en el editor sí, porque si no, apretar "+ Subtítulo" no mostraría nada.
+   */
+  paraEditar = false,
 ): string {
-  const secciones = armarSecciones(oferta, totales, imagenes, empresa);
+  const r = rotulador(oferta);
+  const secciones = armarSecciones(oferta, totales, imagenes, empresa, paraEditar);
   // Una imagen asignada a una sección que este documento no tiene —fotos en
   // "especificaciones" cuando no hay especificaciones— no se pierde: cae al anexo.
   // Elegir una imagen y que no aparezca en ninguna parte es lo peor que puede hacer
@@ -720,6 +939,8 @@ export function ofertaAHtml(
     [...enElAnexo, ...huerfanas],
     imagenes,
     oferta.epigrafesDeImagenes ?? {},
+    r,
+    bloquesHtml(oferta, "anexo", paraEditar),
   );
   const todas = anexo ? [...secciones, anexo] : secciones;
   const id = oferta.identificacion;
@@ -976,10 +1197,13 @@ export function ofertaAHtml(
     <h1${campo("titulo")}>${esc(oferta.titulo)}</h1>
     ${id.faena ? `<p class="faena"${campo("identificacion.faena")}>${esc(id.faena)}</p>` : ""}
     <table class="datos limpia">${filasEtiqueta([
-      ["Oferta N°", id.numeroOferta, "identificacion.numeroOferta"],
-      ["Fecha", id.fecha, "identificacion.fecha"],
-      ["Cliente", id.cliente, "identificacion.cliente"],
-      ["Preparado por", [razonDe(empresa) || empresa.nombre, rutDe(empresa)].filter(Boolean).join(" · ")],
+      [r.html("id-numero"), id.numeroOferta, "identificacion.numeroOferta"],
+      [r.html("id-fecha"), id.fecha, "identificacion.fecha"],
+      [r.html("id-cliente"), id.cliente, "identificacion.cliente"],
+      [
+        r.html("id-preparado"),
+        [razonDe(empresa) || empresa.nombre, rutDe(empresa)].filter(Boolean).join(" · "),
+      ],
     ])}</table>
 
     <h2><span class="n">·</span> Índice de contenidos</h2>
@@ -996,7 +1220,9 @@ export function ofertaAHtml(
           // arrastrarles una foto encima y que el editor sepa dónde cayó. Las que
           // no la aceptan no llevan el atributo, así que no son blanco de nada.
           s.clave ? ` data-seccion="${s.clave}"` : ""
-        }><h2><span class="n">${esc(s.numero)}</span> ${esc(s.titulo)}</h2>${s.cuerpo}</section>`,
+        } data-en="${s.en}"><h2><span class="n">${esc(s.numero)}</span> <span${campo(
+          `rotulos.${s.rotulo}`,
+        )}>${esc(s.titulo)}</span></h2>${s.cuerpo}</section>`,
     )
     .join("")}
 </body></html>`;

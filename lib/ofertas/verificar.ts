@@ -1,4 +1,5 @@
 import type { Inconsistencia, OfertaCanonica, TotalesOferta } from "./tipos";
+import { TITULO_NUEVO, bloqueConContenido } from "./estructura";
 
 /**
  * Los totales y los controles de una oferta. Sin modelo, sin red, sin secretos.
@@ -178,6 +179,21 @@ export function detectarInconsistencias(
             "Revisá si quedó de otra oferta.",
         );
       }
+    }
+  }
+
+  // ── Un subtítulo agregado a mano y sin titular ────────────────────────────
+  //
+  // Uno vacío no se imprime, así que no hace falta avisar. El que sí importa es el
+  // que tiene contenido escrito y quedó con el título con el que nació: ese SÍ sale
+  // en el PDF, y sale diciendo "Nuevo subtítulo" en el documento que va al cliente.
+  for (const bloque of oferta.bloques ?? []) {
+    if (bloque.titulo.trim() === TITULO_NUEVO && bloqueConContenido(bloque)) {
+      aritmetica(
+        "falta_dato",
+        `Hay un subtítulo agregado a mano que quedó llamándose "${TITULO_NUEVO}" y tiene contenido: ` +
+          "va a salir así en el PDF.",
+      );
     }
   }
 

@@ -88,6 +88,8 @@ export async function ofertaAHtmlConEmpresa(
   maestroId: string | null = null,
   logoClienteRuta: string | null = null,
   inventario: ImagenGuardada[] = [],
+  /** La vista del editor dibuja los subtítulos vacíos; el PDF no. Ver ofertaAHtml. */
+  paraEditar = false,
 ): Promise<string> {
   const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
   if (!empresa) throw new Error(`No se encontró la identidad de "${nombreEmpresa}".`);
@@ -96,7 +98,7 @@ export async function ofertaAHtmlConEmpresa(
     logosParaDocumento(empresa, logoClienteRuta),
     imagenesParaDocumento(inventario, imagenesQueUsa(oferta)),
   ]);
-  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos, imagenes);
+  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos, imagenes, paraEditar);
 }
 
 /**

@@ -1,6 +1,12 @@
-import { NOMBRE_DE_SECCION, type OfertaCanonica, type SeccionConImagenes } from "./tipos";
+import {
+  NOMBRE_DE_SECCION,
+  SECCIONES_DEL_DOCUMENTO,
+  type OfertaCanonica,
+  type SeccionConImagenes,
+} from "./tipos";
 import { asignarEnRuta, numeroDesdeTexto } from "./rutas";
 import { textoDeFirma } from "./destino-imagen";
+import { ROTULO_DE_OPERACION, type OperacionDeEstructura } from "./estructura";
 import { calcularTotales } from "./verificar";
 import { clp } from "./plantilla";
 
@@ -87,6 +93,46 @@ const ESTILO_DEL_EDITOR = `
     border: 1px solid ${ACENTO}55; border-radius: 999px; background: #fff; color: ${ACENTO};
     font: 700 13px/1 sans-serif; cursor: pointer; opacity: 0; transition: opacity .12s;
   }
+  /* ── Los controles de estructura ──────────────────────────────────────────
+     Todos van POSICIONADOS EN ABSOLUTO, sin excepción: un botón en el flujo
+     agregaría su alto al documento y correría todo lo que viene abajo, y este
+     documento tiene que ser el resultado, no una aproximación con botones. Se
+     muestran al pasar por encima de lo que van a tocar. */
+  section[data-en], [data-bloque], [data-libre], .libre th, .libre td { position: relative; }
+  .barra-estructura {
+    position: absolute; top: 0; right: 0; z-index: 5; display: flex; gap: 3px;
+    opacity: 0; transition: opacity .12s;
+  }
+  section[data-en]:hover > .barra-estructura,
+  [data-bloque]:hover > .barra-estructura,
+  .barra-estructura:focus-within { opacity: 1; }
+  .boton-estructura {
+    border: 1px solid ${ACENTO}66; border-radius: 999px; background: #fff; color: ${ACENTO};
+    padding: 1px 7px; font: 700 8px/1.6 sans-serif; letter-spacing: .04em; text-transform: uppercase;
+    cursor: pointer; white-space: nowrap;
+  }
+  .boton-estructura:hover { background: ${ACENTO}; color: #fff; }
+  /* El bloque agregado a mano se distingue al pasar por encima, y con un outline:
+     un borde o un padding —el primer intento— empujaría su texto unos milímetros y
+     el párrafo cortaría distinto que en el PDF. El outline se dibuja por fuera y no
+     ocupa lugar. */
+  [data-bloque]:hover { outline: 1px dashed ${ACENTO}55; outline-offset: 3px; }
+  /* La × de un párrafo, una columna o una fila: en su esquina, al pasar por encima. */
+  .quitar-parte {
+    position: absolute; top: 1px; right: 1px; z-index: 5; width: 15px; height: 15px; padding: 0;
+    border: 1px solid ${ACENTO}55; border-radius: 999px; background: #fff; color: ${ACENTO};
+    font: 700 11px/1 sans-serif; cursor: pointer; opacity: 0; transition: opacity .12s;
+  }
+  /* Cada × aparece al pasar por encima de LO QUE SACA, y solo esa: con todas
+     visibles a la vez, en una cabecera de tabla que es una sola franja oscura, no se
+     puede saber a qué columna pertenece cada una. La de la fila se muestra desde
+     cualquier celda de la fila, no solo desde la última —donde está—: nadie va a
+     buscar el borde derecho para sacar una fila. */
+  p[data-libre="parrafo"]:hover > .quitar-parte,
+  th[data-libre="columna"]:hover > .quitar-parte,
+  tr[data-libre="fila"]:hover .quitar-parte,
+  .quitar-parte:focus { opacity: 1; }
+
   .fotos figure:hover .quitar-foto,
   .firmas .rubrica-caja:hover .quitar-foto,
   .quitar-foto:focus { opacity: 1; }
@@ -137,6 +183,13 @@ export interface OpcionesDeEdicion {
    * que confirma lo que se acaba de apretar y uno genérico que no confirma nada.
    */
   alQuitarImagen?: (indice: number, deLaFirma: boolean) => void;
+  /**
+   * Pidieron agregar o sacar estructura: un subtítulo, un párrafo, una columna, una
+   * fila. Cambia la forma del documento, así que quien lo reciba tiene que aplicarlo
+   * sobre el dato y volver a pedir la maqueta: la numeración de los subtítulos y el
+   * índice los arma el servidor.
+   */
+  alCambiarEstructura?: (operacion: OperacionDeEstructura) => void;
   /** Una oferta emitida se mira, no se toca. */
   editable: boolean;
   /**
@@ -246,6 +299,7 @@ export function prepararDocumento(doc: Document, opciones: OpcionesDeEdicion): (
   doc.addEventListener("paste", alPegar);
   doc.addEventListener("focusout", alSalir);
   const soltarArrastre = prepararArrastre(doc, opciones);
+  prepararEstructura(doc, opciones);
 
   return () => {
     medidor?.disconnect();
@@ -255,6 +309,144 @@ export function prepararDocumento(doc: Document, opciones: OpcionesDeEdicion): (
     doc.removeEventListener("focusout", alSalir);
     soltarArrastre();
   };
+}
+
+/**
+ * Los controles para agregar y sacar estructura, sobre el documento.
+ *
+ * Antes esto vivía solo en el formulario, y con razón: agregar una fila cambia la
+ * numeración, los cortes de página y el índice, y eso lo arma el servidor. Lo que
+ * estaba mal era la conclusión —que entonces había que ir a otra pantalla a
+ * pedirlo—. El pedido se hace acá, donde se ve dónde va a caer; el que arma sigue
+ * siendo el servidor, y por eso después de cada pedido el documento se vuelve a
+ * pedir entero.
+ *
+ * Ni un botón en el flujo del documento: todos van en absoluto, en la esquina de lo
+ * que tocan y visibles al pasar por encima. Un botón que ocupa lugar corre el texto,
+ * y entonces lo que se ve en pantalla deja de ser lo que se imprime — que es lo
+ * único que esta pantalla tiene que garantizar.
+ *
+ * Los botones se agregan al DOM de la pantalla y no a la plantilla, igual que la ×
+ * de las fotos: en el PDF no existen, y el documento se rearma entero en cada
+ * cambio.
+ */
+function prepararEstructura(doc: Document, opciones: OpcionesDeEdicion): void {
+  const pedir = opciones.alCambiarEstructura;
+  if (!pedir) return;
+
+  const boton = (texto: string, titulo: string, operacion: OperacionDeEstructura): HTMLElement => {
+    const el = doc.createElement("button");
+    el.type = "button";
+    el.className = "boton-estructura";
+    el.textContent = texto;
+    el.title = titulo;
+    // El documento es contenteditable por partes: sin esto, apretar un botón que
+    // está dentro de un bloque editable primero mueve el cursor y después dispara.
+    el.addEventListener("mousedown", (evento) => evento.preventDefault());
+    el.addEventListener("click", (evento) => {
+      evento.preventDefault();
+      pedir(operacion);
+    });
+    return el;
+  };
+
+  const equis = (titulo: string, operacion: OperacionDeEstructura): HTMLElement => {
+    const el = doc.createElement("button");
+    el.type = "button";
+    el.className = "quitar-parte";
+    el.textContent = "\u00d7";
+    el.title = titulo;
+    el.setAttribute("aria-label", titulo);
+    el.addEventListener("mousedown", (evento) => evento.preventDefault());
+    el.addEventListener("click", (evento) => {
+      evento.preventDefault();
+      pedir(operacion);
+    });
+    return el;
+  };
+
+  const barra = (dentroDe: HTMLElement, botones: HTMLElement[]): void => {
+    const caja = doc.createElement("div");
+    caja.className = "barra-estructura";
+    for (const b of botones) caja.appendChild(b);
+    dentroDe.appendChild(caja);
+  };
+
+  // Una sección, un "+ Subtítulo". La portada no lleva —no es una sección del
+  // documento, la arma la plantilla— y por eso el atributo lo llevan las otras.
+  for (const seccion of doc.querySelectorAll<HTMLElement>("section[data-en]")) {
+    const en = SECCIONES_DEL_DOCUMENTO.find((clave) => clave === seccion.dataset.en);
+    // Lo que dice el DOM es un dato, no una promesa: una sección con un nombre que
+    // no existe no lleva el botón, en vez de mandar ese nombre al dato.
+    if (!en) continue;
+    barra(seccion, [
+      boton(`+ ${ROTULO_DE_OPERACION.agregarBloque}`, "Agregar un subtítulo en esta sección", {
+        tipo: "agregarBloque",
+        en,
+      }),
+    ]);
+  }
+
+  for (const caja of doc.querySelectorAll<HTMLElement>("[data-bloque]")) {
+    const bloque = Number(caja.dataset.bloque);
+    const tieneTabla = caja.querySelector("table.libre") !== null;
+    barra(caja, [
+      boton(`+ ${ROTULO_DE_OPERACION.agregarParrafo}`, "Agregar un párrafo", {
+        tipo: "agregarParrafo",
+        bloque,
+      }),
+      tieneTabla
+        ? boton(`+ ${ROTULO_DE_OPERACION.agregarFila}`, "Agregar una fila a la tabla", {
+            tipo: "agregarFila",
+            bloque,
+          })
+        : boton(`+ ${ROTULO_DE_OPERACION.agregarTabla}`, "Agregar una tabla", {
+            tipo: "agregarTabla",
+            bloque,
+          }),
+      ...(tieneTabla
+        ? [
+            boton(`+ ${ROTULO_DE_OPERACION.agregarColumna}`, "Agregar una columna a la tabla", {
+              tipo: "agregarColumna",
+              bloque,
+            }),
+          ]
+        : []),
+      boton("Quitar", ROTULO_DE_OPERACION.quitarBloque, { tipo: "quitarBloque", bloque }),
+    ]);
+
+    for (const parrafo of caja.querySelectorAll<HTMLElement>('[data-libre="parrafo"]')) {
+      parrafo.appendChild(
+        equis(ROTULO_DE_OPERACION.quitarParrafo, {
+          tipo: "quitarParrafo",
+          bloque,
+          parrafo: Number(parrafo.dataset.parrafo),
+        }),
+      );
+    }
+    for (const columna of caja.querySelectorAll<HTMLElement>('[data-libre="columna"]')) {
+      columna.appendChild(
+        equis(ROTULO_DE_OPERACION.quitarColumna, {
+          tipo: "quitarColumna",
+          bloque,
+          columna: Number(columna.dataset.columna),
+        }),
+      );
+    }
+    // La × de la fila va en su ÚLTIMA celda: una fila de tabla no es un buen ancla
+    // para posicionar en absoluto, y la última celda es la que queda del lado donde
+    // están todas las demás ×.
+    for (const fila of caja.querySelectorAll<HTMLElement>('[data-libre="fila"]')) {
+      const ultima = fila.querySelector<HTMLElement>("td:last-child");
+      ultima?.appendChild(
+        equis(ROTULO_DE_OPERACION.quitarFila, {
+          tipo: "quitarFila",
+          bloque,
+          fila: Number(fila.dataset.fila),
+        }),
+      );
+    }
+  }
 }
 
 /**

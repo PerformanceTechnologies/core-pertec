@@ -22,8 +22,15 @@ import {
   type LecturaLetra,
   type LecturaNumeros,
 } from "../lib/ofertas/normalizar";
-import { cuerpoDeTabla, ofertaAHtml, plantillasDeImpresion, referenciaDePie } from "../lib/ofertas/plantilla";
+import {
+  ROTULOS,
+  cuerpoDeTabla,
+  ofertaAHtml,
+  plantillasDeImpresion,
+  referenciaDePie,
+} from "../lib/ofertas/plantilla";
 import { esFirma, leerDestino, textoDeFirma } from "../lib/ofertas/destino-imagen";
+import { TITULO_NUEVO, aplicarEstructura, bloqueConContenido } from "../lib/ofertas/estructura";
 import { asignarEnRuta, leerEnRuta, numeroDesdeTexto } from "../lib/ofertas/rutas";
 import { firmaDe } from "../lib/ofertas/tipos";
 import { proximoIndice } from "../lib/ofertas/imagenes";
@@ -917,7 +924,7 @@ assert.equal((htmlFotos.match(/class="rubrica"/g) ?? []).length, 1, "una firma, 
 // metodología, antes de que empiece la siguiente sección.
 // El título de la SECCIÓN, no su línea del índice de la portada: el índice lista
 // todos los títulos y buscar el texto suelto caía ahí.
-const metodologia = htmlFotos.indexOf("Metodología y secuencia de trabajo</h2>");
+const metodologia = htmlFotos.indexOf("Metodología y secuencia de trabajo</span></h2>");
 const siguiente = htmlFotos.indexOf("<h2", metodologia + 10);
 const grillaAncha = htmlFotos.search(/<figure data-imagen="\d+" class="ancha">/);
 assert.ok(
@@ -1399,6 +1406,154 @@ const otroFirmante = os10();
 otroFirmante.cierre!.firmantes = [{ nombre: "Persona Nueva", cargo: "Gerente", empresa: null }];
 assert.equal(firmaDe(conElRepartoDe(otroFirmante, enLaBaseDosFirmas).cierre!, 0), null);
 
+// ── Subtítulos agregados a mano ─────────────────────────────────────────────
+//
+// El maestro define qué lleva una oferta, y de eso salen la numeración, el índice,
+// las sumas y los controles. Un bloque es la salida explícita para lo que el maestro
+// no previó: va DENTRO de una sección, se numera con los demás subtítulos y no
+// participa de ningún cálculo.
+const conBloques = os10();
+aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "alcance" });
+aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "precio" });
+aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "alcance" });
+assert.deepEqual(
+  conBloques.bloques?.map((b) => b.en),
+  ["alcance", "alcance", "precio"],
+  "cada uno va al final de LOS DE SU SECCIÓN: el orden del arreglo es el orden impreso, y mezclados saldrían intercalados",
+);
+assert.equal(conBloques.bloques![0].titulo, TITULO_NUEVO, "nace con un título que se ve que falta escribir");
+assert.deepEqual(conBloques.bloques![0].parrafos, [""], "y con un párrafo listo para escribir");
+
+// La tabla libre: las columnas y las celdas las pone quien escribe. La única regla
+// es que toda fila tenga una celda por columna — una fila corta deja celdas que no
+// se pueden editar, porque su ruta no existe.
+aplicarEstructura(conBloques, { tipo: "agregarTabla", bloque: 0 });
+aplicarEstructura(conBloques, { tipo: "agregarColumna", bloque: 0 });
+aplicarEstructura(conBloques, { tipo: "agregarFila", bloque: 0 });
+const tabla = () => conBloques.bloques![0].tabla!;
+assert.equal(tabla().columnas.length, 3);
+assert.deepEqual(
+  tabla().filas.map((f) => f.length),
+  [3, 3],
+  "toda fila tiene una celda por columna",
+);
+
+tabla().filas[0] = ["a", "b", "c"];
+aplicarEstructura(conBloques, { tipo: "quitarColumna", bloque: 0, columna: 1 });
+assert.deepEqual(tabla().columnas.length, 2);
+assert.deepEqual(tabla().filas[0], ["a", "c"], "sacar una columna se lleva SU celda de cada fila, no la última");
+
+aplicarEstructura(conBloques, { tipo: "quitarFila", bloque: 0, fila: 1 });
+assert.equal(tabla().filas.length, 1);
+
+// La última columna no se saca: una tabla sin columnas es un rectángulo vacío que ya
+// no se puede volver a llenar, porque no queda dónde apretar. Para eso está sacar la
+// tabla entera.
+aplicarEstructura(conBloques, { tipo: "quitarColumna", bloque: 0, columna: 0 });
+aplicarEstructura(conBloques, { tipo: "quitarColumna", bloque: 0, columna: 0 });
+assert.equal(tabla().columnas.length, 1, "la última columna se queda");
+aplicarEstructura(conBloques, { tipo: "quitarTabla", bloque: 0 });
+assert.equal(conBloques.bloques![0].tabla, null);
+
+// Un índice que no existe no hace nada y no lanza: el documento en pantalla puede
+// haber quedado un paso atrás del dato, y ahí no hacer nada es mejor que romper.
+aplicarEstructura(conBloques, { tipo: "agregarFila", bloque: 99 });
+aplicarEstructura(conBloques, { tipo: "quitarParrafo", bloque: 0, parrafo: 99 });
+aplicarEstructura(conBloques, { tipo: "quitarBloque", bloque: 2 });
+assert.equal(conBloques.bloques!.length, 2);
+
+// Un bloque recién agregado NO se imprime: sería un subtítulo numerado y en blanco
+// en el documento que va al cliente. En el editor sí se ve, porque si no, apretar
+// "+ Subtítulo" no mostraría nada.
+const reciente = os10();
+aplicarEstructura(reciente, { tipo: "agregarBloque", en: "alcance" });
+assert.ok(!bloqueConContenido(reciente.bloques![0]), "vacío no cuenta como contenido");
+const htmlSinEditar = ofertaAHtml(reciente, calcularTotales(reciente), EMPRESA_DE_PRUEBA);
+assert.ok(!htmlSinEditar.includes("data-bloque"), "el PDF no lo dibuja");
+const htmlEditando = ofertaAHtml(
+  reciente,
+  calcularTotales(reciente),
+  EMPRESA_DE_PRUEBA,
+  undefined,
+  undefined,
+  {},
+  true,
+);
+assert.ok(htmlEditando.includes('data-bloque="0"'), "el editor sí, para poder escribirlo");
+
+// Con algo escrito se imprime, en SU sección, y numerado con los subtítulos de esa
+// sección: es lo que lo hace parte del documento y no un injerto al final.
+const escrito = os10();
+aplicarEstructura(escrito, { tipo: "agregarBloque", en: "alcance" });
+escrito.bloques![0].titulo = "Accesos a la faena";
+escrito.bloques![0].parrafos = ["El ingreso se coordina con 48 horas de antelación."];
+aplicarEstructura(escrito, { tipo: "agregarTabla", bloque: 0 });
+escrito.bloques![0].tabla!.columnas = ["Puerta", "Horario"];
+escrito.bloques![0].tabla!.filas = [["Norte", "07:00 a 19:00"]];
+const htmlBloque = ofertaAHtml(escrito, calcularTotales(escrito), EMPRESA_DE_PRUEBA);
+const abreAlcance = htmlBloque.indexOf('data-en="alcance"');
+const abreSiguiente = htmlBloque.indexOf("<section", abreAlcance + 10);
+const dondeCae = htmlBloque.indexOf("Accesos a la faena");
+assert.ok(
+  dondeCae > abreAlcance && dondeCae < abreSiguiente,
+  "el subtítulo sale dentro de su sección, no al final del documento",
+);
+// 2.1 actividades, 2.2 trabajos previos, 2.3 el agregado a mano.
+assert.ok(
+  /<h3><span class="sub">2\.3<\/span> <span data-campo="bloques\.0\.titulo">Accesos a la faena/.test(
+    htmlBloque,
+  ),
+  "se numera con los subtítulos del maestro, sin que nadie cuente a mano",
+);
+assert.ok(
+  htmlBloque.includes('data-campo="bloques.0.tabla.filas.0.1">07:00 a 19:00'),
+  "y cada celda de la tabla libre lleva su ruta, así que se edita sobre el documento",
+);
+
+// Un bloque de una sección que esta oferta no tiene no se dibuja: no hay dónde
+// ponerlo, y meterlo en otra sección sería inventar. El dato NO se pierde —si la
+// sección vuelve, el subtítulo vuelve con ella— y en la práctica el caso solo
+// aparece si alguien vacía la sección después: los botones de "+ Subtítulo" existen
+// únicamente en las secciones que el documento está dibujando.
+const enSeccionAusente = os10();
+enSeccionAusente.metodologia = null;
+aplicarEstructura(enSeccionAusente, { tipo: "agregarBloque", en: "metodologia" });
+enSeccionAusente.bloques![0].titulo = "Nada que ver";
+const htmlAusente = ofertaAHtml(
+  enSeccionAusente,
+  calcularTotales(enSeccionAusente),
+  EMPRESA_DE_PRUEBA,
+);
+assert.ok(!htmlAusente.includes("Nada que ver"), "sin la sección, el bloque no se dibuja en otra parte");
+assert.equal(enSeccionAusente.bloques!.length, 1, "pero el dato sigue ahí");
+
+enSeccionAusente.metodologia = { antesDeLaDetencion: ["Coordinación"], duranteLaDetencion: [] };
+assert.ok(
+  ofertaAHtml(enSeccionAusente, calcularTotales(enSeccionAusente), EMPRESA_DE_PRUEBA).includes(
+    "Nada que ver",
+  ),
+  "y vuelve a salir en cuanto la sección existe",
+);
+
+// Y el control: un subtítulo agregado a mano que quedó con el nombre con el que
+// nació PERO tiene contenido escrito sí sale en el PDF, y sale diciendo "Nuevo
+// subtítulo" al cliente. Ese avisa; el vacío no, porque no se imprime.
+const sinTitular = os10();
+aplicarEstructura(sinTitular, { tipo: "agregarBloque", en: "alcance" });
+assert.ok(
+  !detectarInconsistencias(sinTitular, calcularTotales(sinTitular), "OS 010.pdf").some((p) =>
+    p.detalle.includes(TITULO_NUEVO),
+  ),
+  "uno vacío no se imprime, así que no hay nada que avisar",
+);
+sinTitular.bloques![0].parrafos = ["Algo escrito."];
+assert.ok(
+  detectarInconsistencias(sinTitular, calcularTotales(sinTitular), "OS 010.pdf").some(
+    (p) => p.tipo === "falta_dato" && p.detalle.includes(TITULO_NUEVO),
+  ),
+  "con contenido y sin titular, va a Por revisar",
+);
+
 // ── El puente entre el papel y el dato ──────────────────────────────────────
 //
 // Editar sobre el documento se apoya en una sola cosa: que cada texto impreso
@@ -1415,8 +1570,23 @@ const desescapar = (texto: string) =>
     .replace(/&amp;/g, "&");
 
 let camposAtados = 0;
+const rotulosImpresos = new Set<string>();
 for (const [, ruta, tipo, impreso] of htmlFotos.matchAll(CAMPO_IMPRESO)) {
   camposAtados += 1;
+
+  // Los rótulos son la excepción y por una razón: son un diccionario donde la clave
+  // ausente significa "usa el del maestro", así que NO tienen que llevar a un dato.
+  // Lo que sí se comprueba es que la clave exista en el catálogo —una mal escrita
+  // sería un título que no se puede editar y nadie sabría por qué— y que lo impreso
+  // sea el rótulo que corresponde.
+  if (ruta.startsWith("rotulos.")) {
+    const clave = ruta.slice("rotulos.".length);
+    assert.ok(clave in ROTULOS, `el rótulo "${clave}" no está en el catálogo ROTULOS`);
+    assert.equal(desescapar(impreso), ROTULOS[clave], `el rótulo impreso en ${clave}`);
+    rotulosImpresos.add(clave);
+    continue;
+  }
+
   const valor = leerEnRuta(conFotos, ruta);
   assert.notEqual(valor, undefined, `la ruta "${ruta}" no lleva a ningún dato de la oferta`);
   // Un campo en null se imprime con el texto que pone la plantilla por defecto
@@ -1431,6 +1601,29 @@ for (const [, ruta, tipo, impreso] of htmlFotos.matchAll(CAMPO_IMPRESO)) {
 // El número exacto no importa; que sean muchos, sí: si un cambio dejara la mitad
 // del documento sin atar, la prueba de arriba pasaría igual.
 assert.ok(camposAtados > 40, `el documento se edita por sus campos (encontrados: ${camposAtados})`);
+
+// Y al revés: cada rótulo del catálogo tiene que SALIR en un documento que use
+// todas las secciones. Uno que quedó en el catálogo y ya nadie dibuja es un rótulo
+// que la pantalla ofrece cambiar y no cambia nada.
+const conTodo = os10();
+conTodo.metodologia = { antesDeLaDetencion: ["Reunión de coordinación"], duranteLaDetencion: ["Empalme"] };
+conTodo.especificaciones = [{ parametro: "Ancho de cinta", especificacion: "1.800 mm" }];
+conTodo.alcance!.personalEspecialista = [{ cargo: "Vulcanizador", dotacion: 2 }];
+conTodo.anexo = {
+  respaldoInstitucional: ["PERTEC es una empresa nacional."],
+  mandantes: ["Minera Franke"],
+  notaEquipo: "Equipo de alto desempeño.",
+};
+// Con una foto en el anexo, que es lo que hace aparecer "Fotografías de referencia".
+conTodo.imagenesPorSeccion = { anexo: [1] };
+const htmlTodo = ofertaAHtml(conTodo, calcularTotales(conTodo), EMPRESA_DE_PRUEBA, undefined, undefined, {
+  1: { uri: PNG_VALIDO, apaisada: false },
+});
+const dibujados = new Set(
+  [...htmlTodo.matchAll(/data-campo="rotulos\.([^"]+)"/g)].map(([, clave]) => clave),
+);
+const faltantes = Object.keys(ROTULOS).filter((clave) => !dibujados.has(clave));
+assert.deepEqual(faltantes, [], `rótulos del catálogo que el documento no dibuja: ${faltantes.join(", ")}`);
 
 // El tipo lo manda el dato, no lo que se tipeó: un campo numérico sigue siendo
 // número —si no, calcularTotales sumaría textos— y uno que era null vuelve a null

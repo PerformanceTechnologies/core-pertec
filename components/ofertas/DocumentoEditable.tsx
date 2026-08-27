@@ -8,6 +8,7 @@ import { prepararDocumento } from "@/lib/ofertas/edicion-dom";
 import { leerRespuesta } from "@/lib/subidas";
 import { subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
 import { esFirma } from "@/lib/ofertas/destino-imagen";
+import { aplicarEstructura, type OperacionDeEstructura } from "@/lib/ofertas/estructura";
 import RuedaCarga from "@/components/RuedaCarga";
 
 /**
@@ -224,6 +225,34 @@ export default function DocumentoEditable({
     [id, router],
   );
 
+  /**
+   * Agregar o sacar estructura: un subtítulo, un párrafo, una columna, una fila.
+   *
+   * No pasa por el servidor y es a propósito. El editor puede tener texto escrito sin
+   * guardar, así que una ruta tendría que leer el contenido de la base —perdiendo lo
+   * que se está escribiendo— o guardarlo entero, y entonces apretar "+" guardaría de
+   * prepo lo que alguien todavía estaba probando. Se aplica sobre el borrador vivo y
+   * se guarda con "Guardar cambios", como cualquier otra edición.
+   *
+   * Lo que sí necesita al servidor es DIBUJARLO: los subtítulos se numeran (3.1, 3.2)
+   * y el índice se arma al imprimir. De ahí el pedido de vista nueva.
+   */
+  const cambiarEstructura = useCallback(
+    (operacion: OperacionDeEstructura) => {
+      // Se aplica UNA vez, sobre el estado de la página. La copia con la que
+      // trabaja el documento se vuelve a sacar de ahí al pedir la vista (ver el
+      // efecto de más arriba: `modelo.current = structuredClone(ultima.current)`),
+      // y ese efecto corre después del que pone al día las refs, así que ya ve el
+      // cambio. Aplicarlo también acá lo dejaría escrito dos veces.
+      avisar.current((borrador) => {
+        aplicarEstructura(borrador, operacion);
+      });
+      setMoviendo("Armando el documento…");
+      setRevision((r) => r + 1);
+    },
+    [],
+  );
+
   const preparar = useCallback(() => {
     const doc = marco.current?.contentDocument;
     // El `about:blank` con el que nace un iframe también dispara load.
@@ -246,8 +275,9 @@ export default function DocumentoEditable({
       alSoltarImagen: (indice, destino) => void ubicar(indice, destino),
       alSoltarArchivos: (archivos, destino) => void subirYUbicar(archivos, destino),
       alQuitarImagen: (indice, deLaFirma) => void ubicar(indice, null, deLaFirma),
+      alCambiarEstructura: cambiarEstructura,
     });
-  }, [editable, ubicar, subirYUbicar]);
+  }, [editable, ubicar, subirYUbicar, cambiarEstructura]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -276,7 +306,7 @@ export default function DocumentoEditable({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-[11px] text-pretty text-tinta/50">
           {editable
-            ? "Escribí sobre el documento. Para agregar o quitar filas, usá el formulario."
+            ? "Escribí sobre el documento, títulos incluidos. Con los + que aparecen al pasar por encima se agregan subtítulos, párrafos, filas y columnas; las filas de las tablas del maestro van en el formulario."
             : "La oferta está emitida: el documento es de solo lectura."}
           {/* El aviso va acá y no junto a las fotos: al soltar una, la vista está en
               el documento, que es donde se espera ver que algo pasó. */}

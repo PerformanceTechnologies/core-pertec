@@ -30,6 +30,7 @@ interface VentanaDePrueba {
     archivos?: string[];
     quitada?: number;
     deLaFirma?: boolean;
+    operacion?: unknown;
   }[];
   /** Las cajas de cada elemento del documento, para comparar antes y después. */
   medidas: { el: Element; caja: { x: number; y: number; w: number; h: number } }[];
@@ -123,6 +124,16 @@ const oferta: OfertaCanonica = {
     cc: "CC: Gcia. Gral. / Archivo.",
     firmaImagen: null,
   },
+  // Un subtítulo agregado a mano, con su tabla libre: es lo que ejercita los
+  // controles de estructura y, sobre todo, que NO muevan el documento.
+  bloques: [
+    {
+      en: "alcance",
+      titulo: "Accesos a la faena",
+      parrafos: ["El ingreso se coordina con 48 horas de antelación."],
+      tabla: { columnas: ["Puerta", "Horario"], filas: [["Norte", "07:00 a 19:00"]] },
+    },
+  ],
   anexo: {
     respaldoInstitucional: ["PERTEC es una empresa nacional."],
     mandantes: ["Minera Franke"],
@@ -259,6 +270,7 @@ try {
         },
         alQuitarImagen: (indice: number, deLaFirma: boolean) =>
           ventana.sueltas.push({ quitada: indice, deLaFirma }),
+        alCambiarEstructura: (operacion: unknown) => ventana.sueltas.push({ operacion }),
       });
 
       const cliente = doc.querySelector<HTMLElement>('[data-campo="identificacion.cliente"]');
@@ -668,6 +680,113 @@ try {
     { indice: 6, destino: "firma-0" },
     "arrastrar desde el cajón de la página hasta la firma del iframe",
   );
+
+  // ── 9. Los rótulos se editan como cualquier texto ─────────────────────────
+  //
+  // Es una ruta de otra clase: los demás campos apuntan a un dato que ya existe, y
+  // un rótulo es una clave de diccionario que normalmente NO está —significa "usa el
+  // del maestro"—. Así que esto comprueba que escribir el título de una sección lo
+  // guarde igual, y que vaciarlo devuelva el del maestro en vez de dejar un título
+  // en blanco.
+  await enfocar('[data-campo="rotulos.s-alcance"]');
+  await pagina.keyboard.type("ALCANCE DE LOS TRABAJOS");
+  const rotulo = await pagina.evaluate(() => {
+    const ventana = window as unknown as VentanaDePrueba;
+    return { guardado: ventana.modelo.rotulos, aviso: ventana.avisos.at(-1) };
+  });
+  console.log(rotulo);
+  assert.equal(
+    rotulo.guardado?.["s-alcance"],
+    "ALCANCE DE LOS TRABAJOS",
+    "el título de la sección se guarda como rótulo de la oferta",
+  );
+  assert.equal(rotulo.aviso?.ruta, "rotulos.s-alcance", "y viaja a la página para guardarse");
+
+  await enfocar('[data-campo="rotulos.s-alcance"]');
+  await pagina.keyboard.press("Delete");
+  const rotuloVacio = await pagina.evaluate(
+    () => (window as unknown as VentanaDePrueba).modelo.rotulos,
+  );
+  console.log(rotuloVacio);
+  assert.ok(
+    !("s-alcance" in (rotuloVacio ?? {})),
+    "vaciarlo borra la clave: el documento vuelve al rótulo del maestro en vez de quedar sin título",
+  );
+
+  // ── 10. Agregar y sacar estructura desde el documento ─────────────────────
+  //
+  // Los botones no están en la maqueta: los pone el editor, en la esquina de lo que
+  // tocan. Lo que se comprueba acá es que cada uno pida la operación correcta CON EL
+  // ÍNDICE correcto: un "+ Fila" que reporte otro bloque escribiría en el subtítulo
+  // de al lado, que es la falla que nadie relacionaría con haber apretado ese botón.
+  const estructura = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const apretar = (dentro: Element, texto: string) => {
+      const botones = [...dentro.querySelectorAll<HTMLElement>(".boton-estructura")];
+      botones.find((b) => b.textContent === texto)?.click();
+      return ventana.sueltas.at(-1)?.operacion;
+    };
+
+    const seccion = doc.querySelector<HTMLElement>('section[data-en="alcance"]')!;
+    // El de la sección y no el del bloque que tiene adentro: querySelector encuentra
+    // el primero del árbol, así que se busca en la barra propia de la sección.
+    const suBarra = seccion.querySelector<HTMLElement>(":scope > .barra-estructura")!;
+    const subtitulo = apretar(suBarra, "+ Subtítulo");
+
+    const bloque = doc.querySelector<HTMLElement>('[data-bloque="0"]')!;
+    const barraDelBloque = bloque.querySelector<HTMLElement>(":scope > .barra-estructura")!;
+    const parrafo = apretar(barraDelBloque, "+ Párrafo");
+    const fila = apretar(barraDelBloque, "+ Fila");
+    const columna = apretar(barraDelBloque, "+ Columna");
+    const quitar = apretar(barraDelBloque, "Quitar");
+
+    const equis = (selector: string) => {
+      doc.querySelector<HTMLElement>(selector)?.click();
+      return ventana.sueltas.at(-1)?.operacion;
+    };
+    const sinParrafo = equis('[data-libre="parrafo"] .quitar-parte');
+    const sinColumna = equis('[data-columna="1"] .quitar-parte');
+    const sinFila = equis('[data-libre="fila"] td:last-child .quitar-parte');
+
+    return {
+      subtitulo,
+      parrafo,
+      fila,
+      columna,
+      quitar,
+      sinParrafo,
+      sinColumna,
+      sinFila,
+      // Con tabla, el botón de agregarla no está: sería un segundo cuadro en el
+      // mismo subtítulo.
+      hayBotonDeTabla: [...barraDelBloque.querySelectorAll("button")].some(
+        (b) => b.textContent === "+ Tabla",
+      ),
+      // Y la portada no es una sección del documento: no lleva el botón.
+      enLaPortada: doc.querySelector("section.portada .barra-estructura") !== null,
+    };
+  });
+  console.log(estructura);
+  assert.deepEqual(estructura.subtitulo, { tipo: "agregarBloque", en: "alcance" });
+  assert.deepEqual(estructura.parrafo, { tipo: "agregarParrafo", bloque: 0 });
+  assert.deepEqual(estructura.fila, { tipo: "agregarFila", bloque: 0 });
+  assert.deepEqual(estructura.columna, { tipo: "agregarColumna", bloque: 0 });
+  assert.deepEqual(estructura.quitar, { tipo: "quitarBloque", bloque: 0 });
+  assert.deepEqual(estructura.sinParrafo, { tipo: "quitarParrafo", bloque: 0, parrafo: 0 });
+  assert.deepEqual(estructura.sinColumna, { tipo: "quitarColumna", bloque: 0, columna: 1 });
+  assert.deepEqual(estructura.sinFila, { tipo: "quitarFila", bloque: 0, fila: 0 });
+  assert.ok(!estructura.hayBotonDeTabla, "con tabla ya puesta, no se ofrece agregar otra");
+  assert.ok(!estructura.enLaPortada, "la portada la arma la plantilla: no se le agregan subtítulos");
+
+  // Y las celdas de la tabla libre se editan como cualquier campo.
+  await enfocar('[data-campo="bloques.0.tabla.filas.0.1"]');
+  await pagina.keyboard.type("06:00 a 20:00");
+  const celda = await pagina.evaluate(
+    () => (window as unknown as VentanaDePrueba).modelo.bloques?.[0].tabla?.filas[0],
+  );
+  console.log(celda);
+  assert.deepEqual(celda, ["Norte", "06:00 a 20:00"], "la celda de una tabla libre es un dato más");
 
   console.log("\nLa edición sobre el documento funciona en el navegador.");
 } finally {

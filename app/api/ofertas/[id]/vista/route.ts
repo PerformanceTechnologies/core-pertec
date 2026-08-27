@@ -57,6 +57,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       oferta.maestroId,
       oferta.logoClienteRuta,
       oferta.imagenes,
+      // Es la vista para editar: un subtítulo recién agregado y todavía vacío tiene
+      // que verse acá, aunque no salga en el PDF.
+      true,
     );
     return new Response(html, {
       headers: {
