@@ -286,11 +286,35 @@ export interface TablaLibre {
  * control: es texto que alguien escribió y se imprime tal cual.
  */
 export interface BloqueLibre {
-  /** En qué sección va. Un bloque de una sección omitida no se dibuja. */
+  /**
+   * A qué sección se engancha. Una sección omitida no dibuja sus bloques.
+   *
+   * Para un subtítulo significa "adentro de esta sección"; para un título,
+   * "inmediatamente después de esta sección". Es el mismo campo porque es la misma
+   * pregunta —dónde va— y porque así el botón que lo agrega está en la sección donde
+   * uno está mirando.
+   */
   en: SeccionDelDocumento;
+  /**
+   * Un subtítulo dentro de la sección, o una sección propia.
+   *
+   * `titulo` sale como una sección más: con su número, su línea y su renglón en el
+   * índice, contados por la plantilla junto con las del maestro. Sirve para lo que no
+   * entra en ninguna sección existente —un "PLAN DE IZAJE" completo— y no para
+   * ordenar dentro de una, que es lo que hace un subtítulo.
+   *
+   * Ausente significa `subtitulo`: es lo único que había cuando esto se guardó por
+   * primera vez, y una oferta ya escrita no puede cambiar de forma sola.
+   */
+  nivel?: "titulo" | "subtitulo";
   titulo: string;
   parrafos: string[];
   tabla: TablaLibre | null;
+}
+
+/** ¿Este bloque es una sección propia? Ausente = subtítulo, por compatibilidad. */
+export function esTituloLibre(bloque: BloqueLibre): boolean {
+  return bloque.nivel === "titulo";
 }
 
 export interface OfertaCanonica {

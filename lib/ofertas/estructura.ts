@@ -1,4 +1,4 @@
-import type { BloqueLibre, OfertaCanonica, SeccionDelDocumento } from "./tipos";
+import { esTituloLibre, type BloqueLibre, type OfertaCanonica, type SeccionDelDocumento } from "./tipos";
 
 /**
  * Agregar y sacar estructura desde el documento: subtítulos, párrafos, columnas y
@@ -33,7 +33,7 @@ import type { BloqueLibre, OfertaCanonica, SeccionDelDocumento } from "./tipos";
  * aplica no adivina.
  */
 export type OperacionDeEstructura =
-  | { tipo: "agregarBloque"; en: SeccionDelDocumento }
+  | { tipo: "agregarBloque"; en: SeccionDelDocumento; nivel: "titulo" | "subtitulo" }
   | { tipo: "quitarBloque"; bloque: number }
   | { tipo: "agregarParrafo"; bloque: number }
   | { tipo: "quitarParrafo"; bloque: number; parrafo: number }
@@ -44,8 +44,19 @@ export type OperacionDeEstructura =
   | { tipo: "agregarFila"; bloque: number }
   | { tipo: "quitarFila"; bloque: number; fila: number };
 
-/** El rótulo con el que nace un subtítulo, para que se vea que falta escribirlo. */
+/** El rótulo con el que nace un bloque, para que se vea que falta escribirlo. */
 export const TITULO_NUEVO = "Nuevo subtítulo";
+export const TITULO_NUEVO_SECCION = "Nueva sección";
+
+/** El nombre con el que nace un bloque, según lo que sea. */
+export function tituloInicial(nivel: "titulo" | "subtitulo"): string {
+  return nivel === "titulo" ? TITULO_NUEVO_SECCION : TITULO_NUEVO;
+}
+
+/** ¿Todavía se llama como nació? Es lo que mira el control de Por revisar. */
+export function sinTitular(bloque: BloqueLibre): boolean {
+  return bloque.titulo.trim() === tituloInicial(esTituloLibre(bloque) ? "titulo" : "subtitulo");
+}
 
 /** Cuántas columnas tiene una tabla recién agregada. */
 const COLUMNAS_INICIALES = 2;
@@ -75,14 +86,23 @@ function parejo(tabla: { columnas: string[]; filas: string[][] }): void {
   });
 }
 
-/** Un subtítulo nuevo al final de esa sección, con un párrafo para escribir. */
-export function agregarBloque(borrador: OfertaCanonica, en: SeccionDelDocumento): void {
+/**
+ * Un bloque nuevo enganchado a esa sección, con un párrafo para escribir.
+ *
+ * Un subtítulo va adentro de la sección; un título sale como una sección propia,
+ * justo después de ella.
+ */
+export function agregarBloque(
+  borrador: OfertaCanonica,
+  en: SeccionDelDocumento,
+  nivel: "titulo" | "subtitulo" = "subtitulo",
+): void {
   const lista = bloques(borrador);
   // Al final de los de SU sección y no al final de todos: el orden dentro del
   // arreglo es el orden impreso, y con dos secciones intercaladas los bloques de una
   // aparecerían mezclados con los de la otra.
   const ultimo = lista.reduce((pos, b, i) => (b.en === en ? i + 1 : pos), lista.length);
-  lista.splice(ultimo, 0, { en, titulo: TITULO_NUEVO, parrafos: [""], tabla: null });
+  lista.splice(ultimo, 0, { en, nivel, titulo: tituloInicial(nivel), parrafos: [""], tabla: null });
 }
 
 export function quitarBloque(borrador: OfertaCanonica, i: number): void {
@@ -158,10 +178,11 @@ export function quitarFila(borrador: OfertaCanonica, i: number, fila: number): v
 export function bloquesDe(
   contenido: OfertaCanonica,
   en: SeccionDelDocumento,
+  nivel: "titulo" | "subtitulo",
 ): { bloque: BloqueLibre; i: number }[] {
   return (contenido.bloques ?? [])
     .map((bloque, i) => ({ bloque, i }))
-    .filter(({ bloque }) => bloque.en === en);
+    .filter(({ bloque }) => bloque.en === en && esTituloLibre(bloque) === (nivel === "titulo"));
 }
 
 /**
@@ -172,8 +193,7 @@ export function bloquesDe(
  * se ve, porque si no, apretar "+" no mostraría nada.
  */
 export function bloqueConContenido(bloque: BloqueLibre): boolean {
-  const titulo = bloque.titulo.trim();
-  if (titulo !== "" && titulo !== TITULO_NUEVO) return true;
+  if (bloque.titulo.trim() !== "" && !sinTitular(bloque)) return true;
   if (bloque.parrafos.some((p) => p.trim() !== "")) return true;
   const tabla = bloque.tabla;
   if (!tabla) return false;
@@ -190,7 +210,7 @@ export function bloqueConContenido(bloque: BloqueLibre): boolean {
 export function aplicarEstructura(borrador: OfertaCanonica, operacion: OperacionDeEstructura): void {
   switch (operacion.tipo) {
     case "agregarBloque":
-      return agregarBloque(borrador, operacion.en);
+      return agregarBloque(borrador, operacion.en, operacion.nivel);
     case "quitarBloque":
       return quitarBloque(borrador, operacion.bloque);
     case "agregarParrafo":
@@ -215,7 +235,7 @@ export function aplicarEstructura(borrador: OfertaCanonica, operacion: Operacion
 /** Lo que dice el botón de cada operación, para no escribirlo en dos lados. */
 export const ROTULO_DE_OPERACION: Record<OperacionDeEstructura["tipo"], string> = {
   agregarBloque: "Subtítulo",
-  quitarBloque: "Quitar este subtítulo",
+  quitarBloque: "Quitar esto del documento",
   agregarParrafo: "Párrafo",
   quitarParrafo: "Quitar este párrafo",
   agregarTabla: "Tabla",

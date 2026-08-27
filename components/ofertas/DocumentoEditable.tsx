@@ -306,7 +306,7 @@ export default function DocumentoEditable({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-[11px] text-pretty text-tinta/50">
           {editable
-            ? "Escribí sobre el documento, títulos incluidos. Con los + que aparecen al pasar por encima se agregan subtítulos, párrafos, filas y columnas; las filas de las tablas del maestro van en el formulario."
+            ? "Escribí sobre el documento, títulos incluidos. Con los + que aparecen al pasar por encima se agregan secciones, subtítulos, párrafos, filas y columnas; las filas de las tablas del maestro van en el formulario."
             : "La oferta está emitida: el documento es de solo lectura."}
           {/* El aviso va acá y no junto a las fotos: al soltar una, la vista está en
               el documento, que es donde se espera ver que algo pasó. */}

@@ -133,6 +133,15 @@ const oferta: OfertaCanonica = {
       parrafos: ["El ingreso se coordina con 48 horas de antelación."],
       tabla: { columnas: ["Puerta", "Horario"], filas: [["Norte", "07:00 a 19:00"]] },
     },
+    // Y una sección propia agregada a mano: se numera con las del maestro y lleva
+    // los mismos controles del bloque, pero como <section>.
+    {
+      en: "alcance",
+      nivel: "titulo",
+      titulo: "Plan de izaje",
+      parrafos: ["El izaje se ejecuta con grúa de 220 t."],
+      tabla: null,
+    },
   ],
   anexo: {
     respaldoInstitucional: ["PERTEC es una empresa nacional."],
@@ -803,7 +812,7 @@ try {
     };
   });
   console.log(estructura);
-  assert.deepEqual(estructura.subtitulo, { tipo: "agregarBloque", en: "alcance" });
+  assert.deepEqual(estructura.subtitulo, { tipo: "agregarBloque", en: "alcance", nivel: "subtitulo" });
   assert.deepEqual(estructura.parrafo, { tipo: "agregarParrafo", bloque: 0 });
   assert.deepEqual(estructura.fila, { tipo: "agregarFila", bloque: 0 });
   assert.deepEqual(estructura.columna, { tipo: "agregarColumna", bloque: 0 });
@@ -813,6 +822,65 @@ try {
   assert.deepEqual(estructura.sinFila, { tipo: "quitarFila", bloque: 0, fila: 0 });
   assert.ok(!estructura.hayBotonDeTabla, "con tabla ya puesta, no se ofrece agregar otra");
   assert.ok(!estructura.enLaPortada, "la portada la arma la plantilla: no se le agregan subtítulos");
+
+  // El "+ Título" agrega una SECCIÓN, no un subtítulo: es la otra mitad del pedido.
+  // Y la sección agregada a mano lleva los controles del bloque —párrafo, tabla,
+  // quitar— y no los de una sección del maestro, porque no es una del maestro.
+  const titulos = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const barra = doc.querySelector<HTMLElement>('section[data-en="alcance"] > .barra-estructura')!;
+    [...barra.querySelectorAll<HTMLElement>("button")].find((b) => b.textContent === "+ Título")?.click();
+    const pedido = ventana.sueltas.at(-1)?.operacion;
+
+    const propia = doc.querySelector<HTMLElement>('section[data-bloque="1"]')!;
+    return {
+      pedido,
+      // Su título se edita en el h2, con la ruta del bloque y no con un rótulo.
+      rutaDelTitulo: propia.querySelector("h2 [data-campo]")?.getAttribute("data-campo"),
+      numero: propia.querySelector("h2 .n")?.textContent,
+      // No es blanco de arrastre: el reparto de imágenes va por sección del maestro.
+      aceptaFotos: propia.hasAttribute("data-seccion"),
+      // Y no ofrece "+ Subtítulo": los subtítulos son de las secciones del maestro.
+      botones: [...propia.querySelectorAll<HTMLElement>(":scope > .barra-estructura button")].map(
+        (b) => b.textContent,
+      ),
+    };
+  });
+  console.log(titulos);
+  assert.deepEqual(titulos.pedido, { tipo: "agregarBloque", en: "alcance", nivel: "titulo" });
+  assert.equal(titulos.rutaDelTitulo, "bloques.1.titulo", "el título de la sección propia es su dato");
+  assert.equal(titulos.numero, "3", "se numera con las del maestro: después del alcance");
+  assert.ok(!titulos.aceptaFotos, "una sección agregada a mano no recibe fotos");
+  assert.deepEqual(titulos.botones, ["+ Párrafo", "+ Tabla", "Quitar"], "lleva los controles del bloque");
+
+  // ── 11. Los controles no estorban ─────────────────────────────────────────
+  //
+  // Aparecen sobre el documento, así que mientras están invisibles no pueden
+  // interceptar el clic: sin `pointer-events: none`, la pastilla de "+ Subtítulo"
+  // —que cae justo sobre el borde derecho del título de la sección— se come el clic
+  // de quien quiere editar ese título y no pasa nada. Es la clase de detalle que no
+  // se ve mirando y que hace que algo "no funcione".
+  const estorbo = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const barra = doc.querySelector<HTMLElement>('section[data-en="precio"] > .barra-estructura')!;
+    const caja = barra.getBoundingClientRect();
+    const debajo = doc.elementFromPoint(caja.x + caja.width / 2, caja.y + caja.height / 2);
+    const estilo = doc.defaultView!.getComputedStyle(barra);
+    return {
+      atrapaElClic: barra.contains(debajo),
+      opacidad: estilo.opacity,
+      // Y se anima: sin transición, aparecer de golpe se lee como un parpadeo.
+      duracion: estilo.transitionDuration,
+    };
+  });
+  console.log(estorbo);
+  assert.ok(!estorbo.atrapaElClic, "invisible no puede atrapar el clic de lo que tiene debajo");
+  assert.equal(estorbo.opacidad, "0", "y arranca invisible");
+  assert.ok(
+    parseFloat(estorbo.duracion) >= 0.15,
+    `la aparición es gradual, no un parpadeo (${estorbo.duracion})`,
+  );
 
   // Y las celdas de la tabla libre se editan como cualquier campo.
   await enfocar('[data-campo="bloques.0.tabla.filas.0.1"]');

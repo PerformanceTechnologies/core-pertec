@@ -4,6 +4,7 @@ import {
   type BloqueLibre,
   type OfertaCanonica,
   type SeccionConImagenes,
+  SECCIONES_DEL_DOCUMENTO,
   type SeccionDelDocumento,
   type TotalesOferta,
 } from "./tipos";
@@ -36,8 +37,14 @@ interface SeccionArmada {
   /** "1", "2"… o "A" para el anexo. */ numero: string;
   /** El título ya resuelto: el del maestro, o el que cambió esta oferta. */
   titulo: string;
-  /** Su clave de rótulo, para poder editar el título sobre el documento. */
-  rotulo: string;
+  /**
+   * La ruta del dato que produce su título, para poder editarlo sobre el documento.
+   *
+   * Es un rótulo (`rotulos.s-alcance`) en las secciones del maestro y el título del
+   * bloque (`bloques.3.titulo`) en una sección agregada a mano: las dos se escriben
+   * igual sobre el documento, y la diferencia es de dónde sale el texto.
+   */
+  rutaTitulo: string;
   /**
    * Qué sección es, para el editor.
    *
@@ -62,6 +69,8 @@ interface SeccionArmada {
   junto?: boolean;
   /** Qué sección es, para saber qué imágenes le tocan y cuáles quedaron sin lugar. */
   clave?: SeccionConImagenes;
+  /** Si es una sección agregada a mano, su índice en `bloques`. */
+  bloque?: number;
 }
 
 /**
@@ -438,13 +447,13 @@ function grillaDeImagenes(
  * fila. Igual que con las fotos, los botones no van en la plantilla: son del editor.
  */
 function bloquesHtml(contenido: OfertaCanonica, en: SeccionDelDocumento, paraEditar: boolean): string {
-  return bloquesDe(contenido, en)
+  return bloquesDe(contenido, en, "subtitulo")
     .filter(({ bloque }) => paraEditar || bloqueConContenido(bloque))
     .map(({ bloque, i }) => bloqueHtml(bloque, i))
     .join("");
 }
 
-function bloqueHtml(bloque: BloqueLibre, i: number): string {
+function bloqueHtml(bloque: BloqueLibre, i: number, comoSeccion = false): string {
   const parrafos = bloque.parrafos
     .map(
       (texto, j) =>
@@ -478,7 +487,10 @@ function bloqueHtml(bloque: BloqueLibre, i: number): string {
     : "";
 
   // El título va en su grupo con el primer párrafo, igual que los hitos: un
-  // subtítulo solo al pie de una página no dice nada.
+  // subtítulo solo al pie de una página no dice nada. Un título de sección no: su
+  // <h2> ya lleva page-break-after: avoid, y agrupar una sección entera la mandaría
+  // completa a la página siguiente.
+  if (comoSeccion) return `${parrafos}${tablaHtml}`;
   return (
     `<div class="bloque" data-bloque="${i}">` +
     `<div class="grupo"><h3><span${campo(`bloques.${i}.titulo`)}>${esc(bloque.titulo)}</span></h3>${parrafos}</div>` +
@@ -505,6 +517,25 @@ function armarSecciones(
 
   // `en` es la sección, y de ahí sale su rótulo: el título ya no está escrito acá,
   // porque se puede cambiar por oferta (ver ROTULOS).
+  // Las secciones agregadas a mano que van enganchadas a esta, justo después de
+  // ella. Se numeran con las del maestro porque son secciones de verdad: entran en la
+  // cuenta, en el índice y en el orden del documento.
+  const hechas = new Set<SeccionDelDocumento>();
+  const titulosLibres = (en: SeccionDelDocumento) => {
+    hechas.add(en);
+    for (const { bloque, i } of bloquesDe(oferta, en, "titulo")) {
+      if (!paraEditar && !bloqueConContenido(bloque)) continue;
+      secciones.push({
+        numero: String(secciones.length + 1),
+        titulo: bloque.titulo,
+        rutaTitulo: `bloques.${i}.titulo`,
+        en,
+        bloque: i,
+        cuerpo: bloqueHtml(bloque, i, true),
+      });
+    }
+  };
+
   const agregar = (en: SeccionDelDocumento, cuerpo: string, junto = false) => {
     const clave = en === "identificacion" ? undefined : en;
     const bloques = bloquesHtml(oferta, en, paraEditar);
@@ -512,11 +543,18 @@ function armarSecciones(
     // aplica, se omite, y la numeración de las que quedan se corrige sola—. Un
     // subtítulo agregado a mano SÍ cuenta como contenido: puede ser lo único que
     // tenga esa sección en esta oferta.
-    if (cuerpo === "" && bloques === "") return;
+    // A diferencia de los subtítulos, una sección agregada a mano se dibuja igual
+    // cuando la sección a la que se engancha quedó vacía: es una sección propia y su
+    // ancla es solo su posición. Si no, vaciar el alcance haría desaparecer en
+    // silencio un "PLAN DE IZAJE" entero.
+    if (cuerpo === "" && bloques === "") {
+      titulosLibres(en);
+      return;
+    }
     secciones.push({
       numero: String(secciones.length + 1),
       titulo: r.texto(ROTULO_DE_SECCION[en]),
-      rotulo: ROTULO_DE_SECCION[en],
+      rutaTitulo: `rotulos.${ROTULO_DE_SECCION[en]}`,
       en,
       // Los subtítulos agregados a mano van después del contenido del maestro y
       // antes de las fotos: son texto de la sección, y la grilla cierra la sección.
@@ -533,6 +571,7 @@ function armarSecciones(
       junto,
       clave,
     });
+    titulosLibres(en);
   };
 
   const id = oferta.identificacion;
@@ -780,6 +819,13 @@ function armarSecciones(
     );
   }
 
+  // Las enganchadas a una sección que este documento no dibuja —y las del anexo, que
+  // se arma aparte— van al final de las numeradas, antes del anexo. Es el único lugar
+  // sensato: el anexo cierra el documento.
+  for (const en of SECCIONES_DEL_DOCUMENTO) {
+    if (!hechas.has(en)) titulosLibres(en);
+  }
+
   return secciones;
 }
 
@@ -885,7 +931,7 @@ function armarAnexo(
   return {
     numero: "A",
     titulo: r.texto("s-anexo"),
-    rotulo: "s-anexo",
+    rutaTitulo: "rotulos.s-anexo",
     en: "anexo",
     cuerpo,
     clave: "anexo",
@@ -1220,8 +1266,13 @@ export function ofertaAHtml(
           // arrastrarles una foto encima y que el editor sepa dónde cayó. Las que
           // no la aceptan no llevan el atributo, así que no son blanco de nada.
           s.clave ? ` data-seccion="${s.clave}"` : ""
-        } data-en="${s.en}"><h2><span class="n">${esc(s.numero)}</span> <span${campo(
-          `rotulos.${s.rotulo}`,
+        }${
+          // Una sección agregada a mano lleva su índice y NO lleva `data-en`: los
+          // controles que le corresponden son los del bloque —párrafos, tabla,
+          // quitar— y no los de una sección del maestro.
+          s.bloque === undefined ? ` data-en="${s.en}"` : ` data-bloque="${s.bloque}"`
+        }><h2><span class="n">${esc(s.numero)}</span> <span${campo(
+          s.rutaTitulo,
         )}>${esc(s.titulo)}</span></h2>${s.cuerpo}</section>`,
     )
     .join("")}

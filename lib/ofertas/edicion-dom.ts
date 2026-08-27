@@ -94,34 +94,62 @@ const ESTILO_DEL_EDITOR = `
      mientras la foto está encima. */
   [data-firma].recibiendo::after { top: auto; bottom: -14px; right: auto; left: 0; }
 
+  /* Quien pidió no ver movimiento no lo ve: quedan los cambios de opacidad, que son
+     lo que dice "esto se puede tocar", y se van los desplazamientos. */
+  @media (prefers-reduced-motion: reduce) {
+    .barra-estructura, .boton-estructura, .quitar-parte { transition-duration: .01ms; }
+    .barra-estructura, .quitar-parte, .boton-estructura:hover { transform: none; }
+  }
+
   /* La × para sacar una foto del documento: aparece al pasar por encima. La rúbrica
      tiene la suya, en la esquina de la firma: se podía poner una firma arrastrándola
      y después no había cómo sacarla, que es la mitad del trabajo. */
   .fotos figure, .firmas .rubrica-caja { position: relative; }
   .quitar-foto {
     position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0;
-    border: 1px solid ${ACENTO}55; border-radius: 999px; background: #fff; color: ${ACENTO};
-    font: 700 13px/1 sans-serif; cursor: pointer; opacity: 0; transition: opacity .12s;
+    border: 0; border-radius: 999px; background: ${ACENTO}; color: #fff;
+    font: 700 13px/1 sans-serif; cursor: pointer; box-shadow: 0 1px 4px ${ACENTO}40;
+    opacity: 0; transform: scale(.85);
+    transition: opacity .22s ease-out, transform .22s ease-out, background .16s ease-out;
   }
+  .quitar-foto:hover { background: #b3261e; }
   /* ── Los controles de estructura ──────────────────────────────────────────
      Todos van POSICIONADOS EN ABSOLUTO, sin excepción: un botón en el flujo
      agregaría su alto al documento y correría todo lo que viene abajo, y este
      documento tiene que ser el resultado, no una aproximación con botones. Se
      muestran al pasar por encima de lo que van a tocar. */
   section[data-en], [data-bloque], [data-libre], .libre th, .libre td { position: relative; }
+  /* ── Cómo aparecen ────────────────────────────────────────────────────────
+     Suave y en dos tiempos: los controles suben 3 px mientras aparecen, con una
+     curva que frena al final (los 12 ms lineales de antes se leían como un
+     parpadeo), y se van más lento de lo que llegan —140 ms para entrar, 220 para
+     salir— así que pasar el mouse de un botón al de al lado no los apaga en el
+     camino. Nada de esto mueve el documento: son cajas en absoluto y lo que se
+     anima es su propia opacidad y su propio transform. */
   .barra-estructura {
-    position: absolute; top: 0; right: 0; z-index: 5; display: flex; gap: 3px;
-    opacity: 0; transition: opacity .12s;
+    position: absolute; top: 0; right: 0; z-index: 5; display: flex; gap: 4px;
+    opacity: 0; transform: translateY(3px); pointer-events: none;
+    transition: opacity .22s ease-out, transform .22s ease-out;
   }
   section[data-en]:hover > .barra-estructura,
   [data-bloque]:hover > .barra-estructura,
-  .barra-estructura:focus-within { opacity: 1; }
-  .boton-estructura {
-    border: 1px solid ${ACENTO}66; border-radius: 999px; background: #fff; color: ${ACENTO};
-    padding: 1px 7px; font: 700 8px/1.6 sans-serif; letter-spacing: .04em; text-transform: uppercase;
-    cursor: pointer; white-space: nowrap;
+  .barra-estructura:focus-within {
+    opacity: 1; transform: translateY(0); pointer-events: auto;
+    transition: opacity .14s ease-out, transform .14s ease-out;
   }
-  .boton-estructura:hover { background: ${ACENTO}; color: #fff; }
+  /* Naranjo lleno y no un contorno sobre el papel: un botón tiene que leerse como
+     un botón a la primera, y encima del texto del documento —que es negro sobre
+     blanco— el contorno fino desaparecía. */
+  .boton-estructura {
+    border: 0; border-radius: 999px; background: ${ACENTO}; color: #fff;
+    padding: 3px 9px; font: 700 8.5px/1.4 sans-serif; letter-spacing: .05em;
+    text-transform: uppercase; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 1px 4px ${ACENTO}40;
+    transition: background .16s ease-out, box-shadow .16s ease-out, transform .16s ease-out;
+  }
+  .boton-estructura:hover { background: ${TINTA}; box-shadow: 0 2px 7px #17141140; transform: translateY(-1px); }
+  .boton-estructura:active { transform: translateY(0); }
+  .boton-estructura:focus-visible { outline: 2px solid ${TINTA}; outline-offset: 2px; }
   /* El bloque agregado a mano se distingue al pasar por encima, y con un outline:
      un borde o un padding —el primer intento— empujaría su texto unos milímetros y
      el párrafo cortaría distinto que en el PDF. El outline se dibuja por fuera y no
@@ -129,10 +157,13 @@ const ESTILO_DEL_EDITOR = `
   [data-bloque]:hover { outline: 1px dashed ${ACENTO}55; outline-offset: 3px; }
   /* La × de un párrafo, una columna o una fila: en su esquina, al pasar por encima. */
   .quitar-parte {
-    position: absolute; top: 1px; right: 1px; z-index: 5; width: 15px; height: 15px; padding: 0;
-    border: 1px solid ${ACENTO}55; border-radius: 999px; background: #fff; color: ${ACENTO};
-    font: 700 11px/1 sans-serif; cursor: pointer; opacity: 0; transition: opacity .12s;
+    position: absolute; top: 1px; right: 1px; z-index: 5; width: 17px; height: 17px; padding: 0;
+    border: 0; border-radius: 999px; background: ${ACENTO}; color: #fff;
+    font: 700 12px/1 sans-serif; cursor: pointer; box-shadow: 0 1px 3px ${ACENTO}40;
+    opacity: 0; transform: scale(.85);
+    transition: opacity .22s ease-out, transform .22s ease-out, background .16s ease-out;
   }
+  .quitar-parte:hover { background: #b3261e; }
   /* Cada × aparece al pasar por encima de LO QUE SACA, y solo esa: con todas
      visibles a la vez, en una cabecera de tabla que es una sola franja oscura, no se
      puede saber a qué columna pertenece cada una. La de la fila se muestra desde
@@ -141,11 +172,17 @@ const ESTILO_DEL_EDITOR = `
   p[data-libre="parrafo"]:hover > .quitar-parte,
   th[data-libre="columna"]:hover > .quitar-parte,
   tr[data-libre="fila"]:hover .quitar-parte,
-  .quitar-parte:focus { opacity: 1; }
+  .quitar-parte:focus {
+    opacity: 1; transform: scale(1);
+    transition: opacity .14s ease-out, transform .14s ease-out, background .16s ease-out;
+  }
 
   .fotos figure:hover .quitar-foto,
   .firmas .rubrica-caja:hover .quitar-foto,
-  .quitar-foto:focus { opacity: 1; }
+  .quitar-foto:focus {
+    opacity: 1; transform: scale(1);
+    transition: opacity .14s ease-out, transform .14s ease-out, background .16s ease-out;
+  }
   /* La rúbrica es chica y clara: la × va pegada a su esquina y un poco más chica,
      que con el tamaño de las del cuerpo tapaba media firma. */
   /* Adentro de la esquina y no colgando por fuera: el bloque del primer firmante
@@ -389,10 +426,19 @@ function prepararEstructura(doc: Document, opciones: OpcionesDeEdicion): void {
     // Lo que dice el DOM es un dato, no una promesa: una sección con un nombre que
     // no existe no lleva el botón, en vez de mandar ese nombre al dato.
     if (!en) continue;
+    // Dos, y en este orden: primero el subtítulo, que es lo que se necesita casi
+    // siempre —ordenar algo DENTRO de la sección— y después el título, que agrega una
+    // sección nueva al documento y por lo tanto se numera y entra al índice.
     barra(seccion, [
-      boton(`+ ${ROTULO_DE_OPERACION.agregarBloque}`, "Agregar un subtítulo en esta sección", {
+      boton("+ Subtítulo", "Agregar un subtítulo dentro de esta sección", {
         tipo: "agregarBloque",
         en,
+        nivel: "subtitulo",
+      }),
+      boton("+ Título", "Agregar una sección nueva, justo después de esta", {
+        tipo: "agregarBloque",
+        en,
+        nivel: "titulo",
       }),
     ]);
   }

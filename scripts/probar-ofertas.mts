@@ -30,7 +30,12 @@ import {
   referenciaDePie,
 } from "../lib/ofertas/plantilla";
 import { esFirma, leerDestino, textoDeFirma } from "../lib/ofertas/destino-imagen";
-import { TITULO_NUEVO, aplicarEstructura, bloqueConContenido } from "../lib/ofertas/estructura";
+import {
+  TITULO_NUEVO,
+  TITULO_NUEVO_SECCION,
+  aplicarEstructura,
+  bloqueConContenido,
+} from "../lib/ofertas/estructura";
 import { asignarEnRuta, leerEnRuta, numeroDesdeTexto } from "../lib/ofertas/rutas";
 import { firmaDe } from "../lib/ofertas/tipos";
 import { proximoIndice } from "../lib/ofertas/imagenes";
@@ -1413,9 +1418,9 @@ assert.equal(firmaDe(conElRepartoDe(otroFirmante, enLaBaseDosFirmas).cierre!, 0)
 // no previó: va DENTRO de una sección, se numera con los demás subtítulos y no
 // participa de ningún cálculo.
 const conBloques = os10();
-aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "alcance" });
-aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "precio" });
-aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "alcance" });
+aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "alcance", nivel: "subtitulo" });
+aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "precio", nivel: "subtitulo" });
+aplicarEstructura(conBloques, { tipo: "agregarBloque", en: "alcance", nivel: "subtitulo" });
 assert.deepEqual(
   conBloques.bloques?.map((b) => b.en),
   ["alcance", "alcance", "precio"],
@@ -1466,7 +1471,7 @@ assert.equal(conBloques.bloques!.length, 2);
 // en el documento que va al cliente. En el editor sí se ve, porque si no, apretar
 // "+ Subtítulo" no mostraría nada.
 const reciente = os10();
-aplicarEstructura(reciente, { tipo: "agregarBloque", en: "alcance" });
+aplicarEstructura(reciente, { tipo: "agregarBloque", en: "alcance", nivel: "subtitulo" });
 assert.ok(!bloqueConContenido(reciente.bloques![0]), "vacío no cuenta como contenido");
 const htmlSinEditar = ofertaAHtml(reciente, calcularTotales(reciente), EMPRESA_DE_PRUEBA);
 assert.ok(!htmlSinEditar.includes("data-bloque"), "el PDF no lo dibuja");
@@ -1484,7 +1489,7 @@ assert.ok(htmlEditando.includes('data-bloque="0"'), "el editor sí, para poder e
 // Con algo escrito se imprime, en SU sección, y numerado con los subtítulos de esa
 // sección: es lo que lo hace parte del documento y no un injerto al final.
 const escrito = os10();
-aplicarEstructura(escrito, { tipo: "agregarBloque", en: "alcance" });
+aplicarEstructura(escrito, { tipo: "agregarBloque", en: "alcance", nivel: "subtitulo" });
 escrito.bloques![0].titulo = "Accesos a la faena";
 escrito.bloques![0].parrafos = ["El ingreso se coordina con 48 horas de antelación."];
 aplicarEstructura(escrito, { tipo: "agregarTabla", bloque: 0 });
@@ -1517,7 +1522,7 @@ assert.ok(
 // únicamente en las secciones que el documento está dibujando.
 const enSeccionAusente = os10();
 enSeccionAusente.metodologia = null;
-aplicarEstructura(enSeccionAusente, { tipo: "agregarBloque", en: "metodologia" });
+aplicarEstructura(enSeccionAusente, { tipo: "agregarBloque", en: "metodologia", nivel: "subtitulo" });
 enSeccionAusente.bloques![0].titulo = "Nada que ver";
 const htmlAusente = ofertaAHtml(
   enSeccionAusente,
@@ -1535,20 +1540,96 @@ assert.ok(
   "y vuelve a salir en cuanto la sección existe",
 );
 
+// ── Títulos: una sección propia, agregada a mano ────────────────────────────
+//
+// Un subtítulo ordena algo DENTRO de una sección; un título es una sección más, y
+// eso significa tres cosas que no se piden aparte: su número, su renglón en el
+// índice y su lugar en el orden del documento. Las tres las cuenta la plantilla.
+const conTitulo = os10();
+aplicarEstructura(conTitulo, { tipo: "agregarBloque", en: "alcance", nivel: "titulo" });
+conTitulo.bloques![0].titulo = "Plan de izaje";
+conTitulo.bloques![0].parrafos = ["El izaje se ejecuta con grúa de 220 t."];
+const htmlTitulo = ofertaAHtml(conTitulo, calcularTotales(conTitulo), EMPRESA_DE_PRUEBA);
+
+// os10: 1 identificación, 2 alcance, y la agregada queda 3 — justo después de la
+// sección a la que se engancha, no al final del documento.
+assert.ok(
+  htmlTitulo.includes('<h2><span class="n">3</span> <span data-campo="bloques.0.titulo">Plan de izaje'),
+  "sale como sección propia, numerada después de su ancla",
+);
+assert.ok(
+  htmlTitulo.includes('<li><span class="n">3</span><span>Plan de izaje</span></li>'),
+  "y entra al índice de la portada con ese mismo número",
+);
+// Y lo que venía después se corre solo: la que era 3 ahora es 4.
+assert.ok(
+  htmlTitulo.includes('<span class="n">4</span> <span data-campo="rotulos.s-organizacion"'),
+  "las siguientes se renumeran solas, que es de lo que se trata",
+);
+assert.ok(
+  !htmlTitulo.includes('data-en="alcance"><h2><span class="n">3</span>'),
+  "no queda adentro del alcance: es una sección aparte",
+);
+
+// Una sección agregada a mano no acepta fotos —el reparto de imágenes va por
+// sección del maestro— así que no se marca como blanco de arrastre. Sí lleva su
+// índice de bloque, que es lo que le pone los controles de párrafo y tabla.
+assert.ok(htmlTitulo.includes('<section data-bloque="0">'), "lleva su índice y no data-seccion");
+
+// Si la sección a la que se enganchó queda vacía, la agregada a mano SIGUE saliendo:
+// es una sección propia y su ancla era solo posición. Lo contrario haría desaparecer
+// en silencio un "PLAN DE IZAJE" entero por vaciar el alcance.
+const anclaVacia = os10();
+aplicarEstructura(anclaVacia, { tipo: "agregarBloque", en: "alcance", nivel: "titulo" });
+anclaVacia.bloques![0].titulo = "Plan de izaje";
+anclaVacia.alcance = { introduccion: null, actividades: [], trabajosPrevios: [], personalEspecialista: [] };
+const htmlAnclaVacia = ofertaAHtml(anclaVacia, calcularTotales(anclaVacia), EMPRESA_DE_PRUEBA);
+assert.ok(htmlAnclaVacia.includes("Plan de izaje"), "sobrevive a que su ancla quede vacía");
+assert.ok(!htmlAnclaVacia.includes('data-en="alcance"'), "y el alcance vacío no se dibuja, como siempre");
+
+// Las enganchadas al anexo van ANTES del anexo: el anexo cierra el documento, y una
+// sección numerada después de "A" no se lee.
+const antesDelAnexo = os10();
+antesDelAnexo.anexo = { respaldoInstitucional: ["PERTEC."], mandantes: [], notaEquipo: null };
+aplicarEstructura(antesDelAnexo, { tipo: "agregarBloque", en: "anexo", nivel: "titulo" });
+antesDelAnexo.bloques![0].titulo = "Garantías";
+const htmlAntes = ofertaAHtml(antesDelAnexo, calcularTotales(antesDelAnexo), EMPRESA_DE_PRUEBA);
+assert.ok(
+  htmlAntes.indexOf("Garantías</span></h2>") < htmlAntes.indexOf('data-en="anexo"'),
+  "el anexo sigue cerrando el documento",
+);
+
+// Y un título recién agregado tampoco se imprime hasta que tenga algo: sería una
+// sección numerada, en el índice, llamada "Nueva sección".
+const tituloVacio = os10();
+aplicarEstructura(tituloVacio, { tipo: "agregarBloque", en: "alcance", nivel: "titulo" });
+assert.equal(tituloVacio.bloques![0].titulo, TITULO_NUEVO_SECCION, "nace con su propio nombre");
+assert.ok(
+  !ofertaAHtml(tituloVacio, calcularTotales(tituloVacio), EMPRESA_DE_PRUEBA).includes(
+    TITULO_NUEVO_SECCION,
+  ),
+  "el PDF no lo dibuja",
+);
+assert.ok(
+  ofertaAHtml(tituloVacio, calcularTotales(tituloVacio), EMPRESA_DE_PRUEBA, undefined, undefined, {}, true)
+    .includes(TITULO_NUEVO_SECCION),
+  "el editor sí",
+);
+
 // Y el control: un subtítulo agregado a mano que quedó con el nombre con el que
 // nació PERO tiene contenido escrito sí sale en el PDF, y sale diciendo "Nuevo
 // subtítulo" al cliente. Ese avisa; el vacío no, porque no se imprime.
-const sinTitular = os10();
-aplicarEstructura(sinTitular, { tipo: "agregarBloque", en: "alcance" });
+const reciénAgregado = os10();
+aplicarEstructura(reciénAgregado, { tipo: "agregarBloque", en: "alcance", nivel: "subtitulo" });
 assert.ok(
-  !detectarInconsistencias(sinTitular, calcularTotales(sinTitular), "OS 010.pdf").some((p) =>
+  !detectarInconsistencias(reciénAgregado, calcularTotales(reciénAgregado), "OS 010.pdf").some((p) =>
     p.detalle.includes(TITULO_NUEVO),
   ),
   "uno vacío no se imprime, así que no hay nada que avisar",
 );
-sinTitular.bloques![0].parrafos = ["Algo escrito."];
+reciénAgregado.bloques![0].parrafos = ["Algo escrito."];
 assert.ok(
-  detectarInconsistencias(sinTitular, calcularTotales(sinTitular), "OS 010.pdf").some(
+  detectarInconsistencias(reciénAgregado, calcularTotales(reciénAgregado), "OS 010.pdf").some(
     (p) => p.tipo === "falta_dato" && p.detalle.includes(TITULO_NUEVO),
   ),
   "con contenido y sin titular, va a Por revisar",
