@@ -65,3 +65,16 @@ export function subidaParcial(error: unknown): ResultadoSubida | null {
   const parcial = (error as { parcial?: ResultadoSubida } | null)?.parcial;
   return parcial ?? null;
 }
+
+/**
+ * Saca una imagen de la oferta: del inventario, del documento y del bucket.
+ *
+ * Vale para cualquiera, venga del borrador o subida a mano. Lo que la protege es la
+ * confirmación de quien llama, que es el que sabe de cuál se trata — ver el cajón de
+ * fotos y el panel: los dos avisan que una del borrador solo se recupera volviendo a
+ * subir el archivo original.
+ */
+export async function quitarImagenDeOferta(ofertaId: string, indice: number): Promise<void> {
+  const respuesta = await fetch(`/api/ofertas/${ofertaId}/imagenes?indice=${indice}`, { method: "DELETE" });
+  await leerRespuesta(respuesta);
+}

@@ -157,8 +157,12 @@ export default function ImagenesDeLaOferta({
                   <span className="text-[10px] tabular-nums text-tinta/40">
                     {imagen.ancho}×{imagen.alto} · nº {imagen.indice}
                   </span>
-                  {imagen.origen === "subida" && editable && (
-                    <QuitarImagen ofertaId={ofertaId} indice={imagen.indice} />
+                  {editable && (
+                    <QuitarImagen
+                      ofertaId={ofertaId}
+                      indice={imagen.indice}
+                      delBorrador={imagen.origen !== "subida"}
+                    />
                   )}
                 </div>
               </div>

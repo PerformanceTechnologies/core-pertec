@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TIPO_ARRASTRE } from "@/lib/ofertas/edicion-dom";
 import { FORMATOS_LOGO } from "@/lib/ofertas/logo";
-import { subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
+import { quitarImagenDeOferta, subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
+import { avisoDeQuitar } from "@/components/ofertas/QuitarImagen";
 import RuedaCarga from "@/components/RuedaCarga";
 import { NOMBRE_DE_SECCION, type SeccionConImagenes } from "@/lib/ofertas/tipos";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
@@ -64,6 +65,21 @@ export default function CajonDeFotos({
       if (entrada.current) entrada.current.value = "";
       // Lo que alcanzó a subir tiene que aparecer, aunque después una haya fallado.
       if (subidas > 0) router.refresh();
+    }
+  };
+
+  /** Saca una foto de la oferta entera: del cajón, del documento y del bucket. */
+  const quitar = async (indice: number, delBorrador: boolean) => {
+    if (!window.confirm(avisoDeQuitar(delBorrador))) return;
+    setSubiendo("Quitando…");
+    setError(null);
+    try {
+      await quitarImagenDeOferta(ofertaId, indice);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo quitar la foto.");
+    } finally {
+      setSubiendo(null);
     }
   };
 
@@ -137,10 +153,23 @@ export default function CajonDeFotos({
                   ? `En ${NOMBRE_DE_SECCION[puesta]} · arrastrala para moverla`
                   : "Todavía no está en el documento"
               }
-              className={`cursor-grab rounded-lg border bg-superficie p-1 transition active:cursor-grabbing ${
+              className={`group/foto relative cursor-grab rounded-lg border bg-superficie p-1 transition active:cursor-grabbing ${
                 puesta ? "border-naranjo/50" : "border-borde hover:border-naranjo/50"
               }`}
             >
+              {/* La × aparece al pasar por encima y no siempre: son celdas de 80px y
+                  nueve × permanentes convierten el cajón en un campo minado. En
+                  pantalla táctil no hay hover, así que ahí queda visible. */}
+              <button
+                type="button"
+                onClick={() => void quitar(imagen.indice, imagen.origen !== "subida")}
+                disabled={subiendo !== null}
+                title="Quitar esta foto de la oferta"
+                aria-label="Quitar esta foto de la oferta"
+                className="absolute right-1 top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-borde bg-superficie/95 text-[10px] font-bold leading-none text-tinta/50 opacity-100 transition hover:border-red-500/60 hover:bg-red-50 hover:text-red-600 disabled:opacity-30 sm:opacity-0 sm:group-hover/foto:opacity-100 sm:focus-visible:opacity-100"
+              >
+                ×
+              </button>
               <div className="flex h-14 items-center justify-center overflow-hidden rounded bg-white">
                 {urls[imagen.indice] ? (
                   // Sin next/image: bucket privado con URL firmada y corta.

@@ -24,7 +24,7 @@ interface VentanaDePrueba {
   /** Lo que el módulo avisó hacia afuera, que es lo que la página guardaría. */
   avisos: { ruta: string; texto: string; tipo?: string }[];
   /** Lo que el módulo reportó al soltar o al sacar una foto. */
-  sueltas: { indice?: number; seccion?: string; archivos?: string[]; quitada?: number }[];
+  sueltas: { indice?: number; seccion?: string | null; archivos?: string[]; quitada?: number }[];
   /** Las cajas de cada elemento del documento, para comparar antes y después. */
   medidas: { el: Element; caja: { x: number; y: number; w: number; h: number } }[];
   medir: () => { corridos: string[]; total: number };
@@ -225,8 +225,9 @@ try {
         alEditar: (ruta: string, texto: string, tipo?: string) => ventana.avisos.push({ ruta, texto, tipo }),
         alMedir: (alto: number) => (ventana.alto = alto),
         alSoltarImagen: (indice: number, seccion: string) => ventana.sueltas.push({ indice, seccion }),
-        alSoltarArchivos: (archivos: File[], seccion: string) =>
-          ventana.sueltas.push({ archivos: archivos.map((a) => a.name), seccion }),
+        alSoltarArchivos: (archivos: File[], seccion: string | null) => {
+          ventana.sueltas.push({ archivos: archivos.map((a) => a.name), seccion });
+        },
         alQuitarImagen: (indice: number) => ventana.sueltas.push({ quitada: indice }),
       });
 
@@ -453,6 +454,45 @@ try {
     { archivos: ["faena.jpg"], seccion: "anexo" },
     "los archivos del escritorio también",
   );
+
+  // Y un archivo que cae FUERA de toda sección —en la portada— igual entra a la
+  // oferta, sin sección: que no pase nada por haber apuntado unos milímetros al lado
+  // es lo peor que puede hacer esta pantalla.
+  const enLaPortada = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const datos = new DataTransfer();
+    datos.items.add(new File(["x"], "plano.png", { type: "image/png" }));
+    const portada = doc.querySelector<HTMLElement>("section.portada")!;
+    const encima = new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true });
+    portada.dispatchEvent(encima);
+    portada.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+    return { admiteSoltar: encima.defaultPrevented, ultima: ventana.sueltas.at(-1) };
+  });
+  console.log(enLaPortada);
+  assert.ok(enLaPortada.admiteSoltar, "la portada tiene que aceptar un archivo del escritorio");
+  assert.deepEqual(
+    enLaPortada.ultima,
+    { archivos: ["plano.png"], seccion: null },
+    "cae sin sección, para quedar en el cajón sin ubicar",
+  );
+
+  // En cambio una foto que YA está en la oferta necesita una sección: moverla a
+  // ninguna parte no significa nada, así que ahí no se acepta el soltado.
+  const fotoEnLaPortada = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const antes = ventana.sueltas.length;
+    const datos = new DataTransfer();
+    datos.setData("application/x-imagen-oferta", "4");
+    const portada = doc.querySelector<HTMLElement>("section.portada")!;
+    const encima = new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true });
+    portada.dispatchEvent(encima);
+    portada.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+    return { admiteSoltar: encima.defaultPrevented, nuevas: ventana.sueltas.length - antes };
+  });
+  assert.equal(fotoEnLaPortada.admiteSoltar, false, "la portada no recibe una foto de la oferta");
+  assert.equal(fotoEnLaPortada.nuevas, 0, "y no reporta nada");
 
   // ── 7. Sacar una foto del documento con su × ──────────────────────────────
   const quitada = await pagina.evaluate(() => {

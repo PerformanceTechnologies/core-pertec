@@ -29,6 +29,13 @@ export const maxDuration = 30;
  * Subir una imagen NO la pone en el documento: queda en el inventario, sin sección,
  * hasta que alguien elige dónde va. Son dos decisiones distintas y el sistema no
  * adivina la segunda.
+ *
+ * Quitar vale para cualquier imagen, venga del borrador o no. Antes solo se podían
+ * quitar las subidas a mano —el inventario del borrador es el registro de lo que
+ * traía el archivo original— pero el cajón de fotos muestra las dos clases y la
+ * mayoría son del borrador: un botón que funciona en una de cada diez fotos se lee
+ * como un botón roto. Lo que protege ahora es la confirmación, que dice qué se
+ * pierde en cada caso, y que el archivo de origen sigue nombrado en la oferta.
  */
 
 /** Una oferta en borrador de esta empresa, o el motivo por el que no se puede tocar. */
@@ -119,16 +126,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const indice = Number(new URL(request.url).searchParams.get("indice"));
   const imagen = resuelto.oferta.imagenes.find((i) => i.indice === indice);
   if (!imagen) return NextResponse.json({ error: "Esa imagen no está en la oferta." }, { status: 404 });
-
-  // Solo las que se subieron a mano. El inventario del borrador es el registro de lo
-  // que traía el archivo original y borrar una de ahí pierde ese rastro; para que no
-  // salga en el documento ya está "No usar".
-  if (imagen.origen !== "subida") {
-    return NextResponse.json(
-      { error: 'Esa imagen venía del borrador: para que no salga, elegí "No usar".' },
-      { status: 409 },
-    );
-  }
 
   // La fila primero: al revés, un fallo al guardar dejaría el inventario apuntando a
   // un archivo que ya no existe.

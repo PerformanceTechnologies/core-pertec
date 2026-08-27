@@ -98,8 +98,14 @@ export function textoImpreso(ruta: string, valor: number): string {
 export interface OpcionesDeEdicion {
   /** Soltaron sobre una sección una foto que ya está en la oferta. */
   alSoltarImagen?: (indice: number, seccion: string) => void;
-  /** Soltaron sobre una sección archivos del escritorio: hay que subirlos primero. */
-  alSoltarArchivos?: (archivos: File[], seccion: string) => void;
+  /**
+   * Soltaron archivos del escritorio sobre el documento.
+   *
+   * `seccion` es null cuando cayeron donde no se reciben imágenes —la portada, el
+   * hueco entre dos secciones—. Ahí el archivo igual se suma a la oferta y queda sin
+   * ubicar: traer una foto de una carpeta al documento no puede terminar en nada.
+   */
+  alSoltarArchivos?: (archivos: File[], seccion: string | null) => void;
   /** Apretaron la × de una foto del documento. */
   alQuitarImagen?: (indice: number) => void;
   /** Una oferta emitida se mira, no se toca. */
@@ -276,27 +282,36 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
     recibiendo = seccion;
   };
 
-  /** La sección bajo el cursor, si lo que viene se puede soltar ahí. */
-  const blanco = (evento: DragEvent): HTMLElement | null => {
+  /** Qué trae el arrastre y sobre qué sección está, si está sobre alguna. */
+  const lectura = (evento: DragEvent) => {
     const tipos = evento.dataTransfer?.types ?? [];
-    const traeFoto = tipos.includes(TIPO_ARRASTRE);
-    const traeArchivos = tipos.includes("Files");
-    if (!traeFoto && !traeArchivos) return null;
-    if (traeFoto && !opciones.alSoltarImagen) return null;
-    if (!traeFoto && !opciones.alSoltarArchivos) return null;
     const nodo = evento.target as Element | null;
-    if (!nodo || typeof nodo.closest !== "function") return null;
-    return nodo.closest<HTMLElement>("section[data-seccion]");
+    return {
+      traeFoto: tipos.includes(TIPO_ARRASTRE) && Boolean(opciones.alSoltarImagen),
+      traeArchivos: tipos.includes("Files") && Boolean(opciones.alSoltarArchivos),
+      seccion:
+        nodo && typeof nodo.closest === "function"
+          ? nodo.closest<HTMLElement>("section[data-seccion]")
+          : null,
+    };
   };
 
   const alArrastrar = (evento: DragEvent) => {
-    const seccion = blanco(evento);
+    const { traeFoto, traeArchivos, seccion } = lectura(evento);
+    if (!traeFoto && !traeArchivos) return;
     marcar(seccion);
-    if (!seccion) return;
+
+    // Una foto que ya está en la oferta necesita una sección: moverla a ninguna parte
+    // no significa nada. Un archivo del escritorio, en cambio, se acepta caiga donde
+    // caiga —si no cayó en una sección igual entra a la oferta y queda sin ubicar—,
+    // porque traer una foto de una carpeta al documento no puede terminar en que no
+    // pasó nada.
+    if (!traeArchivos && !seccion) return;
+
     // Sin esto el navegador no considera la zona soltable —y con archivos, además,
     // abre el archivo soltado en la pestaña.
     evento.preventDefault();
-    if (evento.dataTransfer) evento.dataTransfer.dropEffect = "move";
+    if (evento.dataTransfer) evento.dataTransfer.dropEffect = traeArchivos ? "copy" : "move";
   };
 
   const alSalirDelArrastre = (evento: DragEvent) => {
@@ -305,20 +320,21 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
   };
 
   const alSoltar = (evento: DragEvent) => {
-    const seccion = blanco(evento);
+    const { traeFoto, traeArchivos, seccion } = lectura(evento);
     marcar(null);
-    if (!seccion) return;
-    evento.preventDefault();
-    const clave = seccion.dataset.seccion;
-    if (!clave) return;
 
-    const numero = evento.dataTransfer?.getData(TIPO_ARRASTRE);
-    if (numero) {
-      opciones.alSoltarImagen?.(Number(numero), clave);
+    if (traeFoto && seccion?.dataset.seccion) {
+      evento.preventDefault();
+      const numero = evento.dataTransfer?.getData(TIPO_ARRASTRE);
+      if (numero) opciones.alSoltarImagen?.(Number(numero), seccion.dataset.seccion);
       return;
     }
+
+    if (!traeArchivos) return;
     const archivos = [...(evento.dataTransfer?.files ?? [])];
-    if (archivos.length > 0) opciones.alSoltarArchivos?.(archivos, clave);
+    if (archivos.length === 0) return;
+    evento.preventDefault();
+    opciones.alSoltarArchivos?.(archivos, seccion?.dataset.seccion ?? null);
   };
 
   doc.addEventListener("dragover", alArrastrar);

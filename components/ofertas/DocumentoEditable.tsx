@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 import { asignarEnRuta } from "@/lib/ofertas/rutas";
 import { prepararDocumento } from "@/lib/ofertas/edicion-dom";
-import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
+import { leerRespuesta } from "@/lib/subidas";
+import { subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
 import RuedaCarga from "@/components/RuedaCarga";
 
 /**
@@ -150,23 +151,27 @@ export default function DocumentoEditable({
     [id, router],
   );
 
-  /** Archivos soltados desde el escritorio: se suben y caen donde los soltaron. */
+  /**
+   * Archivos soltados desde el escritorio: se suben y caen donde los soltaron.
+   *
+   * Con `seccion` en null —cayeron en la portada o entre dos secciones— igual se
+   * suben y quedan en el cajón sin ubicar. Traer una foto de una carpeta hasta el
+   * documento es una intención clarísima; que no pase nada por haber apuntado unos
+   * milímetros al lado sería lo peor que puede hacer esta pantalla.
+   */
   const subirYUbicar = useCallback(
-    async (archivos: File[], seccion: string) => {
+    async (archivos: File[], seccion: string | null) => {
       setError(null);
+      let subidas = 0;
       try {
-        for (const [posicion, archivo] of archivos.entries()) {
-          const aviso = avisoDeTamano(archivo);
-          if (aviso) throw new Error(aviso);
-          setMoviendo(
-            archivos.length > 1 ? `Subiendo ${posicion + 1} de ${archivos.length}…` : "Subiendo la foto…",
-          );
-          const cuerpo = new FormData();
-          cuerpo.set("archivo", archivo);
-          const respuesta = await fetch(`/api/ofertas/${id}/imagenes`, { method: "POST", body: cuerpo });
-          const { agregadas } = await leerRespuesta<{ agregadas: number[] }>(respuesta);
-          // Subir y ubicar son dos pasos porque son dos decisiones distintas en todo
-          // el resto del módulo; acá el gesto es uno solo y los encadena.
+        // Las reglas de la subida —de a un archivo, el tope avisado antes de mandar—
+        // están en lib/ofertas/subir-imagenes.ts, compartidas con las dos pantallas
+        // que suben fotos. Acá solo se encadena el segundo paso: ubicarlas.
+        const { agregadas } = await subirImagenesDeOferta(id, archivos, (texto) =>
+          setMoviendo(`Subiendo ${texto}`.trim() + "…"),
+        );
+        subidas = agregadas.length;
+        if (seccion) {
           for (const indice of agregadas) {
             await fetch(`/api/ofertas/${id}/ubicar-imagen`, {
               method: "POST",
@@ -178,9 +183,16 @@ export default function DocumentoEditable({
         setRevision((r) => r + 1);
         router.refresh();
       } catch (e) {
+        subidas = subidaParcial(e)?.subidas ?? subidas;
         setError(e instanceof Error ? e.message : "No se pudo subir la foto.");
       } finally {
         setMoviendo(null);
+        // Lo que alcanzó a subir tiene que aparecer en el cajón y en el documento,
+        // aunque una de las siguientes haya fallado.
+        if (subidas > 0) {
+          setRevision((r) => r + 1);
+          router.refresh();
+        }
       }
     },
     [id, router],
