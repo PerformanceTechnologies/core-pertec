@@ -8,6 +8,7 @@ import {
   eliminarOferta,
   exigirOferta,
   guardarImagenesElegidas,
+  marcarRevisada,
 } from "@/lib/ofertas/datos";
 import { borrarImagenes } from "@/lib/ofertas/imagenes";
 import { borrarPdfEmitido } from "@/lib/ofertas/pdf-archivo";
@@ -125,4 +126,25 @@ export async function elegirImagenesAction(formData: FormData) {
 
   await guardarImagenesElegidas(id, porSeccion, firmas);
   revalidatePath(`/ofertas/${id}`);
+}
+
+/**
+ * Marca un aviso de "Por revisar" como revisado, o le saca la marca.
+ *
+ * Se llama directo desde el editor (no por un <form>): es un interruptor por aviso y
+ * la pantalla ya pinta el cambio al instante. Guarda solo la marca, no el contenido,
+ * así que no toca lo que alguien esté escribiendo sin guardar.
+ *
+ * `revalidatePath` del listado porque la cuenta de "por revisar" que se ve ahí es la
+ * de los pendientes: marcar uno la baja.
+ */
+export async function marcarRevisadaAction(id: string, clave: string, revisada: boolean): Promise<void> {
+  const { oferta } = await exigirOferta(id);
+  if (oferta.estado === "emitida") return;
+  // Un tope al texto: la clave la arma la pantalla a partir del aviso, y una columna
+  // no tiene por qué aceptar lo que venga.
+  if (typeof clave !== "string" || clave.trim() === "" || clave.length > 500) return;
+
+  await marcarRevisada(id, clave, revisada);
+  revalidatePath("/ofertas");
 }

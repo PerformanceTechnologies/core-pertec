@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from "../lib/ofertas/verificar";
-import type { OfertaCanonica } from "../lib/ofertas/tipos";
+import type { Inconsistencia, OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { imagenSegura, logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
@@ -31,6 +31,13 @@ import {
 } from "../lib/ofertas/plantilla";
 import { esFirma, leerDestino, textoDeFirma } from "../lib/ofertas/destino-imagen";
 import { puedeVerOferta } from "../lib/ofertas/permisos";
+import {
+  claveDeRevision,
+  conLaMarca,
+  conRevision,
+  cuantasPendientes,
+  revisadasVigentes,
+} from "../lib/ofertas/revisiones";
 import { FILTROS_VACIOS, filtrarOfertas, hayFiltros, type FiltrosDeOfertas } from "../lib/ofertas/filtros";
 import type { OfertaResumen } from "../lib/ofertas/datos";
 import {
@@ -1260,6 +1267,83 @@ for (const accion of [
   );
 }
 
+// ── Marcar un aviso como revisado ───────────────────────────────────────────
+//
+// Varios avisos se revisan y quedan igual a propósito —el borrador dice "$ 0.-"
+// porque ese ítem de verdad va en cero— y sin poder marcarlos, la lista pedía revisar
+// nueve cosas para siempre, que es la forma más rápida de que nadie la mire.
+//
+// Lo delicado es que las inconsistencias NO se guardan: se recalculan en cada
+// guardado y en cada tecla del editor. Por eso la marca es una clave que incluye el
+// detalle, y no una posición.
+const avisoSuma: Inconsistencia = {
+  tipo: "suma_precios",
+  detalle: "El TOTAL NETO impreso dice $ 100 y la suma da $ 120.",
+  origen: "aritmetica",
+};
+const avisoCero: Inconsistencia = {
+  tipo: "linea_precio",
+  detalle: "Línea 3 quedó con valor unitario en 0.",
+  origen: "aritmetica",
+};
+const avisos = [avisoSuma, avisoCero];
+
+const marcado = conLaMarca([], claveDeRevision(avisoCero), true);
+assert.equal(cuantasPendientes(avisos, marcado), 1, "queda uno pendiente");
+assert.deepEqual(
+  conRevision(avisos, marcado).map((a) => [a.tipo, a.revisada]),
+  [
+    ["suma_precios", false],
+    ["linea_precio", true],
+  ],
+  "los pendientes van primero y los revisados quedan al final, no escondidos",
+);
+
+// Marcar dos veces el mismo no lo duplica, y desmarcar no se lleva al otro.
+const marcadoDeNuevo = conLaMarca(marcado, claveDeRevision(avisoCero), true);
+assert.deepEqual(marcadoDeNuevo, marcado, "marcar de nuevo no duplica la clave");
+const conLosDos = conLaMarca(marcado, claveDeRevision(avisoSuma), true);
+assert.equal(cuantasPendientes(avisos, conLosDos), 0);
+assert.equal(
+  cuantasPendientes(avisos, conLaMarca(conLosDos, claveDeRevision(avisoSuma), false)),
+  1,
+  "desmarcar uno no toca el otro",
+);
+
+// LA PRUEBA QUE IMPORTA: si el dato cambia, el detalle cambia, la clave deja de
+// calzar y el aviso vuelve a aparecer SIN revisar. Lo que se revisó fue el problema
+// anterior, no este.
+const avisoSumaOtroMonto: Inconsistencia = { ...avisoSuma, detalle: "El TOTAL NETO impreso dice $ 100 y la suma da $ 999." };
+assert.equal(
+  cuantasPendientes([avisoSumaOtroMonto], conLosDos),
+  1,
+  "un aviso con otro monto es otro aviso: vuelve a pedir revisión",
+);
+
+// Y las marcas de avisos que ya no existen se limpian al guardar, para que la lista
+// no crezca para siempre. Con la consecuencia buscada: si el problema vuelve a
+// aparecer igual, vuelve sin revisar.
+assert.deepEqual(revisadasVigentes(conLosDos, [avisoCero]), [claveDeRevision(avisoCero)]);
+assert.deepEqual(revisadasVigentes(conLosDos, []), [], "sin avisos no queda ninguna marca");
+assert.equal(
+  cuantasPendientes(avisos, revisadasVigentes(conLosDos, [avisoCero])),
+  1,
+  "el que se arregló y volvió, vuelve sin revisar",
+);
+
+// La clave distingue el tipo: dos controles distintos con el mismo texto no se
+// marcan juntos.
+assert.notEqual(
+  claveDeRevision({ ...avisoCero, tipo: "falta_dato" }),
+  claveDeRevision(avisoCero),
+  "la clave incluye el tipo",
+);
+// Y no se rompe con espacios de más al principio o al final del detalle.
+assert.equal(
+  claveDeRevision({ ...avisoCero, detalle: `  ${avisoCero.detalle}  ` }),
+  claveDeRevision(avisoCero),
+);
+
 // ── Buscar y filtrar el listado ─────────────────────────────────────────────
 const comoOferta = (parte: Partial<OfertaResumen>): OfertaResumen =>
   ({
@@ -1271,6 +1355,9 @@ const comoOferta = (parte: Partial<OfertaResumen>): OfertaResumen =>
     empresa: "PERFORMANCE TECHNOLOGIES",
     estado: "borrador",
     cantidadInconsistencias: 0,
+    // Por defecto, todo lo que se levantó está pendiente: es el caso normal.
+    pendientes: parte.cantidadInconsistencias ?? 0,
+    revisadas: [],
     maestroId: null,
     logoClienteRuta: null,
     logoClienteNombre: null,
@@ -1314,6 +1401,15 @@ assert.equal(cuales({ estado: "emitida" }).length, 1);
 assert.equal(cuales({ estado: "borrador" }).length, 2);
 assert.equal(cuales({ empresa: "PERFORMANCE SERVICES" }).length, 1);
 assert.equal(cuales({ soloPorRevisar: true }).length, 2, "solo las que tienen algo que mirar");
+// Y una con todo revisado deja de tener "algo por revisar", que es de lo que se trata.
+assert.equal(
+  filtrarOfertas(
+    [comoOferta({ cantidadInconsistencias: 4, pendientes: 0 })],
+    { ...FILTROS_VACIOS, soloPorRevisar: true },
+  ).length,
+  0,
+  "con todo revisado, no queda nada por revisar",
+);
 
 // Las fechas se comparan como texto "aaaa-mm-dd", que es lo que entrega el input de
 // fecha: así no hay husos horarios en el medio moviendo un día.

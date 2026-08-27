@@ -12,7 +12,8 @@ import RuedaCarga from "@/components/RuedaCarga";
 import DocumentoEditable from "@/components/ofertas/DocumentoEditable";
 import CajonDeFotos from "@/components/ofertas/CajonDeFotos";
 import ModalEmitir from "@/components/ofertas/ModalEmitir";
-import { duplicarOfertaAction } from "@/app/(protegido)/ofertas/acciones";
+import { duplicarOfertaAction, marcarRevisadaAction } from "@/app/(protegido)/ofertas/acciones";
+import { conLaMarca, conRevision, cuantasPendientes } from "@/lib/ofertas/revisiones";
 
 /**
  * Paso 2: revisar y corregir antes de emitir.
@@ -45,6 +46,7 @@ export default function EditorOferta({
   imagenes,
   urlsImagenes,
   emision,
+  revisadas: revisadasGuardadas,
 }: {
   id: string;
   inicial: OfertaCanonica;
@@ -55,6 +57,8 @@ export default function EditorOferta({
   /** El inventario de la oferta: el cajón de fotos del documento sale de acá. */
   imagenes: ImagenGuardada[];
   urlsImagenes: Record<number, string>;
+  /** Los avisos que ya se marcaron como revisados. Ver lib/ofertas/revisiones.ts. */
+  revisadas: string[];
 }) {
   const router = useRouter();
   const [oferta, setOferta] = useState<OfertaCanonica>(inicial);
@@ -64,11 +68,37 @@ export default function EditorOferta({
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const emitida = estado === "emitida";
+  // Las marcas se llevan acá y se guardan al toque: la lista tiene que responder al
+  // instante —es un interruptor— y la marca no viaja con "Guardar cambios", que es lo
+  // que guarda el texto del documento.
+  const [revisadas, setRevisadas] = useState<string[]>(revisadasGuardadas);
+
+  /**
+   * Pone o saca la marca de un aviso.
+   *
+   * Se pinta primero y se guarda después: es un interruptor, y esperar la ida y vuelta
+   * para tacharlo lo haría sentir roto. Si el guardado falla, la marca vuelve atrás y
+   * se dice — una marca que se ve puesta y no quedó guardada es peor que no poder
+   * marcar.
+   */
+  const marcar = (clave: string, revisada: boolean) => {
+    const previas = revisadas;
+    setRevisadas((actuales) => conLaMarca(actuales, clave, revisada));
+    void marcarRevisadaAction(id, clave, revisada).catch(() => {
+      setRevisadas(previas);
+      setError("No se pudo guardar la marca de revisado.");
+    });
+  };
 
   const { totales, problemas } = useMemo(() => {
     const t = calcularTotales(oferta);
     return { totales: t, problemas: detectarInconsistencias(oferta, t, archivoOrigen ?? "") };
   }, [oferta, archivoOrigen]);
+
+  // Los avisos se recalculan en cada tecla; las marcas se cruzan por su clave, así que
+  // un aviso cuyo dato cambió deja de calzar y vuelve a contar como pendiente. Es lo
+  // correcto: lo que se revisó fue el problema anterior.
+  const pendientes = cuantasPendientes(problemas, revisadas);
 
   // Las filas nuevas nacen vacías a propósito: una fila con datos de ejemplo se
   // emite tal cual si alguien no la completa, y eso ya pasó en otros formularios.
@@ -1036,25 +1066,75 @@ export default function EditorOferta({
             />
           )}
           <section className={`${TARJETA} p-4`}>
-            <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
-              Por revisar
-            </h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-condensed text-base font-bold uppercase tracking-wide text-tinta">
+                Por revisar
+              </h2>
+              {/* La cuenta que importa es la de pendientes, y se dice sobre el total
+                  para que marcar no parezca hacer desaparecer avisos. */}
+              {problemas.length > 0 && (
+                <span
+                  className={`text-[11px] font-semibold tabular-nums ${
+                    pendientes > 0 ? "text-naranjo" : "text-teal"
+                  }`}
+                >
+                  {pendientes} de {problemas.length} pendiente{pendientes === 1 ? "" : "s"}
+                </span>
+              )}
+            </div>
             {problemas.length === 0 ? (
               <p className="mt-2 text-sm text-teal">
                 Nada pendiente: los totales cuadran y no hay datos sin confirmar.
               </p>
             ) : (
-              <ul className="mt-2 flex flex-col gap-2.5">
-                {problemas.map((p, i) => (
-                  <li key={i} className="border-l-2 border-naranjo/60 pl-2.5">
-                    <span className="block text-[10px] font-semibold uppercase tracking-wide text-naranjo">
-                      {ROTULOS[p.tipo]}
-                      {p.origen === "lectura" && " · lectura"}
-                    </span>
-                    <span className="block text-xs text-pretty text-tinta/70">{p.detalle}</span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                {pendientes === 0 && (
+                  <p className="mt-2 text-sm text-teal">
+                    Todo revisado: los {problemas.length} avisos quedaron mirados.
+                  </p>
+                )}
+                {/* Los revisados no se esconden: quedan al final, apagados. Esconderlos
+                    haría dudar de si el aviso se revisó o si el sistema dejó de verlo,
+                    y son dos cosas muy distintas cuando lo que está en juego es un
+                    precio. */}
+                <ul className="mt-2 flex flex-col gap-2.5">
+                  {conRevision(problemas, revisadas).map((p) => (
+                    <li
+                      key={p.clave}
+                      className={`border-l-2 pl-2.5 transition-colors ${
+                        p.revisada ? "border-borde" : "border-naranjo/60"
+                      }`}
+                    >
+                      <span
+                        className={`block text-[10px] font-semibold uppercase tracking-wide ${
+                          p.revisada ? "text-tinta/35" : "text-naranjo"
+                        }`}
+                      >
+                        {ROTULOS[p.tipo]}
+                        {p.origen === "lectura" && " · lectura"}
+                      </span>
+                      <span
+                        className={`block text-xs text-pretty ${
+                          p.revisada ? "text-tinta/35" : "text-tinta/70"
+                        }`}
+                      >
+                        {p.detalle}
+                      </span>
+                      {!emitida && (
+                        <label className="mt-1 inline-flex cursor-pointer items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-tinta/40 transition-colors hover:text-naranjo">
+                          <input
+                            type="checkbox"
+                            checked={p.revisada}
+                            onChange={(e) => marcar(p.clave, e.target.checked)}
+                            className="h-3 w-3 accent-naranjo"
+                          />
+                          {p.revisada ? "Revisada" : "Marcar como revisada"}
+                        </label>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
 
             <dl className="mt-4 flex flex-col gap-1 border-t border-borde pt-3 text-xs">

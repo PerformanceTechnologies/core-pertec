@@ -63,7 +63,9 @@ export function filtrarOfertas(
   return ofertas.filter((oferta) => {
     if (filtros.empresa !== "todas" && oferta.empresa !== filtros.empresa) return false;
     if (filtros.estado !== "todos" && oferta.estado !== filtros.estado) return false;
-    if (filtros.soloPorRevisar && oferta.cantidadInconsistencias === 0) return false;
+    // Pendientes y no el total: una oferta con todo revisado no tiene nada por
+    // revisar, que es lo que dice el filtro.
+    if (filtros.soloPorRevisar && oferta.pendientes === 0) return false;
 
     // Se compara por los primeros diez caracteres del ISO, que son "aaaa-mm-dd": el
     // <input type="date"> entrega ese mismo formato y así la comparación es de texto,

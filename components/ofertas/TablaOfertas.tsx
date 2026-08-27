@@ -34,7 +34,9 @@ export default function TablaOfertas({
   const cambiar = (parte: Partial<FiltrosDeOfertas>) => setFiltros((previos) => ({ ...previos, ...parte }));
 
   const visibles = useMemo(() => filtrarOfertas(ofertas, filtros, autores), [ofertas, filtros, autores]);
-  const porRevisar = ofertas.filter((o) => o.cantidadInconsistencias > 0).length;
+  // Pendientes, no el total: marcar un aviso como revisado tiene que bajar este
+  // número, que es justamente para lo que sirve marcarlo.
+  const porRevisar = ofertas.filter((o) => o.pendientes > 0).length;
   const autorDe = (oferta: OfertaResumen) => (oferta.creadoPor && autores?.[oferta.creadoPor]) || null;
 
   const control =
@@ -179,11 +181,8 @@ export default function TablaOfertas({
                         seis columnas la tabla no cabía y quedaba cortada. */}
                     <span className="mt-0.5 block text-[11px] text-tinta/45 sm:hidden">
                       {o.cliente ?? "Sin cliente"} · {fechaCl(o.actualizadoEn)}
-                      {o.cantidadInconsistencias > 0 && (
-                        <span className="font-semibold text-naranjo">
-                          {" "}
-                          · {o.cantidadInconsistencias} por revisar
-                        </span>
+                      {o.pendientes > 0 && (
+                        <span className="font-semibold text-naranjo"> · {o.pendientes} por revisar</span>
                       )}
                     </span>
                   </td>
@@ -198,10 +197,17 @@ export default function TablaOfertas({
                     </span>
                   </td>
                   <td className="hidden px-4 py-3 tabular-nums sm:table-cell">
-                    {o.cantidadInconsistencias === 0 ? (
-                      <span className="text-teal">Nada</span>
+                    {/* "Nada" y "Revisado" no son lo mismo, y la diferencia importa:
+                        una oferta sin controles levantados no es igual a una donde
+                        alguien miró nueve cosas y decidió que estaban bien. */}
+                    {o.pendientes > 0 ? (
+                      <span className="font-semibold text-naranjo">{o.pendientes}</span>
+                    ) : o.cantidadInconsistencias > 0 ? (
+                      <span className="text-teal" title={`${o.cantidadInconsistencias} revisados`}>
+                        Revisado
+                      </span>
                     ) : (
-                      <span className="font-semibold text-naranjo">{o.cantidadInconsistencias}</span>
+                      <span className="text-teal">Nada</span>
                     )}
                   </td>
                   <td className="hidden px-4 py-3 text-[11px] tabular-nums text-tinta/50 sm:table-cell">

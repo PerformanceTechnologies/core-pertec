@@ -216,6 +216,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         imagenes={oferta.imagenes}
         urlsImagenes={urlsImagenes}
         emision={oferta.emision}
+        revisadas={oferta.revisadas}
       />
     </div>
   );

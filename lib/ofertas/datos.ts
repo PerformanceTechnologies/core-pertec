@@ -8,6 +8,7 @@ import type { Empresa } from "@/lib/cotizador/empresas";
 import { duplicarImagenes, type ImagenGuardada } from "./imagenes";
 import { contenidoDuplicado, sinLaImagen } from "./normalizar";
 import { puedeVerOferta } from "./permisos";
+import { conLaMarca, cuantasPendientes, revisadasVigentes } from "./revisiones";
 import type { UsuarioConAcceso } from "@/lib/tipos";
 
 /**
@@ -23,7 +24,7 @@ import type { UsuarioConAcceso } from "@/lib/tipos";
 const COLUMNAS = `
   id, nombre, numero_oferta, cliente, faena, empresa, contenido, inconsistencias,
   estado, archivo_origen, maestro_id, logo_cliente_ruta, logo_cliente_nombre,
-  imagenes, emision, creado_por, creado_en, actualizado_en
+  imagenes, emision, revisadas, creado_por, creado_en, actualizado_en
 `;
 
 export interface OfertaResumen {
@@ -34,7 +35,18 @@ export interface OfertaResumen {
   faena: string | null;
   empresa: Empresa;
   estado: "borrador" | "emitida";
+  /** Cuántos controles se levantaron en total, revisados o no. */
   cantidadInconsistencias: number;
+  /**
+   * Cuántos quedan SIN revisar, que es lo que significa "por revisar".
+   *
+   * Se cuenta acá y no en la pantalla porque el listado no trae los avisos, solo su
+   * cuenta: mandar los nueve textos de cada oferta para contar los pendientes sería
+   * mandar el módulo entero por la red.
+   */
+  pendientes: number;
+  /** Las claves de los avisos ya revisados. Ver lib/ofertas/revisiones.ts. */
+  revisadas: string[];
   /** Con qué maestro de formato se imprime. null = el predeterminado. */
   maestroId: string | null;
   /**
@@ -109,6 +121,7 @@ interface Fila {
   logo_cliente_nombre: string | null;
   imagenes: ImagenGuardada[] | null;
   emision: RegistroEmision | null;
+  revisadas: string[] | null;
   creado_por: string | null;
   creado_en: string;
   actualizado_en: string;
@@ -126,6 +139,8 @@ function filaAGuardada(f: Fila): OfertaGuardada {
     contenido: f.contenido,
     inconsistencias: f.inconsistencias ?? [],
     cantidadInconsistencias: (f.inconsistencias ?? []).length,
+    pendientes: cuantasPendientes(f.inconsistencias ?? [], f.revisadas ?? []),
+    revisadas: f.revisadas ?? [],
     maestroId: f.maestro_id,
     logoClienteRuta: f.logo_cliente_ruta,
     logoClienteNombre: f.logo_cliente_nombre,
@@ -276,6 +291,16 @@ export async function guardarContenido(
   id: string,
   contenido: OfertaCanonica,
   archivoOrigen: string | null,
+  /**
+   * Las marcas de revisado que había, para quedarse solo con las que siguen
+   * correspondiendo a un aviso. Sin esto la lista de claves crece con cada corrección
+   * y se queda para siempre con avisos que ya no existen.
+   *
+   * Obligatorio y sin valor por omisión a propósito: con un `= []`, una llamada que se
+   * olvidara de pasarlo BORRARÍA todas las marcas de la oferta en silencio. Así el
+   * compilador lo pide.
+   */
+  revisadas: string[],
 ): Promise<Inconsistencia[]> {
   const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), archivoOrigen ?? "");
 
@@ -288,6 +313,7 @@ export async function guardarContenido(
       faena: contenido.identificacion.faena,
       contenido,
       inconsistencias,
+      revisadas: revisadasVigentes(revisadas, inconsistencias),
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id);
@@ -415,7 +441,37 @@ export async function guardarImagenesElegidas(
       : cierre,
   };
 
-  await guardarContenido(id, contenido, oferta.archivoOrigen);
+  await guardarContenido(id, contenido, oferta.archivoOrigen, oferta.revisadas);
+}
+
+/**
+ * Marca (o desmarca) un aviso como revisado.
+ *
+ * Lee y escribe la lista completa en vez de agregar un elemento a la columna: son
+ * cinco o diez claves y así la regla —sin repetidos, sin perder las otras— vive en
+ * una función pura y probada (`conLaMarca`) en vez de en un fragmento de SQL.
+ *
+ * No valida la clave contra los avisos actuales a propósito: los avisos del editor se
+ * recalculan sobre lo que se está escribiendo, que todavía no está guardado, así que
+ * una clave legítima puede no existir en lo guardado. Las que sobran se limpian al
+ * guardar el contenido.
+ */
+export async function marcarRevisada(id: string, clave: string, revisada: boolean): Promise<string[]> {
+  const { data } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .select("revisadas")
+    .eq("id", id)
+    .maybeSingle();
+
+  const previas = ((data?.revisadas as string[] | null) ?? []).filter((c) => typeof c === "string");
+  const revisadas = conLaMarca(previas, clave, revisada);
+
+  const { error } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .update({ revisadas })
+    .eq("id", id);
+  if (error) throw new Error(`No se pudo marcar el aviso: ${error.message}`);
+  return revisadas;
 }
 
 export async function marcarEmitida(id: string): Promise<void> {

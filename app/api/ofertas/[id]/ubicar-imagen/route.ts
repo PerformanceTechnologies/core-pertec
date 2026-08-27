@@ -49,6 +49,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Ese destino no existe en esta oferta." }, { status: 400 });
   }
 
-  await guardarContenido(id, conLaImagenEn(oferta.contenido, indice, destino), oferta.archivoOrigen);
+  await guardarContenido(
+    id,
+    conLaImagenEn(oferta.contenido, indice, destino),
+    oferta.archivoOrigen,
+    oferta.revisadas,
+  );
   return NextResponse.json({ indice, destino });
 }

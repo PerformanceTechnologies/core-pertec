@@ -31,7 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const contenido = conElRepartoDe(cuerpo.contenido, oferta.contenido);
 
   try {
-    const inconsistencias = await guardarContenido(id, contenido, oferta.archivoOrigen);
+    const inconsistencias = await guardarContenido(id, contenido, oferta.archivoOrigen, oferta.revisadas);
     return NextResponse.json({ inconsistencias });
   } catch (error) {
     const detalle = error instanceof Error ? error.message : String(error);
