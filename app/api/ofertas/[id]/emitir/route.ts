@@ -9,6 +9,7 @@ import { ofertaAPdf } from "@/lib/ofertas/pdf";
 import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
 import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { guardarOfertaEnWorkspace } from "@/lib/ofertas/workspace";
+import { guardarPdfEmitido } from "@/lib/ofertas/pdf-archivo";
 import { correosValidos, nombreDeArchivoDeOferta } from "@/lib/ofertas/emision";
 
 export const runtime = "nodejs";
@@ -73,6 +74,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const problemas: string[] = [];
   let enWorkspace: string | null = null;
 
+  // Lo PRIMERO que se hace con el PDF: congelarlo. Es el mismo archivo que se va a
+  // subir al workspace y a adjuntar al correo, así que guardar este es lo que hace
+  // que las tres copias sean la misma, y que descargarla en un año devuelva lo que
+  // el cliente recibió y no una reimpresión con el maestro de entonces.
+  const pdfRuta = await guardarPdfEmitido(id, pdf);
+  if (!pdfRuta) {
+    problemas.push(
+      "No se pudo guardar la copia del PDF emitido: la descarga va a volver a imprimirlo desde el contenido.",
+    );
+  }
+
   if (quiereWorkspace) {
     try {
       const guardado = await guardarOfertaEnWorkspace(new Date().getFullYear(), nombreArchivo, pdf);
@@ -121,6 +133,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     copias: enviadoA.length > 0 ? copias : [],
     enWorkspace,
     nombreArchivo,
+    pdfRuta,
     problemas,
   };
   await guardarEmision(id, registro);

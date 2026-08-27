@@ -1,6 +1,7 @@
 import { verificarAccesoOfertasApi, marcarEmitida, obtenerOferta } from "@/lib/ofertas/datos";
 import { ofertaAHtmlConEmpresa, ofertaAPdf } from "@/lib/ofertas/pdf";
 import { nombreDeArchivoDeOferta } from "@/lib/ofertas/emision";
+import { leerPdfEmitido } from "@/lib/ofertas/pdf-archivo";
 
 export const runtime = "nodejs";
 // Chromium arranca, carga la plantilla e imprime: el ECO-1 del Cotizador usa el
@@ -50,13 +51,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       });
     }
 
-    const pdf = await ofertaAPdf(
-      oferta.contenido,
-      oferta.empresa,
-      oferta.maestroId,
-      oferta.logoClienteRuta,
-      oferta.imagenes,
-    );
+    // Una oferta emitida devuelve el PDF QUE SE EMITIÓ, no una reimpresión. Es lo que
+    // hace que "de solo lectura" valga también para el archivo: si alguien ajusta un
+    // maestro, el documento que el cliente recibió no cambia. Sin copia guardada —las
+    // emitidas antes de que esto existiera— se imprime, que es lo único posible.
+    const congelado = oferta.emision?.pdfRuta ? await leerPdfEmitido(oferta.emision.pdfRuta) : null;
+    const pdf =
+      congelado ??
+      (await ofertaAPdf(
+        oferta.contenido,
+        oferta.empresa,
+        oferta.maestroId,
+        oferta.logoClienteRuta,
+        oferta.imagenes,
+      ));
 
     if (parametros.get("emitir") === "1" && oferta.estado !== "emitida") {
       await marcarEmitida(id);

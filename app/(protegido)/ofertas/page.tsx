@@ -3,7 +3,7 @@ import { exigirAccesoOfertas, listarOfertas } from "@/lib/ofertas/datos";
 import SubirBorrador from "@/components/ofertas/SubirBorrador";
 import { fechaCl } from "@/lib/cotizador/formato";
 import { TARJETA } from "@/lib/estilos";
-import { eliminarOfertaAction } from "./acciones";
+import { duplicarOfertaAction, eliminarOfertaAction } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -132,19 +132,34 @@ export default async function OfertasPage() {
                       {fechaCl(o.actualizadoEn)}
                     </td>
                     <td className="px-3 py-3 text-right sm:px-4">
-                      {/* Solo los borradores: una emitida ya salió para afuera y su
-                          registro es lo único que queda de lo que se mandó. */}
-                      {o.estado === "borrador" && (
-                        <form action={eliminarOfertaAction}>
+                      <div className="flex items-center justify-end gap-3">
+                        {/* Duplicar vale para las dos: de una emitida es como se hace
+                            la siguiente parecida, que es su caso principal. */}
+                        <form action={duplicarOfertaAction}>
                           <input type="hidden" name="id" value={o.id} />
                           <button
                             type="submit"
-                            className="text-[11px] font-medium text-tinta/40 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                            title="Crear un borrador nuevo con este contenido"
+                            className="text-[11px] font-medium text-tinta/40 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
                           >
-                            Eliminar
+                            Duplicar
                           </button>
                         </form>
-                      )}
+                        {/* Eliminar, solo los borradores: una emitida ya salió para
+                          afuera y su registro es lo único que queda de lo que se
+                          mandó. */}
+                        {o.estado === "borrador" && (
+                          <form action={eliminarOfertaAction}>
+                            <input type="hidden" name="id" value={o.id} />
+                            <button
+                              type="submit"
+                              className="text-[11px] font-medium text-tinta/40 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                            >
+                              Eliminar
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

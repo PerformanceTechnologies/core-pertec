@@ -5,8 +5,8 @@ import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { calcularTotales, detectarInconsistencias } from "./verificar";
 import type { Inconsistencia, OfertaCanonica, SeccionConImagenes } from "./tipos";
 import type { Empresa } from "@/lib/cotizador/empresas";
-import type { ImagenGuardada } from "./imagenes";
-import { sinLaImagen } from "./normalizar";
+import { duplicarImagenes, type ImagenGuardada } from "./imagenes";
+import { contenidoDuplicado, sinLaImagen } from "./normalizar";
 
 /**
  * Las ofertas guardadas.
@@ -71,6 +71,14 @@ export interface RegistroEmision {
   /** La URL en SharePoint, o null si no se pidió guardarla. */
   enWorkspace: string | null;
   nombreArchivo: string;
+  /**
+   * El PDF congelado, en el bucket "ofertas-emitidas".
+   *
+   * Null en las ofertas emitidas antes de que se guardara, y ahí la descarga vuelve
+   * a imprimir: es lo único que se puede hacer, pero deja de ser el archivo que
+   * recibió el cliente si el maestro cambió desde entonces.
+   */
+  pdfRuta?: string | null;
   problemas: string[];
 }
 
@@ -379,6 +387,53 @@ export async function guardarEmision(id: string, emision: RegistroEmision): Prom
     .update({ estado: "emitida", emision, actualizado_en: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(`No se pudo registrar la emisión: ${error.message}`);
+}
+
+/**
+ * Duplica una oferta: mismo contenido, documento nuevo en borrador.
+ *
+ * Existe porque los controles de este módulo se escribieron para detectar copias
+ * hechas a mano —una sección de otra oferta, un aporte de otro mandante, el número
+ * cambiado a medias—. Copiar de verdad ataca la causa en vez del síntoma.
+ *
+ * Se copia el contenido (con las tres reglas de `contenidoDuplicado`), el maestro y
+ * el logo del cliente, y se COPIAN los archivos de las imágenes: compartirlos haría
+ * que borrar una oferta rompiera la otra. Lo que no se copia es la emisión: un
+ * duplicado nace en borrador y no ha sido emitido nunca.
+ */
+export async function duplicarOferta(id: string, creadoPor: string): Promise<string | null> {
+  const oferta = await obtenerOferta(id);
+  if (!oferta) return null;
+
+  const contenido = contenidoDuplicado(oferta.contenido, new Date());
+  const imagenes = await duplicarImagenes(oferta.imagenes);
+  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), "");
+
+  const { data, error } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .insert({
+      nombre: nombreDe(contenido),
+      numero_oferta: contenido.identificacion.numeroOferta,
+      cliente: contenido.identificacion.cliente,
+      faena: contenido.identificacion.faena,
+      empresa: oferta.empresa,
+      contenido,
+      inconsistencias,
+      estado: "borrador",
+      // De dónde salió, con el número de la original: es lo que después explica por
+      // qué dos ofertas se parecen tanto.
+      archivo_origen: `Duplicada de ${oferta.numeroOferta ?? oferta.nombre}`,
+      maestro_id: oferta.maestroId,
+      logo_cliente_ruta: oferta.logoClienteRuta,
+      logo_cliente_nombre: oferta.logoClienteNombre,
+      imagenes,
+      creado_por: creadoPor,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) throw new Error(`No se pudo duplicar la oferta: ${error?.message}`);
+  return data.id as string;
 }
 
 export async function eliminarOferta(id: string): Promise<void> {

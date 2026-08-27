@@ -215,6 +215,38 @@ export async function imagenesParaDocumento(
   return resueltas;
 }
 
+/**
+ * Copia los archivos de un inventario para una oferta duplicada.
+ *
+ * Copia de verdad, no reusa las rutas. Si las dos ofertas apuntaran al mismo archivo,
+ * borrar una dejaría a la otra con fotos que no existen —`borrarImagenes` borra por
+ * ruta y no sabe de la otra— y sacar una foto de un duplicado la sacaría del
+ * original. Un duplicado tiene que ser independiente o no sirve para nada.
+ *
+ * Los ÍNDICES se conservan: son la identidad de la imagen dentro del contenido
+ * (`imagenesPorSeccion`, `firmaImagen`), así que el duplicado sale con sus fotos ya
+ * ubicadas donde estaban. Lo que cambia es dónde vive el archivo.
+ *
+ * Una copia que falla se omite: el duplicado sale con una foto menos, y eso es mejor
+ * que no poder duplicar. Queda en el log.
+ */
+export async function duplicarImagenes(inventario: ImagenGuardada[]): Promise<ImagenGuardada[]> {
+  const copiadas: ImagenGuardada[] = [];
+
+  for (const imagen of inventario) {
+    const extension = imagen.ruta.split(".").pop() ?? "jpg";
+    const destino = `${randomUUID()}.${extension}`;
+    const { error } = await supabaseAdmin.storage.from(BUCKET).copy(imagen.ruta, destino);
+    if (error) {
+      console.warn(`[ofertas] no se pudo copiar la imagen ${imagen.ruta}: ${error.message}`);
+      continue;
+    }
+    copiadas.push({ ...imagen, ruta: destino });
+  }
+
+  return copiadas;
+}
+
 /** Una URL firmada y corta, para mirarlas en la pantalla de la oferta. */
 export async function urlFirmadaImagen(ruta: string, segundos = 600): Promise<string | null> {
   const { data } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(ruta, segundos);

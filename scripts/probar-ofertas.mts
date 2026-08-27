@@ -15,6 +15,8 @@ import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
 import {
   armarOferta,
   conElRepartoDe,
+  contenidoDuplicado,
+  fechaEnPalabras,
   sinLaImagen,
   type LecturaLetra,
   type LecturaNumeros,
@@ -1051,6 +1053,56 @@ assert.equal(
 );
 assert.equal((htmlUnaFirma.match(/class="rubrica"/g) ?? []).length, 1, "pero la rúbrica es una sola");
 
+// ── Duplicar: qué se copia y qué NO ─────────────────────────────────────────
+//
+// Duplicar existe porque los controles de este módulo se escribieron para detectar
+// copias hechas a mano. Lo que hay que probar no es que copie —eso es un spread—
+// sino las tres cosas que se le SACAN, porque cada una arrastrada convierte el
+// duplicado en un documento mal hecho que nadie revisa.
+const original = os10();
+original.identificacion.validez = "31 de agosto de 2026";
+original.imagenesPorSeccion = { anexo: [4, 5] };
+original.cierre!.firmantes = [
+  { nombre: "Alfonso Hachim Fulgeri", cargo: "Gerente General", empresa: null, firmaImagen: 7 },
+];
+
+const copia = contenidoDuplicado(original, new Date(2026, 8, 3));
+
+assert.equal(
+  copia.identificacion.numeroOferta,
+  null,
+  "el número se borra: dos ofertas con el mismo es lo peor",
+);
+assert.equal(
+  copia.identificacion.fecha,
+  "3 de septiembre de 2026",
+  "la fecha pasa a hoy, en el formato del documento",
+);
+assert.equal(copia.identificacion.validez, null, "la validez se borra: dependía de la fecha anterior");
+
+// Y lo que sí se copia, entero: si el duplicado no trajera el contenido no serviría.
+assert.equal(copia.titulo, original.titulo);
+assert.equal(copia.identificacion.cliente, original.identificacion.cliente);
+assert.equal(copia.precio?.totalNetoImpreso, original.precio?.totalNetoImpreso);
+assert.deepEqual(copia.imagenesPorSeccion, { anexo: [4, 5] }, "las fotos siguen ubicadas donde estaban");
+assert.equal(firmaDe(copia.cierre!, 0), 7, "y la rúbrica sigue siendo la de su firmante");
+// Sin tocar la original: se duplica, no se muda.
+assert.equal(original.identificacion.numeroOferta, "OS 010-2026");
+assert.equal(original.identificacion.validez, "31 de agosto de 2026");
+
+// El duplicado nace con el aviso de que falta el número, que es correcto: es lo
+// primero que hay que escribir antes de emitirlo.
+const avisosDelDuplicado = detectarInconsistencias(copia, calcularTotales(copia), "");
+assert.ok(
+  avisosDelDuplicado.some((a) => a.tipo === "falta_dato"),
+  "un duplicado sin número tiene que pedirlo de entrada",
+);
+
+// La fecha se escribe a mano y no con toLocaleDateString: es un TEXTO del contenido,
+// y el formato tiene que ser el mismo en cualquier servidor.
+assert.equal(fechaEnPalabras(new Date(2026, 0, 1)), "1 de enero de 2026");
+assert.equal(fechaEnPalabras(new Date(2026, 11, 31)), "31 de diciembre de 2026");
+
 // ── Toda ruta que imprima tiene que llevar su Chromium al bundle ────────────
 //
 // Otra comprobación sobre el fuente, y por el mismo motivo que la de abajo: este
@@ -1345,6 +1397,12 @@ mientras nadie elija; en cuanto alguien elige, manda lo elegido, incluso para
 decir que esa persona no firma con imagen. Al reordenar firmantes cada rúbrica
 sigue a SU persona, por el nombre y no por la posición, y si ese nombre ya no
 está se pierde en vez de heredarse.
+
+Duplicar: se copia todo el contenido y se le sacan las tres cosas que hacen peligroso
+un duplicado —el número, que en blanco se pide de entrada; la fecha, que pasa a hoy en
+el formato del documento; y la validez, que dependía de la fecha vieja—. Las fotos
+siguen ubicadas y cada rúbrica sigue siendo la de su firmante, y la original no se
+toca.
 
 Dos comprobaciones sobre el código, que no es lo habitual y acá se justifica: que el
 diálogo de emisión no quede dentro de una pestaña —ahí el botón no hace nada y ni el

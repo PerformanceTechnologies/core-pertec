@@ -12,6 +12,7 @@ import RuedaCarga from "@/components/RuedaCarga";
 import DocumentoEditable from "@/components/ofertas/DocumentoEditable";
 import CajonDeFotos from "@/components/ofertas/CajonDeFotos";
 import ModalEmitir from "@/components/ofertas/ModalEmitir";
+import { duplicarOfertaAction } from "@/app/(protegido)/ofertas/acciones";
 
 /**
  * Paso 2: revisar y corregir antes de emitir.
@@ -970,8 +971,20 @@ export default function EditorOferta({
                 >
                   Descargar el PDF
                 </a>
+                {/* La salida del callejón: una emitida no se toca, así que la
+                    siguiente parecida se hace duplicándola. Es su caso principal. */}
+                <form action={duplicarOfertaAction}>
+                  <input type="hidden" name="id" value={id} />
+                  <button
+                    type="submit"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-borde px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta/70 transition hover:border-naranjo/50 hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+                  >
+                    Duplicar para una nueva
+                  </button>
+                </form>
                 <p className="text-[11px] text-pretty text-tinta/45">
-                  Esta oferta está emitida, así que quedó de solo lectura.
+                  Esta oferta está emitida, así que quedó de solo lectura. El PDF que se descarga es el que se
+                  emitió, no una reimpresión.
                 </p>
                 {/* Qué se hizo al emitirla. Sin esto, "emitida" es un estado que no se
                   puede verificar: nadie sabe si el documento llegó a alguien. */}

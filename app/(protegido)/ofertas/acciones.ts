@@ -1,14 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import {
   asignarMaestro,
+  duplicarOferta,
   eliminarOferta,
   exigirAccesoOfertas,
   guardarImagenesElegidas,
   obtenerOferta,
 } from "@/lib/ofertas/datos";
 import { borrarImagenes } from "@/lib/ofertas/imagenes";
+import { borrarPdfEmitido } from "@/lib/ofertas/pdf-archivo";
 import { SECCIONES_CON_IMAGENES, type SeccionConImagenes } from "@/lib/ofertas/tipos";
 
 /**
@@ -26,11 +30,34 @@ export async function eliminarOfertaAction(formData: FormData) {
   const oferta = await obtenerOferta(id);
   if (!oferta || oferta.estado === "emitida") return;
 
-  // Las imágenes primero: si se borra la fila y falla el bucket, quedan archivos
-  // que nada nombra.
+  // Los archivos primero: si se borra la fila y falla el bucket, quedan archivos que
+  // nada nombra y nadie va a encontrar.
   await borrarImagenes(oferta.imagenes);
+  await borrarPdfEmitido(oferta.emision?.pdfRuta ?? null);
   await eliminarOferta(id);
   revalidatePath("/ofertas");
+}
+
+/**
+ * Duplica una oferta y abre el duplicado.
+ *
+ * Vale también para una emitida —de hecho es su caso principal—: una emitida es de
+ * solo lectura, y hasta ahora el único camino para la siguiente parecida era volver a
+ * subir un borrador. Duplicar no la toca: crea un documento nuevo.
+ */
+export async function duplicarOfertaAction(formData: FormData) {
+  await exigirAccesoOfertas();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const sesion = await auth();
+  const nuevo = await duplicarOferta(id, sesion?.user?.email ?? "desconocido");
+  if (!nuevo) return;
+
+  revalidatePath("/ofertas");
+  // Se abre el duplicado: duplicar es para trabajar en la copia, no para dejarla en
+  // el listado y tener que buscarla entre las demás.
+  redirect(`/ofertas/${nuevo}`);
 }
 
 /**

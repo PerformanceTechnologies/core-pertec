@@ -423,3 +423,67 @@ export function conLaImagenEn(
 
   return { ...contenido, imagenesPorSeccion: porSeccion };
 }
+
+/**
+ * El contenido de una oferta duplicada.
+ *
+ * Duplicar es la acción que faltaba, y no por comodidad: los controles de este
+ * módulo —"sección heredada de otra oferta", "aporte de otro mandante", "número
+ * mezclado"— existen porque la gente copia ofertas A MANO. Copiar de verdad ataca la
+ * causa de la mitad de esos avisos.
+ *
+ * Lo que se copia es todo el contenido; lo que NO se copia son las tres cosas que
+ * hacen peligroso un duplicado:
+ *
+ *  - El NÚMERO se borra. Dos ofertas con el mismo número es el peor resultado
+ *    posible, y el control de "número mezclado" existe justamente porque pasó. En
+ *    blanco, el aviso de "falta un dato" lo pide de entrada, que es correcto: es lo
+ *    primero que hay que escribir.
+ *  - La FECHA pasa a hoy. Una copia emitida con la fecha del mes pasado es un
+ *    documento mal fechado que nadie revisa, porque el número sí se revisa.
+ *  - La VALIDEZ se borra. Depende de la fecha nueva y arrastrarla dejaría una oferta
+ *    que dice ser válida hasta una fecha ya pasada.
+ *
+ * El reparto de imágenes se conserva: el duplicado apunta a las mismas fotos por
+ * número, y quien copia los archivos en el bucket mantiene esos números (ver
+ * `duplicarImagenes`). Si no se conservara, cada duplicado empezaría con las fotos
+ * sin ubicar y no serviría de nada.
+ */
+export function contenidoDuplicado(contenido: OfertaCanonica, hoy: Date): OfertaCanonica {
+  return {
+    ...contenido,
+    identificacion: {
+      ...contenido.identificacion,
+      numeroOferta: null,
+      fecha: fechaEnPalabras(hoy),
+      validez: null,
+    },
+  };
+}
+
+const MESES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+/**
+ * "26 de agosto de 2026", que es como la escriben estas ofertas.
+ *
+ * A mano y no con toLocaleDateString: el formato de la oferta es el que ya está en
+ * los documentos —el modelo lo transcribe así— y la fecha es un TEXTO del contenido,
+ * no una fecha con formato. Meter acá "26 de agosto de 2026" o "26/08/2026" según el
+ * entorno haría que dos duplicados se vean distintos.
+ */
+export function fechaEnPalabras(dia: Date): string {
+  return `${dia.getDate()} de ${MESES[dia.getMonth()]} de ${dia.getFullYear()}`;
+}
