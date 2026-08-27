@@ -6,6 +6,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from "../lib/ofertas/verificar";
 import type { OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
@@ -1049,6 +1050,25 @@ assert.equal(
   "el hueco se reserva para los dos",
 );
 assert.equal((htmlUnaFirma.match(/class="rubrica"/g) ?? []).length, 1, "pero la rúbrica es una sola");
+
+// ── Y el diálogo de emisión tiene que estar donde se pueda ver ──────────────
+//
+// Esta comprobación mira el código fuente, que no es lo habitual, y existe por una
+// razón concreta: el diálogo quedó una vez DENTRO del fragmento de la pestaña
+// Formulario. Con el Documento a la vista —que es lo normal— apretar Emitir cambiaba
+// el estado y no dibujaba nada: un botón muerto. Ni TypeScript ni el build lo ven,
+// porque el JSX es válido en los dos lugares, y las pruebas de navegador tampoco,
+// porque no renderizan React. Así que se comprueba lo único comprobable: que el
+// diálogo esté ARRIBA del interruptor de pestañas, o sea fuera de las dos.
+const editor = readFileSync(new URL("../components/ofertas/EditorOferta.tsx", import.meta.url), "utf8");
+const dondeElModal = editor.indexOf("<ModalEmitir");
+const dondeLasPestanas = editor.indexOf('vista === "documento" ?');
+assert.ok(dondeElModal > 0, "el editor tiene que abrir el diálogo de emisión");
+assert.ok(dondeLasPestanas > 0, "y tener el interruptor de pestañas");
+assert.ok(
+  dondeElModal < dondeLasPestanas,
+  "el diálogo de emisión quedó dentro de una pestaña: con la otra a la vista, Emitir no hace nada",
+);
 
 // ── La emisión: el nombre del archivo y a quién se le manda ─────────────────
 //
