@@ -31,6 +31,7 @@ interface VentanaDePrueba {
     quitada?: number;
     deLaFirma?: boolean;
     operacion?: unknown;
+    logo?: string;
   }[];
   /** Las cajas de cada elemento del documento, para comparar antes y después. */
   medidas: { el: Element; caja: { x: number; y: number; w: number; h: number } }[];
@@ -280,6 +281,8 @@ try {
         alQuitarImagen: (indice: number, deLaFirma: boolean) =>
           ventana.sueltas.push({ quitada: indice, deLaFirma }),
         alCambiarEstructura: (operacion: unknown) => ventana.sueltas.push({ operacion }),
+        alSoltarLogo: (archivo: File, cual: string) => ventana.sueltas.push({ logo: cual, archivos: [archivo.name] }),
+        alUsarComoLogo: (indice: number, cual: string) => ventana.sueltas.push({ logo: cual, indice }),
       });
 
       const cliente = doc.querySelector<HTMLElement>('[data-campo="identificacion.cliente"]');
@@ -853,6 +856,62 @@ try {
   assert.equal(titulos.numero, "3", "se numera con las del maestro: después del alcance");
   assert.ok(!titulos.aceptaFotos, "una sección agregada a mano no recibe fotos");
   assert.deepEqual(titulos.botones, ["+ Párrafo", "+ Tabla", "Quitar"], "lleva los controles del bloque");
+
+  // ── 10b. Los logos del encabezado, arrastrándolos ─────────────────────────
+  //
+  // Los dos huecos están a la vista en el documento, así que soltarlos ahí es el
+  // camino corto. Dos payloads: un archivo del escritorio y una imagen que ya está en
+  // la oferta —el borrador casi siempre trae el logo del cliente entre sus imágenes—.
+  // Y lo que NO puede pasar es que soltar una foto sobre el encabezado la ubique como
+  // una foto del cuerpo: son dos acciones distintas sobre el mismo gesto.
+  const logos = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+
+    const soltarArchivo = (selector: string, nombre: string) => {
+      const datos = new DataTransfer();
+      datos.items.add(new File(["x"], nombre, { type: "image/png" }));
+      const celda = doc.querySelector<HTMLElement>(selector)!;
+      const encima = new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true });
+      celda.dispatchEvent(encima);
+      const marcada = celda.className;
+      const rotulo = celda.dataset.soltar;
+      celda.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+      return { admite: encima.defaultPrevented, marcada, rotulo, ultima: ventana.sueltas.at(-1) };
+    };
+
+    const soltarFoto = (selector: string) => {
+      const datos = new DataTransfer();
+      datos.setData("application/x-imagen-oferta", "1");
+      const celda = doc.querySelector<HTMLElement>(selector)!;
+      celda.dispatchEvent(new DragEvent("dragover", { dataTransfer: datos, bubbles: true, cancelable: true }));
+      celda.dispatchEvent(new DragEvent("drop", { dataTransfer: datos, bubbles: true, cancelable: true }));
+      return ventana.sueltas.at(-1);
+    };
+
+    return {
+      celdas: doc.querySelectorAll("[data-logo]").length,
+      archivoEnCliente: soltarArchivo('[data-logo="cliente"]', "logo-axinntus.png"),
+      archivoEnCasa: soltarArchivo('[data-logo="casa"]', "logo-pertec.png"),
+      fotoEnCliente: soltarFoto('[data-logo="cliente"]'),
+      // Soltar sobre el nodo de más adentro —la imagen del logo, cuando hay— también
+      // tiene que llegar a la celda.
+      adentro: doc.querySelector('[data-logo="cliente"] *') === null,
+    };
+  });
+  console.log(logos);
+  assert.equal(logos.celdas, 2, "las dos celdas de logo del encabezado son blanco de arrastre");
+  assert.ok(logos.archivoEnCliente.admite, "y aceptan que se suelte un archivo");
+  assert.ok(logos.archivoEnCliente.marcada.includes("recibiendo"), "la celda se marca mientras se arrastra");
+  assert.equal(logos.archivoEnCliente.rotulo, "Logo del cliente", "el rótulo dice qué logo va ahí");
+  assert.equal(logos.archivoEnCasa.rotulo, "Logo de la empresa");
+  assert.deepEqual(logos.archivoEnCliente.ultima, { logo: "cliente", archivos: ["logo-axinntus.png"] });
+  assert.deepEqual(logos.archivoEnCasa.ultima, { logo: "casa", archivos: ["logo-pertec.png"] });
+  assert.deepEqual(
+    logos.fotoEnCliente,
+    { logo: "cliente", indice: 1 },
+    "una foto del cajón soltada en el encabezado se usa como logo, no se ubica como foto del cuerpo",
+  );
 
   // ── 11. Los controles no estorban ─────────────────────────────────────────
   //

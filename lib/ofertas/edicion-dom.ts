@@ -73,7 +73,7 @@ const ESTILO_DEL_EDITOR = `
   /* Lo que va a recibir la foto: una sección, o el bloque de un firmante. El borde
      se dibuja por fuera con un outline y no con un border, que correría el texto de
      lugar justo cuando hay algo flotando encima. */
-  section[data-seccion].recibiendo, [data-firma].recibiendo {
+  section[data-seccion].recibiendo, [data-firma].recibiendo, [data-logo].recibiendo {
     outline: 2px dashed ${ACENTO}; outline-offset: 4px; background: ${ACENTO}09;
   }
 
@@ -82,8 +82,9 @@ const ESTILO_DEL_EDITOR = `
      todo lo que venía abajo se corría en el peor momento posible. Con position
      absolute no ocupa lugar, y el "position: relative" de la sección se declara
      junto para que se ubique respecto de ella. */
-  section[data-seccion], [data-firma] { position: relative; }
-  section[data-seccion].recibiendo::after, [data-firma].recibiendo::after {
+  section[data-seccion], [data-firma], [data-logo] { position: relative; }
+  section[data-seccion].recibiendo::after, [data-firma].recibiendo::after,
+  [data-logo].recibiendo::after {
     content: attr(data-soltar); position: absolute; top: 2px; right: 2px;
     padding: 1px 6px; border-radius: 999px; background: ${ACENTO}; color: #fff;
     font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
@@ -93,6 +94,11 @@ const ESTILO_DEL_EDITOR = `
      la persona. Afuera se cruza con la línea del RUT, que es texto fijo y solo
      mientras la foto está encima. */
   [data-firma].recibiendo::after { top: auto; bottom: -14px; right: auto; left: 0; }
+  /* La celda de logo mide 30 mm y su rótulo no entra: va debajo, saliéndose de la
+     celda, que durante el arrastre no molesta a nadie. El outline hacia adentro
+     porque las tres celdas del encabezado se tocan entre sí. */
+  [data-logo].recibiendo { outline-offset: -1px; }
+  [data-logo].recibiendo::after { top: auto; bottom: -13px; right: auto; left: 0; }
 
   /* Quien pidió no ver movimiento no lo ve: quedan los cambios de opacidad, que son
      lo que dice "esto se puede tocar", y se van los desplazamientos. */
@@ -222,6 +228,22 @@ export interface OpcionesDeEdicion {
    * ubicar: traer una foto de una carpeta al documento no puede terminar en nada.
    */
   alSoltarArchivos?: (archivos: File[], destino: string | null) => void;
+  /**
+   * Soltaron un archivo del escritorio sobre una celda de logo del encabezado.
+   *
+   * Es el otro logo que hay que poner en cada oferta y era lo único que seguía
+   * viviendo solo en un panel aparte: el hueco donde va está a la vista en el
+   * documento, así que arrastrarlo ahí es el camino corto.
+   */
+  alSoltarLogo?: (archivo: File, cual: "casa" | "cliente") => void;
+  /**
+   * Soltaron sobre una celda de logo una imagen que YA está en la oferta.
+   *
+   * Pasa seguido: el borrador trae el logo del cliente o su membrete como una de sus
+   * imágenes —por eso quedan sin sección— y hasta ahora había que bajarla del cajón y
+   * volverla a subir para usarla de logo.
+   */
+  alUsarComoLogo?: (indice: number, cual: "casa" | "cliente") => void;
   /**
    * Apretaron la × de una foto del documento.
    *
@@ -528,10 +550,12 @@ function prepararEstructura(doc: Document, opciones: OpcionesDeEdicion): void {
 interface Blanco {
   /** El elemento que se ilumina. */
   elemento: HTMLElement;
-  /** El destino, en el formato que entiende leerDestino. */
-  destino: string;
   /** Lo que dice la pastilla mientras la foto está encima. */
   rotulo: string;
+  /** El destino dentro del documento, en el formato que entiende leerDestino. */
+  destino?: string;
+  /** O una de las dos celdas de logo del encabezado, que no es una ubicación. */
+  logo?: "casa" | "cliente";
 }
 
 /**
@@ -544,6 +568,20 @@ interface Blanco {
 function blancoEn(destino: EventTarget | null): Blanco | null {
   const nodo = destino as Element | null;
   if (!nodo || typeof nodo.closest !== "function") return null;
+
+  // El encabezado, primero: sus celdas están fuera de toda sección, pero el orden
+  // igual se declara para que se lea la intención.
+  const celdaDeLogo = nodo.closest<HTMLElement>("[data-logo]");
+  if (celdaDeLogo) {
+    const cual = celdaDeLogo.dataset.logo === "casa" ? "casa" : "cliente";
+    return {
+      elemento: celdaDeLogo,
+      logo: cual,
+      // Corto, porque la celda mide 30 mm: con el texto largo la pastilla tapaba
+      // media cabecera.
+      rotulo: cual === "casa" ? "Logo de la empresa" : "Logo del cliente",
+    };
+  }
 
   const firma = nodo.closest<HTMLElement>("[data-firma]");
   if (firma) {
@@ -571,7 +609,12 @@ function blancoEn(destino: EventTarget | null): Blanco | null {
 }
 
 function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => void {
-  const puedeRecibir = Boolean(opciones.alSoltarImagen || opciones.alSoltarArchivos);
+  const puedeRecibir = Boolean(
+    opciones.alSoltarImagen ||
+      opciones.alSoltarArchivos ||
+      opciones.alSoltarLogo ||
+      opciones.alUsarComoLogo,
+  );
   if (!puedeRecibir && !opciones.alQuitarImagen) return () => {};
 
   // La × de cada foto ya dibujada. Se agrega al DOM de la pantalla y no a la
@@ -626,10 +669,17 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
   /** Qué trae el arrastre y sobre qué está, si está sobre algo. */
   const lectura = (evento: DragEvent) => {
     const tipos = evento.dataTransfer?.types ?? [];
+    const blanco = blancoEn(evento.target);
+    // Sobre una celda de logo mandan otros dos manejadores: es poner el logo, no
+    // ubicar una imagen en el documento.
+    const paraLogo = Boolean(blanco?.logo);
     return {
-      traeFoto: tipos.includes(TIPO_ARRASTRE) && Boolean(opciones.alSoltarImagen),
-      traeArchivos: tipos.includes("Files") && Boolean(opciones.alSoltarArchivos),
-      blanco: blancoEn(evento.target),
+      traeFoto:
+        tipos.includes(TIPO_ARRASTRE) &&
+        Boolean(paraLogo ? opciones.alUsarComoLogo : opciones.alSoltarImagen),
+      traeArchivos:
+        tipos.includes("Files") && Boolean(paraLogo ? opciones.alSoltarLogo : opciones.alSoltarArchivos),
+      blanco,
     };
   };
 
@@ -663,7 +713,9 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
     if (traeFoto && blanco) {
       evento.preventDefault();
       const numero = evento.dataTransfer?.getData(TIPO_ARRASTRE);
-      if (numero) opciones.alSoltarImagen?.(Number(numero), blanco.destino);
+      if (!numero) return;
+      if (blanco.logo) opciones.alUsarComoLogo?.(Number(numero), blanco.logo);
+      else if (blanco.destino) opciones.alSoltarImagen?.(Number(numero), blanco.destino);
       return;
     }
 
@@ -671,7 +723,9 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
     const archivos = [...(evento.dataTransfer?.files ?? [])];
     if (archivos.length === 0) return;
     evento.preventDefault();
-    opciones.alSoltarArchivos?.(archivos, blanco?.destino ?? null);
+    // Un logo es UNO: si sueltan tres archivos sobre la celda, entra el primero.
+    if (blanco?.logo) opciones.alSoltarLogo?.(archivos[0], blanco.logo);
+    else opciones.alSoltarArchivos?.(archivos, blanco?.destino ?? null);
   };
 
   doc.addEventListener("dragover", alArrastrar);

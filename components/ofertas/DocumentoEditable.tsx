@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 import { asignarEnRuta } from "@/lib/ofertas/rutas";
 import { prepararDocumento } from "@/lib/ofertas/edicion-dom";
-import { leerRespuesta } from "@/lib/subidas";
+import { avisoDeTamano, leerRespuesta } from "@/lib/subidas";
+import { esFormatoDeLogo } from "@/lib/ofertas/logo";
 import { subidaParcial, subirImagenesDeOferta } from "@/lib/ofertas/subir-imagenes";
 import { esFirma } from "@/lib/ofertas/destino-imagen";
 import { aplicarEstructura, type OperacionDeEstructura } from "@/lib/ofertas/estructura";
@@ -54,11 +55,14 @@ import RuedaCarga from "@/components/RuedaCarga";
 export default function DocumentoEditable({
   id,
   oferta,
+  empresa,
   editable,
   onCambio,
 }: {
   id: string;
   oferta: OfertaCanonica;
+  /** La empresa emisora: el logo de la casa se guarda a su nombre, no en la oferta. */
+  empresa: string;
   editable: boolean;
   /** La misma función con la que edita el formulario: hay un solo estado. */
   onCambio: (aplicar: (borrador: OfertaCanonica) => void) => void;
@@ -253,6 +257,51 @@ export default function DocumentoEditable({
     [],
   );
 
+  /**
+   * Poner un logo del encabezado arrastrándolo hasta su celda.
+   *
+   * Los dos huecos están a la vista en el documento, así que el camino corto es
+   * soltar la imagen ahí. Va por la misma ruta que el panel de logos —que escala,
+   * normaliza a PNG y guarda— porque el logo que alguien tiene a mano suele ser el
+   * del manual de marca, en grande, y eso no puede llegar al PDF así.
+   *
+   * El de la CASA pide confirmación y el del cliente no, y la diferencia es real: el
+   * del cliente es de esta oferta, el de la empresa sale en TODAS sus ofertas. Que se
+   * pueda hacer desde acá está bien —es donde se ve que falta—, que se haga sin
+   * enterarse, no.
+   */
+  const ponerLogo = useCallback(
+    async (cual: "casa" | "cliente", cuerpo: (formulario: FormData) => void, aviso: string) => {
+      if (cual === "casa") {
+        const sigue = window.confirm(
+          `Este es el logo de ${empresa} y sale en TODAS sus ofertas, no solo en esta. ¿Lo reemplazás?`,
+        );
+        if (!sigue) return;
+      }
+
+      setMoviendo(aviso);
+      setError(null);
+      try {
+        const formulario = new FormData();
+        formulario.append("destino", cual === "casa" ? "empresa" : "cliente");
+        formulario.append("clave", cual === "casa" ? empresa : id);
+        cuerpo(formulario);
+
+        const respuesta = await fetch("/api/ofertas/logos", { method: "POST", body: formulario });
+        await leerRespuesta(respuesta);
+        // El encabezado lo dibuja el servidor con el logo ya bajado, así que la vista
+        // se pide de nuevo; y router.refresh() pone al día el panel de logos de arriba.
+        setMoviendo("Armando el documento…");
+        setRevision((r) => r + 1);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudo poner el logo.");
+        setMoviendo(null);
+      }
+    },
+    [empresa, id, router],
+  );
+
   const preparar = useCallback(() => {
     const doc = marco.current?.contentDocument;
     // El `about:blank` con el que nace un iframe también dispara load.
@@ -276,8 +325,32 @@ export default function DocumentoEditable({
       alSoltarArchivos: (archivos, destino) => void subirYUbicar(archivos, destino),
       alQuitarImagen: (indice, deLaFirma) => void ubicar(indice, null, deLaFirma),
       alCambiarEstructura: cambiarEstructura,
+      alSoltarLogo: (archivo, cual) => {
+        // Las dos comprobaciones antes de mandar: el formato, porque un PDF soltado
+        // ahí no es un logo, y el tamaño, porque el tope lo pone la plataforma y un
+        // archivo de 12 MB no llega a explicar por qué falló.
+        if (!esFormatoDeLogo(archivo.type, archivo.name)) {
+          setError("El logo tiene que ser un PNG, un JPG, un WEBP o un SVG.");
+          return;
+        }
+        const aviso = avisoDeTamano(archivo);
+        if (aviso) {
+          setError(aviso);
+          return;
+        }
+        void ponerLogo(cual, (formulario) => formulario.append("archivo", archivo), "Poniendo el logo…");
+      },
+      alUsarComoLogo: (indice, cual) =>
+        void ponerLogo(
+          cual,
+          (formulario) => {
+            formulario.append("imagen", String(indice));
+            formulario.append("oferta", id);
+          },
+          "Poniendo el logo…",
+        ),
     });
-  }, [editable, ubicar, subirYUbicar, cambiarEstructura]);
+  }, [editable, id, ubicar, subirYUbicar, cambiarEstructura, ponerLogo]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -306,7 +379,7 @@ export default function DocumentoEditable({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-[11px] text-pretty text-tinta/50">
           {editable
-            ? "Escribí sobre el documento, títulos incluidos. Con los + que aparecen al pasar por encima se agregan secciones, subtítulos, párrafos, filas y columnas; las filas de las tablas del maestro van en el formulario."
+            ? "Escribí sobre el documento, títulos incluidos. Con los + que aparecen al pasar por encima se agregan secciones, subtítulos, párrafos, filas y columnas; las filas de las tablas del maestro, en el formulario. Las fotos, las firmas y los logos se arrastran hasta donde van."
             : "La oferta está emitida: el documento es de solo lectura."}
           {/* El aviso va acá y no junto a las fotos: al soltar una, la vista está en
               el documento, que es donde se espera ver que algo pasó. */}

@@ -1220,14 +1220,19 @@ export function ofertaAHtml(
 </style></head>
 <body>
   <div class="header">
-    <div class="marca">${logoCasa ? `<img src="${logoCasa}" alt="">` : esc(empresa.nombre)}</div>
+    <!-- Las dos celdas de logo se nombran en el marcado para poder arrastrarles una
+         imagen encima; el editor las convierte en blanco de arrastre (ver
+         edicion-dom.ts) y en el PDF el atributo no hace nada. La del cliente es de
+         ESTA oferta; la de la marca es de la empresa emisora y sale en todas sus
+         ofertas, así que el editor pide confirmación antes de cambiarla. -->
+    <div class="marca" data-logo="casa">${logoCasa ? `<img src="${logoCasa}" alt="">` : esc(empresa.nombre)}</div>
     <div class="centro">
       <div>${razonDe(empresa) ? `<div class="empresa">${esc(razonDe(empresa))}</div>` : ""}${
         rutDe(empresa) ? `<div class="rut">${esc(rutDe(empresa))}</div>` : ""
       }</div>
       <div class="oferta">Oferta <b>${esc(id.numeroOferta ?? "—")}</b><br>Fecha <b>${esc(id.fecha ?? "—")}</b></div>
     </div>
-    <div class="cliente">${
+    <div class="cliente" data-logo="cliente">${
       logoCliente ? `<img src="${logoCliente}" alt="">` : esc(estilo.rotuloLogoCliente)
     }</div>
   </div>

@@ -47,6 +47,7 @@ export default function EditorOferta({
   urlsImagenes,
   emision,
   revisadas: revisadasGuardadas,
+  empresa,
 }: {
   id: string;
   inicial: OfertaCanonica;
@@ -59,6 +60,14 @@ export default function EditorOferta({
   urlsImagenes: Record<number, string>;
   /** Los avisos que ya se marcaron como revisados. Ver lib/ofertas/revisiones.ts. */
   revisadas: string[];
+  /**
+   * La empresa emisora.
+   *
+   * Viaja hasta el documento porque el logo de la casa se guarda por empresa, no por
+   * oferta: para poder ponerlo arrastrándolo sobre el encabezado hay que saber de
+   * quién es el hueco.
+   */
+  empresa: string;
 }) {
   const router = useRouter();
   const [oferta, setOferta] = useState<OfertaCanonica>(inicial);
@@ -240,7 +249,13 @@ export default function EditorOferta({
           </div>
 
           {vista === "documento" ? (
-            <DocumentoEditable id={id} oferta={oferta} editable={!emitida} onCambio={cambiar} />
+            <DocumentoEditable
+              id={id}
+              oferta={oferta}
+              empresa={empresa}
+              editable={!emitida}
+              onCambio={cambiar}
+            />
           ) : (
             <>
               {/* ── Identificación ─────────────────────────────────────────── */}

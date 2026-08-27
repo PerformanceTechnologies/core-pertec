@@ -1935,6 +1935,20 @@ const htmlTodo = ofertaAHtml(conTodo, calcularTotales(conTodo), EMPRESA_DE_PRUEB
 const dibujados = new Set(
   [...htmlTodo.matchAll(/data-campo="rotulos\.([^"]+)"/g)].map(([, clave]) => clave),
 );
+// Las dos celdas de logo del encabezado se nombran en el marcado: es lo que permite
+// arrastrarles una imagen encima. Lo que pasa al soltar se prueba en el navegador
+// (npm run probar-edicion); acá se comprueba que el blanco exista, y que exista
+// también cuando el logo NO está puesto, que es justo cuando hace falta.
+assert.ok(
+  htmlTodo.includes('data-logo="casa"') && htmlTodo.includes('data-logo="cliente"'),
+  "el encabezado marca sus dos huecos de logo",
+);
+const sinLogos = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA);
+assert.ok(
+  sinLogos.includes('data-logo="cliente"') && sinLogos.includes('data-logo="casa"'),
+  "y los marca aunque todavía no haya ningún logo cargado",
+);
+
 const faltantes = Object.keys(ROTULOS).filter((clave) => !dibujados.has(clave));
 assert.deepEqual(faltantes, [], `rótulos del catálogo que el documento no dibuja: ${faltantes.join(", ")}`);
 

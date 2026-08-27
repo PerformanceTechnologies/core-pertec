@@ -4,6 +4,7 @@ import { guardarLogoEmpresa, obtenerEmpresaPorNombre } from "@/lib/cotizador/emp
 import { esEmpresaValida } from "@/lib/cotizador/empresas";
 import { esFormatoDeLogo, LIMITE_SUBIDA_LOGO } from "@/lib/ofertas/logo";
 import { borrarLogo, normalizarLogo, subirLogo, urlFirmadaLogo } from "@/lib/ofertas/logos-archivo";
+import { leerImagenDeOferta } from "@/lib/ofertas/imagenes";
 
 export const runtime = "nodejs";
 // Solo hay que abrir una imagen y escalarla: no se parece al análisis de un
@@ -93,8 +94,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: resuelto.error }, { status: resuelto.estado });
   }
 
+  // El otro camino: usar una imagen que ya está en la oferta. Es lo que ocurre al
+  // arrastrar una foto del cajón hasta la celda de logo del encabezado — el borrador
+  // suele traer el logo del cliente entre sus imágenes— y no hay archivo que subir,
+  // hay uno que copiar de un bucket al otro.
   if (!(archivo instanceof File)) {
-    return NextResponse.json({ error: "No se recibió ningún archivo." }, { status: 400 });
+    const indice = Number(formulario.get("imagen"));
+    const deLaOferta = String(formulario.get("oferta") ?? "");
+    if (!Number.isInteger(indice) || !deLaOferta) {
+      return NextResponse.json({ error: "No se recibió ningún archivo." }, { status: 400 });
+    }
+
+    // Con su propio guard: la imagen es de una oferta, así que se comprueba de quién
+    // es esa oferta antes de leerla.
+    const suya = await accesoAOfertaApi(deLaOferta);
+    if (!suya.oferta) return NextResponse.json({ error: suya.error }, { status: suya.status });
+
+    const imagen = suya.oferta.imagenes.find((i) => i.indice === indice);
+    if (!imagen) return NextResponse.json({ error: "Esa imagen no está en la oferta." }, { status: 404 });
+
+    const contenido = await leerImagenDeOferta(imagen);
+    if (!contenido) {
+      return NextResponse.json({ error: "No se pudo leer esa imagen." }, { status: 502 });
+    }
+
+    try {
+      const png = await normalizarLogo(contenido);
+      const ruta = await subirLogo(png);
+      await resuelto.destino.guardar(ruta, imagen.nombre);
+      await borrarLogo(resuelto.destino.rutaActual);
+      return NextResponse.json({ nombre: imagen.nombre, url: await urlFirmadaLogo(ruta), bytes: png.length });
+    } catch (error) {
+      const detalle = error instanceof Error ? error.message : String(error);
+      console.error("[ofertas] la imagen no se pudo usar como logo:", detalle);
+      return NextResponse.json(
+        { error: "No se pudo usar esa imagen como logo. Probá subiendo el archivo." },
+        { status: 400 },
+      );
+    }
   }
   if (!esFormatoDeLogo(archivo.type, archivo.name)) {
     return NextResponse.json(

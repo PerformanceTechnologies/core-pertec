@@ -104,7 +104,8 @@ export default function ImagenesDeLaOferta({
           Acá está lo demás: agregar las que falten, sacar las que sobren y decir de quién es cada rúbrica. El
           desplegable hace lo mismo que arrastrar, por si preferís elegir de una lista. El sistema propuso una
           ubicación mirando el texto que rodeaba a cada imagen en el borrador y su tamaño; el logo y el
-          membrete quedan sin sección a propósito, porque el encabezado ya los pone.
+          membrete quedan sin sección a propósito, porque el encabezado ya los pone —y si el logo del
+          cliente vino entre las imágenes, se arrastra hasta la celda del encabezado y queda puesto ahí—.
         </p>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

@@ -116,8 +116,10 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         <div className="flex flex-col gap-1.5">
           <Plegable titulo="Logos del encabezado" estado={estadoLogos} alerta={!urlLogoCasa}>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {/* El de la casa se muestra pero no se edita desde acá: es de la empresa y
-                cambiarlo desde un documento cambiaría todos los demás. */}
+              {/* El de la casa se muestra pero no se sube desde acá: es de la empresa y
+                cambiarlo desde un documento cambiaría todos los demás. Se puede
+                arrastrar sobre su celda del encabezado, y ahí el editor lo dice y
+                pide confirmación antes de reemplazarlo. */}
               <div className="rounded-xl border border-borde bg-crema/40 p-4">
                 <p className="font-condensed text-sm font-bold uppercase tracking-wide text-tinta">
                   Logo de {oferta.empresa}
@@ -154,7 +156,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
                 titulo="Logo del cliente"
                 nota={
                   borrador
-                    ? "Va en la celda derecha del encabezado. Sin logo sale el rótulo del maestro."
+                    ? "Va en la celda derecha del encabezado. También se puede arrastrar hasta ahí, en la pestaña Documento. Sin logo sale el rótulo del maestro."
                     : "La oferta ya está emitida: su logo no se cambia."
                 }
                 nombreActual={oferta.logoClienteNombre}
@@ -217,6 +219,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         urlsImagenes={urlsImagenes}
         emision={oferta.emision}
         revisadas={oferta.revisadas}
+        empresa={oferta.empresa}
       />
     </div>
   );

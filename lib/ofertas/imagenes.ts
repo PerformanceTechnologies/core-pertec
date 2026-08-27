@@ -216,6 +216,24 @@ export async function imagenesParaDocumento(
 }
 
 /**
+ * Los bytes de una imagen del inventario, o null si no se pudo bajar.
+ *
+ * Existe para poder usar una imagen del borrador como logo del encabezado: el
+ * borrador casi siempre trae el logo del cliente o su membrete entre sus imágenes
+ * —por eso quedan sin sección—, y hasta ahora había que bajarla a mano y volverla a
+ * subir. Los logos viven en otro bucket y pasan por `normalizarLogo`, así que se
+ * copia el contenido, no la ruta.
+ */
+export async function leerImagenDeOferta(imagen: ImagenGuardada): Promise<Buffer | null> {
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(imagen.ruta);
+  if (error || !data) {
+    console.warn(`[ofertas] no se pudo bajar la imagen ${imagen.ruta}: ${error?.message}`);
+    return null;
+  }
+  return Buffer.from(await data.arrayBuffer());
+}
+
+/**
  * Copia los archivos de un inventario para una oferta duplicada.
  *
  * Copia de verdad, no reusa las rutas. Si las dos ofertas apuntaran al mismo archivo,
