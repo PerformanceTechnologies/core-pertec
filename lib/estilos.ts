@@ -43,3 +43,24 @@ export const BOTON_PRIMARIO =
 /** El mismo botón, para acciones secundarias dentro de una tarjeta. */
 export const BOTON_PRIMARIO_CHICO =
   "rounded-lg bg-naranjo px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:bg-naranjo-suave focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo";
+
+/**
+ * La barra lateral, y el hueco que le deja el contenido.
+ *
+ * En desktop la barra es FIJA a la ventana, no `sticky` en el flujo. La diferencia
+ * importa y se pagó caro: con `sticky`, la barra queda atada a la altura de su
+ * contenedor, y ese contenedor NO cuenta a los elementos posicionados en absoluto
+ * que sobresalen por abajo —los popover de Mi Día, un desplegable abierto al final
+ * de una lista—. El documento entonces scrollea más de lo que mide el contenedor, y
+ * al llegar al fondo la barra se suelta y sube esos pixeles: el logo se corta arriba
+ * y abajo queda un hueco. Reproducido: 108 px de popover = 108 px de descuadre.
+ *
+ * Fija, la barra no depende de lo que haya en la página. El precio es que sale del
+ * flujo y hay que dejarle el hueco a mano: eso es `HUECO_DE_BARRA`, que lee el ancho
+ * que la propia barra publica en `--ancho-barra` (cambia al colapsarla).
+ */
+export const BARRA_FIJA =
+  "fixed inset-y-0 left-0 z-50 lg:z-30 w-72 lg:w-64 lg:translate-x-0 transition-[width,transform] duration-200";
+
+/** El padding que le deja el contenido a la barra fija. Ver BARRA_FIJA. */
+export const HUECO_DE_BARRA = "lg:pl-[var(--ancho-barra,16rem)] transition-[padding] duration-200";

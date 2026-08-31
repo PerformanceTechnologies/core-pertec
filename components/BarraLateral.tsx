@@ -22,6 +22,7 @@ import {
 import { obtenerIcono } from "@/lib/iconos";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
+import { BARRA_FIJA } from "@/lib/estilos";
 import type { Aplicacion, Rol } from "@/lib/tipos";
 
 const CLAVE_COLAPSADA = "core-sidebar-colapsada";
@@ -188,6 +189,21 @@ export default function BarraLateral({
   // No guarda estado de React, solo refleja "tema" hacia afuera -- uso
   // legítimo de efecto (el script sin-flash de app/layout.tsx ya deja esto
   // bien en el primer paint; esto solo lo mantiene al cambiar en caliente).
+  // El ancho de la barra, publicado como variable CSS.
+  //
+  // Hace falta porque la barra es FIJA: sale del flujo, así que el contenido no se
+  // corre solo y hay que decirle cuánto espacio dejar (ver HUECO_DE_BARRA en
+  // lib/estilos.ts). Va por una variable en <html> y no por props porque el <main> lo
+  // dibuja el layout en el servidor y esto se decide acá, en el navegador. El valor
+  // por omisión —16rem, el ancho expandido— está en globals.css, así que el primer
+  // dibujo ya es correcto para quien no la tiene colapsada.
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--ancho-barra",
+      colapsado ? `${ANCHO_COLAPSADO}px` : "16rem",
+    );
+  }, [colapsado]);
+
   useEffect(() => {
     if (tema === "dark") document.documentElement.setAttribute("data-theme", "dark");
     else document.documentElement.removeAttribute("data-theme");
@@ -473,7 +489,7 @@ export default function BarraLateral({
 
       <aside
         style={colapsado ? { width: ANCHO_COLAPSADO } : undefined}
-        className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-borde bg-crema shadow-[4px_0_16px_-8px_rgba(23,20,17,0.15)] transition-[width,transform] duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-64 lg:translate-x-0 ${
+        className={`${BARRA_FIJA} border-r border-borde bg-crema shadow-[4px_0_16px_-8px_rgba(23,20,17,0.15)] ${
           abierta ? "translate-x-0" : "-translate-x-full"
         }`}
       >

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import BarraLateral from "@/components/BarraLateral";
+import { HUECO_DE_BARRA } from "@/lib/estilos";
 import BotonSubir from "@/components/BotonSubir";
 
 // Sin caché: cada navegación vuelve a consultar Supabase, así que si el
@@ -29,14 +30,19 @@ export default async function LayoutProtegido({ children }: { children: React.Re
       : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id));
 
   return (
-    <div className="lg:flex lg:min-h-screen">
+    <div className="min-h-screen">
       <BarraLateral correo={usuario.correo} rol={usuario.rol} apps={apps} />
-      {/* min-w-0: sin esto, un ítem flex-1 no se achica más allá del ancho
-          mínimo de su contenido — si algo adentro es muy ancho (ej. la
-          grilla del Gantt de Proyectos, con muchas columnas de día de ancho
-          fijo), en vez de scrollear internamente empuja TODO el layout
-          (sidebar incluida) más ancho que el viewport. */}
-      <main className="min-w-0 flex-1 px-6 py-8 lg:px-10">{children}</main>
+      {/* La barra es FIJA (sale del flujo), así que el hueco se lo deja el
+          contenido con un padding: ver BARRA_FIJA / HUECO_DE_BARRA en
+          lib/estilos.ts, donde está el porqué. Antes eran dos ítems flex y la
+          barra era `sticky`, que se descuadraba al llegar al fondo de las
+          páginas con popovers.
+
+          min-w-0 sigue haciendo falta: si algo adentro es muy ancho (la grilla
+          del Gantt de Proyectos, con muchas columnas de día de ancho fijo), sin
+          esto no scrollea internamente y empuja el layout más ancho que el
+          viewport. */}
+      <main className={`min-w-0 px-6 py-8 lg:px-10 ${HUECO_DE_BARRA}`}>{children}</main>
       <BotonSubir />
     </div>
   );

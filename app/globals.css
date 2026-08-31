@@ -196,6 +196,13 @@
   border-color: color-mix(in srgb, var(--texto-banda) 12%, transparent);
 }
 
+/* El ancho que ocupa la barra lateral fija. Lo pisa BarraLateral al colapsarla;
+   este valor es el expandido, que es lo correcto para el primer dibujo (y para el
+   HTML del servidor, donde todavía no se sabe si está colapsada). */
+:root {
+  --ancho-barra: 16rem;
+}
+
 html {
   /* Reserva siempre el ancho de la barra de scroll vertical, la haya o no.
      Sin esto, cambiar a una vista más alta que la anterior (ej. una pestaña
