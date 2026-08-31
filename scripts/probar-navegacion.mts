@@ -51,7 +51,7 @@ const pagina = `<!doctype html><html class="h-full"><head><meta charset="utf-8">
         <div id="pie" class="border-t border-borde px-3 py-4">pie</div>
       </div>
     </aside>
-    <main class="min-w-0 px-6 py-8 lg:px-10 ${HUECO_DE_BARRA}">
+    <main class="min-w-0 py-8 ${HUECO_DE_BARRA}">
       <div id="contenido" style="height:2600px">contenido alto</div>
       <div class="group relative">
         <span>una fila con detalle</span>
@@ -86,9 +86,15 @@ try {
   console.log("arriba:", arriba);
   assert.equal(arriba.barra.top, 0, "la barra arranca pegada arriba");
   assert.equal(arriba.barra.bottom, VENTANA.height, "y llega hasta abajo de la ventana");
+  // No alcanza con que no se pise: el botón de colapsar sobresale 12 px de la barra,
+  // así que sin aire de por medio cae encima del título de la página. Pasó, con el
+  // contenido pegado al borde: `px-10` y `pl-[…]` competían por el mismo padding y
+  // ganó el segundo, dejando el hueco en cero.
+  const AIRE_MINIMO = 24;
   assert.ok(
-    arriba.contenidoIzquierda >= arriba.barra.ancho,
-    `el contenido tiene que empezar después de la barra (empieza en ${arriba.contenidoIzquierda}, la barra mide ${arriba.barra.ancho})`,
+    arriba.contenidoIzquierda >= arriba.barra.ancho + AIRE_MINIMO,
+    `el contenido tiene que empezar al menos ${AIRE_MINIMO} px después de la barra: empieza en ` +
+      `${arriba.contenidoIzquierda} y la barra termina en ${arriba.barra.ancho}`,
   );
 
   // El documento SÍ es más alto que el contenedor: es la condición del defecto, y si
@@ -133,8 +139,8 @@ try {
   console.log("colapsada:", colapsada);
   assert.equal(colapsada.barra.ancho, 76);
   assert.ok(
-    colapsada.contenidoIzquierda >= colapsada.barra.ancho,
-    "colapsada, el contenido tampoco puede quedar debajo de la barra",
+    colapsada.contenidoIzquierda >= colapsada.barra.ancho + AIRE_MINIMO,
+    "colapsada, el contenido tampoco puede quedar pegado a la barra",
   );
   assert.ok(
     colapsada.contenidoIzquierda < arriba.contenidoIzquierda,

@@ -62,5 +62,19 @@ export const BOTON_PRIMARIO_CHICO =
 export const BARRA_FIJA =
   "fixed inset-y-0 left-0 z-50 lg:z-30 w-72 lg:w-64 lg:translate-x-0 transition-[width,transform] duration-200";
 
-/** El padding que le deja el contenido a la barra fija. Ver BARRA_FIJA. */
-export const HUECO_DE_BARRA = "lg:pl-[var(--ancho-barra,16rem)] transition-[padding] duration-200";
+/**
+ * El hueco que le deja el contenido a la barra fija: el ancho de la barra MÁS el
+ * aire que el contenido siempre tuvo a los lados. Ver BARRA_FIJA.
+ *
+ * Incluye los cuatro paddings horizontales a propósito, y ninguno con la forma corta
+ * `px-*`. Dos motivos, los dos vividos:
+ *
+ *  - `px-10` y `pl-[…]` en la misma clase compiten por padding-left, y quién gana lo
+ *    decide el orden del CSS que genera Tailwind, no el orden en que se escriben. Ganó
+ *    `pl-[…]`, el contenido quedó pegado a la barra sin nada de aire y el botón de
+ *    colapsar —que sobresale 12 px— caía encima del título.
+ *  - Si el hueco y el ancho viven en dos clases distintas, alguien los separa y el
+ *    contenido termina debajo de la barra.
+ */
+export const HUECO_DE_BARRA =
+  "pl-6 pr-6 lg:pr-10 lg:pl-[calc(var(--ancho-barra,16rem)+2.5rem)] transition-[padding] duration-200";

@@ -42,7 +42,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           del Gantt de Proyectos, con muchas columnas de día de ancho fijo), sin
           esto no scrollea internamente y empuja el layout más ancho que el
           viewport. */}
-      <main className={`min-w-0 px-6 py-8 lg:px-10 ${HUECO_DE_BARRA}`}>{children}</main>
+      <main className={`min-w-0 py-8 ${HUECO_DE_BARRA}`}>{children}</main>
       <BotonSubir />
     </div>
   );
