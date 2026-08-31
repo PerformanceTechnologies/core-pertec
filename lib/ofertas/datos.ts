@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { calcularTotales, detectarInconsistencias } from "./verificar";
-import type { Inconsistencia, OfertaCanonica, SeccionConImagenes } from "./tipos";
+import type { Inconsistencia, OfertaCanonica, SeccionConImagenes, TipoDeDocumento } from "./tipos";
 import type { Empresa } from "@/lib/cotizador/empresas";
 import { duplicarImagenes, type ImagenGuardada } from "./imagenes";
 import { contenidoDuplicado, sinLaImagen } from "./normalizar";
@@ -22,7 +22,7 @@ import type { UsuarioConAcceso } from "@/lib/tipos";
  */
 
 const COLUMNAS = `
-  id, nombre, numero_oferta, cliente, faena, empresa, contenido, inconsistencias,
+  id, nombre, numero_oferta, cliente, faena, empresa, tipo, contenido, inconsistencias,
   estado, archivo_origen, maestro_id, logo_cliente_ruta, logo_cliente_nombre,
   imagenes, emision, revisadas, creado_por, creado_en, actualizado_en
 `;
@@ -30,6 +30,13 @@ const COLUMNAS = `
 export interface OfertaResumen {
   id: string;
   nombre: string;
+  /**
+   * Qué es este documento: decide qué controles corren y cómo se lee.
+   *
+   * Ver `esOfertaTecnica` en tipos.ts. Los documentos anteriores a esto son `oferta`,
+   * que es lo único que el módulo sabía leer.
+   */
+  tipo: TipoDeDocumento;
   numeroOferta: string | null;
   cliente: string | null;
   faena: string | null;
@@ -108,6 +115,7 @@ export interface OfertaGuardada extends OfertaResumen {
 interface Fila {
   id: string;
   nombre: string;
+  tipo: TipoDeDocumento | null;
   numero_oferta: string | null;
   cliente: string | null;
   faena: string | null;
@@ -131,6 +139,7 @@ function filaAGuardada(f: Fila): OfertaGuardada {
   return {
     id: f.id,
     nombre: f.nombre,
+    tipo: f.tipo ?? "oferta",
     numeroOferta: f.numero_oferta,
     cliente: f.cliente,
     faena: f.faena,
@@ -256,8 +265,15 @@ export async function crearOferta(
   /** El ID del usuario (uuid), no su correo: es lo que espera la columna. */
   creadoPorUsuarioId: string,
   imagenes: ImagenGuardada[] = [],
+  /** Qué es el documento. Manda: decide qué controles corren. */
+  tipo: TipoDeDocumento = "oferta",
 ): Promise<{ id: string; inconsistencias: Inconsistencia[] }> {
-  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), archivoOrigen);
+  const inconsistencias = detectarInconsistencias(
+    contenido,
+    calcularTotales(contenido),
+    archivoOrigen,
+    tipo,
+  );
 
   const { data, error } = await supabaseAdmin
     .from("ofertas_documentos")
@@ -267,6 +283,7 @@ export async function crearOferta(
       cliente: contenido.identificacion.cliente,
       faena: contenido.identificacion.faena,
       empresa,
+      tipo,
       contenido,
       inconsistencias,
       estado: "borrador",
@@ -291,6 +308,8 @@ export async function guardarContenido(
   id: string,
   contenido: OfertaCanonica,
   archivoOrigen: string | null,
+  /** Qué es el documento: decide qué controles corren al recalcularlos. */
+  tipo: TipoDeDocumento,
   /**
    * Las marcas de revisado que había, para quedarse solo con las que siguen
    * correspondiendo a un aviso. Sin esto la lista de claves crece con cada corrección
@@ -302,7 +321,12 @@ export async function guardarContenido(
    */
   revisadas: string[],
 ): Promise<Inconsistencia[]> {
-  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), archivoOrigen ?? "");
+  const inconsistencias = detectarInconsistencias(
+    contenido,
+    calcularTotales(contenido),
+    archivoOrigen ?? "",
+    tipo,
+  );
 
   const { error } = await supabaseAdmin
     .from("ofertas_documentos")
@@ -441,7 +465,7 @@ export async function guardarImagenesElegidas(
       : cierre,
   };
 
-  await guardarContenido(id, contenido, oferta.archivoOrigen, oferta.revisadas);
+  await guardarContenido(id, contenido, oferta.archivoOrigen, oferta.tipo, oferta.revisadas);
 }
 
 /**
@@ -514,7 +538,7 @@ export async function duplicarOferta(id: string, creadoPorUsuarioId: string): Pr
 
   const contenido = contenidoDuplicado(oferta.contenido, new Date());
   const imagenes = await duplicarImagenes(oferta.imagenes);
-  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), "");
+  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), "", oferta.tipo);
 
   const { data, error } = await supabaseAdmin
     .from("ofertas_documentos")
@@ -523,6 +547,8 @@ export async function duplicarOferta(id: string, creadoPorUsuarioId: string): Pr
       numero_oferta: contenido.identificacion.numeroOferta,
       cliente: contenido.identificacion.cliente,
       faena: contenido.identificacion.faena,
+      // El duplicado es del mismo tipo: es el mismo documento con otro número.
+      tipo: oferta.tipo,
       empresa: oferta.empresa,
       contenido,
       inconsistencias,

@@ -18,7 +18,10 @@ import {
   contenidoDuplicado,
   fechaEnPalabras,
   sinLaImagen,
+  armarDocumentoLibre,
+  conLaDisposicion,
   conLaImagenEn,
+  conLaImagenMovida,
   type LecturaLetra,
   type LecturaNumeros,
 } from "../lib/ofertas/normalizar";
@@ -31,6 +34,7 @@ import {
 } from "../lib/ofertas/plantilla";
 import { esFirma, leerDestino, textoDeFirma } from "../lib/ofertas/destino-imagen";
 import { puedeVerOferta } from "../lib/ofertas/permisos";
+import { disposicionDe } from "../lib/ofertas/tipos";
 import {
   claveDeRevision,
   conLaMarca,
@@ -1206,6 +1210,208 @@ for (const ruta of queImprimen) {
       'va a desplegar bien y fallar al primer uso con "Cannot find module .../browsers.json"',
   );
 }
+
+// ── Un documento que no es una oferta ───────────────────────────────────────
+//
+// El módulo nació asumiendo que todo borrador era una oferta técnica, y con una ficha
+// técnica el resultado era un documento mutilado —sin precio ni dotación, porque no los
+// tiene— más dos avisos falsos. Ahora el tipo se lee primero y decide con qué esquema.
+const lecturaLibre = {
+  titulo: "Ficha técnica · Equipo vulcanizador PT-1600",
+  subtitulo: "Prensa de vulcanización en caliente",
+  cliente: "",
+  fecha: "12 de agosto de 2026",
+  codigo: "FT-014",
+  bloques: [
+    { tipo: "parrafos", texto: "", parrafos: ["Equipo para empalmes en caliente."], columnas: [], filas: [], imagen: 0, epigrafe: "" },
+    { tipo: "titulo", texto: "Características generales", parrafos: [], columnas: [], filas: [], imagen: 0, epigrafe: "" },
+    {
+      tipo: "tabla",
+      texto: "",
+      parrafos: [],
+      columnas: ["Parámetro", "Valor"],
+      filas: [["Ancho útil", "1.600 mm"], ["Presión", "8 bar"]],
+      imagen: 0,
+      epigrafe: "",
+    },
+    { tipo: "imagen", texto: "", parrafos: [], columnas: [], filas: [], imagen: 2, epigrafe: "Vista lateral" },
+    { tipo: "subtitulo", texto: "Condiciones de operación", parrafos: [], columnas: [], filas: [], imagen: 0, epigrafe: "" },
+    { tipo: "parrafos", texto: "", parrafos: ["Temperatura de trabajo 150 °C.", "Alimentación 380 V."], columnas: [], filas: [], imagen: 0, epigrafe: "" },
+  ],
+  porConfirmar: [],
+};
+
+const ficha = armarDocumentoLibre(lecturaLibre, "ficha_tecnica");
+assert.equal(ficha.titulo, "Ficha técnica · Equipo vulcanizador PT-1600");
+assert.equal(ficha.identificacion.numeroOferta, "FT-014", "el código del documento ocupa el lugar del número");
+// Ni una sección de oferta: lo que no tiene, no se inventa.
+for (const seccion of ["alcance", "metodologia", "organizacion", "programa", "precio", "cierre"] as const) {
+  assert.equal(ficha[seccion], null, `un documento libre no trae ${seccion}`);
+}
+assert.deepEqual(
+  ficha.bloques?.map((b) => [b.nivel, b.titulo, b.parrafos.length, b.tabla ? b.tabla.filas.length : 0]),
+  [
+    // Lo que venía ANTES del primer título no se descarta, pero tampoco abre una sección:
+    // cuelga de la identificación, sin título, así el índice arranca en el primer título
+    // de verdad en vez de con un renglón en blanco.
+    ["subtitulo", "", 1, 0],
+    ["titulo", "Características generales", 0, 2],
+    ["subtitulo", "Condiciones de operación", 2, 0],
+  ],
+  "los párrafos y la tabla cuelgan del título que los precede, en orden",
+);
+assert.deepEqual(ficha.imagenesPorSeccion, { alcance: [2] }, "la imagen queda ubicada donde estaba");
+assert.deepEqual(ficha.epigrafesDeImagenes, { 2: "Vista lateral" });
+
+// La imagen queda DONDE ESTABA, dentro de su bloque, y no en una grilla al final: es la
+// diferencia entre reproducir un documento y hacer un collage.
+assert.deepEqual(
+  ficha.bloques?.map((b) => b.imagenes ?? []),
+  [[], [2], []],
+  "la imagen cuelga del bloque que la precedía",
+);
+
+// Y se dibuja: títulos numerados y en el índice, con la piel de la casa.
+const htmlFicha = ofertaAHtml(ficha, calcularTotales(ficha), EMPRESA_DE_PRUEBA);
+assert.ok(htmlFicha.includes("Características generales"), "el título del documento sale impreso");
+assert.ok(
+  htmlFicha.includes('<li><span class="n">2</span><span>Características generales</span></li>'),
+  "y entra al índice numerado por el sistema, como cualquier sección",
+);
+assert.ok(htmlFicha.includes("1.600 mm"), "la tabla libre se dibuja con sus celdas");
+// Los rótulos que hablan de una oferta se pisan con los del tipo: en una ficha técnica,
+// "Oferta N°" es simplemente falso. Se usan los rótulos editables que ya existían.
+assert.ok(htmlFicha.includes("Identificación del documento"), "la sección no se llama de la oferta");
+assert.ok(!htmlFicha.includes("Oferta técnica y económica"), "ni la portada");
+assert.ok(!htmlFicha.includes("ANEXO"), "y sin imágenes huérfanas no aparece un anexo que nadie escribió");
+
+// LO QUE MOTIVÓ TODO: los dos controles sin guarda. Con tipo libre no se levantan.
+const avisosFicha = detectarInconsistencias(ficha, calcularTotales(ficha), "FT-014.docx", "ficha_tecnica");
+assert.deepEqual(avisosFicha, [], "una ficha técnica no tiene número de oferta ni dotación que reclamar");
+// El mismo documento sin código, que es el caso que ensuciaba: leído como oferta reclama
+// un número de oferta que un documento así no tiene ni va a tener.
+const sinCodigo = armarDocumentoLibre({ ...lecturaLibre, codigo: "" }, "ficha_tecnica");
+assert.ok(
+  detectarInconsistencias(sinCodigo, calcularTotales(sinCodigo), "FT.docx", "oferta").some((a) =>
+    a.detalle.includes("número de oferta"),
+  ),
+  "como oferta sí lo reclama",
+);
+assert.deepEqual(
+  detectarInconsistencias(sinCodigo, calcularTotales(sinCodigo), "FT.docx", "ficha_tecnica"),
+  [],
+  "y como ficha técnica no: la guarda es el tipo, no la suerte",
+);
+
+// Una tabla con filas más cortas que la cabecera se completa, no se corre.
+const desparejo = armarDocumentoLibre(
+  {
+    ...lecturaLibre,
+    bloques: [
+      {
+        tipo: "tabla",
+        texto: "",
+        parrafos: [],
+        columnas: ["A", "B", "C"],
+        filas: [["1", "2"], ["1", "2", "3", "4"]],
+        imagen: 0,
+        epigrafe: "",
+      },
+    ],
+  },
+  "otro",
+);
+assert.deepEqual(
+  desparejo.bloques?.[0].tabla,
+  { columnas: ["A", "B", "C", ""], filas: [["1", "2", "", ""], ["1", "2", "3", "4"]] },
+  "toda fila tiene una celda por columna, y el ancho lo pone la fila más larga: recortarla " +
+    "perdería un dato del documento, y un encabezado en blanco se ve y se corrige",
+);
+
+// ── Acomodar las imágenes ───────────────────────────────────────────────────
+const conTresFotos = os10();
+conTresFotos.imagenesPorSeccion = { anexo: [3, 4, 5] };
+
+const movida = conLaImagenMovida(conTresFotos, 5, -1);
+assert.deepEqual(movida.imagenesPorSeccion?.anexo, [3, 5, 4], "sube un lugar dentro de su sección");
+assert.deepEqual(
+  conLaImagenMovida(conTresFotos, 3, -1).imagenesPorSeccion?.anexo,
+  [3, 4, 5],
+  "la primera no sube más: en el borde no hace nada en vez de dar la vuelta",
+);
+assert.deepEqual(conLaImagenMovida(conTresFotos, 5, 1).imagenesPorSeccion?.anexo, [3, 4, 5]);
+assert.deepEqual(conTresFotos.imagenesPorSeccion?.anexo, [3, 4, 5], "sin tocar el original");
+
+const flotante = conLaDisposicion(conTresFotos, 4, "derecha");
+assert.deepEqual(flotante.disposicionDeImagenes, { 4: "derecha" });
+assert.deepEqual(
+  conLaDisposicion(flotante, 4, "grilla").disposicionDeImagenes,
+  {},
+  "volver a la grilla borra la clave: es el valor por omisión y el dato solo guarda lo cambiado",
+);
+assert.equal(disposicionDe(flotante.disposicionDeImagenes, 4), "derecha");
+assert.equal(disposicionDe(flotante.disposicionDeImagenes, 99), "grilla", "sin elección, la grilla");
+assert.equal(
+  disposicionDe({ 7: "cualquier cosa" } as never, 7),
+  "grilla",
+  "y un valor que no existe cae a la grilla en vez de romper el documento",
+);
+
+// La imagen al costado se dibuja ANTES del texto de la sección: un float solo lo rodea
+// el texto que viene después en el marcado.
+const alCostado = os10();
+alCostado.imagenesPorSeccion = { alcance: [1] };
+alCostado.disposicionDeImagenes = { 1: "derecha" };
+const htmlCostado = ofertaAHtml(alCostado, calcularTotales(alCostado), EMPRESA_DE_PRUEBA, undefined, undefined, {
+  1: { uri: PNG_VALIDO, apaisada: false },
+});
+const seccionAlcance = htmlCostado.slice(htmlCostado.indexOf('data-en="alcance"'));
+const cuerpoAlcance = seccionAlcance.slice(0, seccionAlcance.indexOf("</section>"));
+assert.ok(
+  cuerpoAlcance.includes('class="flotante derecha"'),
+  "la imagen sale flotando y no en la grilla",
+);
+assert.ok(
+  cuerpoAlcance.indexOf("figure") < cuerpoAlcance.indexOf("traslado de 06 rollos"),
+  "y ANTES del párrafo que la rodea: al final flotaría sobre la sección siguiente",
+);
+
+// Y la salvaguarda: sin texto al lado, una flotante volvería a dejar media página en
+// blanco con la foto colgando, así que cae a la grilla.
+// El caso real: un anexo que son solo fotos, sin una línea de texto.
+const sinTexto = os10();
+sinTexto.anexo = null;
+sinTexto.imagenesPorSeccion = { anexo: [1] };
+sinTexto.disposicionDeImagenes = { 1: "izquierda" };
+const htmlSinTexto = ofertaAHtml(sinTexto, calcularTotales(sinTexto), EMPRESA_DE_PRUEBA, undefined, undefined, {
+  1: { uri: PNG_VALIDO, apaisada: false },
+});
+// Se busca la CLASE de la figura y no la palabra: "flotante" también aparece en el CSS
+// del documento, que va en todos.
+assert.ok(
+  !htmlSinTexto.includes('class="flotante'),
+  "sin texto que la rodee, la flotante vuelve a la grilla",
+);
+assert.ok(htmlSinTexto.includes('<div class="fotos">'), "y sale en la grilla");
+
+// El reparto de imágenes lo manda la base, y eso ahora incluye la disposición: sin esto,
+// guardar un párrafo devolvía todas las fotos a la grilla.
+const editorSinDisposicion = os10();
+const baseConDisposicion = os10();
+baseConDisposicion.imagenesPorSeccion = { anexo: [4] };
+baseConDisposicion.disposicionDeImagenes = { 4: "ancha" };
+const guardadoConDisposicion = conElRepartoDe(editorSinDisposicion, baseConDisposicion);
+assert.deepEqual(
+  guardadoConDisposicion.disposicionDeImagenes,
+  { 4: "ancha" },
+  "la disposición sobrevive al guardado del texto",
+);
+
+// Y una imagen que se saca del documento se lleva su disposición.
+const conDisposicionYFoto = os10();
+conDisposicionYFoto.imagenesPorSeccion = { anexo: [4] };
+conDisposicionYFoto.disposicionDeImagenes = { 4: "derecha" };
+assert.deepEqual(sinLaImagen(conDisposicionYFoto, 4).disposicionDeImagenes, {});
 
 // ── Cada uno ve sus ofertas ─────────────────────────────────────────────────
 //

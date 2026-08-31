@@ -19,6 +19,8 @@ export interface FiltrosDeOfertas {
   empresa: string;
   /** "todos" | "borrador" | "emitida" */
   estado: string;
+  /** "todos" o uno de los tipos de documento. */
+  tipo: string;
   /** Solo las que tienen algo por revisar. */
   soloPorRevisar: boolean;
   /** Fechas de modificación, en formato "aaaa-mm-dd". Vacías = sin tope. */
@@ -30,6 +32,7 @@ export const FILTROS_VACIOS: FiltrosDeOfertas = {
   texto: "",
   empresa: "todas",
   estado: "todos",
+  tipo: "todos",
   soloPorRevisar: false,
   desde: "",
   hasta: "",
@@ -41,6 +44,7 @@ export function hayFiltros(filtros: FiltrosDeOfertas): boolean {
     filtros.texto.trim() !== "" ||
     filtros.empresa !== "todas" ||
     filtros.estado !== "todos" ||
+    filtros.tipo !== "todos" ||
     filtros.soloPorRevisar ||
     filtros.desde !== "" ||
     filtros.hasta !== ""
@@ -63,6 +67,7 @@ export function filtrarOfertas(
   return ofertas.filter((oferta) => {
     if (filtros.empresa !== "todas" && oferta.empresa !== filtros.empresa) return false;
     if (filtros.estado !== "todos" && oferta.estado !== filtros.estado) return false;
+    if (filtros.tipo !== "todos" && oferta.tipo !== filtros.tipo) return false;
     // Pendientes y no el total: una oferta con todo revisado no tiene nada por
     // revisar, que es lo que dice el filtro.
     if (filtros.soloPorRevisar && oferta.pendientes === 0) return false;

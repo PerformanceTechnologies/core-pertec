@@ -107,6 +107,28 @@ const ESTILO_DEL_EDITOR = `
     .barra-estructura, .quitar-parte, .boton-estructura:hover { transform: none; }
   }
 
+  /* Acomodar una foto: mover un lugar y elegir dónde va. Igual que el resto de los
+     controles, en absoluto y visible al pasar por encima — y en la esquina de ABAJO, que
+     es la única que la × no ocupa. */
+  .barra-imagen {
+    position: absolute; bottom: 3px; left: 3px; z-index: 5; display: flex; gap: 3px;
+    opacity: 0; transform: translateY(3px);
+    transition: opacity .22s ease-out, transform .22s ease-out;
+  }
+  figure[data-imagen]:hover .barra-imagen, .barra-imagen:focus-within {
+    opacity: 1; transform: translateY(0);
+    transition: opacity .14s ease-out, transform .14s ease-out;
+  }
+  .boton-imagen {
+    border: 0; border-radius: 999px; background: ${ACENTO}; color: #fff; cursor: pointer;
+    font: 700 10px/1 sans-serif; padding: 3px 6px; box-shadow: 0 1px 4px ${ACENTO}40;
+  }
+  .boton-imagen:hover { background: ${TINTA}; }
+  .selector-imagen {
+    font: 600 8px/1.4 sans-serif; text-transform: uppercase; letter-spacing: .04em;
+    padding: 2px 4px; border-radius: 8px;
+  }
+
   /* La × para sacar una foto del documento: aparece al pasar por encima. La rúbrica
      tiene la suya, en la esquina de la firma: se podía poner una firma arrastrándola
      y después no había cómo sacarla, que es la mitad del trabajo. */
@@ -252,6 +274,10 @@ export interface OpcionesDeEdicion {
    * que confirma lo que se acaba de apretar y uno genérico que no confirma nada.
    */
   alQuitarImagen?: (indice: number, deLaFirma: boolean) => void;
+  /** Moverla un lugar dentro de su sección: el orden del dato es el orden impreso. */
+  alMoverImagen?: (indice: number, delta: number) => void;
+  /** Cambiarle la disposición: al costado del texto, ancha o en la grilla. */
+  alDisponerImagen?: (indice: number, disposicion: string) => void;
   /**
    * Pidieron agregar o sacar estructura: un subtítulo, un párrafo, una columna, una
    * fila. Cambia la forma del documento, así que quien lo reciba tiene que aplicarlo
@@ -632,6 +658,64 @@ function prepararArrastre(doc: Document, opciones: OpcionesDeEdicion): () => voi
     for (const rubrica of doc.querySelectorAll<HTMLElement>("img.rubrica[data-imagen]")) {
       const caja = rubrica.closest<HTMLElement>(".rubrica-caja");
       if (caja) conBoton.push([rubrica, caja]);
+    }
+
+    // Los controles de acomodar van solo en las fotos del cuerpo, no en la rúbrica: una
+    // firma no se ordena ni se pone al costado del texto, va donde va.
+    if (opciones.alMoverImagen || opciones.alDisponerImagen) {
+      for (const figura of doc.querySelectorAll<HTMLElement>("figure[data-imagen]")) {
+        const indice = Number(figura.dataset.imagen);
+        const barra = doc.createElement("div");
+        barra.className = "barra-imagen";
+
+        for (const [delta, signo, titulo] of [
+          [-1, "\u2190", "Moverla un lugar antes"],
+          [1, "\u2192", "Moverla un lugar después"],
+        ] as const) {
+          const boton = doc.createElement("button");
+          boton.type = "button";
+          boton.className = "boton-imagen";
+          boton.textContent = signo;
+          boton.title = titulo;
+          boton.setAttribute("aria-label", titulo);
+          boton.addEventListener("mousedown", (evento) => evento.preventDefault());
+          boton.addEventListener("click", (evento) => {
+            evento.preventDefault();
+            opciones.alMoverImagen?.(indice, delta);
+          });
+          barra.appendChild(boton);
+        }
+
+        if (opciones.alDisponerImagen) {
+          const selector = doc.createElement("select");
+          selector.className = "boton-imagen selector-imagen";
+          selector.title = "Dónde va esta imagen";
+          for (const [valor, rotulo] of [
+            ["grilla", "En la grilla"],
+            ["izquierda", "A la izquierda"],
+            ["derecha", "A la derecha"],
+            ["ancha", "Ancho completo"],
+          ]) {
+            const opcion = doc.createElement("option");
+            opcion.value = valor;
+            opcion.textContent = rotulo;
+            selector.appendChild(opcion);
+          }
+          // Lo elegido se deduce del marcado, que es lo que el servidor acaba de dibujar:
+          // así el selector nunca discrepa de lo que se está viendo.
+          selector.value = figura.classList.contains("flotante")
+            ? figura.classList.contains("izquierda")
+              ? "izquierda"
+              : "derecha"
+            : figura.classList.contains("ancha")
+              ? "ancha"
+              : "grilla";
+          selector.addEventListener("change", () => opciones.alDisponerImagen?.(indice, selector.value));
+          barra.appendChild(selector);
+        }
+
+        figura.appendChild(barra);
+      }
     }
 
     for (const [imagen, donde] of conBoton) {

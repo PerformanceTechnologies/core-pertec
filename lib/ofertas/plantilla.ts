@@ -1,10 +1,12 @@
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import {
+  disposicionDe,
   firmaDe,
   type BloqueLibre,
   type OfertaCanonica,
   type SeccionConImagenes,
   SECCIONES_DEL_DOCUMENTO,
+  type DisposicionDeImagen,
   type SeccionDelDocumento,
   type TotalesOferta,
 } from "./tipos";
@@ -159,6 +161,7 @@ function filasEtiqueta(pares: [string, string | null, string?][]): string {
  */
 export const ROTULOS: Record<string, string> = {
   // Los títulos de sección. También son los que aparecen en el índice.
+  "portada-rotulo": "Oferta técnica y económica",
   "s-identificacion": "Identificación de la oferta",
   "s-alcance": "Alcance del servicio",
   "s-metodologia": "Metodología y secuencia de trabajo",
@@ -401,37 +404,70 @@ function numerarSubsecciones(cuerpo: string, numeroDeSeccion: string): string {
  * ancha que 1.6:1 ocupa la fila completa, porque un diagrama a media página no se
  * lee.
  */
-function grillaDeImagenes(
+/** Una figura, con su pie numerado. El número lo pone el documento, no el dato. */
+function figura(
+  indice: number,
+  imagen: ImagenDibujable,
+  numero: number,
+  epigrafes: Record<number, string>,
+  clases: string,
+): string {
+  const epigrafe = epigrafes[indice];
+  return (
+    `<figure data-imagen="${indice}"${clases ? ` class="${clases}"` : ""}>` +
+    `<img src="${imagen.uri}" alt="">` +
+    `<figcaption>${String(numero).padStart(2, "0")}${
+      epigrafe ? `. <span${campo(`epigrafesDeImagenes.${indice}`)}>${esc(epigrafe)}</span>` : ""
+    }</figcaption>` +
+    `</figure>`
+  );
+}
+
+/**
+ * Las imágenes de una sección, repartidas entre las que van al costado del texto y las
+ * que van en la grilla del final.
+ *
+ * Las flotantes se emiten ANTES del cuerpo porque un float solo lo rodea el texto que
+ * viene después en el marcado: emitida al final —donde está la grilla— quedaría flotando
+ * sobre la sección siguiente.
+ *
+ * La numeración del pie sigue siendo una sola cuenta por sección, flotantes incluidas: es
+ * lo que la persona lee ("ver foto 03") y no tiene por qué saber cómo está dispuesta.
+ */
+function imagenesDeSeccion(
   numeros: number[] | undefined,
   imagenes: Record<number, ImagenDibujable>,
-  epigrafes: Record<number, string> = {},
-): string {
+  epigrafes: Record<number, string>,
+  disposiciones: Record<number, DisposicionDeImagen> | undefined,
+  hayTexto: boolean,
+  desdeNumero = 1,
+): { flotantes: string; grilla: string } {
   const usables = (numeros ?? [])
     .map((indice) => ({ indice, imagen: imagenes[indice] }))
     .filter((par) => imagenSegura(par.imagen?.uri) !== null);
-  if (usables.length === 0) return "";
+  if (usables.length === 0) return { flotantes: "", grilla: "" };
 
-  return (
-    `<div class="fotos">` +
-    usables
-      .map(({ indice, imagen }, i) => {
-        // El número del pie lo pone el documento, como el de las secciones: en la
-        // propuesta hecha a mano cada foto va numerada con su epígrafe, y contar a
-        // mano es justo lo que se desordena entre versiones.
-        const numero = String(i + 1).padStart(2, "0");
-        const epigrafe = epigrafes[indice];
-        return (
-          `<figure data-imagen="${indice}"${imagen.apaisada ? ' class="ancha"' : ""}>` +
-          `<img src="${imagen.uri}" alt="">` +
-          `<figcaption>${numero}${
-            epigrafe ? `. <span${campo(`epigrafesDeImagenes.${indice}`)}>${esc(epigrafe)}</span>` : ""
-          }</figcaption>` +
-          `</figure>`
-        );
-      })
-      .join("") +
-    `</div>`
-  );
+  const flotantes: string[] = [];
+  const enGrilla: string[] = [];
+
+  usables.forEach(({ indice, imagen }, i) => {
+    const elegida = disposicionDe(disposiciones, indice);
+    // Una flotante sin texto al lado deja media página en blanco con la foto colgando
+    // en un costado: sin cuerpo que la rodee, vuelve a la grilla.
+    const flota = hayTexto && (elegida === "izquierda" || elegida === "derecha");
+    if (flota) {
+      flotantes.push(figura(indice, imagen, desdeNumero + i, epigrafes, `flotante ${elegida}`));
+      return;
+    }
+    // `ancha` se puede forzar; si no se eligió nada, decide la proporción como siempre.
+    const ancha = elegida === "ancha" || (elegida === "grilla" && imagen.apaisada);
+    enGrilla.push(figura(indice, imagen, desdeNumero + i, epigrafes, ancha ? "ancha" : ""));
+  });
+
+  return {
+    flotantes: flotantes.join(""),
+    grilla: enGrilla.length > 0 ? `<div class="fotos">${enGrilla.join("")}</div>` : "",
+  };
 }
 
 /**
@@ -446,20 +482,53 @@ function grillaDeImagenes(
  * `data-libre` marca lo que se puede sacar de a uno: un párrafo, una columna, una
  * fila. Igual que con las fotos, los botones no van en la plantilla: son del editor.
  */
-function bloquesHtml(contenido: OfertaCanonica, en: SeccionDelDocumento, paraEditar: boolean): string {
+function bloquesHtml(
+  contenido: OfertaCanonica,
+  en: SeccionDelDocumento,
+  paraEditar: boolean,
+  imagenes: Record<number, ImagenDibujable> = {},
+): string {
   return bloquesDe(contenido, en, "subtitulo")
     .filter(({ bloque }) => paraEditar || bloqueConContenido(bloque))
-    .map(({ bloque, i }) => bloqueHtml(bloque, i))
+    .map(({ bloque, i }) =>
+      bloqueHtml(
+        bloque,
+        i,
+        false,
+        imagenes,
+        contenido.epigrafesDeImagenes ?? {},
+        contenido.disposicionDeImagenes,
+      ),
+    )
     .join("");
 }
 
-function bloqueHtml(bloque: BloqueLibre, i: number, comoSeccion = false): string {
+function bloqueHtml(
+  bloque: BloqueLibre,
+  i: number,
+  comoSeccion = false,
+  imagenes: Record<number, ImagenDibujable> = {},
+  epigrafes: Record<number, string> = {},
+  disposiciones: Record<number, DisposicionDeImagen> | undefined = undefined,
+  desdeNumero = 1,
+): string {
   const parrafos = bloque.parrafos
     .map(
       (texto, j) =>
         `<p data-libre="parrafo" data-parrafo="${j}"${campo(`bloques.${i}.parrafos.${j}`)}>${esc(texto)}</p>`,
     )
     .join("");
+
+  // Las imágenes del bloque van DENTRO del bloque: es lo que las deja junto al párrafo
+  // que las explica, que es la razón de que un documento libre no use la grilla del final.
+  const fotos = imagenesDeSeccion(
+    bloque.imagenes,
+    imagenes,
+    epigrafes,
+    disposiciones,
+    parrafos !== "",
+    desdeNumero,
+  );
 
   const tabla = bloque.tabla;
   const tablaHtml = tabla
@@ -490,11 +559,18 @@ function bloqueHtml(bloque: BloqueLibre, i: number, comoSeccion = false): string
   // subtítulo solo al pie de una página no dice nada. Un título de sección no: su
   // <h2> ya lleva page-break-after: avoid, y agrupar una sección entera la mandaría
   // completa a la página siguiente.
-  if (comoSeccion) return `${parrafos}${tablaHtml}`;
+  if (comoSeccion) return `${fotos.flotantes}${parrafos}${tablaHtml}${fotos.grilla}`;
+  // Un bloque sin título no dibuja el <h3>: sería un subtítulo numerado y en blanco. Pasa
+  // con el párrafo de apertura de un documento libre, que no cuelga de ningún título.
+  const encabezado =
+    bloque.titulo.trim() === ""
+      ? ""
+      : `<h3><span${campo(`bloques.${i}.titulo`)}>${esc(bloque.titulo)}</span></h3>`;
   return (
     `<div class="bloque" data-bloque="${i}">` +
-    `<div class="grupo"><h3><span${campo(`bloques.${i}.titulo`)}>${esc(bloque.titulo)}</span></h3>${parrafos}</div>` +
+    `<div class="grupo">${encabezado}${fotos.flotantes}${parrafos}</div>` +
     tablaHtml +
+    fotos.grilla +
     `</div>`
   );
 }
@@ -531,14 +607,21 @@ function armarSecciones(
         rutaTitulo: `bloques.${i}.titulo`,
         en,
         bloque: i,
-        cuerpo: bloqueHtml(bloque, i, true),
+        cuerpo: bloqueHtml(
+          bloque,
+          i,
+          true,
+          imagenes,
+          oferta.epigrafesDeImagenes ?? {},
+          oferta.disposicionDeImagenes,
+        ),
       });
     }
   };
 
   const agregar = (en: SeccionDelDocumento, cuerpo: string, junto = false) => {
     const clave = en === "identificacion" ? undefined : en;
-    const bloques = bloquesHtml(oferta, en, paraEditar);
+    const bloques = bloquesHtml(oferta, en, paraEditar, imagenes);
     // Una sección sin nada adentro no se dibuja —es la regla de siempre: si no
     // aplica, se omite, y la numeración de las que quedan se corrige sola—. Un
     // subtítulo agregado a mano SÍ cuenta como contenido: puede ser lo único que
@@ -551,21 +634,34 @@ function armarSecciones(
       titulosLibres(en);
       return;
     }
+    // Las imágenes de la sección: las que van al costado del texto se emiten ANTES del
+    // cuerpo (un float lo rodea el texto que viene después) y las demás en la grilla del
+    // final, que es donde estaban en el borrador respecto del texto.
+    // Las que ya dibujó un bloque no se repiten en la grilla: están en las dos listas a
+    // propósito —el bloque dice DÓNDE va y la sección dice que está en uso— y sin esto el
+    // documento las mostraría dos veces.
+    const enBloques = new Set(
+      (oferta.bloques ?? []).flatMap((b) => (b.en === en ? (b.imagenes ?? []) : [])),
+    );
+    const fotos = clave
+      ? imagenesDeSeccion(
+          (oferta.imagenesPorSeccion?.[clave] ?? []).filter((n) => !enBloques.has(n)),
+          imagenes,
+          oferta.epigrafesDeImagenes ?? {},
+          oferta.disposicionDeImagenes,
+          cuerpo !== "" || bloques !== "",
+        )
+      : { flotantes: "", grilla: "" };
+
     secciones.push({
       numero: String(secciones.length + 1),
       titulo: r.texto(ROTULO_DE_SECCION[en]),
       rutaTitulo: `rotulos.${ROTULO_DE_SECCION[en]}`,
       en,
-      // Los subtítulos agregados a mano van después del contenido del maestro y
-      // antes de las fotos: son texto de la sección, y la grilla cierra la sección.
-      // La grilla va al final porque es donde estaba en el borrador respecto del
-      // texto que la rodea.
+      // Los subtítulos agregados a mano van después del contenido del maestro y antes de
+      // las fotos: son texto de la sección, y la grilla la cierra.
       cuerpo: numerarSubsecciones(
-        cuerpo +
-          bloques +
-          (clave
-            ? grillaDeImagenes(oferta.imagenesPorSeccion?.[clave], imagenes, oferta.epigrafesDeImagenes ?? {})
-            : ""),
+        fotos.flotantes + cuerpo + bloques + fotos.grilla,
         String(secciones.length + 1),
       ),
       junto,
@@ -876,6 +972,7 @@ function armarAnexo(
   fotos: number[] | undefined,
   imagenes: Record<number, ImagenDibujable>,
   epigrafes: Record<number, string>,
+  disposiciones: Record<number, DisposicionDeImagen> | undefined,
   r: Rotulador,
   bloques: string,
 ): SeccionArmada | null {
@@ -912,7 +1009,7 @@ function armarAnexo(
   // La nota estaba antes junto a los mandantes y no es de ahí: en un borrador dice
   // "Fotografías de referencia incluidas: CODELCO - División Radomiro Tomic…", que
   // es exactamente el epígrafe de estas fotos.
-  const grilla = grillaDeImagenes(fotos, imagenes, epigrafes);
+  const grilla = imagenesDeSeccion(fotos, imagenes, epigrafes, disposiciones, cuerpo !== "").grilla;
   if (grilla) {
     cuerpo +=
       `<div class="grupo"><h3>${r.html("anexo-fotos")}</h3>` +
@@ -985,8 +1082,9 @@ export function ofertaAHtml(
     [...enElAnexo, ...huerfanas],
     imagenes,
     oferta.epigrafesDeImagenes ?? {},
+    oferta.disposicionDeImagenes,
     r,
-    bloquesHtml(oferta, "anexo", paraEditar),
+    bloquesHtml(oferta, "anexo", paraEditar, imagenes),
   );
   const todas = anexo ? [...secciones, anexo] : secciones;
   const id = oferta.identificacion;
@@ -1178,6 +1276,25 @@ export function ofertaAHtml(
     line-height: 1.35; }
   /* Una foto ancha o un diagrama ocupan la fila completa: a media página no se leen. */
   .fotos figure.ancha { grid-column: 1 / -1; }
+
+  /* ── La imagen al costado del texto ────────────────────────────────────────
+     Va FUERA de .fotos: no es una celda de la grilla, es una figura que flota y a la
+     que el texto de la sección le pasa por al lado. El float es lo único que hace que
+     el texto la rodee de verdad; con una rejilla de dos columnas el párrafo quedaría
+     partido en una columna angosta de punta a punta de la sección.
+     Un tercio del ancho: menos que eso no se ve nada, y más deja el texto en una
+     tira. Y sin alto fijo, al contrario que en la grilla: acá no hay filas que
+     alinear, así que la imagen conserva su proporción. */
+  figure.flotante { width: 32%; margin: 0 0 2mm; page-break-inside: avoid; }
+  figure.flotante.derecha { float: right; margin-left: 5mm; }
+  figure.flotante.izquierda { float: left; margin-right: 5mm; }
+  figure.flotante img { width: 100%; display: block; background: ${estilo.colorFondoSuave};
+    border: 1px solid ${estilo.colorBorde}; }
+  figure.flotante figcaption { margin-top: 1.5mm; font-size: 8px; color: ${estilo.colorSuave};
+    line-height: 1.35; }
+  /* La sección se cierra sobre sus flotantes: sin esto, una imagen más alta que su
+     texto se derrama sobre la sección siguiente y le corre el título. */
+  section::after { content: ""; display: block; clear: both; }
   /* Se ajusta por contain y no por cover: varias de estas imágenes son collages
      con texto adentro, y recortarlas se come justo lo que explican. Que las filas
      queden de altos distintos es el precio correcto. */
@@ -1244,7 +1361,7 @@ export function ofertaAHtml(
   </div>
 
   <section class="portada">
-    <p class="rotulo">Oferta técnica y económica</p>
+    <p class="rotulo">${r.html("portada-rotulo")}</p>
     <h1${campo("titulo")}>${esc(oferta.titulo)}</h1>
     ${id.faena ? `<p class="faena"${campo("identificacion.faena")}>${esc(id.faena)}</p>` : ""}
     <table class="datos limpia">${filasEtiqueta([

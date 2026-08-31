@@ -310,6 +310,101 @@ export interface BloqueLibre {
   titulo: string;
   parrafos: string[];
   tabla: TablaLibre | null;
+  /**
+   * Las imágenes que van DENTRO de este bloque, en orden, por número.
+   *
+   * Existe para el documento libre, donde las imágenes tienen que salir donde estaban —el
+   * diagrama junto al párrafo que lo explica— y no todas juntas al final. La grilla de la
+   * sección sirve para un anexo de fotos; para un documento que reproduce a otro, no.
+   *
+   * Los mismos números están además en `imagenesPorSeccion`, que es lo que mira todo el
+   * resto del sistema (qué archivos bajar, cuáles están ubicadas, la × para sacarlas). Acá
+   * se guarda el LUGAR; allá, el uso.
+   */
+  imagenes?: number[];
+}
+
+/**
+ * De qué tipo es el documento que se subió.
+ *
+ * El módulo nació asumiendo que todo borrador es una oferta técnica, y esa suposición es
+ * lo que le da su fuerza: la estructura canónica permite numerar, indexar, sumar y
+ * controlar. También era su techo — una ficha técnica o un procedimiento no tienen precio
+ * ni dotación, así que salían mutilados y con dos avisos falsos.
+ *
+ * `oferta` es el camino de siempre, intacto. El resto va por el camino LIBRE: se
+ * reproduce la estructura del original (sus títulos, su orden, sus tablas, sus imágenes)
+ * con la piel de la casa, y no se le exige nada que no tenga.
+ *
+ * El tipo lo propone el modelo y lo puede corregir una persona: es una lectura, no un
+ * hecho.
+ */
+export type TipoDeDocumento = "oferta" | "ficha_tecnica" | "procedimiento" | "informe" | "otro";
+
+export const TIPOS_DE_DOCUMENTO: TipoDeDocumento[] = [
+  "oferta",
+  "ficha_tecnica",
+  "procedimiento",
+  "informe",
+  "otro",
+];
+
+/** Cómo se llama cada tipo en pantalla. */
+export const NOMBRE_DE_TIPO: Record<TipoDeDocumento, string> = {
+  oferta: "Oferta técnica",
+  ficha_tecnica: "Ficha técnica",
+  procedimiento: "Procedimiento",
+  informe: "Informe",
+  otro: "Documento",
+};
+
+/**
+ * ¿A este documento se le pueden exigir las cosas de una oferta?
+ *
+ * Es la única pregunta que el tipo decide en el servidor: qué controles corren. Un
+ * documento libre no tiene número de oferta ni cuadrilla, y levantar esos avisos convierte
+ * la lista de "Por revisar" en ruido que nadie mira.
+ */
+export function esOfertaTecnica(tipo: TipoDeDocumento | null | undefined): boolean {
+  // Ausente = oferta: es lo único que había cuando esto se guardó por primera vez.
+  return tipo === undefined || tipo === null || tipo === "oferta";
+}
+
+/**
+ * Cómo se dibuja una imagen.
+ *
+ * Antes había un solo modo: todas al final de su sección, en una grilla de dos columnas
+ * con alto fijo, y la única variación la decidía el servidor por la proporción (una
+ * apaisada ocupaba la fila entera). Servía para el anexo de fotos y no para lo demás: un
+ * diagrama que explica un párrafo tiene que estar AL LADO de ese párrafo, no cinco
+ * párrafos más abajo.
+ *
+ *  - `grilla`: lo de siempre, al final de la sección. Es lo correcto para el anexo.
+ *  - `izquierda` / `derecha`: la imagen se va al principio del cuerpo de la sección y el
+ *    texto la rodea.
+ *  - `ancha`: fila completa. Antes solo pasaba si la proporción lo pedía; ahora se puede
+ *    forzar, que es lo que hace falta con un plano cuadrado lleno de texto.
+ */
+export type DisposicionDeImagen = "grilla" | "izquierda" | "derecha" | "ancha";
+
+export const DISPOSICIONES: DisposicionDeImagen[] = ["grilla", "izquierda", "derecha", "ancha"];
+
+export const NOMBRE_DE_DISPOSICION: Record<DisposicionDeImagen, string> = {
+  grilla: "En la grilla",
+  izquierda: "A la izquierda del texto",
+  derecha: "A la derecha del texto",
+  ancha: "Ancho completo",
+};
+
+/** La disposición de una imagen, o `grilla` si nunca se eligió. */
+export function disposicionDe(
+  disposiciones: Partial<Record<number, DisposicionDeImagen>> | undefined,
+  indice: number,
+): DisposicionDeImagen {
+  const elegida = disposiciones?.[indice];
+  return DISPOSICIONES.includes(elegida as DisposicionDeImagen)
+    ? (elegida as DisposicionDeImagen)
+    : "grilla";
 }
 
 /** ¿Este bloque es una sección propia? Ausente = subtítulo, por compatibilidad. */
@@ -367,8 +462,34 @@ export interface OfertaCanonica {
    * cuenta la plantilla al imprimir, y siguen fuera de esto.
    */
   rotulos?: Record<string, string>;
+  /**
+   * Cómo se dibuja cada imagen, por número. Ausente = en la grilla.
+   *
+   * Va con el reparto de imágenes y no con el texto: lo decide quien acomoda las fotos
+   * sobre el documento, y se guarda al instante como la ubicación (ver `conElRepartoDe`).
+   */
+  disposicionDeImagenes?: Record<number, DisposicionDeImagen>;
   /** Los subtítulos agregados a mano, en orden dentro de cada sección. */
   bloques?: BloqueLibre[];
+  /**
+   * Cómo se decidió qué tipo de documento es esto.
+   *
+   * El tipo que MANDA vive en su columna —es lo que decide qué controles corren y lo que
+   * filtra el listado—. Esto es el relato: con qué confianza se leyó y qué del documento lo
+   * delató. Se guarda porque una clasificación sin motivo no se puede discutir: la persona
+   * que revisa tiene que poder decir "no, esto sí es una oferta" mirando lo mismo que miró
+   * el modelo.
+   *
+   * Ausente en los documentos leídos antes de que esto existiera.
+   */
+  lectura?: LecturaDelTipo;
+}
+
+export interface LecturaDelTipo {
+  tipo: TipoDeDocumento;
+  confianza: "alta" | "media" | "baja";
+  /** En una línea, qué del documento lo delata. */
+  porQue: string;
 }
 
 /**

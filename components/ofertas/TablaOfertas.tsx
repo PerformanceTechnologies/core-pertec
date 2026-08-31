@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { OfertaResumen } from "@/lib/ofertas/datos";
 import { FILTROS_VACIOS, filtrarOfertas, hayFiltros, type FiltrosDeOfertas } from "@/lib/ofertas/filtros";
 import { EMPRESAS } from "@/lib/cotizador/empresas";
+import { NOMBRE_DE_TIPO, TIPOS_DE_DOCUMENTO, esOfertaTecnica } from "@/lib/ofertas/tipos";
 import { fechaCl } from "@/lib/cotizador/formato";
 import { TARJETA } from "@/lib/estilos";
 import { duplicarOfertaAction, eliminarOfertaAction } from "@/app/(protegido)/ofertas/acciones";
@@ -60,6 +61,16 @@ export default function TablaOfertas({
           <option value="todos">Estado: todos</option>
           <option value="borrador">Borrador</option>
           <option value="emitida">Emitida</option>
+        </select>
+        {/* El tipo, junto al estado: desde que el módulo lee fichas técnicas y
+            procedimientos, "todas las ofertas" ya no es una lista de ofertas. */}
+        <select value={filtros.tipo} onChange={(e) => cambiar({ tipo: e.target.value })} className={control}>
+          <option value="todos">Tipo: todos</option>
+          {TIPOS_DE_DOCUMENTO.map((clave) => (
+            <option key={clave} value={clave}>
+              {NOMBRE_DE_TIPO[clave]}
+            </option>
+          ))}
         </select>
         <select
           value={filtros.empresa}
@@ -169,6 +180,13 @@ export default function TablaOfertas({
                     >
                       {o.nombre}
                     </Link>
+                    {/* El tipo solo se nombra cuando NO es una oferta: en un listado que
+                        es casi todo ofertas, repetirlo en cada fila es ruido. */}
+                    {!esOfertaTecnica(o.tipo) && (
+                      <span className="mt-0.5 mr-1.5 inline-block rounded bg-gris/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gris">
+                        {NOMBRE_DE_TIPO[o.tipo]}
+                      </span>
+                    )}
                     {(o.faena || autorDe(o)) && (
                       <span className="block text-[11px] text-tinta/45">
                         {[o.faena, autorDe(o)].filter(Boolean).join(" · ")}

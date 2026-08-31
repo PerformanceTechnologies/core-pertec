@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { accesoAOfertaApi, guardarContenido } from "@/lib/ofertas/datos";
-import { conLaImagenEn } from "@/lib/ofertas/normalizar";
+import { conLaDisposicion, conLaImagenEn, conLaImagenMovida } from "@/lib/ofertas/normalizar";
+import { DISPOSICIONES } from "@/lib/ofertas/tipos";
 import { leerDestino } from "@/lib/ofertas/destino-imagen";
 
 export const runtime = "nodejs";
@@ -30,11 +31,50 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "La oferta ya está emitida." }, { status: 409 });
   }
 
-  const cuerpo = (await request.json().catch(() => null)) as { indice?: unknown; destino?: unknown } | null;
+  const cuerpo = (await request.json().catch(() => null)) as {
+    indice?: unknown;
+    destino?: unknown;
+    mover?: unknown;
+    disposicion?: unknown;
+  } | null;
 
   const indice = Number(cuerpo?.indice);
   if (!oferta.imagenes.some((imagen) => imagen.indice === indice)) {
     return NextResponse.json({ error: "Esa imagen no está en la oferta." }, { status: 404 });
+  }
+
+  // Acomodar es otra cosa que ubicar, y va por la misma ruta porque comparte todo lo
+  // demás: el guard, el saneo del índice y el guardado al instante que no toca el texto
+  // sin guardar. Se atiende primero porque lleva su propio campo: un cuerpo con "mover" no
+  // trae destino, y leerlo como destino vacío sacaría la foto del documento.
+  if (cuerpo?.mover !== undefined) {
+    const delta = Number(cuerpo.mover);
+    if (delta !== 1 && delta !== -1) {
+      return NextResponse.json({ error: "Se mueve un lugar a la vez." }, { status: 400 });
+    }
+    await guardarContenido(
+      id,
+      conLaImagenMovida(oferta.contenido, indice, delta),
+      oferta.archivoOrigen,
+      oferta.tipo,
+      oferta.revisadas,
+    );
+    return NextResponse.json({ indice, mover: delta });
+  }
+
+  if (cuerpo?.disposicion !== undefined) {
+    const pedida = DISPOSICIONES.find((d) => d === cuerpo.disposicion);
+    if (!pedida) {
+      return NextResponse.json({ error: "Esa disposición no existe." }, { status: 400 });
+    }
+    await guardarContenido(
+      id,
+      conLaDisposicion(oferta.contenido, indice, pedida),
+      oferta.archivoOrigen,
+      oferta.tipo,
+      oferta.revisadas,
+    );
+    return NextResponse.json({ indice, disposicion: pedida });
   }
 
   // Vacío o nulo saca la imagen del documento; lo demás tiene que ser una sección
@@ -53,6 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     id,
     conLaImagenEn(oferta.contenido, indice, destino),
     oferta.archivoOrigen,
+    oferta.tipo,
     oferta.revisadas,
   );
   return NextResponse.json({ indice, destino });

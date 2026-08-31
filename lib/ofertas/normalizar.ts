@@ -2,9 +2,14 @@ import type { DestinoDeImagen } from "./destino-imagen";
 import {
   SECCIONES_CON_IMAGENES,
   firmaDe,
+  type BloqueLibre,
   type Cierre,
   type OfertaCanonica,
   type SeccionConImagenes,
+  NOMBRE_DE_TIPO,
+  type DisposicionDeImagen,
+  type SeccionDelDocumento,
+  type TipoDeDocumento,
 } from "./tipos";
 
 /**
@@ -194,6 +199,185 @@ function repartoDeImagenes(ubicaciones: LecturaLetra["ubicacionImagenes"]): {
   return { reparto, epigrafes };
 }
 
+/** El documento que no es una oferta, tal como lo devuelve el modelo: en orden. */
+export interface LecturaLibre {
+  titulo: string;
+  subtitulo: string;
+  cliente: string;
+  fecha: string;
+  codigo: string;
+  bloques: {
+    tipo: string;
+    texto: string;
+    parrafos: string[];
+    columnas: string[];
+    filas: string[][];
+    imagen: number;
+    epigrafe: string;
+  }[];
+  porConfirmar: string[];
+}
+
+/**
+ * El documento libre: la estructura del original, con la piel de la casa.
+ *
+ * Devuelve una `OfertaCanonica` con TODAS las secciones de oferta en null y el contenido
+ * en `bloques`. No es un atajo: es que un documento libre es exactamente eso —una lista de
+ * títulos con su contenido— y la plantilla ya sabe numerar esos bloques, meterlos al índice
+ * y dibujar sus tablas. Inventar un segundo tipo de contenido habría obligado a duplicar
+ * la plantilla, el editor y la impresión.
+ *
+ * Tres decisiones:
+ *
+ *  - **El orden del arreglo manda.** Los párrafos y las tablas cuelgan del título o
+ *    subtítulo que los precede; lo que venga antes del primer título cuelga de un bloque
+ *    inicial sin nombre, porque descartarlo sería perder el primer párrafo del documento.
+ *  - **Acá NO se descarta en silencio.** `armarOferta` puede tirar una fila sin parámetro
+ *    porque la estructura canónica es el respaldo; en un documento libre lo único que hay
+ *    es lo que vino, así que un bloque sin título igual se conserva.
+ *  - **Las imágenes van en `imagenesPorSeccion`** contra la sección del bloque donde
+ *    estaban, que es la única clave que entiende el resto del sistema (bajada de archivos,
+ *    arrastre, PDF). Se conserva el ORDEN, que es lo que hace que salgan donde estaban.
+ */
+export function armarDocumentoLibre(lectura: LecturaLibre, tipo: TipoDeDocumento): OfertaCanonica {
+  const bloques: BloqueLibre[] = [];
+  const imagenesPorSeccion: Partial<Record<SeccionConImagenes, number[]>> = {};
+  const epigrafes: Record<number, string> = {};
+
+  // Todo el documento libre vive en una sección del maestro, y es "alcance" por una razón
+  // práctica: es la primera que la plantilla dibuja después de la identificación, así que
+  // los bloques salen en su orden y sin nada intercalado. La sección es una etiqueta
+  // interna acá —el rótulo que se imprime es el título de cada bloque—.
+  const EN: SeccionDelDocumento = "alcance";
+
+  const nuevo = (
+    titulo: string,
+    nivel: "titulo" | "subtitulo",
+    en: SeccionDelDocumento = EN,
+  ): BloqueLibre => {
+    const bloque: BloqueLibre = { en, nivel, titulo, parrafos: [], tabla: null };
+    bloques.push(bloque);
+    return bloque;
+  };
+
+  /**
+   * Dónde cae el contenido que llega ANTES de cualquier título.
+   *
+   * Va sin título y colgado de la identificación, no como una sección propia: una sección
+   * sin nombre se numeraría y entraría al índice con el renglón en blanco. Así el párrafo
+   * de apertura sale donde corresponde —debajo de los datos del documento— y el índice
+   * arranca en el primer título de verdad.
+   */
+  const actual = (): BloqueLibre =>
+    bloques[bloques.length - 1] ?? nuevo("", "subtitulo", "identificacion");
+
+  for (const bruto of Array.isArray(lectura.bloques) ? lectura.bloques : []) {
+    const clase = typeof bruto?.tipo === "string" ? bruto.tipo.trim().toLowerCase() : "";
+
+    if (clase === "titulo" || clase === "subtitulo") {
+      nuevo(texto(bruto.texto) ?? "", clase);
+      continue;
+    }
+
+    if (clase === "imagen") {
+      const indice = numero(bruto.imagen);
+      if (indice === null || !Number.isInteger(indice) || indice <= 0) continue;
+      const puestas = imagenesPorSeccion[EN] ?? [];
+      // Una imagen repetida se ignora: el documento la dibujaría dos veces.
+      if (puestas.includes(indice)) continue;
+      imagenesPorSeccion[EN] = [...puestas, indice];
+      // Y en SU bloque, que es lo que la deja donde estaba: la grilla del final es para
+      // un anexo de fotos, no para un documento que reproduce a otro.
+      const donde = actual();
+      donde.imagenes = [...(donde.imagenes ?? []), indice];
+      const pie = texto(bruto.epigrafe);
+      if (pie) epigrafes[indice] = pie;
+      continue;
+    }
+
+    if (clase === "tabla") {
+      const columnas = lista(bruto.columnas);
+      const filasCrudas = Array.isArray(bruto.filas) ? bruto.filas : [];
+      // Las celdas NO se filtran por vacías: una celda en blanco del original es un dato
+      // —dice que ahí no había nada— y sacarla correría toda la fila una columna.
+      const filas = filasCrudas
+        .map((fila) => (Array.isArray(fila) ? fila.map((celda) => String(celda ?? "").trim()) : []))
+        .filter((fila) => fila.length > 0);
+      if (columnas.length === 0 && filas.length === 0) continue;
+
+      // El ancho lo decide la fila MÁS LARGA, no la cabecera: si una fila trae una celda
+      // de más, la cabecera es la que le falta un encabezado, y recortar la fila perdería
+      // un dato del documento. Queda un encabezado en blanco, que se ve y se escribe
+      // encima; un dato que desapareció no se ve.
+      const anchoBase = Math.max(columnas.length, ...filas.map((f) => f.length), 1);
+      const parejas = filas.map((fila) => {
+        const iguales = fila.slice(0, anchoBase);
+        while (iguales.length < anchoBase) iguales.push("");
+        return iguales;
+      });
+      const cabeceras = [...columnas];
+      while (cabeceras.length < anchoBase) cabeceras.push("");
+
+      const donde = actual();
+      // Un bloque lleva UNA tabla. La segunda abre un bloque propio sin título: es más
+      // honesto que pegar las dos filas en la misma tabla, que tienen otras columnas.
+      if (donde.tabla) nuevo("", "subtitulo").tabla = { columnas: cabeceras, filas: parejas };
+      else donde.tabla = { columnas: cabeceras, filas: parejas };
+      continue;
+    }
+
+    // "parrafos" y cualquier cosa que el modelo llame distinto: es texto.
+    const parrafos = lista(bruto.parrafos);
+    if (parrafos.length === 0) continue;
+    actual().parrafos.push(...parrafos);
+  }
+
+  const identidad = [texto(lectura.codigo), texto(lectura.subtitulo)].filter(Boolean).join(" · ");
+  const comoSeLlama = NOMBRE_DE_TIPO[tipo];
+
+  return {
+    titulo: texto(lectura.titulo) ?? "DOCUMENTO SIN TÍTULO",
+    identificacion: {
+      // El código del documento ocupa el lugar del número de oferta: es lo que lo
+      // identifica, y así sale en el encabezado de todas las páginas sin tocar la plantilla.
+      numeroOferta: texto(lectura.codigo),
+      fecha: texto(lectura.fecha),
+      validez: null,
+      cliente: texto(lectura.cliente),
+      atencion: null,
+      copia: null,
+      referencia: identidad === "" ? null : identidad,
+      faena: null,
+    },
+    alcance: null,
+    metodologia: null,
+    especificaciones: null,
+    organizacion: null,
+    programa: null,
+    precio: null,
+    condicionesComerciales: null,
+    aportes: null,
+    cierre: null,
+    anexo: null,
+    porConfirmar: [...new Set(lista(lectura.porConfirmar))],
+    omitidas: [],
+    imagenesPorSeccion,
+    epigrafesDeImagenes: epigrafes,
+    bloques,
+    // Los rótulos del maestro hablan de una oferta —"Oferta N°", "Identificación de la
+    // oferta"— y en una ficha técnica eso es simplemente falso. Se pisan con los del tipo,
+    // usando el mismo mecanismo que ya existe para renombrar cualquier rótulo, así que se
+    // siguen pudiendo editar sobre el documento.
+    rotulos: {
+      "portada-rotulo": comoSeLlama,
+      "s-identificacion": `Identificación del documento`,
+      "id-numero": "Código",
+      "id-referencia": "Detalle",
+    },
+    lectura: { tipo, confianza: "alta", porQue: "" },
+  };
+}
+
 export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): OfertaCanonica {
   const reparto = repartoDeImagenes(letra.ubicacionImagenes);
   const especificaciones = filas<{ parametro: string; especificacion: string }>(
@@ -333,12 +517,15 @@ export function sinLaImagen(contenido: OfertaCanonica, indice: number): OfertaCa
 
   const epigrafes = { ...(contenido.epigrafesDeImagenes ?? {}) };
   delete epigrafes[indice];
+  const disposiciones = { ...(contenido.disposicionDeImagenes ?? {}) };
+  delete disposiciones[indice];
 
   const cierre = contenido.cierre;
   return {
     ...contenido,
     imagenesPorSeccion: porSeccion,
     epigrafesDeImagenes: epigrafes,
+    disposicionDeImagenes: disposiciones,
     cierre: cierre
       ? {
           ...cierre,
@@ -373,6 +560,11 @@ export function conElRepartoDe(nuevo: OfertaCanonica, guardado: OfertaCanonica):
   return {
     ...nuevo,
     imagenesPorSeccion: guardado.imagenesPorSeccion ?? {},
+    // La disposición viaja con el reparto por el mismo motivo: la decide quien acomoda
+    // las fotos sobre el documento y se guarda al instante, así que la copia del editor
+    // puede ser anterior. Sin esta línea, guardar un párrafo devolvía todas las imágenes
+    // a la grilla.
+    disposicionDeImagenes: guardado.disposicionDeImagenes ?? {},
     cierre: nuevo.cierre
       ? {
           ...nuevo.cierre,
@@ -398,6 +590,56 @@ function firmaGuardadaDe(cierre: Cierre | null | undefined, nombre: string): num
   if (buscado === "") return null;
   const posicion = cierre.firmantes.findIndex((f) => f.nombre.trim().toLocaleLowerCase("es-CL") === buscado);
   return posicion === -1 ? null : firmaDe(cierre, posicion);
+}
+
+/**
+ * La imagen, un lugar más arriba o más abajo dentro de su sección.
+ *
+ * El orden del arreglo es el orden impreso, así que reordenar es mover un elemento. No
+ * existía: `conLaImagenEn` solo sabe agregar al final, y el comentario de este archivo lo
+ * decía —"reordenarlas dentro de la sección es otra cosa y todavía no existe"—. Con tres
+ * fotos en el anexo la primera que se sube queda primera para siempre, y eso es
+ * exactamente lo que hay que poder cambiar.
+ *
+ * En los bordes no hace nada: la primera no sube más y la última no baja más. Devolver el
+ * contenido igual es mejor que darle la vuelta al arreglo.
+ */
+export function conLaImagenMovida(
+  contenido: OfertaCanonica,
+  indice: number,
+  delta: number,
+): OfertaCanonica {
+  const porSeccion: Partial<Record<SeccionConImagenes, number[]>> = {};
+  let movida = false;
+
+  for (const [clave, indices] of Object.entries(contenido.imagenesPorSeccion ?? {})) {
+    const lista = [...(indices ?? [])];
+    const desde = lista.indexOf(indice);
+    if (desde !== -1) {
+      const hasta = desde + (delta < 0 ? -1 : 1);
+      if (hasta >= 0 && hasta < lista.length) {
+        [lista[desde], lista[hasta]] = [lista[hasta], lista[desde]];
+        movida = true;
+      }
+    }
+    if (lista.length > 0) porSeccion[clave as SeccionConImagenes] = lista;
+  }
+
+  return movida ? { ...contenido, imagenesPorSeccion: porSeccion } : contenido;
+}
+
+/** El contenido con otra disposición para esa imagen. `grilla` borra la elección. */
+export function conLaDisposicion(
+  contenido: OfertaCanonica,
+  indice: number,
+  disposicion: DisposicionDeImagen,
+): OfertaCanonica {
+  const disposiciones = { ...(contenido.disposicionDeImagenes ?? {}) };
+  // Volver a la grilla borra la clave en vez de guardar "grilla": es el valor por
+  // omisión, y así el dato solo tiene lo que de verdad se cambió.
+  if (disposicion === "grilla") delete disposiciones[indice];
+  else disposiciones[indice] = disposicion;
+  return { ...contenido, disposicionDeImagenes: disposiciones };
 }
 
 /**

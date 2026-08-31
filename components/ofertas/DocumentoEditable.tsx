@@ -302,6 +302,36 @@ export default function DocumentoEditable({
     [empresa, id, router],
   );
 
+  /**
+   * Acomodar una foto: moverla dentro de su sección o cambiarle la disposición.
+   *
+   * Va por la misma ruta que la ubicación, y por el mismo motivo: es reparto de imágenes,
+   * se guarda al instante y no toca el texto que alguien esté escribiendo sin guardar. Y
+   * como el que decide dónde queda cada foto es el servidor —la grilla, el flotante, la
+   * numeración del pie— después hay que pedirle la maqueta de nuevo.
+   */
+  const acomodar = useCallback(
+    async (indice: number, ajuste: { mover?: number; disposicion?: string }, aviso: string) => {
+      setMoviendo(aviso);
+      setError(null);
+      try {
+        const respuesta = await fetch(`/api/ofertas/${id}/ubicar-imagen`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ indice, ...ajuste }),
+        });
+        await leerRespuesta(respuesta);
+        setMoviendo("Armando el documento…");
+        setRevision((r) => r + 1);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudo acomodar la foto.");
+        setMoviendo(null);
+      }
+    },
+    [id, router],
+  );
+
   const preparar = useCallback(() => {
     const doc = marco.current?.contentDocument;
     // El `about:blank` con el que nace un iframe también dispara load.
@@ -325,6 +355,9 @@ export default function DocumentoEditable({
       alSoltarArchivos: (archivos, destino) => void subirYUbicar(archivos, destino),
       alQuitarImagen: (indice, deLaFirma) => void ubicar(indice, null, deLaFirma),
       alCambiarEstructura: cambiarEstructura,
+      alMoverImagen: (indice, delta) => void acomodar(indice, { mover: delta }, "Moviendo la foto…"),
+      alDisponerImagen: (indice, disposicion) =>
+        void acomodar(indice, { disposicion }, "Acomodando la foto…"),
       alSoltarLogo: (archivo, cual) => {
         // Las dos comprobaciones antes de mandar: el formato, porque un PDF soltado
         // ahí no es un logo, y el tamaño, porque el tope lo pone la plataforma y un
@@ -350,7 +383,7 @@ export default function DocumentoEditable({
           "Poniendo el logo…",
         ),
     });
-  }, [editable, id, ubicar, subirYUbicar, cambiarEstructura, ponerLogo]);
+  }, [editable, id, ubicar, subirYUbicar, cambiarEstructura, ponerLogo, acomodar]);
 
   return (
     <div className="flex flex-col gap-3">

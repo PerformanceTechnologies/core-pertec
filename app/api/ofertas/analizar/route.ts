@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
   try {
     const bytes = Buffer.from(await archivo.arrayBuffer());
-    const { contenido, imagenes } = await leerBorrador(bytes, archivo.type, archivo.name);
+    const { contenido, imagenes, tipo } = await leerBorrador(bytes, archivo.type, archivo.name);
 
     // Se guardan TODAS, no solo las que el modelo eligió. La elección del modelo es
     // una propuesta y se equivoca —omitió una foto de 1162×667 px "por no estar
@@ -115,6 +115,8 @@ export async function POST(request: Request) {
       archivo.name,
       usuario.id,
       guardadas,
+      // El tipo que se leyó: decide qué controles corren de acá en adelante.
+      tipo,
     );
 
     // El logo va después de que la oferta existe: al revés, un archivo subido

@@ -29,6 +29,8 @@ interface VentanaDePrueba {
     destino?: string | null;
     archivos?: string[];
     quitada?: number;
+    mover?: number;
+    disposicion?: string;
     deLaFirma?: boolean;
     operacion?: unknown;
     logo?: string;
@@ -281,6 +283,9 @@ try {
         alQuitarImagen: (indice: number, deLaFirma: boolean) =>
           ventana.sueltas.push({ quitada: indice, deLaFirma }),
         alCambiarEstructura: (operacion: unknown) => ventana.sueltas.push({ operacion }),
+        alMoverImagen: (indice: number, delta: number) => ventana.sueltas.push({ indice, mover: delta }),
+        alDisponerImagen: (indice: number, disposicion: string) =>
+          ventana.sueltas.push({ indice, disposicion }),
         alSoltarLogo: (archivo: File, cual: string) => ventana.sueltas.push({ logo: cual, archivos: [archivo.name] }),
         alUsarComoLogo: (indice: number, cual: string) => ventana.sueltas.push({ logo: cual, indice }),
       });
@@ -856,6 +861,42 @@ try {
   assert.equal(titulos.numero, "3", "se numera con las del maestro: después del alcance");
   assert.ok(!titulos.aceptaFotos, "una sección agregada a mano no recibe fotos");
   assert.deepEqual(titulos.botones, ["+ Párrafo", "+ Tabla", "Quitar"], "lleva los controles del bloque");
+
+  // ── 10a. Acomodar una foto: moverla y elegir dónde va ─────────────────────
+  //
+  // Las dos cosas que faltaban: el orden dentro de la sección (que solo sabía agregar al
+  // final) y poder ponerla al costado del texto en vez de siempre abajo.
+  const acomodar = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    const figura = doc.querySelector<HTMLElement>('figure[data-imagen="1"]')!;
+    const botones = [...figura.querySelectorAll<HTMLElement>(".boton-imagen")];
+
+    botones[0].click();
+    const atras = ventana.sueltas.at(-1);
+    botones[1].click();
+    const adelante = ventana.sueltas.at(-1);
+
+    const selector = figura.querySelector<HTMLSelectElement>(".selector-imagen")!;
+    const inicial = selector.value;
+    selector.value = "derecha";
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+
+    return {
+      atras,
+      adelante,
+      inicial,
+      dispuesta: ventana.sueltas.at(-1),
+      // La rúbrica no se acomoda: va donde va.
+      enLaRubrica: doc.querySelector('.rubrica-caja .boton-imagen') !== null,
+    };
+  });
+  console.log(acomodar);
+  assert.deepEqual(acomodar.atras, { indice: 1, mover: -1 }, "la flecha izquierda la mueve un lugar antes");
+  assert.deepEqual(acomodar.adelante, { indice: 1, mover: 1 });
+  assert.equal(acomodar.inicial, "grilla", "el selector arranca en lo que el documento está mostrando");
+  assert.deepEqual(acomodar.dispuesta, { indice: 1, disposicion: "derecha" });
+  assert.ok(!acomodar.enLaRubrica, "la rúbrica no lleva controles de acomodar");
 
   // ── 10b. Los logos del encabezado, arrastrándolos ─────────────────────────
   //

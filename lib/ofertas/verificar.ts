@@ -1,5 +1,6 @@
 import type { Inconsistencia, OfertaCanonica, TotalesOferta } from "./tipos";
 import { bloqueConContenido, sinTitular } from "./estructura";
+import { esOfertaTecnica, type TipoDeDocumento } from "./tipos";
 
 /**
  * Los totales y los controles de una oferta. Sin modelo, sin red, sin secretos.
@@ -54,10 +55,25 @@ export function detectarInconsistencias(
   oferta: OfertaCanonica,
   totales: TotalesOferta,
   nombreArchivo: string,
+  /**
+   * Qué es el documento. Los controles de oferta solo corren en una oferta.
+   *
+   * De los catorce controles, doce se apagan solos cuando la sección no está —una ficha
+   * técnica no trae precio, así que `oferta.precio` es null y no hay nada que verificar—.
+   * Los dos que NO se apagan son justo los que ensucian: el número de oferta no tiene
+   * ninguna guarda, y la dotación en 0 le basta con que exista el alcance. Con esos dos,
+   * cualquier documento que no sea una oferta abría con dos avisos falsos, y una lista de
+   * "Por revisar" que miente es una lista que nadie mira.
+   *
+   * Por omisión oferta: es lo único que el módulo sabía leer, y así los documentos
+   * anteriores se verifican igual que siempre.
+   */
+  tipo: TipoDeDocumento = "oferta",
 ): Inconsistencia[] {
   const problemas: Inconsistencia[] = [];
   const aritmetica = (tipo: Inconsistencia["tipo"], detalle: string) =>
     problemas.push({ tipo, detalle, origen: "aritmetica" });
+  const esOferta = esOfertaTecnica(tipo);
 
   // ── El número de oferta, en los tres lugares donde aparece ────────────────
   const enTabla = normalizarNumero(oferta.identificacion.numeroOferta);
@@ -78,7 +94,7 @@ export function detectarInconsistencias(
       );
     }
   }
-  if (!enTabla) {
+  if (!enTabla && esOferta) {
     aritmetica("falta_dato", "No se pudo leer el número de oferta en la tabla de identificación.");
   }
 
@@ -141,7 +157,7 @@ export function detectarInconsistencias(
         `la sección 5 suma ${enOrganizacion}. Son el mismo dato contado dos veces y no coinciden.`,
     );
   }
-  if (totales.dotacionTotal === 0 && (oferta.organizacion || oferta.alcance)) {
+  if (esOferta && totales.dotacionTotal === 0 && (oferta.organizacion || oferta.alcance)) {
     aritmetica("dotacion", "La dotación total quedó en 0: no se pudo leer ningún cuadro de personal.");
   }
 

@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { firmaDe, type Inconsistencia, type OfertaCanonica } from "@/lib/ofertas/tipos";
+import {
+  esOfertaTecnica,
+  firmaDe,
+  type Inconsistencia,
+  type OfertaCanonica,
+  type TipoDeDocumento,
+} from "@/lib/ofertas/tipos";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
 import type { RegistroEmision } from "@/lib/ofertas/datos";
 import { calcularTotales, detectarInconsistencias } from "@/lib/ofertas/verificar";
@@ -48,6 +54,7 @@ export default function EditorOferta({
   emision,
   revisadas: revisadasGuardadas,
   empresa,
+  tipo,
 }: {
   id: string;
   inicial: OfertaCanonica;
@@ -68,6 +75,8 @@ export default function EditorOferta({
    * quién es el hueco.
    */
   empresa: string;
+  /** Qué es el documento: decide qué controles corren y si hay formulario. */
+  tipo: TipoDeDocumento;
 }) {
   const router = useRouter();
   const [oferta, setOferta] = useState<OfertaCanonica>(inicial);
@@ -77,6 +86,7 @@ export default function EditorOferta({
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const emitida = estado === "emitida";
+  const esOferta = esOfertaTecnica(tipo);
   // Las marcas se llevan acá y se guardan al toque: la lista tiene que responder al
   // instante —es un interruptor— y la marca no viaja con "Guardar cambios", que es lo
   // que guarda el texto del documento.
@@ -101,8 +111,8 @@ export default function EditorOferta({
 
   const { totales, problemas } = useMemo(() => {
     const t = calcularTotales(oferta);
-    return { totales: t, problemas: detectarInconsistencias(oferta, t, archivoOrigen ?? "") };
-  }, [oferta, archivoOrigen]);
+    return { totales: t, problemas: detectarInconsistencias(oferta, t, archivoOrigen ?? "", tipo) };
+  }, [oferta, archivoOrigen, tipo]);
 
   // Los avisos se recalculan en cada tecla; las marcas se cruzan por su clave, así que
   // un aviso cuyo dato cambió deja de calzar y vuelve a contar como pendiente. Es lo
@@ -227,7 +237,15 @@ export default function EditorOferta({
             formulario queda para lo que cambia la estructura —agregar una fila,
             crear una sección— que en el documento no se puede hacer sin volver a
             armarlo entero. */}
-          <div className="flex w-fit items-center gap-1 rounded-lg border border-borde bg-crema/40 p-1">
+          {/* El formulario son las secciones del maestro de la oferta: en un documento
+              libre —una ficha técnica, un procedimiento— no hay nada que llenar ahí, y
+              ofrecer una pestaña vacía es peor que no ofrecerla. Ese documento se
+              trabaja sobre el papel, con los + de agregar secciones y subtítulos. */}
+          <div
+            className={`flex w-fit items-center gap-1 rounded-lg border border-borde bg-crema/40 p-1 ${
+              esOferta ? "" : "hidden"
+            }`}
+          >
             {(
               [
                 ["documento", "Documento"],
@@ -808,7 +826,8 @@ export default function EditorOferta({
             el borrador no trae —eso está bien— pero una oferta se completa a mano
             tanto como se transcribe.
          */}
-              {!emitida && faltantes.length > 0 && (
+              {/* Solo en una oferta: son las secciones de SU maestro. */}
+              {!emitida && esOferta && faltantes.length > 0 && (
                 <section className={`${TARJETA} p-4`}>
                   <p className="font-condensed text-sm font-bold uppercase tracking-wide text-tinta">
                     Agregar una sección que no está

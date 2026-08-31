@@ -4,8 +4,21 @@ import { extraerDeArchivo, extraerTextoDePdf, type ImagenExtraida } from "@/lib/
 import sharp from "sharp";
 import { extraerImagenesDePdf } from "@/lib/cotizador/obra/extraer-imagenes-pdf";
 import { formatoDe } from "@/lib/cotizador/obra/formatos";
-import type { OfertaCanonica } from "./tipos";
-import { armarOferta, type LecturaLetra, type LecturaNumeros } from "./normalizar";
+import {
+  NOMBRE_DE_TIPO,
+  TIPOS_DE_DOCUMENTO,
+  esOfertaTecnica,
+  type LecturaDelTipo,
+  type OfertaCanonica,
+  type TipoDeDocumento,
+} from "./tipos";
+import {
+  armarDocumentoLibre,
+  armarOferta,
+  type LecturaLetra,
+  type LecturaLibre,
+  type LecturaNumeros,
+} from "./normalizar";
 
 /**
  * De un borrador en Word, Excel o PDF a la estructura canónica.
@@ -210,9 +223,123 @@ const ESQUEMA_NUMEROS = objeto({
   },
 });
 
+/**
+ * ¿Qué es este documento?
+ *
+ * Antes de leer hay que saber CON QUÉ ESQUEMA leer. El módulo asumía que todo borrador es
+ * una oferta técnica, y con una ficha técnica el resultado era un documento mutilado
+ * —sin precio ni dotación, porque no los tiene— más dos avisos falsos.
+ *
+ * Es una llamada corta y aparte, no un campo más en las otras dos, porque decide CUÁL de
+ * las lecturas correr. Y sale barata: va con el mismo bloque de contenido, que ya está
+ * marcado como cacheable, así que el borrador entero no se vuelve a pagar.
+ *
+ * `enum` no se usa —igual que en `ubicacionImagenes.seccion`— porque los tipos unión tienen
+ * tope de 16 en la gramática: la lista va en la descripción y el servidor valida.
+ */
+const ESQUEMA_TIPO = objeto({
+  tipo: {
+    type: "string",
+    description:
+      "Qué es este documento, una de: oferta (una oferta o propuesta técnica y económica, " +
+      "con alcance del servicio y precio), ficha_tecnica (las características de un equipo, " +
+      "un producto o un material: parámetros, medidas, condiciones de uso), procedimiento " +
+      "(cómo se ejecuta un trabajo, paso por paso, con sus resguardos), informe (el reporte " +
+      "de algo que YA pasó: una inspección, un avance, un incidente), otro (cualquier otra cosa).",
+  },
+  confianza: {
+    type: "string",
+    description: 'Qué tan claro está: "alta", "media" o "baja".',
+  },
+  porQue: {
+    type: "string",
+    description:
+      "En una línea, qué del documento lo delata: el título, una sección, una tabla. Se le " +
+      "muestra a la persona que revisa, así que tiene que decir algo verificable mirando el " +
+      'archivo — no "parece una ficha técnica".',
+  },
+});
+
+/**
+ * El documento tal como está, sin estructura canónica.
+ *
+ * Un solo tipo de objeto por bloque con un campo discriminador, y no cinco tipos distintos,
+ * porque la gramática no admite uniones grandes ni propiedades opcionales (ver arriba). Lo
+ * que no aplica va vacío: texto en blanco, listas vacías, imagen en 0.
+ *
+ * EL ORDEN DEL ARREGLO ES EL ORDEN DEL DOCUMENTO, y eso es lo que hace que las imágenes
+ * queden donde estaban: un bloque de imagen entre dos de texto conserva la posición que la
+ * lectura de oferta descarta (ahí solo se guarda la sección).
+ */
+const ESQUEMA_LIBRE = objeto({
+  titulo: { type: "string", description: "El título del documento, tal como lo titula." },
+  subtitulo: {
+    type: "string",
+    description: "El subtítulo o la línea de identificación bajo el título, si la trae. En blanco si no.",
+  },
+  cliente: { type: "string", description: "A quién va dirigido, si el documento lo dice. En blanco si no." },
+  fecha: { type: "string", description: "La fecha del documento, tal como está escrita. En blanco si no." },
+  codigo: {
+    type: "string",
+    description:
+      "El código o número del documento, si lo trae: un código de ficha, de procedimiento o de " +
+      "informe. En blanco si no.",
+  },
+  bloques: {
+    type: "array",
+    description: "El documento entero, en orden, bloque por bloque.",
+    items: objeto({
+      tipo: {
+        type: "string",
+        description:
+          'Qué es este bloque, uno de: "titulo" (un título de sección del documento), ' +
+          '"subtitulo" (un título de segundo nivel), "parrafos" (uno o varios párrafos o una ' +
+          'lista de ítems), "tabla" (una tabla con sus columnas y sus filas), "imagen" (una de ' +
+          "las imágenes del borrador, en el lugar donde estaba).",
+      },
+      texto: {
+        type: "string",
+        description: 'El título, cuando el tipo es "titulo" o "subtitulo". En blanco en los demás.',
+      },
+      parrafos: {
+        ...listaDeTexto,
+        description:
+          'Los párrafos o los ítems, uno por elemento, cuando el tipo es "parrafos". Sin numerarlos: ' +
+          "la numeración la pone el sistema. Lista vacía en los demás.",
+      },
+      columnas: {
+        ...listaDeTexto,
+        description:
+          'Los encabezados de la tabla, cuando el tipo es "tabla". Si la tabla no tiene encabezados, ' +
+          "lista vacía.",
+      },
+      filas: {
+        type: "array",
+        description:
+          'Las filas de la tabla, cuando el tipo es "tabla": una lista por fila, con una celda por ' +
+          "columna y en el mismo orden. Lista vacía en los demás.",
+        items: listaDeTexto,
+      },
+      imagen: {
+        type: "number",
+        description: 'El número del marcador [IMAGEN n], cuando el tipo es "imagen". 0 en los demás.',
+      },
+      epigrafe: {
+        type: "string",
+        description:
+          "El pie de la imagen, si el documento lo trae escrito. Sin numerarlo. En blanco si no hay.",
+      },
+    }),
+  },
+  porConfirmar: {
+    ...listaDeTexto,
+    description: "Datos ausentes o ambiguos, nombrados. Nunca adivinados.",
+  },
+});
+
 /** Lo común a las dos lecturas: quién es PERTEC y la regla que las gobierna. */
-const PREAMBULO = `Normalizás borradores de ofertas técnicas de Performance Technologies SpA (PERTEC),
-que presta servicios de vulcanización y cambio de correas transportadoras en faenas mineras y plantas.
+const PREAMBULO = `Normalizás documentos de Performance Technologies SpA (PERTEC), que presta servicios
+de vulcanización y cambio de correas transportadoras en faenas mineras y plantas.
 
 Tu tarea NO es diseñar ni redactar de nuevo: es extraer el contenido del borrador para que el servidor
 lo maquete y lo verifique después.
@@ -308,6 +435,51 @@ de precios. La parte narrativa la lee otra pasada; no la transcribas acá.
 - Si el borrador de verdad no trae precios ni programa en ninguna parte —ni en tabla ni en el texto—
   dejá esas listas vacías.`;
 
+const INSTRUCCIONES_TIPO = `${PREAMBULO}
+
+Tu única tarea acá es DECIR QUÉ ES este documento, para que el sistema lo lea con el esquema que
+corresponde. No transcribas nada.
+
+- Miralo completo antes de decidir. El título manda, pero una "oferta" sin precio ni alcance del
+  servicio probablemente no sea una oferta, y una tabla de parámetros y medidas es una ficha técnica
+  aunque el archivo se llame "propuesta".
+- Una OFERTA tiene lo que se va a hacer y cuánto cuesta: alcance del servicio, dotación, plazos,
+  precio. Es el caso más común acá.
+- Una FICHA TÉCNICA describe una cosa —un equipo, un material, un repuesto— con sus parámetros.
+- Un PROCEDIMIENTO dice cómo se ejecuta un trabajo, paso por paso, con sus resguardos.
+- Un INFORME reporta algo que ya pasó: una inspección, un avance, un incidente.
+- Si dudás entre dos, elegí el que explique MÁS del documento y decilo en "confianza": con "baja",
+  la persona que revisa lo ve y lo puede cambiar. Preferí "otro" antes que forzar un tipo.`;
+
+const INSTRUCCIONES_LIBRE = `${PREAMBULO}
+
+Este documento NO es una oferta técnica, así que no tiene una estructura fija que llenar: tu tarea es
+transcribirlo TAL COMO ESTÁ para que el sistema lo maquete con el formato de la casa.
+
+- RESPETÁ EL ORDEN Y LA JERARQUÍA del original. El arreglo de bloques se imprime en ese orden, así que
+  un bloque fuera de lugar sale fuera de lugar.
+- No inventes secciones que el documento no tiene, y no le pongas las de una oferta —alcance, precio,
+  dotación— si no están. Tampoco resumas ni reordenes para que "quede mejor".
+- Podés corregir ortografía y redacción de los párrafos, sin cambiar el significado técnico. En
+  nombres propios, códigos, medidas y cifras, no se toca nada.
+- LAS LISTAS van con un elemento por ítem, sin numerarlos ni ponerles viñeta: la numeración la pone el
+  sistema.
+- LAS TABLAS van como tabla: los encabezados en "columnas" y una lista por fila en "filas", con una
+  celda por columna y en el mismo orden. Si una celda del documento está vacía, va un texto en blanco
+  —no corras los datos de columna para llenarla—. Todo como texto, incluidos los números: acá el
+  sistema no calcula nada.
+- LAS IMÁGENES son un bloque más, EN EL LUGAR DONDE ESTABAN. El texto trae marcadores "[IMAGEN 1]",
+  "[IMAGEN 2]"… Cada marcador es un bloque de tipo "imagen" con ese número, puesto entre los bloques de
+  texto que lo rodean: es lo que hace que el diagrama salga junto al párrafo que lo explica y no al
+  final. Si el borrador trae un pie escrito al lado, transcribilo en "epigrafe".
+    · El LOGO o el membrete de la empresa NO son un bloque: el sistema pone el logo por su cuenta.
+      Omitilos. Se reconocen por ser anchos y bajos (proporción mayor a 2.5:1), por repetirse, o por
+      estar en la primera página antes del título.
+    · ANTE LA DUDA, LA IMAGEN VA. Omitirla deja el documento sin ella; ponerla donde no corresponde se
+      arregla arrastrándola, y la persona que revisa ve todas las imágenes con su miniatura.
+- El TÍTULO del documento va en "titulo", no como primer bloque: el sistema lo imprime en la portada.
+- No busques inconsistencias ni sumes nada: acá no hay totales que verificar.`;
+
 /**
  * Una de las dos lecturas. Misma mecánica, distinto esquema y distinta consigna.
  *
@@ -357,6 +529,9 @@ async function leerParte<T>(
   pedido: string,
   maxTokens: number,
   nombreArchivo: string,
+  // "high" para transcribir, que es donde se equivoca caro. La clasificación es una
+  // decisión de una línea y con "medium" contesta en un cuarto del tiempo.
+  effort: "medium" | "high" = "high",
 ): Promise<T> {
   // Streaming: el SDK se niega a hacer sin streaming una llamada cuya duración
   // posible pase de 10 minutos, y además una conexión que espera callada varios
@@ -368,16 +543,13 @@ async function leerParte<T>(
       max_tokens: maxTokens,
       thinking: { type: "adaptive" },
       system: [{ type: "text", text: instrucciones, cache_control: { type: "ephemeral" } }],
-      output_config: { effort: "high", format: { type: "json_schema", schema: esquema } },
+      output_config: { effort, format: { type: "json_schema", schema: esquema } },
       messages: [{ role: "user", content: [...contenido, { type: "text", text: pedido }] }],
     })
     .finalMessage();
 
   if (respuesta.stop_reason === "refusal") {
-    throw new Error(
-      `El modelo no pudo procesar "${nombreArchivo}". Revisá que el archivo sea la oferta y no otro ` +
-        "documento.",
-    );
+    throw new Error(`El modelo no pudo procesar "${nombreArchivo}".`);
   }
   if (respuesta.stop_reason === "max_tokens") {
     // El mensaje anterior decía "se agotó el presupuesto de tokens", que se lee
@@ -407,6 +579,31 @@ async function leerParte<T>(
 export interface BorradorLeido {
   contenido: OfertaCanonica;
   imagenes: ImagenExtraida[];
+  /** Con qué esquema se leyó. Manda: decide qué controles corren. */
+  tipo: TipoDeDocumento;
+}
+
+/** El tipo que dijo el modelo, saneado contra la lista real. */
+function tipoLeido(bruto: unknown): LecturaDelTipo {
+  const crudo = bruto as { tipo?: unknown; confianza?: unknown; porQue?: unknown } | null;
+  const dicho = typeof crudo?.tipo === "string" ? crudo.tipo.trim().toLowerCase() : "";
+  // "oferta_tecnica" es como se le pide al modelo (es más claro en el prompt) y "oferta" es
+  // como se guarda: son la misma cosa.
+  const normalizado = dicho === "oferta_tecnica" ? "oferta" : dicho;
+  const tipo = TIPOS_DE_DOCUMENTO.find((t) => t === normalizado);
+  const confianza =
+    crudo?.confianza === "baja" || crudo?.confianza === "media"
+      ? (crudo.confianza as "baja" | "media")
+      : "alta";
+
+  return {
+    // Un tipo que no está en la lista se trata como "otro" y NO como oferta: forzar el
+    // esquema de oferta sobre algo que no lo es es justo el error que esto viene a arreglar.
+    tipo: tipo ?? "otro",
+    // Si no se reconoció lo que dijo, la confianza no puede ser alta.
+    confianza: tipo ? confianza : "baja",
+    porQue: typeof crudo?.porQue === "string" ? crudo.porQue.trim() : "",
+  };
 }
 
 export async function leerBorrador(
@@ -508,6 +705,55 @@ export async function leerBorrador(
     ];
   }
 
+  // PRIMERO QUÉ ES, después cómo se lee. Es una llamada más, pero es la que evita el
+  // error caro: leer una ficha técnica con el esquema de una oferta produce un documento
+  // mutilado y dos avisos falsos. Sale barata porque el bloque del borrador ya viene
+  // marcado como cacheable y las lecturas de abajo lo reusan.
+  const lectura = tipoLeido(
+    await leerParte<unknown>(
+      contenido,
+      INSTRUCCIONES_TIPO,
+      ESQUEMA_TIPO,
+      `¿Qué es este documento? (archivo: ${nombreArchivo})`,
+      2000,
+      nombreArchivo,
+      "medium",
+    ),
+  );
+
+  if (!esOfertaTecnica(lectura.tipo)) {
+    // El camino libre: una sola lectura, porque no hay cuadros que el servidor calcule.
+    const libre = await leerParte<LecturaLibre>(
+      contenido,
+      INSTRUCCIONES_LIBRE,
+      ESQUEMA_LIBRE,
+      `Transcribí este documento tal como está (archivo: ${nombreArchivo}).`,
+      20000,
+      nombreArchivo,
+    );
+    const armado = armarDocumentoLibre(libre, lectura.tipo);
+    return {
+      contenido: {
+        ...armado,
+        lectura,
+        // Con la clasificación dudosa, el aviso va a "Por revisar": es una decisión que
+        // tomó el sistema sobre la forma del documento entero, y tiene que poder
+        // corregirse antes de emitir.
+        porConfirmar:
+          lectura.confianza === "alta"
+            ? armado.porConfirmar
+            : [
+                `Se leyó como ${NOMBRE_DE_TIPO[lectura.tipo].toLowerCase()} con confianza ` +
+                  `${lectura.confianza}${lectura.porQue ? `: ${lectura.porQue}` : ""}. Si es otra cosa, ` +
+                  "cambiá el tipo del documento.",
+                ...armado.porConfirmar,
+              ],
+      },
+      imagenes,
+      tipo: lectura.tipo,
+    };
+  }
+
   // En paralelo: son dos lecturas independientes del mismo documento y el tiempo
   // total de la función es lo que limita. En serie tardaría el doble sin ganar
   // nada — la segunda no necesita ver el resultado de la primera.
@@ -530,5 +776,6 @@ export async function leerBorrador(
     ),
   ]);
 
-  return { contenido: armarOferta(letra, numeros), imagenes };
+  const armada = armarOferta(letra, numeros);
+  return { contenido: { ...armada, lectura }, imagenes, tipo: "oferta" };
 }
