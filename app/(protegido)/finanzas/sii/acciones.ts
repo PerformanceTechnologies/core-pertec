@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
-import { extraerFacturasSii } from "@/lib/sii-rcv";
+import { extraerFacturasSii, type ColumnasDelCsv } from "@/lib/sii-rcv";
 import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
 import { avisoDeReclamos } from "@/lib/finanzas-reclamos";
 import { enviarCorreoFinanzas } from "@/lib/notificaciones";
@@ -40,6 +40,15 @@ export interface ResultadoSincronizacion {
   documentos: number;
   guardados: number;
   reclamos: number[];
+  /**
+   * Las columnas del CSV de ventas, SOLO cuando ninguna venta trajo estado.
+   *
+   * Es la diferencia entre "no hay reclamadas" y "el SII no me dijo nada". La primera
+   * version informaba lo primero cuando pasaba lo segundo, y el estado de todas las
+   * ventas quedo en "Registro" sin que nada lo avisara. Van los nombres de columna,
+   * nunca los valores.
+   */
+  columnasVenta?: string[];
 }
 
 export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSincronizacion> {
@@ -64,11 +73,15 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
   }
 
   try {
+    const columnas = new Map<string, string[]>();
     const filas = await extraerFacturasSii(creds, {
       cargaInicial: false,
       // Período completo, sin filtro de día: se pide justamente para lo más viejo que la
       // ventana de la corrida diaria.
       periodos: [periodo],
+      alLeerCsv: (info: ColumnasDelCsv) => {
+        if (info.tipoDocumento === "venta") columnas.set("venta", info.columnas);
+      },
     });
 
     // Antes de guardar: después ya no se puede saber si el reclamo es nuevo.
@@ -86,8 +99,20 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
       });
     }
 
+    // Si hubo ventas y NINGUNA trajo estado, el CSV no tiene de donde derivarlo: se
+    // devuelven sus columnas para poder mirarlo, en vez de decir "ninguna reclamada".
+    const ventas = filas.filter((f) => f.tipoDocumento === "venta");
+    const sinEstado =
+      ventas.length > 0 && ventas.every((f) => f.estado === "registro" && !f.fechaAcuse && !f.fechaReclamo);
+
     revalidatePath("/finanzas/sii");
-    return { periodo, documentos: filas.length, guardados, reclamos: reclamos.map((f) => f.folio) };
+    return {
+      periodo,
+      documentos: filas.length,
+      guardados,
+      reclamos: reclamos.map((f) => f.folio),
+      ...(sinEstado ? { columnasVenta: columnas.get("venta") ?? [] } : {}),
+    };
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "Error desconocido";
     await registrarEjecucion(false, 0, mensaje).catch(() => {});

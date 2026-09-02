@@ -15,15 +15,21 @@ import { lanzarNavegador } from "./playwright-navegador";
 //
 // Pero eso NO significa que una venta no tenga estado real: el cliente puede
 // reclamar la factura dentro de los 8 dias corridos siguientes, y cuando lo
-// hace el RCV de ventas lo deja en las columnas "Fecha Acuse Recibo" y
-// "Fecha Reclamado" del mismo CSV. Antes se guardaban todas las ventas como
-// "registro" y el panel mostraba una columna de estado que siempre decia lo
-// mismo — o sea, no decia nada. Ahora el estado de una venta se DERIVA de
-// esas dos fechas.
+// hace el RCV lo registra como el EVENTO DEL RECEPTOR del documento.
 //
-// Si el SII deja de traer esas columnas, el parseo por nombre las da por
-// ausentes y el estado vuelve a ser "registro": se pierde el detalle, no el
-// documento.
+// Ese evento es lo que se lee, y se aprendio a los golpes: la primera version
+// derivo el estado de dos columnas de fecha ("Fecha Acuse Recibo" y "Fecha
+// Reclamado") que se dieron por existentes sin haber visto un CSV real. Se
+// releyeron tres periodos completos y las 174 filas guardadas quedaron con las
+// dos fechas en NULL: esas columnas no vienen con esos nombres, o no vienen.
+// Las fechas se siguen leyendo (si algun dia estan, es un dato mas), pero lo
+// que decide es el evento del receptor, que es como el SII lo nombra en el
+// modelo del DTE (ACD/ERM/RCD/RFP/RFT, ver EVENTOS_RECEPTOR).
+//
+// Y si no viene NINGUNA de las dos cosas, el estado de la venta queda en
+// "registro" y quien pidio la relectura se entera: la accion devuelve las
+// columnas que el CSV si trajo, en vez de informar "ninguna reclamada" —que es
+// lo que hizo la primera version y parecia una respuesta—.
 
 export type TipoDocumento = "compra" | "venta";
 export type EstadoFactura = "registro" | "pendiente" | "no_incluir" | "reclamado" | "aceptado";
@@ -36,6 +42,40 @@ const SUBESTADOS_COMPRA: { etiquetaTab: string; estado: EstadoFactura }[] = [
 ];
 
 const CODIGOS_DTE_INCLUIDOS = [33, 34];
+
+/**
+ * El evento con que el receptor respondio al documento.
+ *
+ * Son los codigos del modelo de DTE del SII, y es la unica cosa del RCV de ventas que
+ * dice si el cliente acepto o reclamo. "Reclamo" no es uno: son tres —al contenido, por
+ * falta parcial y por falta total— y para Finanzas los tres significan lo mismo, que esa
+ * factura no se cobra como esta.
+ */
+const EVENTOS_RECEPTOR: Record<string, "aceptado" | "reclamado"> = {
+  ACD: "aceptado", // Acepta el contenido del documento
+  ERM: "aceptado", // Otorga recibo de mercaderias o servicios
+  RCD: "reclamado", // Reclamo al contenido del documento
+  RFP: "reclamado", // Reclamo por falta parcial de mercaderias
+  RFT: "reclamado", // Reclamo por falta total de mercaderias
+};
+
+/**
+ * Lee la celda del evento, venga como codigo o como leyenda.
+ *
+ * El RCV la muestra a veces como "RFT", a veces como "RFT - Reclamo por Falta Total de
+ * Mercaderias" y a veces solo con el texto. Se prueba el codigo primero y se cae al
+ * texto: adivinar el formato exacto de una celda del SII es justo el error que trajo
+ * hasta aca.
+ */
+function eventoReceptor(valor: string): "aceptado" | "reclamado" | null {
+  const limpio = valor.trim();
+  if (limpio === "") return null;
+  const porCodigo = EVENTOS_RECEPTOR[limpio.slice(0, 3).toUpperCase()];
+  if (porCodigo) return porCodigo;
+  if (/reclam|rechaz/i.test(limpio)) return "reclamado";
+  if (/acept|recibo|acuse/i.test(limpio)) return "aceptado";
+  return null;
+}
 
 export interface FacturaSii {
   tipoDocumento: TipoDocumento;
@@ -114,7 +154,15 @@ function fechaSuelta(valor: string): string | null {
   return fechaDoctoAIso(limpio) ?? fechaRecepcionAIso(limpio)?.slice(0, 10) ?? null;
 }
 
-function parsearCsvRcv(
+/**
+ * El CSV del RCV a filas.
+ *
+ * Exportada porque es la parte PURA del scraper y la que se equivoco dos veces: sin
+ * poder pasarle un CSV a mano, lo unico que se podia verificar era que el archivo
+ * dijera ciertas palabras, y eso dio por buena una derivacion que en el SII real no
+ * leia nada. Las pruebas ahora le pasan CSVs de ejemplo (scripts/probar-facturas-sii).
+ */
+export function parsearCsvRcv(
   contenido: string,
   tipoDocumento: TipoDocumento,
   estado: EstadoFactura,
@@ -144,8 +192,18 @@ function parsearCsvRcv(
   const iMontoIvaRecuperable = idx("Monto IVA Recuperable", "Monto IVA");
   const iMontoIvaNoRecuperable = idx("Monto Iva No Recuperable");
   const iMontoTotal = idx("Monto Total", "Monto total");
-  // Las dos que dicen el estado real de una venta. Los nombres varian entre
-  // vistas del RCV, y si no estan, idx() devuelve -1 y quedan en null.
+  // Lo que dice el estado real de una venta. El evento del receptor es el que manda;
+  // las fechas son un dato extra que puede no venir (y hoy no viene). Si ninguna de
+  // las tres columnas esta, idx() devuelve -1 y el estado queda en "registro".
+  const iEvento = idx(
+    "Evento Receptor",
+    "Estado Evento Receptor",
+    "Codigo Evento Receptor",
+    "Evento del Receptor",
+    "Estado Acuse",
+    "Acuse Recibo",
+    "Estado DTE",
+  );
   const iFechaAcuse = idx("Fecha Acuse Recibo", "Fecha Acuse", "Fecha de Acuse Recibo");
   const iFechaReclamo = idx("Fecha Reclamado", "Fecha Reclamo", "Fecha de Reclamo");
 
@@ -161,19 +219,21 @@ function parsearCsvRcv(
 
     const fechaAcuse = iFechaAcuse !== -1 ? fechaSuelta(cols[iFechaAcuse] || "") : null;
     const fechaReclamo = iFechaReclamo !== -1 ? fechaSuelta(cols[iFechaReclamo] || "") : null;
+    const evento = iEvento !== -1 ? eventoReceptor(cols[iEvento] || "") : null;
 
     filas.push({
       tipoDocumento,
       codigoDte,
       // En compra el estado es la sub-pestana de la que se bajo el CSV. En venta
-      // no hay sub-pestanas: lo dicen las fechas de acuse y de reclamo, y el
-      // reclamo manda —un documento reclamado y despues acusado sigue reclamado
-      // hasta que el cliente lo revierta, y es lo que hay que ir a mirar—.
+      // no hay sub-pestanas: lo dice el evento del receptor (y la fecha de reclamo,
+      // si viniera), y el RECLAMO MANDA —un documento reclamado y despues acusado
+      // sigue reclamado hasta que el cliente lo revierta, y es el que hay que ir a
+      // mirar—.
       estado:
         tipoDocumento === "venta"
-          ? fechaReclamo
+          ? fechaReclamo || evento === "reclamado"
             ? "reclamado"
-            : fechaAcuse
+            : fechaAcuse || evento === "aceptado"
               ? "aceptado"
               : estado
           : estado,
@@ -254,12 +314,25 @@ async function irATab(page: import("playwright-core").Page, texto: string): Prom
   await page.waitForTimeout(500);
 }
 
+/**
+ * Que columnas trajo un CSV del SII.
+ *
+ * No es telemetria: es la unica forma de que un cambio de columnas del RCV se pueda
+ * ver desde la pantalla en vez de deducirlo. Van los NOMBRES, nunca los valores.
+ */
+export interface ColumnasDelCsv {
+  tipoDocumento: TipoDocumento;
+  estado: EstadoFactura;
+  columnas: string[];
+}
+
 async function descargarDetalle(
   page: import("playwright-core").Page,
   tipoDocumento: TipoDocumento,
   estado: EstadoFactura,
   periodo: string,
-  codigosIncluidos: number[]
+  codigosIncluidos: number[],
+  alLeerCsv?: (info: ColumnasDelCsv) => void
 ): Promise<FacturaSii[]> {
   const btn = page.locator("button, a").filter({ hasText: /descargar detalles/i });
   if ((await btn.count()) === 0) return []; // sin boton = 0 documentos en esa pestana
@@ -272,6 +345,8 @@ async function descargarDetalle(
   if (!streamPath) return [];
   const fs = await import("node:fs/promises");
   const contenido = await fs.readFile(streamPath, "utf-8");
+  const cabecera = contenido.trim().split(/\r?\n/)[0] ?? "";
+  alLeerCsv?.({ tipoDocumento, estado, columnas: cabecera.split(";").map((c) => c.trim()) });
   return parsearCsvRcv(contenido, tipoDocumento, estado, periodo, codigosIncluidos);
 }
 
@@ -286,7 +361,8 @@ export async function consultarPeriodo(
   rutEmpresa: string,
   periodoMes: string,
   periodoAnio: string,
-  codigosIncluidos: number[] = CODIGOS_DTE_INCLUIDOS
+  codigosIncluidos: number[] = CODIGOS_DTE_INCLUIDOS,
+  alLeerCsv?: (info: ColumnasDelCsv) => void
 ): Promise<FacturaSii[]> {
   await page.goto("https://www4.sii.cl/consdcvinternetui/#/index", { timeout: 40000 });
   // Esta SPA nunca llega a "networkidle" (sigue con llamadas de fondo), asi
@@ -315,14 +391,18 @@ export async function consultarPeriodo(
   for (const { etiquetaTab, estado } of SUBESTADOS_COMPRA) {
     try {
       await irATab(page, etiquetaTab);
-      filas.push(...(await descargarDetalle(page, "compra", estado, periodo, codigosIncluidos)));
+      filas.push(
+        ...(await descargarDetalle(page, "compra", estado, periodo, codigosIncluidos, alLeerCsv))
+      );
     } catch {
       // Sub-pestana sin datos o no disponible ese periodo: se ignora.
     }
   }
 
   await irATab(page, "VENTA");
-  filas.push(...(await descargarDetalle(page, "venta", "registro", periodo, codigosIncluidos)));
+  filas.push(
+    ...(await descargarDetalle(page, "venta", "registro", periodo, codigosIncluidos, alLeerCsv))
+  );
 
   return filas;
 }
@@ -348,6 +428,14 @@ export interface OpcionesExtraccion {
    * alcance a lo ya guardado.
    */
   periodos?: string[];
+  /**
+   * Se llama con las columnas de cada CSV que se baja.
+   *
+   * Para que quien pidio la relectura pueda VER que trajo el SII cuando el estado no
+   * sale de ahi. Sin esto, un cambio de columnas del RCV se ve como "ninguna venta
+   * reclamada", que suena a respuesta y no lo es.
+   */
+  alLeerCsv?: (info: ColumnasDelCsv) => void;
 }
 
 export async function extraerFacturasSii(
@@ -382,7 +470,16 @@ export async function extraerFacturasSii(
     let filas: FacturaSii[] = [];
     for (const periodo of periodos) {
       const [anio, mes] = periodo.split("-");
-      filas = filas.concat(await consultarPeriodo(page, creds.rutEmpresa, mes, anio));
+      filas = filas.concat(
+        await consultarPeriodo(
+          page,
+          creds.rutEmpresa,
+          mes,
+          anio,
+          CODIGOS_DTE_INCLUIDOS,
+          opciones.alLeerCsv
+        )
+      );
     }
 
     if (!opciones.cargaInicial) {

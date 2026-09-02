@@ -17,35 +17,116 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { avisoDeReclamos } from "../lib/finanzas-reclamos";
-import type { FacturaSii } from "../lib/sii-rcv";
+import { parsearCsvRcv, type FacturaSii } from "../lib/sii-rcv";
 
-// ── El estado de una venta se deriva de las fechas ──────────────────────────
+// ── El estado de una venta sale del CSV, y esto se prueba CON un CSV ───────
 //
-// El parser no está exportado (es un detalle del scraper), así que la regla se comprueba
-// sobre el archivo: es la única forma de verificar la derivación sin abrir el SII, y de
-// que se note si alguien vuelve a fijar el estado a mano.
+// La primera versión de estas pruebas comprobaba que lib/sii-rcv.ts contuviera ciertas
+// palabras —idx("Fecha Acuse Recibo"), etc.— y pasó en verde mientras el scraper leía
+// dos columnas que el SII no manda: se releyeron tres períodos y las 174 filas quedaron
+// con las dos fechas en NULL. Una prueba sobre el texto del archivo no puede notar eso.
+//
+// Ahora el parser está exportado y se le pasan CSVs armados a mano. No prueban qué manda
+// el SII —eso no se puede saber desde acá— pero sí que CADA forma que pueda venir se
+// derive bien, y que la que no viene no se invente.
 const scraper = readFileSync(new URL("../lib/sii-rcv.ts", import.meta.url), "utf8");
 
-assert.ok(
-  scraper.includes('idx("Fecha Acuse Recibo"') && scraper.includes('idx("Fecha Reclamado"'),
-  "el CSV de ventas se lee buscando las columnas de acuse y de reclamo",
+/** Un CSV del RCV con las columnas que se le pidan y una fila. */
+function csv(columnas: Record<string, string>): string {
+  const base: Record<string, string> = {
+    "Tipo Doc": "33",
+    "Rut cliente": "76929210-1",
+    "Razon Social": "SALFA SA",
+    Folio: "198",
+    "Fecha Docto": "12/08/2026",
+    "Monto Neto": "35595432",
+    "Monto IVA": "6763132",
+    "Monto total": "42358564",
+  };
+  const todas = { ...base, ...columnas };
+  return `${Object.keys(todas).join(";")}\n${Object.values(todas).join(";")}`;
+}
+
+const unaVenta = (columnas: Record<string, string>): FacturaSii => {
+  const filas = parsearCsvRcv(csv(columnas), "venta", "registro", "202608");
+  assert.equal(filas.length, 1, "el CSV de ejemplo tiene que parsearse");
+  return filas[0];
+};
+
+// El evento del receptor, que es lo que el RCV de ventas trae de verdad. Viene como
+// código, como código con leyenda o solo como leyenda: las tres formas se vieron en
+// pantallas del SII y ninguna se puede descartar.
+for (const valor of ["RFT", "RFT - Reclamo por Falta Total de Mercaderias", "Reclamo al Contenido"]) {
+  assert.equal(
+    unaVenta({ "Evento Receptor": valor }).estado,
+    "reclamado",
+    `"${valor}" es un reclamo`,
+  );
+}
+for (const valor of ["RCD", "RFP"]) {
+  assert.equal(unaVenta({ "Evento Receptor": valor }).estado, "reclamado", `${valor} es reclamo`);
+}
+for (const valor of ["ACD", "ERM", "ACD - Acepta Contenido del Documento"]) {
+  assert.equal(
+    unaVenta({ "Evento Receptor": valor }).estado,
+    "aceptado",
+    `"${valor}" es una aceptación, que es distinto de que nadie la haya mirado`,
+  );
+}
+assert.equal(
+  unaVenta({ "Evento Receptor": "" }).estado,
+  "registro",
+  "sin evento la venta queda en registro: nadie respondió todavía",
 );
-assert.ok(
-  /tipoDocumento === "venta"[\s\S]{0,200}fechaReclamo[\s\S]{0,80}"reclamado"/.test(scraper),
-  "y una venta con fecha de reclamo queda RECLAMADA, no en registro",
+assert.equal(
+  unaVenta({ "Evento Receptor": "XYZ - algo nuevo" }).estado,
+  "registro",
+  "un evento que no se reconoce NO se interpreta: mejor 'registro' que un estado inventado",
 );
-assert.ok(
-  /fechaAcuse[\s\S]{0,60}"aceptado"/.test(scraper),
-  "con acuse y sin reclamo queda aceptada: es distinto de que nadie la haya mirado",
+
+// El nombre de la columna cambia entre vistas del RCV, y el header viene con mayúsculas
+// inconsistentes. Si ninguna variante coincide, el estado se pierde en silencio: fue
+// exactamente lo que pasó.
+for (const nombre of ["Evento Receptor", "EVENTO RECEPTOR", "Estado Evento Receptor", "Estado Acuse"]) {
+  assert.equal(unaVenta({ [nombre]: "RFT" }).estado, "reclamado", `columna "${nombre}"`);
+}
+
+// Y sin NINGUNA columna de estado, el documento se guarda igual: se pierde el detalle,
+// no la factura.
+const sinColumnas = unaVenta({});
+assert.equal(sinColumnas.estado, "registro");
+assert.equal(sinColumnas.folio, 198);
+assert.equal(sinColumnas.montoTotal, 42_358_564, "los montos se leen igual");
+assert.equal(sinColumnas.fechaAcuse, null);
+assert.equal(sinColumnas.fechaReclamo, null);
+
+// Las fechas se siguen leyendo por si algún día vienen, con o sin hora.
+assert.equal(unaVenta({ "Fecha Acuse Recibo": "13/08/2026" }).estado, "aceptado");
+assert.equal(unaVenta({ "Fecha Reclamado": "14/08/2026" }).fechaReclamo, "2026-08-14");
+assert.equal(
+  unaVenta({ "Fecha Reclamado": "" }).estado,
+  "registro",
+  "una columna presente pero vacía es el caso normal: nadie reclamó nada",
 );
-// El reclamo tiene que ganarle al acuse: un documento acusado y después reclamado es un
-// documento reclamado, y es el que hay que ir a mirar.
-const ramaVenta = scraper.slice(scraper.indexOf('tipoDocumento === "venta"'));
-assert.ok(
-  ramaVenta.indexOf("fechaReclamo") !== -1 &&
-    ramaVenta.indexOf("fechaReclamo") < ramaVenta.indexOf("fechaAcuse"),
-  "el reclamo se evalúa antes que el acuse: manda el reclamo",
+
+// El reclamo le gana al acuse: un documento acusado y después reclamado es un documento
+// reclamado, y es el que hay que ir a mirar.
+assert.equal(
+  unaVenta({ "Fecha Acuse Recibo": "13/08/2026", "Fecha Reclamado": "14/08/2026" }).estado,
+  "reclamado",
 );
+assert.equal(unaVenta({ "Evento Receptor": "ERM", "Fecha Reclamado": "14/08/2026" }).estado, "reclamado");
+
+// En COMPRA el estado es la sub-pestaña de la que se bajó el CSV, y el evento del
+// receptor no lo pisa: ahí el que acusa o reclama es PERTEC, y el SII ya lo separó en
+// pestañas. Derivarlo dos veces sería contradecirse a sí mismo.
+const compra = parsearCsvRcv(
+  csv({ "Evento Receptor": "RFT", "RUT Proveedor": "77590822-K" }),
+  "compra",
+  "pendiente",
+  "202608",
+);
+assert.equal(compra[0].estado, "pendiente");
 
 // La ventana de sincronización tiene que cubrir el plazo de reclamo (8 días corridos).
 const ventana = /const ventanaDias = opciones\.ventanaDias \?\? (\d+);/.exec(scraper);
@@ -166,6 +247,30 @@ assert.ok(
 assert.ok(
   enOrden(cuerpoCron, "guardarFacturasSii", "enviarCorreoFinanzas"),
   "y se manda después de guardar: si el correo falla, el dato ya está en el panel",
+);
+
+// ── "No hay reclamos" tiene que ser distinto de "el SII no dijo nada" ───────
+//
+// Esto es lo que faltaba: al releer septiembre, el botón informó "Ninguna venta
+// reclamada" cuando en realidad el CSV no traía ninguna columna de estado. Sonaba a
+// respuesta. Ahora, si hubo ventas y ninguna trajo estado, se devuelven las columnas que
+// el CSV sí trajo, y eso es con lo que se arregla.
+const accion = readFileSync(
+  new URL("../app/(protegido)/finanzas/sii/acciones.ts", import.meta.url),
+  "utf8",
+);
+assert.ok(accion.includes("alLeerCsv"), "la acción pide las columnas del CSV que se bajó");
+assert.ok(
+  /sinEstado[\s\S]{0,300}columnasVenta/.test(accion),
+  "y las devuelve solo cuando ninguna venta trajo estado",
+);
+const boton = readFileSync(
+  new URL("../components/finanzas/BotonSincronizarSii.tsx", import.meta.url),
+  "utf8",
+);
+assert.ok(
+  boton.includes("columnasVenta") && /no trajo el estado de ninguna venta/.test(boton),
+  "y el botón lo dice con esas palabras en vez de 'ninguna venta reclamada'",
 );
 
 console.log("Todas las verificaciones pasaron.");

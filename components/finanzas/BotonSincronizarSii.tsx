@@ -34,6 +34,9 @@ export default function BotonSincronizarSii() {
   const [periodo, setPeriodo] = useState(periodos[0].valor);
   const [pendiente, iniciarTransicion] = useTransition();
   const [mensaje, setMensaje] = useState<{ texto: string; error?: boolean } | null>(null);
+  // Las columnas que trajo el CSV de ventas cuando ninguna venta trajo estado. Se
+  // muestran porque es el dato con el que se arregla, no un detalle técnico de adorno.
+  const [columnas, setColumnas] = useState<string[] | null>(null);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -55,15 +58,20 @@ export default function BotonSincronizarSii() {
         onClick={() =>
           iniciarTransicion(async () => {
             setMensaje(null);
+            setColumnas(null);
             try {
               const r = await sincronizarSiiAction(periodo);
+              setColumnas(r.columnasVenta ?? null);
               setMensaje({
                 texto:
                   `Releído: ${r.documentos} documento(s).` +
                   (r.reclamos.length
                     ? ` ${r.reclamos.length} venta(s) reclamada(s) —folio ${r.reclamos.join(", ")}—, ` +
                       "avisadas por correo a Finanzas."
-                    : " Ninguna venta reclamada."),
+                    : r.columnasVenta
+                      ? " El SII no trajo el estado de ninguna venta: no es que no haya reclamos, " +
+                        "es que este CSV no los dice."
+                      : " Ninguna venta reclamada."),
               });
             } catch (e) {
               setMensaje({
@@ -86,6 +94,12 @@ export default function BotonSincronizarSii() {
             ? "Abre el navegador del SII y baja los CSV: puede tardar un par de minutos."
             : "Trae el estado real de ese mes, incluidas las ventas reclamadas."}
       </span>
+      {columnas && (
+        <details className="basis-full text-xs text-tinta/60">
+          <summary className="cursor-pointer">Qué columnas trajo el CSV de ventas</summary>
+          <p className="mt-1 font-mono leading-relaxed break-words">{columnas.join(" · ")}</p>
+        </details>
+      )}
     </div>
   );
 }
