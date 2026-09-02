@@ -7,8 +7,13 @@ import type { FacturaSiiFila } from "@/lib/finanzas";
 import TarjetaHoy from "./TarjetaHoy";
 import ModalFactura from "./ModalFactura";
 
+// El estado de una COMPRA es la sub-pestaña del RCV de la que salió; el de una VENTA se
+// deriva de las fechas de acuse y reclamo del receptor. Antes toda venta decía "Registro"
+// —una columna que siempre dice lo mismo no dice nada— y un reclamo del cliente no se veía
+// en ninguna parte.
 const ETIQUETAS_ESTADO: Record<string, string> = {
   registro: "Registro",
+  aceptado: "Aceptada",
   pendiente: "Pendiente",
   no_incluir: "No incluir",
   reclamado: "Reclamado",
@@ -16,6 +21,7 @@ const ETIQUETAS_ESTADO: Record<string, string> = {
 
 const CLASES_ESTADO: Record<string, string> = {
   registro: "bg-teal/10 text-teal",
+  aceptado: "bg-teal/10 text-teal",
   pendiente: "bg-naranjo-suave/15 text-naranjo",
   no_incluir: "bg-gris/15 text-gris",
   reclamado: "bg-red-500/10 text-red-600",

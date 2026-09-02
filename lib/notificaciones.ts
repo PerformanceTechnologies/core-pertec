@@ -8,6 +8,7 @@ const GRAPH_SCOPE = "https://graph.microsoft.com/.default";
 // hace desde el buzon de Hugo.
 const CORREO_REMITENTE = "hugo.antivil@pertec.cl";
 const CORREO_SOPORTE = "soporte@pertec.cl";
+const CORREO_FINANZAS = "finanzas@pertec.cl";
 
 // Usa el app registration "PERTEC Web · Envio de correos" (el mismo que ya
 // usa la Edge Function send-catalog de pertec-web con MS_TENANT_ID/
@@ -27,7 +28,14 @@ function obtenerCredencial(): ClientSecretCredential {
   return credencial;
 }
 
-export async function enviarCorreoSoporte(asunto: string, cuerpoTexto: string): Promise<void> {
+/**
+ * Un correo de sistema, desde el buzon de siempre.
+ *
+ * El destinatario es un parametro pero NO viene de ningun formulario ni de la base: los
+ * dos posibles son constantes de este archivo. Un aviso automatico que le pueda llegar a
+ * cualquier direccion es una fuga esperando el dia que alguien edite la fila equivocada.
+ */
+async function enviar(destinatario: string, asunto: string, cuerpoTexto: string): Promise<void> {
   const token = await obtenerCredencial().getToken(GRAPH_SCOPE);
   if (!token) throw new Error("No fue posible autenticar contra Microsoft Graph para enviar el correo.");
 
@@ -36,7 +44,16 @@ export async function enviarCorreoSoporte(asunto: string, cuerpoTexto: string): 
     message: {
       subject: asunto,
       body: { contentType: "Text", content: cuerpoTexto },
-      toRecipients: [{ emailAddress: { address: CORREO_SOPORTE } }],
+      toRecipients: [{ emailAddress: { address: destinatario } }],
     },
   });
+}
+
+export async function enviarCorreoSoporte(asunto: string, cuerpoTexto: string): Promise<void> {
+  return enviar(CORREO_SOPORTE, asunto, cuerpoTexto);
+}
+
+/** Para lo que tiene que mirar Finanzas, no Soporte: una factura reclamada, por ejemplo. */
+export async function enviarCorreoFinanzas(asunto: string, cuerpoTexto: string): Promise<void> {
+  return enviar(CORREO_FINANZAS, asunto, cuerpoTexto);
 }

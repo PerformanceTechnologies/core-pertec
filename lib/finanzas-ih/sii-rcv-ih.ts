@@ -47,7 +47,7 @@ export interface DocumentoIh {
   codigoDte: number;
   // null para fuentes que no tienen un sub-estado equivalente al del RCV
   // (ej. guias de despacho via Portal MIPYME, ver sii-guias-ih.ts).
-  estadoSii: "registro" | "pendiente" | "no_incluir" | "reclamado" | null;
+  estadoSii: "registro" | "pendiente" | "no_incluir" | "reclamado" | "aceptado" | null;
   rutContraparte: string;
   razonSocialContraparte: string | null;
   folio: number;

@@ -5,6 +5,7 @@ import type { FacturaSiiFila } from "@/lib/finanzas";
 
 const ETIQUETAS_ESTADO: Record<string, string> = {
   registro: "Registro",
+  aceptado: "Aceptada",
   pendiente: "Pendiente",
   no_incluir: "No incluir",
   reclamado: "Reclamado",
@@ -55,6 +56,12 @@ export default function ModalFactura({
     ["Estado", ETIQUETAS_ESTADO[factura.estado] ?? factura.estado],
     ["Fecha documento", formatearFecha(factura.fecha_docto)],
     ["Fecha recepción", formatearFechaHora(factura.fecha_recepcion)],
+    // Solo en ventas, y solo si pasó: el acuse y el reclamo son actos del receptor. La
+    // fila no se dibuja cuando no hay fecha, así que en una compra no aparece.
+    ...(factura.fecha_acuse ? [["Acuse del cliente", formatearFecha(factura.fecha_acuse)] as [string, string]] : []),
+    ...(factura.fecha_reclamo
+      ? [["Reclamada por el cliente", formatearFecha(factura.fecha_reclamo)] as [string, string]]
+      : []),
     ["Monto exento", formatearMonto(factura.monto_exento)],
     ["Monto neto", formatearMonto(factura.monto_neto)],
     ["Monto IVA recuperable", formatearMonto(factura.monto_iva_recuperable)],

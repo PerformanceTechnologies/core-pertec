@@ -11,10 +11,22 @@ import { lanzarNavegador } from "./playwright-navegador";
 // Hallazgo clave: VENTA no tiene sub-pestanas de estado (Registro/
 // Pendientes/No Incluir/Reclamados) — esas solo existen en COMPRA, porque el
 // acuse de recibo/reclamo es un concepto de quien recibe el documento, no de
-// quien lo emite. Para venta el estado siempre es "registro".
+// quien lo emite.
+//
+// Pero eso NO significa que una venta no tenga estado real: el cliente puede
+// reclamar la factura dentro de los 8 dias corridos siguientes, y cuando lo
+// hace el RCV de ventas lo deja en las columnas "Fecha Acuse Recibo" y
+// "Fecha Reclamado" del mismo CSV. Antes se guardaban todas las ventas como
+// "registro" y el panel mostraba una columna de estado que siempre decia lo
+// mismo — o sea, no decia nada. Ahora el estado de una venta se DERIVA de
+// esas dos fechas.
+//
+// Si el SII deja de traer esas columnas, el parseo por nombre las da por
+// ausentes y el estado vuelve a ser "registro": se pierde el detalle, no el
+// documento.
 
 export type TipoDocumento = "compra" | "venta";
-export type EstadoFactura = "registro" | "pendiente" | "no_incluir" | "reclamado";
+export type EstadoFactura = "registro" | "pendiente" | "no_incluir" | "reclamado" | "aceptado";
 
 const SUBESTADOS_COMPRA: { etiquetaTab: string; estado: EstadoFactura }[] = [
   { etiquetaTab: "Registro", estado: "registro" },
@@ -40,6 +52,10 @@ export interface FacturaSii {
   montoIvaNoRecuperable: number | null;
   montoTotal: number | null;
   periodo: string; // AAAAMM
+  /** Cuando el receptor dio acuse de recibo. Solo en venta. YYYY-MM-DD. */
+  fechaAcuse: string | null;
+  /** Cuando el receptor RECLAMO el documento. Solo en venta. YYYY-MM-DD. */
+  fechaReclamo: string | null;
 }
 
 export interface CredencialesSii {
@@ -85,6 +101,19 @@ function numeroONull(valor: string | undefined): number | null {
 // Facturas IH (lib/finanzas-ih/sii-rcv-ih.ts) reutiliza este parser pero
 // necesita tambien notas de credito/debito (56/61), no solo factura
 // afecta/exenta (33/34).
+/**
+ * Una fecha del RCV que puede venir sola o con hora, o vacia.
+ *
+ * Las columnas de acuse y reclamo aparecen a veces como "12/08/2026" y a veces
+ * con hora. Y muchas filas las traen vacias, que es el caso normal: nadie
+ * reclamo nada.
+ */
+function fechaSuelta(valor: string): string | null {
+  const limpio = valor.trim();
+  if (limpio === "") return null;
+  return fechaDoctoAIso(limpio) ?? fechaRecepcionAIso(limpio)?.slice(0, 10) ?? null;
+}
+
 function parsearCsvRcv(
   contenido: string,
   tipoDocumento: TipoDocumento,
@@ -115,6 +144,10 @@ function parsearCsvRcv(
   const iMontoIvaRecuperable = idx("Monto IVA Recuperable", "Monto IVA");
   const iMontoIvaNoRecuperable = idx("Monto Iva No Recuperable");
   const iMontoTotal = idx("Monto Total", "Monto total");
+  // Las dos que dicen el estado real de una venta. Los nombres varian entre
+  // vistas del RCV, y si no estan, idx() devuelve -1 y quedan en null.
+  const iFechaAcuse = idx("Fecha Acuse Recibo", "Fecha Acuse", "Fecha de Acuse Recibo");
+  const iFechaReclamo = idx("Fecha Reclamado", "Fecha Reclamo", "Fecha de Reclamo");
 
   const filas: FacturaSii[] = [];
   for (const linea of lineas.slice(1)) {
@@ -126,10 +159,24 @@ function parsearCsvRcv(
     const folio = Number(cols[iFolio]);
     if (!Number.isFinite(folio)) continue;
 
+    const fechaAcuse = iFechaAcuse !== -1 ? fechaSuelta(cols[iFechaAcuse] || "") : null;
+    const fechaReclamo = iFechaReclamo !== -1 ? fechaSuelta(cols[iFechaReclamo] || "") : null;
+
     filas.push({
       tipoDocumento,
       codigoDte,
-      estado,
+      // En compra el estado es la sub-pestana de la que se bajo el CSV. En venta
+      // no hay sub-pestanas: lo dicen las fechas de acuse y de reclamo, y el
+      // reclamo manda —un documento reclamado y despues acusado sigue reclamado
+      // hasta que el cliente lo revierta, y es lo que hay que ir a mirar—.
+      estado:
+        tipoDocumento === "venta"
+          ? fechaReclamo
+            ? "reclamado"
+            : fechaAcuse
+              ? "aceptado"
+              : estado
+          : estado,
       rutContraparte: (cols[iRut] || "").trim(),
       razonSocial: (cols[iRazonSocial] || "").trim() || null,
       folio,
@@ -141,6 +188,8 @@ function parsearCsvRcv(
       montoIvaNoRecuperable: numeroONull(cols[iMontoIvaNoRecuperable]),
       montoTotal: numeroONull(cols[iMontoTotal]),
       periodo,
+      fechaAcuse,
+      fechaReclamo,
     });
   }
   return filas;
@@ -291,7 +340,11 @@ export async function extraerFacturasSii(
   creds: CredencialesSii,
   opciones: OpcionesExtraccion
 ): Promise<FacturaSii[]> {
-  const ventanaDias = opciones.ventanaDias ?? 7;
+  // 15 dias, no 7: el cliente tiene 8 dias corridos para reclamar una factura,
+  // asi que con una ventana de 7 un reclamo del octavo dia caia justo afuera y
+  // el panel se quedaba con el estado viejo para siempre. Quince deja margen
+  // para el fin de semana largo y para un dia que el cron no corrio.
+  const ventanaDias = opciones.ventanaDias ?? 15;
   const hoy = new Date();
   const desde = new Date(hoy);
   desde.setDate(desde.getDate() - ventanaDias);

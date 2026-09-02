@@ -6,12 +6,16 @@ export interface FacturaSiiFila {
   id: string;
   tipo_documento: "compra" | "venta";
   codigo_dte: number;
-  estado: "registro" | "pendiente" | "no_incluir" | "reclamado";
+  estado: "registro" | "pendiente" | "no_incluir" | "reclamado" | "aceptado";
   rut_contraparte: string;
   razon_social: string | null;
   folio: number;
   fecha_docto: string | null;
   fecha_recepcion: string | null;
+  /** Acuse de recibo del receptor. Solo ventas. */
+  fecha_acuse: string | null;
+  /** Reclamo del receptor. Solo ventas: de acá sale estado = reclamado. */
+  fecha_reclamo: string | null;
   monto_exento: number | null;
   monto_neto: number | null;
   monto_iva_recuperable: number | null;
@@ -66,6 +70,8 @@ export async function guardarFacturasSii(filas: FacturaSii[]): Promise<number> {
         folio: f.folio,
         fecha_docto: f.fechaDocto,
         fecha_recepcion: f.fechaRecepcion,
+        fecha_acuse: f.fechaAcuse,
+        fecha_reclamo: f.fechaReclamo,
         monto_exento: f.montoExento,
         monto_neto: f.montoNeto,
         monto_iva_recuperable: f.montoIvaRecuperable,
@@ -79,6 +85,43 @@ export async function guardarFacturasSii(filas: FacturaSii[]): Promise<number> {
 
   if (error) throw new Error(error.message);
   return count ?? filas.length;
+}
+
+/**
+ * Las ventas que aparecen reclamadas y que NO estaban reclamadas en la base.
+ *
+ * Se consulta ANTES de guardar, porque después de guardar ya no se puede saber si el
+ * reclamo es nuevo. Y "nuevo" es lo único que sirve para avisar: el reclamo se queda en
+ * el RCV hasta que el cliente lo revierta, así que sin esta comparación cada corrida
+ * mandaría de nuevo el mismo correo y en una semana nadie lo abre.
+ *
+ * Solo ventas: en compra el reclamo lo hace PERTEC, así que no es una novedad que haya
+ * que avisarle a nadie.
+ */
+export async function reclamosNuevosDeVenta(filas: FacturaSii[]): Promise<FacturaSii[]> {
+  const reclamadas = filas.filter((f) => f.tipoDocumento === "venta" && f.estado === "reclamado");
+  if (reclamadas.length === 0) return [];
+
+  const { data } = await supabaseAdmin
+    .from("facturas_sii")
+    .select("codigo_dte, rut_contraparte, folio, estado")
+    .eq("tipo_documento", "venta")
+    .in(
+      "folio",
+      reclamadas.map((f) => f.folio),
+    );
+
+  // La clave natural completa, la misma del upsert: dos empresas distintas pueden
+  // emitir el mismo folio en tipos de documento distintos.
+  const clave = (f: { codigo_dte: number; rut_contraparte: string; folio: number }) =>
+    `${f.codigo_dte}|${f.rut_contraparte}|${f.folio}`;
+  const yaReclamadas = new Set(
+    (data ?? []).filter((f) => f.estado === "reclamado").map((f) => clave(f as never)),
+  );
+
+  return reclamadas.filter(
+    (f) => !yaReclamadas.has(clave({ codigo_dte: f.codigoDte, rut_contraparte: f.rutContraparte, folio: f.folio })),
+  );
 }
 
 export async function registrarEjecucion(exito: boolean, documentosNuevos: number, mensajeError?: string): Promise<void> {

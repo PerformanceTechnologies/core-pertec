@@ -22,7 +22,7 @@ export interface FinanzasIhDocumentoFila {
   tipo_documento: "factura_afecta" | "factura_exenta" | "nota_credito" | "nota_debito" | "guia_despacho" | "boleta";
   direccion: "compra" | "venta" | null;
   codigo_dte: number;
-  estado_sii: "registro" | "pendiente" | "no_incluir" | "reclamado" | null;
+  estado_sii: "registro" | "pendiente" | "no_incluir" | "reclamado" | "aceptado" | null;
   rut_contraparte: string;
   razon_social_contraparte: string | null;
   folio: number;
