@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { IconArrowLeft } from "@tabler/icons-react";
 import type { FacturaSiiFila } from "@/lib/finanzas";
+import BotonSincronizarSii from "@/components/finanzas/BotonSincronizarSii";
 import TarjetaHoy from "./TarjetaHoy";
 import ModalFactura from "./ModalFactura";
 
@@ -161,6 +162,13 @@ export default function PanelFinanzas({
         ) : (
           <span>Todavía no se ha ejecutado la actualización automática.</span>
         )}
+      </div>
+
+      {/* La corrida diaria mira los últimos 15 días; todo lo más viejo se quedó con el
+          estado que tenía el día que se leyó. Esto es para releer un mes entero cuando
+          hace falta —por ejemplo para traer las ventas que el cliente reclamó después—. */}
+      <div className="mt-4">
+        <BotonSincronizarSii />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
