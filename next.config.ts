@@ -45,6 +45,16 @@ const nextConfig: NextConfig = {
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium-min/**/*",
     ],
+    // Releer un periodo del SII desde la pantalla usa el MISMO scraper con navegador que
+    // el cron, y una Server Action se empaqueta con la RUTA QUE LA IMPORTA, no con una
+    // ruta propia: por eso la clave es la pagina. Sin esta entrada la accion falla en
+    // Vercel con "Cannot find module .../playwright-core/browsers.json", y en produccion
+    // eso se ve solo como "An error occurred in the Server Components render" sin decir
+    // cual fue el modulo. Paso una tarde por esto.
+    "/finanzas/sii": [
+      "./node_modules/playwright-core/**/*",
+      "./node_modules/@sparticuz/chromium-min/**/*",
+    ],
   },
 };
 

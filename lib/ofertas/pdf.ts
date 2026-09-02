@@ -1,13 +1,10 @@
 import "server-only";
 import { lanzarNavegador } from "@/lib/playwright-navegador";
-import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import type { Empresa } from "@/lib/cotizador/empresas";
-import { ofertaAHtml, plantillasDeImpresion } from "./plantilla";
-import { calcularTotales } from "./verificar";
-import { firmaDe, type OfertaCanonica } from "./tipos";
-import { estiloParaOferta } from "./maestros";
-import { logosParaDocumento } from "./logos-archivo";
-import { imagenesParaDocumento, type ImagenGuardada } from "./imagenes";
+import { plantillasDeImpresion } from "./plantilla";
+import { piezasDelDocumento } from "./documento";
+import type { OfertaCanonica } from "./tipos";
+import type { ImagenGuardada } from "./imagenes";
 
 /**
  * La oferta, impresa.
@@ -34,25 +31,15 @@ export async function ofertaAPdf(
   logoClienteRuta: string | null = null,
   inventario: ImagenGuardada[] = [],
 ): Promise<Buffer> {
-  const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
-  if (!empresa) {
-    throw new Error(
-      `No se encontró la identidad de "${nombreEmpresa}". Cárgala en /cotizador/empresas antes de emitir.`,
-    );
-  }
-
-  // El estilo cae en cascada: el maestro de la oferta, si no el predeterminado,
-  // si no el de PERTEC. Nunca falla.
-  //
-  // Los logos vienen de otro lado a propósito: el del maestro es la piel y el
-  // logo es la identidad. El de la casa sale de la empresa emisora —se sube una
-  // vez— y el del cliente, de esta oferta. Ninguno de los dos sale del maestro.
-  const [estilo, logos, imagenes] = await Promise.all([
-    estiloParaOferta(maestroId),
-    logosParaDocumento(empresa, logoClienteRuta),
-    imagenesParaDocumento(inventario, imagenesQueUsa(oferta)),
-  ]);
-  const html = ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos, imagenes);
+  // El MISMO documento que se ve en pantalla, armado en un solo lugar (./documento.ts):
+  // dos caminos para maquetarlo serían dos documentos distintos con el mismo nombre.
+  const { html, empresa, estilo, logos } = await piezasDelDocumento(
+    oferta,
+    nombreEmpresa,
+    maestroId,
+    logoClienteRuta,
+    inventario,
+  );
 
   const browser = await lanzarNavegador();
   try {
@@ -79,41 +66,4 @@ export async function ofertaAPdf(
   } finally {
     await browser.close();
   }
-}
-
-/** El HTML sin imprimir, para la previsualización en pantalla. */
-export async function ofertaAHtmlConEmpresa(
-  oferta: OfertaCanonica,
-  nombreEmpresa: Empresa,
-  maestroId: string | null = null,
-  logoClienteRuta: string | null = null,
-  inventario: ImagenGuardada[] = [],
-  /** La vista del editor dibuja los subtítulos vacíos; el PDF no. Ver ofertaAHtml. */
-  paraEditar = false,
-): Promise<string> {
-  const empresa = await obtenerEmpresaPorNombre(nombreEmpresa);
-  if (!empresa) throw new Error(`No se encontró la identidad de "${nombreEmpresa}".`);
-  const [estilo, logos, imagenes] = await Promise.all([
-    estiloParaOferta(maestroId),
-    logosParaDocumento(empresa, logoClienteRuta),
-    imagenesParaDocumento(inventario, imagenesQueUsa(oferta)),
-  ]);
-  return ofertaAHtml(oferta, calcularTotales(oferta), empresa, estilo, logos, imagenes, paraEditar);
-}
-
-/**
- * Qué imágenes del inventario pide este documento.
- *
- * Una oferta puede traer ocho imágenes del borrador y dibujar cinco: bajar las
- * tres que no se usan es peso al PDF por nada.
- */
-function imagenesQueUsa(oferta: OfertaCanonica): number[] {
-  const cierre = oferta.cierre;
-  // Una por firmante, no una sola: si el segundo firma con su propia rúbrica y acá
-  // no se pide, el documento sale con el hueco vacío y nadie sabe por qué.
-  const firmas = cierre
-    ? cierre.firmantes.map((_, i) => firmaDe(cierre, i)).filter((n): n is number => n != null)
-    : [];
-  const enSecciones = Object.values(oferta.imagenesPorSeccion ?? {}).flat();
-  return [...enSecciones, ...firmas];
 }

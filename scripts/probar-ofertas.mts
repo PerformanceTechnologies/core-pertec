@@ -1195,19 +1195,90 @@ const rutasApi = readdirSync(new URL("../app/api", import.meta.url), {
     return desde === -1 ? "/api" : `/api${e.parentPath.slice(desde + "/app/api".length)}`;
   });
 
-const queImprimen = rutasApi.filter((ruta) => {
-  const archivo = new URL(`../app${ruta}/route.ts`, import.meta.url);
-  const fuente = readFileSync(archivo, "utf8");
-  return /ofertaAPdf|lanzarNavegador|eco-pdf/.test(fuente);
-});
+// La detección es TRANSITIVA y mira todo app/, no solo las rutas de API. La primera
+// versión buscaba "lanzarNavegador" dentro de cada route.ts, y con eso se le escapó el
+// caso real: una Server Action en app/(protegido)/finanzas/sii/acciones.ts que importa
+// lib/sii-rcv, que a su vez abre el navegador. Compiló, desplegó, y al apretar el botón
+// devolvió el error genérico de Server Components —sin decir qué módulo faltaba—.
+const libDeNavegador = new Set<string>();
+const archivosLib = readdirSync(new URL("../lib", import.meta.url), {
+  recursive: true,
+  withFileTypes: true,
+})
+  .filter((e) => e.isFile() && e.name.endsWith(".ts"))
+  .map((e) => `${e.parentPath}/${e.name}`);
 
-assert.ok(queImprimen.length >= 2, `se esperaban varias rutas que impriman, hay ${queImprimen.length}`);
-for (const ruta of queImprimen) {
+// Punto de partida: los que lo llaman directo. Después se propaga a quien los importa,
+// hasta que no cambie nada — una dependencia de tres saltos necesita el Chromium igual
+// que una de uno.
+for (const archivo of archivosLib) {
+  if (/lanzarNavegador|ofertaAPdf/.test(readFileSync(archivo, "utf8"))) libDeNavegador.add(archivo);
+}
+const nombreDeModulo = (archivo: string): string =>
+  archivo.slice(archivo.lastIndexOf("/lib/") + "/lib/".length).replace(/\.ts$/, "");
+
+/**
+ * El fuente sin los imports de SOLO TIPO.
+ *
+ * Un `import type` se borra al compilar: no arrastra el módulo al bundle y por lo tanto
+ * no necesita el Chromium. Sin sacarlos, esta prueba acusó a /finanzas/facturas-ih —una
+ * pantalla que solo lee de la base y que importa un tipo de la cadena del scraper— y
+ * habría hecho agregar una entrada de tracing que no hace falta.
+ */
+const sinImportsDeTipo = (fuente: string): string =>
+  fuente.replace(/import\s+type\s+[\s\S]*?from\s+"[^"]+";/g, "");
+
+for (let vuelta = 0; vuelta < 10; vuelta += 1) {
+  const antes = libDeNavegador.size;
+  for (const archivo of archivosLib) {
+    if (libDeNavegador.has(archivo)) continue;
+    const fuente = sinImportsDeTipo(readFileSync(archivo, "utf8"));
+    for (const conNavegador of libDeNavegador) {
+      const modulo = nombreDeModulo(conNavegador);
+      const hoja = modulo.slice(modulo.lastIndexOf("/") + 1);
+      if (fuente.includes(`@/lib/${modulo}"`) || fuente.includes(`./${hoja}"`)) {
+        libDeNavegador.add(archivo);
+        break;
+      }
+    }
+  }
+  if (libDeNavegador.size === antes) break;
+}
+
+assert.ok(libDeNavegador.size >= 3, `se esperaban varios módulos con navegador, hay ${libDeNavegador.size}`);
+
+/** El pathname de un archivo de app/, sin los grupos de rutas. */
+const pathnameDe = (carpeta: string): string => {
+  const desde = carpeta.indexOf("/app/");
+  const crudo = desde === -1 ? "" : carpeta.slice(desde + "/app".length);
+  const limpio = crudo
+    .split("/")
+    .filter((seg) => seg !== "" && !(seg.startsWith("(") && seg.endsWith(")")))
+    .join("/");
+  return `/${limpio}`;
+};
+
+const queImprimen = readdirSync(new URL("../app", import.meta.url), {
+  recursive: true,
+  withFileTypes: true,
+})
+  .filter((e) => e.isFile() && /^(route\.ts|page\.tsx|acciones\.ts)$/.test(e.name))
+  .filter((e) => {
+    const fuente = sinImportsDeTipo(readFileSync(`${e.parentPath}/${e.name}`, "utf8"));
+    if (/lanzarNavegador|ofertaAPdf/.test(fuente)) return true;
+    return [...libDeNavegador].some((archivo) => fuente.includes(`@/lib/${nombreDeModulo(archivo)}"`));
+  })
+  .map((e) => pathnameDe(e.parentPath));
+
+assert.ok(queImprimen.length >= 3, `se esperaban varias rutas que impriman, hay ${queImprimen.length}`);
+for (const ruta of new Set(queImprimen)) {
   const clave = ruta.replace(/\[([^\]]+)\]/g, "\\\\[$1\\\\]");
   assert.ok(
     config.includes(`"${clave}"`),
-    `la ruta ${ruta} imprime con Chromium y no tiene entrada en outputFileTracingIncludes: ` +
-      'va a desplegar bien y fallar al primer uso con "Cannot find module .../browsers.json"',
+    `${ruta} abre un navegador (directo o por lo que importa) y no tiene entrada en ` +
+      "outputFileTracingIncludes: va a desplegar bien y fallar al primer uso con " +
+      '"Cannot find module .../browsers.json" — que en producción se ve como el error ' +
+      "genérico de Server Components, sin decir qué falta",
   );
 }
 

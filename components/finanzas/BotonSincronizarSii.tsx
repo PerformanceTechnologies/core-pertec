@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sincronizarSiiAction } from "@/app/(protegido)/finanzas/acciones";
+import { sincronizarSiiAction } from "@/app/(protegido)/finanzas/sii/acciones";
 import RuedaCarga from "@/components/RuedaCarga";
 
 /**

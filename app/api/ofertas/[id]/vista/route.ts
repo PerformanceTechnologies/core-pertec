@@ -1,5 +1,5 @@
 import { accesoAOfertaApi } from "@/lib/ofertas/datos";
-import { ofertaAHtmlConEmpresa } from "@/lib/ofertas/pdf";
+import { ofertaAHtmlConEmpresa } from "@/lib/ofertas/documento";
 import type { OfertaCanonica } from "@/lib/ofertas/tipos";
 import { conElRepartoDe } from "@/lib/ofertas/normalizar";
 

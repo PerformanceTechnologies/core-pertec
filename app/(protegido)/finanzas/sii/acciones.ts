@@ -21,6 +21,12 @@ import { enviarCorreoFinanzas } from "@/lib/notificaciones";
  * secreto por una terminal para una tarea de todos los días. Acá manda la sesión: mismo
  * guard que la pantalla.
  *
+ * VIVE JUNTO A SU PÁGINA, y no en la carpeta de arriba, porque una Server Action se
+ * empaqueta con la ruta que la importa: el Chromium del scraper hay que declararlo para
+ * ESA ruta en outputFileTracingIncludes (ver next.config.ts), y con el archivo en
+ * /finanzas la ruta a declarar no era evidente. Con el archivo acá, la ruta es la de esta
+ * carpeta y no hay nada que adivinar.
+ *
  * DE A UN PERÍODO, y no todos juntos: el scraper abre un navegador, se loguea y baja un
  * CSV por cada sub-pestaña, así que un período son minutos y la función tiene tope. Tres
  * períodos en una sola llamada se cortan a la mitad y no queda registro de qué alcanzó a

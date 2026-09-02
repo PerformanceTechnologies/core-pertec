@@ -1,5 +1,6 @@
 import { accesoAOfertaApi, marcarEmitida } from "@/lib/ofertas/datos";
-import { ofertaAHtmlConEmpresa, ofertaAPdf } from "@/lib/ofertas/pdf";
+import { ofertaAPdf } from "@/lib/ofertas/pdf";
+import { ofertaAHtmlConEmpresa } from "@/lib/ofertas/documento";
 import { nombreDeArchivoDeOferta } from "@/lib/ofertas/emision";
 import { leerPdfEmitido } from "@/lib/ofertas/pdf-archivo";
 
