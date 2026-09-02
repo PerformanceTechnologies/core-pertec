@@ -334,6 +334,20 @@ export interface OpcionesExtraccion {
   // el limite de mes.
   cargaInicial: boolean;
   ventanaDias?: number;
+  /**
+   * Periodos completos a releer ("2026-08"), sin filtrar por dia.
+   *
+   * Existe por un agujero que se vio al agregar el estado real de las ventas: la
+   * sincronizacion incremental solo mira los ultimos dias, asi que una factura
+   * mas vieja que la ventana NUNCA vuelve a consultarse y se queda con el estado
+   * que tenia el dia que se leyo. Al cambiar como se deriva el estado, o al
+   * agregar una columna, eso deja el historial congelado en un dato viejo.
+   *
+   * Con esto se pide "releeme agosto entero" y el estado de todo ese periodo se
+   * actualiza contra el SII. Es la unica forma de que un cambio de este archivo
+   * alcance a lo ya guardado.
+   */
+  periodos?: string[];
 }
 
 export async function extraerFacturasSii(
@@ -349,10 +363,15 @@ export async function extraerFacturasSii(
   const desde = new Date(hoy);
   desde.setDate(desde.getDate() - ventanaDias);
 
-  const periodos = new Set<string>();
-  periodos.add(`${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`);
-  if (!opciones.cargaInicial) {
-    periodos.add(`${desde.getFullYear()}-${String(desde.getMonth() + 1).padStart(2, "0")}`);
+  const relectura = (opciones.periodos ?? []).filter((p) => /^\d{4}-\d{2}$/.test(p));
+  const periodos = new Set<string>(relectura);
+  if (relectura.length === 0) {
+    periodos.add(`${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`);
+    // La relectura de periodos completos NO filtra por dia: se pide justamente para
+    // actualizar el estado de lo que ya es mas viejo que la ventana.
+    if (!opciones.cargaInicial && relectura.length === 0) {
+      periodos.add(`${desde.getFullYear()}-${String(desde.getMonth() + 1).padStart(2, "0")}`);
+    }
   }
 
   const browser = await lanzarNavegador();

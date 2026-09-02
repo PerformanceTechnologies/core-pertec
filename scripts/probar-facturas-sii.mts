@@ -61,6 +61,26 @@ assert.ok(
   "y el cron pide esa ventana explícitamente, no la que venga por omisión",
 );
 
+// ── Releer un período completo ──────────────────────────────────────────────
+//
+// La corrida diaria mira 15 días, así que una factura más vieja que eso no se vuelve a
+// consultar nunca y se queda con el estado que tenía el día que se leyó. Al cambiar cómo
+// se deriva el estado de una venta, todo el historial quedó con el dato viejo —"registro"
+// en cada una— y sin esto no había forma de actualizarlo.
+assert.ok(
+  /periodos\?: string\[\]/.test(scraper),
+  "se pueden pedir períodos completos para releer",
+);
+assert.ok(
+  /relectura\.length === 0[\s\S]{0,400}filas = filas\.filter/.test(scraper) ||
+    /!opciones\.cargaInicial && relectura\.length === 0/.test(scraper),
+  "y una relectura NO filtra por día: se pide justamente para lo más viejo que la ventana",
+);
+assert.ok(
+  cron.includes('searchParams.get("meses")') && cron.includes('searchParams.get("periodos")'),
+  "el cron acepta pedirlo a mano, que es lo que arregla el historial ya guardado",
+);
+
 // ── El aviso a Finanzas ─────────────────────────────────────────────────────
 const reclamada = (parte: Partial<FacturaSii>): FacturaSii => ({
   tipoDocumento: "venta",

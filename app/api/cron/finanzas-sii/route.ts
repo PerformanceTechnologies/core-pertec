@@ -24,6 +24,30 @@ export async function GET(request: NextRequest) {
 
   const cargaInicial = request.nextUrl.searchParams.get("cargaInicial") === "true";
 
+  // Releer periodos completos, a mano: "?meses=3" son este mes y los dos anteriores,
+  // "?periodos=2026-07,2026-08" los que se pidan. Sin filtro de dia.
+  //
+  // Hace falta porque la corrida diaria solo mira los ultimos 15 dias: una factura mas
+  // vieja que eso nunca se vuelve a consultar y se queda con el estado que tenia el dia
+  // que se leyo. Al cambiar como se deriva el estado de una venta, todo el historial
+  // quedo con el dato viejo —"registro" en cada una— y no habia forma de actualizarlo
+  // sin esto.
+  const meses = Number(request.nextUrl.searchParams.get("meses") ?? "0");
+  const pedidos = (request.nextUrl.searchParams.get("periodos") ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => /^\d{4}-\d{2}$/.test(p));
+  const periodos = pedidos.length
+    ? pedidos
+    : Number.isInteger(meses) && meses > 0 && meses <= 12
+      ? Array.from({ length: meses }, (_, i) => {
+          const d = new Date();
+          d.setDate(1);
+          d.setMonth(d.getMonth() - i);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        })
+      : [];
+
   const creds = {
     rutRepresentante: process.env.SII_RUT_REPRESENTANTE ?? "",
     claveTributaria: process.env.SII_CLAVE_TRIBUTARIA ?? "",
@@ -39,7 +63,7 @@ export async function GET(request: NextRequest) {
     // 15 dias: el cliente tiene 8 corridos para reclamar una factura de venta, asi que
     // con la ventana de 7 que habia un reclamo del octavo dia caia afuera y el panel se
     // quedaba con el estado viejo.
-    const filas = await extraerFacturasSii(creds, { cargaInicial, ventanaDias: 15 });
+    const filas = await extraerFacturasSii(creds, { cargaInicial, ventanaDias: 15, periodos });
 
     // ANTES de guardar: despues ya no se puede saber si el reclamo es nuevo, y lo unico
     // que sirve avisar es lo nuevo — el reclamo se queda en el RCV hasta que el cliente lo
@@ -68,6 +92,7 @@ export async function GET(request: NextRequest) {
       ok: true,
       documentos: filas.length,
       nuevos: nuevas,
+      periodos: periodos.length ? periodos : "ventana de 15 días",
       reclamosAvisados: reclamos.map((f) => f.folio),
     });
   } catch (err) {
