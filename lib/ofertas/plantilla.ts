@@ -13,7 +13,14 @@ import {
 } from "./tipos";
 import { bloqueConContenido, gruposDe } from "./estructura";
 import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
-import { SIN_LOGOS, imagenSegura, logoSeguro, type ImagenDibujable, type LogosDocumento } from "./logo";
+import {
+  SIN_LOGOS,
+  esApaisada,
+  imagenSegura,
+  logoSeguro,
+  type ImagenDibujable,
+  type LogosDocumento,
+} from "./logo";
 
 /**
  * El maestro del formato de ofertas técnicas, como código.
@@ -412,11 +419,32 @@ function figura(
   numero: number,
   epigrafes: Record<number, string>,
   clases: string,
+  /** El texto que la rodearía: de ahí sale el ancho de una flotante. Ver medidaFlotante. */
+  largoDelTexto = 0,
 ): string {
   const epigrafe = epigrafes[indice];
+  // La caja toma LA FORMA DE LA FOTO. Antes la grilla fijaba `height: 60mm` y una imagen
+  // vertical salía centrada en una caja horizontal, con una banda gris a cada lado; y el
+  // navegador no podía reservar el espacio antes de cargarla, así que el documento se
+  // reacomodaba a la vista. Con la proporción declarada, la caja ya es del alto correcto.
+  const forma =
+    imagen.proporcion > 0 ? ` style="aspect-ratio:${imagen.proporcion.toFixed(4)}"` : "";
+  // Una imagen claramente vertical se limita por ALTO y no por ancho: al ancho de media
+  // página, una foto de 1:2 mide media hoja de alto. Limitarla por alto y centrarla
+  // conserva su forma; recortarla es peor todavía en una foto técnica, donde lo que se
+  // recorta puede ser justo lo que hay que mirar.
+  const todas = [clases, imagen.proporcion > 0 && imagen.proporcion < PROPORCION_ALTA ? "alta" : ""]
+    .filter(Boolean)
+    .join(" ");
+  // El ancho de una flotante se despeja de su alto: ver medidaFlotante. Las de la grilla
+  // no lo llevan, ahí el ancho es el de la columna.
+  const anchoFlotante =
+    clases.includes("flotante") && imagen.proporcion > 0
+      ? ` style="width:${medidaFlotante(imagen.proporcion, largoDelTexto).ancho.toFixed(1)}mm"`
+      : "";
   return (
-    `<figure data-imagen="${indice}"${clases ? ` class="${clases}"` : ""}>` +
-    `<img src="${imagen.uri}" alt="">` +
+    `<figure data-imagen="${indice}"${todas ? ` class="${todas}"` : ""}${anchoFlotante}>` +
+    `<img src="${imagen.uri}" alt=""${forma}>` +
     `<figcaption>${String(numero).padStart(2, "0")}${
       epigrafe ? `. <span${campo(`epigrafesDeImagenes.${indice}`)}>${esc(epigrafe)}</span>` : ""
     }</figcaption>` +
@@ -435,13 +463,124 @@ function figura(
  * La numeración del pie sigue siendo una sola cuenta por sección, flotantes incluidas: es
  * lo que la persona lee ("ver foto 03") y no tiene por qué saber cómo está dispuesta.
  */
+/** Por debajo de esta proporción, una imagen es "alta" y se limita por alto. Ver figura(). */
+const PROPORCION_ALTA = 0.85;
+
+/**
+ * Cuánto MIDE el texto, en caracteres por milímetro de alto.
+ *
+ * Medido, no estimado: se renderizó el cuerpo de la plantilla en una columna de 119 mm
+ * —dos tercios del ancho impreso, que es lo que le queda al texto al lado de una figura
+ * flotante— y se midieron párrafos de largo conocido. 320 caracteres dan 16,1 mm; 600
+ * dan 28,2; 1.100 dan 48,3. O sea un milímetro cada 22 caracteres, bastante lineal.
+ *
+ * Sirve para lo único que hay que saber antes de maquetar: si el texto de un bloque
+ * alcanza para acompañar a la figura de al lado.
+ */
+export const CARACTERES_POR_MM = 22;
+
+/** Una figura al costado nunca es una tira ni media página. */
+const FLOTANTE_MM = { anchoMinimo: 30, anchoMaximo: 62, altoMaximo: 58 };
+
+/**
+ * Cuánto puede sobrar la figura por debajo del texto, en milímetros.
+ *
+ * En milímetros y no en porcentaje, porque es lo que juzga el ojo: dos centímetros de
+ * aire debajo de una foto se leen como una decisión de diseño, cuatro se leen como un
+ * hueco. Con un porcentaje, el mismo 15% eran 3 mm en un párrafo corto —imposible de
+ * cumplir— y 9 mm en uno largo.
+ *
+ * Sirve para las dos cosas: la figura se pide de ese alto y, si el ancho mínimo la empuja
+ * más arriba —una vertical es angosta, y angosta es alta—, deja de flotar. Se probó al
+ * revés, exigiendo que el texto cubriera la figura entera: una foto de 1:1.7 no llegaba
+ * nunca a flotar y terminaba centrada a 108 mm de alto, media página para una sola foto.
+ * Peor que el hueco que se quería evitar.
+ */
+export const AIRE_TOLERADO_MM = 16;
+
+/**
+ * El tamaño de una figura al costado del texto, en milímetros.
+ *
+ * Se despeja del ALTO y no del ancho, al revés de lo que sale natural en CSS: la figura
+ * tiene que medir lo mismo de alto que el texto que la acompaña. Con el ancho fijo —un
+ * 32% del cuerpo, como estaba— una foto vertical de 1:2 salía de 55 por 95 mm: el texto
+ * la rodeaba tres renglones y abajo quedaban 70 mm de blanco al costado de la foto.
+ *
+ * Va en el servidor y no en el CSS porque la proporción de cada imagen la sabe el
+ * servidor, y en CSS no hay forma de despejar el ancho a partir de ella.
+ */
+export function medidaFlotante(proporcion: number, largoDelTexto: number) {
+  const altoDelTexto = largoDelTexto / CARACTERES_POR_MM;
+  const deseado = Math.min(FLOTANTE_MM.altoMaximo, altoDelTexto + AIRE_TOLERADO_MM);
+  const ancho = Math.min(
+    FLOTANTE_MM.anchoMaximo,
+    Math.max(FLOTANTE_MM.anchoMinimo, deseado * proporcion),
+  );
+  return { ancho, alto: ancho / proporcion, altoDelTexto };
+}
+
+/** Los caracteres de texto de un trozo de HTML, sin sus etiquetas. */
+const largoDeTexto = (html: string): number => html.replace(/<[^>]*>/g, " ").trim().length;
+
+/**
+ * Dónde va cada imagen cuando NADIE lo eligió a mano.
+ *
+ * Esto es lo que hace que un documento se vea armado y no con las fotos apiladas al
+ * final. Antes toda imagen caía en la grilla del final del bloque —"pegada debajo del
+ * texto"— y las tres disposiciones existían solo para elegirlas a una por una.
+ *
+ * Las reglas, y por qué:
+ *
+ *  - ANCHA la que es ancha (proporción ≥ 1.6): una panorámica o un diagrama a un tercio
+ *    de página no se lee. Ocupa el ancho completo.
+ *  - AL COSTADO la única imagen de un bloque con texto suficiente. Es la disposición que
+ *    se ve natural en un documento técnico: el texto explica y la foto acompaña al lado.
+ *    Alterna derecha e izquierda según el número de figura, para que dos secciones
+ *    seguidas no salgan iguales.
+ *  - EN GRILLA el resto: dos o más imágenes juntas —una serie de fotos, un antes y un
+ *    después— o un bloque sin texto que las rodee. Ahí van una al lado de la otra y con
+ *    la forma de cada una, no recortadas a una altura común.
+ *
+ * Una elección a mano siempre gana: quien acomoda las fotos sobre el documento está
+ * mirando el resultado, y esto es solo un punto de partida.
+ */
+function disposicionNatural(
+  imagen: ImagenDibujable,
+  cuantas: number,
+  largoDelTexto: number,
+  numeroDeFigura: number,
+): DisposicionDeImagen {
+  if (esApaisada(imagen.proporcion)) return "ancha";
+  if (cuantas !== 1 || imagen.proporcion <= 0) return "grilla";
+
+  // Al costado SOLO si el texto llega hasta el pie de la figura. Es la condición que
+  // decide, y no un mínimo de caracteres: la misma cantidad de texto alcanza para una
+  // foto cuadrada y no para una vertical, que al mismo alto sale mucho más angosta y, al
+  // llegar al ancho mínimo, mucho más alta.
+  const medida = medidaFlotante(imagen.proporcion, largoDelTexto);
+  if (medida.alto > medida.altoDelTexto + AIRE_TOLERADO_MM) return "grilla";
+
+  // Alterna los lados por número de figura, para que dos secciones seguidas no salgan
+  // iguales: es parte de que el documento se lea armado y no plantillado.
+  return numeroDeFigura % 2 === 1 ? "derecha" : "izquierda";
+}
+
 function imagenesDeSeccion(
   numeros: number[] | undefined,
   imagenes: Record<number, ImagenDibujable>,
   epigrafes: Record<number, string>,
   disposiciones: Record<number, DisposicionDeImagen> | undefined,
-  hayTexto: boolean,
+  /** Los caracteres de texto que rodearían a la figura. 0 = no hay texto. */
+  largoDelTexto: number,
   desdeNumero = 1,
+  /**
+   * La grilla con celdas del mismo alto, como estaba antes.
+   *
+   * Solo para el anexo de fotos del maestro: ahí son varias fotos parecidas al final del
+   * documento y la grilla cerrada se lee mejor que una con altos distintos. En el cuerpo
+   * de un documento transcribido es lo contrario, porque cada foto ilustra su párrafo.
+   */
+  uniforme = false,
 ): { flotantes: string; grilla: string } {
   const usables = (numeros ?? [])
     .map((indice) => ({ indice, imagen: imagenes[indice] }))
@@ -452,22 +591,30 @@ function imagenesDeSeccion(
   const enGrilla: string[] = [];
 
   usables.forEach(({ indice, imagen }, i) => {
+    const numero = desdeNumero + i;
+    // "grilla" es también lo que devuelve `disposicionDe` cuando nadie eligió nada, así
+    // que ahí manda la disposición natural. Las otras tres son elecciones explícitas.
     const elegida = disposicionDe(disposiciones, indice);
+    const donde =
+      elegida === "grilla"
+        ? disposicionNatural(imagen, usables.length, largoDelTexto, numero)
+        : elegida;
+
     // Una flotante sin texto al lado deja media página en blanco con la foto colgando
     // en un costado: sin cuerpo que la rodee, vuelve a la grilla.
-    const flota = hayTexto && (elegida === "izquierda" || elegida === "derecha");
-    if (flota) {
-      flotantes.push(figura(indice, imagen, desdeNumero + i, epigrafes, `flotante ${elegida}`));
+    if ((donde === "izquierda" || donde === "derecha") && largoDelTexto > 0) {
+      flotantes.push(figura(indice, imagen, numero, epigrafes, `flotante ${donde}`, largoDelTexto));
       return;
     }
-    // `ancha` se puede forzar; si no se eligió nada, decide la proporción como siempre.
-    const ancha = elegida === "ancha" || (elegida === "grilla" && imagen.apaisada);
-    enGrilla.push(figura(indice, imagen, desdeNumero + i, epigrafes, ancha ? "ancha" : ""));
+    enGrilla.push(figura(indice, imagen, numero, epigrafes, donde === "ancha" ? "ancha" : ""));
   });
 
   return {
     flotantes: flotantes.join(""),
-    grilla: enGrilla.length > 0 ? `<div class="fotos">${enGrilla.join("")}</div>` : "",
+    grilla:
+      enGrilla.length > 0
+        ? `<div class="fotos${uniforme ? " uniforme" : ""}">${enGrilla.join("")}</div>`
+        : "",
   };
 }
 
@@ -530,7 +677,9 @@ function bloqueHtml(
     imagenes,
     epigrafes,
     disposiciones,
-    parrafos !== "",
+    // El LARGO y no un sí/no: decide si una figura al costado tiene texto suficiente
+    // para quedar bien. Se mide sobre el texto plano del bloque, no sobre el HTML.
+    bloque.parrafos.join(" ").length,
     desdeNumero,
   );
 
@@ -675,7 +824,9 @@ function armarSecciones(
           imagenes,
           oferta.epigrafesDeImagenes ?? {},
           oferta.disposicionDeImagenes,
-          cuerpo !== "" || bloques !== "",
+          // Aproximado a propósito: acá el cuerpo ya es HTML, así que se descuentan las
+          // etiquetas para no contar un `<table>` entero como si fuera texto que rodea.
+          largoDeTexto(cuerpo) + largoDeTexto(bloques),
         )
       : { flotantes: "", grilla: "" };
 
@@ -1047,7 +1198,15 @@ function armarAnexo(
   // La nota estaba antes junto a los mandantes y no es de ahí: en un borrador dice
   // "Fotografías de referencia incluidas: CODELCO - División Radomiro Tomic…", que
   // es exactamente el epígrafe de estas fotos.
-  const grilla = imagenesDeSeccion(fotos, imagenes, epigrafes, disposiciones, cuerpo !== "").grilla;
+  const grilla = imagenesDeSeccion(
+    fotos,
+    imagenes,
+    epigrafes,
+    disposiciones,
+    largoDeTexto(cuerpo),
+    1,
+    true,
+  ).grilla;
   if (grilla) {
     cuerpo +=
       `<div class="grupo"><h3>${r.html("anexo-fotos")}</h3>` +
@@ -1111,10 +1270,19 @@ export function ofertaAHtml(
   // Elegir una imagen y que no aparezca en ninguna parte es lo peor que puede hacer
   // esa pantalla.
   const emitidas = new Set(secciones.map((seccion) => seccion.clave).filter(Boolean));
+  // Una imagen que YA dibujó su bloque no está huérfana, aunque su sección no exista.
+  //
+  // En un documento transcribido cada imagen vive dentro del bloque donde estaba, y
+  // además queda anotada en `imagenesPorSeccion` para el reparto y para saber qué bajar.
+  // Sin esta resta, ninguna sección del maestro se emite —el documento no las tiene—, así
+  // que las cuatro imágenes contaban como huérfanas: salían dos veces, una en su párrafo
+  // y otra en un "Anexo — respaldos y experiencia" que nadie escribió.
+  const dibujadasEnBloques = new Set((oferta.bloques ?? []).flatMap((b) => b.imagenes ?? []));
   const enElAnexo = oferta.imagenesPorSeccion?.anexo ?? [];
   const huerfanas = Object.entries(oferta.imagenesPorSeccion ?? {})
     .filter(([clave]) => clave !== "anexo" && !emitidas.has(clave as SeccionConImagenes))
-    .flatMap(([, indices]) => indices ?? []);
+    .flatMap(([, indices]) => indices ?? [])
+    .filter((indice) => !dibujadasEnBloques.has(indice));
   const anexo = armarAnexo(
     oferta.anexo,
     [...enElAnexo, ...huerfanas],
@@ -1300,14 +1468,31 @@ export function ofertaAHtml(
   /* Las fotos del anexo: dos por fila, cada una entera o en la página siguiente.
      el avoid va en la figura y no en la grilla: la grilla puede tener seis
      fotos y no cabe en media página, pero una foto partida en dos no es una foto. */
-  /* Celdas del MISMO alto y la imagen centrada adentro. Con altos naturales la
-     grilla quedaba despareja —cada foto de su tamaño, las filas sin alinear— y se
-     leía como un montón de imágenes al final en vez de un anexo. La celda uniforme
-     cuesta algo de aire alrededor de las fotos más cuadradas; a cambio, cierra. */
-  .fotos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm; }
+  /* Cada foto con SU forma, y las filas alineadas arriba. Antes la celda tenía 60mm de
+     alto fijo para todas: se veía prolijo en un anexo de fotos parecidas, pero una imagen
+     vertical salía centrada en una caja horizontal con una banda gris a cada lado — y
+     desde que un documento se transcribe tal como está, estas fotos ya no son un anexo al
+     final sino la ilustración del párrafo que las explica. Ahí una foto con bandas se ve
+     como un error, no como una grilla.
+     El alto lo pone la proporción declarada en cada <img>; ver figura(). */
+  .fotos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm;
+    align-items: start; }
   .fotos figure { margin: 0; page-break-inside: avoid; }
-  .fotos figure img { height: 60mm; }
-  .fotos figure.ancha img { height: 76mm; }
+  .fotos figure img { width: 100%; height: auto; }
+  /* Una foto sola no tiene con quién compartir la fila: a media página queda chica y
+     descolgada de un lado. Ocupa el ancho completo, como una ancha. */
+  .fotos figure:only-child { grid-column: 1 / -1; }
+  /* Las verticales, limitadas por alto y centradas: ver el comentario de figura(). */
+  .fotos figure.alta img { width: auto; height: 92mm; margin: 0 auto; }
+  /* Una vertical sola: 108 mm era media página para una foto. */
+  .fotos figure:only-child.alta img { height: 88mm; }
+  /* El anexo de fotos del maestro conserva la celda uniforme: ahí son varias fotos
+     parecidas al final del documento y la grilla cerrada se lee mejor. Solo lo tienen las
+     ofertas guardadas con el molde. */
+  .fotos.uniforme figure img { width: 100%; height: 60mm; }
+  .fotos.uniforme figure.ancha img { height: 76mm; }
+  .fotos.uniforme figure.alta img { width: 100%; height: 60mm; margin: 0; }
+  .fotos.uniforme figure:only-child { grid-column: auto; }
   /* El pie va DEBAJO de la imagen y fuera de su marco, como en la propuesta
      hecha a mano: numerado por el sistema y con el epígrafe del borrador. */
   .fotos figcaption { margin-top: 1.5mm; font-size: 8px; color: ${estilo.colorSuave};
@@ -1323,6 +1508,9 @@ export function ofertaAHtml(
      Un tercio del ancho: menos que eso no se ve nada, y más deja el texto en una
      tira. Y sin alto fijo, al contrario que en la grilla: acá no hay filas que
      alinear, así que la imagen conserva su proporción. */
+  /* El 32% es el respaldo para una imagen sin proporción medida: lo normal es que el
+     ancho venga calculado en el style de la figura, a partir de su forma, para que todas
+     midan lo mismo de alto. Ver ALTO_FLOTANTE_MM. */
   figure.flotante { width: 32%; margin: 0 0 2mm; page-break-inside: avoid; }
   figure.flotante.derecha { float: right; margin-left: 5mm; }
   figure.flotante.izquierda { float: left; margin-right: 5mm; }
@@ -1333,12 +1521,11 @@ export function ofertaAHtml(
   /* La sección se cierra sobre sus flotantes: sin esto, una imagen más alta que su
      texto se derrama sobre la sección siguiente y le corre el título. */
   section::after { content: ""; display: block; clear: both; }
-  /* Se ajusta por contain y no por cover: varias de estas imágenes son collages
-     con texto adentro, y recortarlas se come justo lo que explican. Que las filas
-     queden de altos distintos es el precio correcto. */
-  /* La caja de la imagen se ajusta a la imagen, no al revés: con width:100% el
-     borde trazaba la celda y la foto quedaba con bandas blancas a los costados. */
-  .fotos img { width: 100%; object-fit: contain; display: block;
+  /* El marco de la foto. "contain" queda por si la caja no coincide con la imagen
+     —una proporción que no se pudo medir, un alto forzado en el anexo uniforme—: antes
+     que recortar, se muestra entera. Recortar por cover se come justo lo que explica en
+     un collage o en un diagrama con texto adentro. */
+  .fotos img { object-fit: contain; display: block;
     background: ${estilo.colorFondoSuave}; border: 1px solid ${estilo.colorBorde}; }
   .firmas .nombre { font-weight: 700; margin: 0; }
   .firmas .cargo { color: ${estilo.colorSuave}; margin: 0; font-size: 9px; }

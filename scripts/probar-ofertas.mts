@@ -32,7 +32,10 @@ import {
   type LecturaNumeros,
 } from "../lib/ofertas/normalizar";
 import {
+  AIRE_TOLERADO_MM,
+  CARACTERES_POR_MM,
   ROTULOS,
+  medidaFlotante,
   cuerpoDeTabla,
   ofertaAHtml,
   plantillasDeImpresion,
@@ -933,9 +936,9 @@ const conFotos = armarOferta(
   numerosOS10(),
 );
 const htmlFotos = ofertaAHtml(conFotos, calcularTotales(conFotos), EMPRESA_DE_PRUEBA, undefined, undefined, {
-  3: { uri: JPEG_VALIDO, apaisada: true },
-  4: { uri: PNG_VALIDO, apaisada: false },
-  7: { uri: PNG_VALIDO, apaisada: false },
+  3: { uri: JPEG_VALIDO, proporcion: 2 },
+  4: { uri: PNG_VALIDO, proporcion: 1.2 },
+  7: { uri: PNG_VALIDO, proporcion: 1.2 },
 });
 assert.equal(
   (htmlFotos.match(/<figure/g) ?? []).length,
@@ -970,7 +973,7 @@ const htmlRescatada = ofertaAHtml(
   EMPRESA_DE_PRUEBA,
   undefined,
   undefined,
-  { 3: { uri: JPEG_VALIDO, apaisada: false } },
+  { 3: { uri: JPEG_VALIDO, proporcion: 1.2 } },
 );
 assert.equal(sinEsaSeccion.especificaciones, null, "el borrador no trae especificaciones");
 assert.equal(
@@ -981,7 +984,7 @@ assert.equal(
 
 // Una imagen que no pasa el control no se dibuja, y no rompe el documento.
 const htmlRoto = ofertaAHtml(conFotos, calcularTotales(conFotos), EMPRESA_DE_PRUEBA, undefined, undefined, {
-  3: { uri: 'data:image/jpeg;base64,AA" onerror="alert(1)', apaisada: false },
+  3: { uri: 'data:image/jpeg;base64,AA" onerror="alert(1)', proporcion: 1.2 },
 });
 assert.ok(!htmlRoto.includes("onerror"), "ninguna imagen puede colar un atributo");
 assert.ok(!htmlRoto.includes("<figure"), "y si ninguna pasa, la grilla no se dibuja");
@@ -1059,7 +1062,7 @@ const htmlDosFirmas = ofertaAHtml(
   EMPRESA_DE_PRUEBA,
   undefined,
   undefined,
-  { 4: { uri: JPEG_VALIDO, apaisada: false }, 7: { uri: PNG_VALIDO, apaisada: false } },
+  { 4: { uri: JPEG_VALIDO, proporcion: 1.2 }, 7: { uri: PNG_VALIDO, proporcion: 1.2 } },
 );
 assert.equal((htmlDosFirmas.match(/class="rubrica"/g) ?? []).length, 2, "cada firmante firma con la suya");
 assert.ok(htmlDosFirmas.includes(`data-imagen="7" src="${PNG_VALIDO}"`), "la del primero");
@@ -1105,7 +1108,7 @@ const htmlUnaFirma = ofertaAHtml(
   EMPRESA_DE_PRUEBA,
   undefined,
   undefined,
-  { 7: { uri: PNG_VALIDO, apaisada: false } },
+  { 7: { uri: PNG_VALIDO, proporcion: 1.2 } },
 );
 assert.equal(
   (htmlUnaFirma.match(/class="hueco-rubrica"/g) ?? []).length,
@@ -1446,7 +1449,7 @@ const alCostado = os10();
 alCostado.imagenesPorSeccion = { alcance: [1] };
 alCostado.disposicionDeImagenes = { 1: "derecha" };
 const htmlCostado = ofertaAHtml(alCostado, calcularTotales(alCostado), EMPRESA_DE_PRUEBA, undefined, undefined, {
-  1: { uri: PNG_VALIDO, apaisada: false },
+  1: { uri: PNG_VALIDO, proporcion: 1.2 },
 });
 const seccionAlcance = htmlCostado.slice(htmlCostado.indexOf('data-en="alcance"'));
 const cuerpoAlcance = seccionAlcance.slice(0, seccionAlcance.indexOf("</section>"));
@@ -1467,7 +1470,7 @@ sinTexto.anexo = null;
 sinTexto.imagenesPorSeccion = { anexo: [1] };
 sinTexto.disposicionDeImagenes = { 1: "izquierda" };
 const htmlSinTexto = ofertaAHtml(sinTexto, calcularTotales(sinTexto), EMPRESA_DE_PRUEBA, undefined, undefined, {
-  1: { uri: PNG_VALIDO, apaisada: false },
+  1: { uri: PNG_VALIDO, proporcion: 1.2 },
 });
 // Se busca la CLASE de la figura y no la palabra: "flotante" también aparece en el CSS
 // del documento, que va en todos.
@@ -1475,7 +1478,7 @@ assert.ok(
   !htmlSinTexto.includes('class="flotante'),
   "sin texto que la rodee, la flotante vuelve a la grilla",
 );
-assert.ok(htmlSinTexto.includes('<div class="fotos">'), "y sale en la grilla");
+assert.ok(/<div class="fotos( uniforme)?">/.test(htmlSinTexto), "y sale en la grilla");
 
 // El reparto de imágenes lo manda la base, y eso ahora incluye la disposición: sin esto,
 // guardar un párrafo devolvía todas las fotos a la grilla.
@@ -2219,7 +2222,7 @@ conTodo.anexo = {
 // Con una foto en el anexo, que es lo que hace aparecer "Fotografías de referencia".
 conTodo.imagenesPorSeccion = { anexo: [1] };
 const htmlTodo = ofertaAHtml(conTodo, calcularTotales(conTodo), EMPRESA_DE_PRUEBA, undefined, undefined, {
-  1: { uri: PNG_VALIDO, apaisada: false },
+  1: { uri: PNG_VALIDO, proporcion: 1.2 },
 });
 const dibujados = new Set(
   [...htmlTodo.matchAll(/data-campo="rotulos\.([^"]+)"/g)].map(([, clave]) => clave),
@@ -2611,6 +2614,152 @@ assert.ok(
     (a) => a.detalle.includes("19.121.976"),
   ),
   "el control de tablas corre dentro de detectarInconsistencias",
+);
+
+// ── Cómo se acomodan las fotos, sin que nadie lo elija ────────────────────
+//
+// Antes toda imagen caía en una grilla al final de su bloque, con 60 mm de alto fijo:
+// pegada debajo del texto y, si era vertical, con una banda gris a cada lado. Las tres
+// disposiciones existían solo para elegirlas a mano, una por una.
+//
+// Ahora la disposición se calcula: ancha la que es ancha, al costado la única imagen de
+// un bloque con texto que la acompañe, y en grilla el resto. La geometría de la flotante
+// sale de una MEDICIÓN del cuerpo de la plantilla (CARACTERES_POR_MM), no de un número
+// elegido a ojo — se renderizó el documento en una columna de 119 mm y se midieron
+// párrafos de largo conocido.
+
+/** Un documento con un bloque de texto y las imágenes que se le pasen. */
+const unBloqueCon = (parrafo: string, ...cuales: number[]): OfertaCanonica =>
+  armarDocumentoLibre(
+    {
+      titulo: "Procedimiento",
+      subtitulo: "",
+      cliente: "",
+      fecha: "",
+      codigo: "",
+      bloques: [
+        { tipo: "titulo", texto: "Montaje", parrafos: [], columnas: [], filas: [], imagen: 0, epigrafe: "" },
+        { tipo: "parrafos", texto: "", parrafos: [parrafo], columnas: [], filas: [], imagen: 0, epigrafe: "" },
+        ...cuales.map((n) => ({
+          tipo: "imagen",
+          texto: "",
+          parrafos: [],
+          columnas: [],
+          filas: [],
+          imagen: n,
+          epigrafe: "",
+        })),
+      ],
+      porConfirmar: [],
+    },
+    "procedimiento",
+  );
+
+const CUADRADA = { uri: PNG_VALIDO, proporcion: 1.05 };
+const VERTICAL = { uri: PNG_VALIDO, proporcion: 300 / 520 };
+const PANORAMICA = { uri: JPEG_VALIDO, proporcion: 3 };
+/** Suficiente para acompañar a una figura: ~830 caracteres son unos 38 mm de alto. */
+const PARRAFO_LARGO = "El empalme en caliente exige controlar la temperatura, la presión y el tiempo de curado. ".repeat(10);
+const PARRAFO_CORTO = "El empalme se controla cada quince minutos.";
+
+const dibujo = (oferta: OfertaCanonica, imgs: Record<number, { uri: string; proporcion: number }>) =>
+  ofertaAHtml(oferta, calcularTotales(oferta), EMPRESA_DE_PRUEBA, undefined, undefined, imgs);
+
+// Una panorámica va al ancho completo: a un tercio de página no se lee.
+assert.ok(
+  /<figure data-imagen="1" class="ancha"/.test(dibujo(unBloqueCon(PARRAFO_LARGO, 1), { 1: PANORAMICA })),
+  "la apaisada ocupa el ancho completo aunque haya texto de sobra",
+);
+
+// La única imagen de un bloque con texto suficiente va AL COSTADO, con el ancho
+// calculado — no un porcentaje fijo — para que mida lo mismo de alto que el texto.
+const htmlAlCostado = dibujo(unBloqueCon(PARRAFO_LARGO, 1), { 1: CUADRADA });
+assert.ok(
+  /<figure data-imagen="1" class="flotante (derecha|izquierda)" style="width:[\d.]+mm"/.test(htmlAlCostado),
+  `una sola imagen con texto suficiente va al costado (salió: ${
+    htmlAlCostado.match(/<figure data-imagen="1"[^>]*>/)?.[0]
+  })`,
+);
+// Y ANTES del párrafo: al final flotaría sobre la sección siguiente en vez de que el
+// texto la rodee.
+const bloque1 = htmlAlCostado.slice(htmlAlCostado.indexOf('data-bloque="0"'));
+assert.ok(
+  bloque1.indexOf("<figure") < bloque1.indexOf("<p data-libre"),
+  "la flotante se emite antes del texto que la rodea",
+);
+
+// Con poco texto NO va al costado: la figura quedaría colgada con un hueco al lado. Cae
+// a la grilla, y sola en la grilla ocupa el ancho completo en vez de media página.
+const conPocoTexto = dibujo(unBloqueCon(PARRAFO_CORTO, 1), { 1: CUADRADA });
+assert.ok(
+  !/class="flotante/.test(conPocoTexto.slice(conPocoTexto.indexOf('data-bloque="0"'))),
+  "con poco texto no flota: el hueco al costado se vería peor que la foto abajo",
+);
+
+// Dos imágenes juntas van en grilla, una al lado de la otra: es una serie —un antes y un
+// después—, y flotar la primera dejaría a la segunda sola.
+const dos = dibujo(unBloqueCon(PARRAFO_LARGO, 1, 2), { 1: CUADRADA, 2: CUADRADA });
+assert.ok(!/class="flotante/.test(dos.slice(dos.indexOf('data-bloque="0"'))), "dos no flotan");
+assert.equal(
+  (dos.match(/<div class="fotos">/g) ?? []).length,
+  1,
+  "y van en la misma grilla, no en dos",
+);
+
+// Una vertical se marca "alta": su caja se limita por ALTO y no por ancho. Al ancho de
+// media página, una foto de 1:1.7 mide 150 mm de alto.
+assert.ok(
+  /<figure data-imagen="1" class="alta"/.test(dibujo(unBloqueCon(PARRAFO_CORTO, 1), { 1: VERTICAL })),
+  "una vertical se marca para limitarla por alto",
+);
+// Y la caja lleva la FORMA de la imagen, así no hay bandas grises ni salto al cargar.
+assert.ok(
+  /aspect-ratio:1\.0500/.test(dibujo(unBloqueCon(PARRAFO_CORTO, 1), { 1: CUADRADA })),
+  "cada imagen declara su proporción",
+);
+
+// Lo elegido a mano SIEMPRE gana: quien acomoda las fotos está mirando el resultado.
+const aMano = unBloqueCon(PARRAFO_CORTO, 1);
+aMano.disposicionDeImagenes = { 1: "izquierda" };
+assert.ok(
+  /class="flotante izquierda/.test(dibujo(aMano, { 1: CUADRADA })),
+  "una disposición elegida a mano gana sobre la automática",
+);
+const anchaAMano = unBloqueCon(PARRAFO_LARGO, 1);
+anchaAMano.disposicionDeImagenes = { 1: "ancha" };
+assert.ok(
+  /<figure data-imagen="1" class="ancha"/.test(dibujo(anchaAMano, { 1: CUADRADA })),
+  "y también para forzar el ancho completo",
+);
+
+// La geometría de la flotante: alto ≈ el del texto, más el aire tolerado. Es el invariante
+// que hace que no quede un hueco al costado de la foto.
+for (const [proporcion, largo] of [
+  [1.05, 830],
+  [300 / 520, 1200],
+  [1.4, 600],
+] as const) {
+  const m = medidaFlotante(proporcion, largo);
+  assert.ok(
+    m.alto <= m.altoDelTexto + AIRE_TOLERADO_MM + 0.01,
+    `una flotante de ${proporcion.toFixed(2)} con ${largo} caracteres mide ${m.alto.toFixed(1)} mm ` +
+      `de alto y el texto ${m.altoDelTexto.toFixed(1)}: sobra más que el aire tolerado`,
+  );
+  assert.ok(m.ancho >= 30 && m.ancho <= 62, `y su ancho (${m.ancho.toFixed(1)} mm) queda en los topes`);
+}
+// La medición: 22 caracteres por milímetro de alto, en una columna de 119 mm.
+assert.equal(CARACTERES_POR_MM, 22);
+assert.equal(medidaFlotante(1, 22 * 30).altoDelTexto, 30, "660 caracteres son 30 mm de texto");
+
+// El anexo de fotos del maestro conserva la grilla de celdas uniformes: ahí son varias
+// fotos parecidas al final del documento, no la ilustración de un párrafo.
+const conAnexo = os10();
+conAnexo.imagenesPorSeccion = { anexo: [1, 2] };
+assert.ok(
+  /<div class="fotos uniforme">/.test(
+    dibujo(conAnexo, { 1: CUADRADA, 2: CUADRADA }),
+  ),
+  "el anexo mantiene las celdas del mismo alto",
 );
 
 console.log("Todas las verificaciones pasaron.");

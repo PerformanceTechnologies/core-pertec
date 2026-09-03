@@ -177,8 +177,8 @@ const empresa = {
 };
 
 const documento = ofertaAHtml(oferta, calcularTotales(oferta), empresa, undefined, undefined, {
-  1: { uri: PNG_VALIDO, apaisada: false },
-  2: { uri: PNG_VALIDO, apaisada: false },
+  1: { uri: PNG_VALIDO, proporcion: 1.2 },
+  2: { uri: PNG_VALIDO, proporcion: 1.2 },
 });
 
 // El módulo real, empacado para poder inyectarlo en la página.

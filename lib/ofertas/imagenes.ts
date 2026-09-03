@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { ImagenExtraida } from "@/lib/cotizador/obra/extraer-texto";
-import { PROPORCION_APAISADA, type ImagenDibujable } from "./logo";
+import type { ImagenDibujable } from "./logo";
 
 /**
  * Las imágenes que traía el borrador.
@@ -206,8 +206,8 @@ export async function imagenesParaDocumento(
       const tipo = imagen.ruta.endsWith(".png") ? "png" : "jpeg";
       resueltas[imagen.indice] = {
         uri: `data:image/${tipo};base64,${base64}`,
-        // Un diagrama técnico o una panorámica a media página no se leen.
-        apaisada: imagen.alto > 0 && imagen.ancho / imagen.alto >= PROPORCION_APAISADA,
+        // La forma de la foto, para que su caja la respete. Ver ImagenDibujable.
+        proporcion: imagen.alto > 0 ? imagen.ancho / imagen.alto : 0,
       };
     }),
   );

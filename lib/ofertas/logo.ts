@@ -110,17 +110,27 @@ export function logoSeguro(valor: string | null | undefined): string | null {
 /**
  * Una imagen del borrador lista para dibujar.
  *
- * `apaisada` lo decide el servidor, que es quien tiene las dimensiones: una foto
- * ancha o un diagrama técnico a media página no se lee, así que ocupa el ancho
- * completo. La plantilla solo mira la bandera.
+ * `proporcion` es ancho/alto, y va en vez de la bandera `apaisada` que había antes.
+ * Con una bandera solo se podia decidir "ancho completo o media pagina"; con la
+ * proporcion, la caja de la figura puede tener LA FORMA DE LA FOTO. Es la diferencia
+ * entre una foto y una foto con dos bandas grises: la grilla fijaba `height: 60mm` y
+ * cualquier imagen vertical quedaba centrada en una caja horizontal.
+ *
+ * 0 cuando no se pudo medir: ahi la figura sale sin forma declarada y el navegador usa
+ * la de la imagen, que es lo mismo pero sin poder reservar el espacio antes de cargarla.
  */
 export interface ImagenDibujable {
   uri: string;
-  apaisada: boolean;
+  proporcion: number;
 }
 
 /** A partir de esta proporción, una imagen va al ancho completo. */
 export const PROPORCION_APAISADA = 1.6;
+
+/**
+ * Una foto ancha o un diagrama tecnico a media pagina no se leen: van al ancho completo.
+ */
+export const esApaisada = (proporcion: number): boolean => proporcion >= PROPORCION_APAISADA;
 
 /**
  * Una imagen del borrador tal como puede entrar al documento, o null.
