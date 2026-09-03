@@ -165,20 +165,38 @@ export async function registrarEjecucion(
   documentosNuevos: number,
   mensajeError?: string,
   /**
-   * Qué ofreció el RCV, cuando ninguna venta trajo estado.
+   * Lo que hay que poder mirar después, y que en un log de Vercel se pierde.
    *
-   * Va acá y no en un log porque un log de Vercel se rota y no se puede consultar desde
-   * la base. El estado de las ventas se derivó dos veces de columnas supuestas; esto es
-   * para poder MIRAR qué trae el SII en vez de deducirlo. Solo rótulos de columna y de
-   * pestaña: ningún valor de ninguna fila.
+   * En un objeto y no como dos parámetros más: ya se pasaron mal una vez —el diagnóstico
+   * viajó en el lugar del aviso— y un cuarto y quinto argumento opcionales del mismo
+   * tipo se confunden solos.
    */
-  diagnostico?: unknown,
+  extras: {
+    /**
+     * Cómo salió el aviso a Finanzas: { folios, destinatario, asunto, enviado, error }.
+     *
+     * Ausente cuando no había reclamos nuevos que avisar. Existe porque no había forma de
+     * contestar "¿salió el correo?": el envío va por Graph y su fallo se atrapaba en un
+     * console.error que se pierde con los logs, mientras la pantalla igual decía
+     * "avisadas por correo a Finanzas".
+     */
+    aviso?: unknown;
+    /**
+     * Qué ofreció el RCV, cuando ninguna venta trajo estado.
+     *
+     * Para poder MIRAR qué trae el SII en vez de deducirlo: el estado de las ventas se
+     * derivó dos veces de columnas supuestas. Solo rótulos de columna y de pestaña:
+     * ningún valor de ninguna fila.
+     */
+    diagnostico?: unknown;
+  } = {},
 ): Promise<void> {
   const { error } = await supabaseAdmin.from("finanzas_sii_ejecuciones").insert({
     exito,
     documentos_nuevos: documentosNuevos,
     mensaje_error: mensajeError ?? null,
-    diagnostico: diagnostico ?? null,
+    aviso_reclamos: extras.aviso ?? null,
+    diagnostico: extras.diagnostico ?? null,
   });
   if (error) throw new Error(error.message);
 }

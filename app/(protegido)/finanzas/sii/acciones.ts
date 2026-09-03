@@ -12,8 +12,7 @@ import {
   type PantallaDeVenta,
 } from "@/lib/sii-rcv";
 import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
-import { avisoDeReclamos } from "@/lib/finanzas-reclamos";
-import { enviarCorreoFinanzas } from "@/lib/notificaciones";
+import { avisarReclamos } from "@/lib/finanzas-aviso";
 
 /**
  * Sincronizar el SII a mano, desde la pantalla.
@@ -71,6 +70,15 @@ export interface ResultadoSincronizacion {
   documentos: number;
   guardados: number;
   reclamos: number[];
+  /**
+   * Si el aviso a Finanzas salió. null = no había nada que avisar.
+   *
+   * Se informa porque antes la pantalla decía "avisadas por correo a Finanzas" sin
+   * saberlo: el envío va por Graph y su fallo se atrapaba en un console.error.
+   */
+  avisoEnviado?: boolean | null;
+  /** Por qué no salió, si no salió. */
+  avisoError?: string;
   /** Cuántas ventas trajo ese período. Sin esto, "ninguna reclamada" no se puede leer. */
   ventas: number;
   /**
@@ -153,22 +161,19 @@ export async function sincronizarSiiAction(
     // una sola venta y no está reclamada, así que informó "el SII no dijo nada" cuando
     // las columnas estaban ahí y la respuesta era simplemente que no hay reclamos.
     const sinEstado = ventas > 0 && !hayColumnaDeEstadoDeVenta(csvVenta);
-    await registrarEjecucion(
-      true,
-      guardados,
-      undefined,
-      sinEstado ? { periodos: pedidos, csvVenta, pantallaVenta: pantalla, camposApi } : undefined,
-    );
 
-    const aviso = avisoDeReclamos(reclamos);
-    if (aviso) {
-      // Si el correo falla, el dato ya está guardado y la pantalla lo muestra: se dice en
-      // el log y la relectura no se deshace por eso.
-      await enviarCorreoFinanzas(aviso.asunto, aviso.cuerpo).catch((error: unknown) => {
-        const detalle = error instanceof Error ? error.message : String(error);
-        console.error(`[finanzas] no se pudo avisar el reclamo a Finanzas: ${detalle}`);
-      });
-    }
+    // El aviso, ANTES de registrar la corrida: así el resultado del envío queda en la
+    // misma fila. Sin esto no había forma de contestar "¿salió el correo?" —el fallo se
+    // atrapaba en un console.error que se pierde con los logs de Vercel— y la pantalla
+    // igual decía "avisadas por correo a Finanzas", supiera o no.
+    const envio = await avisarReclamos(reclamos);
+
+    await registrarEjecucion(true, guardados, undefined, {
+      aviso: envio ?? undefined,
+      diagnostico: sinEstado
+        ? { periodos: pedidos, csvVenta, pantallaVenta: pantalla, camposApi }
+        : undefined,
+    });
 
     revalidatePath("/finanzas/sii");
     return {
@@ -179,6 +184,8 @@ export async function sincronizarSiiAction(
       guardados,
       reclamos: reclamos.map((f) => f.folio),
       ventas,
+      avisoEnviado: envio ? envio.enviado : null,
+      ...(envio?.error ? { avisoError: envio.error } : {}),
       ...(sinEstado ? { columnasVenta: csvVenta } : {}),
     };
   } catch (error) {

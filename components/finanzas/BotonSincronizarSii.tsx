@@ -86,10 +86,18 @@ export default function BotonSincronizarSii() {
           texto:
             r.reclamos.length > 0
               ? `${donde}: ${r.reclamos.length} venta(s) reclamada(s) o rechazada(s) ` +
-                `—folio ${r.reclamos.join(", ")}—, avisadas por correo a Finanzas.`
+                `—folio ${r.reclamos.join(", ")}—. ` +
+                // Se dice si el correo SALIÓ, no que se mandó. Antes decía "avisadas por
+                // correo a Finanzas" siempre, supiera o no: el envío va por Graph y su
+                // fallo se atrapaba en un console.error que nadie mira.
+                (r.avisoEnviado
+                  ? "Avisadas por correo a Finanzas."
+                  : `EL CORREO A FINANZAS NO SALIÓ (${r.avisoError ?? "motivo desconocido"}). ` +
+                    "Se avisó a soporte; las facturas están acá igual.")
               : // Se dice CUÁNTAS ventas se miraron: "ninguna reclamada" sobre cero ventas
                 // no dice nada, y era lo que pasaba al releer solo el mes en curso.
                 `${donde}: ${r.ventas} venta(s) leída(s), ninguna reclamada ni rechazada.`,
+          error: r.reclamos.length > 0 && !r.avisoEnviado,
         });
       } finally {
         setPaso(null);

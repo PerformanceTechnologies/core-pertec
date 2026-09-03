@@ -5,8 +5,7 @@ import {
   type CamposDeApi,
   type PantallaDeVenta,
 } from "@/lib/sii-rcv";
-import { avisoDeReclamos } from "@/lib/finanzas-reclamos";
-import { enviarCorreoFinanzas } from "@/lib/notificaciones";
+import { avisarReclamos } from "@/lib/finanzas-aviso";
 import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
 import { enviarCorreoSoporte } from "@/lib/notificaciones";
 
@@ -99,27 +98,18 @@ export async function GET(request: NextRequest) {
     // el panel no puede saber. Que un mes no tenga reclamos no es una anomalia.
     const ventas = filas.filter((f) => f.tipoDocumento === "venta");
     const sinEstado = ventas.length > 0 && !hayColumnaDeEstadoDeVenta(csvVenta);
-    await registrarEjecucion(
-      true,
-      nuevas,
-      undefined,
-      sinEstado ? { periodos, csvVenta, pantallaVenta, camposApi } : undefined,
-    );
 
-    // Despues de guardar: si el correo falla, el dato ya esta y el panel lo muestra. El
-    // fallo se avisa a soporte, que es quien puede hacer algo con eso.
-    const aviso = avisoDeReclamos(reclamos);
-    if (aviso) {
-      await enviarCorreoFinanzas(aviso.asunto, aviso.cuerpo).catch(async (error: unknown) => {
-        const detalle = error instanceof Error ? error.message : String(error);
-        console.error(`[cron finanzas-sii] no se pudo avisar el reclamo a Finanzas: ${detalle}`);
-        await enviarCorreoSoporte(
-          "Panel Finanzas: se detecto una factura reclamada y el aviso no salio",
-          `Se detectaron ${reclamos.length} factura(s) de venta reclamada(s) y el correo a ` +
-            `finanzas@pertec.cl no se pudo enviar.\n\nError: ${detalle}\n\n${aviso.cuerpo}`,
-        ).catch(() => {});
-      });
-    }
+    // DESPUES de guardar: si el correo falla, el dato ya esta y el panel lo muestra. El
+    // envio y su resultado los maneja avisarReclamos, el mismo que usa la relectura desde
+    // la pantalla — antes cada uno hacia lo suyo y solo el cron avisaba a soporte.
+    const envio = await avisarReclamos(reclamos);
+
+    // Y la constancia va en la misma fila de la corrida: sin esto no habia forma de
+    // contestar "salio el correo?" mas que mirando el buzon.
+    await registrarEjecucion(true, nuevas, undefined, {
+      aviso: envio ?? undefined,
+      diagnostico: sinEstado ? { periodos, csvVenta, pantallaVenta, camposApi } : undefined,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -127,6 +117,7 @@ export async function GET(request: NextRequest) {
       nuevos: nuevas,
       periodos: periodos.length ? periodos : "ventana de 15 días",
       reclamosAvisados: reclamos.map((f) => f.folio),
+      avisoEnviado: envio ? envio.enviado : null,
     });
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "Error desconocido";

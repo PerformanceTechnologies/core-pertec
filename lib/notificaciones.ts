@@ -8,7 +8,11 @@ const GRAPH_SCOPE = "https://graph.microsoft.com/.default";
 // hace desde el buzon de Hugo.
 const CORREO_REMITENTE = "hugo.antivil@pertec.cl";
 const CORREO_SOPORTE = "soporte@pertec.cl";
-const CORREO_FINANZAS = "finanzas@pertec.cl";
+/**
+ * Exportada solo para poder DECIR a quien se le mando, no para elegirlo: sigue siendo una
+ * constante de este archivo. Ver el comentario de enviar().
+ */
+export const CORREO_FINANZAS = "finanzas@pertec.cl";
 
 // Usa el app registration "PERTEC Web · Envio de correos" (el mismo que ya
 // usa la Edge Function send-catalog de pertec-web con MS_TENANT_ID/

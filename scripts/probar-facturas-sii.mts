@@ -353,11 +353,11 @@ assert.ok(
     "avisar de uno viejo en cada corrida es la forma más rápida de que nadie abra el correo",
 );
 assert.ok(
-  cron.includes("enviarCorreoFinanzas"),
+  cron.includes("avisarReclamos"),
   "el aviso va a Finanzas, que es quien emite la nota de crédito",
 );
 assert.ok(
-  enOrden(cuerpoCron, "guardarFacturasSii", "enviarCorreoFinanzas"),
+  enOrden(cuerpoCron, "guardarFacturasSii", "avisarReclamos"),
   "y se manda después de guardar: si el correo falla, el dato ya está en el panel",
 );
 
@@ -407,9 +407,20 @@ for (const [donde, fuente] of [["la acción", accion], ["el cron", cron]] as con
 }
 const finanzasLib = readFileSync(new URL("../lib/finanzas.ts", import.meta.url), "utf8");
 assert.ok(
-  /registrarEjecucion\([\s\S]{0,900}diagnostico\?: unknown/.test(finanzasLib) &&
-    finanzasLib.includes("diagnostico: diagnostico ?? null"),
+  /registrarEjecucion\([\s\S]{0,1600}diagnostico\?: unknown/.test(finanzasLib) &&
+    finanzasLib.includes("diagnostico: extras.diagnostico ?? null"),
   "y registrarEjecucion lo escribe en finanzas_sii_ejecuciones.diagnostico",
+);
+assert.ok(
+  finanzasLib.includes("aviso_reclamos: extras.aviso ?? null"),
+  "y la constancia del aviso, en la columna aviso_reclamos de la misma fila",
+);
+// Los dos extras van en UN objeto: como cuarto y quinto argumento opcionales del mismo
+// tipo se pasaron mal —el diagnóstico viajó en el lugar del aviso— y el compilador no
+// tenía cómo notarlo.
+assert.ok(
+  /extras: \{/.test(finanzasLib),
+  "los extras van en un objeto con nombre, no como dos argumentos opcionales seguidos",
 );
 assert.ok(
   /sinEstado[\s\S]{0,300}columnasVenta/.test(accion),
@@ -587,6 +598,43 @@ assert.ok(
 assert.ok(
   /filas\.length === limite[\s\S]{0,300}console\.warn/.test(finanzasLib),
   "y si algún día se llega al tope, se avisa en vez de recortar callado",
+);
+
+// ── ¿Salió el correo? ───────────────────────────────────────────────────────
+//
+// No se podía contestar: el envío va por Graph, su fallo se atrapaba en un console.error
+// que se pierde con los logs de Vercel, y la pantalla igual decía "avisadas por correo a
+// Finanzas". Ahora queda constancia en la misma fila de la corrida.
+const libAviso = readFileSync(new URL("../lib/finanzas-aviso.ts", import.meta.url), "utf8");
+for (const [donde, fuente] of [["la acción", accion], ["el cron", cron]] as const) {
+  assert.ok(
+    fuente.includes("avisarReclamos"),
+    `${donde} manda el aviso por el mismo camino: cada uno con el suyo eran dos ` +
+      "comportamientos distintos según por dónde se pidió la relectura",
+  );
+  assert.ok(
+    /aviso: envio \?\? undefined/.test(fuente),
+    `${donde} guarda la constancia del envío en la fila de la corrida`,
+  );
+}
+assert.ok(
+  /enviado: true/.test(libAviso) && /enviado: false, error: detalle/.test(libAviso),
+  "la constancia dice si salió y, si no, por qué",
+);
+assert.ok(
+  /enviarCorreoSoporte/.test(libAviso),
+  "y un aviso que no sale se le avisa a soporte, que es quien puede hacer algo: un " +
+    "reclamo de decenas de millones que nadie ve porque Graph devolvió 401 es justo lo " +
+    "que este correo existe para evitar",
+);
+assert.ok(
+  !/cuerpo:/.test(libAviso.slice(libAviso.indexOf("ConstanciaDeAviso"), libAviso.indexOf("export async function"))),
+  "la constancia NO guarda el cuerpo: trae montos y razones sociales que ya están en la " +
+    "tabla y en el correo",
+);
+assert.ok(
+  /avisoEnviado/.test(boton) && /NO SALIÓ/.test(boton),
+  "y la pantalla dice si el correo salió en vez de afirmarlo siempre",
 );
 
 console.log("Todas las verificaciones pasaron.");
