@@ -351,6 +351,27 @@ body {
   animation: entrada-modulo 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
+/* A DÓNDE te llevó un aviso.
+   Cuando un aviso dice "falta el proveedor de 3 gastos" y ofrece llevarte al primero,
+   mover el scroll no alcanza: la tarjeta que hay que mirar se ve igual que las otras
+   quince. El pulso dura un momento y se va solo — es una señal de ubicación, no un
+   estado, y un borde permanente competiría con las marcas de error de la propia
+   tarjeta. Ver `irA` en components/rendidor/PanelRendicion.tsx. */
+@keyframes pulso-destacado {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(200 82 23 / 0);
+  }
+  15%,
+  60% {
+    box-shadow: 0 0 0 4px rgb(200 82 23 / 0.35);
+  }
+}
+.destacado {
+  border-radius: 0.75rem;
+  animation: pulso-destacado 2.2s ease-in-out 1;
+}
+
 /* Quien pidió menos movimiento ve la línea completa y quieta: sigue siendo una
    señal de "esto está cargando" (el texto lo dice) sin nada animándose. Y el
    contenido de los módulos aparece sin desplazarse. */
@@ -364,6 +385,12 @@ body {
   .animar-entrada,
   .animar-revelar {
     animation: none;
+  }
+  /* Sin pulso, pero CON la marca: si no, el "llevame ahí" deja de decir a dónde
+     llevó. Queda el anillo fijo, que se va cuando se saca la clase. */
+  .destacado {
+    animation: none;
+    box-shadow: 0 0 0 4px rgb(200 82 23 / 0.35);
   }
 }
 

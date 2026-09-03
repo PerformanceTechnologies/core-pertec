@@ -182,6 +182,15 @@ export interface ResumenRendicion {
    * crearon, y esos gastos NO se borran de Odoo.
    */
   odooExpenseIds: number[];
+  /**
+   * Si la rendicion es de quien esta mirando la lista.
+   *
+   * Un admin ve las de todos, y sin esto no hay forma de distinguir en pantalla
+   * "la mia" de "la de otra persona": las dos se ven igual y las acciones que
+   * ofrece la fila —borrar, entre otras— pasan a leerse como si fueran sobre lo
+   * propio.
+   */
+  esMia: boolean;
   creadoEn: string;
 }
 

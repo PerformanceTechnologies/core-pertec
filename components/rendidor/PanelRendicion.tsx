@@ -14,6 +14,7 @@ import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
+import Avisos, { type Aviso } from "@/components/rendidor/Avisos";
 import VisorComprobante, { type Comprobante } from "./VisorComprobante";
 
 /**
@@ -350,8 +351,54 @@ export default function PanelRendicion({
   const [viendo, setViendo] = useState<Comprobante | null>(null);
   const [paso, setPaso] = useState<Paso>(rendicion.gastos.length > 0 ? "revisar" : "subir");
   const [analizando, setAnalizando] = useState<{ actual: number; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  /**
+   * Los avisos, apilados abajo a la derecha y cada uno con su ×. Ver ./Avisos.tsx.
+   *
+   * Antes eran dos strings —uno de error y uno de aviso— dibujados debajo del título. Se
+   * veían solo arriba, se pisaban entre sí y se iban con el siguiente evento: quien
+   * apretaba "cargar a Odoo" al final del paso 3 no veía nada y volvía a apretar.
+   */
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
+  /**
+   * Lleva hasta un elemento y lo destaca un momento.
+   *
+   * El destaque es lo que cierra el círculo: llevar el scroll hasta una tarjeta que se ve
+   * igual que las otras quince no dice cuál era. `open` de paso, porque las tarjetas de
+   * gasto son <details> y la que hay que mirar puede estar plegada.
+   */
+  const irA = (id: string) => {
+    const nodo = document.getElementById(id);
+    if (!nodo) return;
+    nodo.closest("details")?.setAttribute("open", "");
+    nodo.scrollIntoView({ behavior: "smooth", block: "center" });
+    nodo.classList.add("destacado");
+    window.setTimeout(() => nodo.classList.remove("destacado"), 2200);
+  };
+
+  /**
+   * Cierra la ventana de carga y recién entonces lleva hasta el gasto.
+   *
+   * Los gastos están DETRÁS de esa ventana, así que llevar el scroll hasta uno sin
+   * cerrarla mueve una página que no se ve. El requestAnimationFrame espera a que React
+   * pinte la lista de nuevo: sin eso, getElementById corre antes de que el elemento
+   * exista y el "Ir" no hace nada.
+   */
+  const volverEIrA = (id: string) => {
+    setPaso("revisar");
+    requestAnimationFrame(() => irA(id));
+  };
+  const cerrarAviso = (id: string) => setAvisos((prev) => prev.filter((a) => a.id !== id));
+  /**
+   * Pone un aviso arriba de la pila.
+   *
+   * Los del mismo `clave` se reemplazan: apretar dos veces "cargar a Odoo" con el mismo
+   * problema tiene que dejar UN aviso, no dos idénticos. Los que no traen clave se
+   * acumulan, que es lo correcto para los que hablan de cosas distintas.
+   */
+  const avisar = (aviso: Omit<Aviso, "id"> & { clave?: string }) => {
+    const id = aviso.clave ?? `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setAvisos((prev) => [{ ...aviso, id }, ...prev.filter((a) => a.id !== id)]);
+  };
   const [guardando, setGuardando] = useState(false);
   const [generandoExcel, setGenerandoExcel] = useState(false);
   /**
@@ -441,6 +488,40 @@ export default function PanelRendicion({
     return { total, neto, iva, saldo: total - rendicion.montoAsignado };
   }, [filas, rendicion.montoAsignado]);
 
+  /**
+   * Los gastos sin proveedor resuelto.
+   *
+   * Derivado y no calculado al apretar el botón: así el hueco se marca EN SU LUGAR desde
+   * que aparece el paso 3, y no recién cuando la carga se rechaza. Era el reclamo:
+   * "al faltar proveedores de Odoo, que se marque bien dónde se tiene que elegir".
+   */
+  const sinProveedor = useMemo(
+    () =>
+      rendicion.gastos.filter((g) => {
+        const p = proveedores[g.id];
+        return !p || (!p.elegido && !p.crear);
+      }),
+    [rendicion.gastos, proveedores],
+  );
+
+  // La ventana de carga se comporta como una ventana: Escape vuelve a corregir y el fondo
+  // no scrollea. Sin lo segundo, la rueda del mouse mueve la lista de atrás y al volver
+  // uno aparece en otro punto del formulario.
+  const enVentanaDeCarga = paso === "cargar" && !yaCargada;
+  useEffect(() => {
+    if (!enVentanaDeCarga) return;
+    const alTeclado = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPaso("revisar");
+    };
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", alTeclado);
+    return () => {
+      document.body.style.overflow = previo;
+      window.removeEventListener("keydown", alTeclado);
+    };
+  }, [enVentanaDeCarga]);
+
   const pendientes = useMemo(
     () =>
       filas.filter(
@@ -475,7 +556,6 @@ export default function PanelRendicion({
   // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
   // boletas de a una eran más de cinco minutos de espera.
   const subirYAnalizar = async (lista: FileList) => {
-    setError(null);
     const nuevos = Array.from(lista);
     setAnalizando({ actual: 0, total: nuevos.length });
 
@@ -512,6 +592,10 @@ export default function PanelRendicion({
     const vistasNuevas: Record<string, string> = {};
     const fallos: string[] = [];
     const pobres: string[] = [];
+    // El id del primer gasto que quedó a medio leer: es a donde lleva el "Ir al primero"
+    // del aviso. Se anota acá y no se deduce del texto —los mensajes traen el NOMBRE del
+    // archivo, no el id, así que buscar el elemento por ahí no encontraba nada—.
+    let primerPobre: string | null = null;
 
     // Recién acá se numeran los gastos, recorriendo los resultados en el orden
     // en que se eligieron los archivos.
@@ -527,7 +611,8 @@ export default function PanelRendicion({
       // Decirlo con los números concretos evita la sospecha de que "no funciona".
       const ilegibles = l.ilegibles ?? [];
       const ladoLargo = Math.max(ancho ?? 0, alto ?? 0);
-      if (ilegibles.length >= 3 && ladoLargo > 0 && ladoLargo < LADO_MINIMO_UTIL) {
+      const idGastoPobre = ilegibles.length >= 3 && ladoLargo > 0 && ladoLargo < LADO_MINIMO_UTIL;
+      if (idGastoPobre) {
         pobres.push(
           `${nuevos[i].name}: ${ancho}×${alto} px. A esa resolución la letra chica de un ` +
             `comprobante no se puede leer, y ampliarla no la recupera. Subí el PDF original o ` +
@@ -535,6 +620,7 @@ export default function PanelRendicion({
         );
       }
       const idGasto = crypto.randomUUID();
+      if (idGastoPobre && !primerPobre) primerPobre = idGasto;
       // La vista se arma del archivo REDUCIDO, que es el que se subió al bucket y
       // el que leyó el modelo: así la miniatura muestra exactamente lo que se
       // analizó, no el original del celular.
@@ -577,15 +663,24 @@ export default function PanelRendicion({
       setPaso("revisar");
     }
     if (fallos.length > 0) {
-      setError(
-        `No se pudieron analizar ${fallos.length} archivo(s). Podés agregarlos a mano.\n` + fallos.join("\n"),
-      );
-    } else if (pobres.length > 0) {
-      // Va como aviso, no como error: el gasto SÍ se creó, con los campos que se
-      // pudieron leer, y el resto se completa a mano.
-      setAviso(
-        `${pobres.length} comprobante(s) quedaron con campos sin leer por resolución:\n` + pobres.join("\n"),
-      );
+      avisar({
+        tono: "error",
+        titulo: `No se pudieron analizar ${fallos.length} archivo(s)`,
+        detalle: `Podés agregarlos a mano.\n${fallos.join("\n")}`,
+      });
+    }
+    if (pobres.length > 0) {
+      // Va como atención y no como error: el gasto SÍ se creó, con los campos que se
+      // pudieron leer, y el resto se completa a mano. Y ADEMÁS del anterior, no en su
+      // lugar: si diez archivos fallaron y tres quedaron a medias, las dos cosas pasaron.
+      avisar({
+        tono: "atencion",
+        titulo: `${pobres.length} comprobante(s) quedaron con campos sin leer`,
+        detalle: `Por la resolución del archivo. Completalos a mano:\n${pobres.join("\n")}`,
+        accion: primerPobre
+          ? { texto: "Ir al primero", alPulsar: () => irA(`gasto-${primerPobre}`) }
+          : undefined,
+      });
     }
   };
 
@@ -612,8 +707,6 @@ export default function PanelRendicion({
 
   const descargarExcel = async () => {
     setGenerandoExcel(true);
-    setError(null);
-    setAviso(null);
     try {
       await persistirGastos();
       // Sin cuerpo: el servidor baja los respaldos del bucket por su cuenta.
@@ -639,13 +732,20 @@ export default function PanelRendicion({
       enlace.click();
       URL.revokeObjectURL(url);
 
-      setAviso(
-        sinRespaldo > 0
-          ? `Planilla descargada. ${sinRespaldo} gasto(s) no tienen comprobante, así que salen sin imagen.`
-          : "Planilla descargada.",
-      );
+      avisar({
+        tono: "ok",
+        titulo: "Planilla descargada",
+        detalle:
+          sinRespaldo > 0
+            ? `${sinRespaldo} gasto(s) no tienen comprobante, así que salen sin imagen.`
+            : undefined,
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar la planilla.");
+      avisar({
+        tono: "error",
+        titulo: "No se pudo generar la planilla",
+        detalle: e instanceof Error ? e.message : undefined,
+      });
     } finally {
       setGenerandoExcel(false);
     }
@@ -678,7 +778,12 @@ export default function PanelRendicion({
       );
     } catch (e) {
       setEstadoGuardado("error");
-      setError(e instanceof Error ? e.message : "No se pudo guardar.");
+      avisar({
+        tono: "error",
+        clave: "guardar",
+        titulo: "No se pudo guardar",
+        detalle: e instanceof Error ? e.message : undefined,
+      });
     }
   }, [rendicion.id, rendicion.gastos]);
 
@@ -730,7 +835,6 @@ export default function PanelRendicion({
 
   const buscarEmpleado = async () => {
     setBuscandoEmpleado(true);
-    setError(null);
     try {
       const resp = await fetch(
         `/api/rendidor/empleados?nombre=${encodeURIComponent(rendicion.nombreQuienRinde)}`,
@@ -739,13 +843,22 @@ export default function PanelRendicion({
       setEmpleados(json.empleados);
       if (json.empleados.length === 1) setEmployeeId(json.empleados[0].id);
       if (json.empleados.length === 0) {
-        setError(
-          `No hay ningún empleado en Odoo que coincida con "${rendicion.nombreQuienRinde}". ` +
-            "Revisá el nombre — no se puede cargar un gasto sin empleado.",
-        );
+        avisar({
+          tono: "error",
+          clave: "empleado",
+          titulo: "No hay empleado en Odoo con ese nombre",
+          detalle:
+            `Ninguno coincide con "${rendicion.nombreQuienRinde}". Revisá el nombre: no se puede ` +
+            "cargar un gasto sin empleado.",
+        });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo buscar el empleado.");
+      avisar({
+        tono: "error",
+        clave: "empleado",
+        titulo: "No se pudo buscar el empleado",
+        detalle: e instanceof Error ? e.message : undefined,
+      });
     } finally {
       setBuscandoEmpleado(false);
     }
@@ -753,7 +866,6 @@ export default function PanelRendicion({
 
   const resolverProveedores = async () => {
     setResolviendo(true);
-    setError(null);
     try {
       // Antes de cualquier otra cosa: dejar en la base exactamente lo que se ve
       // en la tabla, porque /cargar lee de ahí.
@@ -776,18 +888,37 @@ export default function PanelRendicion({
 
       const estado: Record<string, EstadoProveedor> = {};
       for (const r of json.resultados) {
-        estado[r.gastoId] = {
-          candidatos: r.candidatos,
-          // Un solo candidato se autoselecciona; varios los elige quien rinde.
-          elegido: r.candidatos.length === 1 ? r.candidatos[0].id : null,
-          crear: r.candidatos.length === 0,
-          esPersonaNatural: false,
-        };
+        // Lo que ya se eligió se CONSERVA. Esto se puede correr de nuevo —al volver a
+        // corregir y entrar otra vez a la ventana de carga— y rearmar el estado de cero
+        // borraba las decisiones: quien había elegido entre dos proveedores parecidos
+        // volvía y estaba en blanco, sin ningún aviso de que se había perdido.
+        //
+        // Solo si el elegido SIGUE entre los candidatos: si en el medio se corrigió el
+        // RUT, los candidatos son otros y la elección anterior ya no aplica.
+        const antes = proveedores[r.gastoId];
+        const sigueValido =
+          antes?.elegido != null && r.candidatos.some((c) => c.id === antes.elegido);
+        estado[r.gastoId] = sigueValido
+          ? { ...antes, candidatos: r.candidatos }
+          : {
+              candidatos: r.candidatos,
+              // Un solo candidato se autoselecciona; varios los elige quien rinde.
+              elegido: r.candidatos.length === 1 ? r.candidatos[0].id : null,
+              crear: r.candidatos.length === 0,
+              // "Es persona natural" se conserva aunque cambien los candidatos: es un
+              // dato del proveedor, no de la búsqueda.
+              esPersonaNatural: antes?.esPersonaNatural ?? false,
+            };
       }
       setProveedores(estado);
       setPaso("cargar");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron resolver los proveedores.");
+      avisar({
+        tono: "error",
+        clave: "proveedores",
+        titulo: "No se pudieron resolver los proveedores",
+        detalle: e instanceof Error ? e.message : undefined,
+      });
     } finally {
       setResolviendo(false);
     }
@@ -795,7 +926,13 @@ export default function PanelRendicion({
 
   const cargarAOdoo = async () => {
     if (!employeeId) {
-      setError("Falta elegir el empleado de Odoo.");
+      avisar({
+        tono: "error",
+        clave: "faltan",
+        titulo: "Falta elegir el empleado de Odoo",
+        detalle: "Sin empleado, Odoo rechaza el gasto.",
+        accion: { texto: "Mostrar", alPulsar: () => irA("empleado-odoo") },
+      });
       return;
     }
     const sinResolver = rendicion.gastos.filter((g) => {
@@ -803,12 +940,19 @@ export default function PanelRendicion({
       return !p || (!p.elegido && !p.crear);
     });
     if (sinResolver.length > 0) {
-      setError(`Hay ${sinResolver.length} gasto(s) sin proveedor resuelto. Es obligatorio.`);
+      // Con el número Y el camino hasta ellos: "hay 3 sin proveedor" en una lista de
+      // dieciséis tarjetas deja a la persona buscando cuál es cuál.
+      avisar({
+        tono: "error",
+        clave: "faltan",
+        titulo: `Falta elegir el proveedor de ${sinResolver.length} gasto(s)`,
+        detalle: "Es obligatorio: Odoo no acepta un gasto sin proveedor.",
+        accion: { texto: "Mostrar el primero", alPulsar: () => irA(`proveedor-${sinResolver[0].id}`) },
+      });
       return;
     }
 
     setGuardando(true);
-    setError(null);
     try {
       const decisiones = rendicion.gastos.map((g) => {
         const p = proveedores[g.id];
@@ -903,7 +1047,12 @@ export default function PanelRendicion({
         problemas,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar a Odoo.");
+      avisar({
+        tono: "error",
+        clave: "odoo",
+        titulo: "No se pudo cargar a Odoo",
+        detalle: e instanceof Error ? e.message : undefined,
+      });
     } finally {
       setGuardando(false);
     }
@@ -922,16 +1071,6 @@ export default function PanelRendicion({
         {yaCargada && " · Ya cargada a Odoo"}
       </p>
 
-      {error && (
-        <div className="mt-3 whitespace-pre-line rounded-lg border border-red-600/20 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {error}
-        </div>
-      )}
-      {aviso && (
-        <div className="mt-3 whitespace-pre-line rounded-lg border border-teal/20 bg-teal/5 px-3 py-2 text-xs text-teal">
-          {aviso}
-        </div>
-      )}
 
       {resultado && (
         <div className="mt-4 rounded-2xl border border-teal/30 bg-teal/5 p-5">
@@ -1075,6 +1214,7 @@ export default function PanelRendicion({
               return (
                 <li
                   key={g.id}
+                  id={`gasto-${g.id}`}
                   className={`overflow-hidden rounded-xl border bg-superficie ${SOMBRA_CALIDA} ${
                     avisos.length > 0 || rutMalo ? "border-naranjo/40" : "border-borde"
                   }`}
@@ -1345,14 +1485,52 @@ export default function PanelRendicion({
         </div>
       )}
 
-      {/* PASO 3 — confirmar y cargar */}
-      {paso === "cargar" && !yaCargada && (
-        <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
-          <p className="font-condensed text-lg font-bold tracking-tight text-tinta">
-            3 · Confirmar y cargar a Odoo
-          </p>
+      {/* PASO 3 — confirmar y cargar, EN SU PROPIA VENTANA.
+          Estaba como un cuarto bloque colgado abajo del paso 2: había que bajar tres
+          pantallas de tarjetas de gasto para encontrarlo, y lo que se elige ahí
+          —empleado y proveedor de cada gasto— no se veía junto a nada que lo explique.
+          Como ventana, lo único en pantalla es la revisión que hay que hacer.
 
-          <div className="mt-3">
+          Y con VUELTA ATRÁS: verificar los proveedores es justo el momento en que uno
+          descubre que un gasto tiene mal el RUT, así que tiene que poder volver a
+          corregirlo. "Volver a corregir" deja todo como estaba —los proveedores ya
+          resueltos siguen resueltos— porque el estado no se toca al cerrar. */}
+      {paso === "cargar" && !yaCargada && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmar y cargar a Odoo"
+          className="fixed inset-0 z-40 flex flex-col bg-tinta/70 p-3 backdrop-blur-sm sm:p-6"
+        >
+          {/* El clic en el fondo NO cierra: acá hay decisiones a medio tomar —qué
+              proveedor es cada uno— y perderlas por un clic al costado sería peor que
+              cualquier comodidad. Se cierra por el botón, que dice a dónde lleva. */}
+          <div
+            className={`mx-auto flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-borde bg-superficie ${SOMBRA_CALIDA}`}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-borde px-5 py-4">
+              <div>
+                <p className="font-condensed text-lg font-bold tracking-tight text-tinta">
+                  3 · Confirmar y cargar a Odoo
+                </p>
+                <p className="mt-0.5 text-xs text-tinta/55">
+                  {rendicion.gastos.length} gasto(s) · {rendicion.tituloRendicion}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaso("revisar")}
+                disabled={guardando}
+                className="shrink-0 rounded-md border border-borde bg-superficie px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo disabled:opacity-40"
+              >
+                ← Volver a corregir
+              </button>
+            </div>
+
+            {/* El cuerpo scrollea solo, así el botón de cargar y el botón de volver
+                quedan siempre a la vista: son las dos salidas de esta ventana. */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="mt-0" id="empleado-odoo">
             <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
               Empleado en Odoo
             </label>
@@ -1401,11 +1579,25 @@ export default function PanelRendicion({
             {rendicion.gastos.map((g) => {
               const p = proveedores[g.id];
               if (!p) return null;
+              const falta = !p.elegido && !p.crear;
               return (
-                <div key={g.id} className="rounded-lg border border-borde bg-crema/30 px-3 py-2">
+                <div
+                  key={g.id}
+                  id={`proveedor-${g.id}`}
+                  // Marcado en su lugar, no solo contado en un aviso: el borde rojo y el
+                  // rótulo dicen CUÁL de las dieciséis tarjetas es la que falta.
+                  className={`rounded-lg border px-3 py-2 ${
+                    falta ? "border-red-600/45 bg-red-50" : "border-borde bg-crema/30"
+                  }`}
+                >
                   <p className="text-xs font-medium text-tinta">
                     {g.orden}. {g.proveedor || "(sin proveedor)"}{" "}
                     <span className="text-tinta/45">{g.rutProveedor ?? "sin RUT"}</span>
+                    {falta && (
+                      <span className="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+                        falta elegir
+                      </span>
+                    )}
                   </p>
                   {p.candidatos.length > 0 ? (
                     <select
@@ -1416,7 +1608,10 @@ export default function PanelRendicion({
                           [g.id]: { ...prev[g.id], elegido: Number(e.target.value) || null, crear: false },
                         }))
                       }
-                      className="mt-1 w-full rounded border border-borde bg-superficie px-2 py-1 text-xs"
+                      aria-invalid={falta}
+                      className={`mt-1 w-full rounded border bg-superficie px-2 py-1 text-xs ${
+                        falta ? "border-red-600/60 ring-1 ring-red-600/25" : "border-borde"
+                      }`}
                     >
                       <option value="">— elegir proveedor —</option>
                       {p.candidatos.map((c) => (
@@ -1448,25 +1643,85 @@ export default function PanelRendicion({
             })}
           </div>
 
-          {pendientes.length > 0 && (
-            <div className="mt-4 rounded-lg border border-naranjo/25 bg-naranjo/5 px-3 py-2 text-xs text-naranjo">
-              Hay {pendientes.length} gasto(s) con datos por confirmar. Revisalos antes de cargar: los que no
-              tengan tipo de documento, categoría o fecha van a rechazar la carga.
+          {/* LO QUE FALTA, junto al botón y en grande.
+              Antes esto se sabía recién al apretar "cargar a Odoo" y aparecía como una
+              tira de doce píxeles tres pantallas más arriba. Acá está donde se decide,
+              cada renglón dice qué falta y lleva hasta el lugar. */}
+          {(sinProveedor.length > 0 || !employeeId || pendientes.length > 0) && (
+            <div className="mt-5 rounded-xl border-l-4 border-l-naranjo border-y border-r border-borde bg-naranjo/[0.06] px-4 py-3.5">
+              <p className="font-condensed text-base font-bold uppercase tracking-wide text-naranjo">
+                Falta esto para poder cargar
+              </p>
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {!employeeId && (
+                  <li className="flex flex-wrap items-center gap-2 text-xs text-tinta/75">
+                    <span className="font-semibold text-red-700">Obligatorio</span>· Elegir el empleado de
+                    Odoo
+                    <button
+                      type="button"
+                      onClick={() => irA("empleado-odoo")}
+                      className="rounded border border-tinta/15 bg-superficie px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-tinta hover:border-naranjo/50 hover:text-naranjo"
+                    >
+                      Ir
+                    </button>
+                  </li>
+                )}
+                {sinProveedor.length > 0 && (
+                  <li className="flex flex-wrap items-center gap-2 text-xs text-tinta/75">
+                    <span className="font-semibold text-red-700">Obligatorio</span>· Elegir el proveedor de{" "}
+                    {sinProveedor.length} gasto(s): {sinProveedor.map((g) => g.orden).join(", ")}
+                    <button
+                      type="button"
+                      onClick={() => irA(`proveedor-${sinProveedor[0].id}`)}
+                      className="rounded border border-tinta/15 bg-superficie px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-tinta hover:border-naranjo/50 hover:text-naranjo"
+                    >
+                      Ir al primero
+                    </button>
+                  </li>
+                )}
+                {pendientes.length > 0 && (
+                  <li className="flex flex-wrap items-center gap-2 text-xs text-tinta/75">
+                    <span className="font-semibold text-naranjo">Revisar</span>· {pendientes.length} gasto(s)
+                    con datos por confirmar. Los que no tengan tipo de documento, categoría o fecha van a
+                    rechazar la carga.
+                    <button
+                      type="button"
+                      onClick={() => volverEIrA(`gasto-${pendientes[0].gasto.id}`)}
+                      className="rounded border border-tinta/15 bg-superficie px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-tinta hover:border-naranjo/50 hover:text-naranjo"
+                    >
+                      Ir al primero
+                    </button>
+                  </li>
+                )}
+              </ul>
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={cargarAOdoo}
-            disabled={guardando || !employeeId}
-            aria-busy={guardando}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-teal px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-teal/85 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
-          >
-            {guardando && <RuedaCarga />}
-            {guardando
-              ? "Cargando a Odoo..."
-              : `Confirmar y crear ${rendicion.gastos.length} gasto(s) en Odoo`}
-          </button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-borde bg-crema/40 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setPaso("revisar")}
+                disabled={guardando}
+                className="text-[11px] font-semibold uppercase tracking-wide text-tinta/55 transition hover:text-naranjo disabled:opacity-40"
+              >
+                Volver a corregir
+              </button>
+              <button
+                type="button"
+                onClick={cargarAOdoo}
+                disabled={guardando || !employeeId}
+                aria-busy={guardando}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-teal px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-teal/85 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
+              >
+                {guardando && <RuedaCarga />}
+                {guardando
+                  ? "Cargando a Odoo..."
+                  : `Confirmar y crear ${rendicion.gastos.length} gasto(s) en Odoo`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1474,6 +1729,10 @@ export default function PanelRendicion({
           gasto. Y se desmonta al cerrar, así el <img> o el <iframe> dejan de
           existir en vez de quedar ocultos consumiendo memoria. */}
       {viendo && <VisorComprobante comprobante={viendo} onCerrar={() => setViendo(null)} />}
+
+      {/* Los avisos, fijos abajo a la derecha: se ven desde cualquier punto de la página,
+          se apilan en vez de pisarse y se cierran con su ×. Ver ./Avisos.tsx. */}
+      <Avisos avisos={avisos} alCerrar={cerrarAviso} />
     </div>
   );
 }

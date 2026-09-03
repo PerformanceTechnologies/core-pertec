@@ -33,7 +33,10 @@ async function CampoEmpleado({ correo }: { correo: string }) {
 
 export default async function RendirGastosPage() {
   const usuario = await exigirAccesoApp(SLUG_APP);
-  const rendiciones = await listarRendiciones(usuario.id);
+  // Un admin ve las de todos: es quien revisa lo que se va a cargar a Odoo.
+  const esAdmin = usuario.rol === "admin";
+  const rendiciones = await listarRendiciones({ usuarioId: usuario.id, rol: usuario.rol });
+  const deOtros = rendiciones.filter((r) => !r.esMia).length;
 
   const faltaApiKey = !process.env.ANTHROPIC_API_KEY;
 
@@ -51,11 +54,20 @@ export default async function RendirGastosPage() {
     <div className="animar-entrada max-w-[1500px]">
       <span className="etiqueta-seccion">Rendir Gastos</span>
       <h1 className="mt-2 font-condensed text-3xl font-bold uppercase leading-none tracking-tight text-tinta sm:text-4xl">
-        Mis rendiciones
+        {esAdmin ? "Rendiciones" : "Mis rendiciones"}
       </h1>
       <p className="mt-3 max-w-[62ch] text-[15px] text-pretty text-tinta/60">
         Sube las boletas y facturas, revisa lo que se leyó de cada una, y cárgalas a Odoo con el proveedor, el
         tipo de documento y el IVA correctos.
+        {/* Se dice de entrada que se están viendo las de todos: los totales de la cinta suman
+            las de la empresa entera, y sin esta línea un admin los lee como propios. */}
+        {esAdmin && deOtros > 0 && (
+          <>
+            {" "}
+            Como administrador ves también las de otras personas ({deOtros} de {rendiciones.length}), y los
+            totales de arriba las incluyen.
+          </>
+        )}
       </p>
 
       {faltaApiKey && (

@@ -21,6 +21,7 @@ interface FilaRendicion {
 
 interface FilaResumen {
   id: string;
+  creado_por: string | null;
   nombre_quien_rinde: string;
   monto_asignado: number | string;
   titulo_rendicion: string;
@@ -52,21 +53,35 @@ function filaARendicion(fila: FilaRendicion): Rendicion {
 }
 
 /**
- * Rendiciones de un usuario para la pantalla de lista, mas recientes primero.
+ * Rendiciones para la pantalla de lista, mas recientes primero.
+ *
+ * Cada quien ve las suyas y un ADMIN ve todas. No es una comodidad: quien
+ * administra tiene que poder revisar lo que rindio otra persona antes de que se
+ * cargue a Odoo, y hasta ahora la unica forma era abrir la fila por su URL —el
+ * detalle ya dejaba entrar a un admin (ver [id]/page.tsx), la lista no—.
  *
  * Lee de la vista `rendiciones_resumen`, que calcula la cantidad de gastos y el
  * total en Postgres. La lista solo muestra esos dos numeros, y traer el jsonb
  * `gastos` completo para calcularlos en JS movia cientos de KB por carga.
  */
-export async function listarRendiciones(usuarioId: string): Promise<ResumenRendicion[]> {
-  const { data, error } = await supabaseAdmin
+export async function listarRendiciones(quien: {
+  usuarioId: string;
+  rol: string;
+}): Promise<ResumenRendicion[]> {
+  const consulta = supabaseAdmin
     .from("rendiciones_resumen")
     .select(
       `id, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
-       cantidad_gastos, total_gastos, odoo_expense_ids, creado_en`,
+       cantidad_gastos, total_gastos, odoo_expense_ids, creado_por, creado_en`,
     )
-    .eq("creado_por", usuarioId)
     .order("creado_en", { ascending: false });
+
+  // El filtro va en la CONSULTA y no en el resultado: filtrar despues significa
+  // traer las rendiciones de toda la empresa a la memoria del servidor para
+  // descartarlas, y el dia que alguien lea `data` antes del filtro, se filtran.
+  const { data, error } = await (quien.rol === "admin"
+    ? consulta
+    : consulta.eq("creado_por", quien.usuarioId));
 
   // Se propaga el error en vez de devolver [] en silencio: una lista vacia por
   // fallo de red es indistinguible de "no tienes rendiciones", y eso hace que
@@ -82,6 +97,7 @@ export async function listarRendiciones(usuarioId: string): Promise<ResumenRendi
     cantidadGastos: Number(f.cantidad_gastos),
     totalGastos: Number(f.total_gastos),
     odooExpenseIds: f.odoo_expense_ids ?? [],
+    esMia: f.creado_por === quien.usuarioId,
     creadoEn: f.creado_en,
   }));
 }

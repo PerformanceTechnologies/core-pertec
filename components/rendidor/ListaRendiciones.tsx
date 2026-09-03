@@ -290,12 +290,23 @@ export default function ListaRendiciones({
                       {/* Quién rinde tiene columna propia en xl. En angosto va
                           acá, junto a la fecha, en vez de gastar una celda de la
                           grilla de montos. */}
-                      <span className="xl:hidden">· {r.nombreQuienRinde}</span>
+                      <span className="xl:hidden">
+                        · {r.nombreQuienRinde}
+                        {!r.esMia && " (de otra persona)"}
+                      </span>
                     </p>
                   </div>
 
-                  <span className="hidden truncate text-sm text-tinta/60 xl:block" title={r.nombreQuienRinde}>
+                  <span className="hidden min-w-0 truncate text-sm text-tinta/60 xl:block" title={r.nombreQuienRinde}>
                     {r.nombreQuienRinde}
+                    {/* Un admin ve las de todos, así que hay que poder distinguir de un
+                        vistazo la propia de la de otra persona: las dos se ven igual y las
+                        acciones de la fila —borrar— se leen como si fueran sobre lo propio. */}
+                    {!r.esMia && (
+                      <span className="ml-1.5 rounded bg-gris/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-tinta/50">
+                        de otra persona
+                      </span>
+                    )}
                   </span>
 
                   <Celda etiqueta="Comprob." className="text-tinta/60">
