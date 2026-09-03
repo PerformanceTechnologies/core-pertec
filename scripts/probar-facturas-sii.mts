@@ -293,30 +293,70 @@ const reclamada = (parte: Partial<FacturaSii>): FacturaSii => ({
 
 assert.equal(avisoDeReclamos([]), null, "sin reclamos no hay correo: un aviso vacío se aprende a ignorar");
 
+// La plantilla es la que pidió Finanzas: un correo formal que se puede reenviar al
+// cliente. Asunto fijo, sin folio ni monto —el folio en el asunto no le aporta a quien lo
+// recibe reenviado— y el cuerpo con los datos del documento en bloque.
 const una = avisoDeReclamos([reclamada({})]);
 assert.ok(una);
-assert.ok(una.asunto.includes("198") && una.asunto.includes("SALFA SA"), "el asunto dice cuál es");
+assert.equal(una.asunto, "Notificación de rechazo de factura");
 assert.ok(
-  /RECLAMADA\/RECHAZADA/.test(una.asunto),
-  "y lo nombra con las dos palabras: se pidió que una rechazada avise igual que una reclamada",
+  una.cuerpo.startsWith(
+    "Se ha registrado un rechazo de factura correspondiente a Performance Technologies SpA.",
+  ),
+  "el primer párrafo nombra a la empresa que emitió: el correo se lee fuera de contexto",
 );
-for (const dato of ["76.929.210-1", "2026-08-14", "$42.358.564", "202608"]) {
+assert.ok(una.cuerpo.includes("Los datos del documento son los siguientes:"));
+assert.ok(una.cuerpo.includes("Factura N° 198"));
+for (const dato of ["76.929.210-1", "2026-08-14", "$42.358.564", "202608", "SALFA SA"]) {
   assert.ok(una.cuerpo.includes(dato), `el detalle incluye ${dato}`);
 }
 assert.ok(
-  una.cuerpo.includes("nota de crédito"),
+  una.cuerpo.includes(
+    "Agradecemos revisar los antecedentes y gestionar la regularización del documento a la brevedad.",
+  ),
   "y dice qué hacer: el aviso sirve para actuar, no para enterarse",
 );
+assert.ok(
+  una.cuerpo.trimEnd().endsWith("Este es un mensaje automático. Por favor, no responder a este correo."),
+  "cierra avisando que es automático: el remitente es un buzón de persona y una respuesta " +
+    "se perdería ahí",
+);
 
-// Con varias, el asunto trae la cuenta y el monto total: es lo que se lee en la bandeja
-// sin abrir el correo.
+// El bloque de datos, tal cual, con la sangría de dos espacios y las etiquetas alineadas.
+// Se compara completo porque es una plantilla acordada: si alguien mueve una etiqueta o
+// cambia una sangría, el correo deja de verse como el que se aprobó.
+assert.ok(
+  una.cuerpo.includes(
+    [
+      "Factura N° 198",
+      "  Cliente:      SALFA SA · 76.929.210-1",
+      "  Emitida:      2026-08-12",
+      "  Reclamo:      2026-08-14",
+      "  Monto total:  $42.358.564",
+      "  Neto / IVA:   $35.595.432 / $6.763.132",
+      "  Período RCV:  202608",
+    ].join("\n"),
+  ),
+  "el bloque de datos sale con el formato acordado, etiqueta por etiqueta",
+);
+
+// Con varias, todo en plural y el total en el primer párrafo: nueve rechazos sin el total
+// obligan a sumar a mano, y es el número por el que se pregunta primero.
 const varias = avisoDeReclamos([
   reclamada({}),
   reclamada({ folio: 201, razonSocial: "Minera Las Cenizas S.A.", montoTotal: 11_394_250 }),
 ]);
 assert.ok(varias);
-assert.ok(varias.asunto.includes("2 facturas") && varias.asunto.includes("$53.752.814"));
+assert.equal(varias.asunto, "Notificación de rechazo de facturas");
+assert.ok(
+  varias.cuerpo.startsWith(
+    "Se han registrado 2 rechazos de facturas correspondientes a Performance Technologies SpA, " +
+      "por un total de $53.752.814.",
+  ),
+);
+assert.ok(varias.cuerpo.includes("Los datos de los documentos son los siguientes:"));
 assert.ok(varias.cuerpo.includes("198") && varias.cuerpo.includes("201"), "y las dos en el detalle");
+assert.ok(varias.cuerpo.includes("de los documentos a la brevedad"));
 
 // Un monto ausente no puede romper el correo ni sumar como cero disfrazado.
 const sinMonto = avisoDeReclamos([reclamada({ montoTotal: null, razonSocial: null })]);

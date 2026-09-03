@@ -35,6 +35,16 @@ function detalle(factura: FacturaSii): string {
   ].join("\n");
 }
 
+/**
+ * Quien emitio las facturas que se estan avisando.
+ *
+ * Constante porque el RCV que lee el scraper es el de una sola empresa —la del
+ * SII_RUT_EMPRESA— y el correo tiene que nombrarla. Si algun dia se sincroniza una
+ * segunda, esto deja de ser una constante y sale de la factura; no antes, para no armar
+ * una configuracion que hoy no tiene dos valores posibles.
+ */
+const EMPRESA_EMISORA = "Performance Technologies SpA";
+
 export interface AvisoDeReclamos {
   asunto: string;
   cuerpo: string;
@@ -51,26 +61,29 @@ export function avisoDeReclamos(reclamadas: FacturaSii[]): AvisoDeReclamos | nul
   if (reclamadas.length === 0) return null;
 
   const cuantas = reclamadas.length;
+  const una = cuantas === 1;
   const total = reclamadas.reduce((suma, f) => suma + (f.montoTotal ?? 0), 0);
-  const asunto =
-    cuantas === 1
-      ? `Factura de venta RECLAMADA/RECHAZADA: N° ${reclamadas[0].folio} · ${reclamadas[0].razonSocial ?? reclamadas[0].rutContraparte}`
-      : `${cuantas} facturas de venta RECLAMADAS/RECHAZADAS por ${pesos(total)}`;
+
+  // El asunto es fijo, sin folio ni monto: es un correo formal que Finanzas puede reenviar
+  // al cliente, y ahi el folio en el asunto no aporta. El precio es que dos avisos se ven
+  // iguales en la bandeja, y por eso el primer parrafo dice cuantos son.
+  const asunto = `Notificación de rechazo de factura${una ? "" : "s"}`;
 
   const cuerpo = [
-    cuantas === 1
-      ? "El cliente reclamó o rechazó una factura de venta en el SII."
-      : `Hay ${cuantas} facturas de venta reclamadas o rechazadas por clientes en el SII, ` +
-        `por ${pesos(total)} en total.`,
+    una
+      ? `Se ha registrado un rechazo de factura correspondiente a ${EMPRESA_EMISORA}.`
+      : `Se han registrado ${cuantas} rechazos de facturas correspondientes a ` +
+        `${EMPRESA_EMISORA}, por un total de ${pesos(total)}.`,
     "",
-    "Una factura reclamada no se cobra como está: hay que revisar el motivo con el cliente y",
-    "corregir el documento o emitir la nota de crédito que corresponda.",
+    `Los datos ${una ? "del documento son los siguientes" : "de los documentos son los siguientes"}:`,
     "",
     reclamadas.map(detalle).join("\n\n"),
     "",
-    "— Este aviso lo manda el Panel Finanzas cuando la sincronización con el SII detecta un",
-    "reclamo NUEVO. Cada factura se avisa una sola vez.",
-    "El detalle completo está en core.pertec.cl/finanzas/sii.",
+    `Agradecemos revisar los antecedentes y gestionar la regularización ${
+      una ? "del documento" : "de los documentos"
+    } a la brevedad.`,
+    "",
+    "Este es un mensaje automático. Por favor, no responder a este correo.",
   ].join("\n");
 
   return { asunto, cuerpo };
