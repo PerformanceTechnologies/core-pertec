@@ -11,8 +11,14 @@ import {
   type ColumnasDelCsv,
   type PantallaDeVenta,
 } from "@/lib/sii-rcv";
-import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
+import {
+  guardarFacturasSii,
+  reclamosNuevosDeVenta,
+  registrarEjecucion,
+  ventasReclamadas,
+} from "@/lib/finanzas";
 import { avisarReclamos } from "@/lib/finanzas-aviso";
+import { CORREO_FINANZAS } from "@/lib/notificaciones";
 
 /**
  * Sincronizar el SII a mano, desde la pantalla.
@@ -196,5 +202,63 @@ export async function sincronizarSiiAction(
     // motivo —"Target page, context or browser has been closed", el Chromium que se muere
     // cuando la instancia ya lanzó dos— solo aparecía consultando la base.
     return { ...vacio, ok: false, error: mensaje };
+  }
+}
+
+export interface ResultadoReenvio {
+  ok: boolean;
+  folios: number[];
+  destinatario: string;
+  error?: string;
+}
+
+/**
+ * Reenviar a Finanzas el aviso de las ventas que hoy figuran reclamadas.
+ *
+ * Existe porque el aviso automático NO se puede reintentar: manda solo los reclamos
+ * NUEVOS —comparados contra lo guardado— y eso es lo correcto para que no llegue el mismo
+ * correo todos los días. Pero significa que si el envío falla una vez, releer el período
+ * ya no encuentra nada nuevo y el aviso se pierde para siempre. Pasó: se detectaron nueve
+ * facturas reclamadas por $121 millones, la pantalla dijo "avisadas por correo" y a
+ * finanzas@pertec.cl no llegó nada.
+ *
+ * Así que esto hace dos cosas con un solo botón: entrega la lista que Finanzas no recibió,
+ * y —si vuelve a fallar— devuelve el error de Graph tal cual, que es lo único que permite
+ * arreglarlo.
+ *
+ * El destinatario sigue siendo una constante de lib/notificaciones.ts: acá no se elige a
+ * quién, solo cuándo.
+ */
+export async function reenviarAvisoReclamosAction(): Promise<ResultadoReenvio> {
+  const usuario = await exigirAccesoApp(SLUG_APP);
+  if (usuario.rol !== "admin" && !(await usuarioPuedeVerSubpanelFinanzas(usuario.id, "sii"))) {
+    throw new Error("No tenés acceso a las facturas del SII.");
+  }
+
+  try {
+    const reclamadas = await ventasReclamadas();
+    const envio = await avisarReclamos(reclamadas);
+    if (!envio) {
+      return {
+        ok: true,
+        folios: [],
+        destinatario: CORREO_FINANZAS,
+        error: "No hay ventas reclamadas ni rechazadas: no había nada que avisar.",
+      };
+    }
+    // Queda constancia igual que en una corrida, con 0 documentos: no se leyó nada del
+    // SII, solo se reenvió. Así "¿salió el correo?" se contesta desde la base.
+    await registrarEjecucion(true, 0, undefined, { aviso: envio });
+    return {
+      ok: envio.enviado,
+      folios: envio.folios,
+      destinatario: envio.destinatario,
+      ...(envio.error ? { error: envio.error } : {}),
+    };
+  } catch (error) {
+    // Como en sincronizarSiiAction: se devuelve, no se lanza. Una Server Action que lanza
+    // llega al navegador enmascarada y el motivo hay que ir a buscarlo a la base.
+    const detalle = error instanceof Error ? error.message : "Error desconocido";
+    return { ok: false, folios: [], destinatario: CORREO_FINANZAS, error: detalle };
   }
 }

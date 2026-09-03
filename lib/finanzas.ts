@@ -160,6 +160,52 @@ export async function reclamosNuevosDeVenta(filas: FacturaSii[]): Promise<Factur
   );
 }
 
+/**
+ * Las ventas que hoy figuran reclamadas o rechazadas, para poder reavisarlas.
+ *
+ * Distinta de reclamosNuevosDeVenta a propósito: esa compara contra lo guardado y
+ * devuelve SOLO lo nuevo, que es lo correcto para el aviso automático —el reclamo se
+ * queda en el RCV hasta que el cliente lo revierta, así que avisar lo viejo en cada
+ * corrida termina en que nadie abre el correo—. Pero justo por eso, cuando el correo no
+ * sale, no hay forma de reintentarlo: al releer ya no hay nada "nuevo" que avisar.
+ *
+ * Esto lee lo que hay, sin comparar nada. Lo usa el reenvío a mano.
+ */
+export async function ventasReclamadas(): Promise<FacturaSii[]> {
+  const { data, error } = await supabaseAdmin
+    .from("facturas_sii")
+    .select("*")
+    .eq("tipo_documento", "venta")
+    .eq("estado", "reclamado")
+    .order("fecha_docto", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  // Los montos se pasan por Number() aunque la fila los declare number: PostgREST puede
+  // devolver un numeric como string, y `suma + "42358564"` no suma, concatena — el total
+  // del correo saldría como un número de veinte dígitos.
+  const monto = (valor: number | null): number | null =>
+    valor === null || valor === undefined ? null : Number(valor);
+
+  return (data ?? []).map((f) => ({
+    tipoDocumento: "venta" as const,
+    codigoDte: Number(f.codigo_dte),
+    estado: "reclamado" as const,
+    rutContraparte: f.rut_contraparte,
+    razonSocial: f.razon_social,
+    folio: Number(f.folio),
+    fechaDocto: f.fecha_docto,
+    fechaRecepcion: f.fecha_recepcion,
+    montoExento: monto(f.monto_exento),
+    montoNeto: monto(f.monto_neto),
+    montoIvaRecuperable: monto(f.monto_iva_recuperable),
+    montoIvaNoRecuperable: monto(f.monto_iva_no_recuperable),
+    montoTotal: monto(f.monto_total),
+    periodo: f.periodo,
+    fechaAcuse: f.fecha_acuse,
+    fechaReclamo: f.fecha_reclamo,
+  }));
+}
+
 export async function registrarEjecucion(
   exito: boolean,
   documentosNuevos: number,

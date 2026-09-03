@@ -2,7 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { sincronizarSiiAction } from "@/app/(protegido)/finanzas/sii/acciones";
+import {
+  reenviarAvisoReclamosAction,
+  sincronizarSiiAction,
+} from "@/app/(protegido)/finanzas/sii/acciones";
 import RuedaCarga from "@/components/RuedaCarga";
 
 /**
@@ -27,13 +30,18 @@ import RuedaCarga from "@/components/RuedaCarga";
 const CUANTOS_MESES = 4;
 
 /** Los últimos meses, del más nuevo al más viejo. */
-function ultimosPeriodos(cuantos = CUANTOS_MESES): { valor: string; rotulo: string }[] {
+function ultimosPeriodos(
+  cuantos = CUANTOS_MESES,
+): { valor: string; rotulo: string }[] {
   const hoy = new Date();
   return Array.from({ length: cuantos }, (_, i) => {
     const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
     return {
       valor: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      rotulo: new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric" }).format(d),
+      rotulo: new Intl.DateTimeFormat("es-CL", {
+        month: "long",
+        year: "numeric",
+      }).format(d),
     };
   });
 }
@@ -41,11 +49,15 @@ function ultimosPeriodos(cuantos = CUANTOS_MESES): { valor: string; rotulo: stri
 export default function BotonSincronizarSii() {
   const router = useRouter();
   const periodos = ultimosPeriodos();
-  const rotuloDe = (valor: string) => periodos.find((p) => p.valor === valor)?.rotulo ?? valor;
+  const rotuloDe = (valor: string) =>
+    periodos.find((p) => p.valor === valor)?.rotulo ?? valor;
   const [periodo, setPeriodo] = useState(periodos[0].valor);
   const [pendiente, iniciarTransicion] = useTransition();
   const [paso, setPaso] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ texto: string; error?: boolean } | null>(null);
+  const [mensaje, setMensaje] = useState<{
+    texto: string;
+    error?: boolean;
+  } | null>(null);
   // Las columnas que trajo el CSV de ventas cuando NINGUNA sirve para derivar el estado.
   // Se muestran porque es el dato con el que se arregla, no un detalle de adorno.
   const [columnas, setColumnas] = useState<string[] | null>(null);
@@ -104,6 +116,37 @@ export default function BotonSincronizarSii() {
       }
     });
 
+  /**
+   * Reenviar el aviso de las reclamadas que ya están guardadas.
+   *
+   * El aviso automático manda solo los reclamos NUEVOS, así que si el correo falla una
+   * vez, releer no lo reintenta: ya no hay nada nuevo. Pasó —nueve facturas por $121
+   * millones que la pantalla dio por avisadas y a Finanzas no llegaron— y sin esto la
+   * única salida era borrar el estado guardado para que volvieran a parecer nuevas.
+   *
+   * Con confirmación porque manda un correo de verdad a Finanzas.
+   */
+  const reenviar = () =>
+    iniciarTransicion(async () => {
+      setMensaje(null);
+      setColumnas(null);
+      setPaso("el aviso a Finanzas");
+      try {
+        const r = await reenviarAvisoReclamosAction();
+        setMensaje({
+          texto: r.ok
+            ? r.folios.length > 0
+              ? `Aviso enviado a ${r.destinatario} con ${r.folios.length} factura(s): folio ` +
+                `${r.folios.join(", ")}.`
+              : (r.error ?? "No había nada que avisar.")
+            : `El correo a ${r.destinatario} NO salió: ${r.error ?? "motivo desconocido"}`,
+          error: !r.ok,
+        });
+      } finally {
+        setPaso(null);
+      }
+    });
+
   const claseBoton =
     "inline-flex h-9 items-center gap-2 rounded-lg border border-borde bg-superficie px-3 " +
     "text-xs font-semibold uppercase tracking-wide text-tinta transition " +
@@ -123,7 +166,12 @@ export default function BotonSincronizarSii() {
           </option>
         ))}
       </select>
-      <button type="button" disabled={pendiente} onClick={() => releer([periodo])} className={claseBoton}>
+      <button
+        type="button"
+        disabled={pendiente}
+        onClick={() => releer([periodo])}
+        className={claseBoton}
+      >
         {pendiente && <RuedaCarga />}
         {pendiente ? "Consultando al SII…" : "↻ Releer período"}
       </button>
@@ -136,20 +184,45 @@ export default function BotonSincronizarSii() {
       >
         Poner al día {CUANTOS_MESES} meses
       </button>
+      <button
+        type="button"
+        disabled={pendiente}
+        onClick={() => {
+          if (
+            window.confirm(
+              "Se le va a enviar a Finanzas un correo con todas las ventas que hoy figuran " +
+                "reclamadas o rechazadas. ¿Enviarlo?",
+            )
+          ) {
+            reenviar();
+          }
+        }}
+        className={claseBoton}
+        title="Reenvía el aviso de las reclamadas ya guardadas. Sirve cuando el correo automático no salió."
+      >
+        Reenviar aviso a Finanzas
+      </button>
       {/* Se dice cuánto tarda ANTES de apretar: son minutos y el botón parece colgado. */}
-      <span className={`text-xs ${mensaje?.error ? "text-red-600" : "text-tinta/50"}`}>
-        {paso
-          ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`
-          : mensaje
-            ? mensaje.texto
-            : "La corrida diaria cubre los últimos 15 días. Para los meses anteriores, ponelos al día una vez."}
+      <span
+        className={`text-xs ${mensaje?.error ? "text-red-600" : "text-tinta/50"}`}
+      >
+        {paso === "el aviso a Finanzas"
+          ? "Enviando el aviso…"
+          : paso
+            ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`
+            : mensaje
+              ? mensaje.texto
+              : "La corrida diaria cubre los últimos 15 días. Para los meses anteriores, ponelos al día una vez."}
       </span>
       {columnas && (
         <details className="basis-full text-xs text-tinta/60">
           <summary className="cursor-pointer">
-            El CSV de ventas no trajo ninguna columna de acuse ni de reclamo. Trajo estas:
+            El CSV de ventas no trajo ninguna columna de acuse ni de reclamo.
+            Trajo estas:
           </summary>
-          <p className="mt-1 font-mono leading-relaxed break-words">{columnas.join(" · ")}</p>
+          <p className="mt-1 font-mono leading-relaxed break-words">
+            {columnas.join(" · ")}
+          </p>
         </details>
       )}
     </div>

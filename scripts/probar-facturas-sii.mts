@@ -468,7 +468,13 @@ assert.ok(
 // Desde el try en adelante: el guard de permisos SÍ lanza a propósito —falla cerrado y
 // ruidoso, y nadie puede confundirlo con un resultado— pero de ahí para abajo, donde
 // todo lo que falla es el SII, no queda ni un throw.
-const cuerpoAccion = accion.slice(accion.indexOf("  try {"));
+// Solo el cuerpo de sincronizarSiiAction, desde su try: los guards de permisos SÍ lanzan
+// a propósito —fallan cerrado y ruidoso, y nadie puede confundirlos con un resultado— y
+// hay uno por acción.
+const cuerpoAccion = accion.slice(
+  accion.indexOf("  try {", accion.indexOf("export async function sincronizarSiiAction")),
+  accion.indexOf("export interface ResultadoReenvio"),
+);
 assert.ok(
   !/\bthrow\b/.test(cuerpoAccion),
   "la acción no lanza por un fallo del SII: devuelve { ok: false, error } para que el " +
@@ -635,6 +641,45 @@ assert.ok(
 assert.ok(
   /avisoEnviado/.test(boton) && /NO SALIÓ/.test(boton),
   "y la pantalla dice si el correo salió en vez de afirmarlo siempre",
+);
+
+// ── Un aviso que no salió se tiene que poder reintentar ────────────────────
+//
+// El aviso automático manda solo los reclamos NUEVOS —comparados contra lo guardado— y
+// eso es lo correcto: el reclamo se queda en el RCV hasta que el cliente lo revierta, así
+// que avisar lo viejo en cada corrida termina en que nadie abre el correo. Pero significa
+// que un envío fallido no se puede reintentar releyendo: ya no hay nada nuevo. Pasó, con
+// nueve facturas por $121 millones que la pantalla dio por avisadas.
+assert.ok(
+  finanzasLib.includes("export async function ventasReclamadas"),
+  "hay una forma de leer las reclamadas YA guardadas, sin comparar contra nada",
+);
+assert.ok(
+  /estado", "reclamado"/.test(finanzasLib) && !/yaReclamadas/.test(
+    finanzasLib.slice(
+      finanzasLib.indexOf("export async function ventasReclamadas"),
+      finanzasLib.indexOf("export async function registrarEjecucion"),
+    ),
+  ),
+  "y no filtra por 'nuevo': si lo hiciera, tendría el mismo problema que quiere resolver",
+);
+assert.ok(
+  /Number\(valor\)/.test(finanzasLib),
+  "los montos pasan por Number(): PostgREST puede devolver un numeric como string, y " +
+    "`suma + \"42358564\"` concatena en vez de sumar — el total del correo saldría con " +
+    "veinte dígitos",
+);
+assert.ok(
+  accion.includes("export async function reenviarAvisoReclamosAction"),
+  "y hay una acción para reenviarlo a mano",
+);
+assert.ok(
+  /registrarEjecucion\(true, 0, undefined, \{ aviso: envio \}\)/.test(accion),
+  "el reenvío también deja constancia, con 0 documentos: no leyó el SII, solo avisó",
+);
+assert.ok(
+  /window\.confirm/.test(boton) && /Reenviar aviso a Finanzas/.test(boton),
+  "con confirmación, porque manda un correo de verdad a Finanzas",
 );
 
 console.log("Todas las verificaciones pasaron.");
