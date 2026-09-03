@@ -31,6 +31,16 @@ export const CORREO_FINANZAS = "finanzas@pertec.cl";
 const CLIENT_ID_CORREO = "6f8ce670-8b60-471a-aa01-d33cd280a453";
 
 /**
+ * Un GUID: ocho-cuatro-cuatro-cuatro-doce, en hexadecimal.
+ *
+ * En la pantalla de Entra, "Secret ID" y "Value" son dos columnas pegadas de la misma
+ * fila, y el ID es lo que queda a mano. Copiar el ID es EL error de esa pantalla —tanto
+ * que Azure lo pone en su propio mensaje: "Ensure the secret being sent in the request is
+ * the client secret value, not the client secret ID"—. Un Value nunca tiene esta forma.
+ */
+const FORMA_DE_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
  * El tenant, que es UNO para toda la empresa aunque se lo nombre de tres formas.
  *
  * MS_TENANT_ID, AZURE_TENANT_ID y el tenant que va adentro del issuer de la
@@ -74,10 +84,23 @@ function obtenerCredencial(): ClientSecretCredential {
           "AZURE_* solo tiene SharePoint y no sirve para esto.",
       );
     }
+    // Antes de llamar a Azure, porque este es el error de esa pantalla y la respuesta de
+    // Azure llega envuelta en un AADSTS7000215 con dos Trace ID y un Correlation ID.
+    // Nunca se pone el valor en el mensaje: lo único que se dice es la forma que tiene.
+    if (FORMA_DE_GUID.test(secreto.trim())) {
+      throw new Error(
+        "El MS_CLIENT_SECRET cargado tiene forma de GUID, así que es el «Secret ID» y no " +
+          "el «Value». En Entra son dos columnas pegadas de la misma fila del secreto y " +
+          "el Value se muestra UNA sola vez: si ya se cerró esa pantalla, hay que crear " +
+          "otro secreto y copiar la columna Value.",
+      );
+    }
+    // Un espacio o un salto de línea pegado por accidente no lo perdona Azure y el error
+    // que devuelve es el mismo "Invalid client secret provided", que no lo insinúa.
     credencial = new ClientSecretCredential(
       tenant,
       process.env.MS_CLIENT_ID || CLIENT_ID_CORREO,
-      secreto,
+      secreto.trim(),
     );
   }
   return credencial;

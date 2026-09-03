@@ -705,6 +705,29 @@ assert.ok(
   /MS_CLIENT_ID \|\| CLIENT_ID_CORREO/.test(notif),
   "y el client id tiene predeterminado, así que lo único que hay que cargar es el secreto",
 );
+
+// El error de ESA pantalla: en Entra, "Secret ID" y "Value" son dos columnas pegadas de
+// la misma fila, y el ID es el que queda a mano. Se cargó el ID y Azure contestó un
+// AADSTS7000215 con dos Trace ID y un Correlation ID adentro.
+assert.ok(
+  /FORMA_DE_GUID\.test\(secreto\.trim\(\)\)/.test(notif) && /Secret ID/.test(notif),
+  "si lo cargado tiene forma de GUID se avisa que es el Secret ID y no el Value, antes " +
+    "de llamar a Azure",
+);
+assert.ok(
+  !/\$\{secreto/.test(notif) && !/secreto\}/.test(notif),
+  "y el valor del secreto NUNCA va en un mensaje de error: se dice la forma que tiene, " +
+    "no el contenido",
+);
+assert.ok(
+  /secreto\.trim\(\),/.test(notif),
+  "el secreto se recorta: un espacio o un salto de línea pegado de más da el mismo " +
+    "'Invalid client secret provided' sin insinuarlo",
+);
+// La forma se reconoce de verdad, no solo está escrita en el archivo.
+const formaDeGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+assert.ok(formaDeGuid.test("1589ee12-f844-4980-9529-9516d4043900"), "un Secret ID es un GUID");
+assert.ok(!formaDeGuid.test("abc8Q~Xk2lM.pQr_sTu-vWxYz1234567890AB"), "un Value no lo es");
 // El destinatario sigue sin poder venir de afuera: es lo único de este archivo que no se
 // relaja, pase lo que pase con la configuración.
 assert.ok(
