@@ -5,6 +5,7 @@ import { exigirAccesoApp } from "@/lib/autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
 import {
   extraerFacturasSii,
+  hayColumnaDeEstadoDeVenta,
   type CamposDeApi,
   type ColumnasDelCsv,
   type PantallaDeVenta,
@@ -45,6 +46,8 @@ export interface ResultadoSincronizacion {
   documentos: number;
   guardados: number;
   reclamos: number[];
+  /** Cuántas ventas trajo ese período. Sin esto, "ninguna reclamada" no se puede leer. */
+  ventas: number;
   /**
    * Las columnas del CSV de ventas, SOLO cuando ninguna venta trajo estado.
    *
@@ -101,19 +104,19 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
     const reclamos = await reclamosNuevosDeVenta(filas);
     const guardados = await guardarFacturasSii(filas);
 
-    // Si hubo ventas y NINGUNA trajo estado, el CSV no tiene de dónde derivarlo: se
-    // guarda qué ofreció el RCV para poder mirarlo, en vez de decir "ninguna reclamada".
+    // El diagnóstico se guarda cuando el CSV no trae NINGUNA columna de estado, que es
+    // el único caso en que el panel no puede saber. La primera versión lo disparaba
+    // cuando ninguna venta traía estado, y eso dio la alarma al revés: septiembre tiene
+    // una sola venta y no está reclamada, así que informó "el SII no dijo nada" cuando
+    // las columnas estaban ahí y la respuesta era simplemente que no hay reclamos.
     const ventas = filas.filter((f) => f.tipoDocumento === "venta");
-    const sinEstado =
-      ventas.length > 0 &&
-      ventas.every((f) => f.estado === "registro" && !f.fechaAcuse && !f.fechaReclamo);
+    const csvVenta = columnas.get("venta") ?? [];
+    const sinEstado = ventas.length > 0 && !hayColumnaDeEstadoDeVenta(csvVenta);
     await registrarEjecucion(
       true,
       guardados,
       undefined,
-      sinEstado
-        ? { periodo, csvVenta: columnas.get("venta") ?? [], pantallaVenta: pantalla, camposApi }
-        : undefined,
+      sinEstado ? { periodo, csvVenta, pantallaVenta: pantalla, camposApi } : undefined,
     );
 
     const aviso = avisoDeReclamos(reclamos);
@@ -132,7 +135,8 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
       documentos: filas.length,
       guardados,
       reclamos: reclamos.map((f) => f.folio),
-      ...(sinEstado ? { columnasVenta: columnas.get("venta") ?? [] } : {}),
+      ventas: ventas.length,
+      ...(sinEstado ? { columnasVenta: csvVenta } : {}),
     };
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "Error desconocido";

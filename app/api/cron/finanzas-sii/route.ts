@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extraerFacturasSii, type CamposDeApi, type PantallaDeVenta } from "@/lib/sii-rcv";
+import {
+  extraerFacturasSii,
+  hayColumnaDeEstadoDeVenta,
+  type CamposDeApi,
+  type PantallaDeVenta,
+} from "@/lib/sii-rcv";
 import { avisoDeReclamos } from "@/lib/finanzas-reclamos";
 import { enviarCorreoFinanzas } from "@/lib/notificaciones";
 import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
@@ -90,10 +95,10 @@ export async function GET(request: NextRequest) {
     const reclamos = await reclamosNuevosDeVenta(filas);
 
     const nuevas = await guardarFacturasSii(filas);
+    // Cuando el CSV de ventas no trae NINGUNA columna de estado: ese es el caso en que
+    // el panel no puede saber. Que un mes no tenga reclamos no es una anomalia.
     const ventas = filas.filter((f) => f.tipoDocumento === "venta");
-    const sinEstado =
-      ventas.length > 0 &&
-      ventas.every((f) => f.estado === "registro" && !f.fechaAcuse && !f.fechaReclamo);
+    const sinEstado = ventas.length > 0 && !hayColumnaDeEstadoDeVenta(csvVenta);
     await registrarEjecucion(
       true,
       nuevas,

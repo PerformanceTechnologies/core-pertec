@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { avisoDeReclamos } from "../lib/finanzas-reclamos";
-import { parsearCsvRcv, type FacturaSii } from "../lib/sii-rcv";
+import { hayColumnaDeEstadoDeVenta, parsearCsvRcv, type FacturaSii } from "../lib/sii-rcv";
 
 // ── El estado de una venta sale del CSV, y esto se prueba CON un CSV ───────
 //
@@ -53,7 +53,65 @@ const unaVenta = (columnas: Record<string, string>): FacturaSii => {
   return filas[0];
 };
 
-// El evento del receptor, que es lo que el RCV de ventas trae de verdad. Viene como
+// ── La cabecera REAL del CSV de ventas ─────────────────────────────────────
+//
+// Estos son los 43 nombres de columna que el SII entregó el 3 de septiembre de 2026,
+// leídos de finanzas_sii_ejecuciones.diagnostico. Están acá porque son la única cosa de
+// todo esto que no se puede deducir: dos versiones del scraper derivaron el estado de
+// nombres inventados —"Fecha Reclamado" cuando el SII dice "Fecha Reclamo"— y ninguna
+// prueba lo podía notar. Si el SII cambia una columna, esto falla y se ve por qué.
+const CABECERA_VENTA_REAL =
+  "Nro;Tipo Doc;Tipo Venta;Rut cliente;Razon Social;Folio;Fecha Docto;Fecha Recepcion;" +
+  "Fecha Acuse Recibo;Fecha Reclamo;Monto Exento;Monto Neto;Monto IVA;Monto total;" +
+  "IVA Retenido Total;IVA Retenido Parcial;IVA no retenido;IVA propio;IVA Terceros;" +
+  "RUT Emisor Liquid. Factura;Neto Comision Liquid. Factura;Exento Comision Liquid. Factura;" +
+  "IVA Comision Liquid. Factura;IVA fuera de plazo;Tipo Docto. Referencia;" +
+  "Folio Docto. Referencia;Num. Ident. Receptor Extranjero;Nacionalidad Receptor Extranjero;" +
+  "Credito empresa constructora;Impto. Zona Franca (Ley 18211);Garantia Dep. Envases;" +
+  "Indicador Venta sin Costo;Indicador Servicio Periodico;Monto No facturable;" +
+  "Total Monto Periodo;Venta Pasajes Transporte Nacional;Venta Pasajes Transporte Internacional;" +
+  "Numero Interno;Codigo Sucursal;NCE o NDE sobre Fact. de Compra;Codigo Otro Imp.;" +
+  "Valor Otro Imp.;Tasa Otro Imp.";
+
+const columnasReales = CABECERA_VENTA_REAL.split(";");
+assert.ok(
+  hayColumnaDeEstadoDeVenta(columnasReales),
+  "la cabecera real del SII trae de dónde derivar el estado: si esto falla, el panel no " +
+    "puede saber si una venta está reclamada",
+);
+assert.ok(
+  !hayColumnaDeEstadoDeVenta(["Nro", "Tipo Doc", "Folio", "Monto total"]),
+  "y una cabecera sin esas columnas se reconoce como ciega: es la diferencia entre " +
+    "'ninguna reclamada' y 'este CSV no lo dice'",
+);
+
+// El reclamo se lee de esa cabecera, en su posición real (la 10ª columna) y por el mismo
+// parser que usa el scraper. No de un nombre parecido.
+const filaReal: string[] = Array(columnasReales.length).fill("");
+const enColumna = (nombre: string, valor: string) => {
+  const i = columnasReales.indexOf(nombre);
+  assert.notEqual(i, -1, `la cabecera real no tiene "${nombre}"`);
+  filaReal[i] = valor;
+};
+enColumna("Tipo Doc", "33");
+enColumna("Folio", "198");
+enColumna("Rut cliente", "76929210-1");
+enColumna("Fecha Docto", "12/08/2026");
+enColumna("Monto total", "42358564");
+enColumna("Fecha Reclamo", "14/08/2026");
+const desdeElReal = parsearCsvRcv(
+  `${CABECERA_VENTA_REAL}\n${filaReal.join(";")}`,
+  "venta",
+  "registro",
+  "202608",
+);
+assert.equal(desdeElReal.length, 1);
+assert.equal(desdeElReal[0].estado, "reclamado", "con la cabecera real, un reclamo se lee");
+assert.equal(desdeElReal[0].fechaReclamo, "2026-08-14");
+assert.equal(desdeElReal[0].montoTotal, 42_358_564);
+
+// El evento del receptor NO viene en el CSV de ventas —la cabecera real no lo trae— pero
+// se sigue leyendo por si aparece. Viene como
 // código, como código con leyenda o solo como leyenda: las tres formas se vieron en
 // pantallas del SII y ninguna se puede descartar.
 for (const valor of ["RFT", "RFT - Reclamo por Falta Total de Mercaderias", "Reclamo al Contenido"]) {
@@ -282,7 +340,15 @@ assert.ok(
 for (const [donde, fuente] of [["la acción", accion], ["el cron", cron]] as const) {
   assert.ok(
     /sinEstado\s*\?\s*\{[\s\S]{0,200}csvVenta/.test(fuente),
-    `${donde} guarda el diagnóstico solo cuando ninguna venta trajo estado`,
+    `${donde} guarda el diagnóstico cuando el CSV no trae de dónde derivar el estado`,
+  );
+  // Por FALTA DE COLUMNA, no por falta de reclamos. La primera versión disparaba la
+  // alarma cuando ninguna venta traía estado, y septiembre —una sola venta, sin reclamo—
+  // hizo que informara "el SII no dijo nada" con las columnas ahí. Alarma al revés.
+  assert.ok(
+    /!hayColumnaDeEstadoDeVenta\(csvVenta\)/.test(fuente),
+    `${donde} decide eso mirando las columnas, no si hay reclamos: un mes sin reclamos ` +
+      "es una respuesta, no una anomalía",
   );
 }
 const finanzasLib = readFileSync(new URL("../lib/finanzas.ts", import.meta.url), "utf8");
@@ -300,8 +366,27 @@ const boton = readFileSync(
   "utf8",
 );
 assert.ok(
-  boton.includes("columnasVenta") && /no trajo el estado de ninguna venta/.test(boton),
+  boton.includes("columnasVenta") && /ninguna columna de acuse ni de reclamo/.test(boton),
   "y el botón lo dice con esas palabras en vez de 'ninguna venta reclamada'",
+);
+// Lo que hizo perder dos días: el selector arranca en el mes en curso, que es el único
+// que la corrida diaria ya cubre. Se apretó tres veces sobre septiembre —una venta, sin
+// reclamo— mientras los folios reclamados de julio no se leían desde antes de que el
+// panel supiera derivar el estado.
+assert.ok(
+  /Poner al día/.test(boton),
+  "hay una forma de poner al día los meses anteriores: sin eso el historial nunca se " +
+    "actualiza, porque la corrida diaria filtra a los últimos 15 días",
+);
+assert.ok(
+  /\.reverse\(\)/.test(boton),
+  "y va del mes más viejo al más nuevo: si se corta, lo que queda al día es lo que la " +
+    "corrida diaria no vuelve a mirar",
+);
+assert.ok(
+  /ventas \(le[íi]da/.test(boton) || /ventas\b[^\n]*le[íi]da/.test(boton),
+  "y el resultado dice CUÁNTAS ventas se miraron: 'ninguna reclamada' sobre una sola " +
+    "venta del mes en curso parecía una respuesta y no lo era",
 );
 
 console.log("Todas las verificaciones pasaron.");

@@ -44,6 +44,47 @@ const SUBESTADOS_COMPRA: { etiquetaTab: string; estado: EstadoFactura }[] = [
 const CODIGOS_DTE_INCLUIDOS = [33, 34];
 
 /**
+ * Como nombra el RCV el estado de una venta, con los nombres reales del CSV.
+ *
+ * Confirmados contra el CSV que el SII entrego el 3 de septiembre de 2026 (ver el
+ * fixture de scripts/probar-facturas-sii.mts): "Fecha Acuse Recibo" y "Fecha Reclamo"
+ * —RECLAMO, no "Reclamado"— vienen las dos, siempre, aunque casi todas las filas las
+ * traigan vacias. "Evento Receptor" NO viene en el CSV de ventas; queda como alias por
+ * si aparece, pero no es de donde sale el dato hoy.
+ *
+ * Estan agrupadas y exportadas para que haya UN solo lugar donde se dice esto: el
+ * parser las usa para leer, y el diagnostico para saber si el CSV trae de donde derivar
+ * el estado. Cuando eso se decidia en dos lados, se pudo dar la alarma equivocada.
+ */
+export const COLUMNAS_DE_ESTADO_VENTA = {
+  acuse: ["Fecha Acuse Recibo", "Fecha Acuse", "Fecha de Acuse Recibo"],
+  reclamo: ["Fecha Reclamo", "Fecha Reclamado", "Fecha de Reclamo"],
+  evento: [
+    "Evento Receptor",
+    "Estado Evento Receptor",
+    "Codigo Evento Receptor",
+    "Evento del Receptor",
+    "Estado Acuse",
+    "Acuse Recibo",
+  ],
+} as const;
+
+/**
+ * Si este CSV trae alguna columna de la que se pueda derivar el estado de una venta.
+ *
+ * La diferencia entre "ninguna venta esta reclamada" y "este CSV no lo dice". Se
+ * confundieron una vez: el panel informo lo primero cuando no sabia, y despues el
+ * diagnostico dio la alarma al revés —dijo que el SII no habia dicho nada cuando en
+ * realidad las columnas estaban y el mes leido simplemente no tenia reclamos—.
+ */
+export function hayColumnaDeEstadoDeVenta(columnas: string[]): boolean {
+  const presentes = new Set(columnas.map((c) => c.trim().toLowerCase()));
+  return Object.values(COLUMNAS_DE_ESTADO_VENTA)
+    .flat()
+    .some((nombre) => presentes.has(nombre.toLowerCase()));
+}
+
+/**
  * El evento con que el receptor respondio al documento.
  *
  * Son los codigos del modelo de DTE del SII, y es la unica cosa del RCV de ventas que
@@ -195,17 +236,9 @@ export function parsearCsvRcv(
   // Lo que dice el estado real de una venta. El evento del receptor es el que manda;
   // las fechas son un dato extra que puede no venir (y hoy no viene). Si ninguna de
   // las tres columnas esta, idx() devuelve -1 y el estado queda en "registro".
-  const iEvento = idx(
-    "Evento Receptor",
-    "Estado Evento Receptor",
-    "Codigo Evento Receptor",
-    "Evento del Receptor",
-    "Estado Acuse",
-    "Acuse Recibo",
-    "Estado DTE",
-  );
-  const iFechaAcuse = idx("Fecha Acuse Recibo", "Fecha Acuse", "Fecha de Acuse Recibo");
-  const iFechaReclamo = idx("Fecha Reclamado", "Fecha Reclamo", "Fecha de Reclamo");
+  const iEvento = idx(...COLUMNAS_DE_ESTADO_VENTA.evento);
+  const iFechaAcuse = idx(...COLUMNAS_DE_ESTADO_VENTA.acuse);
+  const iFechaReclamo = idx(...COLUMNAS_DE_ESTADO_VENTA.reclamo);
 
   const filas: FacturaSii[] = [];
   for (const linea of lineas.slice(1)) {
