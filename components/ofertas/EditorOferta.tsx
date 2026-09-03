@@ -3,11 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  esOfertaTecnica,
+  tieneSeccionesDeOferta,
   firmaDe,
   type Inconsistencia,
   type OfertaCanonica,
-  type TipoDeDocumento,
 } from "@/lib/ofertas/tipos";
 import type { ImagenGuardada } from "@/lib/ofertas/imagenes";
 import type { RegistroEmision } from "@/lib/ofertas/datos";
@@ -54,7 +53,6 @@ export default function EditorOferta({
   emision,
   revisadas: revisadasGuardadas,
   empresa,
-  tipo,
 }: {
   id: string;
   inicial: OfertaCanonica;
@@ -76,7 +74,6 @@ export default function EditorOferta({
    */
   empresa: string;
   /** Qué es el documento: decide qué controles corren y si hay formulario. */
-  tipo: TipoDeDocumento;
 }) {
   const router = useRouter();
   const [oferta, setOferta] = useState<OfertaCanonica>(inicial);
@@ -86,7 +83,11 @@ export default function EditorOferta({
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const emitida = estado === "emitida";
-  const esOferta = esOfertaTecnica(tipo);
+  // Por lo que el documento TIENE, no por su tipo: desde que la lectura respeta la
+  // estructura del original, una oferta nueva llega con las secciones canónicas en null y
+  // todo su contenido en bloques. Mirando el tipo, el formulario de las diez secciones se
+  // abriría vacío al lado del documento. Las ofertas guardadas antes sí las tienen.
+  const esOferta = tieneSeccionesDeOferta(oferta);
   // Las marcas se llevan acá y se guardan al toque: la lista tiene que responder al
   // instante —es un interruptor— y la marca no viaja con "Guardar cambios", que es lo
   // que guarda el texto del documento.
@@ -111,8 +112,8 @@ export default function EditorOferta({
 
   const { totales, problemas } = useMemo(() => {
     const t = calcularTotales(oferta);
-    return { totales: t, problemas: detectarInconsistencias(oferta, t, archivoOrigen ?? "", tipo) };
-  }, [oferta, archivoOrigen, tipo]);
+    return { totales: t, problemas: detectarInconsistencias(oferta, t, archivoOrigen ?? "") };
+  }, [oferta, archivoOrigen]);
 
   // Los avisos se recalculan en cada tecla; las marcas se cruzan por su clave, así que
   // un aviso cuyo dato cambió deja de calzar y vuelve a contar como pendiente. Es lo
@@ -237,10 +238,10 @@ export default function EditorOferta({
             formulario queda para lo que cambia la estructura —agregar una fila,
             crear una sección— que en el documento no se puede hacer sin volver a
             armarlo entero. */}
-          {/* El formulario son las secciones del maestro de la oferta: en un documento
-              libre —una ficha técnica, un procedimiento— no hay nada que llenar ahí, y
-              ofrecer una pestaña vacía es peor que no ofrecerla. Ese documento se
-              trabaja sobre el papel, con los + de agregar secciones y subtítulos. */}
+          {/* El formulario son las secciones del maestro, y solo lo tienen las ofertas
+              guardadas antes de que la lectura respetara la estructura del original. En
+              un documento nuevo no hay nada que llenar ahí: se trabaja sobre el papel,
+              con los + de agregar secciones y subtítulos. */}
           <div
             className={`flex w-fit items-center gap-1 rounded-lg border border-borde bg-crema/40 p-1 ${
               esOferta ? "" : "hidden"

@@ -268,12 +268,7 @@ export async function crearOferta(
   /** Qué es el documento. Manda: decide qué controles corren. */
   tipo: TipoDeDocumento = "oferta",
 ): Promise<{ id: string; inconsistencias: Inconsistencia[] }> {
-  const inconsistencias = detectarInconsistencias(
-    contenido,
-    calcularTotales(contenido),
-    archivoOrigen,
-    tipo,
-  );
+  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), archivoOrigen);
 
   const { data, error } = await supabaseAdmin
     .from("ofertas_documentos")
@@ -325,7 +320,6 @@ export async function guardarContenido(
     contenido,
     calcularTotales(contenido),
     archivoOrigen ?? "",
-    tipo,
   );
 
   const { error } = await supabaseAdmin
@@ -538,7 +532,7 @@ export async function duplicarOferta(id: string, creadoPorUsuarioId: string): Pr
 
   const contenido = contenidoDuplicado(oferta.contenido, new Date());
   const imagenes = await duplicarImagenes(oferta.imagenes);
-  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), "", oferta.tipo);
+  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), "");
 
   const { data, error } = await supabaseAdmin
     .from("ofertas_documentos")

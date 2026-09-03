@@ -2,6 +2,7 @@ import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import {
   disposicionDe,
   firmaDe,
+  tieneSeccionesDeOferta,
   type BloqueLibre,
   type OfertaCanonica,
   type SeccionConImagenes,
@@ -10,7 +11,7 @@ import {
   type SeccionDelDocumento,
   type TotalesOferta,
 } from "./tipos";
-import { bloqueConContenido, bloquesDe } from "./estructura";
+import { bloqueConContenido, gruposDe } from "./estructura";
 import { ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
 import { SIN_LOGOS, imagenSegura, logoSeguro, type ImagenDibujable, type LogosDocumento } from "./logo";
 
@@ -488,8 +489,11 @@ function bloquesHtml(
   paraEditar: boolean,
   imagenes: Record<number, ImagenDibujable> = {},
 ): string {
-  return bloquesDe(contenido, en, "subtitulo")
-    .filter(({ bloque }) => paraEditar || bloqueConContenido(bloque))
+  // Solo los que van ANTES del primer título libre: esos pertenecen a la sección
+  // canónica. Los que vienen después son de su título, y los dibuja titulosLibres — si
+  // los dibujaran los dos, saldrían repetidos.
+  return gruposDe(contenido, en)
+    .sueltos.filter(({ bloque }) => paraEditar || bloqueConContenido(bloque))
     .map(({ bloque, i }) =>
       bloqueHtml(
         bloque,
@@ -590,6 +594,15 @@ function armarSecciones(
 ): SeccionArmada[] {
   const secciones: SeccionArmada[] = [];
   const r = rotulador(oferta);
+  /**
+   * El próximo número. Cuenta solo las secciones CON título.
+   *
+   * Un documento transcribido tal como está puede abrir con un párrafo antes de cualquier
+   * título —el de apertura de una ficha técnica, por ejemplo—: eso se imprime sin número
+   * y sin título, así que no puede consumir el 1 y dejar al primer título de verdad
+   * empezando en 2.
+   */
+  const proximoNumero = () => String(secciones.filter((s) => s.titulo !== "").length + 1);
 
   // `en` es la sección, y de ahí sale su rótulo: el título ya no está escrito acá,
   // porque se puede cambiar por oferta (ver ROTULOS).
@@ -599,22 +612,35 @@ function armarSecciones(
   const hechas = new Set<SeccionDelDocumento>();
   const titulosLibres = (en: SeccionDelDocumento) => {
     hechas.add(en);
-    for (const { bloque, i } of bloquesDe(oferta, en, "titulo")) {
-      if (!paraEditar && !bloqueConContenido(bloque)) continue;
-      secciones.push({
-        numero: String(secciones.length + 1),
-        titulo: bloque.titulo,
-        rutaTitulo: `bloques.${i}.titulo`,
-        en,
-        bloque: i,
-        cuerpo: bloqueHtml(
+    // Con sus subtítulos ADENTRO, agrupados por la jerarquía del documento (ver
+    // gruposDe). Antes un subtítulo colgaba de la sección canónica: mientras las ofertas
+    // se leían con el molde del maestro eso funcionaba, pero desde que la lectura respeta
+    // la estructura del original esas secciones están en null y el subtítulo —con todo su
+    // contenido— desaparecía del PDF sin que nada lo dijera.
+    for (const { titulo, hijos } of gruposDe(oferta, en).grupos) {
+      const conContenido = (b: BloqueLibre) => paraEditar || bloqueConContenido(b);
+      // El título se dibuja si él o alguno de sus subtítulos tiene algo: un título vacío
+      // con contenido debajo sigue siendo una sección del documento.
+      const hijosVisibles = hijos.filter(({ bloque }) => conContenido(bloque));
+      if (!conContenido(titulo.bloque) && hijosVisibles.length === 0) continue;
+
+      const dibujar = ({ bloque, i }: { bloque: BloqueLibre; i: number }, esSeccion: boolean) =>
+        bloqueHtml(
           bloque,
           i,
-          true,
+          esSeccion,
           imagenes,
           oferta.epigrafesDeImagenes ?? {},
           oferta.disposicionDeImagenes,
-        ),
+        );
+
+      secciones.push({
+        numero: proximoNumero(),
+        titulo: titulo.bloque.titulo,
+        rutaTitulo: `bloques.${titulo.i}.titulo`,
+        en,
+        bloque: titulo.i,
+        cuerpo: dibujar(titulo, true) + hijosVisibles.map((h) => dibujar(h, false)).join(""),
       });
     }
   };
@@ -653,17 +679,19 @@ function armarSecciones(
         )
       : { flotantes: "", grilla: "" };
 
+    // Sin número ni título cuando es el contenido que cuelga de `identificacion` en un
+    // documento transcribido: es el párrafo de apertura, no una sección que su autor
+    // escribió, y ponerle "Identificación del documento" es meterle la estructura del
+    // maestro. La portada ya trae esos datos.
+    const sinRotulo = en === "identificacion" && cuerpo === "";
     secciones.push({
-      numero: String(secciones.length + 1),
-      titulo: r.texto(ROTULO_DE_SECCION[en]),
+      numero: sinRotulo ? "" : proximoNumero(),
+      titulo: sinRotulo ? "" : r.texto(ROTULO_DE_SECCION[en]),
       rutaTitulo: `rotulos.${ROTULO_DE_SECCION[en]}`,
       en,
       // Los subtítulos agregados a mano van después del contenido del maestro y antes de
       // las fotos: son texto de la sección, y la grilla la cierra.
-      cuerpo: numerarSubsecciones(
-        fotos.flotantes + cuerpo + bloques + fotos.grilla,
-        String(secciones.length + 1),
-      ),
+      cuerpo: numerarSubsecciones(fotos.flotantes + cuerpo + bloques + fotos.grilla, proximoNumero()),
       junto,
       clave,
     });
@@ -671,9 +699,18 @@ function armarSecciones(
   };
 
   const id = oferta.identificacion;
+  // La TABLA de identificación es del maestro: la portada ya muestra número, fecha,
+  // cliente y quién preparó el documento, y esta sección lo repetía con tres campos más.
+  // En un documento que se transcribió tal como está, es una sección que su autor no
+  // escribió — y esas no se agregan. Las ofertas guardadas con el molde sí la llevan.
+  //
+  // El contenido que cuelga de `identificacion` —el párrafo de apertura, el que viene
+  // antes de cualquier título— se dibuja igual, sin número ni título (ver `sinRotulo`).
+  const conMolde = tieneSeccionesDeOferta(oferta);
   agregar(
     "identificacion",
-    `<table class="datos">${filasEtiqueta([
+    conMolde
+    ? `<table class="datos">${filasEtiqueta([
       [r.html("id-numero"), id.numeroOferta, "identificacion.numeroOferta"],
       [r.html("id-fecha"), id.fecha, "identificacion.fecha"],
       [r.html("id-validez"), id.validez, "identificacion.validez"],
@@ -682,7 +719,8 @@ function armarSecciones(
       [r.html("id-copia"), id.copia, "identificacion.copia"],
       [r.html("id-referencia"), id.referencia, "identificacion.referencia"],
       [r.html("id-faena"), id.faena, "identificacion.faena"],
-    ])}</table>`,
+    ])}</table>`
+    : "",
   );
 
   if (oferta.alcance) {
@@ -1376,6 +1414,7 @@ export function ofertaAHtml(
 
     <h2><span class="n">·</span> Índice de contenidos</h2>
     <ul class="indice">${todas
+      .filter((s) => s.titulo !== "")
       .map((s) => `<li><span class="n">${esc(s.numero)}</span><span>${esc(s.titulo)}</span></li>`)
       .join("")}</ul>
   </section>
@@ -1393,9 +1432,15 @@ export function ofertaAHtml(
           // controles que le corresponden son los del bloque —párrafos, tabla,
           // quitar— y no los de una sección del maestro.
           s.bloque === undefined ? ` data-en="${s.en}"` : ` data-bloque="${s.bloque}"`
-        }><h2><span class="n">${esc(s.numero)}</span> <span${campo(
-          s.rutaTitulo,
-        )}>${esc(s.titulo)}</span></h2>${s.cuerpo}</section>`,
+        }>${
+          // Sin título, sin encabezado: el párrafo de apertura de un documento no lleva
+          // uno, y un <h2> vacío deja una raya y un hueco en el papel.
+          s.titulo === ""
+            ? ""
+            : `<h2><span class="n">${esc(s.numero)}</span> <span${campo(
+                s.rutaTitulo,
+              )}>${esc(s.titulo)}</span></h2>`
+        }${s.cuerpo}</section>`,
     )
     .join("")}
 </body></html>`;

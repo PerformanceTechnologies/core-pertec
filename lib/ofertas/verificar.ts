@@ -1,6 +1,6 @@
 import type { Inconsistencia, OfertaCanonica, TotalesOferta } from "./tipos";
 import { bloqueConContenido, sinTitular } from "./estructura";
-import { esOfertaTecnica, type TipoDeDocumento } from "./tipos";
+import { tieneSeccionesDeOferta } from "./tipos";
 
 /**
  * Los totales y los controles de una oferta. Sin modelo, sin red, sin secretos.
@@ -55,25 +55,16 @@ export function detectarInconsistencias(
   oferta: OfertaCanonica,
   totales: TotalesOferta,
   nombreArchivo: string,
-  /**
-   * Qué es el documento. Los controles de oferta solo corren en una oferta.
-   *
-   * De los catorce controles, doce se apagan solos cuando la sección no está —una ficha
-   * técnica no trae precio, así que `oferta.precio` es null y no hay nada que verificar—.
-   * Los dos que NO se apagan son justo los que ensucian: el número de oferta no tiene
-   * ninguna guarda, y la dotación en 0 le basta con que exista el alcance. Con esos dos,
-   * cualquier documento que no sea una oferta abría con dos avisos falsos, y una lista de
-   * "Por revisar" que miente es una lista que nadie mira.
-   *
-   * Por omisión oferta: es lo único que el módulo sabía leer, y así los documentos
-   * anteriores se verifican igual que siempre.
-   */
-  tipo: TipoDeDocumento = "oferta",
 ): Inconsistencia[] {
   const problemas: Inconsistencia[] = [];
   const aritmetica = (tipo: Inconsistencia["tipo"], detalle: string) =>
     problemas.push({ tipo, detalle, origen: "aritmetica" });
-  const esOferta = esOfertaTecnica(tipo);
+  // Por lo que el documento TIENE, no por su tipo. Desde que la lectura respeta la
+  // estructura del original, una oferta nueva llega con las secciones canónicas en null y
+  // todo en `bloques`: mirando el tipo, abriría con dos avisos de que le falta el número
+  // de oferta y de que la dotación quedó en 0 —campos que ya no existen en su contenido—.
+  // Las ofertas guardadas antes sí las tienen, y se verifican igual que siempre.
+  const esOferta = tieneSeccionesDeOferta(oferta);
 
   // ── El número de oferta, en los tres lugares donde aparece ────────────────
   const enTabla = normalizarNumero(oferta.identificacion.numeroOferta);
@@ -218,6 +209,8 @@ export function detectarInconsistencias(
     problemas.push({ tipo: "falta_dato", detalle: dato, origen: "lectura" });
   }
 
+  problemas.push(...revisarTablas(oferta));
+
   return problemas;
 }
 
@@ -315,4 +308,113 @@ export function mismoNumeroDeOferta(a: string | null, b: string | null): boolean
   if (na === nb) return true;
   const soloNumero = (v: string) => v.match(/(\d{1,4})/)?.[1]?.replace(/^0+/, "") ?? "";
   return soloNumero(na) === soloNumero(nb);
+}
+
+// ── La aritmética de una tabla transcrita ──────────────────────────────────
+//
+// Reemplaza a los tres cuadros que el servidor calculaba —dotación, turnos, líneas de
+// precio— y que existían solo dentro del molde del maestro: tenían columnas con nombre y
+// tipo, así que se podían sumar y comparar contra el total impreso. Desde que la lectura
+// respeta la estructura del original, una tabla es columnas y celdas de texto y nada más.
+//
+// Lo que sí se puede hacer sobre eso: si la tabla trae una fila de total y una columna de
+// números, comprobar que la suma dé. Es menos que antes, pero cubre el error que importa
+// —un total mal transcrito en un documento que va a un cliente— y no toca nada de lo que
+// se imprime: lo que se emitió se guarda, no se recalcula.
+
+/**
+ * Una celda a número, en formato chileno. null si no es un número.
+ *
+ * "$42.358.564" → 42358564. El punto es separador de miles y la coma, decimal: al revés
+ * que en inglés, y por eso no se puede usar Number() a secas —Number("42.358.564") es
+ * NaN, pero Number("42.358") da 42,358 y ahí el error sería silencioso—.
+ *
+ * Devuelve null ante cualquier duda: un "N/A", un "Global", un rango "10-15". Es un
+ * control, y un control que se equivoca en la lectura ensucia la lista de avisos.
+ */
+export function celdaANumero(celda: string): number | null {
+  const limpio = celda.replace(/\s|\$|%|UF|USD/gi, "").trim();
+  if (limpio === "" || !/\d/.test(limpio)) return null;
+  // Solo dígitos, puntos, comas y un signo adelante. Cualquier otra cosa —letras, dos
+  // números, un guion en medio— no es una cifra que se pueda sumar.
+  if (!/^-?[\d.,]+$/.test(limpio)) return null;
+
+  const puntos = (limpio.match(/\./g) ?? []).length;
+  const comas = (limpio.match(/,/g) ?? []).length;
+  let normal = limpio;
+  if (comas > 0 && puntos > 0) {
+    // "1.234.567,89": puntos de miles y una coma decimal.
+    if (comas > 1) return null;
+    normal = limpio.replace(/\./g, "").replace(",", ".");
+  } else if (comas === 1) {
+    normal = limpio.replace(",", ".");
+  } else if (puntos > 0) {
+    // Un solo punto con menos de tres dígitos detrás es un decimal ("1.5"); en cualquier
+    // otro caso son separadores de miles ("42.358.564", "1.500").
+    const detras = limpio.length - limpio.lastIndexOf(".") - 1;
+    normal = puntos === 1 && detras !== 3 ? limpio : limpio.replace(/\./g, "");
+  }
+  const n = Number(normal);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Si esta fila es la del total: lo dice su primera celda con texto. */
+function esFilaDeTotal(fila: string[]): boolean {
+  const rotulo = fila.find((c) => c.trim() !== "") ?? "";
+  return /\btotal(?:es)?\b/i.test(rotulo) && !/subtotal/i.test(rotulo);
+}
+
+/**
+ * Revisa que la fila de total de cada tabla cuadre con la suma de su columna.
+ *
+ * Solo cuando hay algo que revisar de verdad: una fila de total, al menos dos filas de
+ * datos con número en esa columna, y todas las de datos numéricas. Con una sola fila de
+ * datos no hay suma que verificar, y con una columna mezclada —textos y números— lo más
+ * probable es que no sea una columna de importes.
+ */
+export function revisarTablas(oferta: OfertaCanonica): Inconsistencia[] {
+  const avisos: Inconsistencia[] = [];
+
+  for (const bloque of oferta.bloques ?? []) {
+    const tabla = bloque.tabla;
+    if (!tabla || tabla.filas.length < 3) continue;
+
+    const filasTotal = tabla.filas.filter(esFilaDeTotal);
+    const filasDato = tabla.filas.filter((f) => !esFilaDeTotal(f));
+    if (filasTotal.length !== 1 || filasDato.length < 2) continue;
+    const [filaTotal] = filasTotal;
+
+    for (let c = 0; c < tabla.columnas.length; c += 1) {
+      const declarado = celdaANumero(filaTotal[c] ?? "");
+      if (declarado === null) continue;
+
+      const numeros = filasDato.map((f) => celdaANumero(f[c] ?? ""));
+      // Todas numéricas, o no es una columna que se sume. Una celda vacía cuenta como
+      // no numérica a propósito: una columna con huecos no es una columna de importes.
+      if (numeros.some((n) => n === null)) continue;
+
+      const suma = (numeros as number[]).reduce((acumulado, n) => acumulado + n, 0);
+      // Un peso de tolerancia por el redondeo de cada línea, no un porcentaje: la
+      // diferencia que importa es la de un dígito mal transcrito, no la de un centavo.
+      if (Math.abs(suma - declarado) <= 1) continue;
+
+      // El título del bloque si lo tiene y, si no, sus columnas: una tabla puede venir
+      // sin título —cuelga del párrafo que la precede— y "la tabla de identificacion" no
+      // le dice a nadie cuál es. Las columnas sí se ven en el papel.
+      const donde = bloque.titulo.trim()
+        ? `"${bloque.titulo.trim()}"`
+        : `la tabla de "${tabla.columnas.filter((c) => c.trim() !== "").join(" / ")}"`;
+      const columna = tabla.columnas[c]?.trim() || `la columna ${c + 1}`;
+      avisos.push({
+        tipo: "suma_precios",
+        origen: "aritmetica",
+        detalle:
+          `En ${donde}, la columna "${columna}" suma ${suma.toLocaleString("es-CL")} y la ` +
+          `fila de total dice ${declarado.toLocaleString("es-CL")}. Se transcribe lo que ` +
+          "dice el documento, así que hay que corregirlo a mano si está mal.",
+      });
+    }
+  }
+
+  return avisos;
 }

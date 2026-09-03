@@ -220,7 +220,6 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         emision={oferta.emision}
         revisadas={oferta.revisadas}
         empresa={oferta.empresa}
-        tipo={oferta.tipo}
       />
     </div>
   );

@@ -175,6 +175,50 @@ export function quitarFila(borrador: OfertaCanonica, i: number, fila: number): v
  * (`bloques.3.titulo`), y esa ruta apunta al arreglo completo, no a la posición
  * dentro de la sección.
  */
+/**
+ * Los bloques de una seccion, EN ORDEN y agrupados por su jerarquia.
+ *
+ * Un titulo libre abre un grupo y los subtitulos que lo siguen —hasta el titulo
+ * siguiente— son suyos. Es la jerarquia del documento original, y hay que reconstruirla
+ * porque `BloqueLibre` es una lista plana: cada bloque dice de que seccion cuelga (`en`)
+ * y de que nivel es, pero no quien es su padre.
+ *
+ * Sin esto, un subtitulo colgaba de la seccion CANONICA y no del titulo que lo precede.
+ * Mientras las ofertas se leian con el molde del maestro eso funcionaba —la seccion
+ * existia y lo dibujaba—, pero desde que la lectura respeta la estructura del original
+ * las secciones canonicas estan en null y el subtitulo no lo dibujaba nadie: se perdian
+ * el subtitulo y todo su contenido, en silencio, en el PDF que va al cliente.
+ *
+ * `sueltos` son los subtitulos que aparecen ANTES del primer titulo libre: esos si
+ * pertenecen a la seccion canonica, y los dibuja ella.
+ */
+export function gruposDe(
+  contenido: OfertaCanonica,
+  en: SeccionDelDocumento,
+): {
+  sueltos: { bloque: BloqueLibre; i: number }[];
+  grupos: { titulo: { bloque: BloqueLibre; i: number }; hijos: { bloque: BloqueLibre; i: number }[] }[];
+} {
+  const sueltos: { bloque: BloqueLibre; i: number }[] = [];
+  const grupos: {
+    titulo: { bloque: BloqueLibre; i: number };
+    hijos: { bloque: BloqueLibre; i: number }[];
+  }[] = [];
+
+  for (const { bloque, i } of (contenido.bloques ?? []).map((bloque, i) => ({ bloque, i }))) {
+    if (bloque.en !== en) continue;
+    if (esTituloLibre(bloque)) {
+      grupos.push({ titulo: { bloque, i }, hijos: [] });
+      continue;
+    }
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo) ultimo.hijos.push({ bloque, i });
+    else sueltos.push({ bloque, i });
+  }
+
+  return { sueltos, grupos };
+}
+
 export function bloquesDe(
   contenido: OfertaCanonica,
   en: SeccionDelDocumento,

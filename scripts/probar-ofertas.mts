@@ -7,8 +7,14 @@
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { calcularTotales, detectarInconsistencias, mismoNumeroDeOferta } from "../lib/ofertas/verificar";
-import type { Inconsistencia, OfertaCanonica } from "../lib/ofertas/tipos";
+import {
+  calcularTotales,
+  celdaANumero,
+  detectarInconsistencias,
+  mismoNumeroDeOferta,
+  revisarTablas,
+} from "../lib/ofertas/verificar";
+import { tieneSeccionesDeOferta, type Inconsistencia, type OfertaCanonica } from "../lib/ofertas/tipos";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { imagenSegura, logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
@@ -1184,17 +1190,6 @@ assert.equal(fechaEnPalabras(new Date(2026, 11, 31)), "31 de diciembre de 2026")
 // (\\[id\\]) porque son globs de picomatch: sin escapar, "[id]" es una clase de
 // caracteres y la ruta nunca coincide —eso también está documentado en el config—.
 const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
-const rutasApi = readdirSync(new URL("../app/api", import.meta.url), {
-  recursive: true,
-  withFileTypes: true,
-})
-  .filter((e) => e.isFile() && e.name === "route.ts")
-  .map((e) => {
-    // parentPath es absoluto: se recorta desde "app/api" para armar el pathname.
-    const desde = e.parentPath.indexOf("/app/api/");
-    return desde === -1 ? "/api" : `/api${e.parentPath.slice(desde + "/app/api".length)}`;
-  });
-
 // La detección es TRANSITIVA y mira todo app/, no solo las rutas de API. La primera
 // versión buscaba "lanzarNavegador" dentro de cada route.ts, y con eso se le escapó el
 // caso real: una Server Action en app/(protegido)/finanzas/sii/acciones.ts que importa
@@ -1342,36 +1337,53 @@ assert.deepEqual(
   "la imagen cuelga del bloque que la precedía",
 );
 
-// Y se dibuja: títulos numerados y en el índice, con la piel de la casa.
+// Y se dibuja: los títulos DEL DOCUMENTO numerados y en el índice, con la piel de la casa.
 const htmlFicha = ofertaAHtml(ficha, calcularTotales(ficha), EMPRESA_DE_PRUEBA);
 assert.ok(htmlFicha.includes("Características generales"), "el título del documento sale impreso");
 assert.ok(
-  htmlFicha.includes('<li><span class="n">2</span><span>Características generales</span></li>'),
-  "y entra al índice numerado por el sistema, como cualquier sección",
+  htmlFicha.includes('<li><span class="n">1</span><span>Características generales</span></li>'),
+  "y es la sección 1: el primer título del documento, no el segundo detrás de una sección " +
+    "que el maestro agregaba",
 );
 assert.ok(htmlFicha.includes("1.600 mm"), "la tabla libre se dibuja con sus celdas");
-// Los rótulos que hablan de una oferta se pisan con los del tipo: en una ficha técnica,
-// "Oferta N°" es simplemente falso. Se usan los rótulos editables que ya existían.
-assert.ok(htmlFicha.includes("Identificación del documento"), "la sección no se llama de la oferta");
-assert.ok(!htmlFicha.includes("Oferta técnica y económica"), "ni la portada");
+
+// NINGUNA sección que su autor no escribió. La tabla de identificación es del maestro y la
+// portada ya trae número, fecha, cliente y quién preparó el documento: como sección
+// numerada lo repetía y le metía al documento una estructura que no tenía.
+assert.ok(
+  !htmlFicha.includes("Identificación del documento"),
+  "no se agrega la sección de identificación del maestro",
+);
+assert.ok(!htmlFicha.includes("Oferta técnica y económica"), "ni el rótulo de portada de la oferta");
+// Pero lo que venía ANTES del primer título —el párrafo de apertura— se imprime igual, sin
+// número y sin título. Es del documento; perderlo sería mutilarlo.
+assert.ok(
+  htmlFicha.includes("Equipo para empalmes en caliente"),
+  "el contenido que va antes del primer título se imprime",
+);
+assert.ok(
+  !/<h2><span class="n"><\/span>/.test(htmlFicha),
+  "y sin un encabezado vacío, que deja una raya y un hueco en el papel",
+);
 assert.ok(!htmlFicha.includes("ANEXO"), "y sin imágenes huérfanas no aparece un anexo que nadie escribió");
 
-// LO QUE MOTIVÓ TODO: los dos controles sin guarda. Con tipo libre no se levantan.
-const avisosFicha = detectarInconsistencias(ficha, calcularTotales(ficha), "FT-014.docx", "ficha_tecnica");
+// LO QUE MOTIVÓ TODO: los dos controles sin guarda —el número de oferta y la dotación en
+// 0— no se levantan en un documento que no trae esas secciones. La guarda es lo que el
+// documento TIENE, no su tipo: desde que la lectura respeta la estructura del original,
+// una oferta nueva también llega con las secciones canónicas en null.
+const avisosFicha = detectarInconsistencias(ficha, calcularTotales(ficha), "FT-014.docx");
 assert.deepEqual(avisosFicha, [], "una ficha técnica no tiene número de oferta ni dotación que reclamar");
-// El mismo documento sin código, que es el caso que ensuciaba: leído como oferta reclama
-// un número de oferta que un documento así no tiene ni va a tener.
 const sinCodigo = armarDocumentoLibre({ ...lecturaLibre, codigo: "" }, "ficha_tecnica");
-assert.ok(
-  detectarInconsistencias(sinCodigo, calcularTotales(sinCodigo), "FT.docx", "oferta").some((a) =>
-    a.detalle.includes("número de oferta"),
-  ),
-  "como oferta sí lo reclama",
-);
 assert.deepEqual(
-  detectarInconsistencias(sinCodigo, calcularTotales(sinCodigo), "FT.docx", "ficha_tecnica"),
+  detectarInconsistencias(sinCodigo, calcularTotales(sinCodigo), "FT.docx"),
   [],
-  "y como ficha técnica no: la guarda es el tipo, no la suerte",
+  "y sin código tampoco: no hay número de oferta que reclamarle a un documento sin esa sección",
+);
+// Y la guarda sigue abriendo para lo YA GUARDADO, que sí tiene esas secciones: una oferta
+// vieja con el número mezclado se verifica igual que siempre (ver más arriba).
+assert.ok(
+  tieneSeccionesDeOferta(os10()) && !tieneSeccionesDeOferta(ficha),
+  "lo que distingue a una y a otra es tener las secciones, no el tipo",
 );
 
 // Una tabla con filas más cortas que la cabecera se completa, no se corre.
@@ -2327,4 +2339,278 @@ Detectados en los ocho borradores defectuosos: número mezclado, suma que no da,
 línea mal multiplicada, celda sin recalcular, dotación doble, sección heredada,
 aporte de otro mandante y dato sin confirmar.
 `);
+// ── La estructura la pone el documento, no el maestro ──────────────────────
+//
+// Había dos caminos de lectura: una oferta se leía con el esquema de las diez secciones
+// del maestro de PERTEC —el modelo tenía que acomodar el borrador ahí, renombrar sus
+// secciones con los rótulos del maestro y descartar en `omitidas` lo que no calzara— y
+// todo lo demás se transcribía tal cual. Dos borradores distintos salían iguales, y un
+// documento sin la forma esperada perdía partes. Ahora hay UNA lectura, y el maestro pone
+// solo la piel: tipografías, colores, encabezado, pie, numeración e índice.
+const fuenteLeer = readFileSync(new URL("../lib/ofertas/leer.ts", import.meta.url), "utf8");
+for (const molde of ["ESQUEMA_LETRA", "ESQUEMA_NUMEROS", "INSTRUCCIONES_LETRA", "INSTRUCCIONES_NUMEROS"]) {
+  assert.ok(
+    !fuenteLeer.includes(molde),
+    `${molde} es el molde del maestro y no debería quedar: mientras exista, alguien lo ` +
+      "vuelve a enchufar y las ofertas salen otra vez con la estructura de PERTEC",
+  );
+}
+assert.ok(
+  !/if \(!esOfertaTecnica\(lectura\.tipo\)\)/.test(fuenteLeer),
+  "y no hay una rama que trate distinto a una oferta: se lee igual que cualquier documento",
+);
+// Dos llamadas al modelo por documento: la que dice qué es y la que lo transcribe. La
+// tercera aparición es la declaración de leerParte.
+assert.equal(
+  (fuenteLeer.match(/await leerParte</g) ?? []).length,
+  2,
+  "quedan dos llamadas al modelo: la que dice qué es el documento y la que lo transcribe",
+);
+
+// La consigna al modelo, que es la mitad del cambio: solo fiel y prolijo.
+const instrucciones = fuenteLeer.slice(
+  fuenteLeer.indexOf("const INSTRUCCIONES_LIBRE"),
+  fuenteLeer.indexOf("/**", fuenteLeer.indexOf("const INSTRUCCIONES_LIBRE")),
+);
+assert.ok(
+  /NO HAY UNA ESTRUCTURA QUE LLENAR/.test(instrucciones) && /NO REORGANICES/.test(instrucciones),
+  "se le dice que no hay estructura que llenar y que no reorganice",
+);
+assert.ok(
+  /PROLIJ/.test(instrucciones),
+  "y que la otra mitad del trabajo es que quede prolijo, que es lo único que se le pide",
+);
+assert.ok(
+  /NO SUMES NI RECALCULES NADA/.test(instrucciones),
+  "y que no calcula: eso lo hace el servidor",
+);
+
+// El formulario de las diez secciones y los controles de oferta miran lo que el documento
+// TIENE, no su tipo. Con el tipo, una oferta leída así abriría con dos avisos falsos y un
+// formulario vacío al lado del papel.
+const fuenteEditor = readFileSync(
+  new URL("../components/ofertas/EditorOferta.tsx", import.meta.url),
+  "utf8",
+);
+const fuenteVerificar = readFileSync(new URL("../lib/ofertas/verificar.ts", import.meta.url), "utf8");
+for (const [donde, fuente] of [
+  ["el editor", fuenteEditor],
+  ["los controles", fuenteVerificar],
+] as const) {
+  assert.ok(
+    /tieneSeccionesDeOferta\(oferta\)/.test(fuente),
+    `${donde} decide por las secciones que trae el documento, no por el tipo`,
+  );
+  assert.ok(
+    !/esOfertaTecnica\(tipo\)/.test(fuente),
+    `${donde} ya no mira el tipo para eso`,
+  );
+}
+
+// ── La red que reemplaza a los cuadros calculados ──────────────────────────
+//
+// Los tres cuadros que el servidor sumaba —dotación, turnos, líneas de precio— existían
+// solo dentro del molde, con columnas de nombre y tipo conocidos. Una tabla transcrita es
+// texto. Lo que sí se puede revisar: que la fila de total cuadre con la suma de su
+// columna. Cubre el error que importa —un total mal transcrito en un documento que va a
+// un cliente— sin tocar nada de lo que se imprime.
+assert.equal(celdaANumero("$42.358.564"), 42_358_564, "formato chileno: el punto es de miles");
+assert.equal(celdaANumero("42.358.564"), 42_358_564);
+assert.equal(celdaANumero("1.500"), 1500, "mil quinientos, no uno con cinco");
+assert.equal(celdaANumero("1,5"), 1.5, "y la coma sí es decimal");
+assert.equal(celdaANumero("1.234.567,89"), 1_234_567.89);
+assert.equal(celdaANumero("  6.763.132  "), 6_763_132);
+assert.equal(celdaANumero("15%"), 15);
+// Number() a secas es la trampa: Number("42.358.564") es NaN —y ahí se vería el error—
+// pero Number("42.358") da 42,358 y el control fallaría en silencio.
+assert.notEqual(celdaANumero("42.358"), 42.358);
+for (const nada of ["", "Global", "N/A", "—", "10-15", "Día", "3 turnos"]) {
+  assert.equal(celdaANumero(nada), null, `"${nada}" no es una cifra que se pueda sumar`);
+}
+
+/** Un documento libre con una sola tabla, para revisar la aritmética. */
+const conTabla = (columnas: string[], filas: string[][]): OfertaCanonica => ({
+  ...armarDocumentoLibre(
+    {
+      titulo: "Cotización de repuestos",
+      subtitulo: "",
+      cliente: "",
+      fecha: "",
+      codigo: "",
+      bloques: [
+        // Con su título arriba, que es como llega una tabla de verdad: en el camino libre
+        // el título es su propio bloque, no un campo de la tabla.
+        {
+          tipo: "titulo",
+          texto: "Detalle de precios",
+          parrafos: [],
+          columnas: [],
+          filas: [],
+          imagen: 0,
+          epigrafe: "",
+        },
+        { tipo: "tabla", texto: "", parrafos: [], columnas, filas, imagen: 0, epigrafe: "" },
+      ],
+      porConfirmar: [],
+    },
+    "otro",
+  ),
+});
+
+const totalMalTranscrito = conTabla(
+  ["Ítem", "Monto"],
+  [
+    ["Rollo de correa", "15.885.200"],
+    ["Maniobras de izaje", "3.236.776"],
+    ["TOTAL NETO", "19.121.900"],
+  ],
+);
+const avisosTabla = revisarTablas(totalMalTranscrito);
+assert.equal(avisosTabla.length, 1, "el total no cuadra y se avisa");
+assert.ok(avisosTabla[0].detalle.includes("19.121.976"), "se dice cuánto suma de verdad");
+assert.ok(avisosTabla[0].detalle.includes("19.121.900"), "y cuánto dice la fila de total");
+assert.ok(avisosTabla[0].detalle.includes("Detalle de precios"), "y en qué tabla");
+assert.equal(avisosTabla[0].origen, "aritmetica");
+// El aviso NO cambia el documento: se transcribe lo que dice el papel.
+assert.equal(
+  totalMalTranscrito.bloques?.[0].tabla?.filas[2][1],
+  "19.121.900",
+  "lo que se imprime queda como lo dice el documento: el aviso es para que una persona lo corrija",
+);
+
+assert.deepEqual(
+  revisarTablas(
+    conTabla(
+      ["Ítem", "Monto"],
+      [
+        ["Rollo de correa", "15.885.200"],
+        ["Maniobras de izaje", "3.236.776"],
+        ["TOTAL NETO", "19.121.976"],
+      ],
+    ),
+  ),
+  [],
+  "y si cuadra no dice nada",
+);
+
+// Una tabla sin título se identifica por sus columnas: "la tabla de identificacion" —la
+// sección de la que cuelga— no le dice a nadie cuál es, y las columnas sí se ven en el
+// papel.
+const sinTitulo = armarDocumentoLibre(
+  {
+    titulo: "Cotización",
+    subtitulo: "",
+    cliente: "",
+    fecha: "",
+    codigo: "",
+    bloques: [
+      {
+        tipo: "tabla",
+        texto: "",
+        parrafos: [],
+        columnas: ["Ítem", "Monto"],
+        filas: [
+          ["Rollo", "10.000"],
+          ["Correa", "5.000"],
+          ["TOTAL", "16.000"],
+        ],
+        imagen: 0,
+        epigrafe: "",
+      },
+    ],
+    porConfirmar: [],
+  },
+  "otro",
+);
+const avisoSinTitulo = revisarTablas(sinTitulo);
+assert.equal(avisoSinTitulo.length, 1);
+assert.ok(
+  avisoSinTitulo[0].detalle.includes('la tabla de "Ítem / Monto"'),
+  `sin título se nombra por sus columnas (dijo: ${avisoSinTitulo[0].detalle})`,
+);
+
+// Los casos en que NO hay que opinar: sin fila de total, con una sola fila de datos, con
+// la columna mezclada, o con huecos. Un control que se equivoca ensucia la lista.
+assert.deepEqual(
+  revisarTablas(
+    conTabla(
+      ["Cargo", "Dotación", "Régimen"],
+      [
+        ["Supervisor", "1", "Turno de día"],
+        ["Vulcanizador", "3", "Turno de día"],
+        ["Ayudante", "2", "Turno de noche"],
+      ],
+    ),
+  ),
+  [],
+  "sin fila de total no hay nada que verificar",
+);
+assert.deepEqual(
+  revisarTablas(
+    conTabla(
+      ["Ítem", "Monto"],
+      [
+        ["Servicio global", "15.885.200"],
+        ["TOTAL", "15.885.200"],
+      ],
+    ),
+  ),
+  [],
+  "con una sola fila de datos no hay suma que verificar",
+);
+assert.deepEqual(
+  revisarTablas(
+    conTabla(
+      ["Ítem", "Cantidad", "Unidad"],
+      [
+        ["Rollo", "6", "Global"],
+        ["Correa", "2", "Metro"],
+        ["TOTAL", "8", "—"],
+      ],
+    ),
+  ),
+  [],
+  "una columna de texto no se suma, aunque la fila de total tenga algo escrito",
+);
+assert.deepEqual(
+  revisarTablas(
+    conTabla(
+      ["Ítem", "Monto"],
+      [
+        ["Rollo", "15.885.200"],
+        ["Instalación", ""],
+        ["Correa", "3.236.776"],
+        ["TOTAL", "19.121.976"],
+      ],
+    ),
+  ),
+  [],
+  "y una columna con huecos tampoco: no es una columna de importes",
+);
+// "Subtotal" no es el total: sumar hasta ahí daría un aviso falso en cualquier tabla que
+// los use.
+assert.deepEqual(
+  revisarTablas(
+    conTabla(
+      ["Ítem", "Monto"],
+      [
+        ["Rollo", "10.000"],
+        ["Correa", "5.000"],
+        ["Subtotal", "15.000"],
+      ],
+    ),
+  ),
+  [],
+  "una fila de subtotal no se toma como la de total",
+);
+
+// Y los avisos de tabla salen por el camino de siempre, así que aparecen en "Por revisar"
+// junto a los demás.
+assert.ok(
+  detectarInconsistencias(totalMalTranscrito, calcularTotales(totalMalTranscrito), "cot.docx").some(
+    (a) => a.detalle.includes("19.121.976"),
+  ),
+  "el control de tablas corre dentro de detectarInconsistencias",
+);
+
 console.log("Todas las verificaciones pasaron.");

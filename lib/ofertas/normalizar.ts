@@ -378,6 +378,22 @@ export function armarDocumentoLibre(lectura: LecturaLibre, tipo: TipoDeDocumento
   };
 }
 
+/**
+ * NO PARTICIPA MÁS DE LA LECTURA. Ver el comentario de cabecera de ./leer.ts.
+ *
+ * Armaba una OfertaCanonica con las diez secciones del maestro a partir de las dos
+ * lecturas planas. Desde que la lectura respeta la estructura del original ese camino no
+ * existe: hay una sola lectura y el maestro es piel, no molde.
+ *
+ * Se conserva por dos razones, las dos reales. Las ofertas GUARDADAS antes del cambio
+ * tienen esa forma —se siguen abriendo, verificando, editando e imprimiendo igual— y esta
+ * función es la forma corta de construir un documento así en las pruebas, que es donde se
+ * ejercita todo lo que corre sobre ellas: calcularTotales, los catorce controles y el
+ * dibujado de las secciones canónicas.
+ *
+ * Si algún día no queda ninguna oferta con secciones canónicas en la base, esto y las
+ * pruebas que lo usan se van juntos.
+ */
 export function armarOferta(letra: LecturaLetra, numeros: LecturaNumeros): OfertaCanonica {
   const reparto = repartoDeImagenes(letra.ubicacionImagenes);
   const especificaciones = filas<{ parametro: string; especificacion: string }>(

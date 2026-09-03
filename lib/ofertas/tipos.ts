@@ -365,6 +365,39 @@ export const NOMBRE_DE_TIPO: Record<TipoDeDocumento, string> = {
  * documento libre no tiene número de oferta ni cuadrilla, y levantar esos avisos convierte
  * la lista de "Por revisar" en ruido que nadie mira.
  */
+/**
+ * Si este documento trae las secciones canonicas de una oferta.
+ *
+ * Es distinto del TIPO, y esa diferencia es la que importa: desde que la lectura respeta
+ * la estructura del original, un documento nuevo —oferta incluida— sale con las secciones
+ * en null y todo su contenido en `bloques`. El maestro pasa a ser piel, no molde.
+ *
+ * Los controles y el formulario de secciones tienen que mirar ESTO y no el tipo: mirando
+ * el tipo, una oferta leida con el camino libre abriria con avisos de que le falta el
+ * numero de oferta y de que la dotacion quedo en 0 —dos campos que ya no existen en su
+ * contenido— y con un formulario de diez secciones vacias al lado del documento.
+ *
+ * Y sigue haciendo falta para lo YA GUARDADO: las ofertas anteriores tienen esas
+ * secciones llenas y se verifican y se editan igual que siempre.
+ */
+export function tieneSeccionesDeOferta(oferta: OfertaCanonica): boolean {
+  // Escritas una por una y no derivadas de SECCIONES_CON_IMAGENES: esa lista dice
+  // "condiciones" y el campo se llama "condicionesComerciales", asi que no se puede usar
+  // como indice. Si se agrega una seccion canonica, va aca tambien.
+  return (
+    oferta.alcance != null ||
+    oferta.metodologia != null ||
+    oferta.especificaciones != null ||
+    oferta.organizacion != null ||
+    oferta.programa != null ||
+    oferta.precio != null ||
+    oferta.condicionesComerciales != null ||
+    oferta.aportes != null ||
+    oferta.cierre != null ||
+    oferta.anexo != null
+  );
+}
+
 export function esOfertaTecnica(tipo: TipoDeDocumento | null | undefined): boolean {
   // Ausente = oferta: es lo único que había cuando esto se guardó por primera vez.
   return tipo === undefined || tipo === null || tipo === "oferta";
