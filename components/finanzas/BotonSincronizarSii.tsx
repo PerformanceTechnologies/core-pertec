@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
+  probarAvisoAction,
   reenviarAvisoReclamosAction,
   sincronizarSiiAction,
 } from "@/app/(protegido)/finanzas/sii/acciones";
@@ -126,13 +127,13 @@ export default function BotonSincronizarSii() {
    *
    * Con confirmación porque manda un correo de verdad a Finanzas.
    */
-  const reenviar = () =>
+  const reenviar = (aPrueba = false) =>
     iniciarTransicion(async () => {
       setMensaje(null);
       setColumnas(null);
-      setPaso("el aviso a Finanzas");
+      setPaso(aPrueba ? "la prueba del aviso" : "el aviso a Finanzas");
       try {
-        const r = await reenviarAvisoReclamosAction();
+        const r = aPrueba ? await probarAvisoAction() : await reenviarAvisoReclamosAction();
         setMensaje({
           texto: r.ok
             ? r.folios.length > 0
@@ -202,11 +203,23 @@ export default function BotonSincronizarSii() {
       >
         Reenviar aviso a Finanzas
       </button>
+      {/* Manda el MISMO correo a la dirección de prueba, para poder revisar la plantilla
+          —y cómo llega fuera del tenant— sin escribirle a Finanzas. Sin confirmación: no
+          le llega a nadie del trabajo. */}
+      <button
+        type="button"
+        disabled={pendiente}
+        onClick={() => reenviar(true)}
+        className={claseBoton}
+        title="Manda el mismo aviso, con las mismas facturas, a la dirección de prueba."
+      >
+        Probar aviso (a mi correo)
+      </button>
       {/* Se dice cuánto tarda ANTES de apretar: son minutos y el botón parece colgado. */}
       <span
         className={`text-xs ${mensaje?.error ? "text-red-600" : "text-tinta/50"}`}
       >
-        {paso === "el aviso a Finanzas"
+        {paso === "el aviso a Finanzas" || paso === "la prueba del aviso"
           ? "Enviando el aviso…"
           : paso
             ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`

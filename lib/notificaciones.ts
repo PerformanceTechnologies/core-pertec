@@ -14,6 +14,22 @@ const CORREO_SOPORTE = "soporte@pertec.cl";
  */
 export const CORREO_FINANZAS = "finanzas@pertec.cl";
 
+/**
+ * A donde va un envio de PRUEBA del aviso, para revisar la plantilla.
+ *
+ * Una direccion externa a proposito: sirve para ver como llega el correo FUERA del tenant
+ * —si Gmail lo marca como no deseado, si el remitente se ve raro, como queda el texto sin
+ * el formato de Outlook—, y eso no se puede probar mandandoselo a una casilla de la casa.
+ *
+ * Es una CONSTANTE, como las otras dos, y esa es la parte que importa: la prueba no
+ * introduce un destinatario que se pueda elegir desde la pantalla. Un aviso automatico
+ * que le pueda llegar a cualquier direccion es una fuga esperando el dia que alguien
+ * edite la fila equivocada, y eso no cambia porque uno de los usos sea una prueba.
+ *
+ * Se puede borrar cuando la plantilla este aprobada; nada automatico lo usa.
+ */
+export const CORREO_PRUEBA = "aoliva867@gmail.com";
+
 // Usa el app registration "PERTEC Web · Envio de correos" (el mismo que ya usa la Edge
 // Function send-catalog de pertec-web) — es el unico con el permiso de APLICACION
 // "Mail.Send" concedido, a diferencia del app de /reclutamiento (AZURE_*) que solo tiene
@@ -182,4 +198,14 @@ export async function enviarCorreoSoporte(asunto: string, cuerpoTexto: string): 
 /** Para lo que tiene que mirar Finanzas, no Soporte: una factura reclamada, por ejemplo. */
 export async function enviarCorreoFinanzas(asunto: string, cuerpoTexto: string): Promise<void> {
   return enviar(CORREO_FINANZAS, asunto, cuerpoTexto);
+}
+
+/**
+ * El mismo correo, a la direccion de prueba. Ver CORREO_PRUEBA.
+ *
+ * Sin prefijo ni aclaracion en el texto: la idea es ver EXACTAMENTE lo que va a recibir
+ * Finanzas. Que es una prueba lo dice el boton que lo manda, no el correo.
+ */
+export async function enviarCorreoDePrueba(asunto: string, cuerpoTexto: string): Promise<void> {
+  return enviar(CORREO_PRUEBA, asunto, cuerpoTexto);
 }

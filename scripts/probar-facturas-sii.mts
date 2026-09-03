@@ -789,11 +789,46 @@ const formaDeGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 assert.ok(formaDeGuid.test("1589ee12-f844-4980-9529-9516d4043900"), "un Secret ID es un GUID");
 assert.ok(!formaDeGuid.test("abc8Q~Xk2lM.pQr_sTu-vWxYz1234567890AB"), "un Value no lo es");
 // El destinatario sigue sin poder venir de afuera: es lo único de este archivo que no se
-// relaja, pase lo que pase con la configuración.
+// relaja, pase lo que pase con la configuración —ni cuando uno de los usos es una prueba—.
 assert.ok(
   /export const CORREO_FINANZAS = "finanzas@pertec\.cl"/.test(notif) &&
-    /const CORREO_SOPORTE = "soporte@pertec\.cl"/.test(notif),
-  "los destinatarios siguen siendo constantes de este archivo, no parámetros de nadie",
+    /const CORREO_SOPORTE = "soporte@pertec\.cl"/.test(notif) &&
+    /export const CORREO_PRUEBA = "[^"]+"/.test(notif),
+  "los TRES destinatarios son constantes de este archivo, no parámetros de nadie",
+);
+// enviar() recibe el destinatario como parámetro, pero es PRIVADA: no se exporta, y las
+// tres funciones que la llaman le pasan su constante. Lo que se comprueba es eso —que
+// nadie de afuera pueda elegir a quién— y no cómo la llaman: el primer argumento de las
+// tres públicas es el ASUNTO, así que buscar un string ahí acusaba a cualquiera.
+assert.ok(
+  /^async function enviar\(/m.test(notif) && !/export async function enviar\(/.test(notif),
+  "enviar(destinatario, …) es privada de lib/notificaciones.ts",
+);
+for (const publica of ["enviarCorreoSoporte", "enviarCorreoFinanzas", "enviarCorreoDePrueba"]) {
+  const firma = new RegExp(
+    `export async function ${publica}\\(asunto: string, cuerpoTexto: string\\)`,
+  );
+  assert.ok(firma.test(notif), `${publica} no recibe destinatario: solo asunto y cuerpo`);
+}
+const acciones = readFileSync(
+  new URL("../app/(protegido)/finanzas/sii/acciones.ts", import.meta.url),
+  "utf8",
+);
+
+// La prueba manda el MISMO aviso que recibiría Finanzas, armado por la misma función. Si
+// tuviera su propio texto, aprobaría una plantilla y Finanzas recibiría otra.
+assert.ok(
+  /avisoDeReclamos\(reclamos\)/.test(libAviso.slice(libAviso.indexOf("avisarDePrueba"))),
+  "el envío de prueba usa avisoDeReclamos, no un texto de ejemplo",
+);
+assert.ok(
+  !/registrarEjecucion/.test(acciones.slice(acciones.indexOf("export async function probarAvisoAction"))),
+  "y no deja constancia como corrida: una prueba anotada así ensucia el registro que se " +
+    "usa para saber si el aviso real salió",
+);
+assert.ok(
+  !/enviarCorreoSoporte/.test(libAviso.slice(libAviso.indexOf("avisarDePrueba"))),
+  "ni le avisa a soporte si falla: una prueba que no sale es una prueba, no un incidente",
 );
 
 console.log("Todas las verificaciones pasaron.");

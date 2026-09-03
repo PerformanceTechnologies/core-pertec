@@ -17,8 +17,8 @@ import {
   registrarEjecucion,
   ventasReclamadas,
 } from "@/lib/finanzas";
-import { avisarReclamos } from "@/lib/finanzas-aviso";
-import { CORREO_FINANZAS } from "@/lib/notificaciones";
+import { avisarDePrueba, avisarReclamos } from "@/lib/finanzas-aviso";
+import { CORREO_FINANZAS, CORREO_PRUEBA } from "@/lib/notificaciones";
 
 /**
  * Sincronizar el SII a mano, desde la pantalla.
@@ -260,5 +260,51 @@ export async function reenviarAvisoReclamosAction(): Promise<ResultadoReenvio> {
     // llega al navegador enmascarada y el motivo hay que ir a buscarlo a la base.
     const detalle = error instanceof Error ? error.message : "Error desconocido";
     return { ok: false, folios: [], destinatario: CORREO_FINANZAS, error: detalle };
+  }
+}
+
+/**
+ * Mandar el aviso a la dirección de prueba, para revisar la plantilla.
+ *
+ * Manda EXACTAMENTE el mismo correo que recibiría Finanzas —mismo asunto, mismo cuerpo,
+ * mismas facturas— a CORREO_PRUEBA. No es un texto de ejemplo: si la prueba mostrara algo
+ * distinto de lo que se manda, no serviría para aprobar nada.
+ *
+ * El destinatario NO es un parámetro. Es una constante de lib/notificaciones.ts, igual que
+ * los otros dos, y eso no se relaja porque uno de los usos sea una prueba: un aviso
+ * automático que le pueda llegar a cualquier dirección es una fuga esperando el día que
+ * alguien edite la fila equivocada.
+ *
+ * No queda constancia en finanzas_sii_ejecuciones: no es una corrida, y una prueba
+ * anotada como corrida ensucia el registro que se usa para saber si el aviso real salió.
+ */
+export async function probarAvisoAction(): Promise<ResultadoReenvio> {
+  const usuario = await exigirAccesoApp(SLUG_APP);
+  if (usuario.rol !== "admin" && !(await usuarioPuedeVerSubpanelFinanzas(usuario.id, "sii"))) {
+    throw new Error("No tenés acceso a las facturas del SII.");
+  }
+
+  try {
+    const reclamadas = await ventasReclamadas();
+    const envio = await avisarDePrueba(reclamadas);
+    if (!envio) {
+      return {
+        ok: true,
+        folios: [],
+        destinatario: CORREO_PRUEBA,
+        error:
+          "No hay ventas reclamadas ni rechazadas, así que no hay correo que mostrar. " +
+          "La prueba manda el aviso REAL, no un ejemplo inventado.",
+      };
+    }
+    return {
+      ok: envio.enviado,
+      folios: envio.folios,
+      destinatario: envio.destinatario,
+      ...(envio.error ? { error: envio.error } : {}),
+    };
+  } catch (error) {
+    const detalle = error instanceof Error ? error.message : "Error desconocido";
+    return { ok: false, folios: [], destinatario: CORREO_PRUEBA, error: detalle };
   }
 }

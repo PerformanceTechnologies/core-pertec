@@ -1,6 +1,12 @@
 import "server-only";
 import { avisoDeReclamos } from "./finanzas-reclamos";
-import { CORREO_FINANZAS, enviarCorreoFinanzas, enviarCorreoSoporte } from "./notificaciones";
+import {
+  CORREO_FINANZAS,
+  CORREO_PRUEBA,
+  enviarCorreoDePrueba,
+  enviarCorreoFinanzas,
+  enviarCorreoSoporte,
+} from "./notificaciones";
 import type { FacturaSii } from "./sii-rcv";
 
 /**
@@ -54,6 +60,31 @@ export async function avisarReclamos(reclamos: FacturaSii[]): Promise<Constancia
       `Se detectaron ${reclamos.length} factura(s) de venta reclamada(s) o rechazada(s) y ` +
         `el correo a ${CORREO_FINANZAS} no se pudo enviar.\n\nError: ${detalle}\n\n${aviso.cuerpo}`,
     ).catch(() => {});
+    return { ...base, enviado: false, error: detalle };
+  }
+}
+
+/**
+ * El mismo aviso, a la direccion de prueba, para revisar la plantilla.
+ *
+ * Usa avisoDeReclamos igual que el envio real: si armara su propio texto, la prueba
+ * aprobaria una plantilla y Finanzas recibiria otra. Y no avisa a soporte si falla —una
+ * prueba que no sale es una prueba, no un incidente— pero devuelve el motivo.
+ */
+export async function avisarDePrueba(reclamos: FacturaSii[]): Promise<ConstanciaDeAviso | null> {
+  const aviso = avisoDeReclamos(reclamos);
+  if (!aviso) return null;
+
+  const base = {
+    folios: reclamos.map((f) => f.folio),
+    destinatario: CORREO_PRUEBA,
+    asunto: aviso.asunto,
+  };
+  try {
+    await enviarCorreoDePrueba(aviso.asunto, aviso.cuerpo);
+    return { ...base, enviado: true };
+  } catch (error) {
+    const detalle = error instanceof Error ? error.message : String(error);
     return { ...base, enviado: false, error: detalle };
   }
 }
