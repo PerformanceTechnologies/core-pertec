@@ -427,6 +427,10 @@ assert.ok(
   !conLogoRoto.includes(ESTILO_PERTEC.rotuloLogoCliente),
   "sin logo del cliente, el documento impreso no dice nada en esa celda",
 );
+// Al editar, la celda SIGUE ESTANDO —es el blanco donde se arrastra el logo— pero vacía:
+// se anuncia sola al arrastrar encima, con su outline y su rótulo (ver edicion-dom). Un
+// rótulo fijo entre corchetes en el documento se lee como algo sin terminar, y hay
+// clientes que no tienen logo que poner.
 const editandoSinLogo = ofertaAHtml(
   os10(),
   totales,
@@ -437,8 +441,12 @@ const editandoSinLogo = ofertaAHtml(
   true,
 );
 assert.ok(
-  editandoSinLogo.includes(ESTILO_PERTEC.rotuloLogoCliente),
-  "pero al editar sí: es donde se suelta el logo, y sin el rótulo no se ve dónde",
+  editandoSinLogo.includes('class="cliente vacia" data-logo="cliente"'),
+  "al editar queda el blanco donde soltar el logo",
+);
+assert.ok(
+  !editandoSinLogo.includes(ESTILO_PERTEC.rotuloLogoCliente),
+  "y sin el rótulo fijo: se anuncia al arrastrar, no antes",
 );
 // Y en el encabezado que Chromium repite en cada página del PDF, nunca.
 const cajasSinLogo = plantillasDeImpresion(os10(), EMPRESA_DE_PRUEBA, ESTILO_PERTEC, {
@@ -2876,6 +2884,71 @@ assert.ok(
     /\.portada \.datos \{ margin-top: auto/.test(paginado),
   "la portada ocupa la hoja y apoya sus datos abajo",
 );
+// En una OFERTA los rótulos del maestro son los correctos y no se pisan. Antes esto no
+// hacía falta porque una oferta no pasaba por armarDocumentoLibre —tenía su propio camino
+// de lectura— y al unificarlo empezó a salir con "Código" en la portada en vez de
+// "Oferta N°".
+const ofertaLibre = armarDocumentoLibre(
+  { titulo: "Servicio", subtitulo: "", cliente: "", fecha: "", codigo: "OS 010-2026", bloques: [], porConfirmar: [] },
+  "oferta",
+);
+assert.deepEqual(ofertaLibre.rotulos, {}, "una oferta no pisa ningún rótulo del maestro");
+const htmlOfertaLibre = ofertaAHtml(
+  ofertaLibre,
+  calcularTotales(ofertaLibre),
+  EMPRESA_DE_PRUEBA,
+);
+assert.ok(htmlOfertaLibre.includes(ROTULOS["id-numero"]), "la portada dice Oferta N°, no Código");
+assert.ok(
+  htmlOfertaLibre.includes(ROTULOS["portada-rotulo"]),
+  "y el rótulo de portada es el del maestro",
+);
+// Una ficha técnica sí los pisa: ahí "Oferta N°" es simplemente falso.
+const fichaLibre = armarDocumentoLibre(
+  { titulo: "Prensa", subtitulo: "", cliente: "", fecha: "", codigo: "FT-014", bloques: [], porConfirmar: [] },
+  "ficha_tecnica",
+);
+assert.equal(fichaLibre.rotulos?.["id-numero"], "Código");
+
+// El subtítulo del documento sale en la PORTADA. Se guardaba solo en `referencia`, que en
+// un documento transcribido no se imprime en ninguna parte: se leía, se guardaba y no
+// salía nunca.
+const conSubtitulo = armarDocumentoLibre(
+  {
+    titulo: "Prensa PT-1600",
+    subtitulo: "Equipo para empalmes en caliente",
+    cliente: "",
+    fecha: "",
+    codigo: "FT-014",
+    bloques: [],
+    porConfirmar: [],
+  },
+  "ficha_tecnica",
+);
+assert.equal(conSubtitulo.identificacion.faena, "Equipo para empalmes en caliente");
+assert.ok(
+  ofertaAHtml(conSubtitulo, calcularTotales(conSubtitulo), EMPRESA_DE_PRUEBA).includes(
+    '<p class="faena" data-campo="identificacion.faena">Equipo para empalmes en caliente</p>',
+  ),
+  "y se imprime debajo del título, donde va la faena de una oferta",
+);
+
+// El CLIENTE tiene su propio bloque en la portada, en grande: es lo segundo que se busca
+// —después de qué documento es— y como una fila más de la tabla de abajo quedaba en letra
+// chica entre el código y la fecha.
+const conCliente = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA);
+assert.ok(
+  /<div class="para">[\s\S]{0,200}class="nombre-cliente" data-campo="identificacion\.cliente"/.test(
+    conCliente,
+  ),
+  "el cliente va en su bloque de la portada",
+);
+assert.equal(
+  (conCliente.match(/data-campo="identificacion\.cliente"/g) ?? []).length,
+  2,
+  "y no se repite en la tabla del pie: sale en la portada y en la sección de identificación",
+);
+
 // El título del índice es un rótulo editable, como los demás: en una ficha técnica puede
 // decir "Contenido".
 assert.ok(

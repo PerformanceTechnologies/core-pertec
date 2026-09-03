@@ -1369,6 +1369,10 @@ export function ofertaAHtml(
   /* La raya divisoria la pone la celda del cliente, no el centro: sin logo esa celda no
      existe y una raya suelta al borde del encabezado se ve como una celda vacía. */
   .header .cliente { border-left: 1px solid ${estilo.colorBorde}; }
+  /* Y sin logo —solo en el editor— la celda está pero no se ve: es el blanco donde
+     soltarlo, y se anuncia al arrastrar encima. Con la raya se vería la celda vacía que
+     justamente se saca. */
+  .header .cliente.vacia { border-left: 0; }
   .header .cliente { width: ${estilo.anchoCeldaLateral}mm; align-items: center; justify-content: center;
     color: ${estilo.colorSuave}; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
   /* Con max-width y max-height y sin dimensiones propias, el navegador escala la
@@ -1592,18 +1596,51 @@ export function ofertaAHtml(
      reales los pone page.pdf() y no son los del @page: quedarse corto deja los datos un
      poco más arriba, pasarse empuja la portada a una segunda hoja. */
   .portada { page-break-after: always; min-height: 230mm; display: flex; flex-direction: column; }
-  .portada .datos { margin-top: auto; }
+  /* El título arranca a un quinto de la hoja y los datos se apoyan abajo, así el aire
+     queda en UN solo lugar —entre los dos bloques— y no repartido arriba y abajo. Con
+     margin-top:auto en los dos, el espacio se partía en mitades y la portada se leía como
+     dos islas. Y con todo pegado arriba, como una hoja con cuatro renglones en la
+     esquina. */
+  .portada .tapa { margin-top: 30mm; }
+  .portada .datos { margin-top: auto; margin-bottom: 0;
+    border-top: 1.2px solid ${estilo.colorTinta}; padding-top: 5mm; }
   /* La portada NO lleva el logo aparte: el encabezado se repite en todas las
      páginas, incluida ella, así que salía dos veces. La propuesta hecha a mano
      tampoco lo repite. */
-  .portada .rotulo { color: ${estilo.colorAcento}; font-size: 8.5px; letter-spacing: .16em;
-    text-transform: uppercase; margin-bottom: 3mm; }
-  /* La regla corta bajo el rótulo, como en la propuesta hecha a mano: ancla el
-     título en la página en vez de dejarlo flotando. */
-  .portada .rotulo::after { content: ""; display: block; width: 26mm; margin-top: 2.5mm;
-    border-top: 1.2px solid ${estilo.colorAcento}; }
-  .portada h1 { font-size: ${estilo.tamanoPortada}px; font-family: ${estilo.fuenteTitulos}; line-height: 1.08; text-transform: uppercase; margin: 0 0 3mm; }
-  .portada .faena { color: ${estilo.colorSuave}; font-size: 13px; margin-bottom: 10mm; }
+  .portada .rotulo { color: ${estilo.colorAcento}; font-size: 11px; letter-spacing: .22em;
+    font-weight: 600; text-transform: uppercase; margin-bottom: 5mm; }
+  /* La regla bajo el rótulo ancla el título en la página en vez de dejarlo flotando. */
+  .portada .rotulo::after { content: ""; display: block; width: 38mm; margin-top: 4mm;
+    border-top: 2px solid ${estilo.colorAcento}; }
+  /* Una vez y media el tamaño del maestro: ese valor se eligió cuando la portada
+     compartía la hoja con el índice y el contenido. Con la hoja entera para ella, el
+     título es lo que la sostiene. Va con factor y no con un número fijo para que un
+     maestro de otra escala siga mandando. */
+  /* Una vez y media, no más: con 1,75 el título de una ficha partía "PT-1600" entre dos
+     líneas —el navegador corta después del guion y un código partido se lee mal— y usaba
+     cuatro renglones para lo que entra en dos. */
+  .portada h1 { font-size: ${(estilo.tamanoPortada * 1.5).toFixed(1)}px;
+    font-family: ${estilo.fuenteTitulos}; line-height: 1.06; letter-spacing: -0.01em;
+    text-transform: uppercase; margin: 0 0 6mm; max-width: 92%; }
+  /* El subtítulo del documento —la faena en una oferta— es la segunda cosa que se lee:
+     con 13px quedaba como una nota al pie del título. */
+  .portada .faena { color: ${estilo.colorSuave}; font-size: 19px; line-height: 1.35;
+    margin: 0; max-width: 80%; }
+  /* El bloque del cliente va CON el título, no suelto en el medio: con 22 mm de aire
+     arriba quedaba a mitad de camino entre los dos bloques y se leía huérfano. Así la
+     portada tiene una sola composición arriba y los datos al pie, con un solo hueco
+     entre las dos — que es el aire de una portada, no un olvido. */
+  .portada .para { margin-top: 12mm; }
+  .portada .etiqueta-para { color: ${estilo.colorSuave}; font-size: 8.5px; letter-spacing: .1em;
+    text-transform: uppercase; margin: 0 0 2mm; }
+  .portada .nombre-cliente { font-family: ${estilo.fuenteTitulos}; font-size: 21px;
+    line-height: 1.2; margin: 0; max-width: 80%; }
+
+  /* Los datos, más grandes y con más aire entre filas: en una hoja completa, el cuerpo
+     de 10,5px se leía como letra chica perdida abajo. */
+  .portada .datos th.etiqueta { font-size: 8.5px; letter-spacing: .1em; width: 34mm;
+    padding: 2.6mm 4mm 2.6mm 0; }
+  .portada .datos td { font-size: 13px; padding: 2.8mm 3mm 2.8mm 0; }
 
   /* AL FINAL a propósito: tiene la misma especificidad que .header y .footer, así
      que si fuera antes ganaría la declaración de abajo y el header saldría igual.
@@ -1630,15 +1667,18 @@ export function ofertaAHtml(
         vacioONo(id.fecha, paraEditar),
       )}</b></div>
     </div>
-    <!-- La celda del logo del cliente existe si HAY logo, o si se esta editando: ahi es
-         el hueco donde arrastrarlo (ver rotuloLogoCliente en estilo.ts). Vacia no va:
-         una celda con su borde y nada adentro se lee como algo que falta, y el
-         encabezado con dos celdas es lo correcto cuando el cliente no tiene logo. -->
+    <!-- Con logo, su celda. Sin logo y editando, la celda va VACIA: sigue siendo el
+         blanco donde arrastrar el logo —al arrastrar encima se ilumina y dice "Logo del
+         cliente", ver edicion-dom— pero no dice nada mientras nadie arrastre. El rotulo
+         fijo estaba de mas: hay clientes que no tienen logo, y un rotulo entre corchetes
+         en el documento se lee como algo sin terminar.
+         Impreso y sin logo, la celda no existe: vacia con su borde se lee igual como algo
+         que falta, y el encabezado con dos celdas es lo correcto. -->
     ${
       logoCliente
         ? `<div class="cliente" data-logo="cliente"><img src="${logoCliente}" alt=""></div>`
         : paraEditar
-          ? `<div class="cliente" data-logo="cliente">${esc(estilo.rotuloLogoCliente)}</div>`
+          ? `<div class="cliente vacia" data-logo="cliente"></div>`
           : ""
     }
   </div>
@@ -1650,14 +1690,36 @@ export function ofertaAHtml(
   </div>
 
   <section class="portada">
-    <p class="rotulo">${r.html("portada-rotulo")}</p>
-    <h1${campo("titulo")}>${esc(oferta.titulo)}</h1>
-    ${id.faena ? `<p class="faena"${campo("identificacion.faena")}>${esc(id.faena)}</p>` : ""}
+    <!-- El bloque del título en su caja, para poder ubicarlo como grupo: con los tres
+         elementos sueltos, el aire se acumulaba entre ellos en vez de arriba y abajo. -->
+    <div class="tapa">
+      <p class="rotulo">${r.html("portada-rotulo")}</p>
+      <h1${campo("titulo")}>${esc(oferta.titulo)}</h1>
+      ${
+        id.faena || paraEditar
+          ? `<p class="faena"${campo("identificacion.faena")}>${esc(id.faena ?? "")}</p>`
+          : ""
+      }
+    </div>
+    <!-- El CLIENTE, en grande y en su propio bloque. Es lo segundo que se busca en una
+         portada —después de qué documento es— y como una fila más de la tabla de abajo
+         quedaba en letra chica entre el código y la fecha. Acá ocupa el aire que sobraba
+         en el medio de la hoja, y con contenido que ya está en el documento: no se
+         inventa nada. Sin cliente no se dibuja; al editar sí, para poder escribirlo. -->
+    ${
+      id.cliente || paraEditar
+        ? `<div class="para">
+             <p class="etiqueta-para">${r.html("id-cliente")}</p>
+             <p class="nombre-cliente"${campo("identificacion.cliente")}>${esc(
+               id.cliente ?? "",
+             )}</p>
+           </div>`
+        : ""
+    }
     <table class="datos limpia">${filasEtiqueta(
       [
         [r.html("id-numero"), id.numeroOferta, "identificacion.numeroOferta"],
         [r.html("id-fecha"), id.fecha, "identificacion.fecha"],
-        [r.html("id-cliente"), id.cliente, "identificacion.cliente"],
         [
           r.html("id-preparado"),
           [razonDe(empresa) || empresa.nombre, rutDe(empresa)].filter(Boolean).join(" · "),

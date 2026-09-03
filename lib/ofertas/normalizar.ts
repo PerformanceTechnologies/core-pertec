@@ -1,6 +1,7 @@
 import type { DestinoDeImagen } from "./destino-imagen";
 import {
   SECCIONES_CON_IMAGENES,
+  esOfertaTecnica,
   firmaDe,
   type BloqueLibre,
   type Cierre,
@@ -347,7 +348,12 @@ export function armarDocumentoLibre(lectura: LecturaLibre, tipo: TipoDeDocumento
       atencion: null,
       copia: null,
       referencia: identidad === "" ? null : identidad,
-      faena: null,
+      // El subtítulo del documento va acá porque `faena` es la línea que la portada
+      // imprime debajo del título. Antes solo entraba en `referencia`, que en un
+      // documento transcribido no se imprime en ninguna parte: el subtítulo se leía, se
+      // guardaba y no salía nunca. En una oferta esta línea es la faena; en una ficha o
+      // un procedimiento, su subtítulo. Es el mismo lugar del documento.
+      faena: texto(lectura.subtitulo),
     },
     alcance: null,
     metodologia: null,
@@ -368,12 +374,19 @@ export function armarDocumentoLibre(lectura: LecturaLibre, tipo: TipoDeDocumento
     // oferta"— y en una ficha técnica eso es simplemente falso. Se pisan con los del tipo,
     // usando el mismo mecanismo que ya existe para renombrar cualquier rótulo, así que se
     // siguen pudiendo editar sobre el documento.
-    rotulos: {
-      "portada-rotulo": comoSeLlama,
-      "s-identificacion": `Identificación del documento`,
-      "id-numero": "Código",
-      "id-referencia": "Detalle",
-    },
+    //
+    // EN UNA OFERTA NO SE PISA NADA: ahí los del maestro son los correctos. Antes esto no
+    // hacía falta porque una oferta no pasaba por acá —tenía su propio camino de lectura—
+    // y al unificarlo, una oferta empezó a salir con "Código" en la portada en vez de
+    // "Oferta N°". Es la clase de detalle que no se ve hasta que el documento está impreso.
+    rotulos: esOfertaTecnica(tipo)
+      ? {}
+      : {
+          "portada-rotulo": comoSeLlama,
+          "s-identificacion": "Identificación del documento",
+          "id-numero": "Código",
+          "id-referencia": "Detalle",
+        },
     lectura: { tipo, confianza: "alta", porQue: "" },
   };
 }
