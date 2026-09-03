@@ -93,6 +93,10 @@ export const ESTILO_PERTEC: EstiloMaestro = {
   altoHeader: 18,
   anchoCeldaLateral: 34,
   margenLateral: 16,
+  // El hueco donde se arrastra el logo del cliente, y por eso es un texto y no un
+  // recuadro vacio: hay que ver donde soltarlo. Se dibuja SOLO al editar (ver
+  // plantilla.ts): un documento que dice "[Logo cliente]" en cada pagina se ve como un
+  // documento sin terminar, y hay clientes que no tienen logo que poner.
   rotuloLogoCliente: "[Logo cliente]",
 };
 

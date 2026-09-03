@@ -420,7 +420,35 @@ assert.ok(
   conLogoRoto.includes(EMPRESA_DE_PRUEBA.nombre),
   "sin logo válido, la celda vuelve al nombre en texto",
 );
-assert.ok(conLogoRoto.includes(ESTILO_PERTEC.rotuloLogoCliente), "y el cliente, a su rótulo");
+// El rótulo del logo del cliente es el HUECO donde arrastrarlo, y solo se dibuja al
+// editar: en el documento que se manda, "[Logo cliente]" en cada página se ve como un
+// documento sin terminar — y hay clientes que no tienen logo que poner.
+assert.ok(
+  !conLogoRoto.includes(ESTILO_PERTEC.rotuloLogoCliente),
+  "sin logo del cliente, el documento impreso no dice nada en esa celda",
+);
+const editandoSinLogo = ofertaAHtml(
+  os10(),
+  totales,
+  EMPRESA_DE_PRUEBA,
+  ESTILO_PERTEC,
+  { casa: null, cliente: null },
+  {},
+  true,
+);
+assert.ok(
+  editandoSinLogo.includes(ESTILO_PERTEC.rotuloLogoCliente),
+  "pero al editar sí: es donde se suelta el logo, y sin el rótulo no se ve dónde",
+);
+// Y en el encabezado que Chromium repite en cada página del PDF, nunca.
+const cajasSinLogo = plantillasDeImpresion(os10(), EMPRESA_DE_PRUEBA, ESTILO_PERTEC, {
+  casa: null,
+  cliente: null,
+});
+assert.ok(
+  !cajasSinLogo.headerTemplate.includes(ESTILO_PERTEC.rotuloLogoCliente),
+  "el encabezado impreso no lo lleva: saldría en todas las páginas",
+);
 
 // Y lo mismo en la caja que Chromium repite en cada página, que es otro código.
 const cajas = plantillasDeImpresion(os10(), EMPRESA_DE_PRUEBA, ESTILO_PERTEC, {
@@ -429,7 +457,9 @@ const cajas = plantillasDeImpresion(os10(), EMPRESA_DE_PRUEBA, ESTILO_PERTEC, {
 });
 assert.ok(cajas.headerTemplate.includes(`src="${PNG_VALIDO}"`));
 assert.ok(!cajas.headerTemplate.includes("javascript:"), "el del cliente no pasó y no se dibuja");
-assert.ok(cajas.headerTemplate.includes(ESTILO_PERTEC.rotuloLogoCliente));
+// Y no se cae al rótulo: en el encabezado impreso, que se repite en cada página, la
+// celda del logo del cliente va vacía cuando no hay logo (ver más abajo).
+assert.ok(!cajas.headerTemplate.includes(ESTILO_PERTEC.rotuloLogoCliente));
 
 // ── El blanco y el 0: cómo dice el modelo "no lo distinguí" ─────────────────
 //
@@ -2229,16 +2259,32 @@ const dibujados = new Set(
 );
 // Las dos celdas de logo del encabezado se nombran en el marcado: es lo que permite
 // arrastrarles una imagen encima. Lo que pasa al soltar se prueba en el navegador
-// (npm run probar-edicion); acá se comprueba que el blanco exista, y que exista
-// también cuando el logo NO está puesto, que es justo cuando hace falta.
-assert.ok(
-  htmlTodo.includes('data-logo="casa"') && htmlTodo.includes('data-logo="cliente"'),
-  "el encabezado marca sus dos huecos de logo",
+// (npm run probar-edicion); acá se comprueba que el blanco exista cuando el logo NO
+// está puesto, que es justo cuando hace falta — y eso es EN EL EDITOR: en el documento
+// impreso, la celda del cliente sin logo no se dibuja.
+const htmlConTodoEditando = ofertaAHtml(
+  conTodo,
+  calcularTotales(conTodo),
+  EMPRESA_DE_PRUEBA,
+  undefined,
+  undefined,
+  { 1: { uri: PNG_VALIDO, proporcion: 1.2 } },
+  true,
 );
-const sinLogos = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA);
+assert.ok(
+  htmlConTodoEditando.includes('data-logo="casa"') &&
+    htmlConTodoEditando.includes('data-logo="cliente"'),
+  "al editar, el encabezado marca sus dos huecos de logo",
+);
+assert.ok(
+  htmlTodo.includes('data-logo="casa"') && !htmlTodo.includes('data-logo="cliente"'),
+  "impreso y sin logo del cliente, esa celda no existe: vacía con su borde se lee como " +
+    "algo que falta",
+);
+const sinLogos = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA, undefined, undefined, {}, true);
 assert.ok(
   sinLogos.includes('data-logo="cliente"') && sinLogos.includes('data-logo="casa"'),
-  "y los marca aunque todavía no haya ningún logo cargado",
+  "y los marca aunque todavía no haya ningún logo cargado, que es cuando hace falta",
 );
 
 const faltantes = Object.keys(ROTULOS).filter((clave) => !dibujados.has(clave));
@@ -2266,14 +2312,51 @@ assert.ok(!asignarEnRuta(editada, "__proto__.colado", "x"));
 assert.ok(!asignarEnRuta(editada, "identificacion.constructor.prototype.colado", "x"));
 assert.equal(({} as Record<string, unknown>).colado, undefined, "nada se coló al prototipo");
 
-// Y el ida y vuelta completo: lo que se escribe por la ruta sale impreso en los DOS
-// lugares donde el documento muestra ese dato, la portada y la tabla de la sección 1.
+// Y el ida y vuelta completo: lo que se escribe por la ruta sale impreso en TODOS los
+// lugares donde el documento muestra ese dato —el encabezado, la portada y la tabla de la
+// sección 1— y en los tres se puede escribir.
 assert.ok(asignarEnRuta(editada, "identificacion.numeroOferta", "OS 011-2026"));
 const htmlEditada = ofertaAHtml(editada, calcularTotales(editada), EMPRESA_DE_PRUEBA);
 assert.equal(
   (htmlEditada.match(/data-campo="identificacion\.numeroOferta">OS 011-2026</g) ?? []).length,
-  2,
-  "el dato editado sale en la portada y en la identificación",
+  3,
+  "el dato editado sale en el encabezado, en la portada y en la identificación",
+);
+
+// Y un dato que el borrador NO trajo se tiene que poder agregar. Una fila sin valor no se
+// imprime —sería una etiqueta con nada al lado— pero si tampoco se dibuja al editar, el
+// dato no tiene dónde escribirse: la fecha que el modelo no alcanzó a leer no se podía
+// completar, y desde afuera se ve como que el documento no permite cambiar la fecha.
+const sinFecha = os10();
+sinFecha.identificacion = { ...sinFecha.identificacion, fecha: "" };
+const impresoSinFecha = ofertaAHtml(sinFecha, calcularTotales(sinFecha), EMPRESA_DE_PRUEBA);
+const editandoSinFecha = ofertaAHtml(
+  sinFecha,
+  calcularTotales(sinFecha),
+  EMPRESA_DE_PRUEBA,
+  undefined,
+  undefined,
+  {},
+  true,
+);
+assert.ok(
+  editandoSinFecha.includes('<td data-campo="identificacion.fecha"></td>'),
+  "al editar, la fila de la fecha vacía se dibuja para poder completarla",
+);
+assert.ok(
+  !impresoSinFecha.includes('data-campo="identificacion.fecha"></td>'),
+  "y en el PDF no: una etiqueta con nada al lado no se imprime",
+);
+// En el encabezado —que es donde se mira la fecha— también se escribe. Impreso lleva un
+// guion, porque la etiqueta "Fecha" sola se lee como un error de armado; al editar va
+// vacío, para escribir encima sin tener que borrar el guion primero.
+assert.ok(
+  impresoSinFecha.includes('Fecha <b data-campo="identificacion.fecha">—</b>'),
+  "impreso, un dato que falta sale con guion",
+);
+assert.ok(
+  editandoSinFecha.includes('Fecha <b data-campo="identificacion.fecha"></b>'),
+  "y al editar va vacío, con el 'Escribir aquí' del editor",
 );
 
 console.log(`
@@ -2760,6 +2843,44 @@ assert.ok(
     dibujo(conAnexo, { 1: CUADRADA, 2: CUADRADA }),
   ),
   "el anexo mantiene las celdas del mismo alto",
+);
+
+// ── Tres páginas: portada, índice y contenido ─────────────────────────────
+//
+// Iban los tres en la misma hoja —rótulo, título, datos, índice, y el primer título de
+// contenido debajo— y el documento no tenía primera página: se leía como una hoja de
+// resumen. Ahora la portada ocupa su hoja, el índice la siguiente y el contenido arranca
+// en la de después.
+const paginado = ofertaAHtml(os10(), totales, EMPRESA_DE_PRUEBA);
+assert.ok(
+  /<section class="indice-pagina">/.test(paginado),
+  "el índice tiene su propia página",
+);
+// Y NO está adentro de la portada: si lo estuviera, el salto de página de la portada lo
+// arrastraría con ella y volverían a compartir hoja.
+const portada = paginado.slice(
+  paginado.indexOf('<section class="portada">'),
+  paginado.indexOf("</section>", paginado.indexOf('<section class="portada">')),
+);
+assert.ok(!portada.includes("indice"), "el índice quedó fuera de la portada");
+for (const clase of ["portada", "indice-pagina"]) {
+  assert.ok(
+    new RegExp(`\\.${clase} \\{[^}]*page-break-after: always`).test(paginado),
+    `.${clase} corta la página después`,
+  );
+}
+// La portada ocupa su hoja de verdad y los datos se apoyan abajo: sin eso quedaba todo
+// apretado contra el borde de arriba con media página en blanco debajo.
+assert.ok(
+  /\.portada \{[^}]*min-height: \d+mm/.test(paginado) &&
+    /\.portada \.datos \{ margin-top: auto/.test(paginado),
+  "la portada ocupa la hoja y apoya sus datos abajo",
+);
+// El título del índice es un rótulo editable, como los demás: en una ficha técnica puede
+// decir "Contenido".
+assert.ok(
+  paginado.includes('data-campo="rotulos.indice-titulo"'),
+  "el título del índice se puede cambiar sobre el documento",
 );
 
 console.log("Todas las verificaciones pasaron.");

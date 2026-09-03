@@ -143,15 +143,32 @@ function esc(valor: unknown): string {
  * pantalla sigue siendo ese campo y no un pedazo de HTML suelto. En el PDF los
  * atributos no se ven; en el editor son el puente entre el papel y el dato.
  */
-function filasEtiqueta(pares: [string, string | null, string?][]): string {
+function filasEtiqueta(
+  pares: [string, string | null, string?][],
+  /**
+   * En el editor, las filas VACÍAS también se dibujan. En el PDF, no.
+   *
+   * Una fila sin valor no se imprime —sería una etiqueta con nada al lado— pero si
+   * tampoco se dibuja al editar, el dato no se puede AGREGAR: la fecha que el modelo no
+   * alcanzó a leer no tenía dónde escribirse, y desde afuera se ve como que el documento
+   * no permite cambiar la fecha. Con la fila puesta, el editor le pone su "Escribir
+   * aquí" (ver edicion-dom) y al guardar deja de estar vacía.
+   *
+   * Solo las que tienen RUTA: una fila sin campo editable y sin valor no es nada.
+   */
+  conVacias = false,
+): string {
   return (
     pares
       // `!= null` cubre también el ausente: el modelo omite lo que el documento no
       // trae, y con la comparación estricta una clave que falta imprimía la palabra
       // "undefined" en la tabla de identificación.
-      .filter(([, v]) => v != null && String(v).trim() !== "")
+      .filter(([, v, ruta]) => (conVacias && ruta) || (v != null && String(v).trim() !== ""))
       // La etiqueta llega YA dibujada (es un rótulo editable), el valor se escapa acá.
-      .map(([k, v, ruta]) => `<tr><th class="etiqueta">${k}</th><td${campo(ruta)}>${esc(v)}</td></tr>`)
+      .map(
+        ([k, v, ruta]) =>
+          `<tr><th class="etiqueta">${k}</th><td${campo(ruta)}>${esc(v ?? "")}</td></tr>`,
+      )
       .join("")
   );
 }
@@ -170,6 +187,9 @@ function filasEtiqueta(pares: [string, string | null, string?][]): string {
 export const ROTULOS: Record<string, string> = {
   // Los títulos de sección. También son los que aparecen en el índice.
   "portada-rotulo": "Oferta técnica y económica",
+  // El título de la página del índice. Editable como cualquier rótulo: en una ficha
+  // técnica puede decir "Contenido" y en un procedimiento, "Índice".
+  "indice-titulo": "Índice de contenidos",
   "s-identificacion": "Identificación de la oferta",
   "s-alcance": "Alcance del servicio",
   "s-metodologia": "Metodología y secuencia de trabajo",
@@ -518,6 +538,20 @@ export function medidaFlotante(proporcion: number, largoDelTexto: number) {
   );
   return { ancho, alto: ancho / proporcion, altoDelTexto };
 }
+
+/**
+ * Un dato que falta: un guion en el documento, vacío en el editor.
+ *
+ * El guion dice "esto no vino" en un documento impreso, donde la etiqueta "Fecha" sin
+ * nada al lado se lee como un error de armado. Pero al editar conviene que quede vacío:
+ * ahí el editor le pone su "Escribir aquí" (ver edicion-dom) y se escribe encima, en vez
+ * de tener que seleccionar el guion y borrarlo primero.
+ *
+ * `||` y no `??`: el modelo devuelve texto en blanco —no null— para lo que el documento
+ * no trae, así que con `??` el guion no aparecía nunca y la etiqueta salía sola.
+ */
+const vacioONo = (valor: string | null | undefined, paraEditar: boolean): string =>
+  paraEditar ? (valor ?? "") : valor || "—";
 
 /** Los caracteres de texto de un trozo de HTML, sin sus etiquetas. */
 const largoDeTexto = (html: string): number => html.replace(/<[^>]*>/g, " ").trim().length;
@@ -1330,8 +1364,11 @@ export function ofertaAHtml(
   .header .marca { width: ${estilo.anchoCeldaLateral}mm; border-right: 1px solid ${estilo.colorBorde}; font-weight: 700; letter-spacing: .06em;
     font-size: 9px; text-transform: uppercase; color: ${estilo.colorTinta};
     align-items: center; text-align: center; }
-  .header .centro { flex: 1; border-right: 1px solid ${estilo.colorBorde}; flex-direction: row;
+  .header .centro { flex: 1; flex-direction: row;
     align-items: center; justify-content: space-between; }
+  /* La raya divisoria la pone la celda del cliente, no el centro: sin logo esa celda no
+     existe y una raya suelta al borde del encabezado se ve como una celda vacía. */
+  .header .cliente { border-left: 1px solid ${estilo.colorBorde}; }
   .header .cliente { width: ${estilo.anchoCeldaLateral}mm; align-items: center; justify-content: center;
     color: ${estilo.colorSuave}; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
   /* Con max-width y max-height y sin dimensiones propias, el navegador escala la
@@ -1538,10 +1575,24 @@ export function ofertaAHtml(
     page-break-inside: avoid; }
   .mandantes span { border-bottom: 1px solid ${estilo.colorFondoTotal}; padding: 2mm 0; }
 
+  /* Cada una en su hoja: portada, índice y contenido. La portada con su título y sus
+     datos ocupa poco, pero es una portada; el índice arranca la siguiente y el contenido
+     la de después. Antes iban los tres juntos y el documento no tenía primera página. */
+  .indice-pagina { page-break-after: always; }
+  .indice-pagina h2 { font-size: 13px; font-family: ${estilo.fuenteTitulos}; text-transform: uppercase;
+    letter-spacing: .04em; margin: 0 0 5mm; padding-bottom: 2.5mm;
+    border-bottom: 1.2px solid ${estilo.colorTinta}; }
   .indice { margin-bottom: 4mm; }
   .indice li { display: flex; gap: 4mm; padding: 1.6mm 0; border-top: 1px solid ${estilo.colorFondoTotal}; list-style: none; }
   .indice .n { color: ${estilo.colorAcento}; font-weight: 700; min-width: 6mm; }
-  .portada { page-break-after: always; }
+  /* La portada ocupa su hoja: el bloque del título arriba y los datos abajo, como una
+     portada. Sin esto quedaba todo apretado contra el borde de arriba y media página en
+     blanco debajo, que se lee como un documento que empezó mal.
+     230mm y no el alto exacto del cuerpo (297 menos los márgenes) porque los márgenes
+     reales los pone page.pdf() y no son los del @page: quedarse corto deja los datos un
+     poco más arriba, pasarse empuja la portada a una segunda hoja. */
+  .portada { page-break-after: always; min-height: 230mm; display: flex; flex-direction: column; }
+  .portada .datos { margin-top: auto; }
   /* La portada NO lleva el logo aparte: el encabezado se repite en todas las
      páginas, incluida ella, así que salía dos veces. La propuesta hecha a mano
      tampoco lo repite. */
@@ -1572,11 +1623,24 @@ export function ofertaAHtml(
       <div>${razonDe(empresa) ? `<div class="empresa">${esc(razonDe(empresa))}</div>` : ""}${
         rutDe(empresa) ? `<div class="rut">${esc(rutDe(empresa))}</div>` : ""
       }</div>
-      <div class="oferta">Oferta <b>${esc(id.numeroOferta ?? "—")}</b><br>Fecha <b>${esc(id.fecha ?? "—")}</b></div>
+      <!-- Numero y fecha: el mismo dato de la portada, editable tambien aca. -->
+      <div class="oferta">Oferta <b${campo("identificacion.numeroOferta")}>${esc(
+        vacioONo(id.numeroOferta, paraEditar),
+      )}</b><br>Fecha <b${campo("identificacion.fecha")}>${esc(
+        vacioONo(id.fecha, paraEditar),
+      )}</b></div>
     </div>
-    <div class="cliente" data-logo="cliente">${
-      logoCliente ? `<img src="${logoCliente}" alt="">` : esc(estilo.rotuloLogoCliente)
-    }</div>
+    <!-- La celda del logo del cliente existe si HAY logo, o si se esta editando: ahi es
+         el hueco donde arrastrarlo (ver rotuloLogoCliente en estilo.ts). Vacia no va:
+         una celda con su borde y nada adentro se lee como algo que falta, y el
+         encabezado con dos celdas es lo correcto cuando el cliente no tiene logo. -->
+    ${
+      logoCliente
+        ? `<div class="cliente" data-logo="cliente"><img src="${logoCliente}" alt=""></div>`
+        : paraEditar
+          ? `<div class="cliente" data-logo="cliente">${esc(estilo.rotuloLogoCliente)}</div>`
+          : ""
+    }
   </div>
 
   <div class="footer">
@@ -1589,17 +1653,30 @@ export function ofertaAHtml(
     <p class="rotulo">${r.html("portada-rotulo")}</p>
     <h1${campo("titulo")}>${esc(oferta.titulo)}</h1>
     ${id.faena ? `<p class="faena"${campo("identificacion.faena")}>${esc(id.faena)}</p>` : ""}
-    <table class="datos limpia">${filasEtiqueta([
-      [r.html("id-numero"), id.numeroOferta, "identificacion.numeroOferta"],
-      [r.html("id-fecha"), id.fecha, "identificacion.fecha"],
-      [r.html("id-cliente"), id.cliente, "identificacion.cliente"],
+    <table class="datos limpia">${filasEtiqueta(
       [
-        r.html("id-preparado"),
-        [razonDe(empresa) || empresa.nombre, rutDe(empresa)].filter(Boolean).join(" · "),
+        [r.html("id-numero"), id.numeroOferta, "identificacion.numeroOferta"],
+        [r.html("id-fecha"), id.fecha, "identificacion.fecha"],
+        [r.html("id-cliente"), id.cliente, "identificacion.cliente"],
+        [
+          r.html("id-preparado"),
+          [razonDe(empresa) || empresa.nombre, rutDe(empresa)].filter(Boolean).join(" · "),
+        ],
       ],
-    ])}</table>
+      // Al editar, las tres primeras se dibujan aunque estén vacías: es donde se
+      // escriben el número, la fecha y el cliente cuando el borrador no los traía.
+      // "Preparado por" no lleva ruta, así que no se cuela vacía.
+      paraEditar,
+    )}</table>
 
-    <h2><span class="n">·</span> Índice de contenidos</h2>
+  </section>
+
+  <!-- El índice en su PROPIA página: la portada es una portada, y el contenido arranca
+       después. Estaban los tres en la misma hoja —título, datos, índice y el primer
+       título de contenido debajo— y se leía como una hoja de resumen, no como un
+       documento. -->
+  <section class="indice-pagina">
+    <h2>${r.html("indice-titulo")}</h2>
     <ul class="indice">${todas
       .filter((s) => s.titulo !== "")
       .map((s) => `<li><span class="n">${esc(s.numero)}</span><span>${esc(s.titulo)}</span></li>`)
@@ -1681,7 +1758,7 @@ export function plantillasDeImpresion(
               ? `<img src="${logoCasa}" alt="" style="${imagen}align-self:center;">`
               : esc(empresa.nombre)
           }</div>
-        <div style="${celda}flex:1;border-right:1px solid ${estilo.colorBorde};flex-direction:row;
+        <div style="${celda}flex:1;flex-direction:row;
           align-items:center;justify-content:space-between;">
           <div>${
             razonDe(empresa)
@@ -1696,12 +1773,16 @@ export function plantillasDeImpresion(
             Oferta <b style="color:${estilo.colorTinta};">${esc(id.numeroOferta ?? "\u2014")}</b><br>
             Fecha <b style="color:${estilo.colorTinta};">${esc(id.fecha ?? "\u2014")}</b></div>
         </div>
-        <div style="${celda}width:${estilo.anchoCeldaLateral - 2}mm;align-items:center;font-size:6.5px;color:${estilo.colorSuave};
-          letter-spacing:.08em;text-transform:uppercase;">${
-            logoCliente
-              ? `<img src="${logoCliente}" alt="" style="${imagen}">`
-              : esc(estilo.rotuloLogoCliente)
-          }</div>
+        ${
+          // Sin logo del cliente, la celda no se dibuja: este encabezado lo repite
+          // Chromium en cada página del PDF, así que un rótulo de relleno saldría en
+          // todas y una celda vacía con su borde se lee como algo que falta.
+          logoCliente
+            ? `<div style="${celda}width:${estilo.anchoCeldaLateral - 2}mm;align-items:center;
+                border-left:1px solid ${estilo.colorBorde};">
+                <img src="${logoCliente}" alt="" style="${imagen}"></div>`
+            : ""
+        }
       </div>
     </div>`,
     footerTemplate: `<div style="box-sizing:border-box;width:100%;font-family:${fuente};font-size:6.5px;

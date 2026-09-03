@@ -176,10 +176,20 @@ const empresa = {
   logoNombre: null,
 };
 
-const documento = ofertaAHtml(oferta, calcularTotales(oferta), empresa, undefined, undefined, {
-  1: { uri: PNG_VALIDO, proporcion: 1.2 },
-  2: { uri: PNG_VALIDO, proporcion: 1.2 },
-});
+// paraEditar: es la vista del EDITOR la que se prueba acá, y no la impresa. Se renderizaba
+// sin eso, así que la prueba corría sobre un documento distinto del que ve la persona: al
+// dejar de dibujar en el PDF la celda vacía del logo del cliente y las filas de datos sin
+// valor, el gesto de soltarle un logo encima se probaba sobre un hueco que en el editor sí
+// existe y acá ya no.
+const documento = ofertaAHtml(
+  oferta,
+  calcularTotales(oferta),
+  empresa,
+  undefined,
+  undefined,
+  { 1: { uri: PNG_VALIDO, proporcion: 1.2 }, 2: { uri: PNG_VALIDO, proporcion: 1.2 } },
+  true,
+);
 
 // El módulo real, empacado para poder inyectarlo en la página.
 const { outputFiles } = await esbuild.build({
@@ -351,6 +361,34 @@ try {
       campo.focus();
       doc.getSelection()!.selectAllChildren(campo);
     }, selector);
+
+  // ── 0. La FECHA, que es lo que no se podía cambiar ────────────────────────
+  //
+  // Se escribe en el encabezado, que es donde se la mira. El dato es el mismo que el de
+  // la portada, así que las dos copias tienen que quedar iguales.
+  await enfocar('[data-campo="identificacion.fecha"]');
+  await pagina.keyboard.type("12 de septiembre de 2026");
+  await pagina.keyboard.press("Enter");
+  const laFecha = await pagina.evaluate(() => {
+    const doc = (document.getElementById("marco") as HTMLIFrameElement).contentDocument!;
+    const ventana = window as unknown as VentanaDePrueba;
+    return {
+      copias: [...doc.querySelectorAll<HTMLElement>('[data-campo="identificacion.fecha"]')].map(
+        (c) => c.textContent,
+      ),
+      enElDato: ventana.modelo.identificacion.fecha,
+    };
+  });
+  console.log(laFecha);
+  assert.equal(
+    laFecha.enElDato,
+    "12 de septiembre de 2026",
+    "la fecha se escribe sobre el documento y llega al dato",
+  );
+  assert.ok(
+    laFecha.copias.length >= 2 && new Set(laFecha.copias).size === 1,
+    `y las dos copias quedan iguales (${JSON.stringify(laFecha.copias)})`,
+  );
 
   // ── 1. Escribir un texto, con Enter incluido ──────────────────────────────
   await enfocar('[data-campo="identificacion.cliente"]');
