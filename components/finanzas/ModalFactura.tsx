@@ -8,10 +8,11 @@ const ETIQUETAS_ESTADO: Record<string, string> = {
   aceptado: "Aceptada",
   pendiente: "Pendiente",
   no_incluir: "No incluir",
-  // "o rechazada" a proposito: en el SII un rechazo del receptor es uno de los tres
-  // reclamos (RCD, reclamo al contenido), no un estado aparte. Quien mira el panel busca
-  // la palabra rechazada, asi que la etiqueta dice las dos.
-  reclamado: "Reclamada/rechazada",
+  // Las dos palabras, que aca caben: esto es una lista de etiqueta y valor, no una celda
+  // de la tabla —donde el mismo texto partia la fila en dos y hubo que acortarlo—. En el
+  // SII un rechazo del receptor es uno de los tres reclamos (al contenido, o por falta
+  // parcial o total de mercaderia), no un estado aparte.
+  reclamado: "Reclamada o rechazada",
 };
 
 const ETIQUETAS_DTE: Record<number, string> = {
@@ -63,7 +64,7 @@ export default function ModalFactura({
     // fila no se dibuja cuando no hay fecha, así que en una compra no aparece.
     ...(factura.fecha_acuse ? [["Acuse del cliente", formatearFecha(factura.fecha_acuse)] as [string, string]] : []),
     ...(factura.fecha_reclamo
-      ? [["Reclamada por el cliente", formatearFecha(factura.fecha_reclamo)] as [string, string]]
+      ? [["Reclamada o rechazada el", formatearFecha(factura.fecha_reclamo)] as [string, string]]
       : []),
     ["Monto exento", formatearMonto(factura.monto_exento)],
     ["Monto neto", formatearMonto(factura.monto_neto)],

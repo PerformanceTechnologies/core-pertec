@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { IconArrowLeft } from "@tabler/icons-react";
 import type { FacturaSiiFila } from "@/lib/finanzas";
+import { CELDA_SIN_CORTE, PASTILLA_ESTADO } from "@/lib/estilos";
 import BotonSincronizarSii from "@/components/finanzas/BotonSincronizarSii";
 import TarjetaHoy from "./TarjetaHoy";
 import ModalFactura from "./ModalFactura";
@@ -17,10 +18,29 @@ const ETIQUETAS_ESTADO: Record<string, string> = {
   aceptado: "Aceptada",
   pendiente: "Pendiente",
   no_incluir: "No incluir",
-  // "o rechazada" a proposito: en el SII un rechazo del receptor es uno de los tres
-  // reclamos (RCD, reclamo al contenido), no un estado aparte. Quien mira el panel busca
-  // la palabra rechazada, asi que la etiqueta dice las dos.
-  reclamado: "Reclamada/rechazada",
+  // Una sola palabra, y no "Reclamada/rechazada" como estuvo un rato: la pastilla partia
+  // en dos lineas, estiraba la fila y de paso apretaba la columna de RUT hasta cortar el
+  // digito verificador. Que un rechazo tambien cae aca lo dice el tooltip (TITULO_ESTADO)
+  // y el detalle de la factura, donde hay lugar para explicarlo.
+  reclamado: "Reclamada",
+};
+
+/**
+ * El pie de nota de cada estado, en el title de la pastilla.
+ *
+ * La etiqueta tiene que ser corta para que la tabla no se descuadre, pero corta deja
+ * preguntas: por que una venta dice "Registro", o si un rechazo cuenta como reclamo. Se
+ * contestan al pasar el mouse, sin ocupar una columna.
+ */
+const TITULO_ESTADO: Record<string, string> = {
+  registro: "En el registro del SII: el cliente todavía no dio acuse ni reclamó",
+  aceptado: "El cliente dio acuse de recibo",
+  pendiente: "Pendiente en el registro de compras del SII",
+  no_incluir: "Marcada como no incluir en el registro de compras del SII",
+  reclamado:
+    "Reclamada o rechazada por el receptor. En el SII un rechazo es uno de los tres " +
+    "reclamos posibles (al contenido, o por falta parcial o total de mercadería), no un " +
+    "estado aparte: los tres significan que la factura no se cobra como está",
 };
 
 const CLASES_ESTADO: Record<string, string> = {
@@ -236,12 +256,12 @@ export default function PanelFinanzas({
             <tr>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3">Documento</th>
-              <th className="px-4 py-3">RUT</th>
+              <th className="px-4 py-3 whitespace-nowrap">RUT</th>
               <th className="px-4 py-3">Razón social</th>
               <th className="px-4 py-3">Folio</th>
               <th className="px-4 py-3">Fecha docto.</th>
               <th className="px-4 py-3 text-right">Monto total</th>
-              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3 whitespace-nowrap">Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -261,13 +281,20 @@ export default function PanelFinanzas({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-tinta/60">{ETIQUETAS_DTE[f.codigo_dte] ?? f.codigo_dte}</td>
-                <td className="px-4 py-3 text-tinta/60">{f.rut_contraparte}</td>
+                {/* Sin cortar: un RUT partido en dos líneas es un RUT que no se puede
+                    copiar ni leer de un tirón. */}
+                <td className={`px-4 py-3 ${CELDA_SIN_CORTE} text-tinta/60`}>{f.rut_contraparte}</td>
                 <td className="px-4 py-3 font-medium text-tinta">{f.razon_social ?? "-"}</td>
-                <td className="px-4 py-3 text-tinta/60">{f.folio}</td>
-                <td className="px-4 py-3 text-tinta/60">{formatearFecha(f.fecha_docto)}</td>
-                <td className="px-4 py-3 text-right text-tinta">{formatearMonto(f.monto_total)}</td>
+                <td className={`px-4 py-3 ${CELDA_SIN_CORTE} text-tinta/60`}>{f.folio}</td>
+                <td className={`px-4 py-3 ${CELDA_SIN_CORTE} text-tinta/60`}>{formatearFecha(f.fecha_docto)}</td>
+                <td className={`px-4 py-3 ${CELDA_SIN_CORTE} text-right text-tinta`}>{formatearMonto(f.monto_total)}</td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${CLASES_ESTADO[f.estado]}`}>
+                  {/* PASTILLA_ESTADO mantiene la pastilla en una sola línea; ver por qué
+                      en lib/estilos.ts. */}
+                  <span
+                    title={TITULO_ESTADO[f.estado]}
+                    className={`${PASTILLA_ESTADO} ${CLASES_ESTADO[f.estado]}`}
+                  >
                     {ETIQUETAS_ESTADO[f.estado] ?? f.estado}
                   </span>
                 </td>

@@ -501,15 +501,39 @@ assert.equal(
   "reclamado",
   "y si el SII lo escribe con la palabra rechazo, también",
 );
-for (const [donde, fuente] of [
-  ["el panel", readFileSync(new URL("../components/finanzas/PanelFinanzas.tsx", import.meta.url), "utf8")],
-  ["el modal", readFileSync(new URL("../components/finanzas/ModalFactura.tsx", import.meta.url), "utf8")],
-] as const) {
-  assert.ok(
-    /reclamado: "Reclamada\/rechazada"/.test(fuente),
-    `${donde} rotula ese estado con las dos palabras: quien mira busca "rechazada"`,
-  );
-}
+// Que un rechazo cae en ese estado tiene que decirse en alguna parte. En la tabla, con
+// una palabra y el resto en el tooltip: "Reclamada/rechazada" partía la pastilla en dos
+// líneas, estiraba la fila y apretaba la columna de RUT hasta cortar el dígito
+// verificador. En el detalle, donde es una lista de etiqueta y valor, caben las dos.
+const panel = readFileSync(new URL("../components/finanzas/PanelFinanzas.tsx", import.meta.url), "utf8");
+const modal = readFileSync(new URL("../components/finanzas/ModalFactura.tsx", import.meta.url), "utf8");
+assert.ok(
+  /reclamado: "Reclamada"/.test(panel),
+  "la pastilla de la tabla dice una sola palabra: dos partían la fila en dos líneas",
+);
+assert.ok(
+  /TITULO_ESTADO[\s\S]{0,700}rechazada/.test(panel),
+  "y el tooltip explica que un rechazo cuenta acá, que es lo que la etiqueta corta se deja",
+);
+assert.ok(
+  /title=\{TITULO_ESTADO\[f\.estado\]\}/.test(panel),
+  "el tooltip está puesto en la pastilla, no solo declarado",
+);
+// Que la pastilla no se corte y que el RUT tampoco se MIDE en un navegador con el CSS
+// real: npm run probar-tabla. Acá solo se comprueba que el panel use esas clases y no una
+// copia suelta, que es lo que la otra prueba puede medir.
+assert.ok(
+  /PASTILLA_ESTADO\} \$\{CLASES_ESTADO\[f\.estado\]\}/.test(panel),
+  "la pastilla usa PASTILLA_ESTADO (lib/estilos.ts), que es lo que scripts/probar-tabla-facturas.mts mide",
+);
+assert.ok(
+  /\$\{CELDA_SIN_CORTE\} text-tinta\/60`\}>\{f\.rut_contraparte\}/.test(panel),
+  "y el RUT va en una celda que no se parte: partido en dos líneas no se puede leer ni copiar",
+);
+assert.ok(
+  /reclamado: "Reclamada o rechazada"/.test(modal),
+  "en el detalle, donde hay lugar, se dice completo",
+);
 
 // ── Los estados del código y los de la tabla ───────────────────────────────
 //

@@ -78,3 +78,25 @@ export const BARRA_FIJA =
  */
 export const HUECO_DE_BARRA =
   "pl-6 pr-6 lg:pr-10 lg:pl-[calc(var(--ancho-barra,16rem)+2.5rem)] transition-[padding] duration-200";
+
+/**
+ * La pastilla de estado de la tabla de facturas del SII.
+ *
+ * `inline-block whitespace-nowrap` no es decoración: con el texto suelto en la celda,
+ * una etiqueta de dos palabras —"Reclamada/rechazada", que estuvo un rato— parte en dos
+ * líneas, estira esa fila y deja la tabla con filas de distinta altura. De paso, la
+ * columna se ensancha y aprieta a las vecinas: el RUT quedó cortado en dos líneas con el
+ * dígito verificador solo abajo.
+ *
+ * La regla que quedó: la etiqueta de una pastilla es UNA palabra, y lo que haya que
+ * explicar va en su `title` (ver TITULO_ESTADO en PanelFinanzas) o en el detalle de la
+ * factura, donde es una lista de etiqueta y valor y hay lugar.
+ *
+ * Está acá, y no suelta en el componente, para que scripts/probar-tabla-facturas.mts
+ * mida las clases REALES en vez de una copia que se desactualiza.
+ */
+export const PASTILLA_ESTADO =
+  "inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold";
+
+/** Lo que nunca se parte en dos líneas: un RUT, un folio, una fecha, un monto. */
+export const CELDA_SIN_CORTE = "whitespace-nowrap";
