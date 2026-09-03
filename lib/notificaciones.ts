@@ -113,8 +113,56 @@ function obtenerCredencial(): ClientSecretCredential {
  * dos posibles son constantes de este archivo. Un aviso automatico que le pueda llegar a
  * cualquier direccion es una fuga esperando el dia que alguien edite la fila equivocada.
  */
+/**
+ * Que FORMA tiene el secreto que esta cargado EN ESTE DEPLOYMENT. Nunca su contenido.
+ *
+ * Se agrega al error cuando Azure rechaza la credencial, porque "Invalid client secret
+ * provided" no distingue las tres cosas que pueden estar pasando, y son muy distintas de
+ * arreglar:
+ *
+ *  - el valor es otro (se copio el Secret ID, o el secreto de otro app),
+ *  - el valor esta incompleto (la pantalla de Entra lo muestra truncado con puntos
+ *    suspensivos, y seleccionarlo con el mouse en vez de usar el boton de copiar se lleva
+ *    un pedazo),
+ *  - el valor es correcto pero ESTE deployment no lo tiene: en Vercel las variables son
+ *    una foto por deployment, asi que guardarla no alcanza si no se vuelve a desplegar
+ *    despues de guardarla.
+ *
+ * El largo lo decide: un Value completo son 40 caracteres con un "~". Cuarenta y rechazado
+ * es "el valor es otro"; menos, "esta cortado"; cero, "no llego a este deployment".
+ *
+ * El largo y si tiene "~" no alcanzan para reconstruir nada, y esto solo lo ve quien ya
+ * puede mandar el correo.
+ */
+function formaDelSecreto(): string {
+  const secreto = (process.env.MS_CLIENT_SECRET ?? "").trim();
+  if (!secreto) return "no hay MS_CLIENT_SECRET cargado";
+  const partes = [`${secreto.length} caracteres`];
+  partes.push(secreto.includes("~") ? 'contiene "~"' : 'NO contiene "~"');
+  if (secreto.endsWith("...") || secreto.endsWith("…")) partes.push("TERMINA EN PUNTOS SUSPENSIVOS");
+  return partes.join(", ");
+}
+
 async function enviar(destinatario: string, asunto: string, cuerpoTexto: string): Promise<void> {
-  const token = await obtenerCredencial().getToken(GRAPH_SCOPE);
+  let token;
+  try {
+    token = await obtenerCredencial().getToken(GRAPH_SCOPE);
+  } catch (error) {
+    const detalle = error instanceof Error ? error.message : String(error);
+    // AADSTS7000215 es "secreto invalido", y el caso mas comun no es que este mal sino que
+    // este INCOMPLETO. El mensaje de Azure no lo insinua; la forma del valor cargado si.
+    if (/7000215|invalid_client/i.test(detalle)) {
+      throw new Error(
+        "Microsoft rechazó el secreto del app de correo. El MS_CLIENT_SECRET que tiene " +
+          `ESTE deployment: ${formaDelSecreto()}. Un Value completo son 40 caracteres con ` +
+          '"~". Si dice 40 y aun así lo rechazan, el valor es de otro secreto o de otro ' +
+          "app; si dice menos, se copió cortado; si dice que no hay ninguno, la variable " +
+          "se guardó pero no se volvió a desplegar —en Vercel son una foto por " +
+          `deployment—. Detalle de Microsoft: ${detalle}`,
+      );
+    }
+    throw error;
+  }
   if (!token) throw new Error("No fue posible autenticar contra Microsoft Graph para enviar el correo.");
 
   const graph = Client.init({ authProvider: (done) => done(null, token.token) });

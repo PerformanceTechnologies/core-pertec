@@ -714,15 +714,35 @@ assert.ok(
   "si lo cargado tiene forma de GUID se avisa que es el Secret ID y no el Value, antes " +
     "de llamar a Azure",
 );
+// El VALOR nunca se interpola en ningún mensaje. Su largo sí —es lo que distingue un
+// secreto cortado de uno equivocado— y con el largo no se reconstruye nada.
 assert.ok(
-  !/\$\{secreto/.test(notif) && !/secreto\}/.test(notif),
-  "y el valor del secreto NUNCA va en un mensaje de error: se dice la forma que tiene, " +
-    "no el contenido",
+  !/\$\{secreto\}|\$\{secreto\.trim\(\)\}|\$\{secreto\.slice|secreto\.substring/.test(notif),
+  "el valor del secreto NUNCA va en un mensaje de error ni en un log: solo su forma",
 );
 assert.ok(
   /secreto\.trim\(\),/.test(notif),
   "el secreto se recorta: un espacio o un salto de línea pegado de más da el mismo " +
     "'Invalid client secret provided' sin insinuarlo",
+);
+
+// "Invalid client secret provided" no distingue tres cosas que se arreglan distinto: que
+// el valor sea otro, que esté incompleto (la pantalla de Entra lo muestra truncado con
+// puntos suspensivos), o que sea el correcto pero no haya llegado a ESTE deployment —en
+// Vercel las variables son una foto por deployment, así que guardarla no alcanza si no se
+// vuelve a desplegar después—. El largo del valor cargado las separa.
+assert.ok(
+  /7000215\|invalid_client/.test(notif) && /formaDelSecreto\(\)/.test(notif),
+  "cuando Azure rechaza el secreto, el error dice qué forma tiene el valor cargado",
+);
+assert.ok(
+  /\$\{secreto\.length\}|secreto\.length\}/.test(notif) && /includes\("~"\)/.test(notif),
+  "la forma es el largo y si trae «~»: con 28 caracteres y sin «~» el diagnóstico es " +
+    "inmediato, y con eso no se reconstruye nada",
+);
+assert.ok(
+  /TERMINA EN PUNTOS SUSPENSIVOS/.test(notif),
+  "y si alguien pegó los puntos suspensivos de la pantalla, se dice explícitamente",
 );
 // La forma se reconoce de verdad, no solo está escrita en el archivo.
 const formaDeGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
