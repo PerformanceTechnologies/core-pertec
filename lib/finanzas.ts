@@ -124,72 +124,19 @@ export async function guardarFacturasSii(filas: FacturaSii[]): Promise<number> {
 }
 
 /**
- * Las ventas que aparecen reclamadas y que NO estaban reclamadas en la base.
+ * Una fila de la tabla al tipo que usa el resto del módulo.
  *
- * Se consulta ANTES de guardar, porque después de guardar ya no se puede saber si el
- * reclamo es nuevo. Y "nuevo" es lo único que sirve para avisar: el reclamo se queda en
- * el RCV hasta que el cliente lo revierta, así que sin esta comparación cada corrida
- * mandaría de nuevo el mismo correo y en una semana nadie lo abre.
- *
- * Solo ventas: en compra el reclamo lo hace PERTEC, así que no es una novedad que haya
- * que avisarle a nadie.
+ * Los montos pasan por Number() aunque la fila los declare number: PostgREST puede
+ * devolver un numeric como string, y `suma + "42358564"` no suma, concatena — el total
+ * del correo saldría con veinte dígitos.
  */
-export async function reclamosNuevosDeVenta(filas: FacturaSii[]): Promise<FacturaSii[]> {
-  const reclamadas = filas.filter((f) => f.tipoDocumento === "venta" && f.estado === "reclamado");
-  if (reclamadas.length === 0) return [];
-
-  const { data } = await supabaseAdmin
-    .from("facturas_sii")
-    .select("codigo_dte, rut_contraparte, folio, estado")
-    .eq("tipo_documento", "venta")
-    .in(
-      "folio",
-      reclamadas.map((f) => f.folio),
-    );
-
-  // La clave natural completa, la misma del upsert: dos empresas distintas pueden
-  // emitir el mismo folio en tipos de documento distintos.
-  const clave = (f: { codigo_dte: number; rut_contraparte: string; folio: number }) =>
-    `${f.codigo_dte}|${f.rut_contraparte}|${f.folio}`;
-  const yaReclamadas = new Set(
-    (data ?? []).filter((f) => f.estado === "reclamado").map((f) => clave(f as never)),
-  );
-
-  return reclamadas.filter(
-    (f) => !yaReclamadas.has(clave({ codigo_dte: f.codigoDte, rut_contraparte: f.rutContraparte, folio: f.folio })),
-  );
-}
-
-/**
- * Las ventas que hoy figuran reclamadas o rechazadas, para poder reavisarlas.
- *
- * Distinta de reclamosNuevosDeVenta a propósito: esa compara contra lo guardado y
- * devuelve SOLO lo nuevo, que es lo correcto para el aviso automático —el reclamo se
- * queda en el RCV hasta que el cliente lo revierta, así que avisar lo viejo en cada
- * corrida termina en que nadie abre el correo—. Pero justo por eso, cuando el correo no
- * sale, no hay forma de reintentarlo: al releer ya no hay nada "nuevo" que avisar.
- *
- * Esto lee lo que hay, sin comparar nada. Lo usa el reenvío a mano.
- */
-export async function ventasReclamadas(): Promise<FacturaSii[]> {
-  const { data, error } = await supabaseAdmin
-    .from("facturas_sii")
-    .select("*")
-    .eq("tipo_documento", "venta")
-    .eq("estado", "reclamado")
-    .order("fecha_docto", { ascending: false });
-  if (error) throw new Error(error.message);
-
-  // Los montos se pasan por Number() aunque la fila los declare number: PostgREST puede
-  // devolver un numeric como string, y `suma + "42358564"` no suma, concatena — el total
-  // del correo saldría como un número de veinte dígitos.
+function comoFacturaSii(f: FacturaSiiFila): FacturaSii {
   const monto = (valor: number | null): number | null =>
     valor === null || valor === undefined ? null : Number(valor);
-
-  return (data ?? []).map((f) => ({
-    tipoDocumento: "venta" as const,
+  return {
+    tipoDocumento: f.tipo_documento,
     codigoDte: Number(f.codigo_dte),
-    estado: "reclamado" as const,
+    estado: f.estado,
     rutContraparte: f.rut_contraparte,
     razonSocial: f.razon_social,
     folio: Number(f.folio),
@@ -203,7 +150,77 @@ export async function ventasReclamadas(): Promise<FacturaSii[]> {
     periodo: f.periodo,
     fechaAcuse: f.fecha_acuse,
     fechaReclamo: f.fecha_reclamo,
-  }));
+  };
+}
+
+/**
+ * Las ventas reclamadas o rechazadas que TODAVÍA NO se avisaron.
+ *
+ * Lo que decide es `avisado_en`, no el estado. La primera versión comparaba el estado
+ * leído del SII contra el guardado y avisaba "lo nuevo", y eso tenía un agujero: la
+ * factura quedaba guardada como reclamada aunque el correo hubiera fallado, así que en la
+ * corrida siguiente ya no era nueva y no se avisaba nunca más. Pasó con nueve facturas
+ * por $121 millones: se guardaron, la pantalla dijo "avisadas por correo" y a Finanzas no
+ * le llegó nada, sin forma de reintentar.
+ *
+ * Con esto el reintento es automático: el sello se pone recién cuando el envío sale bien
+ * (ver marcarReclamosAvisados), así que un correo caído se vuelve a intentar solo en la
+ * corrida siguiente, y una vez avisado no se repite.
+ *
+ * Se consulta DESPUÉS de guardar, al contrario que antes: ahora la marca no es el estado,
+ * así que guardar no borra la información que hace falta para decidir.
+ *
+ * Solo ventas: en compra el reclamo lo hace PERTEC, no es una novedad para nadie.
+ */
+export async function reclamosSinAvisar(): Promise<FacturaSii[]> {
+  const { data, error } = await supabaseAdmin
+    .from("facturas_sii")
+    .select("*")
+    .eq("tipo_documento", "venta")
+    .eq("estado", "reclamado")
+    .is("avisado_en", null)
+    .order("fecha_docto", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((f) => comoFacturaSii(f as FacturaSiiFila));
+}
+
+/**
+ * Marca estas ventas como avisadas. Se llama SOLO si el correo salió.
+ *
+ * Si se llamara antes de enviar, o pase lo que pase con el envío, se vuelve al agujero de
+ * la primera versión: una factura marcada como avisada que nadie avisó.
+ */
+export async function marcarReclamosAvisados(reclamos: FacturaSii[]): Promise<void> {
+  if (reclamos.length === 0) return;
+  const ahora = new Date().toISOString();
+  // De a una y por su clave natural completa —la misma del upsert— porque dos empresas
+  // distintas pueden emitir el mismo folio en tipos de documento distintos.
+  for (const f of reclamos) {
+    const { error } = await supabaseAdmin
+      .from("facturas_sii")
+      .update({ avisado_en: ahora })
+      .eq("tipo_documento", "venta")
+      .eq("codigo_dte", f.codigoDte)
+      .eq("rut_contraparte", f.rutContraparte)
+      .eq("folio", f.folio);
+    if (error) throw new Error(error.message);
+  }
+}
+
+/**
+ * Olvida el aviso de una venta que ya no está reclamada.
+ *
+ * El cliente puede revertir un reclamo. Si después vuelve a reclamar la misma factura, eso
+ * es un hecho NUEVO y hay que avisarlo: sin esto, el sello viejo lo taparía para siempre.
+ */
+export async function olvidarAvisosDeReclamosRevertidos(): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("facturas_sii")
+    .update({ avisado_en: null })
+    .eq("tipo_documento", "venta")
+    .neq("estado", "reclamado")
+    .not("avisado_en", "is", null);
+  if (error) throw new Error(error.message);
 }
 
 export async function registrarEjecucion(

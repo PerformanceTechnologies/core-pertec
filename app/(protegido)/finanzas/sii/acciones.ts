@@ -7,18 +7,17 @@ import {
   extraerFacturasSii,
   hayColumnaDeEstadoDeVenta,
   type CamposDeApi,
-  type FacturaSii,
   type ColumnasDelCsv,
   type PantallaDeVenta,
 } from "@/lib/sii-rcv";
 import {
   guardarFacturasSii,
-  reclamosNuevosDeVenta,
+  marcarReclamosAvisados,
+  olvidarAvisosDeReclamosRevertidos,
+  reclamosSinAvisar,
   registrarEjecucion,
-  ventasReclamadas,
 } from "@/lib/finanzas";
-import { avisarDePrueba, avisarReclamos } from "@/lib/finanzas-aviso";
-import { CORREO_FINANZAS, CORREO_PRUEBA } from "@/lib/notificaciones";
+import { avisarReclamos } from "@/lib/finanzas-aviso";
 
 /**
  * Sincronizar el SII a mano, desde la pantalla.
@@ -130,7 +129,6 @@ export async function sincronizarSiiAction(
     let pantalla: PantallaDeVenta | null = null;
     const camposApi: CamposDeApi[] = [];
     const leidos: string[] = [];
-    const reclamos: FacturaSii[] = [];
     let documentos = 0;
     let guardados = 0;
     let ventas = 0;
@@ -152,8 +150,6 @@ export async function sincronizarSiiAction(
       // Cada mes se guarda al terminarlo: si el tope de tiempo corta el recorrido, lo
       // anterior ya está en la base y este resultado dice hasta dónde llegó.
       alTerminarPeriodo: async (periodo, filas) => {
-        // Antes de guardar: después ya no se puede saber si el reclamo es nuevo.
-        reclamos.push(...(await reclamosNuevosDeVenta(filas)));
         guardados += await guardarFacturasSii(filas);
         documentos += filas.length;
         ventas += filas.filter((f) => f.tipoDocumento === "venta").length;
@@ -168,11 +164,22 @@ export async function sincronizarSiiAction(
     // las columnas estaban ahí y la respuesta era simplemente que no hay reclamos.
     const sinEstado = ventas > 0 && !hayColumnaDeEstadoDeVenta(csvVenta);
 
+    // Un reclamo que el cliente revirtió deja de contar como avisado: si vuelve a
+    // reclamar la misma factura, es un hecho nuevo.
+    await olvidarAvisosDeReclamosRevertidos();
+
+    // DESPUÉS de guardar, y consultando la base: lo que decide a quién avisar es
+    // `avisado_en`, no el estado. Así un correo que no salió se reintenta solo en la
+    // corrida siguiente, y uno que salió no se repite nunca.
+    const reclamos = await reclamosSinAvisar();
+
     // El aviso, ANTES de registrar la corrida: así el resultado del envío queda en la
     // misma fila. Sin esto no había forma de contestar "¿salió el correo?" —el fallo se
     // atrapaba en un console.error que se pierde con los logs de Vercel— y la pantalla
     // igual decía "avisadas por correo a Finanzas", supiera o no.
     const envio = await avisarReclamos(reclamos);
+    // El sello, SOLO si salió. Marcarlo antes sería volver al agujero que esto arregla.
+    if (envio?.enviado) await marcarReclamosAvisados(reclamos);
 
     await registrarEjecucion(true, guardados, undefined, {
       aviso: envio ?? undefined,
@@ -202,109 +209,5 @@ export async function sincronizarSiiAction(
     // motivo —"Target page, context or browser has been closed", el Chromium que se muere
     // cuando la instancia ya lanzó dos— solo aparecía consultando la base.
     return { ...vacio, ok: false, error: mensaje };
-  }
-}
-
-export interface ResultadoReenvio {
-  ok: boolean;
-  folios: number[];
-  destinatario: string;
-  error?: string;
-}
-
-/**
- * Reenviar a Finanzas el aviso de las ventas que hoy figuran reclamadas.
- *
- * Existe porque el aviso automático NO se puede reintentar: manda solo los reclamos
- * NUEVOS —comparados contra lo guardado— y eso es lo correcto para que no llegue el mismo
- * correo todos los días. Pero significa que si el envío falla una vez, releer el período
- * ya no encuentra nada nuevo y el aviso se pierde para siempre. Pasó: se detectaron nueve
- * facturas reclamadas por $121 millones, la pantalla dijo "avisadas por correo" y a
- * finanzas@pertec.cl no llegó nada.
- *
- * Así que esto hace dos cosas con un solo botón: entrega la lista que Finanzas no recibió,
- * y —si vuelve a fallar— devuelve el error de Graph tal cual, que es lo único que permite
- * arreglarlo.
- *
- * El destinatario sigue siendo una constante de lib/notificaciones.ts: acá no se elige a
- * quién, solo cuándo.
- */
-export async function reenviarAvisoReclamosAction(): Promise<ResultadoReenvio> {
-  const usuario = await exigirAccesoApp(SLUG_APP);
-  if (usuario.rol !== "admin" && !(await usuarioPuedeVerSubpanelFinanzas(usuario.id, "sii"))) {
-    throw new Error("No tenés acceso a las facturas del SII.");
-  }
-
-  try {
-    const reclamadas = await ventasReclamadas();
-    const envio = await avisarReclamos(reclamadas);
-    if (!envio) {
-      return {
-        ok: true,
-        folios: [],
-        destinatario: CORREO_FINANZAS,
-        error: "No hay ventas reclamadas ni rechazadas: no había nada que avisar.",
-      };
-    }
-    // Queda constancia igual que en una corrida, con 0 documentos: no se leyó nada del
-    // SII, solo se reenvió. Así "¿salió el correo?" se contesta desde la base.
-    await registrarEjecucion(true, 0, undefined, { aviso: envio });
-    return {
-      ok: envio.enviado,
-      folios: envio.folios,
-      destinatario: envio.destinatario,
-      ...(envio.error ? { error: envio.error } : {}),
-    };
-  } catch (error) {
-    // Como en sincronizarSiiAction: se devuelve, no se lanza. Una Server Action que lanza
-    // llega al navegador enmascarada y el motivo hay que ir a buscarlo a la base.
-    const detalle = error instanceof Error ? error.message : "Error desconocido";
-    return { ok: false, folios: [], destinatario: CORREO_FINANZAS, error: detalle };
-  }
-}
-
-/**
- * Mandar el aviso a la dirección de prueba, para revisar la plantilla.
- *
- * Manda EXACTAMENTE el mismo correo que recibiría Finanzas —mismo asunto, mismo cuerpo,
- * mismas facturas— a CORREO_PRUEBA. No es un texto de ejemplo: si la prueba mostrara algo
- * distinto de lo que se manda, no serviría para aprobar nada.
- *
- * El destinatario NO es un parámetro. Es una constante de lib/notificaciones.ts, igual que
- * los otros dos, y eso no se relaja porque uno de los usos sea una prueba: un aviso
- * automático que le pueda llegar a cualquier dirección es una fuga esperando el día que
- * alguien edite la fila equivocada.
- *
- * No queda constancia en finanzas_sii_ejecuciones: no es una corrida, y una prueba
- * anotada como corrida ensucia el registro que se usa para saber si el aviso real salió.
- */
-export async function probarAvisoAction(): Promise<ResultadoReenvio> {
-  const usuario = await exigirAccesoApp(SLUG_APP);
-  if (usuario.rol !== "admin" && !(await usuarioPuedeVerSubpanelFinanzas(usuario.id, "sii"))) {
-    throw new Error("No tenés acceso a las facturas del SII.");
-  }
-
-  try {
-    const reclamadas = await ventasReclamadas();
-    const envio = await avisarDePrueba(reclamadas);
-    if (!envio) {
-      return {
-        ok: true,
-        folios: [],
-        destinatario: CORREO_PRUEBA,
-        error:
-          "No hay ventas reclamadas ni rechazadas, así que no hay correo que mostrar. " +
-          "La prueba manda el aviso REAL, no un ejemplo inventado.",
-      };
-    }
-    return {
-      ok: envio.enviado,
-      folios: envio.folios,
-      destinatario: envio.destinatario,
-      ...(envio.error ? { error: envio.error } : {}),
-    };
-  } catch (error) {
-    const detalle = error instanceof Error ? error.message : "Error desconocido";
-    return { ok: false, folios: [], destinatario: CORREO_PRUEBA, error: detalle };
   }
 }

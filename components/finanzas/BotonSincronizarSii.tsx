@@ -2,11 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import {
-  probarAvisoAction,
-  reenviarAvisoReclamosAction,
-  sincronizarSiiAction,
-} from "@/app/(protegido)/finanzas/sii/acciones";
+import { sincronizarSiiAction } from "@/app/(protegido)/finanzas/sii/acciones";
 import RuedaCarga from "@/components/RuedaCarga";
 
 /**
@@ -98,8 +94,8 @@ export default function BotonSincronizarSii() {
         setMensaje({
           texto:
             r.reclamos.length > 0
-              ? `${donde}: ${r.reclamos.length} venta(s) reclamada(s) o rechazada(s) ` +
-                `—folio ${r.reclamos.join(", ")}—. ` +
+              ? `${donde}: ${r.reclamos.length} venta(s) reclamada(s) o rechazada(s) sin ` +
+                `avisar —folio ${r.reclamos.join(", ")}—. ` +
                 // Se dice si el correo SALIÓ, no que se mandó. Antes decía "avisadas por
                 // correo a Finanzas" siempre, supiera o no: el envío va por Graph y su
                 // fallo se atrapaba en un console.error que nadie mira.
@@ -109,39 +105,8 @@ export default function BotonSincronizarSii() {
                     "Se avisó a soporte; las facturas están acá igual.")
               : // Se dice CUÁNTAS ventas se miraron: "ninguna reclamada" sobre cero ventas
                 // no dice nada, y era lo que pasaba al releer solo el mes en curso.
-                `${donde}: ${r.ventas} venta(s) leída(s), ninguna reclamada ni rechazada.`,
+                `${donde}: ${r.ventas} venta(s) leída(s). Sin rechazos nuevos por avisar.`,
           error: r.reclamos.length > 0 && !r.avisoEnviado,
-        });
-      } finally {
-        setPaso(null);
-      }
-    });
-
-  /**
-   * Reenviar el aviso de las reclamadas que ya están guardadas.
-   *
-   * El aviso automático manda solo los reclamos NUEVOS, así que si el correo falla una
-   * vez, releer no lo reintenta: ya no hay nada nuevo. Pasó —nueve facturas por $121
-   * millones que la pantalla dio por avisadas y a Finanzas no llegaron— y sin esto la
-   * única salida era borrar el estado guardado para que volvieran a parecer nuevas.
-   *
-   * Con confirmación porque manda un correo de verdad a Finanzas.
-   */
-  const reenviar = (aPrueba = false) =>
-    iniciarTransicion(async () => {
-      setMensaje(null);
-      setColumnas(null);
-      setPaso(aPrueba ? "la prueba del aviso" : "el aviso a Finanzas");
-      try {
-        const r = aPrueba ? await probarAvisoAction() : await reenviarAvisoReclamosAction();
-        setMensaje({
-          texto: r.ok
-            ? r.folios.length > 0
-              ? `Aviso enviado a ${r.destinatario} con ${r.folios.length} factura(s): folio ` +
-                `${r.folios.join(", ")}.`
-              : (r.error ?? "No había nada que avisar.")
-            : `El correo a ${r.destinatario} NO salió: ${r.error ?? "motivo desconocido"}`,
-          error: !r.ok,
         });
       } finally {
         setPaso(null);
@@ -185,47 +150,15 @@ export default function BotonSincronizarSii() {
       >
         Poner al día {CUANTOS_MESES} meses
       </button>
-      <button
-        type="button"
-        disabled={pendiente}
-        onClick={() => {
-          if (
-            window.confirm(
-              "Se le va a enviar a Finanzas un correo con todas las ventas que hoy figuran " +
-                "reclamadas o rechazadas. ¿Enviarlo?",
-            )
-          ) {
-            reenviar();
-          }
-        }}
-        className={claseBoton}
-        title="Reenvía el aviso de las reclamadas ya guardadas. Sirve cuando el correo automático no salió."
-      >
-        Reenviar aviso a Finanzas
-      </button>
-      {/* Manda el MISMO correo a la dirección de prueba, para poder revisar la plantilla
-          —y cómo llega fuera del tenant— sin escribirle a Finanzas. Sin confirmación: no
-          le llega a nadie del trabajo. */}
-      <button
-        type="button"
-        disabled={pendiente}
-        onClick={() => reenviar(true)}
-        className={claseBoton}
-        title="Manda el mismo aviso, con las mismas facturas, a la dirección de prueba."
-      >
-        Probar aviso (a mi correo)
-      </button>
       {/* Se dice cuánto tarda ANTES de apretar: son minutos y el botón parece colgado. */}
       <span
         className={`text-xs ${mensaje?.error ? "text-red-600" : "text-tinta/50"}`}
       >
-        {paso === "el aviso a Finanzas" || paso === "la prueba del aviso"
-          ? "Enviando el aviso…"
-          : paso
-            ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`
-            : mensaje
-              ? mensaje.texto
-              : "La corrida diaria cubre los últimos 15 días. Para los meses anteriores, ponelos al día una vez."}
+        {paso
+          ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`
+          : mensaje
+            ? mensaje.texto
+            : "La corrida diaria cubre los últimos 15 días. Para los meses anteriores, ponelos al día una vez."}
       </span>
       {columnas && (
         <details className="basis-full text-xs text-tinta/60">

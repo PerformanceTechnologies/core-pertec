@@ -6,7 +6,13 @@ import {
   type PantallaDeVenta,
 } from "@/lib/sii-rcv";
 import { avisarReclamos } from "@/lib/finanzas-aviso";
-import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
+import {
+  guardarFacturasSii,
+  marcarReclamosAvisados,
+  olvidarAvisosDeReclamosRevertidos,
+  reclamosSinAvisar,
+  registrarEjecucion,
+} from "@/lib/finanzas";
 import { enviarCorreoSoporte } from "@/lib/notificaciones";
 
 export const maxDuration = 60; // limite del plan Hobby de Vercel
@@ -88,12 +94,17 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // ANTES de guardar: despues ya no se puede saber si el reclamo es nuevo, y lo unico
-    // que sirve avisar es lo nuevo — el reclamo se queda en el RCV hasta que el cliente lo
-    // revierta, asi que sin esto cada corrida mandaria el mismo correo.
-    const reclamos = await reclamosNuevosDeVenta(filas);
-
     const nuevas = await guardarFacturasSii(filas);
+
+    // Un reclamo que el cliente revirtio deja de contar como avisado: si vuelve a reclamar
+    // la misma factura, es un hecho nuevo.
+    await olvidarAvisosDeReclamosRevertidos();
+
+    // DESPUES de guardar, y consultando la base: lo que decide a quien avisar es
+    // `avisado_en` y no el estado. La primera version comparaba el estado leido contra el
+    // guardado, asi que una factura quedaba marcada como reclamada aunque el correo
+    // hubiera fallado y no se avisaba nunca mas.
+    const reclamos = await reclamosSinAvisar();
     // Cuando el CSV de ventas no trae NINGUNA columna de estado: ese es el caso en que
     // el panel no puede saber. Que un mes no tenga reclamos no es una anomalia.
     const ventas = filas.filter((f) => f.tipoDocumento === "venta");
@@ -103,6 +114,8 @@ export async function GET(request: NextRequest) {
     // envio y su resultado los maneja avisarReclamos, el mismo que usa la relectura desde
     // la pantalla — antes cada uno hacia lo suyo y solo el cron avisaba a soporte.
     const envio = await avisarReclamos(reclamos);
+    // El sello, SOLO si salio: asi un correo caido se reintenta solo manana.
+    if (envio?.enviado) await marcarReclamosAvisados(reclamos);
 
     // Y la constancia va en la misma fila de la corrida: sin esto no habia forma de
     // contestar "salio el correo?" mas que mirando el buzon.

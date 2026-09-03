@@ -364,11 +364,44 @@ assert.ok(sinMonto);
 assert.ok(sinMonto.cuerpo.includes("—"), "un monto que no vino se dice, no se inventa");
 assert.ok(sinMonto.cuerpo.includes("(sin razón social)"));
 
-// ── Que el aviso salga de la corrida, una sola vez ──────────────────────────
+// ── Que el aviso salga una sola vez, y que uno fallido se reintente ────────
+//
+// Lo que decide a quién avisar es la columna avisado_en, y NO el estado. La primera
+// versión comparaba el estado leído del SII contra el guardado y avisaba "lo nuevo": la
+// factura quedaba guardada como reclamada aunque el correo hubiera fallado, así que en la
+// corrida siguiente ya no era nueva y no se avisaba nunca más. Pasó con nueve facturas por
+// $121 millones —guardadas, dadas por avisadas, y a Finanzas no llegó nada—.
 const finanzas = readFileSync(new URL("../lib/finanzas.ts", import.meta.url), "utf8");
 assert.ok(
-  finanzas.includes("export async function reclamosNuevosDeVenta"),
-  "los reclamos nuevos se detectan comparando con lo guardado",
+  finanzas.includes("export async function reclamosSinAvisar"),
+  "se avisa lo que NO se avisó, no lo que es nuevo",
+);
+assert.ok(
+  /\.is\("avisado_en", null\)/.test(finanzas),
+  "y eso se decide por avisado_en, que es la única marca que un correo fallido no deja",
+);
+assert.ok(
+  /export async function marcarReclamosAvisados/.test(finanzas) &&
+    /avisado_en: ahora/.test(finanzas),
+  "el sello se pone en su propia función, para que se pueda llamar SOLO si el envío salió",
+);
+// Y el sello se pone después del envío y condicionado a él, en los dos caminos.
+for (const [donde, fuente] of [
+  ["el cron", cron],
+  ["la acción", readFileSync(new URL("../app/(protegido)/finanzas/sii/acciones.ts", import.meta.url), "utf8")],
+] as const) {
+  assert.ok(
+    /if \(envio\?\.enviado\) await marcarReclamosAvisados\(reclamos\)/.test(fuente),
+    `${donde} marca como avisado SOLO si el correo salió: marcarlo antes es el agujero ` +
+      "que esto arregla",
+  );
+}
+// Un reclamo revertido olvida su aviso: si el cliente reclama de nuevo la misma factura,
+// es un hecho nuevo y sin esto el sello viejo lo taparía para siempre.
+assert.ok(
+  /export async function olvidarAvisosDeReclamosRevertidos/.test(finanzas) &&
+    /\.neq\("estado", "reclamado"\)/.test(finanzas),
+  "un reclamo que se revierte olvida su aviso",
 );
 // Sobre el CUERPO del handler y no sobre el archivo: en los imports los nombres van en
 // otro orden y la comprobación pasaría (o fallaría) por eso.
@@ -388,9 +421,10 @@ const enOrden = (donde: string, antes: string, despues: string): boolean => {
 };
 
 assert.ok(
-  enOrden(cuerpoCron, "reclamosNuevosDeVenta", "guardarFacturasSii"),
-  "y se detectan ANTES de guardar: después ya no se puede saber si el reclamo es nuevo, y " +
-    "avisar de uno viejo en cada corrida es la forma más rápida de que nadie abra el correo",
+  enOrden(cuerpoCron, "guardarFacturasSii", "reclamosSinAvisar"),
+  "los reclamos por avisar se consultan DESPUÉS de guardar: al no depender del estado, " +
+    "guardar ya no borra la información con la que se decide (antes era al revés, y por " +
+    "eso tenía que ir antes)",
 );
 assert.ok(
   cron.includes("avisarReclamos"),
@@ -538,8 +572,10 @@ assert.ok(
     "último no puede llevarse los anteriores",
 );
 assert.ok(
-  /reclamosNuevosDeVenta[\s\S]{0,120}guardarFacturasSii/.test(accion),
-  "y dentro de cada mes detecta los reclamos ANTES de guardar, igual que el cron",
+  /alTerminarPeriodo[\s\S]{0,300}guardarFacturasSii/.test(accion) &&
+    accion.indexOf("guardarFacturasSii") < accion.indexOf("reclamosSinAvisar"),
+  "guarda cada mes y consulta los reclamos por avisar al final, una sola vez: preguntarlo " +
+    "por mes mandaría un correo por mes de la misma corrida",
 );
 assert.ok(
   /r\.leidos\.length/.test(boton),
@@ -683,43 +719,17 @@ assert.ok(
   "y la pantalla dice si el correo salió en vez de afirmarlo siempre",
 );
 
-// ── Un aviso que no salió se tiene que poder reintentar ────────────────────
-//
-// El aviso automático manda solo los reclamos NUEVOS —comparados contra lo guardado— y
-// eso es lo correcto: el reclamo se queda en el RCV hasta que el cliente lo revierta, así
-// que avisar lo viejo en cada corrida termina en que nadie abre el correo. Pero significa
-// que un envío fallido no se puede reintentar releyendo: ya no hay nada nuevo. Pasó, con
-// nueve facturas por $121 millones que la pantalla dio por avisadas.
+// El reintento de un aviso fallido ya no necesita un botón: al no marcarse como avisado,
+// la corrida siguiente lo vuelve a tomar sola. El botón de reenviar y el de prueba se
+// sacaron por eso —y porque el de reenviar mandaba TODO de nuevo, incluidas las ya
+// avisadas, que es justo lo que no tiene que pasar—.
 assert.ok(
-  finanzasLib.includes("export async function ventasReclamadas"),
-  "hay una forma de leer las reclamadas YA guardadas, sin comparar contra nada",
+  !/reenviarAvisoReclamosAction|probarAvisoAction/.test(accion),
+  "no quedan acciones de reenvío ni de prueba",
 );
 assert.ok(
-  /estado", "reclamado"/.test(finanzasLib) && !/yaReclamadas/.test(
-    finanzasLib.slice(
-      finanzasLib.indexOf("export async function ventasReclamadas"),
-      finanzasLib.indexOf("export async function registrarEjecucion"),
-    ),
-  ),
-  "y no filtra por 'nuevo': si lo hiciera, tendría el mismo problema que quiere resolver",
-);
-assert.ok(
-  /Number\(valor\)/.test(finanzasLib),
-  "los montos pasan por Number(): PostgREST puede devolver un numeric como string, y " +
-    "`suma + \"42358564\"` concatena en vez de sumar — el total del correo saldría con " +
-    "veinte dígitos",
-);
-assert.ok(
-  accion.includes("export async function reenviarAvisoReclamosAction"),
-  "y hay una acción para reenviarlo a mano",
-);
-assert.ok(
-  /registrarEjecucion\(true, 0, undefined, \{ aviso: envio \}\)/.test(accion),
-  "el reenvío también deja constancia, con 0 documentos: no leyó el SII, solo avisó",
-);
-assert.ok(
-  /window\.confirm/.test(boton) && /Reenviar aviso a Finanzas/.test(boton),
-  "con confirmación, porque manda un correo de verdad a Finanzas",
+  !/Reenviar aviso|Probar aviso|window\.confirm/.test(boton),
+  "ni sus botones en la pantalla",
 );
 
 // ── Y que la falta de configuración se lea ─────────────────────────────────
@@ -792,9 +802,14 @@ assert.ok(!formaDeGuid.test("abc8Q~Xk2lM.pQr_sTu-vWxYz1234567890AB"), "un Value 
 // relaja, pase lo que pase con la configuración —ni cuando uno de los usos es una prueba—.
 assert.ok(
   /export const CORREO_FINANZAS = "finanzas@pertec\.cl"/.test(notif) &&
-    /const CORREO_SOPORTE = "soporte@pertec\.cl"/.test(notif) &&
-    /export const CORREO_PRUEBA = "[^"]+"/.test(notif),
-  "los TRES destinatarios son constantes de este archivo, no parámetros de nadie",
+    /const CORREO_SOPORTE = "soporte@pertec\.cl"/.test(notif),
+  "los destinatarios son constantes de este archivo, no parámetros de nadie",
+);
+// La dirección de prueba se fue con los botones: nada automático la usaba y una dirección
+// externa en el código de los avisos es una que alguien puede reutilizar sin pensarlo.
+assert.ok(
+  !/CORREO_PRUEBA|gmail/.test(notif),
+  "y no queda ninguna dirección de prueba en el archivo de notificaciones",
 );
 // enviar() recibe el destinatario como parámetro, pero es PRIVADA: no se exporta, y las
 // tres funciones que la llaman le pasan su constante. Lo que se comprueba es eso —que
@@ -804,31 +819,10 @@ assert.ok(
   /^async function enviar\(/m.test(notif) && !/export async function enviar\(/.test(notif),
   "enviar(destinatario, …) es privada de lib/notificaciones.ts",
 );
-for (const publica of ["enviarCorreoSoporte", "enviarCorreoFinanzas", "enviarCorreoDePrueba"]) {
+for (const publica of ["enviarCorreoSoporte", "enviarCorreoFinanzas"]) {
   const firma = new RegExp(
     `export async function ${publica}\\(asunto: string, cuerpoTexto: string\\)`,
   );
   assert.ok(firma.test(notif), `${publica} no recibe destinatario: solo asunto y cuerpo`);
 }
-const acciones = readFileSync(
-  new URL("../app/(protegido)/finanzas/sii/acciones.ts", import.meta.url),
-  "utf8",
-);
-
-// La prueba manda el MISMO aviso que recibiría Finanzas, armado por la misma función. Si
-// tuviera su propio texto, aprobaría una plantilla y Finanzas recibiría otra.
-assert.ok(
-  /avisoDeReclamos\(reclamos\)/.test(libAviso.slice(libAviso.indexOf("avisarDePrueba"))),
-  "el envío de prueba usa avisoDeReclamos, no un texto de ejemplo",
-);
-assert.ok(
-  !/registrarEjecucion/.test(acciones.slice(acciones.indexOf("export async function probarAvisoAction"))),
-  "y no deja constancia como corrida: una prueba anotada así ensucia el registro que se " +
-    "usa para saber si el aviso real salió",
-);
-assert.ok(
-  !/enviarCorreoSoporte/.test(libAviso.slice(libAviso.indexOf("avisarDePrueba"))),
-  "ni le avisa a soporte si falla: una prueba que no sale es una prueba, no un incidente",
-);
-
 console.log("Todas las verificaciones pasaron.");
