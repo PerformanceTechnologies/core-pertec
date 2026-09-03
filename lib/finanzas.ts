@@ -1,12 +1,13 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
-import type { FacturaSii } from "./sii-rcv";
+import { ESTADOS_FACTURA, type EstadoFactura, type FacturaSii } from "./sii-rcv";
 
 export interface FacturaSiiFila {
   id: string;
   tipo_documento: "compra" | "venta";
   codigo_dte: number;
-  estado: "registro" | "pendiente" | "no_incluir" | "reclamado" | "aceptado";
+  /** Ver ESTADOS_FACTURA: la tabla tiene un CHECK con esos mismos valores. */
+  estado: EstadoFactura;
   rut_contraparte: string;
   razon_social: string | null;
   folio: number;
@@ -83,7 +84,23 @@ export async function guardarFacturasSii(filas: FacturaSii[]): Promise<number> {
       { onConflict: "tipo_documento,codigo_dte,rut_contraparte,folio", count: "exact" }
     );
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // El CHECK de estado rechaza el valor pero no lo nombra: Postgres dice
+    // "violates check constraint facturas_sii_estado_check" y nada mas. Pasó con
+    // "aceptado", que se agregó al código y no a la tabla, y sin esto la próxima vez
+    // vuelve a costar una corrida entera darse cuenta de cuál valor sobra.
+    if (error.message.includes("facturas_sii_estado_check")) {
+      const intentados = [...new Set(filas.map((f) => f.estado))].sort();
+      const sobran = intentados.filter((e) => !ESTADOS_FACTURA.includes(e));
+      throw new Error(
+        `${error.message} — se intentó guardar: ${intentados.join(", ")}.` +
+          (sobran.length > 0
+            ? ` No están en ESTADOS_FACTURA: ${sobran.join(", ")}.`
+            : " Todos están en ESTADOS_FACTURA, así que falta la migración del CHECK en la tabla."),
+      );
+    }
+    throw new Error(error.message);
+  }
   return count ?? filas.length;
 }
 

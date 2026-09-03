@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { avisoDeReclamos } from "../lib/finanzas-reclamos";
 import {
+  ESTADOS_FACTURA,
   hayColumnaDeEstadoDeVenta,
   parsearCsvRcv,
   planDeLectura,
@@ -509,5 +510,32 @@ for (const [donde, fuente] of [
     `${donde} rotula ese estado con las dos palabras: quien mira busca "rechazada"`,
   );
 }
+
+// ── Los estados del código y los de la tabla ───────────────────────────────
+//
+// facturas_sii.estado tiene un CHECK con estos mismos valores, y los dos lados se
+// desincronizaron: "aceptado" se agregó al código y no a la tabla, así que la
+// sincronización murió con "violates check constraint facturas_sii_estado_check" en
+// cuanto una venta trajo acuse de recibo —que es la mayoría—. Y como el error llegaba
+// desde Postgres, no decía qué valor sobraba.
+//
+// La lista no se puede comparar contra la base desde una prueba, así que lo que se
+// verifica es que haya UN solo lugar donde se dice, y que el error sepa explicarse.
+assert.deepEqual(
+  [...ESTADOS_FACTURA].sort(),
+  ["aceptado", "no_incluir", "pendiente", "reclamado", "registro"],
+  "si esta lista cambia, hace falta una migración del CHECK de facturas_sii.estado: " +
+    "agregar uno solo en el código deja la sincronización cayéndose en producción",
+);
+assert.ok(
+  finanzasLib.includes("estado: EstadoFactura"),
+  "la fila de la tabla usa el mismo tipo, no una copia del union que se desincronice",
+);
+assert.ok(
+  /facturas_sii_estado_check[\s\S]{0,600}se intentó guardar/.test(finanzasLib) &&
+    /falta la migración del CHECK/.test(finanzasLib),
+  "y cuando el CHECK rechaza algo, el error dice qué estados se intentaron guardar y si " +
+    "el que falta es la migración: Postgres solo dice el nombre de la restricción",
+);
 
 console.log("Todas las verificaciones pasaron.");

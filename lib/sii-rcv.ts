@@ -32,7 +32,25 @@ import { lanzarNavegador } from "./playwright-navegador";
 // lo que hizo la primera version y parecia una respuesta—.
 
 export type TipoDocumento = "compra" | "venta";
-export type EstadoFactura = "registro" | "pendiente" | "no_incluir" | "reclamado" | "aceptado";
+/**
+ * Los estados que puede tener una fila, y los unicos que la tabla acepta.
+ *
+ * En UNA lista y no en el tipo suelto porque hay un CHECK en facturas_sii.estado con
+ * estos mismos valores, y los dos lados se pueden desincronizar: "aceptado" se agrego
+ * aca y no alla, y la sincronizacion murio con "violates check constraint
+ * facturas_sii_estado_check" en cuanto una venta trajo acuse de recibo —que es la
+ * mayoria—. AGREGAR UNO ACA OBLIGA A UNA MIGRACION del check; ver el comentario de la
+ * columna en la base, que dice de donde sale cada valor.
+ */
+export const ESTADOS_FACTURA = [
+  "registro",
+  "pendiente",
+  "no_incluir",
+  "reclamado",
+  "aceptado",
+] as const;
+
+export type EstadoFactura = (typeof ESTADOS_FACTURA)[number];
 
 const SUBESTADOS_COMPRA: { etiquetaTab: string; estado: EstadoFactura }[] = [
   { etiquetaTab: "Registro", estado: "registro" },
