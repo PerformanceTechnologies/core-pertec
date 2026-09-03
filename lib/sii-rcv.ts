@@ -565,6 +565,61 @@ export interface OpcionesExtraccion {
   alMirarVenta?: (info: PantallaDeVenta) => void;
   /** Se llama con los nombres de campo de cada respuesta JSON del RCV. Ver CamposDeApi. */
   alVerJson?: (info: CamposDeApi) => void;
+  /**
+   * Se llama al terminar CADA periodo, con sus filas ya filtradas.
+   *
+   * Para poder guardar de a un mes dentro de una sola sesion del navegador. Varios meses
+   * necesitan un solo login y un solo Chromium —lanzar uno por mes agota la instancia de
+   * Vercel: se vio como "ERR_INSUFFICIENT_RESOURCES" y "Target page, context or browser
+   * has been closed" a partir del tercero— pero si todo se guardara al final, un tope de
+   * tiempo en el ultimo mes se llevaria tambien los anteriores.
+   *
+   * Si lanza, se propaga: guardar es la razon de leer.
+   */
+  alTerminarPeriodo?: (periodo: string, filas: FacturaSii[]) => Promise<void>;
+}
+
+/** Qué periodos hay que leer y desde qué dia se guardan. Ver planDeLectura. */
+export interface PlanDeLectura {
+  periodos: string[];
+  /** Fecha de documento minima (YYYY-MM-DD), o null para guardar el periodo entero. */
+  desde: string | null;
+}
+
+const comoPeriodo = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+/**
+ * Qué se va a leer, y qué de eso se guarda.
+ *
+ * Pura y exportada porque acá estuvo el error que hizo que releer un mes viejo no
+ * sirviera para nada: los periodos pedidos a mano se leian completos, pero al final se
+ * filtraba TODO por la ventana de 15 dias, asi que releer julio guardaba cero filas de
+ * julio. No se noto durante dias porque el boton arrancaba en el mes en curso, cuyas
+ * facturas caen dentro de la ventana y pasan el filtro.
+ *
+ * Las tres formas de pedir, y son distintas a proposito:
+ *
+ * - `periodos: ["2026-07"]` — releer eso, COMPLETO. Se pide justamente para actualizar
+ *   el estado de lo que ya es mas viejo que la ventana; filtrarlo lo vaciaria.
+ * - `cargaInicial: true` — el mes en curso, completo.
+ * - ninguno de los dos — la corrida diaria: el mes en curso y, si la ventana cruza el
+ *   limite de mes, tambien el anterior, guardando solo los ultimos `ventanaDias` dias.
+ *   Alcanza para siempre: el cliente tiene 8 dias corridos para reclamar.
+ */
+export function planDeLectura(opciones: OpcionesExtraccion, hoy: Date): PlanDeLectura {
+  const relectura = (opciones.periodos ?? []).filter((p) => /^\d{4}-\d{2}$/.test(p));
+  if (relectura.length > 0) return { periodos: [...new Set(relectura)].sort(), desde: null };
+
+  const desde = new Date(hoy);
+  desde.setDate(desde.getDate() - (opciones.ventanaDias ?? 15));
+
+  const periodos = new Set<string>([comoPeriodo(hoy)]);
+  if (!opciones.cargaInicial) periodos.add(comoPeriodo(desde));
+  return {
+    periodos: [...periodos].sort(),
+    desde: opciones.cargaInicial ? null : desde.toISOString().slice(0, 10),
+  };
 }
 
 export async function extraerFacturasSii(
@@ -575,21 +630,7 @@ export async function extraerFacturasSii(
   // asi que con una ventana de 7 un reclamo del octavo dia caia justo afuera y
   // el panel se quedaba con el estado viejo para siempre. Quince deja margen
   // para el fin de semana largo y para un dia que el cron no corrio.
-  const ventanaDias = opciones.ventanaDias ?? 15;
-  const hoy = new Date();
-  const desde = new Date(hoy);
-  desde.setDate(desde.getDate() - ventanaDias);
-
-  const relectura = (opciones.periodos ?? []).filter((p) => /^\d{4}-\d{2}$/.test(p));
-  const periodos = new Set<string>(relectura);
-  if (relectura.length === 0) {
-    periodos.add(`${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`);
-    // La relectura de periodos completos NO filtra por dia: se pide justamente para
-    // actualizar el estado de lo que ya es mas viejo que la ventana.
-    if (!opciones.cargaInicial && relectura.length === 0) {
-      periodos.add(`${desde.getFullYear()}-${String(desde.getMonth() + 1).padStart(2, "0")}`);
-    }
-  }
+  const { periodos, desde: desdeIso } = planDeLectura(opciones, new Date());
 
   const browser = await lanzarNavegador();
   try {
@@ -597,25 +638,25 @@ export async function extraerFacturasSii(
     if (opciones.alVerJson) escucharJson(page, opciones.alVerJson);
     await login(page, creds);
 
+    // El filtro se aplica POR PERIODO y no al final, porque cada periodo se entrega
+    // apenas se termina de leer (ver alTerminarPeriodo).
     let filas: FacturaSii[] = [];
     for (const periodo of periodos) {
       const [anio, mes] = periodo.split("-");
-      filas = filas.concat(
-        await consultarPeriodo(
-          page,
-          creds.rutEmpresa,
-          mes,
-          anio,
-          CODIGOS_DTE_INCLUIDOS,
-          opciones.alLeerCsv,
-          opciones.alMirarVenta
-        )
+      const leidas = await consultarPeriodo(
+        page,
+        creds.rutEmpresa,
+        mes,
+        anio,
+        CODIGOS_DTE_INCLUIDOS,
+        opciones.alLeerCsv,
+        opciones.alMirarVenta
       );
-    }
-
-    if (!opciones.cargaInicial) {
-      const desdeIso = desde.toISOString().slice(0, 10);
-      filas = filas.filter((f) => !f.fechaDocto || f.fechaDocto >= desdeIso);
+      const delPeriodo = desdeIso
+        ? leidas.filter((f) => !f.fechaDocto || f.fechaDocto >= desdeIso)
+        : leidas;
+      if (opciones.alTerminarPeriodo) await opciones.alTerminarPeriodo(periodo, delPeriodo);
+      filas = filas.concat(delPeriodo);
     }
 
     return filas;

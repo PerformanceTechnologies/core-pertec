@@ -13,30 +13,17 @@ import RuedaCarga from "@/components/RuedaCarga";
  * que se leyeron antes de que el panel supiera derivar el estado quedaron con el dato
  * viejo, y la corrida diaria nunca vuelve a mirarlas.
  *
- * De ahí los dos botones. "Releer período" es para un mes puntual. "Poner al día" pasa
- * por los últimos meses una vez y deja el historial parejo — que es una tarea de una vez,
- * no de todos los días.
+ * De ahí los dos botones: uno para un mes puntual, y "Poner al día" para dejar parejo el
+ * historial — que es una tarea de una vez, no de todos los días.
  *
- * El recorrido va desde el navegador, un mes por llamada, y NO en una sola llamada con
- * varios períodos: el scraper abre un navegador, se loguea y baja un CSV por sub-pestaña,
- * así que un mes son minutos y la función tiene tope de 300 s. Tres meses juntos se
- * cortan a la mitad sin dejar registro de qué alcanzó a guardarse; así, cada mes es su
- * propia invocación con su propio tope y lo que se guardó queda guardado.
- *
- * Con una pausa entre meses y un reintento por mes, porque tres Chromium en treinta
- * segundos no los aguanta una instancia: el tercero murió con "Target page, context or
- * browser has been closed". La pausa le da lugar a la instancia para soltar el anterior,
- * y el reintento suele caer en otra. Un mes que falla dos veces NO corta el recorrido: se
- * anota y se sigue con los demás, que es lo contrario de lo que hacía antes.
+ * TODO en UNA llamada, aunque sean varios meses. La primera versión hacía una llamada por
+ * mes desde acá, y no aguanta: a partir del tercer Chromium la instancia de Vercel se
+ * queda sin recursos y el navegador se muere antes del login. Reintentar desde el cliente
+ * no lo arregla, porque la instancia sigue caliente. El servidor abre un navegador, hace
+ * un login y recorre los meses adentro, guardando mes por mes.
  */
 
-const CUANTOS_MESES = 6;
-/** Aire entre meses para que la instancia suelte el Chromium anterior. */
-const PAUSA_ENTRE_MESES = 8_000;
-/** Antes de reintentar, más aire todavía: lo que se busca es caer en otra instancia. */
-const PAUSA_ANTES_DE_REINTENTAR = 20_000;
-
-const esperar = (ms: number) => new Promise((listo) => setTimeout(listo, ms));
+const CUANTOS_MESES = 4;
 
 /** Los últimos meses, del más nuevo al más viejo. */
 function ultimosPeriodos(cuantos = CUANTOS_MESES): { valor: string; rotulo: string }[] {
@@ -50,39 +37,6 @@ function ultimosPeriodos(cuantos = CUANTOS_MESES): { valor: string; rotulo: stri
   });
 }
 
-interface Fallido {
-  periodo: string;
-  error: string;
-}
-
-/** Lo que se cuenta al terminar. Un texto armado a mano se vuelve inconsistente solo. */
-function resumen(
-  leidos: string[],
-  ventas: number,
-  reclamos: number[],
-  fallidos: Fallido[],
-  rotuloDe: (valor: string) => string,
-): string {
-  const donde =
-    leidos.length === 0
-      ? "Ningún mes"
-      : leidos.length === 1
-        ? rotuloDe(leidos[0])
-        : `${leidos.length} meses (${rotuloDe(leidos[leidos.length - 1])} a ${rotuloDe(leidos[0])})`;
-  const bien =
-    reclamos.length > 0
-      ? `${donde}: ${reclamos.length} venta(s) reclamada(s) —folio ${reclamos.join(", ")}—, ` +
-        "avisadas por correo a Finanzas."
-      : // Se dice CUÁNTAS ventas se miraron: "ninguna reclamada" sobre cero ventas no
-        // dice nada, y era lo que pasaba —se releía el mes en curso, que tenía una sola—.
-        `${donde}: ${ventas} venta(s) leída(s), ninguna reclamada.`;
-  if (fallidos.length === 0) return bien;
-  // El motivo REAL, en pantalla. Antes llegaba el error genérico de Server Components y
-  // había que ir a buscar el mensaje a la base para saber qué había pasado.
-  const detalle = fallidos.map((f) => `${rotuloDe(f.periodo)} (${f.error})`).join("; ");
-  return `${bien} No se pudo leer: ${detalle}. Se puede reintentar solo ese mes.`;
-}
-
 export default function BotonSincronizarSii() {
   const periodos = ultimosPeriodos();
   const rotuloDe = (valor: string) => periodos.find((p) => p.valor === valor)?.rotulo ?? valor;
@@ -94,44 +48,45 @@ export default function BotonSincronizarSii() {
   // Se muestran porque es el dato con el que se arregla, no un detalle de adorno.
   const [columnas, setColumnas] = useState<string[] | null>(null);
 
-  /** Recorre los períodos en orden, uno por llamada, y cuenta lo que encontró. */
   const releer = (cuales: string[]) =>
     iniciarTransicion(async () => {
       setMensaje(null);
       setColumnas(null);
-      let ventas = 0;
-      const reclamos: number[] = [];
-      const leidos: string[] = [];
-      const fallidos: Fallido[] = [];
-      const donde = (i: number, cual: string) =>
-        cuales.length > 1 ? `${i + 1} de ${cuales.length} · ${rotuloDe(cual)}` : rotuloDe(cual);
-
-      for (const [i, cual] of cuales.entries()) {
-        if (i > 0) await esperar(PAUSA_ENTRE_MESES);
-        setPaso(donde(i, cual));
-        let r = await sincronizarSiiAction(cual);
+      setPaso(
+        cuales.length === 1
+          ? rotuloDe(cuales[0])
+          : `${cuales.length} meses (${rotuloDe(cuales[cuales.length - 1])} a ${rotuloDe(cuales[0])})`,
+      );
+      try {
+        const r = await sincronizarSiiAction(cuales);
+        if (r.columnasVenta) setColumnas(r.columnasVenta);
+        const donde =
+          r.leidos.length === cuales.length
+            ? `${cuales.length === 1 ? rotuloDe(cuales[0]) : `${cuales.length} meses`}`
+            : `${r.leidos.length} de ${cuales.length} meses`;
         if (!r.ok) {
-          // Un reintento, con pausa: el fallo típico es que la instancia no aguantó otro
-          // Chromium, y el segundo intento suele caer en otra.
-          setPaso(`${donde(i, cual)} · reintentando`);
-          await esperar(PAUSA_ANTES_DE_REINTENTAR);
-          r = await sincronizarSiiAction(cual);
+          // El motivo REAL, en pantalla: una Server Action que lanza llega enmascarada, y
+          // el mensaje había que ir a buscarlo a la base. Ahora viaja como dato.
+          setMensaje({
+            texto:
+              `${r.error ?? "No se pudo consultar el SII."}` +
+              (r.leidos.length > 0 ? ` Se alcanzó a guardar ${donde}.` : ""),
+            error: true,
+          });
+          return;
         }
-        if (r.ok) {
-          leidos.push(cual);
-          ventas += r.ventas;
-          reclamos.push(...r.reclamos);
-          if (r.columnasVenta) setColumnas(r.columnasVenta);
-        } else {
-          // Se ANOTA y se sigue: un mes que no salió no puede dejar sin leer a los demás.
-          fallidos.push({ periodo: cual, error: r.error ?? "no se pudo consultar el SII" });
-        }
+        setMensaje({
+          texto:
+            r.reclamos.length > 0
+              ? `${donde}: ${r.reclamos.length} venta(s) reclamada(s) o rechazada(s) ` +
+                `—folio ${r.reclamos.join(", ")}—, avisadas por correo a Finanzas.`
+              : // Se dice CUÁNTAS ventas se miraron: "ninguna reclamada" sobre cero ventas
+                // no dice nada, y era lo que pasaba al releer solo el mes en curso.
+                `${donde}: ${r.ventas} venta(s) leída(s), ninguna reclamada ni rechazada.`,
+        });
+      } finally {
+        setPaso(null);
       }
-      setPaso(null);
-      setMensaje({
-        texto: resumen(leidos, ventas, reclamos, fallidos, rotuloDe),
-        error: fallidos.length > 0 && leidos.length === 0,
-      });
     });
 
   const claseBoton =
@@ -160,11 +115,9 @@ export default function BotonSincronizarSii() {
       <button
         type="button"
         disabled={pendiente}
-        // Del más viejo al más nuevo: si se corta a la mitad, lo que quedó al día es lo
-        // más viejo, que es justamente lo que la corrida diaria no vuelve a mirar.
-        onClick={() => releer(periodos.map((p) => p.valor).reverse())}
+        onClick={() => releer(periodos.map((p) => p.valor))}
         className={claseBoton}
-        title={`Relee los últimos ${CUANTOS_MESES} meses, uno por uno. Tarda varios minutos.`}
+        title={`Relee los últimos ${CUANTOS_MESES} meses en una sola pasada. Tarda varios minutos.`}
       >
         Poner al día {CUANTOS_MESES} meses
       </button>

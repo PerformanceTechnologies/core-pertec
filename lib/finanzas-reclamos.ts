@@ -1,7 +1,12 @@
 import type { FacturaSii } from "./sii-rcv";
 
 /**
- * El aviso de una factura de venta reclamada.
+ * El aviso de una factura de venta reclamada o rechazada.
+ *
+ * Es lo mismo, y por eso hay un solo aviso: en el SII el rechazo del receptor es uno de
+ * los tres reclamos posibles (RCD, reclamo al contenido; RFP y RFT, por falta parcial o
+ * total de mercaderías), no un estado aparte. Los tres significan lo mismo para Finanzas
+ * y los tres tienen que avisar.
  *
  * Una factura reclamada es plata que no se va a cobrar como está: el cliente rechazó el
  * documento y hay que emitir una nota de crédito o corregirlo antes de que se venza el
@@ -23,7 +28,7 @@ function detalle(factura: FacturaSii): string {
     `${ETIQUETA_DTE[factura.codigoDte] ?? `DTE ${factura.codigoDte}`} N° ${factura.folio}`,
     `  Cliente:      ${factura.razonSocial ?? "(sin razón social)"} · ${factura.rutContraparte}`,
     `  Emitida:      ${factura.fechaDocto ?? "—"}`,
-    `  Reclamada:    ${factura.fechaReclamo ?? "—"}`,
+    `  Reclamo:      ${factura.fechaReclamo ?? "—"}`,
     `  Monto total:  ${pesos(factura.montoTotal)}`,
     `  Neto / IVA:   ${pesos(factura.montoNeto)} / ${pesos(factura.montoIvaRecuperable)}`,
     `  Período RCV:  ${factura.periodo}`,
@@ -49,13 +54,14 @@ export function avisoDeReclamos(reclamadas: FacturaSii[]): AvisoDeReclamos | nul
   const total = reclamadas.reduce((suma, f) => suma + (f.montoTotal ?? 0), 0);
   const asunto =
     cuantas === 1
-      ? `Factura de venta RECLAMADA: N° ${reclamadas[0].folio} · ${reclamadas[0].razonSocial ?? reclamadas[0].rutContraparte}`
-      : `${cuantas} facturas de venta RECLAMADAS por ${pesos(total)}`;
+      ? `Factura de venta RECLAMADA/RECHAZADA: N° ${reclamadas[0].folio} · ${reclamadas[0].razonSocial ?? reclamadas[0].rutContraparte}`
+      : `${cuantas} facturas de venta RECLAMADAS/RECHAZADAS por ${pesos(total)}`;
 
   const cuerpo = [
     cuantas === 1
-      ? "El cliente reclamó una factura de venta en el SII."
-      : `Hay ${cuantas} facturas de venta reclamadas por clientes en el SII, por ${pesos(total)} en total.`,
+      ? "El cliente reclamó o rechazó una factura de venta en el SII."
+      : `Hay ${cuantas} facturas de venta reclamadas o rechazadas por clientes en el SII, ` +
+        `por ${pesos(total)} en total.`,
     "",
     "Una factura reclamada no se cobra como está: hay que revisar el motivo con el cliente y",
     "corregir el documento o emitir la nota de crédito que corresponda.",

@@ -17,7 +17,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { avisoDeReclamos } from "../lib/finanzas-reclamos";
-import { hayColumnaDeEstadoDeVenta, parsearCsvRcv, type FacturaSii } from "../lib/sii-rcv";
+import {
+  hayColumnaDeEstadoDeVenta,
+  parsearCsvRcv,
+  planDeLectura,
+  type FacturaSii,
+} from "../lib/sii-rcv";
 
 // ── El estado de una venta sale del CSV, y esto se prueba CON un CSV ───────
 //
@@ -186,38 +191,82 @@ const compra = parsearCsvRcv(
 );
 assert.equal(compra[0].estado, "pendiente");
 
-// La ventana de sincronización tiene que cubrir el plazo de reclamo (8 días corridos).
-const ventana = /const ventanaDias = opciones\.ventanaDias \?\? (\d+);/.exec(scraper);
-assert.ok(ventana, "no se encontró la ventana de días del scraper");
-assert.ok(
-  Number(ventana[1]) >= 15,
-  `la ventana es de ${ventana[1]} días y el cliente tiene 8 corridos para reclamar: con 7 ` +
-    "—lo que había— un reclamo del octavo día caía afuera y el estado quedaba viejo para siempre",
-);
+// ── Qué se lee y qué de eso se guarda ──────────────────────────────────────
+//
+// Acá estuvo el error que hizo que releer un mes viejo no sirviera para nada, y que se
+// tardó días en ver: los períodos pedidos a mano se leían completos, pero al final se
+// filtraba TODO por la ventana de 15 días, así que releer julio guardaba cero filas de
+// julio. No se notó porque el botón arrancaba en el mes en curso, cuyas facturas caen
+// dentro de la ventana y pasan el filtro.
+//
+// La prueba que había era un regex sobre el archivo, y daba por buena la guarda del
+// conjunto de períodos —que sí estaba— en vez del filtro, que era el que faltaba. Ahora
+// la decisión es una función pura y se prueba por lo que hace.
 const cron = readFileSync(new URL("../app/api/cron/finanzas-sii/route.ts", import.meta.url), "utf8");
+const HOY = new Date("2026-09-03T12:00:00Z");
+
+// Releer períodos a mano: completos, sin filtro. Es lo único que puede actualizar el
+// estado de algo más viejo que la ventana.
+const relectura = planDeLectura({ cargaInicial: false, periodos: ["2026-07", "2026-08"] }, HOY);
+assert.deepEqual(relectura.periodos, ["2026-07", "2026-08"]);
+assert.equal(
+  relectura.desde,
+  null,
+  "una relectura NO filtra por día: filtrarla la vacía, que es exactamente lo que pasaba " +
+    "—releer julio guardaba cero filas de julio y el panel seguía mostrando el dato viejo—",
+);
+
+// La corrida diaria: mes en curso más el anterior si la ventana cruza el límite de mes,
+// guardando solo la ventana. El 3 de septiembre, 15 días atrás es el 19 de agosto.
+const diaria = planDeLectura({ cargaInicial: false, ventanaDias: 15 }, HOY);
+assert.deepEqual(diaria.periodos, ["2026-08", "2026-09"], "cruza el límite de mes y lee los dos");
+assert.equal(diaria.desde, "2026-08-19");
+
+// La ventana tiene que cubrir el plazo de reclamo: 8 días corridos. Con los 7 que había,
+// un reclamo del octavo día caía afuera y el estado quedaba viejo para siempre.
+const porOmision = planDeLectura({ cargaInicial: false }, HOY);
+assert.ok(porOmision.desde);
+const dias = Math.round(
+  (HOY.getTime() - new Date(`${porOmision.desde}T12:00:00Z`).getTime()) / 86_400_000,
+);
+assert.ok(dias >= 15, `la ventana por omisión es de ${dias} días y hacen falta al menos 15`);
 assert.ok(
   /ventanaDias: (1[5-9]|[2-9]\d)/.test(cron),
   "y el cron pide esa ventana explícitamente, no la que venga por omisión",
 );
 
-// ── Releer un período completo ──────────────────────────────────────────────
-//
-// La corrida diaria mira 15 días, así que una factura más vieja que eso no se vuelve a
-// consultar nunca y se queda con el estado que tenía el día que se leyó. Al cambiar cómo
-// se deriva el estado de una venta, todo el historial quedó con el dato viejo —"registro"
-// en cada una— y sin esto no había forma de actualizarlo.
-assert.ok(
-  /periodos\?: string\[\]/.test(scraper),
-  "se pueden pedir períodos completos para releer",
+// La carga inicial: el mes en curso, completo.
+const inicial = planDeLectura({ cargaInicial: true }, HOY);
+assert.deepEqual(inicial.periodos, ["2026-09"]);
+assert.equal(inicial.desde, null);
+
+// Un período mal escrito no se lee como si fuera válido.
+assert.deepEqual(
+  planDeLectura({ cargaInicial: false, periodos: ["agosto", "2026-8"] }, HOY).periodos,
+  ["2026-08", "2026-09"],
+  "un período inválido se descarta y se cae a la corrida diaria, no se lee cualquier cosa",
 );
-assert.ok(
-  /relectura\.length === 0[\s\S]{0,400}filas = filas\.filter/.test(scraper) ||
-    /!opciones\.cargaInicial && relectura\.length === 0/.test(scraper),
-  "y una relectura NO filtra por día: se pide justamente para lo más viejo que la ventana",
+
+// Y los meses se leen del más viejo al más nuevo: si el tope de tiempo corta el
+// recorrido, lo que queda al día es lo que la corrida diaria no vuelve a mirar nunca.
+const varios = planDeLectura(
+  { cargaInicial: false, periodos: ["2026-09", "2026-06", "2026-08"] },
+  HOY,
 );
+assert.deepEqual(varios.periodos, ["2026-06", "2026-08", "2026-09"]);
+
 assert.ok(
   cron.includes('searchParams.get("meses")') && cron.includes('searchParams.get("periodos")'),
   "el cron acepta pedirlo a mano, que es lo que arregla el historial ya guardado",
+);
+
+// Varios meses van en UNA llamada, con un solo navegador: uno por mes agota la instancia
+// de Vercel —"ERR_INSUFFICIENT_RESOURCES" a partir del tercer Chromium— y los meses que
+// importaban nunca se leyeron. Y se guarda mes por mes, para que el tope de tiempo en el
+// último no se lleve los anteriores.
+assert.ok(
+  /alTerminarPeriodo/.test(scraper),
+  "el scraper entrega cada período al terminarlo, para poder guardarlo ahí mismo",
 );
 
 // ── El aviso a Finanzas ─────────────────────────────────────────────────────
@@ -246,6 +295,10 @@ assert.equal(avisoDeReclamos([]), null, "sin reclamos no hay correo: un aviso va
 const una = avisoDeReclamos([reclamada({})]);
 assert.ok(una);
 assert.ok(una.asunto.includes("198") && una.asunto.includes("SALFA SA"), "el asunto dice cuál es");
+assert.ok(
+  /RECLAMADA\/RECHAZADA/.test(una.asunto),
+  "y lo nombra con las dos palabras: se pidió que una rechazada avise igual que una reclamada",
+);
 for (const dato of ["76.929.210-1", "2026-08-14", "$42.358.564", "202608"]) {
   assert.ok(una.cuerpo.includes(dato), `el detalle incluye ${dato}`);
 }
@@ -378,10 +431,13 @@ assert.ok(
   "hay una forma de poner al día los meses anteriores: sin eso el historial nunca se " +
     "actualiza, porque la corrida diaria filtra a los últimos 15 días",
 );
+// Y los meses van en UNA sola llamada, no una por mes: el bucle en el cliente abría un
+// Chromium por mes y a partir del tercero la instancia se quedaba sin recursos, así que
+// junio, julio y agosto —los que importaban— nunca se leyeron. El orden lo pone el
+// servidor (planDeLectura, probado arriba).
 assert.ok(
-  /\.reverse\(\)/.test(boton),
-  "y va del mes más viejo al más nuevo: si se corta, lo que queda al día es lo que la " +
-    "corrida diaria no vuelve a mirar",
+  /sincronizarSiiAction\(cuales\)/.test(boton) && !/for \(.*of cuales/.test(boton),
+  "el cliente pide todos los meses de una vez: un Chromium por mes agota la instancia",
 );
 assert.ok(
   /ventas \(le[íi]da/.test(boton) || /ventas\b[^\n]*le[íi]da/.test(boton),
@@ -415,19 +471,43 @@ assert.ok(
   "sin dejar de guardarlo en la base: en pantalla se lee ahora, en la base queda después",
 );
 
-// Y un mes que falla no puede dejar sin leer a los demás.
+// Y lo que se cortó por tiempo no se pierde ni se calla: cada mes se guarda al leerlo, y
+// el resultado dice cuántos se alcanzaron.
 assert.ok(
-  /reintentando/.test(boton) && /PAUSA_ANTES_DE_REINTENTAR/.test(boton),
-  "el recorrido reintenta el mes que falló, con pausa: el segundo intento suele caer en " +
-    "otra instancia",
+  /alTerminarPeriodo: async \(periodo, filas\)/.test(accion) &&
+    /leidos\.push\(periodo\)/.test(accion),
+  "la acción guarda cada mes al terminarlo y anota cuáles: un tope de tiempo en el " +
+    "último no puede llevarse los anteriores",
 );
 assert.ok(
-  /fallidos\.push/.test(boton) && !/throw/.test(boton),
-  "y si vuelve a fallar lo anota y sigue con los demás meses, en vez de cortar todo",
+  /reclamosNuevosDeVenta[\s\S]{0,120}guardarFacturasSii/.test(accion),
+  "y dentro de cada mes detecta los reclamos ANTES de guardar, igual que el cron",
 );
 assert.ok(
-  /PAUSA_ENTRE_MESES/.test(boton),
-  "con aire entre meses: tres Chromium en treinta segundos no los aguanta una instancia",
+  /r\.leidos\.length/.test(boton),
+  "y el botón dice cuántos meses se leyeron de los pedidos, no solo si salió bien",
 );
+
+// ── Reclamada y rechazada son lo mismo, y las dos avisan ───────────────────
+//
+// En el SII el rechazo del receptor es uno de los tres reclamos (RCD al contenido, RFP y
+// RFT por falta de mercadería), no un estado aparte. Se pidió explícitamente que una
+// factura rechazada se trate igual que una reclamada, así que se prueba la cadena
+// completa: el evento se lee, el estado queda en reclamado, y el aviso lo nombra.
+assert.equal(unaVenta({ "Evento Receptor": "RCD" }).estado, "reclamado", "rechazo = reclamo");
+assert.equal(
+  unaVenta({ "Evento Receptor": "Rechazado por el receptor" }).estado,
+  "reclamado",
+  "y si el SII lo escribe con la palabra rechazo, también",
+);
+for (const [donde, fuente] of [
+  ["el panel", readFileSync(new URL("../components/finanzas/PanelFinanzas.tsx", import.meta.url), "utf8")],
+  ["el modal", readFileSync(new URL("../components/finanzas/ModalFactura.tsx", import.meta.url), "utf8")],
+] as const) {
+  assert.ok(
+    /reclamado: "Reclamada\/rechazada"/.test(fuente),
+    `${donde} rotula ese estado con las dos palabras: quien mira busca "rechazada"`,
+  );
+}
 
 console.log("Todas las verificaciones pasaron.");

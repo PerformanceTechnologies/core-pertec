@@ -8,7 +8,10 @@ const ETIQUETAS_ESTADO: Record<string, string> = {
   aceptado: "Aceptada",
   pendiente: "Pendiente",
   no_incluir: "No incluir",
-  reclamado: "Reclamado",
+  // "o rechazada" a proposito: en el SII un rechazo del receptor es uno de los tres
+  // reclamos (RCD, reclamo al contenido), no un estado aparte. Quien mira el panel busca
+  // la palabra rechazada, asi que la etiqueta dice las dos.
+  reclamado: "Reclamada/rechazada",
 };
 
 const ETIQUETAS_DTE: Record<number, string> = {

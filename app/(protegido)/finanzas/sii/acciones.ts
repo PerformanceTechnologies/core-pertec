@@ -7,6 +7,7 @@ import {
   extraerFacturasSii,
   hayColumnaDeEstadoDeVenta,
   type CamposDeApi,
+  type FacturaSii,
   type ColumnasDelCsv,
   type PantallaDeVenta,
 } from "@/lib/sii-rcv";
@@ -33,16 +34,27 @@ import { enviarCorreoFinanzas } from "@/lib/notificaciones";
  * /finanzas la ruta a declarar no era evidente. Con el archivo acá, la ruta es la de esta
  * carpeta y no hay nada que adivinar.
  *
- * DE A UN PERÍODO, y no todos juntos: el scraper abre un navegador, se loguea y baja un
- * CSV por cada sub-pestaña, así que un período son minutos y la función tiene tope. Tres
- * períodos en una sola llamada se cortan a la mitad y no queda registro de qué alcanzó a
- * guardarse.
+ * TODOS LOS PERÍODOS EN UNA LLAMADA, con un solo navegador y un solo login. Lo primero
+ * que se intentó fue lo contrario —una llamada por mes desde el navegador— y no aguanta:
+ * a partir del tercer Chromium la instancia de Vercel se queda sin recursos y el
+ * navegador se muere antes de llegar al login ("ERR_INSUFFICIENT_RESOURCES", "Target
+ * page, context or browser has been closed"). Reintentar desde el cliente no lo arregla,
+ * porque la instancia sigue caliente. Un navegador para todos los meses no solo evita
+ * eso: es más rápido, porque el login se hace una vez.
+ *
+ * El riesgo que esto trae es el tope de 300 s, y se cubre guardando MES POR MES
+ * (alTerminarPeriodo): si se corta en el quinto, los cuatro anteriores ya están en la
+ * base. Por eso los meses se leen del más viejo al más nuevo — el más viejo es el que la
+ * corrida diaria no vuelve a mirar nunca.
  */
 
 const SLUG_APP = "finanzas";
 
 export interface ResultadoSincronizacion {
-  periodo: string;
+  /** Los períodos que se pidieron. */
+  periodos: string[];
+  /** Los que se alcanzaron a leer Y guardar. Puede ser menos, si se cortó por tiempo. */
+  leidos: string[];
   /**
    * Si la lectura salió. En false, mirar `error`; los contadores quedan en cero.
    *
@@ -72,7 +84,9 @@ export interface ResultadoSincronizacion {
   columnasVenta?: string[];
 }
 
-export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSincronizacion> {
+export async function sincronizarSiiAction(
+  periodos: string[],
+): Promise<ResultadoSincronizacion> {
   const usuario = await exigirAccesoApp(SLUG_APP);
   // El mismo permiso que para VER el subpanel: quien puede mirar las facturas puede
   // pedirle al SII que las relea. No es una escritura de negocio, es refrescar un espejo.
@@ -80,9 +94,12 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
     throw new Error("No tenés acceso a las facturas del SII.");
   }
 
-  const vacio = { periodo, documentos: 0, guardados: 0, ventas: 0, reclamos: [] };
-  if (!/^\d{4}-\d{2}$/.test(periodo)) {
-    return { ...vacio, ok: false, error: `"${periodo}" no es un período válido. Se espera AAAA-MM.` };
+  // Del más viejo al más nuevo: si el tope de tiempo corta el recorrido, lo que queda al
+  // día es lo más viejo, que es justo lo que la corrida diaria no vuelve a mirar.
+  const pedidos = [...new Set(periodos)].filter((p) => /^\d{4}-\d{2}$/.test(p)).sort();
+  const vacio = { periodos: pedidos, leidos: [], documentos: 0, guardados: 0, ventas: 0, reclamos: [] };
+  if (pedidos.length === 0) {
+    return { ...vacio, ok: false, error: "No se pidió ningún período válido (se espera AAAA-MM)." };
   }
 
   const creds = {
@@ -95,16 +112,22 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
   }
 
   try {
-    const columnas = new Map<string, string[]>();
+    let csvVenta: string[] = [];
     let pantalla: PantallaDeVenta | null = null;
     const camposApi: CamposDeApi[] = [];
-    const filas = await extraerFacturasSii(creds, {
+    const leidos: string[] = [];
+    const reclamos: FacturaSii[] = [];
+    let documentos = 0;
+    let guardados = 0;
+    let ventas = 0;
+
+    await extraerFacturasSii(creds, {
       cargaInicial: false,
-      // Período completo, sin filtro de día: se pide justamente para lo más viejo que la
-      // ventana de la corrida diaria.
-      periodos: [periodo],
+      // Períodos completos, sin filtro de día: se piden justamente para lo más viejo que
+      // la ventana de la corrida diaria (ver planDeLectura).
+      periodos: pedidos,
       alLeerCsv: (info: ColumnasDelCsv) => {
-        if (info.tipoDocumento === "venta") columnas.set("venta", info.columnas);
+        if (info.tipoDocumento === "venta") csvVenta = info.columnas;
       },
       alMirarVenta: (info: PantallaDeVenta) => {
         pantalla = info;
@@ -112,25 +135,29 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
       alVerJson: (info: CamposDeApi) => {
         camposApi.push(info);
       },
+      // Cada mes se guarda al terminarlo: si el tope de tiempo corta el recorrido, lo
+      // anterior ya está en la base y este resultado dice hasta dónde llegó.
+      alTerminarPeriodo: async (periodo, filas) => {
+        // Antes de guardar: después ya no se puede saber si el reclamo es nuevo.
+        reclamos.push(...(await reclamosNuevosDeVenta(filas)));
+        guardados += await guardarFacturasSii(filas);
+        documentos += filas.length;
+        ventas += filas.filter((f) => f.tipoDocumento === "venta").length;
+        leidos.push(periodo);
+      },
     });
-
-    // Antes de guardar: después ya no se puede saber si el reclamo es nuevo.
-    const reclamos = await reclamosNuevosDeVenta(filas);
-    const guardados = await guardarFacturasSii(filas);
 
     // El diagnóstico se guarda cuando el CSV no trae NINGUNA columna de estado, que es
     // el único caso en que el panel no puede saber. La primera versión lo disparaba
     // cuando ninguna venta traía estado, y eso dio la alarma al revés: septiembre tiene
     // una sola venta y no está reclamada, así que informó "el SII no dijo nada" cuando
     // las columnas estaban ahí y la respuesta era simplemente que no hay reclamos.
-    const ventas = filas.filter((f) => f.tipoDocumento === "venta");
-    const csvVenta = columnas.get("venta") ?? [];
-    const sinEstado = ventas.length > 0 && !hayColumnaDeEstadoDeVenta(csvVenta);
+    const sinEstado = ventas > 0 && !hayColumnaDeEstadoDeVenta(csvVenta);
     await registrarEjecucion(
       true,
       guardados,
       undefined,
-      sinEstado ? { periodo, csvVenta, pantallaVenta: pantalla, camposApi } : undefined,
+      sinEstado ? { periodos: pedidos, csvVenta, pantallaVenta: pantalla, camposApi } : undefined,
     );
 
     const aviso = avisoDeReclamos(reclamos);
@@ -145,12 +172,13 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
 
     revalidatePath("/finanzas/sii");
     return {
-      periodo,
+      periodos: pedidos,
+      leidos,
       ok: true,
-      documentos: filas.length,
+      documentos,
       guardados,
       reclamos: reclamos.map((f) => f.folio),
-      ventas: ventas.length,
+      ventas,
       ...(sinEstado ? { columnasVenta: csvVenta } : {}),
     };
   } catch (error) {
