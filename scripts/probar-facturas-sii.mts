@@ -17,6 +17,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { avisoDeReclamos } from "../lib/finanzas-reclamos";
+import { MESES_QUE_SE_RELEEN, ultimosPeriodos } from "../lib/finanzas-periodos";
 import {
   ESTADOS_FACTURA,
   hayColumnaDeEstadoDeVenta,
@@ -259,6 +260,73 @@ assert.deepEqual(varios.periodos, ["2026-06", "2026-08", "2026-09"]);
 assert.ok(
   cron.includes('searchParams.get("meses")') && cron.includes('searchParams.get("periodos")'),
   "el cron acepta pedirlo a mano, que es lo que arregla el historial ya guardado",
+);
+
+// ── Qué relee la corrida automática ────────────────────────────────────────
+//
+// Meses COMPLETOS y no una ventana de días. La ventana alcanzaba para detectar un
+// reclamo —el cliente tiene 8 días corridos— pero no para arreglar el pasado: cuando
+// cambió cómo se deriva el estado de una venta, todo lo más viejo que la ventana quedó
+// con el dato anterior y nada lo volvía a mirar. Con los meses completos, un cambio de
+// lógica se cura solo en la corrida siguiente.
+assert.equal(MESES_QUE_SE_RELEEN, 4);
+assert.deepEqual(
+  ultimosPeriodos(new Date("2026-09-03T12:00:00Z")),
+  ["2026-06", "2026-07", "2026-08", "2026-09"],
+  "los últimos cuatro meses, del más viejo al más nuevo",
+);
+// Del más viejo al más nuevo, y esto no es cosmético: si el tope de tiempo corta el
+// recorrido, lo que queda al día es lo que ninguna otra corrida vuelve a mirar.
+assert.equal(
+  ultimosPeriodos(new Date("2026-09-03T12:00:00Z"))[0],
+  "2026-06",
+  "el primero es el más viejo",
+);
+// El cruce de año, que es donde una cuenta a mano se equivoca.
+assert.deepEqual(
+  ultimosPeriodos(new Date("2027-01-15T12:00:00Z")),
+  ["2026-10", "2026-11", "2026-12", "2027-01"],
+  "en enero se leen los tres meses del año anterior",
+);
+assert.deepEqual(ultimosPeriodos(new Date("2026-09-03T12:00:00Z"), 1), ["2026-09"]);
+
+// El cron los pide por omisión, sin que nadie le pase nada por la URL: es lo que hace que
+// esto sea automático y no un botón que alguien tenga que acordarse de apretar.
+assert.ok(
+  /searchParams\.get\("meses"\) \?\? MESES_QUE_SE_RELEEN/.test(cron) &&
+    /pedidos\.length \? pedidos : ultimosPeriodos\(new Date\(\), cuantos\)/.test(cron),
+  "por omisión el cron relee los últimos MESES_QUE_SE_RELEEN meses completos",
+);
+
+// Y le tiene que alcanzar el tiempo: los cuatro meses son unos 80 segundos —login más
+// ~9 segundos por período, medido— y el tope estaba en 60 con un comentario que decía
+// "límite del plan Hobby" que ya no aplicaba. Con 60 el cron se cortaba en el tercer mes.
+const topeCron = /export const maxDuration = (\d+)/.exec(cron);
+assert.ok(topeCron, "el cron declara maxDuration");
+assert.ok(
+  Number(topeCron[1]) >= 300,
+  `el tope del cron es ${topeCron[1]} s y los cuatro meses tardan unos 80: con 60 se cortaba`,
+);
+
+// Varias veces al día, que es lo que se pidió. Los crons de Vercel van en UTC y Chile es
+// UTC-3, así que 11 a 23 UTC son 08:00 a 20:00 de acá.
+const vercelJson = JSON.parse(
+  readFileSync(new URL("../vercel.json", import.meta.url), "utf8"),
+) as { crons: { path: string; schedule: string }[] };
+const delSii = vercelJson.crons.filter((c) => c.path === "/api/cron/finanzas-sii");
+assert.ok(
+  delSii.length >= 5,
+  `el SII se relee ${delSii.length} vez/veces al día y se pidió que fuera durante el día`,
+);
+const horas = delSii.map((c) => Number(c.schedule.split(" ")[1])).sort((a, b) => a - b);
+assert.ok(
+  horas.every((h) => h >= 11 && h <= 23),
+  `las corridas van entre 11 y 23 UTC (08:00 a 20:00 en Chile); hay ${horas.join(", ")}`,
+);
+assert.ok(
+  delSii.every((c) => /^0 \d+ \* \* \*$/.test(c.schedule)),
+  "todas diarias y en punto: un cron de Vercel se corre con hasta una hora de atraso, así " +
+    "que apuntar a minutos exactos no dice nada",
 );
 
 // Varios meses van en UNA llamada, con un solo navegador: uno por mes agota la instancia
@@ -508,14 +576,18 @@ assert.ok(
   boton.includes("columnasVenta") && /ninguna columna de acuse ni de reclamo/.test(boton),
   "y el botón lo dice con esas palabras en vez de 'ninguna venta reclamada'",
 );
-// Lo que hizo perder dos días: el selector arranca en el mes en curso, que es el único
-// que la corrida diaria ya cubre. Se apretó tres veces sobre septiembre —una venta, sin
-// reclamo— mientras los folios reclamados de julio no se leían desde antes de que el
-// panel supiera derivar el estado.
+// El botón sigue existiendo para pedirlo AHORA, pero ya no es la única vía: la corrida
+// automática relee esos mismos meses varias veces al día. Antes solo miraba los últimos
+// 15 días, así que el historial dependía de que alguien se acordara de apretar.
 assert.ok(
-  /Poner al día/.test(boton),
-  "hay una forma de poner al día los meses anteriores: sin eso el historial nunca se " +
-    "actualiza, porque la corrida diaria filtra a los últimos 15 días",
+  /Releer \{MESES_QUE_SE_RELEEN\} meses ahora/.test(boton),
+  "se puede pedir la relectura de los mismos meses a mano, sin esperar la corrida",
+);
+assert.ok(
+  /MESES_QUE_SE_RELEEN, ultimosPeriodos \} from "@\/lib\/finanzas-periodos"/.test(boton) &&
+    !/const CUANTOS_MESES/.test(boton),
+  "y los meses salen del mismo lugar que los del cron: con su propia cuenta, el selector " +
+    "ofrecería cuatro el día que la corrida pase a leer tres",
 );
 // Y los meses van en UNA sola llamada, no una por mes: el bucle en el cliente abría un
 // Chromium por mes y a partir del tercero la instancia se quedaba sin recursos, así que

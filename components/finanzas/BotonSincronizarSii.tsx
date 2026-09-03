@@ -4,18 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { sincronizarSiiAction } from "@/app/(protegido)/finanzas/sii/acciones";
 import RuedaCarga from "@/components/RuedaCarga";
+import { MESES_QUE_SE_RELEEN, ultimosPeriodos } from "@/lib/finanzas-periodos";
 
 /**
  * Releer el SII sin pasar por el cron.
  *
- * La corrida diaria mira los últimos 15 días, y eso alcanza para siempre: el cliente
- * tiene 8 días corridos para reclamar una factura, así que un documento más viejo que la
- * ventana ya no puede cambiar de estado. Lo que NO alcanza es el historial: las facturas
- * que se leyeron antes de que el panel supiera derivar el estado quedaron con el dato
- * viejo, y la corrida diaria nunca vuelve a mirarlas.
- *
- * De ahí los dos botones: uno para un mes puntual, y "Poner al día" para dejar parejo el
- * historial — que es una tarea de una vez, no de todos los días.
+ * Las corridas automáticas ya releen los últimos MESES_QUE_SE_RELEEN meses completos,
+ * cada dos horas durante el día, así que estos botones no son la vía normal: son para
+ * pedirlo AHORA y ver el resultado sin esperar la próxima corrida. El del período suelto
+ * sirve además para un mes que quedó fuera de esa ventana.
  *
  * TODO en UNA llamada, aunque sean varios meses. La primera versión hacía una llamada por
  * mes desde acá, y no aguanta: a partir del tercer Chromium la instancia de Vercel se
@@ -24,28 +21,30 @@ import RuedaCarga from "@/components/RuedaCarga";
  * un login y recorre los meses adentro, guardando mes por mes.
  */
 
-const CUANTOS_MESES = 4;
-
-/** Los últimos meses, del más nuevo al más viejo. */
-function ultimosPeriodos(
-  cuantos = CUANTOS_MESES,
-): { valor: string; rotulo: string }[] {
-  const hoy = new Date();
-  return Array.from({ length: cuantos }, (_, i) => {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-    return {
-      valor: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      rotulo: new Intl.DateTimeFormat("es-CL", {
-        month: "long",
-        year: "numeric",
-      }).format(d),
-    };
-  });
+/**
+ * Los MISMOS meses que releen las corridas, del más nuevo al más viejo para el selector.
+ *
+ * Salen de lib/finanzas-periodos.ts y no de un cálculo propio: con su propia cuenta, el
+ * selector ofrecía cuatro meses el día que el cron pasara a leer tres.
+ */
+function paraElSelector(): { valor: string; rotulo: string }[] {
+  return ultimosPeriodos(new Date())
+    .map((valor) => {
+      const [anio, mes] = valor.split("-").map(Number);
+      return {
+        valor,
+        rotulo: new Intl.DateTimeFormat("es-CL", {
+          month: "long",
+          year: "numeric",
+        }).format(new Date(anio, mes - 1, 1)),
+      };
+    })
+    .reverse();
 }
 
 export default function BotonSincronizarSii() {
   const router = useRouter();
-  const periodos = ultimosPeriodos();
+  const periodos = paraElSelector();
   const rotuloDe = (valor: string) =>
     periodos.find((p) => p.valor === valor)?.rotulo ?? valor;
   const [periodo, setPeriodo] = useState(periodos[0].valor);
@@ -146,9 +145,9 @@ export default function BotonSincronizarSii() {
         disabled={pendiente}
         onClick={() => releer(periodos.map((p) => p.valor))}
         className={claseBoton}
-        title={`Relee los últimos ${CUANTOS_MESES} meses en una sola pasada. Tarda varios minutos.`}
+        title={`Relee los últimos ${MESES_QUE_SE_RELEEN} meses ahora, sin esperar la próxima corrida. Tarda un par de minutos.`}
       >
-        Poner al día {CUANTOS_MESES} meses
+        Releer {MESES_QUE_SE_RELEEN} meses ahora
       </button>
       {/* Se dice cuánto tarda ANTES de apretar: son minutos y el botón parece colgado. */}
       <span
@@ -158,7 +157,7 @@ export default function BotonSincronizarSii() {
           ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`
           : mensaje
             ? mensaje.texto
-            : "La corrida diaria cubre los últimos 15 días. Para los meses anteriores, ponelos al día una vez."}
+            : `El SII se relee solo cada dos horas, los últimos ${MESES_QUE_SE_RELEEN} meses completos. Estos botones son para pedirlo ahora.`}
       </span>
       {columnas && (
         <details className="basis-full text-xs text-tinta/60">

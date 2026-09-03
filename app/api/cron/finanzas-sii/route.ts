@@ -14,8 +14,18 @@ import {
   registrarEjecucion,
 } from "@/lib/finanzas";
 import { enviarCorreoSoporte } from "@/lib/notificaciones";
+import { MESES_QUE_SE_RELEEN, ultimosPeriodos } from "@/lib/finanzas-periodos";
 
-export const maxDuration = 60; // limite del plan Hobby de Vercel
+/**
+ * Los cuatro meses tardan unos 80 segundos: login mas ~9 segundos por periodo (medido:
+ * 14:06:16, :39, :48, :57 del 3/9/2026). El tope estaba en 60 con un comentario que decia
+ * "limite del plan Hobby", y quedo viejo — la misma lectura de cuatro meses corrio desde
+ * /finanzas/sii, que declara 300—. Con 60 el cron se cortaba en el tercer mes.
+ *
+ * Aun asi cada periodo se guarda al terminarlo (ver alTerminarPeriodo), asi que un tope
+ * alcanzado no pierde lo leido: se pierde lo que faltaba, y lo toma la corrida siguiente.
+ */
+export const maxDuration = 300;
 
 // Protegido por CRON_SECRET: Vercel Cron envia automaticamente
 // "Authorization: Bearer <CRON_SECRET>" cuando esa variable de entorno
@@ -34,29 +44,24 @@ export async function GET(request: NextRequest) {
 
   const cargaInicial = request.nextUrl.searchParams.get("cargaInicial") === "true";
 
-  // Releer periodos completos, a mano: "?meses=3" son este mes y los dos anteriores,
-  // "?periodos=2026-07,2026-08" los que se pidan. Sin filtro de dia.
+  // Por omision se releen los ultimos MESES_QUE_SE_RELEEN meses COMPLETOS, no una ventana
+  // de dias. La ventana de 15 dias que habia antes alcanzaba para detectar un reclamo
+  // —el cliente tiene 8 dias corridos— pero no para arreglar el pasado: cuando cambio
+  // como se deriva el estado de una venta, todo lo mas viejo que la ventana quedo con el
+  // dato anterior y nada lo volvia a mirar. Con los meses completos, un cambio de logica
+  // se cura solo en la corrida siguiente.
   //
-  // Hace falta porque la corrida diaria solo mira los ultimos 15 dias: una factura mas
-  // vieja que eso nunca se vuelve a consultar y se queda con el estado que tenia el dia
-  // que se leyo. Al cambiar como se deriva el estado de una venta, todo el historial
-  // quedo con el dato viejo —"registro" en cada una— y no habia forma de actualizarlo
-  // sin esto.
-  const meses = Number(request.nextUrl.searchParams.get("meses") ?? "0");
+  // Se puede pedir otra cosa a mano: "?meses=6" son este mes y los cinco anteriores,
+  // "?periodos=2026-07,2026-08" los que se pidan.
+  const meses = Number(request.nextUrl.searchParams.get("meses") ?? MESES_QUE_SE_RELEEN);
   const pedidos = (request.nextUrl.searchParams.get("periodos") ?? "")
     .split(",")
     .map((p) => p.trim())
     .filter((p) => /^\d{4}-\d{2}$/.test(p));
-  const periodos = pedidos.length
-    ? pedidos
-    : Number.isInteger(meses) && meses > 0 && meses <= 12
-      ? Array.from({ length: meses }, (_, i) => {
-          const d = new Date();
-          d.setDate(1);
-          d.setMonth(d.getMonth() - i);
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        })
-      : [];
+  // Del mas viejo al mas nuevo (ver ultimosPeriodos): si el tope de tiempo corta el
+  // recorrido, lo que queda al dia es lo que ninguna otra corrida vuelve a mirar.
+  const cuantos = Number.isInteger(meses) && meses > 0 && meses <= 12 ? meses : MESES_QUE_SE_RELEEN;
+  const periodos = pedidos.length ? pedidos : ultimosPeriodos(new Date(), cuantos);
 
   const creds = {
     rutRepresentante: process.env.SII_RUT_REPRESENTANTE ?? "",
@@ -70,9 +75,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 15 dias: el cliente tiene 8 corridos para reclamar una factura de venta, asi que
-    // con la ventana de 7 que habia un reclamo del octavo dia caia afuera y el panel se
-    // quedaba con el estado viejo.
+    // ventanaDias queda declarada por si algun dia se corre sin periodos: son 15 y no 7
+    // porque el cliente tiene 8 dias corridos para reclamar, y con 7 un reclamo del octavo
+    // dia caia justo afuera. Con `periodos` no se usa: los periodos se leen COMPLETOS, sin
+    // filtro de dia (ver planDeLectura).
+    //
     // El diagnostico: qué columnas trajo el CSV de ventas y qué muestra esa pestaña. Se
     // guarda SOLO si ninguna venta trajo estado (ver mas abajo). Es lo que faltaba cuando
     // el panel dijo "ninguna reclamada" y en realidad el SII no habia dicho nada.
@@ -128,7 +135,7 @@ export async function GET(request: NextRequest) {
       ok: true,
       documentos: filas.length,
       nuevos: nuevas,
-      periodos: periodos.length ? periodos : "ventana de 15 días",
+      periodos,
       reclamosAvisados: reclamos.map((f) => f.folio),
       avisoEnviado: envio ? envio.enviado : null,
     });
