@@ -27,14 +27,33 @@ export interface FacturaSiiFila {
   actualizado_en: string;
 }
 
-export async function listarFacturasSii(limite = 300): Promise<FacturaSiiFila[]> {
+/**
+ * Las facturas del panel.
+ *
+ * El tope estaba en 300 y la tabla llegó a 303 el día que se pusieron al día cuatro
+ * meses: tres filas quedaron afuera sin que nada lo dijera, y con ellas los totales de
+ * las tarjetas dejaron de cuadrar con el SII. Un tope que recorta en silencio es peor que
+ * no tener tope: no se nota hasta que alguien suma a mano.
+ *
+ * 5000 no es un número mágico: son unos tres años de RCV de PERTEC, y sigue siendo una
+ * sola consulta de una tabla chica. Si algún día se acerca, el panel necesita paginar de
+ * verdad —no un tope más grande— y por eso se avisa en el log en vez de recortar callado.
+ */
+export async function listarFacturasSii(limite = 5000): Promise<FacturaSiiFila[]> {
   const { data } = await supabaseAdmin
     .from("facturas_sii")
     .select("*")
     .order("fecha_docto", { ascending: false })
     .order("folio", { ascending: false })
     .limit(limite);
-  return (data ?? []) as FacturaSiiFila[];
+  const filas = (data ?? []) as FacturaSiiFila[];
+  if (filas.length === limite) {
+    console.warn(
+      `[finanzas] el panel llegó al tope de ${limite} facturas: hay filas que no se están ` +
+        "mostrando y los totales del encabezado quedan cortos. Hace falta paginar.",
+    );
+  }
+  return filas;
 }
 
 // Solo la ultima corrida EXITOSA: los fallos se avisan por correo a

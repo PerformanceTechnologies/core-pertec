@@ -538,4 +538,31 @@ assert.ok(
     "el que falta es la migración: Postgres solo dice el nombre de la restricción",
 );
 
+// ── Que lo guardado se VEA ──────────────────────────────────────────────────
+//
+// Se leyeron cuatro meses, se detectaron 9 ventas reclamadas, salió el correo… y la tabla
+// seguía mostrando "Registro" en todas. El dato estaba en la base: lo que faltaba era
+// volver a pedirlo. revalidatePath invalida la caché del servidor, pero la tabla la
+// dibuja un componente que ya tenía sus props.
+assert.ok(
+  /router\.refresh\(\)/.test(boton),
+  "después de releer, la pantalla vuelve a pedir las facturas: sin esto se lee '9 ventas " +
+    "reclamadas' al lado de una tabla que dice 'Registro' en todas",
+);
+
+// Y el tope de la consulta no puede recortar en silencio: estaba en 300, la tabla llegó a
+// 303 al poner al día cuatro meses, y tres filas desaparecieron del panel —y de los
+// totales del encabezado— sin que nada lo dijera.
+const tope = /listarFacturasSii\(limite = (\d+)\)/.exec(finanzasLib);
+assert.ok(tope, "no se encontró el tope de listarFacturasSii");
+assert.ok(
+  Number(tope[1]) >= 2000,
+  `el tope es ${tope[1]} y la tabla ya tiene más de 300 filas: un tope chico recorta las ` +
+    "facturas más viejas, que son justo las que hay que ir a mirar",
+);
+assert.ok(
+  /filas\.length === limite[\s\S]{0,300}console\.warn/.test(finanzasLib),
+  "y si algún día se llega al tope, se avisa en vez de recortar callado",
+);
+
 console.log("Todas las verificaciones pasaron.");

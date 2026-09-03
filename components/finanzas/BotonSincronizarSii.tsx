@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { sincronizarSiiAction } from "@/app/(protegido)/finanzas/sii/acciones";
 import RuedaCarga from "@/components/RuedaCarga";
@@ -38,6 +39,7 @@ function ultimosPeriodos(cuantos = CUANTOS_MESES): { valor: string; rotulo: stri
 }
 
 export default function BotonSincronizarSii() {
+  const router = useRouter();
   const periodos = ultimosPeriodos();
   const rotuloDe = (valor: string) => periodos.find((p) => p.valor === valor)?.rotulo ?? valor;
   const [periodo, setPeriodo] = useState(periodos[0].valor);
@@ -59,6 +61,11 @@ export default function BotonSincronizarSii() {
       );
       try {
         const r = await sincronizarSiiAction(cuales);
+        // La acción hace revalidatePath, pero eso invalida la caché del servidor: lo que
+        // vuelve a pedir la tabla es esto. Sin el refresh se lee "9 ventas reclamadas" al
+        // lado de una tabla que sigue diciendo "Registro" en todas, y el dato correcto ya
+        // está en la base —pasó, y parecía que el arreglo no había servido—.
+        router.refresh();
         if (r.columnasVenta) setColumnas(r.columnasVenta);
         const donde =
           r.leidos.length === cuales.length
