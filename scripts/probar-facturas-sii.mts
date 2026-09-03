@@ -389,4 +389,45 @@ assert.ok(
     "venta del mes en curso parecía una respuesta y no lo era",
 );
 
+// ── Un fallo del SII tiene que poder LEERSE en pantalla ────────────────────
+//
+// Una Server Action que lanza llega al navegador como "An error occurred in the Server
+// Components render", sin el motivo. Pasó dos veces: la primera era el Chromium sin
+// declarar en el tracing, la segunda el navegador que se muere cuando la instancia ya
+// lanzó dos ("Target page, context or browser has been closed"). En los dos casos el
+// mensaje real hubo que ir a buscarlo a finanzas_sii_ejecuciones. Que el SII falle es un
+// resultado esperable de esto, así que viaja como dato.
+// Desde el try en adelante: el guard de permisos SÍ lanza a propósito —falla cerrado y
+// ruidoso, y nadie puede confundirlo con un resultado— pero de ahí para abajo, donde
+// todo lo que falla es el SII, no queda ni un throw.
+const cuerpoAccion = accion.slice(accion.indexOf("  try {"));
+assert.ok(
+  !/\bthrow\b/.test(cuerpoAccion),
+  "la acción no lanza por un fallo del SII: devuelve { ok: false, error } para que el " +
+    "motivo se vea en pantalla y no haya que ir a buscarlo a la base",
+);
+assert.ok(
+  /ok:\s*false[\s\S]{0,80}error: mensaje/.test(cuerpoAccion),
+  "y el mensaje que devuelve es el que dio el SII o Playwright, no uno genérico",
+);
+assert.ok(
+  /registrarEjecucion\(false, 0, mensaje\)/.test(cuerpoAccion),
+  "sin dejar de guardarlo en la base: en pantalla se lee ahora, en la base queda después",
+);
+
+// Y un mes que falla no puede dejar sin leer a los demás.
+assert.ok(
+  /reintentando/.test(boton) && /PAUSA_ANTES_DE_REINTENTAR/.test(boton),
+  "el recorrido reintenta el mes que falló, con pausa: el segundo intento suele caer en " +
+    "otra instancia",
+);
+assert.ok(
+  /fallidos\.push/.test(boton) && !/throw/.test(boton),
+  "y si vuelve a fallar lo anota y sigue con los demás meses, en vez de cortar todo",
+);
+assert.ok(
+  /PAUSA_ENTRE_MESES/.test(boton),
+  "con aire entre meses: tres Chromium en treinta segundos no los aguanta una instancia",
+);
+
 console.log("Todas las verificaciones pasaron.");

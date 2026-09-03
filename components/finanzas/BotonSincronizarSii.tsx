@@ -22,9 +22,21 @@ import RuedaCarga from "@/components/RuedaCarga";
  * así que un mes son minutos y la función tiene tope de 300 s. Tres meses juntos se
  * cortan a la mitad sin dejar registro de qué alcanzó a guardarse; así, cada mes es su
  * propia invocación con su propio tope y lo que se guardó queda guardado.
+ *
+ * Con una pausa entre meses y un reintento por mes, porque tres Chromium en treinta
+ * segundos no los aguanta una instancia: el tercero murió con "Target page, context or
+ * browser has been closed". La pausa le da lugar a la instancia para soltar el anterior,
+ * y el reintento suele caer en otra. Un mes que falla dos veces NO corta el recorrido: se
+ * anota y se sigue con los demás, que es lo contrario de lo que hacía antes.
  */
 
 const CUANTOS_MESES = 6;
+/** Aire entre meses para que la instancia suelte el Chromium anterior. */
+const PAUSA_ENTRE_MESES = 8_000;
+/** Antes de reintentar, más aire todavía: lo que se busca es caer en otra instancia. */
+const PAUSA_ANTES_DE_REINTENTAR = 20_000;
+
+const esperar = (ms: number) => new Promise((listo) => setTimeout(listo, ms));
 
 /** Los últimos meses, del más nuevo al más viejo. */
 function ultimosPeriodos(cuantos = CUANTOS_MESES): { valor: string; rotulo: string }[] {
@@ -38,26 +50,37 @@ function ultimosPeriodos(cuantos = CUANTOS_MESES): { valor: string; rotulo: stri
   });
 }
 
+interface Fallido {
+  periodo: string;
+  error: string;
+}
+
 /** Lo que se cuenta al terminar. Un texto armado a mano se vuelve inconsistente solo. */
 function resumen(
-  periodos: string[],
+  leidos: string[],
   ventas: number,
   reclamos: number[],
+  fallidos: Fallido[],
   rotuloDe: (valor: string) => string,
 ): string {
   const donde =
-    periodos.length === 1
-      ? rotuloDe(periodos[0])
-      : `${periodos.length} meses (${rotuloDe(periodos[periodos.length - 1])} a ${rotuloDe(periodos[0])})`;
-  if (reclamos.length > 0) {
-    return (
-      `${donde}: ${reclamos.length} venta(s) reclamada(s) —folio ${reclamos.join(", ")}—, ` +
-      "avisadas por correo a Finanzas."
-    );
-  }
-  // Se dice CUÁNTAS ventas se miraron: "ninguna reclamada" sobre cero ventas no dice
-  // nada, y era lo que estaba pasando —se releía el mes en curso, que tenía una sola—.
-  return `${donde}: ${ventas} venta(s) leída(s), ninguna reclamada.`;
+    leidos.length === 0
+      ? "Ningún mes"
+      : leidos.length === 1
+        ? rotuloDe(leidos[0])
+        : `${leidos.length} meses (${rotuloDe(leidos[leidos.length - 1])} a ${rotuloDe(leidos[0])})`;
+  const bien =
+    reclamos.length > 0
+      ? `${donde}: ${reclamos.length} venta(s) reclamada(s) —folio ${reclamos.join(", ")}—, ` +
+        "avisadas por correo a Finanzas."
+      : // Se dice CUÁNTAS ventas se miraron: "ninguna reclamada" sobre cero ventas no
+        // dice nada, y era lo que pasaba —se releía el mes en curso, que tenía una sola—.
+        `${donde}: ${ventas} venta(s) leída(s), ninguna reclamada.`;
+  if (fallidos.length === 0) return bien;
+  // El motivo REAL, en pantalla. Antes llegaba el error genérico de Server Components y
+  // había que ir a buscar el mensaje a la base para saber qué había pasado.
+  const detalle = fallidos.map((f) => `${rotuloDe(f.periodo)} (${f.error})`).join("; ");
+  return `${bien} No se pudo leer: ${detalle}. Se puede reintentar solo ese mes.`;
 }
 
 export default function BotonSincronizarSii() {
@@ -78,26 +101,37 @@ export default function BotonSincronizarSii() {
       setColumnas(null);
       let ventas = 0;
       const reclamos: number[] = [];
-      try {
-        for (const [i, cual] of cuales.entries()) {
-          setPaso(
-            cuales.length > 1
-              ? `${i + 1} de ${cuales.length} · ${rotuloDe(cual)}`
-              : rotuloDe(cual),
-          );
-          const r = await sincronizarSiiAction(cual);
+      const leidos: string[] = [];
+      const fallidos: Fallido[] = [];
+      const donde = (i: number, cual: string) =>
+        cuales.length > 1 ? `${i + 1} de ${cuales.length} · ${rotuloDe(cual)}` : rotuloDe(cual);
+
+      for (const [i, cual] of cuales.entries()) {
+        if (i > 0) await esperar(PAUSA_ENTRE_MESES);
+        setPaso(donde(i, cual));
+        let r = await sincronizarSiiAction(cual);
+        if (!r.ok) {
+          // Un reintento, con pausa: el fallo típico es que la instancia no aguantó otro
+          // Chromium, y el segundo intento suele caer en otra.
+          setPaso(`${donde(i, cual)} · reintentando`);
+          await esperar(PAUSA_ANTES_DE_REINTENTAR);
+          r = await sincronizarSiiAction(cual);
+        }
+        if (r.ok) {
+          leidos.push(cual);
           ventas += r.ventas;
           reclamos.push(...r.reclamos);
           if (r.columnasVenta) setColumnas(r.columnasVenta);
+        } else {
+          // Se ANOTA y se sigue: un mes que no salió no puede dejar sin leer a los demás.
+          fallidos.push({ periodo: cual, error: r.error ?? "no se pudo consultar el SII" });
         }
-        setMensaje({ texto: resumen(cuales, ventas, reclamos, rotuloDe) });
-      } catch (e) {
-        // Lo que ya se leyó quedó guardado: se dice hasta dónde llegó, no "falló todo".
-        const detalle = e instanceof Error ? e.message : "No se pudo consultar el SII.";
-        setMensaje({ texto: `${detalle} (lo leído hasta acá quedó guardado.)`, error: true });
-      } finally {
-        setPaso(null);
       }
+      setPaso(null);
+      setMensaje({
+        texto: resumen(leidos, ventas, reclamos, fallidos, rotuloDe),
+        error: fallidos.length > 0 && leidos.length === 0,
+      });
     });
 
   const claseBoton =

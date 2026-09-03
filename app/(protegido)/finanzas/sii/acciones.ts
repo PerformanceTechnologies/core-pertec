@@ -43,6 +43,19 @@ const SLUG_APP = "finanzas";
 
 export interface ResultadoSincronizacion {
   periodo: string;
+  /**
+   * Si la lectura salió. En false, mirar `error`; los contadores quedan en cero.
+   *
+   * Este resultado NO se lanza como excepción, y eso es a propósito: una Server Action
+   * que lanza llega al navegador como "An error occurred in the Server Components
+   * render. The specific message is omitted in production builds", sin decir qué pasó.
+   * El mensaje real había que ir a buscarlo a finanzas_sii_ejecuciones. Que el SII se
+   * caiga, tarde o mate el navegador es un resultado ESPERABLE de esto, no un bug del
+   * programa: viaja como dato para que se pueda leer en pantalla y reintentar.
+   */
+  ok: boolean;
+  /** Qué falló, en las palabras que dio el SII o Playwright. Vacío si salió bien. */
+  error?: string;
   documentos: number;
   guardados: number;
   reclamos: number[];
@@ -67,8 +80,9 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
     throw new Error("No tenés acceso a las facturas del SII.");
   }
 
+  const vacio = { periodo, documentos: 0, guardados: 0, ventas: 0, reclamos: [] };
   if (!/^\d{4}-\d{2}$/.test(periodo)) {
-    throw new Error(`"${periodo}" no es un período válido. Se espera AAAA-MM.`);
+    return { ...vacio, ok: false, error: `"${periodo}" no es un período válido. Se espera AAAA-MM.` };
   }
 
   const creds = {
@@ -77,7 +91,7 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
     rutEmpresa: process.env.SII_RUT_EMPRESA ?? "",
   };
   if (!creds.rutRepresentante || !creds.claveTributaria || !creds.rutEmpresa) {
-    throw new Error("Faltan las credenciales del SII en el entorno.");
+    return { ...vacio, ok: false, error: "Faltan las credenciales del SII en el entorno." };
   }
 
   try {
@@ -132,6 +146,7 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
     revalidatePath("/finanzas/sii");
     return {
       periodo,
+      ok: true,
       documentos: filas.length,
       guardados,
       reclamos: reclamos.map((f) => f.folio),
@@ -141,6 +156,10 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "Error desconocido";
     await registrarEjecucion(false, 0, mensaje).catch(() => {});
-    throw new Error(mensaje);
+    // Se DEVUELVE, no se lanza: ver el comentario de `ok`. La primera versión lanzaba y
+    // lo único que se veía en pantalla era el error genérico de Server Components; el
+    // motivo —"Target page, context or browser has been closed", el Chromium que se muere
+    // cuando la instancia ya lanzó dos— solo aparecía consultando la base.
+    return { ...vacio, ok: false, error: mensaje };
   }
 }
