@@ -261,6 +261,37 @@ const accion = readFileSync(
 );
 assert.ok(accion.includes("alLeerCsv"), "la acción pide las columnas del CSV que se bajó");
 assert.ok(
+  accion.includes("alMirarVenta") && cron.includes("alMirarVenta"),
+  "y también mira qué muestra la pestaña VENTA: si el CSV no trae el estado, la pregunta " +
+    "siguiente es si la pantalla sí lo trae, y eso no se puede deducir desde afuera",
+);
+assert.ok(
+  accion.includes("alVerJson") && cron.includes("alVerJson"),
+  "y los campos del JSON que llena la tabla: el CSV es una exportación de esa tabla y " +
+    "puede traer menos columnas de las que la API devuelve",
+);
+// El diagnóstico no puede filtrar datos: son nombres de campo y rótulos, nunca valores.
+assert.ok(
+  /Object\.keys\(primero\)/.test(scraper) && !/Object\.values\(primero\)/.test(scraper),
+  "del JSON se guardan las CLAVES del primer objeto, no sus valores: nada de montos, " +
+    "RUTs ni folios en la tabla de ejecuciones",
+);
+// El diagnóstico va a la BASE, no a un log: un log de Vercel se rota y no se puede
+// consultar. Y va solo cuando ninguna venta trajo estado, para que la tabla no se llene
+// de nombres de columna los días que todo funciona.
+for (const [donde, fuente] of [["la acción", accion], ["el cron", cron]] as const) {
+  assert.ok(
+    /sinEstado\s*\?\s*\{[\s\S]{0,200}csvVenta/.test(fuente),
+    `${donde} guarda el diagnóstico solo cuando ninguna venta trajo estado`,
+  );
+}
+const finanzasLib = readFileSync(new URL("../lib/finanzas.ts", import.meta.url), "utf8");
+assert.ok(
+  /registrarEjecucion\([\s\S]{0,900}diagnostico\?: unknown/.test(finanzasLib) &&
+    finanzasLib.includes("diagnostico: diagnostico ?? null"),
+  "y registrarEjecucion lo escribe en finanzas_sii_ejecuciones.diagnostico",
+);
+assert.ok(
   /sinEstado[\s\S]{0,300}columnasVenta/.test(accion),
   "y las devuelve solo cuando ninguna venta trajo estado",
 );

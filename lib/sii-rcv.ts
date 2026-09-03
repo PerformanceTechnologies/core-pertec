@@ -326,6 +326,96 @@ export interface ColumnasDelCsv {
   columnas: string[];
 }
 
+/**
+ * Que ofrece la pestana VENTA del RCV, mirada en la pantalla.
+ *
+ * Si el CSV no trae el estado, la pregunta siguiente es si la PANTALLA lo trae —el RCV
+ * no siempre exporta todas las columnas que muestra— o si hay una sub-pestana que aca se
+ * dio por inexistente. Eso no se puede deducir desde afuera y no se le puede pedir a
+ * nadie que lo transcriba: se guarda con la corrida (finanzas_sii_ejecuciones.diagnostico)
+ * y se lee de la base.
+ *
+ * Van NOMBRES de columna y rotulos de pestana. Ningun valor de ninguna fila.
+ */
+export interface PantallaDeVenta {
+  pestanas: string[];
+  columnas: string[];
+}
+
+/**
+ * Los NOMBRES de campo que devuelve la API interna del RCV.
+ *
+ * El RCV es una SPA: la tabla la llena una llamada JSON, y el CSV de "Descargar
+ * Detalles" es una exportacion de esa tabla —puede traer menos columnas de las que la
+ * API devuelve—. Si el evento del receptor esta en el JSON y no en el CSV, hay que
+ * leerlo de ahi, y eso no se puede saber sin mirar el JSON.
+ *
+ * SOLO las claves del primer objeto. Ningun valor: no salen montos, ni RUTs, ni folios.
+ */
+export interface CamposDeApi {
+  url: string;
+  campos: string[];
+}
+
+/** Las claves del primer objeto que parezca una fila, sin bajar mas de cinco niveles. */
+function camposDe(cuerpo: unknown, nivel = 0): string[] {
+  if (nivel > 5) return [];
+  if (Array.isArray(cuerpo)) {
+    const primero = cuerpo[0];
+    return primero && typeof primero === "object" ? Object.keys(primero) : [];
+  }
+  if (cuerpo && typeof cuerpo === "object") {
+    for (const valor of Object.values(cuerpo)) {
+      const campos = camposDe(valor, nivel + 1);
+      if (campos.length > 0) return campos;
+    }
+  }
+  return [];
+}
+
+function escucharJson(
+  page: import("playwright-core").Page,
+  alVerJson: (info: CamposDeApi) => void
+): void {
+  const vistos = new Set<string>();
+  // Solo escucha: no intercepta ni reescribe nada de la navegacion que ya funciona.
+  page.on("response", (respuesta) => {
+    const url = respuesta.url();
+    if (!/facadeService|detalle|resumen/i.test(url)) return;
+    void respuesta
+      .json()
+      .then((cuerpo: unknown) => {
+        const campos = camposDe(cuerpo);
+        if (campos.length === 0) return;
+        const clave = `${url}|${campos.join(",")}`;
+        if (vistos.has(clave)) return;
+        vistos.add(clave);
+        alVerJson({ url: url.split("?")[0], campos });
+      })
+      .catch(() => {
+        // No era JSON, o el cuerpo ya no esta. Es un diagnostico: se ignora.
+      });
+  });
+}
+
+const limpiarRotulos = (textos: string[], tope: number): string[] =>
+  [...new Set(textos.map((t) => t.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, tope);
+
+async function mirarPantallaDeVenta(
+  page: import("playwright-core").Page
+): Promise<PantallaDeVenta> {
+  // Envuelto en try: es un diagnostico, no puede hacer fallar una sincronizacion.
+  try {
+    const [pestanas, columnas] = await Promise.all([
+      page.locator("[role='tab'], ul.nav a, .nav-tabs a").allInnerTexts(),
+      page.locator("table th").allInnerTexts(),
+    ]);
+    return { pestanas: limpiarRotulos(pestanas, 30), columnas: limpiarRotulos(columnas, 40) };
+  } catch {
+    return { pestanas: [], columnas: [] };
+  }
+}
+
 async function descargarDetalle(
   page: import("playwright-core").Page,
   tipoDocumento: TipoDocumento,
@@ -362,7 +452,8 @@ export async function consultarPeriodo(
   periodoMes: string,
   periodoAnio: string,
   codigosIncluidos: number[] = CODIGOS_DTE_INCLUIDOS,
-  alLeerCsv?: (info: ColumnasDelCsv) => void
+  alLeerCsv?: (info: ColumnasDelCsv) => void,
+  alMirarVenta?: (info: PantallaDeVenta) => void
 ): Promise<FacturaSii[]> {
   await page.goto("https://www4.sii.cl/consdcvinternetui/#/index", { timeout: 40000 });
   // Esta SPA nunca llega a "networkidle" (sigue con llamadas de fondo), asi
@@ -400,6 +491,7 @@ export async function consultarPeriodo(
   }
 
   await irATab(page, "VENTA");
+  if (alMirarVenta) alMirarVenta(await mirarPantallaDeVenta(page));
   filas.push(
     ...(await descargarDetalle(page, "venta", "registro", periodo, codigosIncluidos, alLeerCsv))
   );
@@ -436,6 +528,10 @@ export interface OpcionesExtraccion {
    * reclamada", que suena a respuesta y no lo es.
    */
   alLeerCsv?: (info: ColumnasDelCsv) => void;
+  /** Se llama con lo que muestra la pestana VENTA. Ver PantallaDeVenta. */
+  alMirarVenta?: (info: PantallaDeVenta) => void;
+  /** Se llama con los nombres de campo de cada respuesta JSON del RCV. Ver CamposDeApi. */
+  alVerJson?: (info: CamposDeApi) => void;
 }
 
 export async function extraerFacturasSii(
@@ -465,6 +561,7 @@ export async function extraerFacturasSii(
   const browser = await lanzarNavegador();
   try {
     const page = await browser.newPage();
+    if (opciones.alVerJson) escucharJson(page, opciones.alVerJson);
     await login(page, creds);
 
     let filas: FacturaSii[] = [];
@@ -477,7 +574,8 @@ export async function extraerFacturasSii(
           mes,
           anio,
           CODIGOS_DTE_INCLUIDOS,
-          opciones.alLeerCsv
+          opciones.alLeerCsv,
+          opciones.alMirarVenta
         )
       );
     }

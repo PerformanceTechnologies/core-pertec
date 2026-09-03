@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extraerFacturasSii } from "@/lib/sii-rcv";
+import { extraerFacturasSii, type CamposDeApi, type PantallaDeVenta } from "@/lib/sii-rcv";
 import { avisoDeReclamos } from "@/lib/finanzas-reclamos";
 import { enviarCorreoFinanzas } from "@/lib/notificaciones";
 import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
@@ -63,7 +63,26 @@ export async function GET(request: NextRequest) {
     // 15 dias: el cliente tiene 8 corridos para reclamar una factura de venta, asi que
     // con la ventana de 7 que habia un reclamo del octavo dia caia afuera y el panel se
     // quedaba con el estado viejo.
-    const filas = await extraerFacturasSii(creds, { cargaInicial, ventanaDias: 15, periodos });
+    // El diagnostico: qué columnas trajo el CSV de ventas y qué muestra esa pestaña. Se
+    // guarda SOLO si ninguna venta trajo estado (ver mas abajo). Es lo que faltaba cuando
+    // el panel dijo "ninguna reclamada" y en realidad el SII no habia dicho nada.
+    let csvVenta: string[] = [];
+    let pantallaVenta: PantallaDeVenta | null = null;
+    const camposApi: CamposDeApi[] = [];
+    const filas = await extraerFacturasSii(creds, {
+      cargaInicial,
+      ventanaDias: 15,
+      periodos,
+      alLeerCsv: (info) => {
+        if (info.tipoDocumento === "venta") csvVenta = info.columnas;
+      },
+      alMirarVenta: (info) => {
+        pantallaVenta = info;
+      },
+      alVerJson: (info: CamposDeApi) => {
+        camposApi.push(info);
+      },
+    });
 
     // ANTES de guardar: despues ya no se puede saber si el reclamo es nuevo, y lo unico
     // que sirve avisar es lo nuevo — el reclamo se queda en el RCV hasta que el cliente lo
@@ -71,7 +90,16 @@ export async function GET(request: NextRequest) {
     const reclamos = await reclamosNuevosDeVenta(filas);
 
     const nuevas = await guardarFacturasSii(filas);
-    await registrarEjecucion(true, nuevas);
+    const ventas = filas.filter((f) => f.tipoDocumento === "venta");
+    const sinEstado =
+      ventas.length > 0 &&
+      ventas.every((f) => f.estado === "registro" && !f.fechaAcuse && !f.fechaReclamo);
+    await registrarEjecucion(
+      true,
+      nuevas,
+      undefined,
+      sinEstado ? { periodos, csvVenta, pantallaVenta, camposApi } : undefined,
+    );
 
     // Despues de guardar: si el correo falla, el dato ya esta y el panel lo muestra. El
     // fallo se avisa a soporte, que es quien puede hacer algo con eso.

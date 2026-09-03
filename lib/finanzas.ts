@@ -124,11 +124,25 @@ export async function reclamosNuevosDeVenta(filas: FacturaSii[]): Promise<Factur
   );
 }
 
-export async function registrarEjecucion(exito: boolean, documentosNuevos: number, mensajeError?: string): Promise<void> {
+export async function registrarEjecucion(
+  exito: boolean,
+  documentosNuevos: number,
+  mensajeError?: string,
+  /**
+   * Qué ofreció el RCV, cuando ninguna venta trajo estado.
+   *
+   * Va acá y no en un log porque un log de Vercel se rota y no se puede consultar desde
+   * la base. El estado de las ventas se derivó dos veces de columnas supuestas; esto es
+   * para poder MIRAR qué trae el SII en vez de deducirlo. Solo rótulos de columna y de
+   * pestaña: ningún valor de ninguna fila.
+   */
+  diagnostico?: unknown,
+): Promise<void> {
   const { error } = await supabaseAdmin.from("finanzas_sii_ejecuciones").insert({
     exito,
     documentos_nuevos: documentosNuevos,
     mensaje_error: mensajeError ?? null,
+    diagnostico: diagnostico ?? null,
   });
   if (error) throw new Error(error.message);
 }

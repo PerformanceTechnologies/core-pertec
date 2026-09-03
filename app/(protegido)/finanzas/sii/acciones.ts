@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
-import { extraerFacturasSii, type ColumnasDelCsv } from "@/lib/sii-rcv";
+import {
+  extraerFacturasSii,
+  type CamposDeApi,
+  type ColumnasDelCsv,
+  type PantallaDeVenta,
+} from "@/lib/sii-rcv";
 import { guardarFacturasSii, reclamosNuevosDeVenta, registrarEjecucion } from "@/lib/finanzas";
 import { avisoDeReclamos } from "@/lib/finanzas-reclamos";
 import { enviarCorreoFinanzas } from "@/lib/notificaciones";
@@ -74,6 +79,8 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
 
   try {
     const columnas = new Map<string, string[]>();
+    let pantalla: PantallaDeVenta | null = null;
+    const camposApi: CamposDeApi[] = [];
     const filas = await extraerFacturasSii(creds, {
       cargaInicial: false,
       // Período completo, sin filtro de día: se pide justamente para lo más viejo que la
@@ -82,12 +89,32 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
       alLeerCsv: (info: ColumnasDelCsv) => {
         if (info.tipoDocumento === "venta") columnas.set("venta", info.columnas);
       },
+      alMirarVenta: (info: PantallaDeVenta) => {
+        pantalla = info;
+      },
+      alVerJson: (info: CamposDeApi) => {
+        camposApi.push(info);
+      },
     });
 
     // Antes de guardar: después ya no se puede saber si el reclamo es nuevo.
     const reclamos = await reclamosNuevosDeVenta(filas);
     const guardados = await guardarFacturasSii(filas);
-    await registrarEjecucion(true, guardados);
+
+    // Si hubo ventas y NINGUNA trajo estado, el CSV no tiene de dónde derivarlo: se
+    // guarda qué ofreció el RCV para poder mirarlo, en vez de decir "ninguna reclamada".
+    const ventas = filas.filter((f) => f.tipoDocumento === "venta");
+    const sinEstado =
+      ventas.length > 0 &&
+      ventas.every((f) => f.estado === "registro" && !f.fechaAcuse && !f.fechaReclamo);
+    await registrarEjecucion(
+      true,
+      guardados,
+      undefined,
+      sinEstado
+        ? { periodo, csvVenta: columnas.get("venta") ?? [], pantallaVenta: pantalla, camposApi }
+        : undefined,
+    );
 
     const aviso = avisoDeReclamos(reclamos);
     if (aviso) {
@@ -98,12 +125,6 @@ export async function sincronizarSiiAction(periodo: string): Promise<ResultadoSi
         console.error(`[finanzas] no se pudo avisar el reclamo a Finanzas: ${detalle}`);
       });
     }
-
-    // Si hubo ventas y NINGUNA trajo estado, el CSV no tiene de donde derivarlo: se
-    // devuelven sus columnas para poder mirarlo, en vez de decir "ninguna reclamada".
-    const ventas = filas.filter((f) => f.tipoDocumento === "venta");
-    const sinEstado =
-      ventas.length > 0 && ventas.every((f) => f.estado === "registro" && !f.fechaAcuse && !f.fechaReclamo);
 
     revalidatePath("/finanzas/sii");
     return {
