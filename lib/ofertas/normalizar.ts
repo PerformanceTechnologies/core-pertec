@@ -1,4 +1,7 @@
 import type { DestinoDeImagen } from "./destino-imagen";
+// Una sola implementación, y vive con el código del documento: es su otra mitad de
+// identidad. Ver ./identidad.ts.
+import { fechaEnPalabras } from "./identidad";
 import {
   SECCIONES_CON_IMAGENES,
   esOfertaTecnica,
@@ -768,29 +771,4 @@ export function contenidoDuplicado(contenido: OfertaCanonica, hoy: Date): Oferta
   };
 }
 
-const MESES = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-];
 
-/**
- * "26 de agosto de 2026", que es como la escriben estas ofertas.
- *
- * A mano y no con toLocaleDateString: el formato de la oferta es el que ya está en
- * los documentos —el modelo lo transcribe así— y la fecha es un TEXTO del contenido,
- * no una fecha con formato. Meter acá "26 de agosto de 2026" o "26/08/2026" según el
- * entorno haría que dos duplicados se vean distintos.
- */
-export function fechaEnPalabras(dia: Date): string {
-  return `${dia.getDate()} de ${MESES[dia.getMonth()]} de ${dia.getFullYear()}`;
-}

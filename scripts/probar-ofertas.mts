@@ -14,7 +14,20 @@ import {
   mismoNumeroDeOferta,
   revisarTablas,
 } from "../lib/ofertas/verificar";
-import { tieneSeccionesDeOferta, type Inconsistencia, type OfertaCanonica } from "../lib/ofertas/tipos";
+import {
+  TIPOS_DE_DOCUMENTO,
+  tieneSeccionesDeOferta,
+  type Inconsistencia,
+  type OfertaCanonica,
+} from "../lib/ofertas/tipos";
+import {
+  PREFIJO_DE_TIPO,
+  avisoDeCodigoAutomatico,
+  completarIdentidad,
+  fechaEnPalabras,
+  numeroDeCodigo,
+  siguienteCodigo,
+} from "../lib/ofertas/identidad";
 import { ESTILO_PERTEC, sanearEstilo } from "../lib/ofertas/estilo";
 import { imagenSegura, logoSeguro } from "../lib/ofertas/logo";
 import { avisoDeTamano, leerRespuesta } from "../lib/subidas";
@@ -22,7 +35,6 @@ import {
   armarOferta,
   conElRepartoDe,
   contenidoDuplicado,
-  fechaEnPalabras,
   sinLaImagen,
   armarDocumentoLibre,
   conLaDisposicion,
@@ -2954,6 +2966,120 @@ assert.equal(
 assert.ok(
   paginado.includes('data-campo="rotulos.indice-titulo"'),
   "el título del índice se puede cambiar sobre el documento",
+);
+
+// ── El código y la fecha, completados solos ───────────────────────────────
+//
+// El modelo transcribe lo que está escrito, así que un borrador armado copiando otro
+// llega sin número y sin fecha: en el documento eso se ve como una portada a medio
+// llenar, y había que escribirlos a mano en cada uno.
+//
+// La numeración se cuenta sobre los códigos YA usados y no con un contador aparte: un
+// contador se desincroniza el día que alguien borra un documento o carga uno viejo, y
+// acá lo que importa es no repetir un número que ya existe.
+
+const EL_3_DE_SEPTIEMBRE = new Date("2026-09-03T14:00:00Z");
+
+assert.equal(fechaEnPalabras(EL_3_DE_SEPTIEMBRE), "3 de septiembre de 2026");
+// En palabras y no "03-09-2026": es lo que dicen las ofertas hechas a mano, y esta línea
+// se imprime en la portada al lado del título.
+assert.equal(fechaEnPalabras(new Date("2026-01-31T12:00:00Z")), "31 de enero de 2026");
+// Y en la hora de Chile: a las 21:30 de acá son las 00:30 UTC del día siguiente, y un
+// documento creado esa noche no puede salir con la fecha de mañana.
+assert.equal(
+  fechaEnPalabras(new Date("2026-09-04T01:30:00Z")),
+  "3 de septiembre de 2026",
+  "la fecha es la de Chile, no la del reloj del servidor",
+);
+
+// La convención real, tal como está guardada: "OS 009 – 2026" —guion largo y espacios,
+// como se escribe a mano—.
+assert.equal(numeroDeCodigo("OS 009 – 2026", "OS", 2026), 9);
+assert.equal(numeroDeCodigo("OS 9-2026", "OS", 2026), 9, "y con guion corto y sin espacios");
+assert.equal(numeroDeCodigo("os 010 — 2026", "OS", 2026), 10, "en minúscula y con raya larga");
+assert.equal(numeroDeCodigo("OS 009 – 2025", "OS", 2026), null, "otro año no cuenta");
+assert.equal(numeroDeCodigo("FT 001 – 2026", "OS", 2026), null, "otro prefijo tampoco");
+// Los códigos que NO siguen la convención no participan: en la base hay un
+// "FT-PTC-IC-01" y un "001", y de esos no se puede deducir cuál es el siguiente.
+for (const raro of ["FT-PTC-IC-01", "001", "", "OS", "OS 2026"]) {
+  assert.equal(numeroDeCodigo(raro, "FT", 2026), null, `"${raro}" no da un número`);
+}
+
+assert.equal(
+  siguienteCodigo("oferta", 2026, ["OS 009 – 2026", "OS 007 – 2026"]),
+  "OS 010 – 2026",
+  "sigue al más alto, no al último cargado",
+);
+assert.equal(
+  siguienteCodigo("oferta", 2026, ["OS 009 – 2025"]),
+  "OS 001 – 2026",
+  "y la numeración arranca de nuevo cada año",
+);
+assert.equal(siguienteCodigo("ficha_tecnica", 2026, []), "FT 001 – 2026");
+assert.equal(siguienteCodigo("procedimiento", 2026, [null, "FT-PTC-IC-01"]), "PR 001 – 2026");
+// Un prefijo por tipo, y ninguno repetido: dos tipos con el mismo prefijo compartirían
+// la numeración y "OS 010" no diría qué documento es.
+assert.equal(
+  new Set(Object.values(PREFIJO_DE_TIPO)).size,
+  TIPOS_DE_DOCUMENTO.length,
+  "cada tipo tiene su prefijo y no se repiten",
+);
+
+// LO QUE EL BORRADOR TRAE NUNCA SE PISA: un documento que declara su código lo conserva,
+// aunque no siga ninguna convención, porque ese es el código con el que se lo busca.
+const traido = completarIdentidad(
+  { numeroOferta: "FT-PTC-IC-01", fecha: "12 de agosto de 2026" },
+  "ficha_tecnica",
+  ["FT 001 – 2026"],
+  EL_3_DE_SEPTIEMBRE,
+);
+assert.equal(traido.identificacion.numeroOferta, "FT-PTC-IC-01");
+assert.equal(traido.identificacion.fecha, "12 de agosto de 2026");
+assert.deepEqual(traido.completado, {}, "y no se anuncia nada, porque no se completó nada");
+
+// Vacío o en blanco cuentan como que no vino: el modelo devuelve texto en blanco, no
+// null, para lo que el documento no trae.
+for (const nada of [null, "", "   "]) {
+  const puesto = completarIdentidad(
+    { numeroOferta: nada, fecha: nada },
+    "oferta",
+    ["OS 009 – 2026"],
+    EL_3_DE_SEPTIEMBRE,
+  );
+  assert.equal(puesto.identificacion.numeroOferta, "OS 010 – 2026");
+  assert.equal(puesto.identificacion.fecha, "3 de septiembre de 2026");
+  assert.deepEqual(puesto.completado, {
+    codigo: "OS 010 – 2026",
+    fecha: "3 de septiembre de 2026",
+  });
+}
+
+// El número de una OFERTA es un identificador de negocio —lo asigna Comercial y se lo
+// dice al cliente— así que uno puesto por el sistema se avisa para que se confirme.
+const avisoOferta = avisoDeCodigoAutomatico("oferta", { codigo: "OS 010 – 2026" });
+assert.ok(avisoOferta?.includes("OS 010 – 2026"));
+assert.ok(avisoOferta?.includes("Confirmalo antes de emitir"));
+// En una ficha el código es interno: no se avisa. Y la fecha de hoy nunca se avisa,
+// porque es la fecha de hoy — una lista de "Por revisar" que se llena de obviedades es
+// una lista que nadie mira.
+assert.equal(avisoDeCodigoAutomatico("ficha_tecnica", { codigo: "FT 001 – 2026" }), null);
+assert.equal(avisoDeCodigoAutomatico("oferta", { fecha: "3 de septiembre de 2026" }), null);
+
+// Y esto corre al CREAR el documento, que es donde están los códigos ya usados.
+const fuenteDatos = readFileSync(new URL("../lib/ofertas/datos.ts", import.meta.url), "utf8");
+const cuerpoCrear = fuenteDatos.slice(fuenteDatos.indexOf("export async function crearOferta"));
+assert.ok(
+  /completarIdentidad\(/.test(cuerpoCrear) && /\.select\("numero_oferta"\)/.test(cuerpoCrear),
+  "crearOferta completa la identidad con los códigos que ya existen para ese tipo",
+);
+assert.ok(
+  /\.eq\("tipo", tipo\)/.test(cuerpoCrear),
+  "y cuenta solo los de SU tipo: cada prefijo lleva su propia serie",
+);
+assert.ok(
+  /numero_oferta: documento\.identificacion\.numeroOferta/.test(cuerpoCrear) &&
+    /contenido: documento/.test(cuerpoCrear),
+  "y lo guardado es el documento COMPLETADO, no el que llegó",
 );
 
 console.log("Todas las verificaciones pasaron.");

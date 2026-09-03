@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { calcularTotales, detectarInconsistencias } from "./verificar";
+import { avisoDeCodigoAutomatico, completarIdentidad } from "./identidad";
 import type { Inconsistencia, OfertaCanonica, SeccionConImagenes, TipoDeDocumento } from "./tipos";
 import type { Empresa } from "@/lib/cotizador/empresas";
 import { duplicarImagenes, type ImagenGuardada } from "./imagenes";
@@ -268,18 +269,42 @@ export async function crearOferta(
   /** Qué es el documento. Manda: decide qué controles corren. */
   tipo: TipoDeDocumento = "oferta",
 ): Promise<{ id: string; inconsistencias: Inconsistencia[] }> {
-  const inconsistencias = detectarInconsistencias(contenido, calcularTotales(contenido), archivoOrigen);
+  // El código y la fecha que el borrador no trajo se completan ACÁ y no en la lectura:
+  // el código sale de los que ya existen, así que hace falta la base. El modelo transcribe
+  // lo que está escrito, y un borrador armado copiando otro llega sin número y sin fecha:
+  // en el documento eso se ve como una portada a medio llenar.
+  const { data: previos } = await supabaseAdmin
+    .from("ofertas_documentos")
+    .select("numero_oferta")
+    .eq("tipo", tipo);
+  const { identificacion, completado } = completarIdentidad(
+    contenido.identificacion,
+    tipo,
+    (previos ?? []).map((f) => f.numero_oferta as string | null),
+  );
+  const aviso = avisoDeCodigoAutomatico(tipo, completado);
+  const documento: OfertaCanonica = {
+    ...contenido,
+    identificacion: { ...contenido.identificacion, ...identificacion },
+    // El aviso primero: es sobre el documento entero y lo demás son detalles de una
+    // sección. Y solo si no está ya —duplicar no vuelve a avisar—.
+    porConfirmar:
+      aviso && !contenido.porConfirmar.includes(aviso)
+        ? [aviso, ...contenido.porConfirmar]
+        : contenido.porConfirmar,
+  };
+  const inconsistencias = detectarInconsistencias(documento, calcularTotales(documento), archivoOrigen);
 
   const { data, error } = await supabaseAdmin
     .from("ofertas_documentos")
     .insert({
-      nombre: nombreDe(contenido),
-      numero_oferta: contenido.identificacion.numeroOferta,
-      cliente: contenido.identificacion.cliente,
-      faena: contenido.identificacion.faena,
+      nombre: nombreDe(documento),
+      numero_oferta: documento.identificacion.numeroOferta,
+      cliente: documento.identificacion.cliente,
+      faena: documento.identificacion.faena,
       empresa,
       tipo,
-      contenido,
+      contenido: documento,
       inconsistencias,
       estado: "borrador",
       archivo_origen: archivoOrigen,
