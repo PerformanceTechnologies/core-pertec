@@ -14,19 +14,70 @@ const CORREO_SOPORTE = "soporte@pertec.cl";
  */
 export const CORREO_FINANZAS = "finanzas@pertec.cl";
 
-// Usa el app registration "PERTEC Web · Envio de correos" (el mismo que ya
-// usa la Edge Function send-catalog de pertec-web con MS_TENANT_ID/
-// MS_CLIENT_ID/MS_CLIENT_SECRET) — ya tiene el permiso de aplicacion
-// "Mail.Send" concedido, a diferencia del app de /reclutamiento que solo
-// tiene permisos de SharePoint. Client ID: 6f8ce670-8b60-471a-aa01-d33cd280a453.
+// Usa el app registration "PERTEC Web · Envio de correos" (el mismo que ya usa la Edge
+// Function send-catalog de pertec-web) — es el unico con el permiso de APLICACION
+// "Mail.Send" concedido, a diferencia del app de /reclutamiento (AZURE_*) que solo tiene
+// permisos de SharePoint. Por eso el client id no se puede intercambiar por el otro.
+//
+// De tres variables quedo UNA obligatoria, y no por comodidad: durante meses el envio no
+// funciono porque MS_TENANT_ID nunca se cargo en Vercel. Nadie se enteraba, porque lo
+// unico que usa este archivo son avisos automaticos —el fallo del cron a soporte, el
+// reclamo de una factura a Finanzas— y el error se atrapaba en un console.error. Se
+// descubrio recien cuando nueve facturas reclamadas por $121 millones se dieron por
+// avisadas y no llego nada. Cuantos menos valores haya que cargar a mano, menos veces
+// vuelve a pasar.
+
+/** El client id del app de correo. Publico —esta en .env.example— y no es un secreto. */
+const CLIENT_ID_CORREO = "6f8ce670-8b60-471a-aa01-d33cd280a453";
+
+/**
+ * El tenant, que es UNO para toda la empresa aunque se lo nombre de tres formas.
+ *
+ * MS_TENANT_ID, AZURE_TENANT_ID y el tenant que va adentro del issuer de la
+ * autenticacion son el mismo GUID. Tener tres variables para un solo valor es como se
+ * llego a que una este vacia mientras las otras dos funcionan.
+ */
+function tenantId(): string | null {
+  const directo = process.env.MS_TENANT_ID || process.env.AZURE_TENANT_ID;
+  if (directo) return directo;
+  // https://login.microsoftonline.com/<tenant-id>/v2.0
+  const enIssuer = /login\.microsoftonline\.com\/([0-9a-fA-F-]{36})/.exec(
+    process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER ?? ""
+  );
+  return enIssuer ? enIssuer[1] : null;
+}
+
 let credencial: ClientSecretCredential | null = null;
 
+/**
+ * La credencial, o un error que diga QUE falta.
+ *
+ * El SDK de Azure, con el tenant vacio, contesta "ClientSecretCredential: tenantId is a
+ * required parameter" y un link a su troubleshooting. Eso no dice de que variable habla
+ * ni en que proyecto, y fue lo que se vio en pantalla.
+ */
 function obtenerCredencial(): ClientSecretCredential {
   if (!credencial) {
+    const tenant = tenantId();
+    const secreto = process.env.MS_CLIENT_SECRET;
+    if (!tenant) {
+      throw new Error(
+        "No se puede enviar el correo: falta el tenant de Microsoft en el entorno. " +
+          "Cargá MS_TENANT_ID (o AZURE_TENANT_ID, es el mismo GUID) en Vercel.",
+      );
+    }
+    if (!secreto) {
+      throw new Error(
+        "No se puede enviar el correo: falta MS_CLIENT_SECRET en el entorno de Vercel. " +
+          `Es el secreto del app registration "PERTEC Web · Envio de correos" (client id ` +
+          `${CLIENT_ID_CORREO}), el único con el permiso de aplicación Mail.Send — el de ` +
+          "AZURE_* solo tiene SharePoint y no sirve para esto.",
+      );
+    }
     credencial = new ClientSecretCredential(
-      process.env.MS_TENANT_ID!,
-      process.env.MS_CLIENT_ID!,
-      process.env.MS_CLIENT_SECRET!
+      tenant,
+      process.env.MS_CLIENT_ID || CLIENT_ID_CORREO,
+      secreto,
     );
   }
   return credencial;

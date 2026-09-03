@@ -682,4 +682,35 @@ assert.ok(
   "con confirmación, porque manda un correo de verdad a Finanzas",
 );
 
+// ── Y que la falta de configuración se lea ─────────────────────────────────
+//
+// El envío no funcionaba porque MS_TENANT_ID nunca se cargó en Vercel. Lo que se veía en
+// pantalla era el mensaje del SDK de Azure: "ClientSecretCredential: tenantId is a
+// required parameter" más un link a su troubleshooting — que no dice de qué variable
+// habla ni en qué proyecto.
+const notif = readFileSync(new URL("../lib/notificaciones.ts", import.meta.url), "utf8");
+assert.ok(
+  /falta el tenant de Microsoft en el entorno/.test(notif) &&
+    /falta MS_CLIENT_SECRET en el entorno/.test(notif),
+  "si falta la configuración del correo, el error dice QUÉ variable falta y dónde",
+);
+// El tenant es UN valor con tres nombres, y así se llegó a que uno esté vacío mientras
+// los otros dos funcionan.
+assert.ok(
+  /MS_TENANT_ID \|\| process\.env\.AZURE_TENANT_ID/.test(notif) &&
+    /login\\.microsoftonline\\.com/.test(notif),
+  "el tenant se cae a AZURE_TENANT_ID y al del issuer: es el mismo GUID en los tres",
+);
+assert.ok(
+  /MS_CLIENT_ID \|\| CLIENT_ID_CORREO/.test(notif),
+  "y el client id tiene predeterminado, así que lo único que hay que cargar es el secreto",
+);
+// El destinatario sigue sin poder venir de afuera: es lo único de este archivo que no se
+// relaja, pase lo que pase con la configuración.
+assert.ok(
+  /export const CORREO_FINANZAS = "finanzas@pertec\.cl"/.test(notif) &&
+    /const CORREO_SOPORTE = "soporte@pertec\.cl"/.test(notif),
+  "los destinatarios siguen siendo constantes de este archivo, no parámetros de nadie",
+);
+
 console.log("Todas las verificaciones pasaron.");
