@@ -20,7 +20,8 @@
     "probar-navegacion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-navegacion.mts",
     "probar-tema": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-tema-oscuro.mts",
     "probar-visibilidad": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-visibilidad-cotizaciones.mts",
-    "probar-bodega": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bodega.mts"
+    "probar-bodega": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bodega.mts",
+    "probar-panel-odoo": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-panel-odoo.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

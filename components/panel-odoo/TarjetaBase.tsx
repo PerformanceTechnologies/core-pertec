@@ -64,6 +64,7 @@ export default function TarjetaBase({
   icono,
   ejecucion,
   contenidoExpandido,
+  anchoExpandido,
   children,
 }: {
   titulo: string;
@@ -74,6 +75,9 @@ export default function TarjetaBase({
   // se muestra en el modal al expandir. Si no se pasa, no aparece el botón
   // -- no toda tarjeta necesita vista expandida.
   contenidoExpandido?: ReactNode;
+  // "ancho" para el detalle que trae una tabla con filtros (Facturas); el
+  // resto son fichas y se quedan con el ancho normal.
+  anchoExpandido?: "normal" | "ancho";
   children: ReactNode;
 }) {
   const [expandido, setExpandido] = useState(false);
@@ -120,7 +124,7 @@ export default function TarjetaBase({
       {children}
 
       {expandido && contenidoExpandido && (
-        <ModalExpandirTarjeta titulo={titulo} icono={icono} onCerrar={() => setExpandido(false)}>
+        <ModalExpandirTarjeta titulo={titulo} icono={icono} ancho={anchoExpandido} onCerrar={() => setExpandido(false)}>
           {contenidoExpandido}
         </ModalExpandirTarjeta>
       )}

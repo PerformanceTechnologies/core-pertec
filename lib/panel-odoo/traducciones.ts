@@ -165,3 +165,55 @@ export const CATEGORIAS_FLOTA: Record<string, string> = {
   Utility: "Utilitario",
   Minivan: "Minivan",
 };
+
+// account.move.l10n_cl_aec_yielded ("Yield Status") -- cesion electronica del
+// DTE, o sea factoring. Verificado contra el Odoo real: hay facturas de venta
+// con "yielded".
+export const ESTADOS_CESION: Record<string, string> = {
+  to_yield: "Por ceder",
+  yielded: "Cedida",
+};
+
+// account.move.l10n_cl_dte_status -- estado del envio del DTE al SII.
+export const ESTADOS_DTE: Record<string, string> = {
+  not_sent: "No enviado",
+  ask_for_status: "Consultando al SII",
+  accepted: "Aceptado por el SII",
+  objected: "Aceptado con reparos",
+  rejected: "Rechazado por el SII",
+  cancelled: "Anulado",
+  manual: "Manual",
+};
+
+// account.move.l10n_cl_dte_acceptation_status -- acuse del receptor.
+export const ESTADOS_ACEPTACION_DTE: Record<string, string> = {
+  received: "Recibido",
+  ack_sent: "Acuse enviado",
+  claimed: "Reclamada",
+  accepted: "Aceptada",
+  goods: "Recepción de mercaderías",
+  accepted_goods: "Aceptada con mercaderías",
+};
+
+// account.move.l10n_cl_claim -- codigos de reclamo/aceptacion del SII.
+export const CODIGOS_RECLAMO_SII: Record<string, string> = {
+  ACD: "Acepta contenido del documento",
+  RCD: "Reclamo al contenido del documento",
+  ERM: "Otorga recibo de mercaderías o servicios",
+  RFP: "Reclamo por falta parcial de mercaderías",
+  RFT: "Reclamo por falta total de mercaderías",
+  NCA: "Nota de crédito por anulación",
+  ENC: "Nota de crédito por anulación (emisor)",
+  PAG: "Pagada",
+  ERG: "Recibo de mercaderías otorgado",
+  ERI: "Recibo de mercaderías con inconsistencias",
+  CED: "Cesión del documento",
+};
+
+// account.move.x_edp_state -- campo custom de este Odoo (Estado de Pago).
+export const ESTADOS_EDP: Record<string, string> = {
+  draft: "Borrador",
+  sent: "Enviado",
+  approved: "Aprobado",
+  invoiced: "Facturado",
+};

@@ -1,12 +1,15 @@
-import { obtenerKpisFacturas, listarFacturasRecientes } from "@/lib/panel-odoo/datos";
+import { obtenerKpisFacturas, listarFacturasParaDetalle } from "@/lib/panel-odoo/datos";
 import { money } from "@/lib/cotizador/formato";
 import type { EjecucionOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
 import { GraficoAreaSimple } from "./graficos";
 import ListaFacturasClickeable from "./ListaFacturasClickeable";
+import DetalleFacturas from "./DetalleFacturas";
 import TarjetaBase from "./TarjetaBase";
 import IndicadorVariacion from "./IndicadorVariacion";
 
-const LIMITE_EXPANDIDO = 20;
+// Cuántas facturas se listan en la tarjeta chica (el detalle expandido las
+// muestra todas, con filtros).
+const EN_LA_TARJETA = 5;
 
 export default async function TarjetaFacturas({
   companyId,
@@ -15,21 +18,24 @@ export default async function TarjetaFacturas({
   companyId: number;
   ejecucion?: EjecucionOdoo | null;
 }) {
-  const [kpis, recientes] = await Promise.all([
+  const [kpis, todas] = await Promise.all([
     obtenerKpisFacturas(companyId),
-    listarFacturasRecientes(companyId, LIMITE_EXPANDIDO),
+    // El detalle expandido filtra y ordena en el cliente sobre el histórico
+    // completo, no sobre las últimas 20: "las cedidas" tiene que encontrar
+    // todas las cedidas.
+    listarFacturasParaDetalle(companyId),
   ]);
 
-  // De las últimas 20 (no de todo el histórico): una señal rápida, no un
-  // conteo exhaustivo -- por eso el detalle expandido lo aclara en el texto.
+  // Sobre el histórico completo, ahora que el detalle lo trae igual.
   const hoy = new Date().toISOString().slice(0, 10);
-  const vencidas = recientes.filter(
+  const vencidas = todas.filter(
     (f) => f.move_type === "out_invoice" && f.payment_state !== "paid" && f.fecha_vencimiento && f.fecha_vencimiento < hoy
   );
 
   return (
     <TarjetaBase
       titulo="Facturas"
+      anchoExpandido="ancho"
       acento="naranjo"
       icono="file-invoice"
       ejecucion={ejecucion}
@@ -44,7 +50,7 @@ export default async function TarjetaFacturas({
           {vencidas.length > 0 && (
             <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               <span className="font-semibold">{vencidas.length}</span> factura{vencidas.length === 1 ? "" : "s"} de
-              venta vencida{vencidas.length === 1 ? "" : "s"} sin pagar (de las últimas {LIMITE_EXPANDIDO}) por{" "}
+              venta vencida{vencidas.length === 1 ? "" : "s"} sin pagar por{" "}
               <span className="font-semibold">{money(vencidas.reduce((acc, f) => acc + f.monto_pendiente, 0))}</span>.
             </div>
           )}
@@ -55,9 +61,11 @@ export default async function TarjetaFacturas({
           </div>
 
           <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">
-            Últimas {recientes.length} facturas
+            Facturas ({todas.length})
           </p>
-          <ListaFacturasClickeable facturas={recientes} />
+          <div className="mt-2">
+            <DetalleFacturas facturas={todas} />
+          </div>
         </div>
       }
     >
@@ -85,7 +93,7 @@ export default async function TarjetaFacturas({
         <GraficoAreaSimple datos={kpis.serieMensualVentas} />
       </div>
 
-      <ListaFacturasClickeable facturas={recientes.slice(0, 5)} />
+      <ListaFacturasClickeable facturas={todas.slice(0, EN_LA_TARJETA)} />
     </TarjetaBase>
   );
 }

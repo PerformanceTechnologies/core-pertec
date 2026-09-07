@@ -13,11 +13,13 @@ export default function ModalExpandirTarjeta({
   titulo,
   icono,
   onCerrar,
+  ancho = "normal",
   children,
 }: {
   titulo: string;
   icono: string;
   onCerrar: () => void;
+  ancho?: "normal" | "ancho";
   children: ReactNode;
 }) {
   const Icono = obtenerIcono(icono);
@@ -36,7 +38,7 @@ export default function ModalExpandirTarjeta({
       onClick={onCerrar}
     >
       <div
-        className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl border border-borde bg-white shadow-xl sm:max-w-2xl sm:rounded-2xl"
+        className={`max-h-[88vh] w-full overflow-y-auto rounded-t-2xl border border-borde bg-white shadow-xl ${ancho === "ancho" ? "sm:max-w-4xl" : "sm:max-w-2xl"} sm:rounded-2xl`}
         onClick={(evento) => evento.stopPropagation()}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-borde bg-white px-5 py-4">

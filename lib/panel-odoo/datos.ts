@@ -55,6 +55,25 @@ export interface FilaFactura {
   monto_total: number;
   monto_pendiente: number;
   diario: string | null;
+  // Detalle de la localizacion chilena y campos custom (ver
+  // sincronizar-facturas.ts). Todos anulables: una compra no tiene DTE
+  // propio y una factura vieja puede no tener EDP.
+  cedida: string | null;
+  cedida_a_odoo_id: number | null;
+  dte_estado: string | null;
+  dte_aceptacion: string | null;
+  reclamo: string | null;
+  tipo_documento: string | null;
+  monto_neto: number | null;
+  monto_impuesto: number | null;
+  vendedor: string | null;
+  condicion_pago: string | null;
+  referencia: string | null;
+  origen: string | null;
+  rut_contraparte: string | null;
+  moneda: string | null;
+  edp_nombre: string | null;
+  edp_estado: string | null;
 }
 
 export interface KpisFacturas {
@@ -121,11 +140,17 @@ export async function obtenerKpisFacturas(companyId: number): Promise<KpisFactur
   };
 }
 
-export async function listarFacturasRecientes(companyId: number, limite = 5): Promise<FilaFactura[]> {
+// El detalle expandido filtra y ordena en el cliente, asi que necesita el
+// historico y no solo las ultimas: con TOPE = 2000 en el sync, 2000 filas es
+// todo lo que puede haber en cache.
+export async function listarFacturasParaDetalle(companyId: number, limite = 2000): Promise<FilaFactura[]> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_facturas")
+    // La lista va literal y no en una constante: supabase-js infiere el tipo
+    // de la fila desde el string del select, y una constante concatenada lo
+    // vuelve `string` y pierde la inferencia.
     .select(
-      "odoo_id, move_type, state, payment_state, numero, partner_nombre, fecha_factura, fecha_vencimiento, monto_total, monto_pendiente, diario",
+      "odoo_id, move_type, state, payment_state, numero, partner_nombre, fecha_factura, fecha_vencimiento, monto_total, monto_pendiente, diario, cedida, cedida_a_odoo_id, dte_estado, dte_aceptacion, reclamo, tipo_documento, monto_neto, monto_impuesto, vendedor, condicion_pago, referencia, origen, rut_contraparte, moneda, edp_nombre, edp_estado",
     )
     .eq("company_id", companyId)
     .order("fecha_factura", { ascending: false, nullsFirst: false })

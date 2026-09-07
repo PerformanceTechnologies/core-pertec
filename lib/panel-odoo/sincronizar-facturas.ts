@@ -26,6 +26,26 @@ interface FacturaOdoo {
   amount_residual: number;
   company_id: TuplaOdoo;
   journal_id: TuplaOdoo;
+  // Localizacion chilena y campos custom de este Odoo. Todos verificados con
+  // odoo_describe_model sobre account.move: los l10n_cl_* vienen de
+  // l10n_cl_edi (la cesion electronica es l10n_cl_aec_yielded) y los x_* son
+  // los campos de EDP propios de PERTEC.
+  l10n_cl_aec_yielded: "to_yield" | "yielded" | false;
+  l10n_cl_yielded_invoice_id: TuplaOdoo;
+  l10n_cl_dte_status: string | false;
+  l10n_cl_dte_acceptation_status: string | false;
+  l10n_cl_claim: string | false;
+  l10n_latam_document_type_id: TuplaOdoo;
+  amount_untaxed: number;
+  amount_tax: number;
+  invoice_user_id: TuplaOdoo;
+  invoice_payment_term_id: TuplaOdoo;
+  ref: string | false;
+  invoice_origin: string | false;
+  partner_id_vat: string | false;
+  currency_id: TuplaOdoo;
+  x_edp_name: string | false;
+  x_edp_state: string | false;
 }
 
 // Se cachean tambien las borrador: el filtro "solo posted" es una decision de
@@ -53,6 +73,22 @@ export async function sincronizarFacturas(): Promise<number> {
       "amount_residual",
       "company_id",
       "journal_id",
+      "l10n_cl_aec_yielded",
+      "l10n_cl_yielded_invoice_id",
+      "l10n_cl_dte_status",
+      "l10n_cl_dte_acceptation_status",
+      "l10n_cl_claim",
+      "l10n_latam_document_type_id",
+      "amount_untaxed",
+      "amount_tax",
+      "invoice_user_id",
+      "invoice_payment_term_id",
+      "ref",
+      "invoice_origin",
+      "partner_id_vat",
+      "currency_id",
+      "x_edp_name",
+      "x_edp_state",
     ],
     { order: "invoice_date desc", limit: TOPE },
   );
@@ -76,6 +112,22 @@ export async function sincronizarFacturas(): Promise<number> {
       monto_total: f.amount_total,
       monto_pendiente: f.amount_residual,
       diario: nombreDeTupla(f.journal_id),
+      cedida: f.l10n_cl_aec_yielded || null,
+      cedida_a_odoo_id: idDeTupla(f.l10n_cl_yielded_invoice_id),
+      dte_estado: f.l10n_cl_dte_status || null,
+      dte_aceptacion: f.l10n_cl_dte_acceptation_status || null,
+      reclamo: f.l10n_cl_claim || null,
+      tipo_documento: nombreDeTupla(f.l10n_latam_document_type_id),
+      monto_neto: f.amount_untaxed,
+      monto_impuesto: f.amount_tax,
+      vendedor: nombreDeTupla(f.invoice_user_id),
+      condicion_pago: nombreDeTupla(f.invoice_payment_term_id),
+      referencia: f.ref || null,
+      origen: f.invoice_origin || null,
+      rut_contraparte: f.partner_id_vat || null,
+      moneda: nombreDeTupla(f.currency_id),
+      edp_nombre: f.x_edp_name || null,
+      edp_estado: f.x_edp_state || null,
       actualizado_en: new Date().toISOString(),
     };
   });
