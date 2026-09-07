@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
+import { IconDownload, IconExternalLink } from "@tabler/icons-react";
 
 /**
  * Visor del comprobante, dentro de la misma página.
@@ -10,15 +13,51 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * campo de al lado. Había que cambiar de pestaña, mirar, volver, y buscar de nuevo
  * dónde se estaba.
  *
- * Los PDF van en un <iframe> con el visor nativo del navegador, que ya trae su
- * propio zoom, búsqueda y paginación: reimplementar eso sería peor en todas las
- * dimensiones. Las imágenes sí llevan zoom y arrastre propios, porque un <img> no
- * trae ninguno.
+ * Los PDF los dibuja pdf.js en un canvas nuestro (ver ./VisorPdf.tsx). Antes iban en un
+ * <iframe> con el visor del navegador: funcionaba, pero metía adentro del modal una barra
+ * en inglés con los iconos y los grises de Chrome, y se veía como otra aplicación pegada.
+ * Las imágenes llevan zoom y arrastre propios, porque un <img> no trae ninguno.
+ *
+ * Se dibuja en un PORTAL a document.body, y eso NO es un detalle: el visor vivía dentro
+ * del árbol de la página, y como algún contenedor del layout crea su propio contexto de
+ * apilamiento, su z-50 se resolvía DENTRO de ese contenedor. Resultado: la barra lateral
+ * quedaba pintada encima del visor, tapándole el nombre del archivo, el borde izquierdo
+ * del documento y el pie con las teclas. Desde el body no hay ancestro que lo pueda
+ * atrapar, y el z-index de acá se compara con el de la barra de verdad.
  */
+
+/**
+ * Encima de la barra lateral, que es z-50 (ver BARRA_FIJA en lib/estilos.ts).
+ *
+ * El visor tapa la pantalla entera A PROPÓSITO: se abre para cotejar un dato del
+ * comprobante contra el formulario, y con la barra lateral asomando por la izquierda el
+ * documento quedaba corrido y recortado.
+ */
+const Z_SOBRE_LA_BARRA = "z-[100]";
+
+// pdf.js pesa ~350 KB y mide el DOM para dibujar: no tiene nada que hacer en el servidor
+// ni en el JavaScript inicial de la página. Su chunk se pide al abrir el primer PDF.
+const PdfDiferido = dynamic(() => import("./VisorPdf"), { ssr: false, loading: () => null });
 
 const ESCALA_MIN = 1;
 const ESCALA_MAX = 6;
 const PASO = 0.5;
+
+/**
+ * La misma URL, pero que baje el archivo en vez de abrirlo, y con su nombre.
+ *
+ * El atributo `download` de un <a> no sirve acá: la URL firmada apunta al dominio de
+ * Supabase, y en un enlace a otro origen los navegadores IGNORAN `download` — el archivo
+ * se abre en una pestaña y encima con el nombre ilegible del bucket. Supabase resuelve
+ * esto del lado del servidor con el parámetro `download`, que le hace devolver
+ * Content-Disposition: attachment con el nombre que se le pase.
+ *
+ * Se agrega acá y no en `createSignedUrl` para no firmar dos URLs por comprobante: el
+ * parámetro no entra en la firma, así que la misma URL sirve para ver y para descargar.
+ */
+function urlParaDescargar(url: string, nombre: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(nombre)}`;
+}
 
 export interface Comprobante {
   url: string;
@@ -84,13 +123,17 @@ export default function VisorComprobante({
 
   const conZoom = escala > 1;
 
-  return (
+  // En el primer render del cliente document existe; el guard es por si alguna vez se
+  // renderiza en el servidor, donde createPortal no puede correr.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`Comprobante: ${comprobante.nombre}`}
       onClick={onCerrar}
-      className="fixed inset-0 z-50 flex flex-col bg-tinta/80 p-4 backdrop-blur-sm sm:p-8"
+      className={`fixed inset-0 ${Z_SOBRE_LA_BARRA} flex flex-col bg-tinta/80 p-4 backdrop-blur-sm sm:p-8`}
     >
       <div
         // El clic dentro del visor no cierra; solo el del fondo.
@@ -131,11 +174,24 @@ export default function VisorComprobante({
               </>
             )}
             <a
+              href={urlParaDescargar(comprobante.url, comprobante.nombre)}
+              // download igual, por si algún día el archivo se sirve desde el mismo
+              // origen: ahí sí lo respeta el navegador y el parámetro sobra sin molestar.
+              download={comprobante.nombre}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-tinta/50 transition hover:bg-crema hover:text-naranjo"
+              title={`Descargar ${comprobante.nombre}`}
+            >
+              <IconDownload size={14} stroke={2} />
+              Descargar
+            </a>
+            <a
               href={comprobante.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md px-2 py-1 text-[11px] font-medium text-tinta/50 transition hover:bg-crema hover:text-naranjo"
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-tinta/50 transition hover:bg-crema hover:text-naranjo"
+              title="Abrir en otra pestaña"
             >
+              <IconExternalLink size={14} stroke={2} />
               Abrir aparte
             </a>
             <button
@@ -151,8 +207,7 @@ export default function VisorComprobante({
         </div>
 
         {comprobante.esPdf ? (
-          // El visor nativo del navegador ya trae zoom, búsqueda y paginación.
-          <iframe src={comprobante.url} title={comprobante.nombre} className="min-h-0 flex-1 bg-crema" />
+          <PdfDiferido url={comprobante.url} nombre={comprobante.nombre} />
         ) : (
           <div
             className={`min-h-0 flex-1 overflow-hidden bg-crema/60 ${
@@ -185,11 +240,12 @@ export default function VisorComprobante({
 
         <p className="shrink-0 border-t border-borde px-4 py-2 text-[10px] text-tinta/35">
           {comprobante.esPdf
-            ? "Escape para cerrar."
+            ? "Flechas ← → para las páginas · teclas + − 0 para el zoom · Escape para cerrar."
             : "Doble clic para acercar · arrastra para mover · teclas + − 0 · Escape para cerrar."}
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

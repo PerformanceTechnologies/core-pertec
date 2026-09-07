@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/copiar-worker-pdf.mjs && next dev",
+    "build": "node scripts/copiar-worker-pdf.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "probar-obra": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-obra.mts",
@@ -23,7 +23,8 @@
     "probar-bodega": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bodega.mts",
     "probar-panel-odoo": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-panel-odoo.mts",
     "probar-graficos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-facturas.mts",
-    "probar-bundle": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bundle-navegador.mts"
+    "probar-bundle": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bundle-navegador.mts",
+    "probar-visor": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-visor-pdf.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -44,6 +45,7 @@
     "react": "19.2.4",
     "react-apexcharts": "^2.1.1",
     "react-dom": "19.2.4",
+    "react-pdf": "^10.5.0",
     "recharts": "^3.10.0",
     "server-only": "^0.0.1",
     "sharp": "^0.34.5"
