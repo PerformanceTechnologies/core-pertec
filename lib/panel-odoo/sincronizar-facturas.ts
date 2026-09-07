@@ -46,6 +46,27 @@ interface FacturaOdoo {
   currency_id: TuplaOdoo;
   x_edp_name: string | false;
   x_edp_state: string | false;
+  x_edp_period: string | false;
+  x_hes_number: string | false;
+  l10n_latam_document_number: string | false;
+  l10n_latam_document_type_id_code: string | false;
+  l10n_cl_sii_send_ident: string | false;
+  l10n_cl_dte_partner_status: string | false;
+  l10n_cl_claim_description: string | false;
+  delivery_date: string | false;
+  payment_count: number;
+  payment_reference: string | false;
+}
+
+// El folio del DTE viene como texto con ceros a la izquierda ("000202"): se
+// guarda como entero porque es la llave con la que se cruza contra
+// facturas_sii, donde el folio es un integer. Un numero que no parsea queda
+// nulo en vez de 0, que seria un folio valido y cruzaria con la fila
+// equivocada.
+function comoEntero(valor: string | false): number | null {
+  if (!valor) return null;
+  const n = Number.parseInt(valor, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 // Se cachean tambien las borrador: el filtro "solo posted" es una decision de
@@ -89,6 +110,16 @@ export async function sincronizarFacturas(): Promise<number> {
       "currency_id",
       "x_edp_name",
       "x_edp_state",
+      "x_edp_period",
+      "x_hes_number",
+      "l10n_latam_document_number",
+      "l10n_latam_document_type_id_code",
+      "l10n_cl_sii_send_ident",
+      "l10n_cl_dte_partner_status",
+      "l10n_cl_claim_description",
+      "delivery_date",
+      "payment_count",
+      "payment_reference",
     ],
     { order: "invoice_date desc", limit: TOPE },
   );
@@ -128,6 +159,16 @@ export async function sincronizarFacturas(): Promise<number> {
       moneda: nombreDeTupla(f.currency_id),
       edp_nombre: f.x_edp_name || null,
       edp_estado: f.x_edp_state || null,
+      edp_periodo: f.x_edp_period || null,
+      hes_numero: f.x_hes_number || null,
+      folio: comoEntero(f.l10n_latam_document_number),
+      codigo_dte: comoEntero(f.l10n_latam_document_type_id_code),
+      dte_track_id: f.l10n_cl_sii_send_ident || null,
+      dte_envio_receptor: f.l10n_cl_dte_partner_status || null,
+      reclamo_detalle: f.l10n_cl_claim_description || null,
+      fecha_entrega: f.delivery_date || null,
+      pagos: f.payment_count,
+      referencia_pago: f.payment_reference || null,
       actualizado_en: new Date().toISOString(),
     };
   });

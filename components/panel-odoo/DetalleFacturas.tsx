@@ -2,13 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { money, fechaCl } from "@/lib/cotizador/formato";
-import type { FilaFactura } from "@/lib/panel-odoo/datos";
+import { PASTILLA_ESTADO } from "@/lib/estilos";
+import { CLASES_ESTADO, ETIQUETAS_ESTADO, TITULO_ESTADO } from "@/lib/finanzas-estados";
+import { faltaEnElSii, hayDescuadreDeMonto, type FacturaCruzada } from "@/lib/panel-odoo/cruce-sii";
 import {
   CRITERIOS_INICIALES,
   ESTADO_FILTROS,
   estaVencida,
   filtrarFacturas,
   hoyEnChileIso,
+  GRUPOS_DE_ESTADO,
   ordenarFacturas,
   resumirFacturas,
   type CampoOrden,
@@ -30,10 +33,19 @@ const COLUMNAS: { campo: CampoOrden; etiqueta: string; alinear?: "derecha" }[] =
   { campo: "monto_pendiente", etiqueta: "Pendiente", alinear: "derecha" },
 ];
 
-export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] }) {
+export default function DetalleFacturas({
+  facturas,
+  hayRegistroSii,
+}: {
+  facturas: FacturaCruzada[];
+  // Solo Performance Technologies tiene registro del SII con el que cruzar (ver
+  // COMPANIA_CON_SII): para las otras empresas hay que decirlo, no mostrar todo
+  // "no está en el SII".
+  hayRegistroSii: boolean;
+}) {
   const [criterios, setCriterios] = useState<Criterios>(CRITERIOS_INICIALES);
   const [mostradas, setMostradas] = useState(POR_TANDA);
-  const [seleccionada, setSeleccionada] = useState<FilaFactura | null>(null);
+  const [seleccionada, setSeleccionada] = useState<FacturaCruzada | null>(null);
 
   const hoy = useMemo(() => hoyEnChileIso(), []);
 
@@ -96,10 +108,14 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
           className="rounded-lg border border-borde px-2 py-2 text-xs text-tinta focus:border-teal focus:outline-none"
         >
           <option value="">Todos los estados</option>
-          {ESTADO_FILTROS.map((e) => (
-            <option key={e.valor} value={e.valor}>
-              {e.etiqueta}
-            </option>
+          {GRUPOS_DE_ESTADO.filter((g) => hayRegistroSii || g !== "SII").map((grupo) => (
+            <optgroup key={grupo} label={grupo}>
+              {ESTADO_FILTROS.filter((e) => e.grupo === grupo).map((e) => (
+                <option key={e.valor} value={e.valor}>
+                  {e.etiqueta}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <label className="flex items-center gap-1.5 text-[11px] text-tinta/55">
@@ -151,7 +167,30 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
           Vencidas <strong className={resumen.vencidas > 0 ? "text-red-600" : "text-tinta"}>{resumen.vencidas}</strong>{" "}
           ({money(resumen.montoVencido)})
         </span>
+        {hayRegistroSii && (
+          <>
+            <span>
+              Reclamadas en el SII{" "}
+              <strong className={resumen.reclamadasSii > 0 ? "text-red-600" : "text-tinta"}>
+                {resumen.reclamadasSii}
+              </strong>
+            </span>
+            <span>
+              Sin registro <strong className="text-tinta">{resumen.sinRegistroSii}</strong>
+            </span>
+            <span>
+              Monto distinto <strong className={resumen.montoDistinto > 0 ? "text-red-600" : "text-tinta"}>{resumen.montoDistinto}</strong>
+            </span>
+          </>
+        )}
       </div>
+
+      {!hayRegistroSii && (
+        <p className="mt-2 text-[11px] text-tinta/45">
+          El estado del SII solo está disponible para Performance Technologies: el registro del portal MIPYME que
+          lee Panel Finanzas es el de esa empresa. Acá se muestra el estado de Odoo.
+        </p>
+      )}
 
       {/* Encabezado ordenable */}
       <div className="mt-3 overflow-x-auto">
@@ -201,6 +240,7 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
                     </p>
                     <p className="truncate text-[10px] text-tinta/40">
                       {f.numero ?? `#${f.odoo_id}`}
+                      {f.folio !== null ? ` · folio ${f.folio}` : ""}
                       {f.rut_contraparte ? ` · ${f.rut_contraparte}` : ""}
                     </p>
                   </td>
@@ -214,15 +254,43 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
                   <td className="whitespace-nowrap py-2 pr-3 text-right text-tinta/70">{money(f.monto_pendiente)}</td>
                   <td className="py-2">
                     <div className="flex flex-wrap gap-1">
-                      <span className="rounded-full border border-borde bg-crema px-1.5 py-0.5 text-[10px] text-tinta/60">
-                        {traducir(ESTADOS_FACTURA, f.state)}
-                      </span>
+                      {/* El estado que manda es el del registro del SII; el de Odoo va
+                          debajo, chico, porque solo dice si el asiento está contabilizado. */}
+                      {f.sii ? (
+                        <span
+                          title={TITULO_ESTADO[f.sii.estado]}
+                          className={`${PASTILLA_ESTADO} ${CLASES_ESTADO[f.sii.estado] ?? "bg-gris/15 text-gris"}`}
+                        >
+                          {ETIQUETAS_ESTADO[f.sii.estado] ?? f.sii.estado}
+                        </span>
+                      ) : (
+                        <span
+                          title={
+                            hayRegistroSii
+                              ? "No aparece en el registro del SII que lee Panel Finanzas"
+                              : "Sin registro del SII para esta empresa"
+                          }
+                          className="rounded-full border border-borde bg-crema px-1.5 py-0.5 text-[10px] text-tinta/50"
+                        >
+                          {traducir(ESTADOS_FACTURA, f.state)}
+                        </span>
+                      )}
+                      {faltaEnElSii(f) && hayRegistroSii && (
+                        <span className="rounded-full border border-naranjo/30 bg-naranjo/10 px-1.5 py-0.5 text-[10px] font-semibold text-naranjo">
+                          Sin registro
+                        </span>
+                      )}
+                      {hayDescuadreDeMonto(f) && (
+                        <span className="rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                          Monto ≠ SII
+                        </span>
+                      )}
                       {f.cedida === "yielded" && (
                         <span className="rounded-full border border-teal/30 bg-teal/10 px-1.5 py-0.5 text-[10px] font-semibold text-teal">
                           Cedida
                         </span>
                       )}
-                      {f.dte_aceptacion === "claimed" && (
+                      {!f.sii && f.dte_aceptacion === "claimed" && (
                         <span className="rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
                           Reclamada
                         </span>
