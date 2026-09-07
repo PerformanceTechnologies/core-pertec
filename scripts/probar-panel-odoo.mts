@@ -24,6 +24,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { FilaFactura } from "../lib/panel-odoo/datos";
 import {
+  TRAMOS_DE_MORA,
+  envejecimiento,
+  mesesEntre,
+  porCesion,
+  porEstadoDePago,
+  rangoDelMes,
+  serieMensual,
+  topContrapartes,
+} from "../lib/panel-odoo/facturas-series";
+import {
   CRITERIOS_INICIALES,
   ESTADO_FILTROS,
   diasDeAtraso,
@@ -180,6 +190,123 @@ assert.equal(diasDeAtraso(factura({ odoo_id: 9, fecha_vencimiento: "2026-09-01" 
 assert.equal(diasDeAtraso(factura({ odoo_id: 9, fecha_vencimiento: "2026-09-10" }), HOY), -3);
 assert.equal(diasDeAtraso(factura({ odoo_id: 9, fecha_vencimiento: null }), HOY), null);
 assert.match(hoyEnChileIso(), /^\d{4}-\d{2}-\d{2}$/, "hoyEnChileIso devuelve una fecha comparable con las de Odoo");
+
+// ── Las series de los gráficos ───────────────────────────────────────────
+// Lo que dibuja ApexCharts sale de acá, así que acá es donde se puede probar. Los casos
+// son los que rompen un gráfico sin romper nada más: un mes sin facturas, una factura sin
+// fecha, y que los tres números de una barra apilada sumen el total.
+const paraSeries: FilaFactura[] = [
+  factura({ odoo_id: 40, partner_nombre: "Minera Uno", fecha_factura: "2026-06-10", monto_total: 1000, monto_pendiente: 400 }),
+  factura({ odoo_id: 41, partner_nombre: "Minera Uno", fecha_factura: "2026-06-20", monto_total: 500, monto_pendiente: 0, payment_state: "paid" }),
+  // Julio no tiene ninguna: tiene que aparecer igual, en cero.
+  factura({ odoo_id: 42, partner_nombre: "Constructora Dos", fecha_factura: "2026-08-05", monto_total: 3000, monto_pendiente: 3000 }),
+  factura({ odoo_id: 43, partner_nombre: "Tercera SpA", fecha_factura: null, monto_total: 999, monto_pendiente: 999 }),
+];
+
+const mensual = serieMensual(paraSeries);
+assert.deepEqual(
+  mensual.map((p) => p.mes),
+  ["2026-06", "2026-07", "2026-08"],
+  "un mes sin facturas tiene que aparecer en cero: si no, la línea une junio con agosto como si fueran contiguos",
+);
+assert.equal(mensual[0].facturado, 1500);
+assert.equal(mensual[0].pendiente, 400);
+assert.equal(mensual[0].cobrado, 1100, "cobrado + pendiente = facturado, o la barra apilada miente");
+assert.equal(mensual[0].cobrado + mensual[0].pendiente, mensual[0].facturado);
+assert.equal(mensual[1].facturado, 0);
+assert.equal(mensual[1].cantidad, 0);
+assert.equal(mensual[2].facturado, 3000);
+assert.equal(
+  mensual.reduce((a, p) => a + p.cantidad, 0),
+  3,
+  "la factura sin fecha no entra en la línea de tiempo (y no se cuenta dos veces)",
+);
+assert.deepEqual(serieMensual([]), [], "sin facturas no hay serie, no un rango de meses vacío");
+
+assert.deepEqual(mesesEntre("2026-11", "2027-02"), ["2026-11", "2026-12", "2027-01", "2027-02"], "cruzar el año");
+assert.deepEqual(mesesEntre("2026-05", "2026-05"), ["2026-05"]);
+assert.ok(mesesEntre("1900-01", "2026-09").length <= 600, "un dato con fecha de 1900 no puede colgar el navegador");
+
+assert.deepEqual(rangoDelMes("2026-02"), { desde: "2026-02-01", hasta: "2026-02-28" }, "febrero normal");
+assert.deepEqual(rangoDelMes("2024-02"), { desde: "2024-02-01", hasta: "2024-02-29" }, "febrero bisiesto");
+assert.deepEqual(rangoDelMes("2026-12"), { desde: "2026-12-01", hasta: "2026-12-31" });
+
+// El clic en un mes tiene que filtrar EXACTAMENTE ese mes: es la ida y vuelta entre el
+// gráfico y la tabla.
+const deJunio = filtrarFacturas(paraSeries, con(rangoDelMes("2026-06")), HOY);
+assert.deepEqual(ids(deJunio), [40, 41]);
+
+const pago = porEstadoDePago(facturas, HOY);
+assert.equal(
+  pago.reduce((a, p) => a + p.cantidad, 0),
+  facturas.length,
+  "la torta no puede perder facturas: lo que no cae en un grupo va a 'Otros'",
+);
+assert.deepEqual(
+  pago.map((p) => p.etiqueta),
+  ["Pagadas", "Vencidas", "Por vencer"],
+);
+assert.equal(pago.find((p) => p.etiqueta === "Vencidas")?.cantidad, 1);
+assert.ok(
+  pago.every((p) => p.cantidad > 0),
+  "un grupo vacío no se dibuja: una porción de 0 en una dona es una raya sin sentido",
+);
+// Y el filtro de cada porción tiene que existir de verdad, o el clic no hace nada.
+for (const porcion of pago) {
+  if (porcion.filtro === "") continue;
+  assert.ok(
+    ESTADO_FILTROS.some((e) => e.valor === porcion.filtro),
+    `la porción "${porcion.etiqueta}" apunta a un filtro que no existe: ${porcion.filtro}`,
+  );
+}
+for (const porcion of porCesion(facturas)) {
+  if (porcion.filtro === "") continue;
+  assert.ok(ESTADO_FILTROS.some((e) => e.valor === porcion.filtro), `filtro inexistente: ${porcion.filtro}`);
+}
+
+const cesion = porCesion(facturas);
+assert.equal(cesion.find((p) => p.etiqueta === "Cedidas")?.cantidad, 1);
+assert.equal(cesion.find((p) => p.etiqueta === "Por ceder")?.cantidad, 1);
+assert.equal(cesion.find((p) => p.etiqueta === "Sin ceder")?.cantidad, 5);
+
+const top = topContrapartes(paraSeries, 2);
+assert.equal(top.length, 2, "el tope se respeta");
+assert.equal(top[0].nombre, "Constructora Dos", "se ordena por monto facturado, no por cantidad");
+assert.equal(top[0].monto, 3000);
+assert.equal(top[1].nombre, "Minera Uno");
+assert.equal(top[1].cantidad, 2, "las dos facturas del mismo cliente se suman en una barra");
+assert.equal(top[1].monto, 1500);
+assert.equal(top[1].pendiente, 400, "la parte pendiente es la que se apila arriba");
+assert.equal(
+  topContrapartes([factura({ odoo_id: 44, partner_nombre: null })])[0].nombre,
+  "(sin contraparte)",
+  "una factura sin contraparte no se pierde del ranking",
+);
+// El clic en una barra busca ese nombre: tiene que encontrar sus propias facturas.
+assert.equal(filtrarFacturas(paraSeries, con({ texto: top[1].nombre }), HOY).length, top[1].cantidad);
+
+const mora = envejecimiento(
+  [
+    factura({ odoo_id: 50, fecha_vencimiento: "2026-09-30", monto_pendiente: 100 }), // por vencer
+    factura({ odoo_id: 51, fecha_vencimiento: "2026-09-01", monto_pendiente: 200 }), // 6 días
+    factura({ odoo_id: 52, fecha_vencimiento: "2026-07-20", monto_pendiente: 300 }), // 49 días
+    factura({ odoo_id: 53, fecha_vencimiento: "2026-01-01", monto_pendiente: 400 }), // +90
+    factura({ odoo_id: 54, fecha_vencimiento: "2026-01-01", monto_pendiente: 0, payment_state: "paid" }),
+    factura({ odoo_id: 55, fecha_vencimiento: null, monto_pendiente: 500 }),
+  ],
+  HOY,
+);
+assert.deepEqual(
+  mora.map((t) => t.monto),
+  [100, 200, 300, 0, 400],
+);
+assert.deepEqual(
+  mora.map((t) => t.cantidad),
+  [1, 1, 1, 0, 1],
+  "una pagada y una sin vencimiento no tienen mora",
+);
+assert.equal(mora[0].etiqueta, "Por vencer", "el primer tramo NO es mora: el clic ahí no puede filtrar vencidas");
+assert.equal(TRAMOS_DE_MORA.length, mora.length, "los tramos son fijos: siempre se dibujan los cinco");
 
 // ── Que el sync realmente pida los campos ────────────────────────────────
 const sync = readFileSync(new URL("../lib/panel-odoo/sincronizar-facturas.ts", import.meta.url), "utf8");

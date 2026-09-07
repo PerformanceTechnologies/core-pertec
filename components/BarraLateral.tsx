@@ -20,6 +20,7 @@ import {
   IconMoon,
 } from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
+import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
 import { BARRA_FIJA } from "@/lib/estilos";
@@ -48,8 +49,6 @@ function leerColapsadaServidor() {
   return false;
 }
 
-const CLAVE_TEMA = "core-tema";
-const EVENTO_TEMA = "core-tema-cambio";
 
 // Mismo patrón que colapsada: localStorage no avisa a la misma pestaña que
 // escribe, así que se dispara un evento propio para que useSyncExternalStore

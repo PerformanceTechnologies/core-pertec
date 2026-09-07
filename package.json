@@ -21,7 +21,8 @@
     "probar-tema": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-tema-oscuro.mts",
     "probar-visibilidad": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-visibilidad-cotizaciones.mts",
     "probar-bodega": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bodega.mts",
-    "probar-panel-odoo": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-panel-odoo.mts"
+    "probar-panel-odoo": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-panel-odoo.mts",
+    "probar-graficos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-facturas.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -30,6 +31,7 @@
     "@sparticuz/chromium-min": "^131.0.1",
     "@supabase/supabase-js": "^2.110.1",
     "@tabler/icons-react": "^3.44.0",
+    "apexcharts": "^7.1.0",
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.10.0",
     "jszip": "^3.10.1",
@@ -39,6 +41,7 @@
     "pdf-parse": "^1.1.1",
     "playwright-core": "^1.49.1",
     "react": "19.2.4",
+    "react-apexcharts": "^2.1.1",
     "react-dom": "19.2.4",
     "recharts": "^3.10.0",
     "server-only": "^0.0.1",

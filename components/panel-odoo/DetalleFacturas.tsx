@@ -14,8 +14,22 @@ import {
   type CampoOrden,
   type Criterios,
 } from "@/lib/panel-odoo/facturas-filtro";
+import {
+  envejecimiento,
+  porCesion,
+  porEstadoDePago,
+  rangoDelMes,
+  serieMensual,
+  topContrapartes,
+} from "@/lib/panel-odoo/facturas-series";
 import { traducir, TIPOS_FACTURA, ESTADOS_FACTURA } from "@/lib/panel-odoo/traducciones";
 import ModalDetalleFactura from "./ModalDetalleFactura";
+import {
+  GraficoMora,
+  GraficoTendenciaFacturas,
+  GraficoTopContrapartes,
+  GraficoTortaFacturas,
+} from "./graficos-facturas";
 
 // Cuántas filas se dibujan de una vez. Filtrar y ordenar se hace sobre TODAS
 // las facturas (si no, "las cedidas" mostraría solo las cedidas de las
@@ -33,6 +47,7 @@ const COLUMNAS: { campo: CampoOrden; etiqueta: string; alinear?: "derecha" }[] =
 export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] }) {
   const [criterios, setCriterios] = useState<Criterios>(CRITERIOS_INICIALES);
   const [mostradas, setMostradas] = useState(POR_TANDA);
+  const [verGraficos, setVerGraficos] = useState(true);
   const [seleccionada, setSeleccionada] = useState<FilaFactura | null>(null);
 
   const hoy = useMemo(() => hoyEnChileIso(), []);
@@ -43,11 +58,48 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
   );
   const resumen = useMemo(() => resumirFacturas(visibles, hoy), [visibles, hoy]);
 
+  // Los gráficos se calculan sobre lo FILTRADO, igual que el resumen: la tabla y los
+  // gráficos contestan la misma pregunta, o serían dos verdades en una pantalla.
+  const series = useMemo(
+    () => ({
+      mensual: serieMensual(visibles),
+      pago: porEstadoDePago(visibles, hoy),
+      cesion: porCesion(visibles),
+      contrapartes: topContrapartes(visibles),
+      mora: envejecimiento(visibles, hoy),
+    }),
+    [visibles, hoy],
+  );
+
+  // El mes que está filtrado, si el rango de fechas es exactamente un mes: es lo que el
+  // gráfico de tendencia resalta.
+  const mesElegido = useMemo(() => {
+    if (!criterios.desde || !criterios.hasta) return null;
+    const mes = criterios.desde.slice(0, 7);
+    const rango = rangoDelMes(mes);
+    return rango.desde === criterios.desde && rango.hasta === criterios.hasta ? mes : null;
+  }, [criterios.desde, criterios.hasta]);
+
   function cambiar(parcial: Partial<Criterios>) {
     setCriterios((previos) => ({ ...previos, ...parcial }));
     // Un filtro nuevo empieza de nuevo: si no, se quedaría mostrando 300 filas
     // de un resultado de 4.
     setMostradas(POR_TANDA);
+  }
+
+  /** Clic en un mes de la tendencia: filtra ese mes, y volver a apretarlo lo saca. */
+  function alElegirMes(mes: string) {
+    if (mesElegido === mes) return cambiar({ desde: "", hasta: "" });
+    cambiar(rangoDelMes(mes));
+  }
+
+  /** Clic en una porción o en una barra: el mismo valor dos veces se apaga. */
+  function alternarEstado(filtro: string) {
+    cambiar({ estado: criterios.estado === filtro ? "" : filtro });
+  }
+
+  function alternarTexto(texto: string) {
+    cambiar({ texto: criterios.texto === texto ? "" : texto });
   }
 
   function ordenarPor(campo: CampoOrden) {
@@ -153,6 +205,80 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
         </span>
       </div>
 
+      {/* Lo que está filtrado, y cómo sacarlo. Sin esto, un clic en un gráfico filtra la
+          tabla y no queda a la vista por qué: la fila de filtros de arriba no muestra un
+          rango de fechas ni un nombre buscado de un vistazo. */}
+      {hayFiltro && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-tinta/40">Filtrando por</span>
+          {criterios.texto && (
+            <Chip texto={`"${criterios.texto}"`} onQuitar={() => cambiar({ texto: "" })} />
+          )}
+          {criterios.tipo && (
+            <Chip texto={traducir(TIPOS_FACTURA, criterios.tipo)} onQuitar={() => cambiar({ tipo: "" })} />
+          )}
+          {criterios.estado && (
+            <Chip
+              texto={ESTADO_FILTROS.find((e) => e.valor === criterios.estado)?.etiqueta ?? criterios.estado}
+              onQuitar={() => cambiar({ estado: "" })}
+            />
+          )}
+          {(criterios.desde || criterios.hasta) && (
+            <Chip
+              texto={
+                mesElegido
+                  ? mesElegido
+                  : `${criterios.desde ? fechaCl(criterios.desde) : "…"} a ${criterios.hasta ? fechaCl(criterios.hasta) : "…"}`
+              }
+              onQuitar={() => cambiar({ desde: "", hasta: "" })}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Gráficos. Todo lo que se ve acá es clickeable y filtra la tabla de abajo. */}
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
+          Gráficos <span className="font-normal normal-case text-tinta/35">— hacé clic para filtrar</span>
+        </p>
+        <button
+          type="button"
+          onClick={() => setVerGraficos((v) => !v)}
+          aria-expanded={verGraficos}
+          className="rounded-lg border border-borde px-2 py-1 text-[11px] font-semibold text-tinta/60 transition hover:bg-crema hover:text-tinta"
+        >
+          {verGraficos ? "Ocultar" : "Mostrar"}
+        </button>
+      </div>
+
+      {/* Dos columnas recién en xl: el modal mide 896 px, así que en xl cada gráfico queda
+          en ~430 px, y más abajo de eso una dona con su leyenda no se lee. Las dos donas
+          son las que se ponen a la par; lo demás necesita el ancho completo. */}
+      {verGraficos && (
+        <div className="mt-2 grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <Panel titulo="Facturado por mes" ancho>
+            <GraficoTendenciaFacturas datos={series.mensual} onElegirMes={alElegirMes} mesElegido={mesElegido} />
+          </Panel>
+          <Panel titulo="Estado de cobro">
+            <GraficoTortaFacturas porciones={series.pago} onElegir={alternarEstado} titulo="Total" />
+          </Panel>
+          <Panel titulo="Cesión (factoring)">
+            <GraficoTortaFacturas
+              porciones={series.cesion}
+              onElegir={alternarEstado}
+              titulo="Total"
+              paleta="cesion"
+            />
+          </Panel>
+          <Panel titulo="Contrapartes que más pesan" ancho>
+            <GraficoTopContrapartes contrapartes={series.contrapartes} onElegir={alternarTexto} />
+          </Panel>
+          <Panel titulo="Antigüedad de lo pendiente" ancho>
+            <GraficoMora tramos={series.mora} onElegirVencidas={() => alternarEstado("vencidas")} />
+          </Panel>
+        </div>
+      )}
+
       {/* Encabezado ordenable */}
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[560px] text-left text-xs">
@@ -174,7 +300,7 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
                   </th>
                 );
               })}
-              <th scope="col" className="py-2 font-semibold">
+              <th scope="col" className="py-2 pl-3 font-semibold">
                 Estado
               </th>
             </tr>
@@ -256,6 +382,27 @@ export default function DetalleFacturas({ facturas }: { facturas: FilaFactura[] 
       )}
 
       {seleccionada && <ModalDetalleFactura factura={seleccionada} onCerrar={() => setSeleccionada(null)} />}
+    </div>
+  );
+}
+
+/** Un filtro activo, con su × para sacarlo. */
+function Chip({ texto, onQuitar }: { texto: string; onQuitar: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-teal/30 bg-teal/10 px-2 py-0.5 text-[11px] font-semibold text-teal">
+      {texto}
+      <button type="button" onClick={onQuitar} aria-label={`Quitar filtro ${texto}`} className="text-teal/70 hover:text-teal">
+        ✕
+      </button>
+    </span>
+  );
+}
+
+function Panel({ titulo, ancho, children }: { titulo: string; ancho?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-xl border border-borde bg-crema/40 p-3 ${ancho ? "xl:col-span-2" : ""}`}>
+      <p className="text-[11px] font-semibold text-tinta/55">{titulo}</p>
+      <div className="mt-1">{children}</div>
     </div>
   );
 }
