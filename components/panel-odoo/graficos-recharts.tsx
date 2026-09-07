@@ -19,6 +19,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  CartesianGrid,
 } from "recharts";
 import { money } from "@/lib/cotizador/formato";
 
@@ -68,14 +69,61 @@ export function GraficoAreaSimple({
   // puntos) y deja un espacio vacio enorme -- mejor mostrar el mensaje que un
   // grafico que se ve roto.
   if (datos.length < 2) return <PocoHistorial alto={alto} />;
+
+  // Formato compacto para números grandes (ej: 15M, 20K)
+  const compactFormatter = (v: number) =>
+    new Intl.NumberFormat("es-CL", {
+      notation: "compact",
+      compactDisplay: "short",
+      maximumFractionDigits: 1,
+    }).format(v);
+
   return (
     <div className={`${alto} w-full`}>
       <ResponsiveContainer>
-        <AreaChart data={datos} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-          <XAxis dataKey="mes" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-          <YAxis hide={!expandido} tick={{ fontSize: 10 }} width={expandido ? 44 : 0} />
-          <Tooltip {...TOOLTIP_TEMA} formatter={(v) => money(Number(v))} />
-          <Area type="monotone" dataKey={dataKey} stroke={NARANJO} fill={NARANJO} fillOpacity={0.15} strokeWidth={2} />
+        <AreaChart data={datos} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorMonto" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={NARANJO} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={NARANJO} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-borde, #e5e7eb)" opacity={0.4} />
+          <XAxis
+            dataKey="mes"
+            tick={{ fontSize: 10, fill: "var(--color-tinta, #4b5563)" }}
+            axisLine={false}
+            tickLine={false}
+            tickMargin={10}
+            minTickGap={20}
+          />
+          <YAxis
+            hide={!expandido}
+            tick={{ fontSize: 10, fill: "var(--color-tinta, #4b5563)" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={compactFormatter}
+            width={60}
+          />
+          <Tooltip
+            {...TOOLTIP_TEMA}
+            formatter={(v) => money(Number(v))}
+            labelStyle={{ color: "var(--color-tinta)", fontWeight: "bold", marginBottom: "4px" }}
+            contentStyle={{
+              ...TOOLTIP_TEMA.contentStyle,
+              borderRadius: "12px",
+              padding: "8px 12px",
+              border: "1px solid rgba(0,0,0,0.05)",
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey={dataKey}
+            stroke={NARANJO}
+            fill="url(#colorMonto)"
+            strokeWidth={3}
+            activeDot={{ r: 6, fill: NARANJO, stroke: "#fff", strokeWidth: 2 }}
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>
