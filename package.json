@@ -22,7 +22,8 @@
     "probar-visibilidad": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-visibilidad-cotizaciones.mts",
     "probar-bodega": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bodega.mts",
     "probar-panel-odoo": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-panel-odoo.mts",
-    "probar-graficos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-facturas.mts"
+    "probar-graficos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-facturas.mts",
+    "probar-bundle": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-bundle-navegador.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

@@ -1,8 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import sharp from "sharp";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import type { ImagenExtraida } from "@/lib/cotizador/obra/extraer-texto";
 import type { ImagenDibujable } from "./logo";
 
 /**
@@ -21,19 +19,8 @@ import type { ImagenDibujable } from "./logo";
  * el servidor guardó por otro, unidos por el índice.
  */
 
-const BUCKET = "ofertas-imagenes";
-
-/** El lado más largo de una imagen guardada. Una foto de faena en A4 no necesita más. */
-const LADO_MAXIMO = 1400;
-
-/**
- * Lo que se descarta por chico.
- *
- * Un .docx trae viñetas, íconos y líneas decorativas como imágenes. Nada de eso es
- * una foto ni una firma, y meterlas en el inventario obliga al modelo a decidir
- * sobre basura.
- */
-const LADO_MINIMO = 150;
+/** Exportado para ./imagenes-subir.ts, que sube al mismo bucket. */
+export const BUCKET = "ofertas-imagenes";
 
 export interface ImagenGuardada {
   indice: number;
@@ -52,74 +39,6 @@ export interface ImagenGuardada {
 }
 
 /**
- * Normaliza y guarda las imágenes de un borrador.
- *
- * JPEG para las fotos y PNG para lo que tiene transparencia: un diagrama o un
- * logo con fondo transparente pasado a JPEG queda con un rectángulo negro o
- * blanco detrás. Los metadatos no se arrastran —una foto de faena puede traer
- * EXIF con GPS— y una imagen que sharp no puede abrir se omite sin cortar la
- * subida: el borrador vale más que una de sus imágenes.
- */
-async function normalizarYSubir(
-  imagen: ImagenExtraida,
-  origen: "borrador" | "subida",
-): Promise<ImagenGuardada> {
-  const original = sharp(imagen.contenido, { failOn: "error" });
-  const info = await original.metadata();
-  const ancho = info.width ?? 0;
-  const alto = info.height ?? 0;
-
-  const escalada = original.resize({
-    width: LADO_MAXIMO,
-    height: LADO_MAXIMO,
-    fit: "inside",
-    withoutEnlargement: true,
-  });
-  const conAlfa = info.hasAlpha === true;
-  const contenido = conAlfa
-    ? await escalada.png({ compressionLevel: 9 }).toBuffer()
-    : await escalada.jpeg({ quality: 78, mozjpeg: true }).toBuffer();
-
-  const extension = conAlfa ? "png" : "jpg";
-  const ruta = `${randomUUID()}.${extension}`;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, {
-    contentType: conAlfa ? "image/png" : "image/jpeg",
-    upsert: false,
-  });
-  if (error) throw new Error(`no se pudo guardar en el bucket: ${error.message}`);
-
-  const final = await sharp(contenido).metadata();
-  return {
-    indice: imagen.indice,
-    ruta,
-    nombre: imagen.nombre,
-    ancho: final.width ?? ancho,
-    alto: final.height ?? alto,
-    origen,
-  };
-}
-
-export async function guardarImagenesDelBorrador(imagenes: ImagenExtraida[]): Promise<ImagenGuardada[]> {
-  const guardadas: ImagenGuardada[] = [];
-
-  for (const imagen of imagenes) {
-    try {
-      const info = await sharp(imagen.contenido, { failOn: "error" }).metadata();
-      const ancho = info.width ?? 0;
-      const alto = info.height ?? 0;
-      if (ancho < LADO_MINIMO && alto < LADO_MINIMO) continue;
-      guardadas.push(await normalizarYSubir(imagen, "borrador"));
-    } catch (error) {
-      // Una imagen que no se pudo abrir se omite sin cortar la subida: el borrador
-      // vale más que una de sus imágenes.
-      console.warn(`[ofertas] la imagen ${imagen.nombre} no se pudo procesar:`, error);
-    }
-  }
-
-  return guardadas;
-}
-
-/**
  * El número que le toca a la próxima imagen de una oferta.
  *
  * Continúa la numeración del borrador en vez de rellenar huecos: el índice es la
@@ -129,23 +48,6 @@ export async function guardarImagenesDelBorrador(imagenes: ImagenExtraida[]): Pr
  */
 export function proximoIndice(inventario: ImagenGuardada[]): number {
   return inventario.reduce((mayor, imagen) => Math.max(mayor, imagen.indice), 0) + 1;
-}
-
-/**
- * Agrega al inventario una imagen que alguien subió a mano.
- *
- * Dos diferencias con las del borrador, y las dos son la misma idea: acá hubo una
- * decisión de una persona, así que el sistema no la corrige por su cuenta. No se
- * descarta por chica —una firma escaneada o un sello miden poco y son exactamente
- * lo que alguien querría agregar— y si no se puede procesar, se avisa en vez de
- * omitirla en silencio.
- */
-export async function agregarImagenSubida(
-  inventario: ImagenGuardada[],
-  nombre: string,
-  contenido: Buffer,
-): Promise<ImagenGuardada> {
-  return normalizarYSubir({ indice: proximoIndice(inventario), nombre, contenido }, "subida");
 }
 
 /**

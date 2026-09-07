@@ -3,7 +3,7 @@ import { exigirOferta } from "@/lib/ofertas/datos";
 import EditorOferta from "@/components/ofertas/EditorOferta";
 import { listarMaestros } from "@/lib/ofertas/maestros";
 import { obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
-import { urlFirmadaLogo } from "@/lib/ofertas/logos-archivo";
+import { urlFirmadaLogo } from "@/lib/ofertas/logos-documento";
 import { urlFirmadaImagen } from "@/lib/ofertas/imagenes";
 import ImagenesDeLaOferta from "@/components/ofertas/ImagenesDeLaOferta";
 import SubirLogo from "@/components/ofertas/SubirLogo";

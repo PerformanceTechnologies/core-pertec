@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { exigirAccesoOfertas } from "@/lib/ofertas/datos";
 import { listarEmpresas } from "@/lib/cotizador/empresas-datos";
-import { urlFirmadaLogo } from "@/lib/ofertas/logos-archivo";
+import { urlFirmadaLogo } from "@/lib/ofertas/logos-documento";
 import { EMPRESAS } from "@/lib/cotizador/empresas";
 import SubirLogo from "@/components/ofertas/SubirLogo";
 import { TARJETA } from "@/lib/estilos";

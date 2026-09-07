@@ -4,7 +4,8 @@ import {
   quitarImagenDelInventario,
   accesoAOfertaApi,
 } from "@/lib/ofertas/datos";
-import { agregarImagenSubida, borrarImagen, type ImagenGuardada } from "@/lib/ofertas/imagenes";
+import { borrarImagen, type ImagenGuardada } from "@/lib/ofertas/imagenes";
+import { agregarImagenSubida } from "@/lib/ofertas/imagenes-subir";
 import { esFormatoDeLogo } from "@/lib/ofertas/logo";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
 

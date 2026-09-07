@@ -3,7 +3,8 @@ import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { construirLibroRendicion, nombreArchivoRendicion, type RespaldoParaExcel } from "@/lib/rendidor/excel";
 import { adjuntarArchivoAGasto } from "@/lib/rendidor/odoo";
-import { descargarRespaldo, miniaturaParaExcel } from "@/lib/rendidor/almacenamiento";
+import { descargarRespaldo } from "@/lib/rendidor/almacenamiento";
+import { miniaturaParaExcel } from "@/lib/rendidor/miniatura";
 
 const SLUG_APP = "rendir-gastos";
 

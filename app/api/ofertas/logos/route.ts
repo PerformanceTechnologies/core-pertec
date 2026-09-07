@@ -3,7 +3,8 @@ import { accesoAOfertaApi, verificarAccesoOfertasApi, guardarLogoCliente } from 
 import { guardarLogoEmpresa, obtenerEmpresaPorNombre } from "@/lib/cotizador/empresas-datos";
 import { esEmpresaValida } from "@/lib/cotizador/empresas";
 import { esFormatoDeLogo, LIMITE_SUBIDA_LOGO } from "@/lib/ofertas/logo";
-import { borrarLogo, normalizarLogo, subirLogo, urlFirmadaLogo } from "@/lib/ofertas/logos-archivo";
+import { normalizarLogo, subirLogo } from "@/lib/ofertas/logos-archivo";
+import { borrarLogo, urlFirmadaLogo } from "@/lib/ofertas/logos-documento";
 import { leerImagenDeOferta } from "@/lib/ofertas/imagenes";
 
 export const runtime = "nodejs";

@@ -6,7 +6,7 @@ import { calcularTotales } from "./verificar";
 import { firmaDe, type OfertaCanonica } from "./tipos";
 import { estiloParaOferta } from "./maestros";
 import type { EstiloMaestro } from "./estilo";
-import { logosParaDocumento } from "./logos-archivo";
+import { logosParaDocumento } from "./logos-documento";
 import type { LogosDocumento } from "./logo";
 import { imagenesParaDocumento, type ImagenGuardada } from "./imagenes";
 

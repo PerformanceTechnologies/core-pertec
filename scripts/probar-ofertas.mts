@@ -1330,6 +1330,126 @@ for (const ruta of new Set(queImprimen)) {
   );
 }
 
+// ── El peso del bundle: sharp y playwright fuera de donde no se usan ───────
+//
+// En Vercel el tamaño de las funciones de CADA deployment guardado se suma contra la
+// cuota de Function Storage, y con 10 GB del plan gratis se llenó. Los dos culpables eran
+// imports a nivel de módulo que arrastraban binarios enormes a rutas que no los usaban:
+// sharp trae 16 MB de libvips, y playwright-core 12 MB. Por eso ./imagenes-subir.ts,
+// ./logos-documento.ts y lib/rendidor/miniatura.ts están separados de sus archivos
+// hermanos.
+//
+// Esto se deshace con un solo import descuidado y no se nota: sigue funcionando, solo
+// pesa el triple. Así que se comprueba en el fuente, transitivamente, igual que el
+// Chromium de más arriba.
+const importaDe = (fuente: string): string[] => {
+  const limpio = sinImportsDeTipo(fuente);
+  return [...limpio.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]);
+};
+
+/** Resuelve un import a un archivo de lib/, o null si apunta a otra parte. */
+const archivoDeImport = (desde: string, especificador: string): string | null => {
+  const carpeta = desde.slice(0, desde.lastIndexOf("/"));
+  const candidato = especificador.startsWith("@/lib/")
+    ? `${new URL("../lib", import.meta.url).pathname}/${especificador.slice("@/lib/".length)}.ts`
+    : especificador.startsWith(".")
+      ? `${carpeta}/${especificador.replace(/^\.\//, "")}.ts`
+      : null;
+  if (!candidato) return null;
+  const normal = candidato.replace(/\/[^/]+\/\.\.\//g, "/");
+  return archivosLib.includes(normal) ? normal : null;
+};
+
+/** Todo lo que un módulo arrastra al bundle, siguiendo los imports de valor. */
+function alcanceDe(entrada: string): Set<string> {
+  const vistos = new Set([entrada]);
+  const pendientes = [entrada];
+  while (pendientes.length > 0) {
+    const actual = pendientes.pop()!;
+    for (const especificador of importaDe(readFileSync(actual, "utf8"))) {
+      const archivo = archivoDeImport(actual, especificador);
+      if (archivo && !vistos.has(archivo)) {
+        vistos.add(archivo);
+        pendientes.push(archivo);
+      }
+    }
+  }
+  return vistos;
+}
+
+const usaSharp = (archivo: string): boolean =>
+  /from "sharp"/.test(sinImportsDeTipo(readFileSync(archivo, "utf8")));
+
+// Los módulos que dibujan o bajan un documento: NINGUNO puede llegar a sharp. Son los que
+// importan las seis rutas que imprimen y las páginas del módulo.
+const raiz = new URL("../lib", import.meta.url).pathname;
+for (const modulo of [
+  "ofertas/documento.ts",
+  "ofertas/plantilla.ts",
+  "ofertas/imagenes.ts",
+  "ofertas/logos-documento.ts",
+  "ofertas/pdf.ts",
+  "rendidor/almacenamiento.ts",
+]) {
+  const entrada = `${raiz}/${modulo}`;
+  assert.ok(archivosLib.includes(entrada), `no existe lib/${modulo}`);
+  const culpables = [...alcanceDe(entrada)].filter(usaSharp);
+  assert.deepEqual(
+    culpables.map((c) => c.slice(c.indexOf("/lib/") + 5)),
+    [],
+    `lib/${modulo} llega a sharp: eso mete 16 MB de libvips en toda función que lo ` +
+      "importe (las seis que imprimen, y las páginas del módulo). Lo que use sharp va en " +
+      "su propio archivo — ver lib/ofertas/imagenes-subir.ts",
+  );
+}
+
+// Y el que SÍ debe usarlo, para que la prueba de arriba no pase por estar mirando nada.
+for (const conSharp of ["ofertas/imagenes-subir.ts", "ofertas/logos-archivo.ts", "rendidor/miniatura.ts"]) {
+  assert.ok(usaSharp(`${raiz}/${conSharp}`), `lib/${conSharp} tiene que ser el que importa sharp`);
+}
+
+// ── El include de playwright-core está enumerado: hay que mantenerlo ───────
+//
+// next.config.ts ya no trae `playwright-core/**` completo —eran 5,5 MB de más por función
+// entre los .d.ts y el visor de traces—, sino carpeta por carpeta. El precio es que si
+// playwright agrega una carpeta en lib/, el include se queda corto y la ruta falla en
+// runtime con "Cannot find module". Esto lo avisa acá.
+const carpetasDeLib = readdirSync(new URL("../node_modules/playwright-core/lib", import.meta.url), {
+  withFileTypes: true,
+})
+  .filter((e) => e.isDirectory())
+  .map((e) => e.name);
+for (const carpeta of carpetasDeLib) {
+  if (carpeta === "vite") continue; // el visor de traces, excluido a propósito
+  assert.ok(
+    config.includes(`playwright-core/lib/${carpeta}/`),
+    `playwright-core tiene lib/${carpeta}/ y next.config.ts no la incluye: la función se ` +
+      'despliega y falla al primer uso con "Cannot find module"',
+  );
+}
+assert.ok(
+  config.includes("playwright-core/lib/vite") && config.includes("outputFileTracingExcludes"),
+  "el visor de traces de playwright (lib/vite, 3,7 MB) tiene que seguir excluido",
+);
+
+// ── Y la versión de pdf.js que carga pdf-parse ─────────────────────────────
+//
+// pdf-parse trae cuatro copias de pdf.js (29 MB) y carga una por require dinámico, la de
+// su DEFAULT_OPTIONS. next.config.ts incluye SOLO esa. Si pdf-parse cambia su default,
+// el include apunta a una carpeta que no es la que se carga: se despliega bien y falla al
+// leer el primer PDF.
+const fuentePdfParse = readFileSync(
+  new URL("../node_modules/pdf-parse/lib/pdf-parse.js", import.meta.url),
+  "utf8",
+);
+const versionPorOmision = /version:\s*'([^']+)'/.exec(fuentePdfParse)?.[1];
+assert.ok(versionPorOmision, "no se pudo leer la versión por omisión de pdf-parse");
+assert.ok(
+  config.includes(`VERSION_PDFJS = "${versionPorOmision}"`),
+  `pdf-parse carga pdf.js ${versionPorOmision} y next.config.ts incluye otra versión: ` +
+    "hay que actualizar VERSION_PDFJS",
+);
+
 // ── Un documento que no es una oferta ───────────────────────────────────────
 //
 // El módulo nació asumiendo que todo borrador era una oferta técnica, y con una ficha

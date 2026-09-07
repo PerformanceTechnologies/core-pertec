@@ -6,7 +6,7 @@ import { esEmpresaValida, type Empresa } from "@/lib/cotizador/empresas";
 import { esFormatoDeLogo, LIMITE_SUBIDA_LOGO } from "@/lib/ofertas/logo";
 import { normalizarLogo, subirLogo } from "@/lib/ofertas/logos-archivo";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
-import { guardarImagenesDelBorrador } from "@/lib/ofertas/imagenes";
+import { guardarImagenesDelBorrador } from "@/lib/ofertas/imagenes-subir";
 
 export const runtime = "nodejs";
 // Normalizar una oferta completa —diez secciones con sus tablas— tarda bastante
