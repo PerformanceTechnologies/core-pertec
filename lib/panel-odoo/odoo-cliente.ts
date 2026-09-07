@@ -111,6 +111,36 @@ export async function odooSearchRead<T = Record<string, unknown>>(
   return resultado as T[];
 }
 
+/**
+ * Los campos de un modelo, con su tipo y si son de solo lectura.
+ *
+ * Es LECTURA de metadatos, del mismo lado de la linea que odooSearchRead: no hay forma
+ * de escribir nada con esto.
+ *
+ * Existe porque hay modelos de los que no se puede conocer el esquema de antemano
+ * —hr.expense.advance, el "Fondo por Rendir", es un modelo propio de esta instancia y no
+ * esta en la lista que expone el MCP— y armar un create adivinando nombres de campo es
+ * exactamente como se rompen las integraciones: falla en produccion, con un traceback de
+ * Python, y recien ahi se descubre que el campo se llamaba de otra forma. Con esto se
+ * pregunta primero y se manda solo lo que existe (ver lib/rendidor/fondos.ts).
+ */
+export async function odooCampos(
+  model: string,
+): Promise<Record<string, { type: string; string: string; readonly?: boolean; required?: boolean }>> {
+  const config = leerConfig();
+  const uid = await obtenerUid(config);
+  const resultado = await llamarJsonRpc(config.url, "object", "execute_kw", [
+    config.db,
+    uid,
+    config.apiKey,
+    model,
+    "fields_get",
+    [],
+    { attributes: ["type", "string", "readonly", "required"] },
+  ]);
+  return resultado as Record<string, { type: string; string: string }>;
+}
+
 // Unica excepcion de escritura del archivo (ver comentario arriba) — crea un
 // registro y devuelve su id. Acotado a un solo metodo ("create"), no un
 // execute_kw generico.

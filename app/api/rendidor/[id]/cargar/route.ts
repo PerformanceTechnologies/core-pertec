@@ -22,6 +22,13 @@ interface DecisionProveedor {
 interface Cuerpo {
   employeeId: number;
   proveedores: DecisionProveedor[];
+  /**
+   * El "Fondo por Rendir" al que se cuelgan los gastos, si se eligió uno.
+   *
+   * Opcional: una rendición puede no venir de un fondo entregado. Va en la creación de
+   * cada hr.expense (ver crearGastoOdoo), no en un write posterior.
+   */
+  advanceId?: number | null;
 }
 
 // Crea los proveedores nuevos y los hr.expense. NO adjunta respaldos: eso va en
@@ -100,7 +107,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const creados: { gastoId: string; expenseId: number }[] = [];
 
     for (const p of preview) {
-      const expenseId = await crearGastoOdoo(p, cuerpo.employeeId, rendicion.empresaCompanyId);
+      const expenseId = await crearGastoOdoo(
+        p,
+        cuerpo.employeeId,
+        rendicion.empresaCompanyId,
+        cuerpo.advanceId ?? null,
+      );
       creados.push({ gastoId: p.gastoId, expenseId });
 
       const i = gastosActualizados.findIndex((g) => g.id === p.gastoId);

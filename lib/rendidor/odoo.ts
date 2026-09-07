@@ -275,8 +275,18 @@ export async function crearGastoOdoo(
   preview: PreviewGastoOdoo,
   employeeId: number,
   companyId: number,
+  /**
+   * El "Fondo por Rendir" al que se cuelga el gasto, o null para dejarlo suelto.
+   *
+   * Va en la CREACION y no en un write posterior a proposito: el cliente de Odoo del core
+   * expone lectura y create, nada mas, justamente para que ningun codigo futuro escriba
+   * por error sobre la instancia. Elegir el fondo antes de crear los gastos deja el dato
+   * puesto sin necesitar esa puerta.
+   */
+  advanceId: number | null = null,
 ): Promise<number> {
   return odooCreate("hr.expense", {
+    ...(advanceId ? { advance_id: advanceId } : {}),
     employee_id: employeeId,
     name: preview.name,
     date: preview.date,

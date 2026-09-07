@@ -9,9 +9,23 @@ const SLUG_APP = "rendir-gastos";
 
 export const dynamic = "force-dynamic";
 
-export default async function RendicionPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RendicionPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  /**
+   * `revisar`: lo que la carga a Odoo dejó a medias, separado por saltos de línea.
+   *
+   * Va en la URL y no en el estado del panel porque el que lo sabe es la página de carga
+   * (./odoo), que redirige acá al terminar. Así sobrevive al refresco y el enlace se le
+   * puede pasar a quien tenga que arreglarlo en Odoo.
+   */
+  searchParams: Promise<{ revisar?: string }>;
+}) {
   const usuario = await exigirAccesoApp(SLUG_APP);
   const { id } = await params;
+  const { revisar } = await searchParams;
 
   const rendicion = await obtenerRendicion(id);
   if (!rendicion) notFound();
@@ -39,7 +53,11 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         ← Mis rendiciones
       </Link>
       <div className="mt-2">
-        <PanelRendicion rendicionInicial={rendicion} urlsRespaldo={urlsRespaldo} />
+        <PanelRendicion
+          rendicionInicial={rendicion}
+          urlsRespaldo={urlsRespaldo}
+          revisar={(revisar ?? "").split("\n").filter(Boolean)}
+        />
       </div>
     </div>
   );
