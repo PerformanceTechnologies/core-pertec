@@ -74,18 +74,6 @@ export interface FilaFactura {
   moneda: string | null;
   edp_nombre: string | null;
   edp_estado: string | null;
-  edp_periodo: string | null;
-  hes_numero: string | null;
-  // El folio y el codigo del DTE: la llave para cruzar con el registro del SII
-  // que lee Panel Finanzas (ver lib/panel-odoo/cruce-sii.ts).
-  folio: number | null;
-  codigo_dte: number | null;
-  dte_track_id: string | null;
-  dte_envio_receptor: string | null;
-  reclamo_detalle: string | null;
-  fecha_entrega: string | null;
-  pagos: number | null;
-  referencia_pago: string | null;
 }
 
 export interface KpisFacturas {
@@ -162,7 +150,7 @@ export async function listarFacturasParaDetalle(companyId: number, limite = 2000
     // de la fila desde el string del select, y una constante concatenada lo
     // vuelve `string` y pierde la inferencia.
     .select(
-      "odoo_id, move_type, state, payment_state, numero, partner_nombre, fecha_factura, fecha_vencimiento, monto_total, monto_pendiente, diario, cedida, cedida_a_odoo_id, dte_estado, dte_aceptacion, reclamo, tipo_documento, monto_neto, monto_impuesto, vendedor, condicion_pago, referencia, origen, rut_contraparte, moneda, edp_nombre, edp_estado, edp_periodo, hes_numero, folio, codigo_dte, dte_track_id, dte_envio_receptor, reclamo_detalle, fecha_entrega, pagos, referencia_pago",
+      "odoo_id, move_type, state, payment_state, numero, partner_nombre, fecha_factura, fecha_vencimiento, monto_total, monto_pendiente, diario, cedida, cedida_a_odoo_id, dte_estado, dte_aceptacion, reclamo, tipo_documento, monto_neto, monto_impuesto, vendedor, condicion_pago, referencia, origen, rut_contraparte, moneda, edp_nombre, edp_estado",
     )
     .eq("company_id", companyId)
     .order("fecha_factura", { ascending: false, nullsFirst: false })

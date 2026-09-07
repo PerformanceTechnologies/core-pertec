@@ -1,6 +1,4 @@
 import { obtenerKpisFacturas, listarFacturasParaDetalle } from "@/lib/panel-odoo/datos";
-import { listarFacturasSii } from "@/lib/finanzas";
-import { COMPANIA_CON_SII, contarDescuadres, cruzarConSii } from "@/lib/panel-odoo/cruce-sii";
 import { money } from "@/lib/cotizador/formato";
 import type { EjecucionOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
 import { GraficoAreaSimple } from "./graficos";
@@ -20,19 +18,13 @@ export default async function TarjetaFacturas({
   companyId: number;
   ejecucion?: EjecucionOdoo | null;
 }) {
-  const hayRegistroSii = companyId === COMPANIA_CON_SII;
-  const [kpis, deOdoo, delSii] = await Promise.all([
+  const [kpis, todas] = await Promise.all([
     obtenerKpisFacturas(companyId),
     // El detalle expandido filtra y ordena en el cliente sobre el histórico
     // completo, no sobre las últimas 20: "las cedidas" tiene que encontrar
     // todas las cedidas.
     listarFacturasParaDetalle(companyId),
-    // El registro del SII que ya lee Panel Finanzas: de ahí sale el estado (ver
-    // lib/panel-odoo/cruce-sii.ts). Para las otras empresas no hay registro.
-    hayRegistroSii ? listarFacturasSii() : Promise.resolve([]),
   ]);
-  const todas = cruzarConSii(deOdoo, delSii);
-  const descuadres = contarDescuadres(todas);
 
   // Sobre el histórico completo, ahora que el detalle lo trae igual.
   const hoy = new Date().toISOString().slice(0, 10);
@@ -68,36 +60,11 @@ export default async function TarjetaFacturas({
             <GraficoAreaSimple datos={kpis.serieMensualVentas} expandido />
           </div>
 
-          {hayRegistroSii && (descuadres.reclamadas > 0 || descuadres.sinRegistro > 0 || descuadres.montoDistinto > 0) && (
-            <div className="mt-3 rounded-lg border border-borde bg-crema/60 px-3 py-2 text-xs text-tinta/70">
-              Contrastado con el registro del SII de Panel Finanzas:{" "}
-              {descuadres.reclamadas > 0 && (
-                <>
-                  <span className="font-semibold text-red-600">{descuadres.reclamadas}</span> reclamada
-                  {descuadres.reclamadas === 1 ? "" : "s"} por el cliente
-                </>
-              )}
-              {descuadres.reclamadas > 0 && (descuadres.sinRegistro > 0 || descuadres.montoDistinto > 0) && ", "}
-              {descuadres.sinRegistro > 0 && (
-                <>
-                  <span className="font-semibold">{descuadres.sinRegistro}</span> sin aparecer en el registro
-                </>
-              )}
-              {descuadres.sinRegistro > 0 && descuadres.montoDistinto > 0 && ", "}
-              {descuadres.montoDistinto > 0 && (
-                <>
-                  <span className="font-semibold text-red-600">{descuadres.montoDistinto}</span> con monto distinto
-                </>
-              )}
-              .
-            </div>
-          )}
-
           <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">
             Facturas ({todas.length})
           </p>
           <div className="mt-2">
-            <DetalleFacturas facturas={todas} hayRegistroSii={hayRegistroSii} />
+            <DetalleFacturas facturas={todas} />
           </div>
         </div>
       }

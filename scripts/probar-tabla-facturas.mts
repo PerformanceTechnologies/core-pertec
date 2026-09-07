@@ -22,18 +22,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { CELDA_SIN_CORTE, PASTILLA_ESTADO } from "../lib/estilos";
-import { ETIQUETAS_ESTADO } from "../lib/finanzas-estados";
 
 const carpeta = mkdtempSync(join(tmpdir(), "tabla-facturas-"));
 execFileSync("npx", ["@tailwindcss/cli", "-i", "app/globals.css", "-o", join(carpeta, "estilos.css")], {
   stdio: "pipe",
 });
 
-// Las etiquetas de verdad: si mañana alguien vuelve a alargar una, la prueba la mide igual.
+// Las etiquetas del componente de verdad: si mañana alguien vuelve a alargar una, la
+// prueba la mide igual. Se leen del fuente porque el componente es de cliente y no se
+// puede importar desde un script de Node sin montar React.
 const panel = readFileSync(new URL("../components/finanzas/PanelFinanzas.tsx", import.meta.url), "utf8");
-// Ahora viven en lib/finanzas-estados.ts, compartidas con el detalle de Panel Odoo, y
-// desde ahi se pueden importar de verdad en vez de leerlas del fuente.
-const etiquetas = Object.values(ETIQUETAS_ESTADO);
+const bloque = panel.slice(
+  panel.indexOf("const ETIQUETAS_ESTADO"),
+  panel.indexOf("const TITULO_ESTADO"),
+);
+const etiquetas = [...bloque.matchAll(/^\s{2}\w+: "([^"]+)"/gm)].map((m) => m[1]);
 assert.ok(etiquetas.length >= 5, `se esperaban las 5 etiquetas de estado, hay ${etiquetas.length}`);
 
 // El RUT más largo que existe: nueve caracteres con guion y dígito verificador K. Es el

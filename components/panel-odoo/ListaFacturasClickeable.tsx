@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { money, fechaCl } from "@/lib/cotizador/formato";
-import type { FacturaCruzada } from "@/lib/panel-odoo/cruce-sii";
+import type { FilaFactura } from "@/lib/panel-odoo/datos";
 import ModalDetalleFactura from "./ModalDetalleFactura";
 
-export default function ListaFacturasClickeable({ facturas }: { facturas: FacturaCruzada[] }) {
-  const [seleccionada, setSeleccionada] = useState<FacturaCruzada | null>(null);
+export default function ListaFacturasClickeable({ facturas }: { facturas: FilaFactura[] }) {
+  const [seleccionada, setSeleccionada] = useState<FilaFactura | null>(null);
 
   if (facturas.length === 0) {
     return <p className="mt-3 text-xs text-tinta/40">Sin facturas registradas todavía.</p>;
