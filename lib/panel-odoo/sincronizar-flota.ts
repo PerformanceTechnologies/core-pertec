@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { odooSearchRead } from "./odoo-cliente";
+import { odooCampos, odooSearchRead } from "./odoo-cliente";
 import { eliminarNoVigentes } from "./limpieza";
 import { obtenerCompania } from "./companias";
 
@@ -30,13 +30,125 @@ interface VehiculoOdoo {
 // de serie con el modulo Fleet): guarda permiso de circulacion, SOAP,
 // revision tecnica, etc. por vehiculo, con fecha de vencimiento. No tiene
 // company_id propio -- se hereda del vehiculo (vehicle_id) al sincronizar.
+//
+// Los campos NO se piden por nombre fijo: se le pregunta primero a Odoo cuales tiene
+// (fields_get) y se usa el primero de cada lista que exista. Es un modelo custom y lo
+// tocan del lado de Odoo: el tipo de documento paso de ser un `document_type` (selection)
+// a un `document_type_id` que apunta a pertec.document.type, y la sincronizacion murio
+// tres dias seguidos con "Invalid field 'document_type'". Pidiendo lo que hay, un rename
+// deja de tumbar la tarjeta -- a lo sumo una columna queda vacia, y eso se ve.
 interface DocumentoVehiculoOdoo {
   id: number;
-  name: string;
-  category: string | false;
-  document_type: string | false;
-  expiration_date: string | false;
-  vehicle_id: TuplaOdoo;
+  [campo: string]: unknown;
+}
+
+/**
+ * Los nombres posibles de cada dato, del preferido al mas viejo.
+ *
+ * El orden importa: `document_type_name` es el texto ya resuelto y es lo que se muestra,
+ * asi que va antes que el many2one y antes que la selection vieja.
+ */
+const CAMPOS_DOCUMENTO = {
+  nombre: ["name"],
+  categoria: ["category", "category_id", "categoria"],
+  tipo: ["document_type_name", "document_type_id", "document_type"],
+  vencimiento: ["expiration_date", "date_expiration"],
+  vehiculo: ["vehicle_id"],
+} as const;
+
+/** El primero de la lista que el modelo realmente tenga. */
+function primeroQueExista(
+  campos: Record<string, { type: string }>,
+  posibles: readonly string[],
+): string | null {
+  return posibles.find((nombre) => campos[nombre] !== undefined) ?? null;
+}
+
+export type CamposDeDocumento = Record<keyof typeof CAMPOS_DOCUMENTO, string | null>;
+
+export const MODELO_DOCUMENTOS = "pertec.fleet.vehicle.document";
+
+/**
+ * Que campo del modelo corresponde a cada dato, segun lo que Odoo diga que tiene hoy.
+ *
+ * Exportada para poder probarla sin Odoo (ver scripts/probar-flota.mts): es la que
+ * decide si la tarjeta se llena o se cae, y lo unico que la puede romper es un cambio
+ * del otro lado, que es justo lo que no se puede reproducir en una prueba.
+ */
+export function resolverCamposDocumento(camposQueTiene: Record<string, { type: string }>): CamposDeDocumento {
+  const campo = Object.fromEntries(
+    Object.entries(CAMPOS_DOCUMENTO).map(([que, posibles]) => [que, primeroQueExista(camposQueTiene, posibles)]),
+  ) as CamposDeDocumento;
+
+  // Sin el vehiculo o sin la fecha de vencimiento no hay documento que mostrar: la
+  // tarjeta entera es "que vence y de que vehiculo". Se corta con un error que dice QUE
+  // falta y que campos tiene el modelo, para no volver a mirar un "Invalid field" pelado.
+  for (const imprescindible of ["vehiculo", "vencimiento"] as const) {
+    if (campo[imprescindible] === null) {
+      throw new Error(
+        `${MODELO_DOCUMENTOS} ya no tiene ninguno de los campos de ${imprescindible} ` +
+          `(${CAMPOS_DOCUMENTO[imprescindible].join(", ")}). Los que tiene hoy: ` +
+          `${Object.keys(camposQueTiene).sort().join(", ")}`,
+      );
+    }
+  }
+
+  // El tipo de documento no corta la sincronizacion —se ve la fecha igual— pero deja
+  // rastro: es una columna de la tabla que va a salir vacia.
+  if (campo.tipo === null) {
+    console.warn(
+      `[panel-odoo] ${MODELO_DOCUMENTOS} no tiene ninguno de ${CAMPOS_DOCUMENTO.tipo.join(", ")}: ` +
+        "la columna de tipo de documento va a quedar vacia.",
+    );
+  }
+
+  return campo;
+}
+
+/** Los campos que hay que pedirle a Odoo, sin repetidos y sin los que no existen. */
+export function camposAPedir(campo: CamposDeDocumento): string[] {
+  return [...new Set(Object.values(campo).filter((n): n is string => n !== null))];
+}
+
+/**
+ * Un valor de Odoo a texto, sea lo que sea.
+ *
+ * El mismo dato puede llegar como texto (una selection o un char), como tupla
+ * [id, nombre] (un many2one) o como false (vacio). Se resuelve aca y no en tres ramas
+ * repartidas por el mapeo.
+ */
+function comoTexto(valor: unknown): string | null {
+  if (Array.isArray(valor)) return typeof valor[1] === "string" ? valor[1] : null;
+  if (typeof valor === "string") return valor || null;
+  return null;
+}
+
+/**
+ * Un documento de Odoo a la fila de la cache, leyendo por los campos ya resueltos.
+ *
+ * Devuelve null para un documento sin vehiculo: no se puede mostrar en la tarjeta ni
+ * saber de que empresa es (la empresa se hereda del vehiculo).
+ */
+export function documentoAFila(
+  d: DocumentoVehiculoOdoo,
+  campo: CamposDeDocumento,
+  companyPorVehiculo: Map<number, number>,
+  nombrePorVehiculo: Map<number, string>,
+) {
+  const enVehiculo = campo.vehiculo === null ? false : d[campo.vehiculo];
+  const vehiculoId = idDeTupla(enVehiculo as TuplaOdoo);
+  if (vehiculoId === null) return null;
+  return {
+    odoo_id: d.id,
+    company_id: companyPorVehiculo.get(vehiculoId) ?? 1,
+    vehiculo_odoo_id: vehiculoId,
+    vehiculo_nombre: nombrePorVehiculo.get(vehiculoId) ?? comoTexto(enVehiculo) ?? "Vehículo",
+    nombre: (campo.nombre && comoTexto(d[campo.nombre])) || "Documento",
+    categoria: campo.categoria ? comoTexto(d[campo.categoria]) : null,
+    tipo_documento: campo.tipo ? comoTexto(d[campo.tipo]) : null,
+    fecha_vencimiento: campo.vencimiento ? comoTexto(d[campo.vencimiento]) : null,
+    actualizado_en: new Date().toISOString(),
+  };
 }
 
 export async function sincronizarFlota(): Promise<number> {
@@ -96,12 +208,10 @@ export async function sincronizarFlota(): Promise<number> {
     .upsert(filasVehiculos, { onConflict: "odoo_id", count: "exact" });
   if (errorVehiculos) throw new Error(errorVehiculos.message);
 
-  const documentos = await odooSearchRead<DocumentoVehiculoOdoo>(
-    "pertec.fleet.vehicle.document",
-    [],
-    ["name", "category", "document_type", "expiration_date", "vehicle_id"],
-    { limit: 5000 },
-  );
+  const campo = resolverCamposDocumento(await odooCampos(MODELO_DOCUMENTOS));
+  const documentos = await odooSearchRead<DocumentoVehiculoOdoo>(MODELO_DOCUMENTOS, [], camposAPedir(campo), {
+    limit: 5000,
+  });
 
   await eliminarNoVigentes(
     "panel_odoo_flota_documentos",
@@ -111,21 +221,7 @@ export async function sincronizarFlota(): Promise<number> {
   let countDocumentos = 0;
   if (documentos.length > 0) {
     const filasDocumentos = documentos
-      .map((d) => {
-        const vehiculoId = idDeTupla(d.vehicle_id);
-        if (vehiculoId === null) return null;
-        return {
-          odoo_id: d.id,
-          company_id: companyPorVehiculo.get(vehiculoId) ?? 1,
-          vehiculo_odoo_id: vehiculoId,
-          vehiculo_nombre: nombrePorVehiculo.get(vehiculoId) ?? nombreDeTupla(d.vehicle_id) ?? "Vehículo",
-          nombre: d.name,
-          categoria: d.category || null,
-          tipo_documento: d.document_type || null,
-          fecha_vencimiento: d.expiration_date || null,
-          actualizado_en: new Date().toISOString(),
-        };
-      })
+      .map((d) => documentoAFila(d, campo, companyPorVehiculo, nombrePorVehiculo))
       .filter((f): f is NonNullable<typeof f> => f !== null);
 
     const { error: errorDocumentos, count } = await supabaseAdmin
