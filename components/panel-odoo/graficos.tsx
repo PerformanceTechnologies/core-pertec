@@ -4,26 +4,24 @@ import dynamic from "next/dynamic";
 import type { ComponentProps } from "react";
 // Solo tipos: un `import type` no llega al bundle, así que pedirle las firmas a
 // la implementación no arrastra Recharts hasta acá.
-import type * as Impl from "./graficos-recharts";
+import type * as Impl from "./graficos-apex";
 
 /**
  * Los gráficos de Panel Odoo, cargados recién en el navegador.
  *
  * Este archivo no dibuja nada: solo diferido. Las implementaciones están en
- * ./graficos-recharts.tsx y no cambiaron; las tarjetas siguen importando los
- * mismos cinco nombres desde acá, sin tocar una línea.
+ * ./graficos-apex.tsx y las tarjetas siguen importando los mismos cinco nombres
+ * desde acá, sin tocar una línea.
  *
- * El motivo es que hoy el servidor renderiza estos gráficos y ese render no
- * produce ningún gráfico. Recharts los envuelve en `ResponsiveContainer`, que
- * mide el DOM para saber de qué tamaño dibujar; en el servidor no hay DOM, así
- * que el HTML sale con el contenedor vacío y el SVG aparece recién después de
- * hidratar. Prerenderizar siete de estos por carga era trabajo de servidor que
- * nadie llegaba a ver.
+ * El motivo del diferido es que hoy el servidor renderiza estos gráficos y ese
+ * render no produce ningún gráfico: la biblioteca mide el DOM para saber de qué
+ * tamaño dibujar, y en el servidor no hay DOM, así que el HTML sale con el
+ * contenedor vacío y el SVG aparece recién después de hidratar. Prerenderizar
+ * siete de estos por carga era trabajo de servidor que nadie llegaba a ver.
  *
  * Con `ssr: false` se saltan dos costos a la vez: el render en el servidor, que
- * está en el camino del TTFB, y los 412 KB de Recharts en el JavaScript inicial
- * —una cuarta parte de todo lo que baja el navegador— que pasan a un chunk
- * aparte pedido después de la primera pintada.
+ * está en el camino del TTFB, y el peso de la biblioteca en el JavaScript
+ * inicial, que pasa a un chunk aparte pedido después de la primera pintada.
  *
  * Lo que NO cambia es cuándo se ven los gráficos: se veían después de hidratar y
  * se siguen viendo después de hidratar. Y no cambia nada de los datos: las
@@ -34,12 +32,18 @@ import type * as Impl from "./graficos-recharts";
  * llegar cuando quiera sin correr el resto de la tarjeta.
  */
 
-const ALTO = "h-24"; // igual que ALTO_GRAFICO en la implementación
-const ALTO_EXPANDIDO = "h-56"; // igual que ALTO_GRAFICO_EXPANDIDO
+// Los mismos altos que la implementación (ALTO = 96 px, ALTO_EXPANDIDO = 224 px en
+// ./graficos-apex.tsx). Van como MÍNIMO y no como alto fijo: la dona con leyenda dibuja
+// una fila de rótulos debajo del gráfico, y con un alto fijo esa fila se montaba sobre lo
+// que viene después.
 
 /** Reserva el espacio del gráfico mientras su chunk viaja. */
 function Reserva({ expandido, children }: { expandido?: boolean; children: React.ReactNode }) {
-  return <div className={`${expandido ? ALTO_EXPANDIDO : ALTO} w-full`}>{children}</div>;
+  return (
+    <div style={{ minHeight: expandido ? 224 : 96 }} className="w-full">
+      {children}
+    </div>
+  );
 }
 
 // Una llamada por gráfico y no un helper genérico: `dynamic()` infiere las props
@@ -53,23 +57,23 @@ function Reserva({ expandido, children }: { expandido?: boolean; children: React
 //
 // `loading: () => null` y no un esqueleto: el alto ya lo reserva <Reserva>, y algo
 // que aparece y desaparece en unos milisegundos se lee como un parpadeo.
-const AreaSimple = dynamic(() => import("./graficos-recharts").then((m) => m.GraficoAreaSimple), {
+const AreaSimple = dynamic(() => import("./graficos-apex").then((m) => m.GraficoAreaSimple), {
   ssr: false,
   loading: () => null,
 });
-const BarrasDobles = dynamic(() => import("./graficos-recharts").then((m) => m.GraficoBarrasDobles), {
+const BarrasDobles = dynamic(() => import("./graficos-apex").then((m) => m.GraficoBarrasDobles), {
   ssr: false,
   loading: () => null,
 });
-const Dona = dynamic(() => import("./graficos-recharts").then((m) => m.GraficoDona), {
+const Dona = dynamic(() => import("./graficos-apex").then((m) => m.GraficoDona), {
   ssr: false,
   loading: () => null,
 });
-const BarrasRanking = dynamic(() => import("./graficos-recharts").then((m) => m.GraficoBarrasRanking), {
+const BarrasRanking = dynamic(() => import("./graficos-apex").then((m) => m.GraficoBarrasRanking), {
   ssr: false,
   loading: () => null,
 });
-const BarraApilada = dynamic(() => import("./graficos-recharts").then((m) => m.GraficoBarraApilada), {
+const BarraApilada = dynamic(() => import("./graficos-apex").then((m) => m.GraficoBarraApilada), {
   ssr: false,
   loading: () => null,
 });
