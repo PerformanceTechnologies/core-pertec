@@ -5,6 +5,7 @@ import ReactApexChart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import { money } from "@/lib/cotizador/formato";
 import { suscribirseAlTema, temaActual } from "@/lib/tema";
+import { grosorDeBarra } from "@/lib/panel-odoo/grosor-barra";
 
 // Los cinco gráficos de las tarjetas de Panel Odoo, ahora con ApexCharts.
 //
@@ -360,7 +361,9 @@ export function GraficoBarrasRanking({
       bar: {
         horizontal: true,
         distributed: true,
-        barHeight: expandido ? "55%" : "65%",
+        // Los mismos topes en píxeles que tenía `maxBarSize` con Recharts: con una o dos
+        // filas, un porcentaje del espacio disponible da barras enormes. Ver grosorDeBarra.
+        barHeight: grosorDeBarra(alto, datos.length, expandido ? 18 : 12),
         borderRadius: 3,
         borderRadiusApplication: "end",
         dataLabels: { position: "top" },
@@ -429,7 +432,8 @@ export function GraficoBarraApilada({
     ...base,
     chart: { ...base.chart, type: "bar", stacked: true },
     colors: COLORES_DONA,
-    plotOptions: { bar: { horizontal: true, barHeight: expandido ? "40%" : "55%", borderRadius: 3 } },
+    // Una sola fila: sin tope, la barra apilada ocupaba media tarjeta de alto.
+    plotOptions: { bar: { horizontal: true, barHeight: grosorDeBarra(alto, 1, expandido ? 40 : 26), borderRadius: 3 } },
     stroke: { width: 0 },
     // Una sola fila: cada segmento es una serie con un único valor, y apilados forman la
     // barra compuesta.

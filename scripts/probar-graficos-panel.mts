@@ -303,6 +303,32 @@ assert.equal(
   "los dos estados se dibujan como una sola barra compuesta",
 );
 
+// ── 6b. Las barras horizontales no pueden ser lingotes ──────────────────
+//
+// Apex pide el grosor en porcentaje del espacio de cada fila, así que con una o dos filas
+// las barras salían de 40 o 50 px de alto y el gráfico se veía como dos bloques. Recharts
+// lo limitaba con `maxBarSize` en píxeles; grosorDeBarra hace la misma cuenta.
+const grosores = await pagina.evaluate(() =>
+  ["ranking", "ranking-grande", "apilada"].map((id) => ({
+    id,
+    alto: Math.round(document.querySelector(`#${id}`)!.getBoundingClientRect().height),
+    barra: Math.round(
+      Math.max(
+        ...[...document.querySelectorAll(`#${id} .apexcharts-bar-area`)].map(
+          (b) => b.getBoundingClientRect().height,
+        ),
+      ),
+    ),
+  })),
+);
+for (const g of grosores) {
+  assert.ok(g.barra > 4, `#${g.id} dibujó una barra de ${g.barra} px: no se ve`);
+  assert.ok(
+    g.barra <= 42,
+    `#${g.id} dibujó una barra de ${g.barra} px en una tarjeta de ${g.alto}: es un lingote, no una barra`,
+  );
+}
+
 // ── 7. Los nombres largos se cortan, no se parten ───────────────────────
 const rotulos = await pagina.evaluate(() =>
   [...document.querySelectorAll("#ranking-grande .apexcharts-yaxis-texts-g text")].map((t) => ({

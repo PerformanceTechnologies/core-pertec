@@ -5,6 +5,7 @@ import ReactApexChart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import { money } from "@/lib/cotizador/formato";
 import { suscribirseAlTema, temaActual } from "@/lib/tema";
+import { grosorDeBarra } from "@/lib/panel-odoo/grosor-barra";
 import type {
   EscalonDelEmbudo,
   Porcion,
@@ -25,6 +26,9 @@ const TEAL = "#00a080";
 const TEAL_SUAVE = "#35b89b";
 const GRIS = "#8c8578";
 const ROJO = "#dc2626";
+
+/** Grosor máximo de una barra horizontal, en px. Ver lib/panel-odoo/grosor-barra.ts. */
+const GROSOR_DE_BARRA = 22;
 
 function useTema() {
   // Apex escribe los colores COMO ATRIBUTOS del SVG: un var() de CSS no lo sigue, así que
@@ -126,7 +130,16 @@ export function GraficoEmbudo({
       },
     },
     colors: [TEAL],
-    plotOptions: { bar: { horizontal: true, barHeight: "65%", borderRadius: 3, distributed: false } },
+    plotOptions: {
+      bar: {
+        horizontal: true,
+        // Tope en píxeles y no un porcentaje: con tres etapas, un 65% del espacio de cada
+        // fila son barras de 56 px que se ven como lingotes. Ver grosorDeBarra.
+        barHeight: grosorDeBarra(260, escalones.length, GROSOR_DE_BARRA),
+        borderRadius: 3,
+        distributed: false,
+      },
+    },
     // La etapa filtrada se ve; el resto baja de opacidad. Sin esto, el clic filtra la
     // tabla y el gráfico no dice sobre qué.
     fill: { opacity: etapaElegida ? escalones.map((e) => (e.etapa === etapaElegida ? 1 : 0.35)) : 1 },
@@ -329,7 +342,9 @@ export function GraficoVendedores({
       },
     },
     colors: [NARANJO, TEAL, ROJO],
-    plotOptions: { bar: { horizontal: true, barHeight: "65%", borderRadius: 3 } },
+    plotOptions: {
+      bar: { horizontal: true, barHeight: grosorDeBarra(260, vendedores.length, GROSOR_DE_BARRA), borderRadius: 3 },
+    },
     stroke: { width: 0 },
     xaxis: (() => {
       // Apilado: el máximo del eje es la SUMA de las tres series, no la más alta.

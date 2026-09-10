@@ -293,6 +293,26 @@ assert.equal(
 await pagina.selectOption("select[aria-label='Etapa']", "");
 await esperarFilas(LEADS.length);
 
+// ── 6b. Las barras del embudo no pueden ser lingotes ────────────────────
+//
+// Apex pide el grosor en porcentaje del espacio de cada fila: con tres etapas en 260 px,
+// un 65% son barras de 56 px y el embudo se ve como tres bloques apilados. Ver
+// lib/panel-odoo/grosor-barra.ts.
+const grosorDelEmbudo = await pagina.evaluate(() =>
+  Math.round(
+    Math.max(
+      ...[...document.querySelectorAll(".apexcharts-canvas")[0].querySelectorAll(".apexcharts-bar-area")].map(
+        (b) => b.getBoundingClientRect().height,
+      ),
+    ),
+  ),
+);
+assert.ok(grosorDelEmbudo > 6, `la barra del embudo mide ${grosorDelEmbudo} px: no se ve`);
+assert.ok(
+  grosorDelEmbudo <= 26,
+  `la barra del embudo mide ${grosorDelEmbudo} px: con pocas etapas queda como un lingote`,
+);
+
 // ── 7. Los gráficos siguen a los filtros de arriba ──────────────────────
 //
 // Si el gráfico se queda con todo el pipeline mientras la tabla muestra dos filas, la
