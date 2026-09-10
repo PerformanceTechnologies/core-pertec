@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     const mensaje = err instanceof Error ? err.message : "Error desconocido";
     await registrarEjecucion(false, 0, mensaje).catch(() => {});
     await enviarCorreoSoporte(
-      "Panel Finanzas: fallo la actualizacion diaria de facturas SII",
+      "Herramientas Finanzas: fallo la actualizacion diaria de facturas SII",
       `La corrida automatica de hoy no pudo actualizar las facturas del SII.\n\nError: ${mensaje}\n\nRevisa el dashboard en core.pertec.cl/finanzas y, si persiste, corre el scraper localmente para diagnosticar.`
     ).catch(() => {});
     return NextResponse.json({ error: mensaje }, { status: 500 });

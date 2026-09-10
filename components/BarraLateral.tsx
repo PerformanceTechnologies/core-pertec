@@ -91,7 +91,7 @@ function leerEsDesktopServidor() {
  * Solo se dibujan cuando el módulo está abierto: el menú tiene que decir dónde
  * estás parado, no listar todo lo que hay.
  *
- * Panel Finanzas no está acá a propósito, aunque también tenga pantallas adentro:
+ * Herramientas Finanzas no está acá a propósito, aunque también tenga pantallas adentro:
  * las suyas se conceden por usuario (ver lib/finanzas-subpaneles-usuario.ts, donde
  * "facturas-ih" además deniega por defecto), y listarlas sin consultar ese permiso
  * mostraría puertas cerradas. Su propia portada ya las presenta con su descripción.

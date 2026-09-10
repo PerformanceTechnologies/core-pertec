@@ -291,7 +291,7 @@ export default function PanelFacturasIh({
 
       <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <span className="block etiqueta-seccion">Panel Finanzas</span>
+          <span className="block etiqueta-seccion">Herramientas Finanzas</span>
           <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">SII Documentos IH - IL</h1>
           <p className="mt-1 max-w-2xl text-xs text-tinta/50">
             Factura afecta/exenta, notas de crédito/débito y guías de despacho de IH e IL, con su XML o PDF

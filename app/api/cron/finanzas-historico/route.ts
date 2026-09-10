@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const mensaje = err instanceof Error ? err.message : "Error desconocido";
     await registrarEjecucionHistorico(false, 0, mensaje).catch(() => {});
     await enviarCorreoSoporte(
-      "Panel Finanzas: fallo la indexacion de facturas historicas (SharePoint)",
+      "Herramientas Finanzas: fallo la indexacion de facturas historicas (SharePoint)",
       `La corrida automatica de hoy no pudo indexar las facturas de ${tipo} historicas.\n\nError: ${mensaje}\n\nRevisa el dashboard en core.pertec.cl/finanzas/facturas-historicas.`
     ).catch(() => {});
     return NextResponse.json({ error: mensaje }, { status: 500 });

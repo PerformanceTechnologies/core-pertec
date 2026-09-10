@@ -172,7 +172,7 @@ export default function PanelFinanzas({
         Volver a Finanzas
       </Link>
 
-      <span className="mt-3 block etiqueta-seccion">Panel Finanzas</span>
+      <span className="mt-3 block etiqueta-seccion">Herramientas Finanzas</span>
       <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
         Facturas SII
       </h1>

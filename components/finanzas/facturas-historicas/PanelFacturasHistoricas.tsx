@@ -279,7 +279,7 @@ export default function PanelFacturasHistoricas({
         Volver a Finanzas
       </Link>
 
-      <span className="mt-3 block etiqueta-seccion">Panel Finanzas</span>
+      <span className="mt-3 block etiqueta-seccion">Herramientas Finanzas</span>
       <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">Facturas Históricas</h1>
       <p className="mt-1 text-sm text-tinta/60">
         Busca el documento original (PDF o XML) archivado en SharePoint, desde 2022 en adelante.

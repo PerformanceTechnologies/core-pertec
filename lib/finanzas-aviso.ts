@@ -50,7 +50,7 @@ export async function avisarReclamos(reclamos: FacturaSii[]): Promise<Constancia
     const detalle = error instanceof Error ? error.message : String(error);
     console.error(`[finanzas] no se pudo avisar el reclamo a Finanzas: ${detalle}`);
     await enviarCorreoSoporte(
-      "Panel Finanzas: se detectaron facturas reclamadas y el aviso no salió",
+      "Herramientas Finanzas: se detectaron facturas reclamadas y el aviso no salió",
       `Se detectaron ${reclamos.length} factura(s) de venta reclamada(s) o rechazada(s) y ` +
         `el correo a ${CORREO_FINANZAS} no se pudo enviar.\n\nError: ${detalle}\n\n${aviso.cuerpo}`,
     ).catch(() => {});

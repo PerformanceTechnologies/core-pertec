@@ -1,4 +1,4 @@
-// Catalogo de sub-paneles dentro de Panel Finanzas. A diferencia del catalogo
+// Catalogo de sub-paneles dentro de Herramientas Finanzas. A diferencia del catalogo
 // de aplicaciones (tabla `aplicaciones` en Supabase, pensado para apps de
 // primer nivel del core), este vive en codigo porque es una lista interna de
 // Finanzas que se espera crezca a medida que se agreguen mas areas.

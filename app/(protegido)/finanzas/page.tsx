@@ -20,7 +20,7 @@ export default async function FinanzasPage() {
 
   return (
     <div>
-      <span className="etiqueta-seccion">Panel Finanzas</span>
+      <span className="etiqueta-seccion">Herramientas Finanzas</span>
       <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
         Finanzas
       </h1>
