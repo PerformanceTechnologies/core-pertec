@@ -1,10 +1,10 @@
 import "server-only";
+import { conEstadoPorOmision } from "./crm-filtro";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { pertecWebSupabase } from "@/lib/pertec-web-supabase";
 import { fechaCl } from "@/lib/cotizador/formato";
 import {
   traducir,
-  ETAPAS_CRM,
   ESTADOS_FLOTA,
   CATEGORIAS_GASTO,
   ESTADOS_FONDO,
@@ -214,74 +214,55 @@ export interface FilaLead {
   tipo: string;
   nombre: string;
   partner_nombre: string | null;
+  contacto: string | null;
   etapa: string | null;
+  etapa_secuencia: number | null;
+  /** "ganada" | "perdida" | "abierta"; se deriva en la sincronización. */
+  estado: string | null;
+  activa: boolean;
+  motivo_perdida: string | null;
   monto_esperado: number;
+  monto_ponderado: number | null;
   probabilidad: number;
   vendedor: string | null;
+  equipo: string | null;
+  prioridad: string | null;
+  origen: string | null;
+  medio: string | null;
+  campana: string | null;
+  etiquetas: string[] | null;
+  correo: string | null;
+  telefono: string | null;
+  ciudad: string | null;
+  fecha_creacion: string | null;
   fecha_cierre_estimada: string | null;
+  fecha_cierre_real: string | null;
+  fecha_ultimo_movimiento: string | null;
+  dias_para_cerrar: number | null;
+  actividad_proxima: string | null;
+  actividad_resumen: string | null;
+  actividad_tipo: string | null;
 }
 
-export interface KpisCrm {
-  oportunidadesAbiertas: number;
-  montoEsperadoTotal: number;
-  porEtapa: { etapa: string; cantidad: number }[];
-  montoPorEtapa: { etapa: string; cantidad: number; monto: number }[];
-  porVendedor: { vendedor: string; cantidad: number }[];
-  montoPorVendedor: { vendedor: string; cantidad: number; monto: number }[];
-}
-
-export async function obtenerKpisCrm(companyId: number): Promise<KpisCrm> {
-  const { data } = await supabaseAdmin
-    .from("panel_odoo_crm_leads")
-    .select("etapa, monto_esperado, vendedor")
-    .eq("company_id", companyId)
-    .eq("tipo", "opportunity");
-
-  const filas = data ?? [];
-  const porEtapaMapa = new Map<string, { cantidad: number; monto: number }>();
-  const porVendedorMapa = new Map<string, { cantidad: number; monto: number }>();
-  for (const fila of filas) {
-    const etapa = traducir(ETAPAS_CRM, fila.etapa ?? "Sin etapa");
-    const actualEtapa = porEtapaMapa.get(etapa) ?? { cantidad: 0, monto: 0 };
-    actualEtapa.cantidad += 1;
-    actualEtapa.monto += fila.monto_esperado ?? 0;
-    porEtapaMapa.set(etapa, actualEtapa);
-
-    const vendedor = fila.vendedor ?? "Sin asignar";
-    const actualVendedor = porVendedorMapa.get(vendedor) ?? { cantidad: 0, monto: 0 };
-    actualVendedor.cantidad += 1;
-    actualVendedor.monto += fila.monto_esperado ?? 0;
-    porVendedorMapa.set(vendedor, actualVendedor);
-  }
-
-  const montoPorEtapa = Array.from(porEtapaMapa.entries())
-    .map(([etapa, v]) => ({ etapa, ...v }))
-    .sort((a, b) => b.monto - a.monto);
-
-  const montoPorVendedor = Array.from(porVendedorMapa.entries())
-    .map(([vendedor, v]) => ({ vendedor, ...v }))
-    .sort((a, b) => b.monto - a.monto);
-
-  return {
-    oportunidadesAbiertas: filas.length,
-    montoEsperadoTotal: filas.reduce((acc, f) => acc + (f.monto_esperado ?? 0), 0),
-    porEtapa: montoPorEtapa.map(({ etapa, cantidad }) => ({ etapa, cantidad })),
-    montoPorEtapa,
-    porVendedor: montoPorVendedor.map(({ vendedor, cantidad }) => ({ vendedor, cantidad })),
-    montoPorVendedor,
-  };
-}
-
-export async function listarLeadsRecientes(companyId: number, limite = 5): Promise<FilaLead[]> {
+/**
+ * El pipeline completo para el detalle: abiertas, ganadas y perdidas.
+ *
+ * Todo, y no solo las abiertas: sin las cerradas no hay tasa de conversión, ni motivos de
+ * pérdida, ni tendencia — que es la mitad de lo que se le pregunta a un CRM. El detalle
+ * filtra en el cliente, igual que Facturas.
+ */
+export async function listarLeads(companyId: number, limite = 2000): Promise<FilaLead[]> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_crm_leads")
     .select(
-      "odoo_id, tipo, nombre, partner_nombre, etapa, monto_esperado, probabilidad, vendedor, fecha_cierre_estimada",
+      "odoo_id, tipo, nombre, partner_nombre, contacto, etapa, etapa_secuencia, estado, activa, motivo_perdida, monto_esperado, monto_ponderado, probabilidad, vendedor, equipo, prioridad, origen, medio, campana, etiquetas, correo, telefono, ciudad, fecha_creacion, fecha_cierre_estimada, fecha_cierre_real, fecha_ultimo_movimiento, dias_para_cerrar, actividad_proxima, actividad_resumen, actividad_tipo",
     )
     .eq("company_id", companyId)
     .order("fecha_creacion", { ascending: false, nullsFirst: false })
     .limit(limite);
-  return (data ?? []) as FilaLead[];
+  // El relleno de estado es para el rato entre desplegar esto y la primera corrida del
+  // cron: ver conEstadoPorOmision.
+  return conEstadoPorOmision((data ?? []) as FilaLead[]);
 }
 
 // ── Gastos ──────────────────────────────────────────────────────────────
