@@ -71,7 +71,11 @@ function baseDe(tema: "light" | "dark", alto: number): ApexOptions {
       // arrastre accidental deja el gráfico recortado sin forma obvia de volver.
       zoom: { enabled: false },
       selection: { enabled: false },
-      animations: { enabled: true, speed: 300 },
+      // Sin animación en la tarjeta chica: son gráficos de un vistazo que se redibujan en
+      // cada carga del panel, y la animación de Apex los deja a medio dibujar durante
+      // ~300 ms —una dona aparece como un cuarto de anillo— que es exactamente lo que se
+      // reportó como "se ve raro". En la versión grande del modal sí anima.
+      animations: { enabled: alto !== ALTO, speed: 300 },
       parentHeightOffset: 0,
     },
     theme: { mode: tema },
@@ -262,19 +266,22 @@ export function GraficoDona({
   const base = baseDe(tema, alto);
   const opciones: ApexOptions = {
     ...base,
-    chart: { ...base.chart, type: "donut" },
+    chart: {
+      ...base.chart,
+      type: "donut",
+      // Nunca en la dona, ni en la grande: un anillo a medio dibujar se lee como un
+      // gráfico roto, no como una animación.
+      animations: { enabled: false },
+    },
     colors: COLORES_DONA,
     labels: datos.map((d) => String(d[nameKey] ?? "")),
-    stroke: { width: 2, colors: [colores(tema).superficie] },
+    // La línea que separa las porciones, solo cuando hay más de una.
+    stroke: { width: datos.length > 1 ? 2 : 0, colors: [colores(tema).superficie] },
     plotOptions: {
       pie: {
         expandOnClick: false,
         donut: { size: "58%" },
-        // Solo en la tarjeta chica: Apex dibuja la dona bastante más chica que el espacio
-        // que tiene, y en 96 px quedaba como una moneda en medio de un hueco. Con 1,3
-        // mide 84 px, casi lo mismo que la anterior (88). En la versión grande no se
-        // agranda: ahí abajo va la leyenda y se le comería el lugar.
-        customScale: expandido ? 1 : 1.3,
+        customScale: 1,
       },
     },
     // La leyenda de Apex solo cuando el grafico es grande Y no se dibuja la fila propia

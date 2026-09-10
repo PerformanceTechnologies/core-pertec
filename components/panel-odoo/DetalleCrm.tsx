@@ -318,11 +318,18 @@ export default function DetalleCrm({ leads }: { leads: FilaLead[] }) {
 
       {verGraficos && (
         <div className="mt-2 grid grid-cols-1 gap-3 xl:grid-cols-2">
-          <Panel titulo="Embudo: abiertas por etapa" ancho>
+          {/* El embudo y el ranking de vendedores NO van a lo ancho: a lo largo del modal
+              quedaban paneles de 1.300 × 300, achatados, con las barras nadando en el
+              medio. En una columna el panel queda casi cuadrado, como el de la dona.
+
+              Y el orden importa por cómo llena la grilla: primero los cuatro de una
+              columna, en pares, y al final los dos que sí van a lo ancho. Un panel de una
+              columna seguido de uno de dos deja la fila con un hueco al lado. */}
+          <Panel titulo="Embudo: abiertas por etapa">
             <GraficoEmbudo escalones={series.embudo} onElegirEtapa={alternarEtapa} etapaElegida={criterios.etapa} />
           </Panel>
-          <Panel titulo="Creadas, ganadas y perdidas por mes" ancho>
-            <GraficoTendenciaCrm datos={series.tendencia} onElegirMes={alElegirMes} mesElegido={mesElegido} />
+          <Panel titulo="Por vendedor">
+            <GraficoVendedores vendedores={series.vendedores} onElegir={alternarVendedor} />
           </Panel>
           <Panel titulo="Cómo terminaron">
             <GraficoTortaCrm porciones={series.estado} onElegir={alternarEstado} titulo="Total" porCantidad />
@@ -342,8 +349,8 @@ export default function DetalleCrm({ leads }: { leads: FilaLead[] }) {
               </p>
             )}
           </Panel>
-          <Panel titulo="Por vendedor" ancho>
-            <GraficoVendedores vendedores={series.vendedores} onElegir={alternarVendedor} />
+          <Panel titulo="Creadas, ganadas y perdidas por mes" ancho>
+            <GraficoTendenciaCrm datos={series.tendencia} onElegirMes={alElegirMes} mesElegido={mesElegido} />
           </Panel>
           <Panel titulo="Antigüedad de las abiertas (desde el último movimiento)" ancho>
             <GraficoAntiguedad tramos={series.antiguedad} onElegirEstancadas={() => alternarEstado("estancadas")} />

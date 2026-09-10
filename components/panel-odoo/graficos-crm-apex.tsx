@@ -27,8 +27,15 @@ const TEAL_SUAVE = "#35b89b";
 const GRIS = "#8c8578";
 const ROJO = "#dc2626";
 
-/** Grosor máximo de una barra horizontal, en px. Ver lib/panel-odoo/grosor-barra.ts. */
-const GROSOR_DE_BARRA = 22;
+/**
+ * Grosor máximo de una barra horizontal, en px.
+ *
+ * Estas dos viven en una carta de una sola columna (ver DetalleCrm), así que la barra
+ * puede ser gruesa sin verse como un lingote: con 3 etapas en 260 px de alto son 44 px de
+ * los 86 que le toca a cada fila. El tope existe para cuando hay una o dos filas, donde un
+ * porcentaje del espacio disponible da barras de media carta.
+ */
+const GROSOR_DE_BARRA = 44;
 
 function useTema() {
   // Apex escribe los colores COMO ATRIBUTOS del SVG: un var() de CSS no lo sigue, así que
@@ -265,6 +272,9 @@ export function GraficoTortaCrm({
     chart: {
       ...base.chart,
       type: "donut",
+      // Sin animación: un anillo a medio dibujar se lee como un gráfico roto. Con una
+      // sola porción se veía como un cuarto de anillo mientras animaba.
+      animations: { enabled: false },
       events: {
         dataPointSelection: (_e, _c, config) => {
           const porcion = porciones[config?.dataPointIndex ?? -1];
@@ -274,6 +284,8 @@ export function GraficoTortaCrm({
     },
     colors: colores,
     labels: porciones.map((p) => p.etiqueta),
+    // La línea que separa porciones, solo cuando hay más de una.
+    stroke: { width: porciones.length > 1 ? 2 : 0 },
     plotOptions: {
       pie: {
         // Que la porción se separe al apretarla: es la señal de que se puede clickear.

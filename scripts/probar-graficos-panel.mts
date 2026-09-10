@@ -85,6 +85,7 @@ createRoot(document.getElementById("raiz")!).render(
     <section id="ranking"><GraficoBarrasRanking datos={flota} nameKey="estado" mostrarDetalle /></section>
     <section id="ranking-grande"><GraficoBarrasRanking datos={[{ etapa: "Un nombre larguísimo de bodega", cantidad: 9 }, { etapa: "Corta", cantidad: 3 }]} expandido /></section>
     <section id="apilada"><GraficoBarraApilada datos={[{ estado: "Aprobado", monto: 685896 }, { estado: "Rendido", monto: 314104 }]} dataKey="monto" nameKey="estado" formato="dinero" /></section>
+    <section id="dona-unica"><GraficoDona datos={[{ etapa: "Abiertas", cantidad: 49 }]} /></section>
     <section id="vacio"><GraficoDona datos={[]} /></section>
   </div>,
 );
@@ -250,12 +251,42 @@ const dona = await pagina.evaluate(() => {
   const caja = document.querySelector("#dona-crm")!.getBoundingClientRect();
   // El grupo entero, no un solo arco: el bbox de una porción de tres es siempre chico.
   const rueda = document.querySelector("#dona-crm .apexcharts-pie")!.getBoundingClientRect();
-  return { alto: Math.round(caja.height), diametro: Math.round(Math.max(rueda.width, rueda.height)) };
+  return {
+    alto: Math.round(caja.height),
+    diametro: Math.round(Math.max(rueda.width, rueda.height)),
+    dentro: rueda.top >= caja.top - 1 && rueda.bottom <= caja.bottom + 1,
+    // Un anillo completo es tan ancho como alto. Si Apex lo deja a medio dibujar (su
+    // animación arranca en un cuarto de círculo), esto lo delata.
+    redondo: Math.abs(rueda.width - rueda.height) <= 3,
+    arriba: Math.round(rueda.top - caja.top),
+    abajo: Math.round(caja.bottom - rueda.bottom),
+  };
 });
 assert.ok(
   dona.diametro >= dona.alto * 0.8,
   `la dona mide ${dona.diametro} px en una tarjeta de ${dona.alto}: está dibujada como una moneda`,
 );
+// Y tampoco puede salirse: agrandarla de más la deja cortada arriba y abajo, que es la
+// otra forma de que "se vea rara".
+assert.ok(dona.dentro, `la dona se sale de su tarjeta (${dona.diametro} px en ${dona.alto})`);
+assert.ok(dona.redondo, "la dona quedó a medio dibujar: hay que apagarle la animación en las tarjetas");
+
+// Con UNA sola porción no puede quedar la línea blanca de separación: se lee como un tajo
+// en el anillo. Es un caso frecuente ("Cómo terminaron" con todo abierto).
+const anilloEntero = await pagina.evaluate(() => {
+  const arcos = document.querySelectorAll("#dona-unica .apexcharts-pie-area");
+  const arco = arcos[0] as SVGPathElement | undefined;
+  return {
+    porciones: arcos.length,
+    // El atributo Y el estilo calculado: Apex lo pone en uno o en otro según el caso.
+    atributo: arco?.getAttribute("stroke-width") ?? "",
+    calculado: arco ? getComputedStyle(arco).strokeWidth : "",
+  };
+});
+assert.equal(anilloEntero.porciones, 1);
+if (process.env.CAPTURA_UNICA) {
+  await pagina.locator("#dona-unica").screenshot({ path: process.env.CAPTURA_UNICA });
+}
 
 // ── 3. El degradado de la tendencia ─────────────────────────────────────
 //

@@ -150,12 +150,12 @@ writeFileSync(
   join(carpeta, "index.html"),
   `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <link rel="stylesheet" href="estilos.css"></head>
-<body class="bg-crema text-tinta"><div id="raiz" style="max-width:900px"></div>
+<body class="bg-crema text-tinta"><div id="raiz" style="max-width:1300px"></div>
 <script src="panel.js"></script></body></html>`,
 );
 
 const navegador = await chromium.launch({ headless: true });
-const pagina = await navegador.newPage({ viewport: { width: 1000, height: 1400 } });
+const pagina = await navegador.newPage({ viewport: { width: 1400, height: 1600 } });
 const errores: string[] = [];
 pagina.on("pageerror", (e) => errores.push(e.message));
 
@@ -202,6 +202,27 @@ const quitarPrimerFiltro = async () => {
   await esperarFilas(LEADS.length);
 };
 
+/**
+ * El índice del gráfico cuyo panel se titula así.
+ *
+ * Se busca por TÍTULO y no por posición: los paneles se reordenaron una vez para que la
+ * grilla no dejara huecos, y con índices a mano la prueba se rompe (o peor, mide otro
+ * gráfico y pasa) cada vez que se mueve uno.
+ */
+const indiceDe = async (titulo: string) => {
+  const indice = await pagina.evaluate(
+    (t) =>
+      [...document.querySelectorAll(".apexcharts-canvas")].findIndex((canvas) => {
+        // El panel es el ancestro que tiene el <p> del título como primer hijo.
+        const panel = canvas.closest("div.rounded-xl");
+        return (panel?.querySelector("p")?.textContent ?? "").includes(t);
+      }),
+    titulo,
+  );
+  assert.notEqual(indice, -1, `no hay ningún gráfico en el panel "${titulo}"`);
+  return indice;
+};
+
 /** Apex ata sus escuchas a "mousedown", no a "click": un click sintético no lo despierta. */
 const clicEnPunto = (grafico: number, selector: string, indice: number) =>
   pagina.evaluate(
@@ -222,13 +243,13 @@ assert.deepEqual(await chips(), [], "y sin ningún filtro puesto");
 // El primer escalón es el de la etapa con MENOR secuencia en Odoo, no el de más monto.
 const primeraEtapa = escalones[0].etapa;
 const enPrimeraEtapa = cuantasCon({ etapa: primeraEtapa });
-await clicEnPunto(0, ".apexcharts-bar-area", 0);
+await clicEnPunto(await indiceDe("Embudo"), ".apexcharts-bar-area", 0);
 await esperarFilas(enPrimeraEtapa);
 assert.deepEqual(await chips(), ["Nuevo"], "el chip muestra la etapa traducida al español");
 assert.equal(primeraEtapa, "New", "y el primer escalón es New, que es la secuencia 1");
 
 // Volver a apretar la misma etapa la saca.
-await clicEnPunto(0, ".apexcharts-bar-area", 0);
+await clicEnPunto(await indiceDe("Embudo"), ".apexcharts-bar-area", 0);
 await esperarFilas(LEADS.length);
 assert.deepEqual(await chips(), []);
 
@@ -237,24 +258,23 @@ assert.deepEqual(await chips(), []);
 // El primer mes de la serie es el más viejo. Se filtra por CREACIÓN, así que lo que tiene
 // que quedar es lo creado en ese mes -- que no es lo mismo que lo que cerró ahí.
 const primerMes = meses[0].mes;
-await clicEnPunto(1, ".apexcharts-bar-area", 0);
+await clicEnPunto(await indiceDe("Creadas"), ".apexcharts-bar-area", 0);
 await esperarFilas(cuantasCon(rangoDelMes(primerMes)));
 assert.deepEqual(await chips(), [primerMes]);
 await quitarPrimerFiltro();
 
 // ── 4. La dona de estados ───────────────────────────────────────────────
-await clicEnPunto(2, ".apexcharts-pie-area", 0);
+await clicEnPunto(await indiceDe("Cómo terminaron"), ".apexcharts-pie-area", 0);
 await esperarFilas(cuantasCon({ estado: estados[0].filtro }));
 assert.deepEqual(await chips(), [estados[0].etiqueta]);
 await quitarPrimerFiltro();
 
 // ── 5. El ranking de vendedores busca ese nombre ────────────────────────
 //
-// El gráfico 4 es "Por vendedor", ordenado por monto abierto. Ojo: el ranking se ordena
-// por lo ABIERTO, pero el filtro trae TODO lo de esa persona —también sus cerradas—, que
-// es lo que uno quiere al hacer clic en su barra.
+// Ojo: el ranking se ordena por lo ABIERTO, pero el filtro trae TODO lo de esa persona
+// —también sus cerradas—, que es lo que uno quiere al hacer clic en su barra.
 const primerVendedor = vendedores[0].nombre;
-await clicEnPunto(4, ".apexcharts-bar-area", 0);
+await clicEnPunto(await indiceDe("Por vendedor"), ".apexcharts-bar-area", 0);
 await esperarFilas(cuantasCon({ vendedor: primerVendedor }));
 assert.deepEqual(await chips(), [primerVendedor]);
 await quitarPrimerFiltro();
@@ -309,9 +329,36 @@ const grosorDelEmbudo = await pagina.evaluate(() =>
 );
 assert.ok(grosorDelEmbudo > 6, `la barra del embudo mide ${grosorDelEmbudo} px: no se ve`);
 assert.ok(
-  grosorDelEmbudo <= 26,
+  grosorDelEmbudo <= 48,
   `la barra del embudo mide ${grosorDelEmbudo} px: con pocas etapas queda como un lingote`,
 );
+
+// ── 6c. La dona no puede salirse de su panel ────────────────────────────
+const donaCrm = await pagina.evaluate((i) => {
+  const canvas = document.querySelectorAll(".apexcharts-canvas")[i];
+  const caja = canvas.getBoundingClientRect();
+  const rueda = canvas.querySelector(".apexcharts-pie")!.getBoundingClientRect();
+  return {
+    dentro: rueda.top >= caja.top - 1 && rueda.bottom <= caja.bottom + 1,
+    diametro: Math.round(Math.max(rueda.width, rueda.height)),
+    alto: Math.round(caja.height),
+  };
+}, await indiceDe("Cómo terminaron"));
+assert.ok(donaCrm.dentro, `la dona se sale de su panel (${donaCrm.diametro} px en ${donaCrm.alto})`);
+assert.ok(donaCrm.diametro > 80, `la dona mide ${donaCrm.diametro} px: se ve como una moneda`);
+
+// Y con una sola porción no lleva la línea blanca de separación, que se lee como un tajo
+// en el anillo. Pasa seguido: "Cómo terminaron" cuando todo está abierto.
+await pagina.selectOption("select[aria-label='Estado']", "abierta");
+await esperarFilas(cuantasCon({ estado: "abierta" }));
+const anillo = await pagina.evaluate((i) => {
+  const arcos = document.querySelectorAll(".apexcharts-canvas")[i].querySelectorAll(".apexcharts-pie-area");
+  return { porciones: arcos.length, linea: Number(arcos[0]?.getAttribute("stroke-width") ?? -1) };
+}, await indiceDe("Cómo terminaron"));
+assert.equal(anillo.porciones, 1, "filtrando por abiertas queda una sola porción");
+assert.equal(anillo.linea, 0, "una dona de una sola porción no lleva línea de separación");
+await pagina.selectOption("select[aria-label='Estado']", "");
+await esperarFilas(LEADS.length);
 
 // ── 7. Los gráficos siguen a los filtros de arriba ──────────────────────
 //
