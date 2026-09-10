@@ -217,3 +217,27 @@ export const ESTADOS_EDP: Record<string, string> = {
   approved: "Aprobado",
   invoiced: "Facturado",
 };
+
+// sale.order.invoice_status -- el mismo campo existe en purchase.order con otros valores,
+// por eso son dos diccionarios y no uno.
+export const ESTADOS_FACTURACION_VENTA: Record<string, string> = {
+  no: "Nada que facturar",
+  "to invoice": "Por facturar",
+  invoiced: "Facturada",
+  upselling: "Oportunidad de venta adicional",
+};
+
+// sale.order.delivery_status.
+export const ESTADOS_ENTREGA: Record<string, string> = {
+  pending: "Pendiente",
+  started: "Iniciada",
+  partial: "Parcial",
+  full: "Entregada",
+};
+
+// sale.order.x_warranty_status -- campo custom de este Odoo.
+export const ESTADOS_GARANTIA: Record<string, string> = {
+  retained: "Retenida",
+  released: "Liberada",
+  executed: "Ejecutada",
+};

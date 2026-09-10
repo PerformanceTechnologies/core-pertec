@@ -1,12 +1,15 @@
-import { obtenerKpisVentas, listarVentasRecientes } from "@/lib/panel-odoo/datos";
-import { money, fechaCl } from "@/lib/cotizador/formato";
+import { listarVentas } from "@/lib/panel-odoo/datos";
+import { money } from "@/lib/cotizador/formato";
 import type { EjecucionOdoo } from "@/lib/panel-odoo/sync-ejecuciones";
+import { arriendoActivo, esCotizacion, hoyEnChileIso, resumirVentas } from "@/lib/panel-odoo/ventas-filtro";
+import { tendenciaMensual } from "@/lib/panel-odoo/ventas-series";
 import { GraficoAreaSimple } from "./graficos";
 import ListaVentasClickeable from "./ListaVentasClickeable";
+import DetalleVentas from "./DetalleVentas";
 import TarjetaBase from "./TarjetaBase";
-import IndicadorVariacion from "./IndicadorVariacion";
 
-const LIMITE_EXPANDIDO = 20;
+/** Cuántas órdenes se listan en la tarjeta chica (el detalle muestra todas, con filtros). */
+const EN_LA_TARJETA = 5;
 
 export default async function TarjetaVentas({
   companyId,
@@ -15,10 +18,22 @@ export default async function TarjetaVentas({
   companyId: number;
   ejecucion?: EjecucionOdoo | null;
 }) {
-  const [kpis, recientes] = await Promise.all([
-    obtenerKpisVentas(companyId),
-    listarVentasRecientes(companyId, LIMITE_EXPANDIDO),
-  ]);
+  // Todas las órdenes en una sola consulta: el detalle filtra en el cliente.
+  const todas = await listarVentas(companyId);
+  const hoy = hoyEnChileIso();
+  const resumen = resumirVentas(todas, hoy);
+
+  // La tendencia de la tarjeta chica es lo COTIZADO por mes. Antes mostraba solo lo
+  // confirmado y salía en cero: de 65 órdenes, 47 son cotizaciones sin cerrar, así que la
+  // tarjeta decía "$0" al lado de media cartera comercial.
+  const serie = tendenciaMensual(todas).map((p) => ({ mes: p.mes, monto: Math.round(p.cotizado) }));
+
+  // En la lista chica, lo que hay que mirar hoy: los arriendos en curso primero (es un
+  // equipo afuera) y después las cotizaciones más nuevas.
+  const paraLaLista = [
+    ...todas.filter((v) => arriendoActivo(v)),
+    ...todas.filter((v) => esCotizacion(v)),
+  ].slice(0, EN_LA_TARJETA);
 
   return (
     <TarjetaBase
@@ -26,78 +41,58 @@ export default async function TarjetaVentas({
       acento="naranjo"
       icono="package"
       ejecucion={ejecucion}
-      contenidoExpandido={
-        <div>
-          <div className="grid grid-cols-3 gap-3">
-            <Stat etiqueta="Ventas (mes)" valor={money(kpis.ventasMes)} color="text-tinta" />
-            <Stat etiqueta="Arriendos activos" valor={String(kpis.arriendosActivos)} color="text-teal" />
-            <Stat etiqueta="Monto en arriendo" valor={money(kpis.montoArriendosActivos)} color="text-naranjo" />
-          </div>
-
-          {kpis.arriendosPorVencer.length > 0 && (
-            <div className="mt-3 rounded-lg border border-naranjo/25 bg-naranjo/[0.06] px-3 py-2.5 text-xs">
-              <p className="font-semibold text-naranjo">
-                {kpis.arriendosPorVencer.length} arriendo{kpis.arriendosPorVencer.length === 1 ? "" : "s"} vence
-                {kpis.arriendosPorVencer.length === 1 ? "" : "n"} en los próximos 15 días
-              </p>
-              <div className="mt-2 divide-y divide-naranjo/15">
-                {kpis.arriendosPorVencer.map((a) => (
-                  <div key={a.odoo_id} className="flex items-center justify-between py-1.5">
-                    <span className="min-w-0 truncate text-tinta/70">{a.partner_nombre ?? a.numero ?? `#${a.odoo_id}`}</span>
-                    <span className="ml-3 shrink-0 text-naranjo">{fechaCl(a.fecha_fin_arriendo)}</span>
-                    <span className="ml-3 shrink-0 font-semibold text-tinta">{money(a.monto_total)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">Ventas (6 meses)</p>
-          <div className="mt-2">
-            <GraficoAreaSimple datos={kpis.serieMensualVentas} expandido />
-          </div>
-
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">
-            Últimas {recientes.length} órdenes
-          </p>
-          <ListaVentasClickeable ventas={recientes} />
-        </div>
-      }
+      anchoExpandido="ancho"
+      contenidoExpandido={<DetalleVentas ventas={todas} />}
     >
       <div className="mt-2 grid grid-cols-2 gap-2">
         <div className="min-w-0">
-          <p title="Ventas (mes)" className="truncate text-[10px] uppercase text-tinta/45">Ventas (mes)</p>
-          <div className="mt-0.5 flex items-baseline gap-1">
-            <p className="min-w-0 truncate font-condensed text-sm font-bold text-tinta">{money(kpis.ventasMes)}</p>
-            <IndicadorVariacion actual={kpis.ventasMes} anterior={kpis.ventasMesAnterior} />
-          </div>
+          <p title="Cotizaciones abiertas" className="truncate text-[10px] uppercase text-tinta/45">
+            Cotizado abierto
+          </p>
+          <p className="mt-0.5 truncate font-condensed text-sm font-bold text-tinta">
+            {money(resumen.montoCotizado)}
+          </p>
         </div>
         <div className="min-w-0">
-          <p title="Arriendos activos" className="truncate text-[10px] uppercase text-tinta/45">Arriendos activos</p>
-          <p className="mt-0.5 truncate font-condensed text-sm font-bold text-teal">{kpis.arriendosActivos}</p>
-        </div>
-        <div className="min-w-0">
-          <p title="Monto en arriendo" className="truncate text-[10px] uppercase text-tinta/45">Monto en arriendo</p>
+          {/* El número más fuerte de la tarjeta: plata vendida que todavía no se factura. */}
+          <p title="Confirmado sin facturar" className="truncate text-[10px] uppercase text-tinta/45">
+            Por facturar
+          </p>
           <p className="mt-0.5 truncate font-condensed text-sm font-bold text-naranjo">
-            {money(kpis.montoArriendosActivos)}
+            {money(resumen.montoPorFacturar)}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <p title="Arriendos en curso" className="truncate text-[10px] uppercase text-tinta/45">
+            Arriendos en curso
+          </p>
+          <p className="mt-0.5 truncate font-condensed text-sm font-bold text-teal">
+            {resumen.arriendosActivos}
+            <span className="ml-1 text-[10px] font-normal text-tinta/45">
+              {money(resumen.montoArriendosActivos)}
+            </span>
+          </p>
+        </div>
+        <div className="min-w-0">
+          <p title="Arriendos pasados de su fecha de fin" className="truncate text-[10px] uppercase text-tinta/45">
+            Pasados de fecha
+          </p>
+          <p
+            className={`mt-0.5 truncate font-condensed text-sm font-bold ${
+              resumen.arriendosAtrasados > 0 ? "text-red-600" : "text-tinta"
+            }`}
+          >
+            {resumen.arriendosAtrasados}
           </p>
         </div>
       </div>
 
       <div className="mt-2.5">
-        <GraficoAreaSimple datos={kpis.serieMensualVentas} />
+        <p className="mb-1 truncate text-[9px] uppercase text-tinta/40">Cotizado por mes</p>
+        <GraficoAreaSimple datos={serie} />
       </div>
 
-      <ListaVentasClickeable ventas={recientes.slice(0, 5)} />
+      <ListaVentasClickeable ventas={paraLaLista} />
     </TarjetaBase>
-  );
-}
-
-function Stat({ etiqueta, valor, color }: { etiqueta: string; valor: string; color: string }) {
-  return (
-    <div className="min-w-0 rounded-lg bg-crema/60 px-3 py-2">
-      <p className="truncate text-[10px] uppercase text-tinta/45">{etiqueta}</p>
-      <p className={`mt-0.5 truncate font-condensed text-base font-bold ${color}`}>{valor}</p>
-    </div>
   );
 }

@@ -644,86 +644,55 @@ export interface FilaVenta {
   partner_nombre: string | null;
   fecha_orden: string | null;
   monto_total: number;
+  monto_neto: number | null;
+  monto_impuesto: number | null;
+  monto_facturado: number | null;
+  /** Lo confirmado que todavía no se factura: el número que más pesa acá. */
+  monto_por_facturar: number | null;
+  facturas: number | null;
   estado: string;
+  estado_facturacion: string | null;
+  vendedor: string | null;
+  equipo: string | null;
+  referencia_cliente: string | null;
+  origen: string | null;
+  oportunidad: string | null;
+  condicion_pago: string | null;
+  validez_hasta: string | null;
+  fecha_compromiso: string | null;
+  margen: number | null;
+  margen_porcentaje: number | null;
+  margen_bajo: boolean | null;
+  margen_aprobado: boolean | null;
+  estado_entrega: string | null;
+  etiquetas: string[] | null;
   es_arriendo: boolean;
   estado_arriendo: string | null;
+  fecha_inicio_arriendo: string | null;
   fecha_fin_arriendo: string | null;
+  fecha_devolucion: string | null;
+  dias_arriendo: number | null;
+  dias_atraso: number | null;
+  tiene_danos: boolean | null;
+  costo_danos: number | null;
+  total_liquidacion: number | null;
+  producto_devuelto: boolean | null;
+  garantia_estado: string | null;
+  garantia_documento: string | null;
 }
 
-export interface ArriendoPorVencer {
-  odoo_id: number;
-  numero: string | null;
-  partner_nombre: string | null;
-  fecha_fin_arriendo: string;
-  monto_total: number;
-}
-
-export interface KpisVentas {
-  ventasMes: number;
-  ventasMesAnterior: number;
-  arriendosActivos: number;
-  montoArriendosActivos: number;
-  arriendosPorVencer: ArriendoPorVencer[];
-  serieMensualVentas: { mes: string; monto: number }[];
-}
-
-const DIAS_ALERTA_ARRIENDO = 15;
-
-export async function obtenerKpisVentas(companyId: number): Promise<KpisVentas> {
-  const hoy = new Date();
-  const limiteAlerta = new Date(hoy);
-  limiteAlerta.setDate(limiteAlerta.getDate() + DIAS_ALERTA_ARRIENDO);
-
-  const [{ data: ultimos6Meses }, { data: arriendosActivos }, { data: porVencer }] = await Promise.all([
-    supabaseAdmin
-      .from("panel_odoo_ventas")
-      .select("fecha_orden, monto_total")
-      .eq("company_id", companyId)
-      .eq("es_arriendo", false)
-      .eq("estado", "sale")
-      .gte("fecha_orden", hace6Meses()),
-    supabaseAdmin
-      .from("panel_odoo_ventas")
-      .select("monto_total")
-      .eq("company_id", companyId)
-      .eq("es_arriendo", true)
-      .eq("estado_arriendo", "confirmed"),
-    supabaseAdmin
-      .from("panel_odoo_ventas")
-      .select("odoo_id, numero, partner_nombre, fecha_fin_arriendo, monto_total")
-      .eq("company_id", companyId)
-      .eq("es_arriendo", true)
-      .eq("estado_arriendo", "confirmed")
-      .not("fecha_fin_arriendo", "is", null)
-      .gte("fecha_fin_arriendo", hoy.toISOString().slice(0, 10))
-      .lte("fecha_fin_arriendo", limiteAlerta.toISOString().slice(0, 10))
-      .order("fecha_fin_arriendo", { ascending: true }),
-  ]);
-
-  const porMes = new Map<string, number>();
-  for (const fila of ultimos6Meses ?? []) {
-    if (!fila.fecha_orden) continue;
-    const mes = fila.fecha_orden.slice(0, 7);
-    porMes.set(mes, (porMes.get(mes) ?? 0) + fila.monto_total);
-  }
-
-  return {
-    ventasMes: porMes.get(claveMes(0)) ?? 0,
-    ventasMesAnterior: porMes.get(claveMes(-1)) ?? 0,
-    arriendosActivos: (arriendosActivos ?? []).length,
-    montoArriendosActivos: (arriendosActivos ?? []).reduce((acc, f) => acc + f.monto_total, 0),
-    arriendosPorVencer: (porVencer ?? []) as ArriendoPorVencer[],
-    serieMensualVentas: Array.from(porMes.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([mes, monto]) => ({ mes, monto })),
-  };
-}
-
-export async function listarVentasRecientes(companyId: number, limite = 5): Promise<FilaVenta[]> {
+/**
+ * Todas las órdenes para el detalle: cotizaciones, confirmadas y arriendos.
+ *
+ * Todo, y no solo las últimas: sin las cotizaciones no se ve la cartera —que hoy son 47
+ * de 65 órdenes— y sin las confirmadas no se ve lo que falta facturar. El detalle filtra
+ * en el cliente, igual que Facturas y CRM.
+ */
+export async function listarVentas(companyId: number, limite = 2000): Promise<FilaVenta[]> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_ventas")
     .select(
-      "odoo_id, numero, partner_nombre, fecha_orden, monto_total, estado, es_arriendo, estado_arriendo, fecha_fin_arriendo",
+      "odoo_id, numero, partner_nombre, fecha_orden, monto_total, monto_neto, monto_impuesto, monto_facturado, monto_por_facturar, facturas, estado, estado_facturacion, vendedor, equipo, referencia_cliente, origen, oportunidad, condicion_pago, validez_hasta, fecha_compromiso, margen, margen_porcentaje, margen_bajo, margen_aprobado, estado_entrega, etiquetas, es_arriendo, estado_arriendo, fecha_inicio_arriendo, fecha_fin_arriendo, fecha_devolucion, dias_arriendo, dias_atraso, tiene_danos, costo_danos, total_liquidacion, producto_devuelto, garantia_estado, garantia_documento",
     )
     .eq("company_id", companyId)
     .order("fecha_orden", { ascending: false, nullsFirst: false })
