@@ -30,7 +30,9 @@
     "probar-graficos-crm": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-crm.mts",
     "probar-graficos-panel": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-panel.mts",
     "probar-ventas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ventas.mts",
-    "probar-graficos-ventas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-ventas.mts"
+    "probar-graficos-ventas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-ventas.mts",
+    "probar-gastos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-gastos.mts",
+    "probar-graficos-gastos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-gastos.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

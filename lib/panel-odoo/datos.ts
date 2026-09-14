@@ -271,11 +271,47 @@ export interface FilaGasto {
   odoo_id: number;
   descripcion: string | null;
   empleado: string | null;
+  departamento: string | null;
+  aprobador: string | null;
   monto_total: number;
+  monto_neto: number | null;
+  monto_impuesto: number | null;
+  /** Lo que falta pagar; con forma_pago "own_account" es plata que se le debe a la persona. */
+  monto_pendiente: number | null;
   estado: string;
+  estado_aprobacion: string | null;
+  fecha_aprobacion: string | null;
   forma_pago: string | null;
   fecha: string | null;
   categoria: string | null;
+  categoria_odoo: string | null;
+  tipo_documento: string | null;
+  concepto: string | null;
+  proveedor: string | null;
+  /** Cuántos adjuntos tiene en Odoo. 0 es "sin respaldo". */
+  respaldos: number | null;
+  fondo: string | null;
+  fondo_odoo_id: number | null;
+  atribuido_a: string | null;
+  atribuido_tipo: string | null;
+  contraparte: string | null;
+  proyecto: string | null;
+  tarea: string | null;
+  asiento: string | null;
+  duplicados: number | null;
+}
+
+export interface FilaFondo {
+  odoo_id: number;
+  referencia: string;
+  empleado: string | null;
+  descripcion: string | null;
+  motivo: string | null;
+  fecha: string | null;
+  monto_entregado: number;
+  monto_rendido: number;
+  saldo: number;
+  estado: string;
 }
 
 export interface GrupoMontoConDetalle {
@@ -400,27 +436,43 @@ export async function obtenerKpisGastos(companyId: number): Promise<KpisGastos> 
   };
 }
 
-export interface FilaFondo {
-  odoo_id: number;
-  referencia: string;
-  empleado: string | null;
-  descripcion: string | null;
-  fecha: string | null;
-  monto_entregado: number;
-  monto_rendido: number;
-  saldo: number;
-  estado: string;
-}
-
 export async function listarFondosRecientes(companyId: number, limite = 10): Promise<FilaFondo[]> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_fondos_gasto")
     .select(
-      "odoo_id, referencia, empleado, descripcion, fecha, monto_entregado, monto_rendido, saldo, estado",
+      "odoo_id, referencia, empleado, descripcion, motivo, fecha, monto_entregado, monto_rendido, saldo, estado",
     )
     .eq("company_id", companyId)
     .order("fecha", { ascending: false, nullsFirst: false })
     .limit(limite);
+  return (data ?? []) as FilaFondo[];
+}
+
+/**
+ * Todos los gastos para el detalle, y los fondos por rendir.
+ *
+ * Todo y no solo el mes: sin los viejos no se ve lo que quedó sin rendir —hoy hay un
+ * borrador de hace más de un año— ni la tendencia. El detalle filtra en el cliente, igual
+ * que Facturas, CRM y Ventas.
+ */
+export async function listarGastos(companyId: number, limite = 2000): Promise<FilaGasto[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_gastos")
+    .select(
+      "odoo_id, descripcion, empleado, departamento, aprobador, monto_total, monto_neto, monto_impuesto, monto_pendiente, estado, estado_aprobacion, fecha_aprobacion, forma_pago, fecha, categoria, categoria_odoo, tipo_documento, concepto, proveedor, respaldos, fondo, fondo_odoo_id, atribuido_a, atribuido_tipo, contraparte, proyecto, tarea, asiento, duplicados",
+    )
+    .eq("company_id", companyId)
+    .order("fecha", { ascending: false, nullsFirst: false })
+    .limit(limite);
+  return (data ?? []) as FilaGasto[];
+}
+
+export async function listarFondos(companyId: number): Promise<FilaFondo[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_fondos_gasto")
+    .select("odoo_id, referencia, empleado, descripcion, motivo, fecha, monto_entregado, monto_rendido, saldo, estado")
+    .eq("company_id", companyId)
+    .order("fecha", { ascending: false, nullsFirst: false });
   return (data ?? []) as FilaFondo[];
 }
 

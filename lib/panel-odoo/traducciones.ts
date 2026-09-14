@@ -241,3 +241,33 @@ export const ESTADOS_GARANTIA: Record<string, string> = {
   released: "Liberada",
   executed: "Ejecutada",
 };
+
+// hr.expense.pertec_document_type -- campo custom de este Odoo: con qué respaldo
+// tributario se hizo el gasto.
+export const TIPOS_DOCUMENTO_GASTO: Record<string, string> = {
+  factura_electronica: "Factura electrónica",
+  factura_exenta_no_afecta: "Factura exenta / no afecta",
+  boleta_electronica: "Boleta electrónica",
+  boleta_honorarios: "Boleta de honorarios",
+  comprobante_peaje_tag: "Peaje o TAG",
+  comprobante_estacionamiento: "Estacionamiento",
+  pasaje_aereo: "Pasaje aéreo",
+  pasaje_terrestre: "Pasaje terrestre",
+  comprobante_transporte_app: "Transporte por app",
+  comprobante_bancario: "Comprobante bancario",
+  gasto_sin_respaldo_excepcional: "Sin respaldo (excepcional)",
+};
+
+// hr.expense.approval_state.
+export const ESTADOS_APROBACION_GASTO: Record<string, string> = {
+  submitted: "Presentado",
+  approved: "Aprobado",
+  refused: "Rechazado",
+};
+
+// hr.expense.pertec_link_type -- a qué se le carga el gasto.
+export const TIPOS_ATRIBUCION_GASTO: Record<string, string> = {
+  sale: "Venta",
+  rental: "Arriendo",
+  purchase: "Compra",
+};
