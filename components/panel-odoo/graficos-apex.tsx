@@ -98,7 +98,14 @@ function baseDe(tema: "light" | "dark", alto: number): ApexOptions {
           ? { top: -26, right: 24, bottom: -8, left: 24 }
           : { top: 4, right: 8, bottom: 0, left: 4 },
     },
-    tooltip: { theme: tema, style: { fontSize: "11px" } },
+    tooltip: {
+      theme: tema,
+      style: { fontSize: "11px" },
+      // Apex rellena el tooltip con el color de la serie en pie/donut (fillSeriesColor va
+      // en true por omisión ahí): quedaba un bloque naranjo sólido en vez de la placa
+      // sobre la superficie del tema, como en todos los demás gráficos del panel.
+      fillSeriesColor: false,
+    },
     dataLabels: { enabled: false },
     legend: { show: false },
     xaxis: {
@@ -123,6 +130,30 @@ function truncar(texto: string, largoMaximo: number): string {
  * acepta en `tooltip.custom`; las clases del proyecto no sirven acá —el nodo lo inserta
  * Apex fuera del árbol de React— así que los colores van en línea, tomados del tema.
  */
+/**
+ * El cuerpo del tooltip de un grupo: su total y CUÁLES ítems tiene.
+ *
+ * Lo comparten los dos caminos de abajo porque el contenido es el mismo; lo que cambia es
+ * por dónde lo acepta Apex (ver `tooltipConDetalle` y el formatter de la dona).
+ */
+function cuerpoDelDetalle(item: Record<string, unknown> | undefined, dataKey: string, formatear: (v: number) => string) {
+  if (!item) return "";
+  const detalle = Array.isArray(item.detalle) ? (item.detalle as string[]) : [];
+  const lineas = detalle
+    .slice(0, LIMITE_DETALLE_TOOLTIP)
+    .map((linea) => `<li style="opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${linea}</li>`)
+    .join("");
+  const resto =
+    detalle.length > LIMITE_DETALLE_TOOLTIP
+      ? `<p style="opacity:.4;margin:4px 0 0">+${detalle.length - LIMITE_DETALLE_TOOLTIP} más</p>`
+      : "";
+  return {
+    valor: formatear(Number(item[dataKey] ?? 0)),
+    lista: lineas ? `<ul style="margin:4px 0 0;padding:0;list-style:none">${lineas}</ul>` : "",
+    resto,
+  };
+}
+
 function tooltipConDetalle(
   datos: Record<string, unknown>[],
   nameKey: string,
@@ -132,23 +163,14 @@ function tooltipConDetalle(
 ) {
   const { tinta, borde, superficie } = colores(tema);
   return ({ dataPointIndex, seriesIndex }: { dataPointIndex: number; seriesIndex: number }) => {
-    // En la dona el índice viene en seriesIndex; en las barras, en dataPointIndex.
     const item = datos[dataPointIndex >= 0 ? dataPointIndex : seriesIndex];
-    if (!item) return "";
-    const detalle = Array.isArray(item.detalle) ? (item.detalle as string[]) : [];
-    const lineas = detalle
-      .slice(0, LIMITE_DETALLE_TOOLTIP)
-      .map((linea) => `<li style="opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${linea}</li>`)
-      .join("");
-    const resto =
-      detalle.length > LIMITE_DETALLE_TOOLTIP
-        ? `<p style="opacity:.4;margin:4px 0 0">+${detalle.length - LIMITE_DETALLE_TOOLTIP} más</p>`
-        : "";
+    const cuerpo = cuerpoDelDetalle(item, dataKey, formatear);
+    if (!cuerpo || !item) return "";
     return (
       `<div style="max-width:240px;padding:10px;border:1px solid ${borde};background:${superficie};color:${tinta};font-size:11px">` +
-      `<p style="font-weight:600;margin:0">${String(item[nameKey] ?? "")} (${formatear(Number(item[dataKey] ?? 0))})</p>` +
-      (lineas ? `<ul style="margin:4px 0 0;padding:0;list-style:none">${lineas}</ul>` : "") +
-      resto +
+      `<p style="font-weight:600;margin:0">${String(item[nameKey] ?? "")} (${cuerpo.valor})</p>` +
+      cuerpo.lista +
+      cuerpo.resto +
       "</div>"
     );
   };
@@ -317,9 +339,45 @@ export function GraficoDona({
               `${etiqueta} (${formatear(Number(datos[opts?.seriesIndex ?? -1]?.[dataKey] ?? 0))})`,
           }
         : { show: false },
-    tooltip: mostrarDetalle
-      ? { custom: tooltipConDetalle(datos, nameKey, dataKey, formatear, tema) }
-      : { ...base.tooltip, y: { formatter: (v: number) => formatear(v) } },
+    tooltip: {
+      ...base.tooltip,
+      /**
+       * Anclado a una esquina del gráfico.
+       *
+       * Para una dona, Apex ubica el tooltip con `clientX/clientY`
+       * (`nonAxisChartsTooltips`), que en estos gráficos llegan en 0: el tooltip se
+       * dibujaba con su contenido pero FUERA DE LA PANTALLA -- medido en -123, -87. Con
+       * `fixed` corre `drawFixedTooltipRect()`, que pisa esa posición al final y lo deja
+       * pegado a la esquina del gráfico.
+       *
+       * No les pasa a las barras ni al área: esos son gráficos de eje y toman la posición
+       * de la grilla (`axisChartsTooltips`), que sí tiene coordenadas.
+       */
+      fixed: { enabled: true, position: "topLeft", offsetX: 0, offsetY: 0 },
+      y: {
+        /**
+         * El detalle va por el FORMATTER DEL VALOR y no por `tooltip.custom`.
+         *
+         * ApexCharts no honra `custom` en una dona: solo lo mira en los gráficos de eje
+         * (`drawSeriesTexts`) y en los unit charts (`renderUnitTooltip`). Con `custom`, el
+         * tooltip de la dona se abría VACÍO -- así se perdió la lista de "cuáles
+         * documentos" de la tarjeta de Flota al pasar de Recharts a Apex.
+         *
+         * Lo que sí llama es `tooltip.y.formatter`, y su retorno se inserta como HTML
+         * (`ttYVal.innerHTML = val`), así que la lista se puede armar igual. El rótulo del
+         * grupo lo pone Apex solo, con el label de la porción.
+         *
+         * En una dona el índice de la porción llega en `seriesIndex` (Apex la llama con
+         * `j === null` y `seriesIndex = dataPointIndex = i`).
+         */
+        formatter: (v: number, opts) => {
+          if (!mostrarDetalle) return formatear(v);
+          const cuerpo = cuerpoDelDetalle(datos[opts?.seriesIndex ?? -1], dataKey, formatear);
+          if (!cuerpo) return formatear(v);
+          return `${cuerpo.valor}${cuerpo.lista}${cuerpo.resto}`;
+        },
+      },
+    },
     // Una dona no tiene ejes; se apagan en vez de borrar las claves (con `grid: undefined`
     // Apex lanza leyendo grid.padding y no dibuja nada). Y el padding vuelve a cero: el
     // negativo de las tarjetas está pensado para recuperar el hueco del eje X, y en una

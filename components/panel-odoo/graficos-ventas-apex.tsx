@@ -70,7 +70,14 @@ function baseDe(tema: "light" | "dark", alto: number): ApexOptions {
     },
     theme: { mode: tema },
     grid: { borderColor: borde, strokeDashArray: 3, padding: { left: 4, right: 4 } },
-    tooltip: { theme: tema, style: { fontSize: "11px" } },
+    tooltip: {
+      theme: tema,
+      style: { fontSize: "11px" },
+      // Apex rellena el tooltip con el color de la serie en pie/donut (fillSeriesColor va
+      // en true por omisión ahí): quedaba un bloque naranjo sólido en vez de la placa
+      // sobre la superficie del tema, como en todos los demás gráficos del panel.
+      fillSeriesColor: false,
+    },
     dataLabels: { enabled: false },
     legend: {
       position: "bottom",
@@ -197,6 +204,14 @@ export function GraficoDondeEstaLaPlata({
     },
     tooltip: {
       ...base.tooltip,
+      /**
+       * Anclado a una esquina: para una dona Apex ubica el tooltip con `clientX/clientY`
+       * (`nonAxisChartsTooltips`), que acá llegan en 0, y lo dibujaba con su contenido
+       * pero fuera de la pantalla. Con `fixed` corre `drawFixedTooltipRect()`, que pisa
+       * esa posición al final. A las barras y al área no les pasa: son gráficos de eje y
+       * toman la posición de la grilla.
+       */
+      fixed: { enabled: true, position: "topRight", offsetX: 0, offsetY: 0 },
       y: {
         formatter: (v: number, opts) =>
           `${money(v)} · ${porciones[opts?.seriesIndex ?? -1]?.cantidad ?? 0} orden(es)`,

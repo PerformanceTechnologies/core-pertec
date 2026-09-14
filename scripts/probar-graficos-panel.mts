@@ -336,6 +336,56 @@ if (process.env.CAPTURA_APUNTADA) {
   await pagina.locator("#dona-flota").screenshot({ path: process.env.CAPTURA_APUNTADA });
 }
 
+// ── 2e. Apuntar la dona tiene que mostrar el tooltip ────────────────────
+//
+// Con el mouse DE VERDAD sobre el anillo, no con un evento sintético: es la única forma de
+// comprobar lo que ve quien lo usa. La dona de Flota lleva `mostrarDetalle`, así que su
+// tooltip lista CUÁLES documentos hay en el grupo.
+const puntoDelAnillo = await pagina.evaluate(() => {
+  const r = document.querySelector("#dona-flota .apexcharts-pie")!.getBoundingClientRect();
+  const radio = (r.width / 2) * 0.79; // el medio del anillo: la dona es un 58% hueca
+  return { x: r.left + r.width / 2 + radio * 0.7, y: r.top + r.height / 2 - radio * 0.7 };
+});
+await pagina.mouse.move(puntoDelAnillo.x, puntoDelAnillo.y);
+await pagina.waitForFunction(
+  () => {
+    const t = document.querySelector("#dona-flota .apexcharts-tooltip");
+    return t !== null && t.classList.contains("apexcharts-active") && (t.textContent ?? "").length > 0;
+  },
+  null,
+  { timeout: 5000 },
+);
+const tooltipDeLaDona = (await pagina.locator("#dona-flota .apexcharts-tooltip").textContent()) ?? "";
+// Apex arma el rótulo con su propio formato ("Vigente: 12"): el grupo lo pone él desde el
+// label de la porción y el valor sale de nuestro formatter.
+assert.ok(
+  tooltipDeLaDona.includes("Vigente") && tooltipDeLaDona.includes("12"),
+  `el tooltip de la dona tiene que decir el grupo y su total (decía: ${tooltipDeLaDona})`,
+);
+assert.ok(
+  tooltipDeLaDona.includes("Permiso de circulación SZZJ79"),
+  "y listar CUÁLES documentos hay en el grupo, que es para lo que está",
+);
+// Y tiene que quedar A LA VISTA: Apex ubica el tooltip de una dona con clientX/clientY
+// (`nonAxisChartsTooltips`), que en estos gráficos llegan en 0, así que se dibujaba con
+// todo su contenido pero fuera de la pantalla, en -123/-87. Se ancla con `tooltip.fixed`.
+const dondeQuedo = await pagina.evaluate(() => {
+  const t = document.querySelector("#dona-flota .apexcharts-tooltip")!.getBoundingClientRect();
+  const c = document.querySelector("#dona-flota")!.getBoundingClientRect();
+  return {
+    aLaVista: t.left >= 0 && t.top >= 0 && t.width > 0 && t.height > 0,
+    pegadoAlGrafico: Math.abs(t.top - c.top) < c.height + 40 && t.left < c.right,
+    donde: [Math.round(t.left), Math.round(t.top)],
+  };
+});
+assert.ok(dondeQuedo.aLaVista, `el tooltip quedó fuera de la pantalla, en ${dondeQuedo.donde.join(", ")}`);
+assert.ok(dondeQuedo.pegadoAlGrafico, `el tooltip quedó lejos de su gráfico, en ${dondeQuedo.donde.join(", ")}`);
+
+if (process.env.CAPTURA_TOOLTIP) {
+  await pagina.locator("#dona-flota").screenshot({ path: process.env.CAPTURA_TOOLTIP });
+}
+await pagina.mouse.move(0, 0);
+
 // ── 3. El degradado de la tendencia ─────────────────────────────────────
 //
 // Fue una decisión estética explícita del área de tendencia; al cambiar de biblioteca es

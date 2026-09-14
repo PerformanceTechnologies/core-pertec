@@ -388,6 +388,45 @@ assert.equal(
   "al apuntar una porción, lo que Apex dibuja se sale del panel y queda recortado",
 );
 
+// ── 6e. El tooltip de la dona tiene que verse ──────────────────────────
+//
+// Con el mouse DE VERDAD sobre el anillo. Apex ubica el tooltip de una dona con
+// `clientX/clientY` (`nonAxisChartsTooltips`), que en estos gráficos llegan en 0: se
+// dibujaba con su contenido pero fuera de la pantalla. Se ancla con `tooltip.fixed`.
+const indiceDona = await indiceDe("Cómo terminaron");
+const puntoDelAnillo = await pagina.evaluate((i) => {
+  const r = document.querySelectorAll(".apexcharts-canvas")[i].querySelector(".apexcharts-pie")!.getBoundingClientRect();
+  const radio = (r.width / 2) * 0.79; // el medio del anillo
+  return { x: r.left + r.width / 2 + radio * 0.7, y: r.top + r.height / 2 - radio * 0.7 };
+}, indiceDona);
+await pagina.mouse.move(puntoDelAnillo.x, puntoDelAnillo.y);
+await pagina.waitForFunction(
+  (i) => {
+    const t = document.querySelectorAll(".apexcharts-canvas")[i].querySelector(".apexcharts-tooltip");
+    return t !== null && t.classList.contains("apexcharts-active") && (t.textContent ?? "").length > 0;
+  },
+  indiceDona,
+  { timeout: 5000 },
+);
+const tooltipDeLaDona = await pagina.evaluate((i) => {
+  const canvas = document.querySelectorAll(".apexcharts-canvas")[i];
+  const t = canvas.querySelector(".apexcharts-tooltip")!.getBoundingClientRect();
+  const c = canvas.getBoundingClientRect();
+  return {
+    texto: canvas.querySelector(".apexcharts-tooltip")!.textContent ?? "",
+    aLaVista: t.left >= 0 && t.top >= 0 && t.width > 0 && t.height > 0,
+    donde: [Math.round(t.left), Math.round(t.top)],
+    pegado: t.left < c.right && t.top < c.bottom + 40,
+  };
+}, indiceDona);
+assert.ok(
+  tooltipDeLaDona.aLaVista,
+  `el tooltip de la dona quedó fuera de la pantalla, en ${tooltipDeLaDona.donde.join(", ")}`,
+);
+assert.ok(tooltipDeLaDona.pegado, "el tooltip de la dona quedó lejos de su gráfico");
+assert.ok(tooltipDeLaDona.texto.length > 0, "y tiene que decir algo");
+await pagina.mouse.move(0, 0);
+
 // ── 7. Los gráficos siguen a los filtros de arriba ──────────────────────
 //
 // Si el gráfico se queda con todo el pipeline mientras la tabla muestra dos filas, la
