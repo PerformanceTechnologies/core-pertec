@@ -282,6 +282,25 @@ export function GraficoDona({
         expandOnClick: false,
         donut: { size: "58%" },
         customScale: 1,
+        /**
+         * La banda que Apex pinta alrededor de la porción apuntada: apagada en la tarjeta
+         * chica porque NO CABE.
+         *
+         * Apex la dibuja por FUERA del anillo (`showHoverOutline`): arranca en el radio de
+         * la dona y se extiende `hoverOutline.size` px, 8 por omisión. En la tarjeta la
+         * dona mide 82 px dentro de una caja de 96, o sea 7 px de margen para una banda de
+         * 8: no entra, el SVG la recorta y queda un halo cortado por arriba y por la
+         * derecha, que se lee como un gráfico roto.
+         *
+         * Apagarla no deja la porción sin aviso: la condición de Apex es
+         * `states.hover.filter.type !== "none" && pie.hoverOutline.show`, así que al
+         * apagarla vuelve a aplicarse el `lighten` de siempre, adentro del anillo.
+         *
+         * Y va apagada TAMBIÉN en la versión grande: medido en el navegador, ahí la dona
+         * ocupa 189 px de una caja de 220 y la leyenda la corre hacia abajo, así que la
+         * banda se sale 9 px por arriba. El lugar que parecía sobrar no existe.
+         */
+        hoverOutline: { show: false },
       },
     },
     // La leyenda de Apex solo cuando el grafico es grande Y no se dibuja la fila propia

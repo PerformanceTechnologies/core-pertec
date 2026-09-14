@@ -290,6 +290,11 @@ export function GraficoTortaCrm({
       pie: {
         // Que la porción se separe al apretarla: es la señal de que se puede clickear.
         expandOnClick: true,
+        // Sin la banda que Apex dibuja POR FUERA del anillo al apuntar una porción
+        // (`showHoverOutline`, 8 px por omisión): medido en el navegador, acá la dona ocupa
+        // 189 px de una caja de 220 y la leyenda la corre hacia abajo, así que la banda se
+        // sale 9 px por arriba y queda cortada. La porción apuntada se sigue aclarando.
+        hoverOutline: { show: false },
         donut: {
           size: "68%",
           labels: {

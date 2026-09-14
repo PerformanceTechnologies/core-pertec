@@ -305,6 +305,34 @@ assert.equal(
 await pagina.fill("input[aria-label='Buscar órdenes']", "");
 await esperarFilas(VENTAS.length);
 
+// ── 8b. Al apuntar una porción, nada se sale del panel ─────────────────
+//
+// Apex dibuja al pasar el mouse una banda POR FUERA del anillo (`showHoverOutline`, 8 px
+// por omisión). Acá la dona ocupa 189 px de una caja de 220 y la leyenda la corre hacia
+// abajo, así que esa banda se salía 9 px por arriba y quedaba cortada -- el mismo defecto
+// que se reportó en la tarjeta de Flota. Va apagada, y esto lo comprueba.
+const alApuntar = await pagina.evaluate((i) => {
+  const canvas = document.querySelectorAll(".apexcharts-canvas")[i];
+  canvas
+    .querySelector(".apexcharts-pie-area")!
+    .dispatchEvent(new MouseEvent("mouseenter", { bubbles: false, cancelable: true, view: window }));
+  const caja = canvas.getBoundingClientRect();
+  const seSalen = [...canvas.querySelectorAll("path")]
+    .map((p) => p.getBoundingClientRect())
+    .filter(
+      (r) =>
+        r.width > 0 &&
+        (r.top < caja.top - 1 || r.bottom > caja.bottom + 1 || r.left < caja.left - 1 || r.right > caja.right + 1),
+    ).length;
+  return { seSalen, bandas: canvas.querySelectorAll(".apexcharts-pie-hover-outline-band").length };
+}, await indiceDe("Dónde está la plata"));
+assert.equal(alApuntar.bandas, 0, "la banda de hover no cabe en esta caja: tiene que estar apagada");
+assert.equal(
+  alApuntar.seSalen,
+  0,
+  "al apuntar una porción, lo que Apex dibuja se sale del panel y queda recortado",
+);
+
 // ── 9. El resumen y la ficha ────────────────────────────────────────────
 const resumen = (await pagina.locator("text=Por facturar").first().textContent()) ?? "";
 assert.ok(resumen.length > 0, "el resumen menciona lo que falta facturar");

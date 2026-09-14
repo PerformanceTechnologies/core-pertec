@@ -288,6 +288,54 @@ if (process.env.CAPTURA_UNICA) {
   await pagina.locator("#dona-unica").screenshot({ path: process.env.CAPTURA_UNICA });
 }
 
+// ── 2d. Al apuntar una porción, nada puede salirse de la tarjeta ────────
+//
+// Apex dibuja al pasar el mouse una banda POR FUERA del anillo (`showHoverOutline`): 8 px
+// por omisión, y en una dona de 82 px dentro de una caja de 96 sobran 7. No entra, el SVG
+// la recorta y queda un halo cortado por arriba y por la derecha, que se lee como un
+// gráfico roto. Se reportó en la tarjeta de Flota.
+//
+// La comprobación es la GENERAL —nada de lo que Apex dibuje al apuntar puede salirse de la
+// caja— así que también cubre el caso de que mañana alguien cambie un alto o el customScale.
+// El hover se despacha sobre el path y no con pagina.hover(): el centro del rectángulo de
+// una porción de dona cae en el agujero, así que Playwright no la considera apuntable.
+// Apex ata `showHoverOutline` a "mouseenter" directamente en el nodo.
+await pagina.evaluate(() => {
+  document
+    .querySelector("#dona-flota .apexcharts-pie-area")!
+    .dispatchEvent(new MouseEvent("mouseenter", { bubbles: false, cancelable: true, view: window }));
+});
+const alApuntar = await pagina.evaluate(() => {
+  const caja = document.querySelector("#dona-flota")!.getBoundingClientRect();
+  const svg = document.querySelector("#dona-flota .apexcharts-canvas")!;
+  const seSalen = [...svg.querySelectorAll("path")]
+    .map((p) => p.getBoundingClientRect())
+    .filter((r) => r.width > 0 && (r.top < caja.top - 1 || r.bottom > caja.bottom + 1 || r.left < caja.left - 1 || r.right > caja.right + 1))
+    .length;
+  return { seSalen, bandas: svg.querySelectorAll(".apexcharts-pie-hover-outline-band").length };
+});
+assert.equal(
+  alApuntar.seSalen,
+  0,
+  "al apuntar una porción, lo que Apex dibuja se sale de la tarjeta y queda recortado",
+);
+assert.equal(
+  alApuntar.bandas,
+  0,
+  "en la tarjeta chica la banda de hover no cabe (8 px en 7 de margen): tiene que estar apagada",
+);
+// Y el aviso visual no se pierde: apagada la banda, Apex vuelve a aclarar la porción
+// apuntada, que es lo que dice su propia regla (hoverOutlineOwnsHoverState).
+const resaltada = await pagina.evaluate(() => {
+  const arco = document.querySelector("#dona-flota .apexcharts-pie-area") as SVGPathElement | null;
+  return arco?.getAttribute("filter") ?? arco?.style.filter ?? "";
+});
+assert.notEqual(resaltada, "", "la porción apuntada tiene que seguir resaltándose de alguna forma");
+// Con el mouse encima, que es como se reportó el defecto.
+if (process.env.CAPTURA_APUNTADA) {
+  await pagina.locator("#dona-flota").screenshot({ path: process.env.CAPTURA_APUNTADA });
+}
+
 // ── 3. El degradado de la tendencia ─────────────────────────────────────
 //
 // Fue una decisión estética explícita del área de tendencia; al cambiar de biblioteca es
