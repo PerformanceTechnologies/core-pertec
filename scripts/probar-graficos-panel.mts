@@ -68,9 +68,28 @@ const flota = [
   { estado: "Activo", cantidad: 4, detalle: ["Hino/XZU 617 DC (SZZJ79)", "Maxus/T60 4x4 DX (VPWF87)", "Maxus/T60 4x4 DX (VPWF97)", "Maxus/T60 GLX (TTWZ84)"] },
 ];
 
+// Las líneas son largas y son MUCHAS a propósito: así se ven en el Odoo real, y es lo
+// que hacía que el tooltip creciera hasta tapar la dona y media pantalla.
 const documentacion = [
-  { estado: "Vigente", cantidad: 12, detalle: ["Permiso de circulación SZZJ79", "SOAP VPWF87"] },
-  { estado: "Vencida", cantidad: 1, detalle: ["Revisión técnica TTWZ84"] },
+  {
+    estado: "Vigente",
+    cantidad: 12,
+    detalle: [
+      "Hino/XZU 617 DC/SZZJ79 — SOAP vigente (vence 30-09-2027)",
+      "Maxus/T60 4x4 DX MT E6/VPWF87 — Permiso de circulación vigente (vence 31-03-2027)",
+      "Maxus/T60 4x4 GLX AT E6/TTWZ84 — SOAP vigente (vence 31-03-2027)",
+      "Maxus/T60 4x4 GLX AT E6/TTWZ84 — Permiso de circulación vigente (vence 31-03-2027)",
+      "Hino/XZU 617 DC/SZZJ79 — Permiso de circulación vigente (vence 30-09-2027)",
+      "Hino/XZU 617 DC/SZZJ79 — Certificado de gases/contaminantes, cuando aplique (vence 15-12-2026)",
+      "Hino/XZU 617 DC/SZZJ79 — Revisión técnica vigente o certificado de homologación (vence 15-12-2026)",
+      "Maxus/T60 4x4 DX MT E6/VPWF97 — SOAP vigente (vence 31-03-2027)",
+      "Maxus/T60 4x4 DX MT E6/VPWF97 — Permiso de circulación vigente (vence 31-03-2027)",
+      "Maxus/T60 4x4 DX MT E6/VPWF87 — SOAP vigente (vence 31-03-2027)",
+      "Maxus/T60 4x4 GLX AT E6/TTWZ84 — Revisión técnica vigente (vence 31-08-2027)",
+      "Maxus/T60 4x4 DX MT E6/VPWF87 — Revisión técnica vigente (vence 31-08-2027)",
+    ],
+  },
+  { estado: "Vencida", cantidad: 1, detalle: ["Revisión técnica TTWZ84 (venció 31-08-2026)"] },
 ];
 
 createRoot(document.getElementById("raiz")!).render(
@@ -363,7 +382,7 @@ assert.ok(
   `el tooltip de la dona tiene que decir el grupo y su total (decía: ${tooltipDeLaDona})`,
 );
 assert.ok(
-  tooltipDeLaDona.includes("Permiso de circulación SZZJ79"),
+  tooltipDeLaDona.includes("SOAP vigente"),
   "y listar CUÁLES documentos hay en el grupo, que es para lo que está",
 );
 // Y tiene que quedar A LA VISTA: Apex ubica el tooltip de una dona con clientX/clientY
@@ -381,8 +400,40 @@ const dondeQuedo = await pagina.evaluate(() => {
 assert.ok(dondeQuedo.aLaVista, `el tooltip quedó fuera de la pantalla, en ${dondeQuedo.donde.join(", ")}`);
 assert.ok(dondeQuedo.pegadoAlGrafico, `el tooltip quedó lejos de su gráfico, en ${dondeQuedo.donde.join(", ")}`);
 
+// Y no puede TAPAR la dona ni desbordarse de la tarjeta: con doce documentos largos la
+// placa medía 674 x 198 px sobre un gráfico de 420 x 96 -- anclada a la esquina de arriba,
+// cubría el anillo entero y se metía en las tarjetas de al lado.
+const tamano = await pagina.evaluate(() => {
+  const t = document.querySelector("#dona-flota .apexcharts-tooltip")!.getBoundingClientRect();
+  const canvas = document.querySelector("#dona-flota .apexcharts-canvas")!.getBoundingClientRect();
+  const dona = document.querySelector("#dona-flota .apexcharts-pie")!.getBoundingClientRect();
+  const cruce =
+    Math.max(0, Math.min(t.right, dona.right) - Math.max(t.left, dona.left)) *
+    Math.max(0, Math.min(t.bottom, dona.bottom) - Math.max(t.top, dona.top));
+  return {
+    tapaDeLaDona: Math.round((cruce / (dona.width * dona.height)) * 100),
+    ancho: Math.round(t.width),
+    anchoDelGrafico: Math.round(canvas.width),
+    // Solo el grupo visible: Apex deja armados en el DOM los de las otras porciones.
+    lineas: document.querySelectorAll("#dona-flota .apexcharts-tooltip-series-group.apexcharts-active li").length,
+  };
+});
+assert.equal(tamano.tapaDeLaDona, 0, `el tooltip tapa el ${tamano.tapaDeLaDona}% de la dona`);
+assert.ok(
+  tamano.ancho <= tamano.anchoDelGrafico,
+  `el tooltip mide ${tamano.ancho} px y el gráfico ${tamano.anchoDelGrafico}: se desborda de la tarjeta`,
+);
+assert.ok(
+  tamano.lineas > 0 && tamano.lineas <= 4,
+  `en una tarjeta se listan hasta 4 documentos y el resto se resume (listó ${tamano.lineas})`,
+);
+assert.ok(
+  tooltipDeLaDona.includes("+8 más"),
+  `y dice cuántos quedaron afuera (decía: ${tooltipDeLaDona})`,
+);
+
 if (process.env.CAPTURA_TOOLTIP) {
-  await pagina.locator("#dona-flota").screenshot({ path: process.env.CAPTURA_TOOLTIP });
+  await pagina.screenshot({ path: process.env.CAPTURA_TOOLTIP, clip: await pagina.evaluate(() => { const r = document.querySelector("#dona-flota")!.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width + 40, height: r.height + 200 }; }) });
 }
 await pagina.mouse.move(0, 0);
 

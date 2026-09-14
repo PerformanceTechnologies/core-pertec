@@ -35,6 +35,17 @@ const ALTO_EXPANDIDO = 224;
 
 /** Cuántos ítems del detalle se listan en el tooltip antes de resumir el resto. */
 const LIMITE_DETALLE_TOOLTIP = 8;
+/**
+ * En una tarjeta se listan menos, y en menos ancho.
+ *
+ * Doce documentos con su patente y su fecha de vencimiento arman una placa de 674 x 198 px
+ * sobre un gráfico de 420 x 96: tapaba la dona entera y se desbordaba sobre las tarjetas de
+ * al lado. El tooltip está para decir de un vistazo qué hay adentro del grupo; el listado
+ * completo se ve abriendo la tarjeta.
+ */
+const LIMITE_DETALLE_TARJETA = 4;
+/** Ancho máximo de la placa, en px: sin esto las líneas con `nowrap` la estiran sin fin. */
+const ANCHO_DEL_TOOLTIP = 230;
 
 function useTema() {
   // Apex escribe los colores COMO ATRIBUTOS del SVG, así que una variable CSS no lo
@@ -136,21 +147,28 @@ function truncar(texto: string, largoMaximo: number): string {
  * Lo comparten los dos caminos de abajo porque el contenido es el mismo; lo que cambia es
  * por dónde lo acepta Apex (ver `tooltipConDetalle` y el formatter de la dona).
  */
-function cuerpoDelDetalle(item: Record<string, unknown> | undefined, dataKey: string, formatear: (v: number) => string) {
+function cuerpoDelDetalle(
+  item: Record<string, unknown> | undefined,
+  dataKey: string,
+  formatear: (v: number) => string,
+  limite = LIMITE_DETALLE_TOOLTIP,
+) {
   if (!item) return "";
   const detalle = Array.isArray(item.detalle) ? (item.detalle as string[]) : [];
   const lineas = detalle
-    .slice(0, LIMITE_DETALLE_TOOLTIP)
+    .slice(0, limite)
     .map((linea) => `<li style="opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${linea}</li>`)
     .join("");
   const resto =
-    detalle.length > LIMITE_DETALLE_TOOLTIP
-      ? `<p style="opacity:.4;margin:4px 0 0">+${detalle.length - LIMITE_DETALLE_TOOLTIP} más</p>`
-      : "";
+    detalle.length > limite ? `<p style="opacity:.4;margin:4px 0 0">+${detalle.length - limite} más</p>` : "";
+  // El ancho se fija acá y no en el `li`: con `white-space:nowrap` el recorte con "…" solo
+  // ocurre si algo más arriba le pone un límite a la caja.
+  const caja = (contenido: string) =>
+    `<span style="display:block;max-width:${ANCHO_DEL_TOOLTIP}px;box-sizing:border-box">${contenido}</span>`;
   return {
     valor: formatear(Number(item[dataKey] ?? 0)),
-    lista: lineas ? `<ul style="margin:4px 0 0;padding:0;list-style:none">${lineas}</ul>` : "",
-    resto,
+    lista: lineas ? caja(`<ul style="margin:4px 0 0;padding:0;list-style:none">${lineas}</ul>`) : "",
+    resto: resto ? caja(resto) : "",
   };
 }
 
@@ -167,7 +185,7 @@ function tooltipConDetalle(
     const cuerpo = cuerpoDelDetalle(item, dataKey, formatear);
     if (!cuerpo || !item) return "";
     return (
-      `<div style="max-width:240px;padding:10px;border:1px solid ${borde};background:${superficie};color:${tinta};font-size:11px">` +
+      `<div style="max-width:${ANCHO_DEL_TOOLTIP}px;padding:10px;border:1px solid ${borde};background:${superficie};color:${tinta};font-size:11px">` +
       `<p style="font-weight:600;margin:0">${String(item[nameKey] ?? "")} (${cuerpo.valor})</p>` +
       cuerpo.lista +
       cuerpo.resto +
@@ -352,8 +370,11 @@ export function GraficoDona({
        *
        * No les pasa a las barras ni al área: esos son gráficos de eje y toman la posición
        * de la grilla (`axisChartsTooltips`), que sí tiene coordenadas.
+       *
+       * Y va CORRIDO POR DEBAJO del gráfico (`offsetY`): anclado a la esquina tapaba la
+       * dona entera, que es justo lo que se quiere seguir viendo mientras se lee.
        */
-      fixed: { enabled: true, position: "topLeft", offsetX: 0, offsetY: 0 },
+      fixed: { enabled: true, position: "topLeft", offsetX: 0, offsetY: alto + 4 },
       y: {
         /**
          * El detalle va por el FORMATTER DEL VALOR y no por `tooltip.custom`.
@@ -372,9 +393,20 @@ export function GraficoDona({
          */
         formatter: (v: number, opts) => {
           if (!mostrarDetalle) return formatear(v);
-          const cuerpo = cuerpoDelDetalle(datos[opts?.seriesIndex ?? -1], dataKey, formatear);
+          const cuerpo = cuerpoDelDetalle(
+            datos[opts?.seriesIndex ?? -1],
+            dataKey,
+            formatear,
+            expandido ? LIMITE_DETALLE_TOOLTIP : LIMITE_DETALLE_TARJETA,
+          );
           if (!cuerpo) return formatear(v);
-          return `${cuerpo.valor}${cuerpo.lista}${cuerpo.resto}`;
+          // Todo el cuerpo en un solo bloque alineado arriba: Apex escribe el rótulo del
+          // grupo ("Vigente:") como texto en línea justo antes, y sin esto le queda
+          // pegado a la ÚLTIMA línea de la lista en vez de a la primera.
+          return (
+            `<span style="display:inline-block;vertical-align:top">` +
+            `${cuerpo.valor}${cuerpo.lista}${cuerpo.resto}</span>`
+          );
         },
       },
     },
