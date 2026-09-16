@@ -597,21 +597,82 @@ export async function listarVehiculosRecientes(companyId: number, limite = 5): P
 
 export interface FilaTarea {
   odoo_id: number;
+  proyecto_odoo_id: number | null;
   proyecto_nombre: string | null;
   nombre: string;
   etapa: string | null;
   estado: string;
+  fecha_inicio: string | null;
   fecha_limite: string | null;
   asignados: string | null;
+  completado: boolean;
+  color_hex: string | null;
+  gastos_total: number;
+  gastos_cantidad: number;
+  prioridad: string | null;
+}
+
+export interface FilaProyecto {
+  odoo_id: number;
+  nombre: string;
+  partner_nombre: string | null;
+  responsable: string | null;
+  fecha_vencimiento: string | null;
+  presupuesto: number;
+  gastado: number;
+  disponible: number;
+  porcentaje_gastado: number;
+  objetivos_total: number;
+  objetivos_hechos: number;
+  gastos_cantidad: number;
+  gastos_por_categoria: CategoriaGasto[];
+  color_hex: string | null;
+  supabase_id: string | null;
+}
+
+/** Una categoria del desglose de gasto, tal como la arma Odoo. */
+export interface CategoriaGasto {
+  key: string;
+  label: string;
+  amount: number;
+  percent: number;
+  color: string;
 }
 
 export interface KpisProyectos {
   proyectosActivos: number;
   tareasAbiertas: number;
   tareasCompletadas: number;
+  // Objetivos: el avance real del trabajo, que no se leia en ninguna parte
+  // aunque Odoo lo calcula por proyecto (panel_obj_done / panel_obj_total).
+  objetivosTotal: number;
+  objetivosHechos: number;
+  // Vencidas = con plazo pasado y sin cerrar. Es la unica cifra de la tarjeta
+  // que pide una accion, asi que va aparte de "tareas abiertas".
+  tareasVencidas: number;
+  presupuestoTotal: number;
+  gastadoTotal: number;
+  disponibleTotal: number;
+  /** Gasto consolidado por categoria, sumando todos los proyectos activos. */
+  porCategoria: { categoria: string; monto: number; color: string; detalle: string[] }[];
+  /** Tareas abiertas por responsable, con los nombres en el tooltip. */
+  porResponsable: { responsable: string; cantidad: number; detalle: string[] }[];
+  /** Tareas abiertas por etapa del tablero de Odoo. */
+  porEtapa: { etapa: string; cantidad: number; detalle: string[] }[];
+  /** Los proyectos activos, ya cruzados con el estado del core. */
+  proyectos: FilaProyecto[];
 }
 
 const ESTADOS_TAREA_CERRADA = ["1_done", "1_canceled"];
+
+const COLUMNAS_TAREA =
+  "odoo_id, proyecto_odoo_id, proyecto_nombre, nombre, etapa, estado, fecha_inicio, fecha_limite, " +
+  "asignados, completado, color_hex, gastos_total, gastos_cantidad, prioridad";
+
+const COLUMNAS_PROYECTO =
+  "odoo_id, nombre, partner_nombre, responsable, fecha_vencimiento, presupuesto, gastado, disponible, " +
+  "porcentaje_gastado, objetivos_total, objetivos_hechos, gastos_cantidad, gastos_por_categoria, " +
+  "color_hex, supabase_id";
 
 /**
  * Una tarea esta terminada si Odoo la cerro por su estado nativo O si esta
@@ -623,6 +684,14 @@ const ESTADOS_TAREA_CERRADA = ["1_done", "1_canceled"];
  * decia "Completadas 0" con seis objetivos ya terminados y ademas los listaba
  * como tareas abiertas.
  */
+function tareaCerrada(t: { estado: string; completado: boolean }): boolean {
+  return t.completado || ESTADOS_TAREA_CERRADA.includes(t.estado);
+}
+
+/** Vencida: con plazo cumplido y todavia sin cerrar. */
+function tareaVencida(t: FilaTarea, hoy: string): boolean {
+  return !tareaCerrada(t) && Boolean(t.fecha_limite) && t.fecha_limite!.slice(0, 10) < hoy;
+}
 
 /**
  * Los proyectos que el CORE ya dio por terminados, por su id.
@@ -649,43 +718,136 @@ async function idsDeProyectosTerminadosDelCore(): Promise<Set<string>> {
   }
 }
 
+/**
+ * Agrupa en {clave, cantidad, detalle} ordenado de mayor a menor.
+ *
+ * El `detalle` es la lista de nombres que cae en cada grupo: los graficos de
+ * este modulo lo muestran en el tooltip (ver `mostrarDetalle` en
+ * components/panel-odoo/graficos-recharts.tsx), asi que un ranking responde
+ * "cuantas" y "cuales" con el mismo dibujo.
+ */
+function agrupar(tareas: FilaTarea[], clave: (t: FilaTarea) => string) {
+  const mapa = new Map<string, string[]>();
+  for (const t of tareas) {
+    const k = clave(t);
+    mapa.set(k, [...(mapa.get(k) ?? []), t.nombre]);
+  }
+  return Array.from(mapa.entries())
+    .map(([valor, detalle]) => ({ valor, cantidad: detalle.length, detalle }))
+    .sort((a, b) => b.cantidad - a.cantidad);
+}
+
+/**
+ * Todo lo que la tarjeta de Proyectos necesita, en una sola lectura.
+ *
+ * Antes eran tres contadores sueltos (proyectos activos, tareas abiertas,
+ * completadas) y nada mas, mientras Odoo ya tenia calculado el presupuesto de
+ * cada proyecto, su gasto real por categoria y su avance de objetivos. Eso
+ * ahora viaja en la cache (ver lib/panel-odoo/sincronizar-proyectos.ts) y se
+ * agrega aca, no en el componente: la tarjeta dibuja, no calcula.
+ */
 export async function obtenerKpisProyectos(): Promise<KpisProyectos> {
-  const [{ data: proyectos }, { data: tareas }, terminadosEnElCore] = await Promise.all([
-    supabaseAdmin.from("panel_odoo_proyectos").select("activo, supabase_id").eq("activo", true),
-    supabaseAdmin.from("panel_odoo_tareas").select("estado, completado"),
+  const [{ data: proyectosCrudos }, { data: tareasCrudas }, terminadosEnElCore] = await Promise.all([
+    supabaseAdmin.from("panel_odoo_proyectos").select(COLUMNAS_PROYECTO).eq("activo", true),
+    supabaseAdmin.from("panel_odoo_tareas").select(COLUMNAS_TAREA),
     idsDeProyectosTerminadosDelCore(),
   ]);
 
-  const filasTareas = (tareas ?? []) as { estado: string; completado: boolean }[];
-  const cerrada = (t: { estado: string; completado: boolean }) =>
-    t.completado || ESTADOS_TAREA_CERRADA.includes(t.estado);
+  const tareas = (tareasCrudas ?? []) as unknown as FilaTarea[];
 
   // Un proyecto sin supabase_id es de Odoo y nada mas (no nacio en el core):
   // cuenta como activo, porque no hay estado del core que lo contradiga.
-  const activos = (proyectos ?? []).filter(
-    (p) => !p.supabase_id || !terminadosEnElCore.has(p.supabase_id as string),
-  );
+  const proyectos = ((proyectosCrudos ?? []) as unknown as FilaProyecto[])
+    .filter((p) => !p.supabase_id || !terminadosEnElCore.has(p.supabase_id))
+    .sort((a, b) => b.gastado - a.gastado || a.nombre.localeCompare(b.nombre));
+
+  const abiertas = tareas.filter((t) => !tareaCerrada(t));
+  const hoy = new Date().toISOString().slice(0, 10);
+
+  // El desglose por categoria viene por proyecto; para la vista consolidada se
+  // suman los montos de la misma categoria y se anota en que proyectos cayo,
+  // que es lo que se lee en el tooltip.
+  const categorias = new Map<string, { monto: number; color: string; detalle: string[] }>();
+  for (const p of proyectos) {
+    for (const c of p.gastos_por_categoria ?? []) {
+      const previo = categorias.get(c.label) ?? { monto: 0, color: c.color, detalle: [] };
+      categorias.set(c.label, {
+        monto: previo.monto + c.amount,
+        color: previo.color,
+        detalle: [...previo.detalle, `${p.nombre}: ${Math.round(c.amount).toLocaleString("es-CL")}`],
+      });
+    }
+  }
 
   return {
-    proyectosActivos: activos.length,
-    tareasAbiertas: filasTareas.filter((t) => !cerrada(t)).length,
+    proyectosActivos: proyectos.length,
+    tareasAbiertas: abiertas.length,
     // Se cuentan las canceladas aparte de las hechas: una tarea cancelada esta
     // cerrada, pero no completada.
-    tareasCompletadas: filasTareas.filter((t) => t.completado || t.estado === "1_done").length,
+    tareasCompletadas: tareas.filter((t) => t.completado || t.estado === "1_done").length,
+    objetivosTotal: proyectos.reduce((acc, p) => acc + p.objetivos_total, 0),
+    objetivosHechos: proyectos.reduce((acc, p) => acc + p.objetivos_hechos, 0),
+    tareasVencidas: tareas.filter((t) => tareaVencida(t, hoy)).length,
+    presupuestoTotal: proyectos.reduce((acc, p) => acc + p.presupuesto, 0),
+    gastadoTotal: proyectos.reduce((acc, p) => acc + p.gastado, 0),
+    disponibleTotal: proyectos.reduce((acc, p) => acc + p.disponible, 0),
+    porCategoria: Array.from(categorias.entries())
+      .map(([categoria, v]) => ({ categoria, ...v }))
+      .sort((a, b) => b.monto - a.monto),
+    // Una tarea con varios asignados cuenta para cada uno: la pregunta que
+    // responde el grafico es "cuanto tiene encima cada persona", no "como se
+    // reparte el total".
+    porResponsable: agrupar(
+      abiertas.flatMap((t) =>
+        (t.asignados ?? "Sin asignar").split(",").map((nombre) => ({ ...t, asignados: nombre.trim() || "Sin asignar" })),
+      ),
+      (t) => t.asignados ?? "Sin asignar",
+    ).map(({ valor, cantidad, detalle }) => ({ responsable: valor, cantidad, detalle })),
+    porEtapa: agrupar(abiertas, (t) => t.etapa ?? "Sin etapa").map(({ valor, cantidad, detalle }) => ({
+      etapa: valor,
+      cantidad,
+      detalle,
+    })),
+    proyectos,
   };
 }
 
 export async function listarTareasRecientes(limite = 5): Promise<FilaTarea[]> {
   const { data } = await supabaseAdmin
     .from("panel_odoo_tareas")
-    .select("odoo_id, proyecto_nombre, nombre, etapa, estado, fecha_limite, asignados")
+    .select(COLUMNAS_TAREA)
     .not("estado", "in", `(${ESTADOS_TAREA_CERRADA.join(",")})`)
     // Los objetivos ya cumplidos no son tareas abiertas, aunque su estado nativo
     // siga en 01_in_progress.
     .eq("completado", false)
     .order("fecha_limite", { ascending: true, nullsFirst: false })
     .limit(limite);
-  return (data ?? []) as FilaTarea[];
+  return (data ?? []) as unknown as FilaTarea[];
+}
+
+/**
+ * TODAS las tareas, abiertas y cerradas, para el detalle por proyecto.
+ *
+ * La lista de la tarjeta compacta solo muestra lo abierto —es lo que hay que
+ * atender— pero al abrir un proyecto lo que se quiere ver es su avance, y para
+ * eso las cerradas son la mitad de la historia.
+ */
+export async function listarTareasDeProyectos(): Promise<FilaTarea[]> {
+  const { data } = await supabaseAdmin
+    .from("panel_odoo_tareas")
+    .select(COLUMNAS_TAREA)
+    .order("fecha_limite", { ascending: true, nullsFirst: false });
+  return (data ?? []) as unknown as FilaTarea[];
+}
+
+/** Las tareas vencidas, para el aviso del detalle. */
+export function tareasVencidasDe(tareas: FilaTarea[]): FilaTarea[] {
+  const hoy = new Date().toISOString().slice(0, 10);
+  return tareas.filter((t) => tareaVencida(t, hoy));
+}
+
+export function estaCerrada(t: FilaTarea): boolean {
+  return tareaCerrada(t);
 }
 
 // ── Ventas y Arriendo ────────────────────────────────────────────────────
