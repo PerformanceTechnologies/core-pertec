@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { odooSearchRead } from "./odoo-cliente";
+import { odooSearchRead, odooCampos } from "./odoo-cliente";
 import { eliminarNoVigentes } from "./limpieza";
 
 type TuplaOdoo = [number, string] | false;
@@ -35,6 +35,8 @@ interface ProyectoOdoo {
   // pertec_project_panel, models/sync_mixin.py). Es la llave para cruzar los dos
   // lados; por nombre no sirve, ya hubo dos "Plan Harris" a la vez.
   supabase_id: string | false;
+  // Los opcionales (ver camposPresentes) llegan por indice: pueden no venir.
+  [campo: string]: unknown;
 }
 
 interface TareaOdoo {
@@ -58,6 +60,7 @@ interface TareaOdoo {
   expense_total: number;
   expense_count: number;
   priority: string | false;
+  [campo: string]: unknown;
 }
 
 /** El desglose de gasto que arma pertec_project_panel en panel_budget_data. */
@@ -77,6 +80,123 @@ interface UsuarioOdoo {
 // company_id aca, a diferencia de los demas modulos.
 // Topes de las consultas a Odoo. Si alguna los alcanza, la limpieza de ESA tabla
 // se salta (ver eliminarNoVigentes).
+/**
+ * De una lista de candidatos, los que ESTE Odoo realmente tiene.
+ *
+ * Los campos nativos de project.project/project.task cambian de nombre entre
+ * versiones —las horas planificadas son `allocated_hours` desde la 17 y
+ * `planned_hours` antes— y algunos vienen de modulos que pueden no estar
+ * instalados (`last_update_status` es de project, `progress` depende de
+ * hr_timesheet). Un search_read con UN campo inexistente no devuelve ese campo
+ * vacio: falla entero, con lo cual una suposicion mia dejaria la tarjeta sin
+ * proyectos ni tareas.
+ *
+ * Asi que se pregunta primero (fields_get, que es lectura de metadatos) y se
+ * pide solo lo que existe. Es el mismo criterio que lib/rendidor/fondos.ts usa
+ * para hr.expense.advance. Si la consulta de metadatos falla, se sigue con los
+ * campos base: se pierde el detalle nuevo, no la sincronizacion.
+ */
+async function camposPresentes(modelo: string, candidatos: string[]): Promise<Set<string>> {
+  try {
+    const definidos = await odooCampos(modelo);
+    const presentes = candidatos.filter((c) => c in definidos);
+    const faltantes = candidatos.filter((c) => !(c in definidos));
+    if (faltantes.length > 0) {
+      console.warn(`[panel-odoo] ${modelo} no tiene ${faltantes.join(", ")}: esas columnas quedan en su default.`);
+    }
+    return new Set(presentes);
+  } catch (e) {
+    console.error(`[panel-odoo] No se pudieron leer los campos de ${modelo}:`, e);
+    return new Set();
+  }
+}
+
+/** Un campo que puede no haber venido, como numero. */
+function numero(fila: Record<string, unknown>, campo: string): number {
+  const v = fila[campo];
+  return typeof v === "number" ? v : 0;
+}
+
+/** El primero de varios alias que este Odoo tenga, como numero. */
+function numeroDeAlguno(fila: Record<string, unknown>, campos: string[]): number {
+  for (const campo of campos) {
+    const v = fila[campo];
+    if (typeof v === "number") return v;
+  }
+  return 0;
+}
+
+/** Un campo de fecha que puede no haber venido. */
+function fechaOpcional(fila: Record<string, unknown>, campo: string): string | null {
+  const v = fila[campo];
+  return typeof v === "string" && v !== "" ? v : null;
+}
+
+/** Un campo de texto/selection que puede no haber venido. */
+function textoOpcional(fila: Record<string, unknown>, campo: string): string | null {
+  const v = fila[campo];
+  return typeof v === "string" && v !== "" ? v : null;
+}
+
+/** Un many2one que puede no haber venido. */
+function tuplaOpcional(fila: Record<string, unknown>, campo: string): TuplaOdoo {
+  const v = fila[campo];
+  return Array.isArray(v) && typeof v[0] === "number" ? ([v[0], String(v[1])] as [number, string]) : false;
+}
+
+/** Cuantos ids trae un one2many que puede no haber venido. */
+function cuantos(fila: Record<string, unknown>, campo: string): number {
+  const v = fila[campo];
+  return Array.isArray(v) ? v.length : 0;
+}
+
+// Horas planificadas: el nombre cambio en Odoo 17. Se prueban los dos.
+const CAMPOS_HORAS_PLAN = ["allocated_hours", "planned_hours"];
+
+const OPCIONALES_PROYECTO = ["last_update_status", "last_update_date", "date_start", "stage_id"];
+const OPCIONALES_TAREA = [
+  "date_last_stage_update",
+  "date_assign",
+  "effective_hours",
+  "progress",
+  "parent_id",
+  "child_ids",
+  "tag_ids",
+  "partner_id",
+  ...CAMPOS_HORAS_PLAN,
+];
+
+/** El avance de Odoo, siempre como 0-100. */
+function normalizarAvance(bruto: number): number {
+  if (bruto <= 0) return 0;
+  const pct = bruto <= 1 ? bruto * 100 : bruto;
+  return Math.round(Math.min(999, pct));
+}
+
+/**
+ * El nombre de cada etiqueta usada por las tareas.
+ *
+ * Mismo camino que los responsables: tag_ids llega como lista de ids y sin esto
+ * la columna quedaria con numeros. Si el modelo no existe en este Odoo (o la
+ * consulta falla), las tareas se guardan sin etiquetas en vez de romperse.
+ */
+async function leerEtiquetas(tareas: TareaOdoo[]): Promise<Map<number, string>> {
+  const ids = Array.from(new Set(tareas.flatMap((t) => (Array.isArray(t.tag_ids) ? (t.tag_ids as number[]) : []))));
+  if (ids.length === 0) return new Map();
+  try {
+    const filas = await odooSearchRead<{ id: number; name: string }>(
+      "project.tags",
+      [["id", "in", ids]],
+      ["name"],
+      { limit: ids.length },
+    );
+    return new Map(filas.map((f) => [f.id, f.name]));
+  } catch (e) {
+    console.error("[panel-odoo] No se pudieron leer las etiquetas de las tareas:", e);
+    return new Map();
+  }
+}
+
 // Los mismos hex que OBJ_COLORS en pertec_project_panel/models/project_project.py.
 // Se repiten aca —en vez de leerlos de Odoo— porque objetivo_color viaja como
 // clave ("cobre", "teal") y el hex solo esta expuesto en el proyecto, no en la
@@ -130,11 +250,17 @@ const TOPE_PROYECTOS = 500;
 const TOPE_TAREAS = 2000;
 
 export async function sincronizarProyectos(): Promise<number> {
+  const [opcionalesProyecto, opcionalesTarea] = await Promise.all([
+    camposPresentes("project.project", OPCIONALES_PROYECTO),
+    camposPresentes("project.task", OPCIONALES_TAREA),
+  ]);
+
   const [proyectos, tareas] = await Promise.all([
     odooSearchRead<ProyectoOdoo>(
       "project.project",
       [],
       [
+        ...opcionalesProyecto,
         "name",
         "partner_id",
         "user_id",
@@ -156,6 +282,7 @@ export async function sincronizarProyectos(): Promise<number> {
       "project.task",
       [],
       [
+        ...opcionalesTarea,
         "name",
         "project_id",
         "stage_id",
@@ -176,6 +303,7 @@ export async function sincronizarProyectos(): Promise<number> {
   ]);
 
   const desglosePorProyecto = await leerDesglosePorProyecto(proyectos.map((p) => p.id));
+  const nombrePorEtiquetaId = await leerEtiquetas(tareas);
 
   const idsAsignados = Array.from(new Set(tareas.flatMap((t) => t.user_ids ?? [])));
   const usuarios =
@@ -207,6 +335,14 @@ export async function sincronizarProyectos(): Promise<number> {
     gastos_por_categoria: desglosePorProyecto.get(p.id)?.categories ?? [],
     moneda: desglosePorProyecto.get(p.id)?.currency_code ?? null,
     color_hex: p.panel_color_hex || null,
+    // El semaforo que el jefe de proyecto mantiene a mano en Odoo. Es la unica
+    // señal de riesgo que no se puede deducir de las fechas ni de la plata: un
+    // proyecto al dia en ambas cosas igual puede estar "en riesgo" por algo que
+    // solo sabe quien lo lleva.
+    estado_salud: textoOpcional(p, "last_update_status"),
+    fecha_estado_salud: fechaOpcional(p, "last_update_date")?.slice(0, 10) ?? null,
+    fecha_inicio: fechaOpcional(p, "date_start")?.slice(0, 10) ?? null,
+    etapa: nombreDeTupla(tuplaOpcional(p, "stage_id")),
     actualizado_en: new Date().toISOString(),
   }));
 
@@ -231,6 +367,24 @@ export async function sincronizarProyectos(): Promise<number> {
     // La prioridad nativa es "0"/"1" (normal/urgente). Se guarda cruda y se
     // traduce al mostrarla, como el resto de los codigos de Odoo.
     prioridad: t.priority || null,
+    // Desde cuando no se mueve de etapa: es lo unico con que se puede separar
+    // una tarea que avanza despacio de una que quedo abandonada. Sin esto, una
+    // tarea sin fecha limite podia estar parada meses sin que nada lo dijera.
+    fecha_ultimo_cambio_etapa: fechaOpcional(t, "date_last_stage_update"),
+    fecha_asignacion: fechaOpcional(t, "date_assign"),
+    horas_asignadas: numeroDeAlguno(t, CAMPOS_HORAS_PLAN),
+    horas_gastadas: numero(t, "effective_hours"),
+    // Odoo devuelve el avance en 0-100 en unas versiones y en 0-1 en otras; se
+    // normaliza a porcentaje para que la barra no quede siempre pegada al 1%.
+    avance: normalizarAvance(numero(t, "progress")),
+    padre_odoo_id: idDeTupla(tuplaOpcional(t, "parent_id")),
+    subtareas: cuantos(t, "child_ids"),
+    etiquetas:
+      (Array.isArray(t.tag_ids) ? (t.tag_ids as number[]) : [])
+        .map((id) => nombrePorEtiquetaId.get(id))
+        .filter(Boolean)
+        .join(", ") || null,
+    cliente: nombreDeTupla(tuplaOpcional(t, "partner_id")),
     asignados:
       (t.user_ids ?? [])
         .map((id) => nombrePorUsuarioId.get(id))

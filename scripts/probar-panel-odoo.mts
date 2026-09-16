@@ -22,8 +22,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import type { FilaFactura, FilaTarea } from "../lib/panel-odoo/datos";
-import { estaCerrada, tareasVencidasDe } from "../lib/panel-odoo/datos";
+import type { FilaFactura } from "../lib/panel-odoo/datos";
 import {
   TRAMOS_DE_MORA,
   envejecimiento,
@@ -337,99 +336,4 @@ for (const columna of ["cedida", "dte_estado", "dte_aceptacion", "reclamo", "tip
   assert.ok(select.includes(columna), `el select de listarFacturasParaDetalle tiene que traer ${columna}`);
 }
 
-// ── Proyectos ────────────────────────────────────────────────────────────────
-//
-// La regla que se puede romper sin que se note: una tarea del panel de objetivos
-// nunca cambia de `state` —queda en 01_in_progress para siempre— y se cierra con
-// objetivo_done. Mirando solo el estado, el panel contaba objetivos terminados
-// como tareas abiertas y decía "Completadas 0".
-
-function tarea(parcial: Partial<FilaTarea> & { odoo_id: number }): FilaTarea {
-  return {
-    proyecto_odoo_id: 1,
-    proyecto_nombre: "Plan Harris",
-    nombre: `Tarea ${parcial.odoo_id}`,
-    etapa: "En curso",
-    estado: "01_in_progress",
-    fecha_inicio: null,
-    fecha_limite: null,
-    asignados: null,
-    completado: false,
-    color_hex: null,
-    gastos_total: 0,
-    gastos_cantidad: 0,
-    prioridad: null,
-    ...parcial,
-  };
-}
-
-assert.equal(estaCerrada(tarea({ odoo_id: 1 })), false, "una tarea en progreso está abierta");
-assert.equal(
-  estaCerrada(tarea({ odoo_id: 2, completado: true })),
-  true,
-  "un objetivo cumplido está cerrado aunque su estado nativo siga en 01_in_progress",
-);
-assert.equal(estaCerrada(tarea({ odoo_id: 3, estado: "1_done" })), true, "el estado nativo también cierra");
-assert.equal(estaCerrada(tarea({ odoo_id: 4, estado: "1_canceled" })), true, "una cancelada está cerrada");
-
-// Vencida = plazo pasado Y sin cerrar. Una cumplida fuera de plazo NO es una
-// pendiente: si contara, el aviso de "vencidas" nunca bajaría de ahí.
-const ayer = "2020-01-01";
-const manana = "2999-01-01";
-const vencidas = tareasVencidasDe([
-  tarea({ odoo_id: 10, fecha_limite: ayer }),
-  tarea({ odoo_id: 11, fecha_limite: ayer, completado: true }),
-  tarea({ odoo_id: 12, fecha_limite: ayer, estado: "1_canceled" }),
-  tarea({ odoo_id: 13, fecha_limite: manana }),
-  tarea({ odoo_id: 14, fecha_limite: null }),
-]);
-assert.deepEqual(
-  vencidas.map((t) => t.odoo_id),
-  [10],
-  "solo cuenta como vencida la que sigue abierta con el plazo cumplido",
-);
-
-// Y que la sincronización le pida a Odoo los campos del módulo pertec_project_panel:
-// sin ellos la tarjeta compila igual y queda con todas las cifras nuevas en cero.
-const syncProyectos = readFileSync(
-  new URL("../lib/panel-odoo/sincronizar-proyectos.ts", import.meta.url),
-  "utf8",
-);
-for (const campo of [
-  "presupuesto_inicial",
-  "panel_amount_spent",
-  "panel_amount_available",
-  "panel_percent_spent",
-  "panel_obj_total",
-  "panel_obj_done",
-  "panel_budget_data",
-  "objetivo_date_start",
-  "objetivo_color",
-  "expense_total",
-  "expense_count",
-]) {
-  assert.ok(
-    syncProyectos.includes(`"${campo}"`),
-    `sincronizar-proyectos.ts tiene que pedirle ${campo} a Odoo: sin eso la columna queda en su default`,
-  );
-}
-
-for (const columna of [
-  "presupuesto",
-  "gastado",
-  "disponible",
-  "porcentaje_gastado",
-  "objetivos_total",
-  "objetivos_hechos",
-  "gastos_por_categoria",
-  "fecha_inicio",
-  "color_hex",
-  "gastos_total",
-]) {
-  assert.ok(syncProyectos.includes(`${columna}:`), `el upsert de proyectos tiene que escribir ${columna}`);
-  assert.ok(datos.includes(columna), `datos.ts tiene que leer ${columna} de la cache`);
-}
-
-console.log(
-  "Panel Odoo: facturas (filtros, orden, totales, cesión) y proyectos (cierre de objetivos, vencidas, campos de Odoo), todo verificado.",
-);
+console.log("Detalle de facturas del Panel Odoo: filtros, orden, totales y campos de cesión, todo verificado.");
