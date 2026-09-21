@@ -119,7 +119,11 @@ export default function PanelFinanzas({
   facturas: FacturaSiiFila[];
   ultimaEjecucionExitosa: { ejecutado_en: string } | null;
 }) {
-  const [filtroTipo, setFiltroTipo] = useState<"todos" | "compra" | "venta">("todos");
+  // Arranca en VENTA y no en "todos": las compras son el 95% de las filas (375 contra 37)
+  // y entrar a esta pantalla con todo mezclado deja las ventas enterradas al fondo de la
+  // tabla, cuando son las que se miran. Las compras siguen a un clic, y las tarjetas de
+  // totales dicen "(filtro actual)" justamente para que no se lea como que no hay.
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "compra" | "venta">("venta");
   const [filtroEstado, setFiltroEstado] = useState<string>("todos");
   const [busqueda, setBusqueda] = useState("");
   const [orden, setOrden] = useState<ClaveOrden>("fecha_desc");
