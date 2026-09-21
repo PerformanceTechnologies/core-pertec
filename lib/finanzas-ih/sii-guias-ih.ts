@@ -9,6 +9,7 @@ import { subirArchivoIh } from "./sharepoint-ih";
 import type { RespaldoDocumento } from "./finanzas-ih";
 import { claveDocumento } from "./claves";
 import { parsearXmlDte } from "../xml-dte";
+import { elegirEmpresa } from "./selector-empresa";
 
 // Portal MIPYME del SII (mipeAdminDocsEmi.cgi / mipeAdminDocsRcp.cgi):
 // paginas HTML planas (sin Angular, sin CSV), descubiertas con
@@ -59,15 +60,27 @@ export async function seleccionarEmpresa(page: import("playwright-core").Page, r
   await page.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
   if (!page.url().includes("mipeSelEmpresa")) return; // ya estaba en esa empresa, SII salto el selector
 
+  // ESPERAR al combo, no solo a que cargue el documento. Antes se leia el DOM
+  // apenas pasaba "domcontentloaded" —cuyo timeout ademas se traga el .catch de
+  // arriba—, asi que si el SII tardaba un poco en pintar el <select>, la lista
+  // salia vacia y el codigo lo reportaba como "no se encontro la empresa". El
+  // 21-09-2026 eso tumbo la corrida entera y el mensaje era falso: la empresa
+  // estaba, la pagina no.
+  //
+  // El timeout no se deja reventar como error de Playwright: se traduce abajo,
+  // donde se distingue "el SII no mostro el combo" de "esa empresa no esta".
+  await page.waitForSelector("select", { timeout: 20000 }).catch(() => {});
+
   const opciones = await page.evaluate(() => {
     const sel = document.querySelector("select");
     return sel ? Array.from(sel.options).map((o) => ({ value: o.value, text: o.text.trim() })) : [];
   });
-  const emp = limpiarRut(rutEmpresa).replace(/-/g, "");
-  const elegida =
-    opciones.find((o) => o.text.toUpperCase().replace(/[.\-\s]/g, "").includes(emp)) ??
-    (opciones.length === 1 ? opciones[0] : null);
-  if (!elegida) throw new Error(`No se encontro la empresa ${rutEmpresa} en el selector del SII.`);
+
+  // La decision vive en ./selector-empresa.ts, sin navegador de por medio, para
+  // poder medirla (ver scripts/probar-selector-empresa.mts).
+  const resultado = elegirEmpresa(opciones, limpiarRut(rutEmpresa));
+  if (resultado.estado !== "elegida") throw new Error(resultado.mensaje);
+  const elegida = resultado.opcion;
 
   await page.locator("select").first().selectOption({ value: elegida.value });
   const btn = page.locator(
