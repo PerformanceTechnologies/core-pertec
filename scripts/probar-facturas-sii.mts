@@ -626,9 +626,19 @@ assert.ok(
   "la acción no lanza por un fallo del SII: devuelve { ok: false, error } para que el " +
     "motivo se vea en pantalla y no haya que ir a buscarlo a la base",
 );
+// El motivo viaja en DOS piezas y las dos hacen falta. Antes era una sola —el
+// `error.message` crudo— y la pantalla lo pintaba tal cual: el "Call log" de Playwright
+// entero, en rojo, que dice con precisión qué selector no apareció y nada sobre si hay
+// que hacer algo. Ahora se lee el traducido y el crudo queda plegado al lado (ver
+// lib/sii-diagnostico.ts y scripts/probar-sii-diagnostico.mts).
 assert.ok(
-  /ok:\s*false[\s\S]{0,80}error: mensaje/.test(cuerpoAccion),
-  "y el mensaje que devuelve es el que dio el SII o Playwright, no uno genérico",
+  /ok:\s*false[\s\S]{0,200}error: fallo\.mensajeUsuario/.test(cuerpoAccion),
+  "lo que se lee primero es el motivo traducido, no un genérico ni el volcado de Playwright",
+);
+assert.ok(
+  /errorTecnico: fallo\.mensajeTecnico/.test(cuerpoAccion),
+  "y el texto original viaja igual: traducir sin conservar el crudo deja a quien " +
+    "diagnostica sin nada",
 );
 assert.ok(
   /registrarEjecucion\(false, 0, mensaje\)/.test(cuerpoAccion),

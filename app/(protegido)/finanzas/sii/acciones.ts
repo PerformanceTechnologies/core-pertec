@@ -18,6 +18,7 @@ import {
   registrarEjecucion,
 } from "@/lib/finanzas";
 import { avisarReclamos } from "@/lib/finanzas-aviso";
+import { clasificarFalloSii, type ClaseFalloSii } from "@/lib/sii-diagnostico";
 
 /**
  * Sincronizar el SII a mano, desde la pantalla.
@@ -70,8 +71,28 @@ export interface ResultadoSincronizacion {
    * programa: viaja como dato para que se pueda leer en pantalla y reintentar.
    */
   ok: boolean;
-  /** Qué falló, en las palabras que dio el SII o Playwright. Vacío si salió bien. */
+  /**
+   * Qué falló, en palabras que se puedan leer. Vacío si salió bien.
+   *
+   * ANTES era el `error.message` crudo, y la pantalla lo pintaba tal cual: el
+   * "Call log" de Playwright entero, en rojo, al lado de los botones. Exacto e
+   * inútil — no decía si había que hacer algo ni si se arreglaba solo. El texto
+   * original no se perdió: va en `errorTecnico` y se guarda íntegro en
+   * finanzas_sii_ejecuciones.mensaje_error.
+   */
   error?: string;
+  /** El mensaje original de Playwright o del SII, sin tocar. */
+  errorTecnico?: string;
+  /** De qué clase fue el fallo (ver lib/sii-diagnostico.ts). */
+  errorClase?: ClaseFalloSii;
+  /**
+   * Si esto se arregla solo en la próxima corrida automática.
+   *
+   * La pantalla lo usa para no pintar de rojo alarmante algo que ya se va a
+   * resolver: un aviso grave por un hipo pasajero hace que después nadie crea
+   * el que sí importa.
+   */
+  errorSeResuelveSolo?: boolean;
   documentos: number;
   guardados: number;
   reclamos: number[];
@@ -203,11 +224,21 @@ export async function sincronizarSiiAction(
     };
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "Error desconocido";
+    // En la base se guarda el CRUDO, no el traducido: es el registro técnico y
+    // ahí sí se quiere el "Call log" completo para poder diagnosticar después.
     await registrarEjecucion(false, 0, mensaje).catch(() => {});
+    const fallo = clasificarFalloSii(mensaje);
     // Se DEVUELVE, no se lanza: ver el comentario de `ok`. La primera versión lanzaba y
     // lo único que se veía en pantalla era el error genérico de Server Components; el
     // motivo —"Target page, context or browser has been closed", el Chromium que se muere
     // cuando la instancia ya lanzó dos— solo aparecía consultando la base.
-    return { ...vacio, ok: false, error: mensaje };
+    return {
+      ...vacio,
+      ok: false,
+      error: fallo.mensajeUsuario,
+      errorTecnico: fallo.mensajeTecnico,
+      errorClase: fallo.clase,
+      errorSeResuelveSolo: fallo.seResuelveSolo,
+    };
   }
 }

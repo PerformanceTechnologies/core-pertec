@@ -53,7 +53,17 @@ export default function BotonSincronizarSii() {
   const [mensaje, setMensaje] = useState<{
     texto: string;
     error?: boolean;
+    /**
+     * Rojo fuerte solo para lo que pide una acción. Un fallo del SII que se
+     * arregla solo en la próxima corrida se muestra en naranjo: pintar de rojo
+     * alarmante algo pasajero es lo que hace que después nadie crea el aviso
+     * que sí importa.
+     */
+    grave?: boolean;
   } | null>(null);
+  // El texto original de Playwright o del SII. Va plegado, no perdido: ver
+  // lib/sii-diagnostico.ts.
+  const [detalleTecnico, setDetalleTecnico] = useState<string | null>(null);
   // Las columnas que trajo el CSV de ventas cuando NINGUNA sirve para derivar el estado.
   // Se muestran porque es el dato con el que se arregla, no un detalle de adorno.
   const [columnas, setColumnas] = useState<string[] | null>(null);
@@ -62,6 +72,7 @@ export default function BotonSincronizarSii() {
     iniciarTransicion(async () => {
       setMensaje(null);
       setColumnas(null);
+      setDetalleTecnico(null);
       setPaso(
         cuales.length === 1
           ? rotuloDe(cuales[0])
@@ -82,12 +93,19 @@ export default function BotonSincronizarSii() {
         if (!r.ok) {
           // El motivo REAL, en pantalla: una Server Action que lanza llega enmascarada, y
           // el mensaje había que ir a buscarlo a la base. Ahora viaja como dato.
+          //
+          // Lo que se muestra es la versión traducida (ver lib/sii-diagnostico.ts). Antes
+          // acá caía el `error.message` crudo, o sea el "Call log" de Playwright entero:
+          // decía con precisión qué selector no apareció, y nada sobre si había que hacer
+          // algo. El crudo sigue disponible, plegado, abajo.
           setMensaje({
             texto:
               `${r.error ?? "No se pudo consultar el SII."}` +
               (r.leidos.length > 0 ? ` Se alcanzó a guardar ${donde}.` : ""),
             error: true,
+            grave: !r.errorSeResuelveSolo,
           });
+          setDetalleTecnico(r.errorTecnico ?? null);
           return;
         }
         setMensaje({
@@ -151,7 +169,9 @@ export default function BotonSincronizarSii() {
       </button>
       {/* Se dice cuánto tarda ANTES de apretar: son minutos y el botón parece colgado. */}
       <span
-        className={`text-xs ${mensaje?.error ? "text-red-600" : "text-tinta/50"}`}
+        className={`text-xs ${
+          mensaje?.error ? (mensaje.grave ? "text-red-600" : "text-naranjo") : "text-tinta/50"
+        }`}
       >
         {paso
           ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`
@@ -159,6 +179,16 @@ export default function BotonSincronizarSii() {
             ? mensaje.texto
             : `El SII se relee solo cada dos horas, los últimos ${MESES_QUE_SE_RELEEN} meses completos. Estos botones son para pedirlo ahora.`}
       </span>
+      {detalleTecnico && (
+        <details className="basis-full text-xs text-tinta/60">
+          <summary className="cursor-pointer">Detalle técnico</summary>
+          {/* whitespace-pre-wrap: el "Call log" de Playwright viene con saltos de línea
+              y en una sola línea no se entiende dónde termina cada paso. */}
+          <p className="mt-1 font-mono leading-relaxed break-words whitespace-pre-wrap">
+            {detalleTecnico}
+          </p>
+        </details>
+      )}
       {columnas && (
         <details className="basis-full text-xs text-tinta/60">
           <summary className="cursor-pointer">
