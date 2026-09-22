@@ -5,6 +5,7 @@ import { construirLibroRendicion, nombreArchivoRendicion, type RespaldoParaExcel
 import { adjuntarArchivoAGasto } from "@/lib/rendidor/odoo";
 import { descargarRespaldo } from "@/lib/rendidor/almacenamiento";
 import { miniaturaParaExcel } from "@/lib/rendidor/miniatura";
+import { primeraPaginaComoImagen } from "@/lib/rendidor/pdf-a-imagen";
 
 const SLUG_APP = "rendir-gastos";
 
@@ -56,9 +57,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             const respaldo = await descargarRespaldo(g.archivoPath);
             if (!respaldo) return null;
 
-            const mini = await miniaturaParaExcel(respaldo.contenido, respaldo.mimeType);
+            // Un PDF se pasa a imagen (su primera página) antes de achicarlo:
+            // Excel no puede mostrar un PDF embebido.
+            const esPdf = respaldo.mimeType === "application/pdf";
+            const pagina = esPdf ? await primeraPaginaComoImagen(respaldo.contenido) : null;
+            const mini = esPdf
+              ? pagina && (await miniaturaParaExcel(pagina.png, "image/png"))
+              : await miniaturaParaExcel(respaldo.contenido, respaldo.mimeType);
             return {
               gastoId: g.id,
+              paginasPdf: pagina?.paginas,
               nombre: g.archivoNombre || g.archivoPath.split("/").pop() || "respaldo",
               // Sin miniatura (un PDF, o una conversión que falló) se pasa el
               // original: construirLibroRendicion decide si lo embebe o pone el

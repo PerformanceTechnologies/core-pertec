@@ -138,6 +138,24 @@ export interface RespaldoParaExcel {
   nombre: string;
   mimeType: string;
   contenido: Buffer;
+  /** Si el respaldo era un PDF que se pasó a imagen: cuántas páginas tenía. */
+  paginasPdf?: number;
+}
+
+/**
+ * Columna (con fracción, base 0) donde cae un punto a `px` pixeles del borde
+ * izquierdo, para la esquina derecha de una imagen anclada por dos celdas.
+ * Un ancho de columna de Excel de `w` caracteres mide ~w·7+5 px en Arial 11.
+ */
+function columnaEnPixel(anchos: Record<string, number>, px: number): number {
+  const columnas = Object.values(anchos);
+  let restante = px;
+  for (let i = 0; i < columnas.length; i++) {
+    const anchoPx = columnas[i] * 7 + 5;
+    if (restante <= anchoPx) return i + restante / anchoPx;
+    restante -= anchoPx;
+  }
+  return columnas.length;
 }
 
 const ANCHO_IMAGEN = 480;
@@ -473,9 +491,22 @@ export async function construirLibroRendicion(
     if (respaldo.mimeType === "application/pdf") {
       const celda = respaldosHoja.getCell(`A${filaImagen}`);
       respaldosHoja.mergeCells(`A${filaImagen}:F${filaImagen}`);
-      celda.value = `📄 El respaldo es un PDF ("${respaldo.nombre}") y no se puede embeber en Excel. Está adjunto al gasto en Odoo.`;
+      // Solo llega acá un PDF que no se pudo pasar a imagen (dañado o protegido).
+      celda.value = `📄 El respaldo es un PDF ("${respaldo.nombre}") que no se pudo convertir en imagen. Está adjunto al gasto en Odoo.`;
       estilar(celda, { horizontal: "left", fondo: AMARILLO_SALDO, wrap: true });
       return;
+    }
+
+    // Un PDF de varias páginas muestra solo la primera. Se dice en una fila sobre
+    // la imagen, que baja una fila (la ficha tiene 36 y usa 14), para que nadie
+    // crea que el comprobante termina ahí.
+    let filaAncla = filaImagen;
+    if ((respaldo.paginasPdf ?? 0) > 1) {
+      respaldosHoja.mergeCells(`A${filaImagen}:F${filaImagen}`);
+      const nota = respaldosHoja.getCell(`A${filaImagen}`);
+      nota.value = `📄 PDF de ${respaldo.paginasPdf} páginas: se muestra la primera. El documento completo está en Odoo.`;
+      estilar(nota, { horizontal: "left", fondo: AMARILLO_SALDO, wrap: true });
+      filaAncla = filaImagen + 1;
     }
 
     const dims = dimensionesImagen(respaldo.contenido);
@@ -490,13 +521,19 @@ export async function construirLibroRendicion(
       buffer: respaldo.contenido as unknown as ExcelJS.Buffer,
       extension: respaldo.mimeType === "image/png" ? "png" : "jpeg",
     });
+    // Anclada por las dos esquinas (twoCellAnchor, lo que escribe Excel al insertar
+    // una imagen) y no por una esquina más el tamaño: el visor del iPhone y otras
+    // vistas previas no siempre dibujan una imagen anclada por una sola celda.
+    // La esquina de abajo cae al final de la fila del ancla, que se alarga a la
+    // medida de la imagen (px → pt) para no pisar la ficha del gasto siguiente.
+    // Los tipos de ExcelJS piden el Anchor completo, pero en runtime acepta
+    // {col, row} con fracción y calcula el resto.
     respaldosHoja.addImage(idImagen, {
-      tl: { col: 0, row: filaImagen - 1 },
-      ext: { width: ancho, height: alto },
+      tl: { col: 0, row: filaAncla - 1 } as ExcelJS.Anchor,
+      br: { col: columnaEnPixel(anchosRespaldos, ancho), row: filaAncla } as ExcelJS.Anchor,
+      editAs: "oneCell",
     });
-    // La fila del ancla se alarga a la medida de la imagen (px → pt) para que no
-    // se pise con la ficha del gasto siguiente.
-    respaldosHoja.getRow(filaImagen).height = Math.round(alto * 0.75);
+    respaldosHoja.getRow(filaAncla).height = Math.round(alto * 0.75);
   });
 
   if (faltantes.length > 0) {

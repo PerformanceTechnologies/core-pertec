@@ -32,6 +32,20 @@ const LECTOR_DE_PDF = [
   `./node_modules/pdf-parse/lib/pdf.js/${VERSION_PDFJS}/build/pdf.worker.js`,
 ];
 
+/**
+ * Lo que necesita la planilla de Rendir Gastos para pasar un PDF a imagen
+ * (lib/rendidor/pdf-a-imagen.ts): pdf.js carga su worker con un import dinamico y las
+ * fuentes estandar por ruta, y @napi-rs/canvas elige su binario nativo en runtime. El
+ * file tracing no ve ninguna de las tres cosas.
+ */
+const PDF_A_IMAGEN = [
+  "./node_modules/pdfjs-dist/package.json",
+  "./node_modules/pdfjs-dist/legacy/build/pdf.mjs",
+  "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+  "./node_modules/pdfjs-dist/standard_fonts/**/*",
+  "./node_modules/@napi-rs/canvas/**/*",
+  "./node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
+];
 
 /**
  * Lo que necesita en runtime una funcion que lanza Chromium.
@@ -77,7 +91,9 @@ const nextConfig: NextConfig = {
   // require/import normal de Node en tiempo de ejecucion -- si Turbopack/
   // webpack lo empaqueta como cualquier otro modulo, ese archivo deja de
   // existir como tal y falla con "Setting up fake worker failed".
-  serverExternalPackages: ["pdf-parse"],
+  // pdfjs-dist y @napi-rs/canvas, por lo mismo y porque el canvas es un binario
+  // nativo: los usa la planilla de Rendir Gastos para pasar un PDF a imagen.
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
   // playwright-core carga browsers.json y otros archivos internos de forma
   // dinamica, y el file tracing de Vercel no los detecta solo — sin esto la
   // funcion serverless del cron falla en runtime con "Cannot find module
@@ -102,6 +118,8 @@ const nextConfig: NextConfig = {
     // La lectura de un borrador en PDF extrae el texto con pdf-parse en vez de
     // mandar una imagen por pagina, asi que necesita los mismos archivos.
     "/api/ofertas/analizar": LECTOR_DE_PDF,
+    // La planilla de Rendir Gastos embebe los respaldos en PDF como imagen.
+    "/api/rendidor/\\[id\\]/excel": PDF_A_IMAGEN,
     // Las claves son route globs (picomatch) contra el pathname, no rutas de
     // archivo -- un segmento dinamico como [id] hay que escaparlo (\\[id\\])
     // o picomatch lo interpreta como una clase de caracteres del glob y la
