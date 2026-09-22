@@ -40,7 +40,20 @@ function esc(texto: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export function armarCorreoHtml(nombre: string, fechaLegible: string): string {
+/**
+ * @param pendientes Cuántos pendientes tiene esa persona en el core. SOLO el
+ *   número: ni el título, ni el cliente, ni el monto. El cuerpo de este correo
+ *   se sincroniza en teléfonos y clientes de escritorio, y por eso deliberadamente
+ *   no lleva contenido (ver el comentario de arriba). Un conteo no dice qué es ni
+ *   de quién, y es lo que convierte un botón genérico en un motivo para entrar.
+ */
+export function armarCorreoHtml(nombre: string, fechaLegible: string, pendientes = 0): string {
+  const aviso =
+    pendientes > 0
+      ? `<div style="font:14px/1.5 Arial,sans-serif;color:#171411;padding-bottom:18px">
+              Tenés <strong>${pendientes}</strong> pendiente${pendientes === 1 ? "" : "s"} en el core.
+            </div>`
+      : "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf8f5;padding:32px 0">
   <tr><td align="center">
     <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:100%;background:#ffffff;border:1px solid #e7e1d8;border-radius:14px;overflow:hidden">
@@ -53,6 +66,7 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string): string {
       </td></tr>
 
       <tr><td align="center" style="padding:32px 28px 36px 28px">
+        ${aviso}
         <!-- El botón va como tabla con el fondo en el <td>, no como un <a> con
              padding: Outlook de escritorio no respeta el padding de un enlace en
              bloque y el botón queda del tamaño del texto. -->

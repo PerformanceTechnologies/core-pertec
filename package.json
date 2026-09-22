@@ -13,6 +13,7 @@
     "probar-extraccion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-extraccion.mts",
     "probar-ofertas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ofertas.mts",
     "probar-edicion": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-edicion.mts",
+    "probar-ia-core": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ia-core.mts",
     "probar-selector-empresa": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-selector-empresa.mts",
     "probar-sii-diagnostico": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-sii-diagnostico.mts",
     "probar-facturas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-facturas-sii.mts",

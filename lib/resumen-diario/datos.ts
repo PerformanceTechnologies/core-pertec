@@ -4,6 +4,7 @@ import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
 import { obtenerCorreosRecientes } from "@/lib/graph-correo";
 import { hoyEnSantiago, obtenerReunionesProximas } from "@/lib/graph-calendario";
 import { generarResumen } from "./generar";
+import { reunirPendientesDelCore, type PendienteCore } from "./pendientes-core";
 import {
   VERSION_RESUMEN,
   type EstadoResumen,
@@ -108,11 +109,14 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
 
   // Correo y calendario son independientes: en paralelo, y así el tiempo de
   // pared es el del más lento y no la suma de los dos.
-  const [correos, reuniones] = await Promise.all([
+  // Los pendientes del core salen de Supabase y no dependen de Graph: van en el
+  // mismo Promise.all para no sumar su tiempo al de las dos llamadas de red.
+  const [correos, reuniones, pendientes] = await Promise.all([
     obtenerCorreosRecientes(accessToken, correo),
     // Dos días además de hoy: alcanza para que el resumen avise de algo que se
     // viene sin convertirse en una agenda de la semana.
     obtenerReunionesProximas(accessToken, 2),
+    reunirPendientesDelCore({ id: usuarioId, nombre }),
   ]);
 
   // Sin correo no hay resumen que valga la pena: el calendario solo ya lo
@@ -127,14 +131,18 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
     listaReuniones,
     hoy.iso,
     correos.conteos.horas,
+    pendientes,
   );
 
   // Los conteos y los enlaces se pegan acá y no se le piden al modelo: los dos
   // son datos exactos, y eso es justo lo que un modelo hace mal.
   const resumen: ResumenDiario = {
-    ...conDatosReales(delModelo, correos.correos, listaReuniones),
+    ...conDatosReales(delModelo, correos.correos, listaReuniones, pendientes),
     conteos: correos.conteos,
     reunionesTotales: listaReuniones.length,
+    // Cuántos había EN TOTAL, contados acá: el modelo destaca algunos y la
+    // pantalla necesita poder decir "y otros 4" sin preguntárselo a él.
+    pendientesCoreTotales: pendientes.length,
     version: VERSION_RESUMEN,
   };
 
@@ -157,8 +165,9 @@ function conDatosReales(
   delModelo: ResumenModelo,
   correos: CorreoResumen[],
   reuniones: ReunionCalendario[],
-): Omit<ResumenModelo, "reuniones" | "correosDestacados"> &
-  Pick<ResumenDiario, "reuniones" | "correosDestacados"> {
+  pendientes: PendienteCore[],
+): Omit<ResumenModelo, "reuniones" | "correosDestacados" | "pendientesCore"> &
+  Pick<ResumenDiario, "reuniones" | "correosDestacados" | "pendientesCore"> {
   return {
     ...delModelo,
     correosDestacados: delModelo.correosDestacados.map(({ indice, ...resto }) => {
@@ -189,6 +198,20 @@ function conDatosReales(
         // Tope de 12: un "todos los de operaciones" con 40 personas no cabe en un
         // popover y tampoco informa.
         asistentes: (real?.asistentes ?? []).slice(0, 12),
+      };
+    }),
+    // Mismo mecanismo que arriba: el modelo eligió por índice y acá se pegan el
+    // módulo, el título y el enlace REALES. Un índice inventado deja la fila sin
+    // enlace en vez de mandar a alguien a la rendición de otra persona.
+    pendientesCore: delModelo.pendientesCore.map(({ indice, ...resto }) => {
+      const real = pendientes[indice - 1];
+      return {
+        ...resto,
+        modulo: real?.modulo ?? null,
+        titulo: real?.titulo ?? null,
+        detalle: real?.detalle ?? null,
+        antiguedadDias: real?.antiguedadDias ?? null,
+        enlace: real?.enlace ?? null,
       };
     }),
   };

@@ -21,7 +21,11 @@ import type { ConteosCorreo, Dirigido } from "@/lib/graph-correo";
  * 3 — enlaces a Outlook y registro sin voseo
  * 4 — datos reales por fila para los popovers de detalle
  */
-export const VERSION_RESUMEN = 5;
+// 6: el resumen incorpora los pendientes del propio core (ver
+// ./pendientes-core.ts). Subir la versión hace que los resúmenes de hoy
+// generados con el formato anterior se descarten y se regeneren, en vez de
+// pintar una sección vacía.
+export const VERSION_RESUMEN = 6;
 
 export type Urgencia = "alta" | "media" | "baja";
 
@@ -145,6 +149,29 @@ export interface CompromisoAbierto {
  * Ni los conteos ni los enlaces están acá: los dos los pone el servidor, porque
  * los dos son datos exactos y eso es justo lo que un modelo hace mal.
  */
+/**
+ * Lo que el modelo dice sobre UN pendiente del core.
+ *
+ * Igual que con los correos: trae `indice`, no el enlace ni el módulo. El
+ * modelo elige cuáles vale la pena mencionar y explica por qué; los datos
+ * exactos los vuelve a pegar el servidor (ver conDatosReales en ./datos.ts).
+ */
+export interface PendienteDestacadoModelo {
+  indice: number;
+  /** Una línea: por qué este, hoy. No repite el título. */
+  porQue: string;
+  urgencia: Urgencia;
+}
+
+/** El pendiente ya rehidratado con sus datos exactos. */
+export interface PendienteDestacado extends Omit<PendienteDestacadoModelo, "indice"> {
+  modulo: string | null;
+  titulo: string | null;
+  detalle: string | null;
+  antiguedadDias: number | null;
+  enlace: string | null;
+}
+
 export interface ResumenModelo {
   /** Tres o cuatro líneas de contexto. Lo primero que se lee. */
   panorama: string;
@@ -153,6 +180,14 @@ export interface ResumenModelo {
   enCopia: CorreoInformativo[];
   temas: TemaDelPeriodo[];
   compromisos: CompromisoAbierto[];
+  /**
+   * Lo del core que vale la pena mirar hoy, elegido de la lista que se le pasó.
+   *
+   * Puede venir vacío y está bien: si alguien tiene tres borradores de la semana
+   * pasada y ninguno urge, decirlo es peor que callarlo. Un resumen que todos
+   * los días encuentra algo que avisar deja de leerse.
+   */
+  pendientesCore: PendienteDestacadoModelo[];
   /** Tres, en orden. */
   prioridades: string[];
 }
@@ -168,11 +203,15 @@ export interface ResumenModelo {
  * pedírselas al modelo es pedirle que cuente 150 correos de memoria, y ahí es
  * donde inventa.
  */
-export interface ResumenDiario extends Omit<ResumenModelo, "reuniones" | "correosDestacados"> {
+export interface ResumenDiario
+  extends Omit<ResumenModelo, "reuniones" | "correosDestacados" | "pendientesCore"> {
   /** Con qué VERSION_RESUMEN se generó. Ver el comentario de esa constante. */
   version: number;
   reuniones: ReunionResumida[];
   correosDestacados: CorreoDestacado[];
+  pendientesCore: PendienteDestacado[];
+  /** Cuántos pendientes había en total, contados por el servidor. */
+  pendientesCoreTotales: number;
   conteos: ConteosCorreo;
   /** Cuántas reuniones había en la ventana consultada, contadas por el servidor. */
   reunionesTotales: number;

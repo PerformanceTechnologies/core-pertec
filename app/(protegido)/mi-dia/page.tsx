@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
@@ -619,6 +620,58 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
               </ul>
             )}
           </Seccion>
+
+          {/* Va ARRIBA de los compromisos y debajo del correo: es lo único de esta
+              pantalla que se resuelve adentro del core, a un clic de acá, y por eso
+              no puede quedar al final donde nadie baja. Si el modelo no destacó
+              ninguno, la sección no se dibuja: una sección vacía todos los días
+              enseña a saltearla. */}
+          {r.pendientesCore.length > 0 && (
+            <Seccion titulo="Lo tuyo en el core" cuenta={r.pendientesCore.length}>
+              <ul className="flex flex-col gap-2">
+                {r.pendientesCore.map((p, i) => {
+                  // Sin enlace = el modelo dio un índice que no existe. Se muestra
+                  // igual, pero no clickeable: mandar a alguien a la rendición
+                  // equivocada es peor que no mandarlo a ninguna parte.
+                  const contenido = (
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <span className="max-w-[60ch]">
+                        <span className="text-sm text-pretty text-tinta">{p.titulo ?? p.porQue}</span>
+                        {p.titulo && (
+                          <span className="block text-xs text-pretty text-tinta/55">{p.porQue}</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs text-tinta/45">
+                        {p.modulo}
+                        {p.antiguedadDias !== null && (
+                          <span className={p.urgencia === "alta" ? "text-naranjo" : "text-tinta/30"}>
+                            {" "}
+                            · hace {p.antiguedadDias} d
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                  return (
+                    <Fila key={i}>
+                      {p.enlace ? (
+                        <Link href={p.enlace} className="block transition hover:opacity-70">
+                          {contenido}
+                        </Link>
+                      ) : (
+                        contenido
+                      )}
+                    </Fila>
+                  );
+                })}
+              </ul>
+              {r.pendientesCoreTotales > r.pendientesCore.length && (
+                <p className="mt-2 text-xs text-tinta/40">
+                  Y {r.pendientesCoreTotales - r.pendientesCore.length} más que no urgen hoy.
+                </p>
+              )}
+            </Seccion>
+          )}
 
           <Seccion titulo="Compromisos abiertos" cuenta={r.compromisos.length}>
             {r.compromisos.length === 0 ? (

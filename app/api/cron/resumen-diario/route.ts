@@ -194,7 +194,9 @@ export async function GET(request: NextRequest) {
       // El correo es solo un aviso con un botón al core; el resumen no viaja en él.
       // Se genera igual antes de mandarlo porque así, cuando la persona hace clic, la
       // página ya lo tiene en caché y abre al instante.
-      armarCorreoHtml(persona.nombre, fechaLegible(hoy.iso)),
+      // Solo el CONTEO de pendientes, que sale del resumen que se acaba de
+      // generar: el cuerpo del correo sigue sin llevar contenido.
+      armarCorreoHtml(persona.nombre, fechaLegible(hoy.iso), estado.datos.resumen.pendientesCoreTotales),
     );
 
     await marcarEnviado(persona.id, hoy.iso);
