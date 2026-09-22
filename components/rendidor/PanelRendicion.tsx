@@ -573,7 +573,9 @@ export default function PanelRendicion({
   const descargarExcel = async () => {
     setGenerandoExcel(true);
     try {
-      await persistirGastos();
+      // Ya cargada a Odoo los gastos están congelados (el PATCH responde 409) y
+      // la tabla no se puede editar: lo que está en la base es lo que vale.
+      if (!yaCargada) await persistirGastos();
       // Sin cuerpo: el servidor baja los respaldos del bucket por su cuenta.
       const resp = await fetch(`/api/rendidor/${rendicion.id}/excel`, {
         method: "POST",
