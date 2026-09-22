@@ -12,6 +12,12 @@ import { desgloseDeGasto } from "./iva";
 // Los montos van como FÓRMULAS, no como resultados calculados en JS: la planilla
 // tiene que recalcular sola cuando el contador corrige una celda. Es la misma
 // razón por la que la skill exige openpyxl con formulas.
+//
+// Pero cada fórmula lleva también su resultado ya calculado (`result`). El visor
+// del iPhone (y la vista previa de Mail, WhatsApp, Drive) no calcula fórmulas:
+// muestra el valor guardado en el archivo, y sin él los totales salían en blanco.
+// Excel igual recalcula al abrir (fullCalcOnLoad), así que el valor guardado solo
+// es lo que ve quien no tiene Excel.
 
 // Colores exactos de la skill — no variar.
 const AZUL_OSCURO = "FF1F3864";
@@ -151,6 +157,7 @@ export async function construirLibroRendicion(
   const libro = new ExcelJS.Workbook();
   libro.creator = "Core PERTEC — Rendir Gastos";
   libro.created = new Date();
+  libro.calcProperties.fullCalcOnLoad = true;
 
   const gastos = [...rendicion.gastos].sort((a, b) => a.orden - b.orden);
   const N = gastos.length;
@@ -194,11 +201,19 @@ export async function construirLibroRendicion(
   const PRIMERA = 12;
   const ULTIMA = PRIMERA + N - 1;
 
+  // Los mismos valores que escriben las fórmulas, para guardarlos como resultado.
+  const desgloses = gastos.map(netoEIva);
+  const sumaNeto = desgloses.reduce((s, d) => s + d.neto, 0);
+  const sumaIva = desgloses.reduce((s, d) => s + d.iva, 0);
+  const totalRendido = gastos.reduce((s, g) => s + g.total, 0);
+  const totalExento = gastos.reduce((s, g, i) => s + (desgloses[i].iva === 0 ? g.total : 0), 0);
+  const porcentaje = (monto: number) => (totalRendido === 0 ? 0 : monto / totalRendido);
+
   gastos.forEach((g, i) => {
     const f = PRIMERA + i;
     const alterna = i % 2 === 0 ? GRIS_ALTERNO : undefined;
     const etiquetaTipo = g.tipoDocumento ? TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta : "[ilegible]";
-    const { neto, iva } = netoEIva(g);
+    const { neto, iva } = desgloses[i];
 
     const columnas: [string, string | number, EstiloCelda][] = [
       ["A", g.orden, { bold: true, horizontal: "center" }],
@@ -235,9 +250,10 @@ export async function construirLibroRendicion(
   estilar(hoja.getCell(`A${FILA_TOTAL}`), {
     bold: true, color: BLANCO, fondo: AZUL_OSCURO, horizontal: "right",
   });
+  const sumasColumna = { I: sumaNeto, J: sumaIva, K: totalRendido };
   for (const col of ["I", "J", "K"] as const) {
     const celda = hoja.getCell(`${col}${FILA_TOTAL}`);
-    celda.value = { formula: `SUM(${col}${PRIMERA}:${col}${ULTIMA})` };
+    celda.value = { formula: `SUM(${col}${PRIMERA}:${col}${ULTIMA})`, result: sumasColumna[col] };
     estilar(celda, { bold: true, color: BLANCO, fondo: AZUL_OSCURO, horizontal: "right", numFmt: MONEDA });
   }
 
@@ -248,25 +264,24 @@ export async function construirLibroRendicion(
 
   // El signo lo decide el mismo cálculo que hace la planilla, para que la
   // etiqueta y la cifra nunca se contradigan.
-  const totalRendido = gastos.reduce((s, g) => s + g.total, 0);
   const saldo = totalRendido - rendicion.montoAsignado;
   const etiquetaSaldo =
     saldo >= 0
       ? `Saldo a favor de ${rendicion.nombreQuienRinde} (a reembolsar):`
       : "Saldo a reintegrar a la empresa:";
 
-  const filasFinancieras: [number, string, string, Relleno][] = [
-    [FIN1, "Fondo entregado:", "D8", AZUL_CLARO],
-    [FIN2, "Total gastos rendidos:", `K${FILA_TOTAL}`, AZUL_CLARO],
-    [FIN3, etiquetaSaldo, `K${FIN2}-K${FIN1}`, AMARILLO_SALDO],
+  const filasFinancieras: [number, string, string, number, Relleno][] = [
+    [FIN1, "Fondo entregado:", "D8", rendicion.montoAsignado, AZUL_CLARO],
+    [FIN2, "Total gastos rendidos:", `K${FILA_TOTAL}`, totalRendido, AZUL_CLARO],
+    [FIN3, etiquetaSaldo, `K${FIN2}-K${FIN1}`, saldo, AMARILLO_SALDO],
   ];
 
-  for (const [fila, etiqueta, formula, fondo] of filasFinancieras) {
+  for (const [fila, etiqueta, formula, result, fondo] of filasFinancieras) {
     hoja.mergeCells(`G${fila}:J${fila}`);
     hoja.getCell(`G${fila}`).value = etiqueta;
     estilar(hoja.getCell(`G${fila}`), { bold: true, fondo, horizontal: "right" });
     const celda = hoja.getCell(`K${fila}`);
-    celda.value = { formula };
+    celda.value = { formula, result };
     estilar(celda, {
       bold: true, fondo, horizontal: "right",
       numFmt: fila === FIN3 ? MONEDA_SIGNO : MONEDA,
@@ -290,6 +305,9 @@ export async function construirLibroRendicion(
   }
 
   const CAT_PRIMERA = CAT_CAB + 1;
+  const montosCategoria = CATEGORIAS_GASTO.map((categoria) =>
+    gastos.reduce((s, g) => s + (g.categoria === categoria ? g.total : 0), 0),
+  );
   CATEGORIAS_GASTO.forEach((categoria, i) => {
     const f = CAT_PRIMERA + i;
     const alterna = i % 2 === 0 ? GRIS_ALTERNO : undefined;
@@ -302,12 +320,13 @@ export async function construirLibroRendicion(
     // El rango de suma es SIEMPRE la columna K (el total impreso), nunca el neto.
     monto.value = {
       formula: `SUMIF($H$${PRIMERA}:$H$${ULTIMA},"${categoria}",$K$${PRIMERA}:$K$${ULTIMA})`,
+      result: montosCategoria[i],
     };
     estilar(monto, { horizontal: "right", numFmt: MONEDA, fondo: alterna });
 
     const pct = hoja.getCell(`E${f}`);
     // IFERROR porque una rendición con total 0 dividiría por cero.
-    pct.value = { formula: `IFERROR(D${f}/$K$${FILA_TOTAL},0)` };
+    pct.value = { formula: `IFERROR(D${f}/$K$${FILA_TOTAL},0)`, result: porcentaje(montosCategoria[i]) };
     estilar(pct, { horizontal: "right", numFmt: PORCENTAJE, fondo: alterna });
   });
 
@@ -319,10 +338,16 @@ export async function construirLibroRendicion(
     bold: true, color: BLANCO, fondo: AZUL_OSCURO, horizontal: "right",
   });
   const totalCat = hoja.getCell(`D${CAT_TOTAL}`);
-  totalCat.value = { formula: `SUM(D${CAT_PRIMERA}:D${CAT_ULTIMA})` };
+  totalCat.value = {
+    formula: `SUM(D${CAT_PRIMERA}:D${CAT_ULTIMA})`,
+    result: montosCategoria.reduce((s, m) => s + m, 0),
+  };
   estilar(totalCat, { bold: true, color: BLANCO, fondo: AZUL_OSCURO, horizontal: "right", numFmt: MONEDA });
   const totalPct = hoja.getCell(`E${CAT_TOTAL}`);
-  totalPct.value = { formula: `SUM(E${CAT_PRIMERA}:E${CAT_ULTIMA})` };
+  totalPct.value = {
+    formula: `SUM(E${CAT_PRIMERA}:E${CAT_ULTIMA})`,
+    result: montosCategoria.reduce((s, m) => s + porcentaje(m), 0),
+  };
   estilar(totalPct, { bold: true, color: BLANCO, fondo: AZUL_OSCURO, horizontal: "right", numFmt: PORCENTAJE });
 
   // --- Resumen tributario ---
@@ -336,16 +361,16 @@ export async function construirLibroRendicion(
   hoja.getCell(`D${TRIB_CAB}`).value = "Monto (CLP)";
   estilar(hoja.getCell(`D${TRIB_CAB}`), { bold: true, fondo: AZUL_CLARO, horizontal: "center" });
 
-  const filasTrib: [string, string][] = [
-    ["Total afecto a IVA (neto)", `SUM(I${PRIMERA}:I${ULTIMA})`],
-    ["IVA total", `SUM(J${PRIMERA}:J${ULTIMA})`],
-    ["Total exento", `SUMIF($J$${PRIMERA}:$J$${ULTIMA},0,$K$${PRIMERA}:$K$${ULTIMA})`],
+  const filasTrib: [string, string, number][] = [
+    ["Total afecto a IVA (neto)", `SUM(I${PRIMERA}:I${ULTIMA})`, sumaNeto],
+    ["IVA total", `SUM(J${PRIMERA}:J${ULTIMA})`, sumaIva],
+    ["Total exento", `SUMIF($J$${PRIMERA}:$J$${ULTIMA},0,$K$${PRIMERA}:$K$${ULTIMA})`, totalExento],
     // El IVA siempre viene dentro del total, así que neto + IVA = esta fila. Es
     // el chequeo del PASO 6 de la skill: SUM(I) + SUM(J) = SUM(K).
-    ["TOTAL RENDICIÓN", `K${FILA_TOTAL}`],
+    ["TOTAL RENDICIÓN", `K${FILA_TOTAL}`, totalRendido],
   ];
 
-  filasTrib.forEach(([concepto, formula], i) => {
+  filasTrib.forEach(([concepto, formula, result], i) => {
     const f = TRIB_CAB + 1 + i;
     const ultima = i === filasTrib.length - 1;
     const alterna = ultima ? undefined : i % 2 === 0 ? GRIS_ALTERNO : undefined;
@@ -358,7 +383,7 @@ export async function construirLibroRendicion(
     });
 
     const monto = hoja.getCell(`D${f}`);
-    monto.value = { formula };
+    monto.value = { formula, result };
     estilar(monto, {
       bold: ultima, horizontal: "right", numFmt: MONEDA,
       fondo: ultima ? AZUL_CLARO : alterna,
