@@ -1,7 +1,7 @@
 import "server-only";
 import path from "node:path";
 
-// Primera página de un PDF como PNG, para embeberla en la hoja Respaldos.
+// Las páginas de un PDF como PNG, para embeberlas en la hoja Respaldos.
 //
 // Excel no puede mostrar un PDF dentro de una celda, y la mitad de los respaldos
 // son PDF (boletas electrónicas, recibos de Uber): sin esto la planilla salía con
@@ -21,13 +21,20 @@ const LADO_MAXIMO = 1600;
 // que va una ruta de archivo (no una URL file://), con la barra final.
 const FUENTES_ESTANDAR = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts") + path.sep;
 
-export interface PaginaRenderizada {
-  png: Buffer;
+// Una boleta o un recibo de Uber tiene 1 o 2 páginas. El tope es para que un PDF
+// largo (un contrato adjunto por error) no infle la planilla ni el tiempo de la
+// función; cada página ocupa una fila de la ficha y la ficha tiene lugar para 5.
+export const MAX_PAGINAS_PDF = 5;
+
+export interface PdfRenderizado {
+  /** Una PNG por página, hasta MAX_PAGINAS_PDF. */
+  pngs: Buffer[];
+  /** Páginas del documento, aunque no se hayan dibujado todas. */
   paginas: number;
 }
 
 /** Devuelve null si el PDF no se puede leer, y quien llama pone el aviso. */
-export async function primeraPaginaComoImagen(pdf: Buffer): Promise<PaginaRenderizada | null> {
+export async function paginasComoImagen(pdf: Buffer): Promise<PdfRenderizado | null> {
   try {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const documento = await pdfjs.getDocument({
@@ -37,23 +44,29 @@ export async function primeraPaginaComoImagen(pdf: Buffer): Promise<PaginaRender
     }).promise;
 
     try {
-      const pagina = await documento.getPage(1);
-      const base = pagina.getViewport({ scale: 1 });
-      const escala = LADO_MAXIMO / Math.max(base.width, base.height);
-      const viewport = pagina.getViewport({ scale: escala });
-
       // La fábrica de canvas de pdf.js en Node es la de @napi-rs/canvas.
       const fabrica = documento.canvasFactory as {
         create(ancho: number, alto: number): { canvas: { toBuffer(tipo: "image/png"): Buffer }; context: unknown };
       };
-      const { canvas, context } = fabrica.create(Math.ceil(viewport.width), Math.ceil(viewport.height));
-      await pagina.render({
-        canvas: canvas as unknown as HTMLCanvasElement,
-        canvasContext: context as CanvasRenderingContext2D,
-        viewport,
-      }).promise;
 
-      return { png: canvas.toBuffer("image/png"), paginas: documento.numPages };
+      // Una página a la vez: cada canvas de 1600 px son ~8 MB y los PDFs de la
+      // rendición ya se procesan en paralelo entre sí.
+      const pngs: Buffer[] = [];
+      for (let n = 1; n <= Math.min(documento.numPages, MAX_PAGINAS_PDF); n++) {
+        const pagina = await documento.getPage(n);
+        const base = pagina.getViewport({ scale: 1 });
+        const viewport = pagina.getViewport({ scale: LADO_MAXIMO / Math.max(base.width, base.height) });
+        const { canvas, context } = fabrica.create(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        await pagina.render({
+          canvas: canvas as unknown as HTMLCanvasElement,
+          canvasContext: context as CanvasRenderingContext2D,
+          viewport,
+        }).promise;
+        pngs.push(canvas.toBuffer("image/png"));
+        pagina.cleanup();
+      }
+
+      return { pngs, paginas: documento.numPages };
     } finally {
       await documento.destroy();
     }

@@ -1,5 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { CATEGORIAS_GASTO, TRATAMIENTO_DOCUMENTO, type GastoRendicion, type Rendicion } from "./tipos";
 import { desgloseDeGasto } from "./iva";
 
@@ -138,6 +139,8 @@ export interface RespaldoParaExcel {
   nombre: string;
   mimeType: string;
   contenido: Buffer;
+  /** Si el respaldo era un PDF: las páginas 2 en adelante, ya como imagen. */
+  paginasAdicionales?: Buffer[];
   /** Si el respaldo era un PDF que se pasó a imagen: cuántas páginas tenía. */
   paginasPdf?: number;
 }
@@ -438,6 +441,7 @@ export async function construirLibroRendicion(
   estilar(respaldosHoja.getCell("A2"), { fondo: AZUL_CLARO, horizontal: "center" });
 
   const faltantes: string[] = [];
+  const imagenesRespaldo: ImagenUbicada[] = [];
 
   gastos.forEach((g, i) => {
     const base = 4 + i * FILAS_POR_RESPALDO;
@@ -492,48 +496,52 @@ export async function construirLibroRendicion(
       const celda = respaldosHoja.getCell(`A${filaImagen}`);
       respaldosHoja.mergeCells(`A${filaImagen}:F${filaImagen}`);
       // Solo llega acá un PDF que no se pudo pasar a imagen (dañado o protegido).
-      celda.value = `📄 El respaldo es un PDF ("${respaldo.nombre}") que no se pudo convertir en imagen. Está adjunto al gasto en Odoo.`;
+      celda.value = `📄 El respaldo es un PDF ("${respaldo.nombre}") que no se pudo convertir en imagen.`;
       estilar(celda, { horizontal: "left", fondo: AMARILLO_SALDO, wrap: true });
       return;
     }
 
-    // Un PDF de varias páginas muestra solo la primera. Se dice en una fila sobre
-    // la imagen, que baja una fila (la ficha tiene 36 y usa 14), para que nadie
-    // crea que el comprobante termina ahí.
+    // Una foto es una imagen; un PDF, una por página, una debajo de la otra.
+    const imagenes = [respaldo.contenido, ...(respaldo.paginasAdicionales ?? [])];
+
+    // Un PDF más largo que el tope muestra las primeras páginas. Se dice en una
+    // fila sobre las imágenes para que nadie crea que el comprobante termina ahí.
     let filaAncla = filaImagen;
-    if ((respaldo.paginasPdf ?? 0) > 1) {
+    if ((respaldo.paginasPdf ?? 0) > imagenes.length) {
       respaldosHoja.mergeCells(`A${filaImagen}:F${filaImagen}`);
       const nota = respaldosHoja.getCell(`A${filaImagen}`);
-      nota.value = `📄 PDF de ${respaldo.paginasPdf} páginas: se muestra la primera. El documento completo está en Odoo.`;
+      nota.value = `📄 PDF de ${respaldo.paginasPdf} páginas: se muestran las primeras ${imagenes.length}.`;
       estilar(nota, { horizontal: "left", fondo: AMARILLO_SALDO, wrap: true });
       filaAncla = filaImagen + 1;
     }
 
-    const dims = dimensionesImagen(respaldo.contenido);
-    const alto = dims
-      ? Math.min(ALTO_MAXIMO_IMAGEN, Math.round((ANCHO_IMAGEN * dims.alto) / dims.ancho))
-      : 360;
-    const ancho = dims && alto === ALTO_MAXIMO_IMAGEN
-      ? Math.round((ALTO_MAXIMO_IMAGEN * dims.ancho) / dims.alto)
-      : ANCHO_IMAGEN;
+    for (const imagen of imagenes) {
+      const dims = dimensionesImagen(imagen);
+      const alto = dims
+        ? Math.min(ALTO_MAXIMO_IMAGEN, Math.round((ANCHO_IMAGEN * dims.alto) / dims.ancho))
+        : 360;
+      const ancho = dims && alto === ALTO_MAXIMO_IMAGEN
+        ? Math.round((ALTO_MAXIMO_IMAGEN * dims.ancho) / dims.alto)
+        : ANCHO_IMAGEN;
 
-    const idImagen = libro.addImage({
-      buffer: respaldo.contenido as unknown as ExcelJS.Buffer,
-      extension: respaldo.mimeType === "image/png" ? "png" : "jpeg",
-    });
-    // Anclada por las dos esquinas (twoCellAnchor, lo que escribe Excel al insertar
-    // una imagen) y no por una esquina más el tamaño: el visor del iPhone y otras
-    // vistas previas no siempre dibujan una imagen anclada por una sola celda.
-    // La esquina de abajo cae al final de la fila del ancla, que se alarga a la
-    // medida de la imagen (px → pt) para no pisar la ficha del gasto siguiente.
-    // Los tipos de ExcelJS piden el Anchor completo, pero en runtime acepta
-    // {col, row} con fracción y calcula el resto.
-    respaldosHoja.addImage(idImagen, {
-      tl: { col: 0, row: filaAncla - 1 } as ExcelJS.Anchor,
-      br: { col: columnaEnPixel(anchosRespaldos, ancho), row: filaAncla } as ExcelJS.Anchor,
-      editAs: "oneCell",
-    });
-    respaldosHoja.getRow(filaAncla).height = Math.round(alto * 0.75);
+      const idImagen = libro.addImage({
+        buffer: imagen as unknown as ExcelJS.Buffer,
+        extension: respaldo.mimeType === "image/png" ? "png" : "jpeg",
+      });
+      // Anclada por las dos esquinas (twoCellAnchor, lo que escribe Excel al
+      // insertar una imagen). La esquina de abajo cae al final de la fila del
+      // ancla, que se alarga a la medida de la imagen (px → pt) para no pisar la
+      // siguiente. Los tipos de ExcelJS piden el Anchor completo, pero en runtime
+      // acepta {col, row} con fracción y calcula el resto.
+      respaldosHoja.addImage(idImagen, {
+        tl: { col: 0, row: filaAncla - 1 } as ExcelJS.Anchor,
+        br: { col: columnaEnPixel(anchosRespaldos, ancho), row: filaAncla } as ExcelJS.Anchor,
+        editAs: "oneCell",
+      });
+      respaldosHoja.getRow(filaAncla).height = Math.round(alto * 0.75);
+      imagenesRespaldo.push({ fila: filaAncla, ancho, alto });
+      filaAncla++;
+    }
   });
 
   if (faltantes.length > 0) {
@@ -541,7 +549,72 @@ export async function construirLibroRendicion(
   }
 
   const bytes = await libro.xlsx.writeBuffer();
-  return Buffer.from(bytes);
+  return corregirTamanoImagenes(Buffer.from(bytes), respaldosHoja, imagenesRespaldo);
+}
+
+interface ImagenUbicada {
+  /** Fila (base 1) donde está anclada la esquina de arriba. */
+  fila: number;
+  ancho: number;
+  alto: number;
+}
+
+const EMU_POR_PX = 9525;
+const EMU_POR_PT = 12700;
+// Alto por omisión de una fila en ExcelJS (y en Excel con Arial 11).
+const ALTO_FILA_PT = 15;
+
+/**
+ * Escribe el tamaño y la posición reales de cada imagen en el drawing.
+ *
+ * ExcelJS deja el `<a:xfrm>` de cada imagen en cero (`<a:off x="0" y="0"/>
+ * <a:ext cx="0" cy="0"/>`). Excel no lo mira —ubica la imagen por las celdas del
+ * ancla— pero el visor del iPhone, Numbers y la vista previa de Mail/WhatsApp
+ * sí, y dibujan cada imagen de 0×0: la hoja Respaldos salía con los huecos y sin
+ * ningún comprobante, fotos incluidas.
+ *
+ * Las imágenes están todas en la hoja Respaldos, que es la única con drawing, y
+ * ExcelJS las escribe en el mismo orden en que se agregaron.
+ */
+async function corregirTamanoImagenes(
+  xlsx: Buffer,
+  hoja: ExcelJS.Worksheet,
+  imagenes: ImagenUbicada[],
+): Promise<Buffer> {
+  if (imagenes.length === 0) return xlsx;
+
+  const zip = await JSZip.loadAsync(xlsx);
+  const rutas = Object.keys(zip.files).filter((r) => /^xl\/drawings\/drawing\d+\.xml$/.test(r));
+  if (rutas.length !== 1) {
+    // No debería pasar; si pasa, se entrega la planilla como la dejó ExcelJS
+    // (Excel la muestra bien) en vez de tocar el drawing equivocado.
+    console.warn(`[rendidor] Se esperaba 1 drawing en el Excel y hay ${rutas.length}: tamaños sin corregir.`);
+    return xlsx;
+  }
+
+  // Borde de arriba de cada fila en pt: la suma de las filas anteriores.
+  const altoFila = (n: number) => hoja.getRow(n).height ?? ALTO_FILA_PT;
+  const arribaDeFila = (fila: number) => {
+    let pt = 0;
+    for (let n = 1; n < fila; n++) pt += altoFila(n);
+    return pt;
+  };
+
+  const xml = await zip.file(rutas[0])!.async("string");
+  let i = 0;
+  const corregido = xml.replace(/<a:off x="0" y="0"\/><a:ext cx="0" cy="0"\/>/g, (original) => {
+    const img = imagenes[i++];
+    if (!img) return original;
+    const y = Math.round(arribaDeFila(img.fila) * EMU_POR_PT);
+    return `<a:off x="0" y="${y}"/><a:ext cx="${img.ancho * EMU_POR_PX}" cy="${img.alto * EMU_POR_PX}"/>`;
+  });
+  if (i !== imagenes.length) {
+    console.warn(`[rendidor] El drawing tiene ${i} imágenes y se agregaron ${imagenes.length}: tamaños sin corregir.`);
+    return xlsx;
+  }
+
+  zip.file(rutas[0], corregido);
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
 /** rendicion_operacion-antucoya_2026-08-05.xlsx */
