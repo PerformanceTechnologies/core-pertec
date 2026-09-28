@@ -27,6 +27,28 @@ import { MESES_QUE_SE_RELEEN, ultimosPeriodos } from "@/lib/finanzas-periodos";
  */
 export const maxDuration = 300;
 
+// ── Por que CUATRO corridas al dia y no siete (28-09-2026) ──────────────────
+//
+// El horario vive en vercel.json, que no admite comentarios ni propiedades
+// extra (un "_nota" de nivel superior hace fallar la validacion del schema y
+// tumba el deploy), asi que el porque queda aca.
+//
+// Eran siete y gastaban el triple de CPU de Vercel sin traer mas datos: el SII
+// actualiza durante la jornada y de noche no cambia nada, o sea que la mitad de
+// las pasadas releia lo mismo.
+//
+// La primera en salir fue la de las 19:00 UTC. En los 30 dias previos concentro
+// 3 de las 4 fallas del mes —26 corridas, 3 fallas— mientras los otros seis
+// slots iban en cero o en una. No era la menos util, era la mas fragil.
+//
+// Quedan 11, 14, 17 y 21 UTC: 08:00 a 18:00 en Chile en verano, 07:00 a 17:00 en
+// invierno. El hueco largo es de noche, a proposito.
+//
+// NO bajar de cuatro sin volver a mirar la ventana de relectura: con menos
+// pasadas, los 15 dias de VENTANA empiezan a quedar cortos para un documento que
+// cambia de estado justo entre dos corridas. scripts/probar-facturas-sii.mts lo
+// fija como minimo.
+
 // Protegido por CRON_SECRET: Vercel Cron envia automaticamente
 // "Authorization: Bearer <CRON_SECRET>" cuando esa variable de entorno
 // existe. Tambien se puede invocar a mano (ej. para la carga inicial) con

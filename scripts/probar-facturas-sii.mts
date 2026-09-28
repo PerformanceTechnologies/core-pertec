@@ -320,6 +320,21 @@ assert.ok(
 const vercelJson = JSON.parse(
   readFileSync(new URL("../vercel.json", import.meta.url), "utf8"),
 ) as { crons: { path: string; schedule: string }[] };
+
+// vercel.json NO admite propiedades de nivel superior fuera de su schema, y el
+// error no aparece al hacer build: aparece al desplegar, con el deploy ya
+// rechazado ("should NOT have additional property"). Pasó de verdad al intentar
+// documentar el horario de los cron con una clave "_nota_": JSON.parse la acepta
+// feliz y Vercel la rechaza. Las razones van en comentarios del código —ver
+// app/api/cron/finanzas-sii/route.ts—, nunca en este archivo.
+const CLAVES_VERCEL_PERMITIDAS = ["regions", "crons"];
+const clavesDeMas = Object.keys(vercelJson).filter((k) => !CLAVES_VERCEL_PERMITIDAS.includes(k));
+assert.deepEqual(
+  clavesDeMas,
+  [],
+  `vercel.json tiene propiedades que su schema rechaza y el deploy va a fallar: ${clavesDeMas.join(", ")}. ` +
+    "Si hay que agregar una opción real de Vercel, sumala a CLAVES_VERCEL_PERMITIDAS.",
+);
 const delSii = vercelJson.crons.filter((c) => c.path === "/api/cron/finanzas-sii");
 assert.ok(
   delSii.length >= 4,

@@ -2,7 +2,6 @@
   "regions": [
     "gru1"
   ],
-  "_nota_finanzas_sii": "Cuatro corridas y no siete (28-09-2026). Siete gastaban el triple de CPU de Vercel sin traer mas datos: el SII actualiza durante la jornada y nada cambia de noche. Se saco ademas el slot de las 19:00 UTC, que concentraba 3 de las 4 fallas del mes (26 corridas, 3 fallas) mientras los demas iban en cero. Las que quedan reparten 11/14/17/21 UTC = 8:00 a 18:00 en Chile en verano, 7:00 a 17:00 en invierno.",
   "crons": [
     {
       "path": "/api/cron/cotizador-parametros",
