@@ -10,7 +10,8 @@ import { MESES_QUE_SE_RELEEN, ultimosPeriodos } from "@/lib/finanzas-periodos";
  * Releer el SII sin pasar por el cron.
  *
  * Las corridas automáticas ya releen los últimos MESES_QUE_SE_RELEEN meses completos,
- * cada dos horas durante el día, así que estos botones no son la vía normal: son para
+ * cuatro veces durante la jornada (ver vercel.json), así que estos botones no son la vía
+ * normal: son para
  * pedirlo AHORA y ver el resultado sin esperar la próxima corrida. El del período suelto
  * sirve además para un mes que quedó fuera de esa ventana.
  *
@@ -177,7 +178,7 @@ export default function BotonSincronizarSii() {
           ? `Leyendo ${paso}… abre el navegador del SII y baja los CSV: un par de minutos por mes.`
           : mensaje
             ? mensaje.texto
-            : `El SII se relee solo cada dos horas, los últimos ${MESES_QUE_SE_RELEEN} meses completos. Estos botones son para pedirlo ahora.`}
+            : `El SII se relee solo cuatro veces al día, los últimos ${MESES_QUE_SE_RELEEN} meses completos. Estos botones son para pedirlo ahora.`}
       </span>
       {detalleTecnico && (
         <details className="basis-full text-xs text-tinta/60">

@@ -308,14 +308,21 @@ assert.ok(
   `el tope del cron es ${topeCron[1]} s y los cuatro meses tardan unos 80: con 60 se cortaba`,
 );
 
-// Varias veces al día, que es lo que se pidió. Los crons de Vercel van en UTC y Chile es
-// UTC-3, así que 11 a 23 UTC son 08:00 a 20:00 de acá.
+// Varias veces al día y dentro de la jornada, que es lo que se pidió. Los crons de Vercel
+// van en UTC y Chile es UTC-3, así que 11 a 23 UTC son 08:00 a 20:00 de acá.
+//
+// Eran siete y pasaron a cuatro (28-09-2026): siete gastaban el triple de CPU de Vercel
+// sin traer más datos —el SII actualiza durante la jornada y de noche no cambia nada— y el
+// slot de las 19:00 UTC concentraba 3 de las 4 fallas del mes mientras los demás iban en
+// cero. El mínimo de acá baja a 4 por eso, no porque el número dé lo mismo: con menos, la
+// ventana de relectura de 15 días empieza a quedar corta para un documento que cambia de
+// estado justo entre dos corridas.
 const vercelJson = JSON.parse(
   readFileSync(new URL("../vercel.json", import.meta.url), "utf8"),
 ) as { crons: { path: string; schedule: string }[] };
 const delSii = vercelJson.crons.filter((c) => c.path === "/api/cron/finanzas-sii");
 assert.ok(
-  delSii.length >= 5,
+  delSii.length >= 4,
   `el SII se relee ${delSii.length} vez/veces al día y se pidió que fuera durante el día`,
 );
 const horas = delSii.map((c) => Number(c.schedule.split(" ")[1])).sort((a, b) => a - b);
