@@ -1,0 +1,8 @@
+salida-*/
+salida-cpanel/
+salida-dns/
+antes/
+despues/
+*.json.err
+.env
+.env.*
