@@ -66,7 +66,12 @@ export interface DatosDeContratoNuevo {
  * externo. Las carpetas de SharePoint van aparte (prepararCarpetas): dependen de que quien lo crea
  * tenga SharePoint conectado, y un contrato sin carpetas todavía sirve para cargar personas.
  */
-export async function crearContrato(datos: DatosDeContratoNuevo, usuario: UsuarioConAcceso): Promise<Contrato> {
+export async function crearContrato(
+  datos: DatosDeContratoNuevo,
+  usuario: UsuarioConAcceso,
+  /** La carpeta ya creada en SharePoint (ver prepararCarpetasDeNombre). */
+  carpetaCreada?: { id: string; webUrl: string },
+): Promise<Contrato> {
   const nombre = datos.nombre.trim();
   if (!nombre) throw new Error("El contrato necesita un nombre.");
   // El nombre es también el de su carpeta: lo que SharePoint no acepta se rechaza acá, antes de
@@ -83,6 +88,8 @@ export async function crearContrato(datos: DatosDeContratoNuevo, usuario: Usuari
       fecha_inicio: datos.fechaInicio || null,
       administrador: datos.administrador?.trim() || null,
       carpeta,
+      carpeta_item_id: carpetaCreada?.id ?? null,
+      carpeta_url: carpetaCreada?.webUrl ?? null,
       creado_por: usuario.id,
     })
     .select("*")
@@ -105,16 +112,18 @@ export async function crearContrato(datos: DatosDeContratoNuevo, usuario: Usuari
 }
 
 /**
- * Crea en SharePoint la carpeta del contrato y la estructura de la plantilla.
+ * Crea en SharePoint la carpeta de un contrato y la estructura de la plantilla, a partir de su
+ * nombre: CONTRATOS/<nombre>/…
  *
  * Idempotente: lo que ya existe se usa, lo que falta se crea. Se puede volver a correr si la
- * primera vez faltó la conexión o se cortó a medias.
+ * primera vez se cortó a medias.
  */
-export async function prepararCarpetas(contrato: Contrato): Promise<{ id: string; webUrl: string }> {
+export async function prepararCarpetasDeNombre(nombre: string): Promise<{ id: string; webUrl: string }> {
+  const nombreDeCarpeta = validarNombre(nombre);
   const raiz: Seccion = { slug: "contratos", nombre: "Contratos", carpeta: carpetaRaizDeContratos() };
-  const carpeta = await asegurarCarpeta(raiz, "", contrato.carpeta);
+  const carpeta = await asegurarCarpeta(raiz, "", nombreDeCarpeta);
 
-  const seccion: Seccion = { slug: "arranque", nombre: contrato.nombre, carpeta: `${raiz.carpeta}/${contrato.carpeta}` };
+  const seccion: Seccion = { slug: "arranque", nombre: nombreDeCarpeta, carpeta: `${raiz.carpeta}/${nombreDeCarpeta}` };
   async function crear(nodos: CarpetaDePlantilla[], rutaPadre: string): Promise<void> {
     // De a una por nivel y en orden: en paralelo, Graph responde 429 con estructuras grandes.
     for (const nodo of nodos) {
@@ -123,11 +132,15 @@ export async function prepararCarpetas(contrato: Contrato): Promise<{ id: string
     }
   }
   await crear(PLANTILLA_DE_CONTRATO, "");
+  return carpeta;
+}
 
+/** Lo mismo para un contrato que ya existe (el botón de su portada), y lo anota en él. */
+export async function prepararCarpetas(contrato: Contrato): Promise<{ id: string; webUrl: string }> {
+  const carpeta = await prepararCarpetasDeNombre(contrato.carpeta);
   await supabaseAdmin
     .from(TABLA_CONTRATOS)
     .update({ carpeta_item_id: carpeta.id, carpeta_url: carpeta.webUrl, actualizado_en: new Date().toISOString() })
     .eq("id", contrato.id);
-
   return carpeta;
 }

@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { IconArrowLeft } from "@tabler/icons-react";
+import ConectarSharePoint from "@/components/contratos/ConectarSharePoint";
 import FormularioContratoNuevo from "@/components/contratos/FormularioContratoNuevo";
+import { tieneAccesoASharePoint } from "@/lib/contratos/graph-credenciales";
+import { conectarParaCrearAction } from "../acciones-contratos";
 import { exigirCapacidadFueraDeContrato } from "@/lib/contratos/autorizacion";
 import { TARJETA } from "@/lib/contratos/estilos";
 import { PLANTILLA_DE_CONTRATO } from "@/lib/contratos/plantilla";
 
 export default async function NuevoContratoPage() {
-  await exigirCapacidadFueraDeContrato("configurar", "/contratos");
+  const usuario = await exigirCapacidadFueraDeContrato("configurar", "/contratos");
+  // Crear un contrato es crear su carpeta en SharePoint: sin la conexión no se puede, así que se
+  // pide ANTES de mostrar el formulario y no se descubre al final.
+  const conectado = await tieneAccesoASharePoint(usuario.correo);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -34,9 +40,13 @@ export default async function NuevoContratoPage() {
         ))}
       </ul>
 
-      <div className={`${TARJETA} mt-6 p-5 sm:p-6`}>
-        <FormularioContratoNuevo />
-      </div>
+      {conectado ? (
+        <div className={`${TARJETA} mt-6 p-5 sm:p-6`}>
+          <FormularioContratoNuevo />
+        </div>
+      ) : (
+        <ConectarSharePoint accion={conectarParaCrearAction} />
+      )}
     </div>
   );
 }

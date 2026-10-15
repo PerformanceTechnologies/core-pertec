@@ -29,7 +29,7 @@ export default function ConectarSharePoint({
 
       <p className="mt-4 text-sm font-bold text-tinta">Falta conectar tu cuenta con SharePoint</p>
       <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-gris">
-        Los documentos viven en el sitio CONTRATOS y el core los abre en tu nombre, no en el suyo:
+        Los documentos viven en el sitio Core Pertec y el core los abre en tu nombre, no en el suyo:
         vas a ver exactamente lo que verías entrando a SharePoint con tu cuenta. Microsoft te va a
         pedir que lo autorices una vez.
       </p>
