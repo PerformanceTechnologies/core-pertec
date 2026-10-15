@@ -41,7 +41,7 @@ export async function SuperiorConDatos({
   gastos: Promesa<ResumenDeArranqueDelTablero>;
   plazos: Promise<PlazosDelTablero>;
   responsables: Promise<ResponsablesDelTablero>;
-  contrato: Promise<{ nombre: string; fechaInicio: string | null; administrador: string | null }>;
+  contrato: Promise<{ nombre: string; fechaInicio: string | null; administrador: string | null; logo?: string | null }>;
   hoy: string;
 }) {
   const [d, a, v, l, g, p, r, c] = await Promise.all([

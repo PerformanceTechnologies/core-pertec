@@ -13,6 +13,7 @@ import {
 } from "@/components/contratos/dashboard/ConDatos";
 import { aplicacionesVisibles, listarAplicaciones } from "@/lib/contratos/aplicaciones";
 import { exigirSesion } from "@/lib/contratos/autorizacion";
+import { contratoActual, urlDelLogo } from "@/lib/contratos/contrato-actual";
 import { hoyEnChile } from "@/lib/contratos/acreditacion-modelo";
 import { MODULOS } from "@/lib/contratos/arranque-modelo";
 import {
@@ -70,7 +71,10 @@ export default async function PanelPage() {
   const gastos = acceso.gastos ? segura(cargarArranque("gastos"), "gastos de arranque") : Promise.resolve(null);
   const plazos = cargarPlazos(hoy).catch(() => ({}));
   const responsables = cargarResponsables().catch(() => ({}));
-  const contrato = cargarContrato().catch(() => ({ nombre: "Contrato", fechaInicio: null, administrador: null }));
+  const contrato = Promise.all([
+    cargarContrato().catch(() => ({ nombre: "Contrato", fechaInicio: null, administrador: null })),
+    contratoActual(),
+  ]).then(([datos, c]) => ({ ...datos, logo: urlDelLogo(c) }));
 
   return (
     <div className="animar-entrada space-y-5">

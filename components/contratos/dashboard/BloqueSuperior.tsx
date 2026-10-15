@@ -34,7 +34,7 @@ export default function BloqueSuperior({
   datos: DatosDelTablero;
   plazos: PlazosDelTablero;
   responsables?: ResponsablesDelTablero;
-  contrato: { nombre: string; fechaInicio: string | null; administrador: string | null };
+  contrato: { nombre: string; fechaInicio: string | null; administrador: string | null; logo?: string | null };
   hoy: string;
 }) {
   const modulos = armarModulos(datos, plazos, responsables);
@@ -55,6 +55,7 @@ export default function BloqueSuperior({
     <div className="space-y-4">
       <HeroDelTablero
         contrato={contrato.nombre}
+        logo={contrato.logo ?? null}
         administrador={contrato.administrador}
         inicio={textoDeInicio(contrato.fechaInicio, hoy)}
         general={general}

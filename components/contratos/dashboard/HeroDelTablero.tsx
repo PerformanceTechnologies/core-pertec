@@ -44,6 +44,7 @@ function colorDePlazo(estado: string | undefined): string {
  */
 export default function HeroDelTablero({
   contrato,
+  logo,
   administrador,
   inicio,
   general,
@@ -52,6 +53,8 @@ export default function HeroDelTablero({
   modulos,
 }: {
   contrato: string;
+  /** La URL del logo de la empresa del contrato, si tiene. */
+  logo: string | null;
   administrador: string | null;
   /** «Inicia en 27 días» o «Día 12 del contrato»; null si no hay fecha de inicio. */
   inicio: string | null;
@@ -85,7 +88,17 @@ export default function HeroDelTablero({
 
         <div className="min-w-0 text-center lg:text-left">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-orange-200">Así vamos</p>
-          <h2 className="titular mt-1 text-2xl text-white sm:text-3xl">{contrato}</h2>
+          {/* El logo de la empresa junto al nombre, sobre una placa clara con un resplandor que lo
+              despega del fondo oscuro (como el de Codelco en core-ih). */}
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-2.5 lg:justify-start">
+            <h2 className="titular text-2xl text-white sm:text-3xl">{contrato}</h2>
+            {logo && (
+              <span className="logo-resplandor inline-flex h-11 shrink-0 items-center overflow-hidden rounded-lg bg-white px-2">
+                {/* eslint-disable-next-line @next/next/no-img-element -- imagen chica servida por el propio core */}
+                <img src={logo} alt="" className="h-9 w-auto max-w-[8rem] object-contain" />
+              </span>
+            )}
+          </div>
 
           <p className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-white/70 lg:justify-start">
             {inicio && (

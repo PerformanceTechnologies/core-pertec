@@ -5,6 +5,7 @@ import { listarAplicaciones } from "@/lib/aplicaciones";
 import BarraLateral from "@/components/BarraLateral";
 import { HUECO_DE_BARRA } from "@/lib/estilos";
 import BotonSubir from "@/components/BotonSubir";
+import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 
 // Sin caché: cada navegación vuelve a consultar Supabase, así que si el
 // admin borra o desactiva a alguien, esa persona queda fuera en la
@@ -29,9 +30,12 @@ export default async function LayoutProtegido({ children }: { children: React.Re
       ? todasLasApps
       : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id));
 
+  // Los contratos cuelgan de «Contratos» en el menú: se piden solo si la persona ve esa app.
+  const contratos = apps.some((app) => app.slug === "contratos") ? await listarContratosDelMenu() : [];
+
   return (
     <div className="min-h-screen">
-      <BarraLateral correo={usuario.correo} rol={usuario.rol} apps={apps} />
+      <BarraLateral correo={usuario.correo} rol={usuario.rol} apps={apps} contratos={contratos} />
       {/* La barra es FIJA (sale del flujo), así que el hueco se lo deja el
           contenido con un padding: ver BARRA_FIJA / HUECO_DE_BARRA en
           lib/estilos.ts, donde está el porqué. Antes eran dos ítems flex y la

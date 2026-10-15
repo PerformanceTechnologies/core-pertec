@@ -25,6 +25,7 @@ import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
 import { BARRA_FIJA } from "@/lib/estilos";
 import type { Aplicacion, Rol } from "@/lib/tipos";
+import type { ContratoDelMenu } from "@/lib/contratos/contratos";
 
 const CLAVE_COLAPSADA = "core-sidebar-colapsada";
 const EVENTO_COLAPSADA = "core-sidebar-colapsada-cambio";
@@ -139,10 +140,13 @@ export default function BarraLateral({
   correo,
   rol,
   apps,
+  contratos = [],
 }: {
   correo: string;
   rol: Rol;
   apps: Aplicacion[];
+  /** Los contratos, para el submenú de «Contratos». */
+  contratos?: ContratoDelMenu[];
 }) {
   // "Abierta desde" en vez de un booleano + efecto que lo resetea: al
   // guardar el pathname vigente cuando se abre, "abierta"/"buscadorAbierto"
@@ -323,6 +327,9 @@ export default function BarraLateral({
                       taparía el resto del menú. */}
                   {activa && !colapsado && secciones.length > 0 && (
                     <SeccionesDelModulo secciones={secciones} base={href} pathname={pathname} />
+                  )}
+                  {activa && !colapsado && href === "/contratos" && (
+                    <SubmenuDeContratos contratos={contratos} pathname={pathname} />
                   )}
                 </div>
               );
@@ -552,6 +559,97 @@ function SeccionesDelModulo({
           {seccion.nombre}
         </Link>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Los contratos, colgando de «Contratos»: cada uno con su logo, y el que está abierto desplegado
+ * con su Dashboard y su Carpeta de arranque, de la que cuelgan todos sus módulos.
+ *
+ * Es el mismo dibujo que las pantallas del Cotizador (una línea a la izquierda, texto chico), un
+ * nivel más hondo por cada nivel del contrato.
+ */
+function SubmenuDeContratos({ contratos, pathname }: { contratos: ContratoDelMenu[]; pathname: string }) {
+  const ruta = decodeURIComponent(pathname);
+  const [, , abierto] = ruta.split("/");
+
+  if (contratos.length === 0) {
+    return (
+      <div className="mb-1 ml-[18px] mt-0.5 border-l border-borde pl-2">
+        <Link href="/contratos" className="block truncate rounded-md px-2 py-1 text-[12px] text-tinta/45 hover:text-naranjo">
+          Sin contratos todavía
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-1 ml-[18px] mt-0.5 flex flex-col border-l border-borde pl-2">
+      {contratos.map((c) => {
+        const esAbierto = c.slug === abierto;
+        return (
+          <div key={c.slug}>
+            <Link
+              href={`/contratos/${c.slug}`}
+              className={`flex items-center gap-2 truncate rounded-md px-2 py-1 text-[12px] transition ${
+                esAbierto ? "font-semibold text-naranjo" : "text-tinta/60 hover:text-naranjo"
+              } ${c.activo ? "" : "opacity-60"}`}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[4px]">
+                {c.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- ícono de 16 px servido por el propio core
+                  <img src={c.logo} alt="" className="h-full w-full object-contain" />
+                ) : (
+                  <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+                )}
+              </span>
+              <span className="truncate">{c.nombre}</span>
+            </Link>
+            {esAbierto && <SeccionesDelContrato slug={c.slug} ruta={ruta} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Lo de adentro de un contrato: su Dashboard y su Carpeta de arranque, con los módulos colgando. */
+function SeccionesDelContrato({ slug, ruta }: { slug: string; ruta: string }) {
+  const base = `/contratos/${slug}`;
+  const modulos = [
+    { href: `${base}/DOCUMENTOS GENERALES`, enlace: `${base}/DOCUMENTOS%20GENERALES`, nombre: "Documentos generales" },
+    { href: `${base}/acreditacion`, enlace: `${base}/acreditacion`, nombre: "Acreditación Personas" },
+    { href: `${base}/acreditacion-vehiculos`, enlace: `${base}/acreditacion-vehiculos`, nombre: "Acreditación Vehículos" },
+    { href: `${base}/logistica`, enlace: `${base}/logistica`, nombre: "Logística" },
+    { href: `${base}/gastos-arranque`, enlace: `${base}/gastos-arranque`, nombre: "Gastos de arranque" },
+  ];
+  const enDashboard = esRutaActiva(`${base}/dashboard`, ruta);
+  const moduloActivo = modulos.find((m) => esRutaActiva(m.href, ruta));
+  // La carpeta de arranque es la portada del contrato y todo lo que no sea el Dashboard ni un módulo
+  // (las carpetas de SharePoint de primer nivel).
+  const enCarpeta = !enDashboard && !moduloActivo;
+
+  const clase = (activo: boolean) =>
+    `block truncate rounded-md px-2 py-1 text-[12px] transition ${
+      activo ? "font-medium text-naranjo" : "text-tinta/55 hover:text-naranjo"
+    }`;
+
+  return (
+    <div className="mb-1 ml-[9px] mt-0.5 flex flex-col border-l border-borde pl-2">
+      <Link href={`${base}/dashboard`} className={clase(enDashboard)}>
+        Dashboard
+      </Link>
+      <Link href={base} className={clase(enCarpeta)}>
+        Carpeta de arranque
+      </Link>
+      <div className="mb-1 ml-[9px] flex flex-col border-l border-borde pl-2">
+        {modulos.map((m) => (
+          <Link key={m.href} href={m.enlace} className={clase(m === moduloActivo)}>
+            {m.nombre}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

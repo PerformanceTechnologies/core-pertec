@@ -22,9 +22,41 @@ export interface Contrato {
   carpetaUrl: string | null;
   activo: boolean;
   creadoEn: string;
+  /** La versión del logo (cuándo se cambió), o null si no tiene. Va en la URL de la imagen. */
+  logoVersion: string | null;
 }
 
 export const TABLA_CONTRATOS = "ct_contratos";
+
+/**
+ * Todo menos la imagen del logo. El logo se sirve aparte (ver [contrato]/logo/route.ts): traerlo en
+ * cada consulta del contrato sumaría decenas de KB a cada página sin usarlos.
+ */
+export const COLUMNAS_SIN_LOGO =
+  "id, slug, nombre, cliente, numero, fecha_inicio, administrador, dotacion_requerida, carpeta, " +
+  "carpeta_item_id, carpeta_url, activo, creado_en, logo_actualizado";
+
+/**
+ * Las columnas para leer un contrato, según exista ya la del logo.
+ *
+ * El logo llegó con la migración 0002: si el código se despliega antes de correrla, pedir
+ * `logo_actualizado` haría fallar cada página de los contratos. Se prueba una vez por instancia y
+ * se recuerda solo el SÍ: mientras falte, se vuelve a preguntar, para que el logo aparezca apenas
+ * se corra la migración y no cuando se recicle la instancia.
+ */
+let columnaDeLogoExiste = false;
+export async function columnasDeContrato(): Promise<string> {
+  if (columnaDeLogoExiste) return COLUMNAS_SIN_LOGO;
+  const { error } = await supabaseAdmin.from(TABLA_CONTRATOS).select("logo_actualizado").limit(1);
+  if (error) return COLUMNAS_SIN_LOGO.replace(", logo_actualizado", "");
+  columnaDeLogoExiste = true;
+  return COLUMNAS_SIN_LOGO;
+}
+
+/** La dirección de la imagen del logo, con su versión para la caché. Null si no tiene. */
+export function urlDelLogo(contrato: Pick<Contrato, "slug" | "logoVersion">): string | null {
+  return contrato.logoVersion ? `/contratos/${contrato.slug}/logo?v=${contrato.logoVersion}` : null;
+}
 
 export function filaAContrato(f: Record<string, unknown>): Contrato {
   return {
@@ -41,14 +73,19 @@ export function filaAContrato(f: Record<string, unknown>): Contrato {
     carpetaUrl: (f.carpeta_url as string | null) ?? null,
     activo: Boolean(f.activo),
     creadoEn: f.creado_en as string,
+    logoVersion: f.logo_actualizado ? String(new Date(f.logo_actualizado as string).getTime()) : null,
   };
 }
 
 export const obtenerContratoPorSlug = cache(async function obtenerContratoPorSlug(
   slug: string,
 ): Promise<Contrato | null> {
-  const { data } = await supabaseAdmin.from(TABLA_CONTRATOS).select("*").eq("slug", slug).maybeSingle();
-  return data ? filaAContrato(data) : null;
+  const { data } = await supabaseAdmin
+    .from(TABLA_CONTRATOS)
+    .select(await columnasDeContrato())
+    .eq("slug", slug)
+    .maybeSingle();
+  return data ? filaAContrato(data as unknown as Record<string, unknown>) : null;
 });
 
 /**

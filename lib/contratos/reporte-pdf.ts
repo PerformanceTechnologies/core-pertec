@@ -1,5 +1,5 @@
 import "server-only";
-import { LineCapStyle, PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { LineCapStyle, PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { fechaCorta } from "./acreditacion-modelo";
 import { formatearPesos } from "./arranque-modelo";
 import {
@@ -76,6 +76,8 @@ function limpiar(texto: string): string {
 
 export interface DatosDelReporte {
   contrato: { nombre: string; fechaInicio: string | null; administrador: string | null; cliente?: string | null };
+  /** El logo de la empresa del contrato, si tiene. */
+  logo?: { tipo: string; bytes: Buffer } | null;
   hoy: string;
   generadoPor: string;
   inicio: string | null;
@@ -107,18 +109,28 @@ class Lienzo {
     readonly normal: PDFFont,
     readonly negrita: PDFFont,
     private readonly titulo: string,
-    /** El cliente del contrato, arriba a la derecha en cada página. En core-ih era el logo de Codelco. */
+    /** El cliente del contrato: va arriba a la derecha si no hay logo. */
     private readonly cliente: string | null,
+    /** El logo de la empresa, arriba a la derecha en cada página (en core-ih, el de Codelco). */
+    private readonly logo: PDFImage | null,
   ) {}
 
-  static async crear(titulo: string, cliente: string | null): Promise<Lienzo> {
+  static async crear(
+    titulo: string,
+    cliente: string | null,
+    logo: { tipo: string; bytes: Buffer } | null = null,
+  ): Promise<Lienzo> {
     const doc = await PDFDocument.create();
     doc.setTitle(limpiar(titulo));
     doc.setAuthor("Core Pertec");
     doc.setCreator("Core Pertec · Performance Technologies");
     const normal = await doc.embedFont(StandardFonts.Helvetica);
     const negrita = await doc.embedFont(StandardFonts.HelveticaBold);
-    const lienzo = new Lienzo(doc, normal, negrita, titulo, cliente);
+    // Un logo que no se puede incrustar no impide el reporte: se usa el nombre del cliente.
+    const imagen = logo
+      ? await (logo.tipo === "image/png" ? doc.embedPng(logo.bytes) : doc.embedJpg(logo.bytes)).catch(() => null)
+      : null;
+    const lienzo = new Lienzo(doc, normal, negrita, titulo, cliente, imagen);
     lienzo.nuevaPagina();
     return lienzo;
   }
@@ -129,9 +141,14 @@ class Lienzo {
     // La franja de marca de arriba, la misma en todas las páginas.
     this.pagina.drawRectangle({ x: 0, y: A4.alto - 14, width: A4.ancho, height: 14, color: COLOR.azul });
     this.pagina.drawRectangle({ x: 0, y: A4.alto - 17, width: A4.ancho * 0.22, height: 3, color: COLOR.cian });
-    // El cliente arriba a la derecha, en TODAS las páginas: es de quien es el contrato. Va como
-    // texto: un contrato de la plantilla no trae logo.
-    if (this.cliente) {
+    // El logo (o, sin logo, el cliente) arriba a la derecha, en TODAS las páginas: es de quien es
+    // el contrato.
+    if (this.logo) {
+      const alto = 30;
+      const ancho = Math.min((alto * this.logo.width) / this.logo.height, 120);
+      const altoFinal = (ancho * this.logo.height) / this.logo.width;
+      this.pagina.drawImage(this.logo, { x: A4.ancho - MARGEN - ancho, y: A4.alto - 22 - altoFinal, width: ancho, height: altoFinal });
+    } else if (this.cliente) {
       const texto = limpiar(this.cliente).toUpperCase();
       const tamano = 9;
       const ancho = this.negrita.widthOfTextAtSize(texto, tamano);
@@ -786,7 +803,7 @@ function gastos(l: Lienzo, r: ResumenDeArranqueDelTablero): void {
  * quien no tiene un módulo no lo ve en su reporte, igual que en el tablero.
  */
 export async function generarReportePdf(d: DatosDelReporte): Promise<Uint8Array> {
-  const l = await Lienzo.crear(`Reporte del contrato ${d.contrato.nombre}`, d.contrato.cliente ?? null);
+  const l = await Lienzo.crear(`Reporte del contrato ${d.contrato.nombre}`, d.contrato.cliente ?? null, d.logo ?? null);
 
   portada(l, d);
   atencion(l, d);

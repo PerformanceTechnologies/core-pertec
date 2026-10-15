@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { filaAContrato, TABLA_CONTRATOS, type Contrato } from "./contrato-actual";
+import { columnasDeContrato, filaAContrato, TABLA_CONTRATOS, urlDelLogo, type Contrato } from "./contrato-actual";
 import { asegurarCarpeta, carpetaRaizDeContratos, validarNombre, type Seccion } from "./sharepoint";
 import { PLANTILLA_DE_CONTRATO, type CarpetaDePlantilla } from "./plantilla";
 import type { UsuarioConAcceso } from "./tipos";
@@ -16,7 +16,7 @@ const SLUGS_RESERVADOS = new Set(["nuevo", "nueva", "reporte", "estructura"]);
 export async function listarContratos(): Promise<Contrato[]> {
   const { data, error } = await supabaseAdmin
     .from(TABLA_CONTRATOS)
-    .select("*")
+    .select(await columnasDeContrato())
     .order("activo", { ascending: false })
     .order("creado_en", { ascending: false });
   if (error) {
@@ -25,7 +25,7 @@ export async function listarContratos(): Promise<Contrato[]> {
     console.error(`[contratos] No se pudo leer ${TABLA_CONTRATOS}. ¿Se corrió la migración? ${error.message}`);
     return [];
   }
-  return (data ?? []).map(filaAContrato);
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(filaAContrato);
 }
 
 /** «Contrato Ventanas 2027» → «contrato-ventanas-2027». */
@@ -92,10 +92,10 @@ export async function crearContrato(
       carpeta_url: carpetaCreada?.webUrl ?? null,
       creado_por: usuario.id,
     })
-    .select("*")
+    .select(await columnasDeContrato())
     .single();
   if (error) throw new Error(error.message);
-  const contrato = filaAContrato(data);
+  const contrato = filaAContrato(data as unknown as Record<string, unknown>);
 
   const { error: errorCatalogos } = await supabaseAdmin.rpc("ct_preparar_contrato", { p_contrato: contrato.id });
   if (errorCatalogos) throw new Error(`El contrato se creó, pero no sus catálogos: ${errorCatalogos.message}`);
@@ -143,4 +143,63 @@ export async function prepararCarpetas(contrato: Contrato): Promise<{ id: string
     .update({ carpeta_item_id: carpeta.id, carpeta_url: carpeta.webUrl, actualizado_en: new Date().toISOString() })
     .eq("id", contrato.id);
   return carpeta;
+}
+
+/** Lo que el menú necesita de cada contrato: poco, porque se pide en cada página. */
+export interface ContratoDelMenu {
+  slug: string;
+  nombre: string;
+  activo: boolean;
+  logo: string | null;
+}
+
+/**
+ * Los contratos para la barra lateral. Nunca lanza: el menú está en todas las páginas de
+ * core-pertec, y un problema acá no puede tumbarlas.
+ */
+export async function listarContratosDelMenu(): Promise<ContratoDelMenu[]> {
+  const { data, error } = await supabaseAdmin
+    .from(TABLA_CONTRATOS)
+    .select((await columnasDeContrato()).includes("logo_actualizado") ? "slug, nombre, activo, logo_actualizado" : "slug, nombre, activo")
+    .order("activo", { ascending: false })
+    .order("nombre", { ascending: true });
+  if (error) {
+    console.error(`[contratos] No se pudo leer la lista para el menú: ${error.message}`);
+    return [];
+  }
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((f) => {
+    const version = f.logo_actualizado ? String(new Date(f.logo_actualizado as string).getTime()) : null;
+    return {
+      slug: f.slug as string,
+      nombre: f.nombre as string,
+      activo: Boolean(f.activo),
+      logo: urlDelLogo({ slug: f.slug as string, logoVersion: version }),
+    };
+  });
+}
+
+/** Los formatos que se aceptan: los que el navegador produce al reducir la imagen, y que el PDF sabe incrustar. */
+const LOGO_VALIDO = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
+/** ~300 KB de imagen: la del navegador sale de unos 200 px y pesa mucho menos. */
+const LOGO_MAXIMO = 400_000;
+
+/** Guarda (o quita, con null) el logo de un contrato. */
+export async function guardarLogo(contratoId: string, logo: string | null): Promise<void> {
+  if (logo !== null) {
+    if (!LOGO_VALIDO.test(logo)) throw new Error("El logo tiene que ser una imagen PNG o JPG.");
+    if (logo.length > LOGO_MAXIMO) throw new Error("La imagen es demasiado grande. Prueba con una más chica.");
+  }
+  const { error } = await supabaseAdmin
+    .from(TABLA_CONTRATOS)
+    .update({ logo, logo_actualizado: logo ? new Date().toISOString() : null, actualizado_en: new Date().toISOString() })
+    .eq("id", contratoId);
+  if (error) throw new Error(error.message);
+}
+
+/** La imagen del logo, para servirla. */
+export async function leerLogo(slug: string): Promise<{ tipo: string; bytes: Buffer } | null> {
+  const { data } = await supabaseAdmin.from(TABLA_CONTRATOS).select("logo").eq("slug", slug).maybeSingle();
+  const logo = (data?.logo as string | null) ?? null;
+  const partes = logo ? /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(logo) : null;
+  return partes ? { tipo: partes[1], bytes: Buffer.from(partes[2], "base64") } : null;
 }

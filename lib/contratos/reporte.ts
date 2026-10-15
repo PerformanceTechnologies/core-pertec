@@ -1,6 +1,7 @@
 import "server-only";
 import { aplicacionesVisibles, listarAplicaciones } from "./aplicaciones";
 import { contratoActual } from "./contrato-actual";
+import { leerLogo } from "./contratos";
 import { hoyEnChile } from "./acreditacion-modelo";
 import { MODULOS } from "./arranque-modelo";
 import {
@@ -71,6 +72,7 @@ export async function armarReporte(usuario: UsuarioConAcceso): Promise<DatosDelR
   return {
     // El cliente va en el encabezado de cada página del PDF (en core-ih era el logo de Codelco).
     contrato: { ...contrato, cliente: (await contratoActual()).cliente },
+    logo: await leerLogo((await contratoActual()).slug).catch(() => null),
     hoy,
     generadoPor: usuario.nombre || usuario.correo,
     inicio: textoDeInicio(contrato.fechaInicio, hoy),

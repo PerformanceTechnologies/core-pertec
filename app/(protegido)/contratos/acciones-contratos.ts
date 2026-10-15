@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { signIn } from "@/auth";
 import { exigirCapacidad } from "@/lib/contratos/autorizacion";
-import { crearContrato, prepararCarpetas, prepararCarpetasDeNombre } from "@/lib/contratos/contratos";
+import { crearContrato, guardarLogo, prepararCarpetas, prepararCarpetasDeNombre } from "@/lib/contratos/contratos";
 import { SCOPES_SHAREPOINT } from "@/lib/contratos/graph-token";
 import { olvidarTokenDe } from "@/lib/contratos/graph-credenciales";
 import { obtenerContratoPorSlug } from "@/lib/contratos/contrato-actual";
@@ -45,6 +45,14 @@ export async function crearContratoAction(_previo: EstadoForm, form: FormData): 
       carpeta,
     );
     slug = contrato.slug;
+
+    // El logo es opcional y no puede impedir el alta: si no se guarda, se agrega después.
+    const logo = texto(form, "logo");
+    if (logo) {
+      await guardarLogo(contrato.id, logo).catch((e) =>
+        console.error(`[contratos] El contrato ${contrato.slug} se creó sin logo:`, e),
+      );
+    }
   } catch (e) {
     return {
       error: `No se pudo crear el contrato: ${e instanceof Error ? e.message : "error desconocido"}`,
@@ -74,5 +82,22 @@ export async function prepararCarpetasAction(slug: string): Promise<{ error?: st
     return { error: e instanceof Error ? e.message : "No se pudieron crear las carpetas." };
   }
   revalidatePath("/contratos/[contrato]", "layout");
+  return {};
+}
+
+/** Cambia (o quita, con null) el logo de la empresa de un contrato. */
+export async function guardarLogoAction(slug: string, logo: string | null): Promise<{ error?: string }> {
+  await exigirCapacidad("contratos", "configurar");
+  const contrato = await obtenerContratoPorSlug(slug);
+  if (!contrato) return { error: "El contrato ya no existe." };
+
+  try {
+    await guardarLogo(contrato.id, logo);
+  } catch (e) {
+    const motivo = e instanceof Error ? e.message : "No se pudo guardar el logo.";
+    // Sin la migración 0002 la columna no existe: se dice qué falta en vez del error de Postgres.
+    return { error: /logo/.test(motivo) && /column|columna/i.test(motivo) ? "Falta correr supabase/contratos/0002_logo_del_contrato.sql." : motivo };
+  }
+  revalidatePath("/contratos", "layout");
   return {};
 }

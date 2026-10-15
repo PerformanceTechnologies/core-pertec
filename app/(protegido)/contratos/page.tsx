@@ -2,6 +2,7 @@ import Link from "next/link";
 import { IconArrowRight, IconBuildingFactory2, IconCalendarEvent, IconFolder, IconPlus } from "@tabler/icons-react";
 import { exigirAccesoApp } from "@/lib/contratos/autorizacion";
 import { listarContratos } from "@/lib/contratos/contratos";
+import { urlDelLogo } from "@/lib/contratos/contrato-actual";
 import { puede } from "@/lib/contratos/permisos";
 import { BOTON_PRIMARIO } from "@/lib/estilos";
 import { TARJETA } from "@/lib/contratos/estilos";
@@ -66,8 +67,13 @@ export default async function ContratosPage() {
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-naranjo/10 text-naranjo">
-                    <IconBuildingFactory2 size={20} />
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-borde bg-superficie text-naranjo">
+                    {urlDelLogo(c) ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- imagen chica servida por el propio core
+                      <img src={urlDelLogo(c) as string} alt="" className="h-full w-full object-contain p-1" />
+                    ) : (
+                      <IconBuildingFactory2 size={22} />
+                    )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-condensed text-lg font-bold leading-tight text-tinta [overflow-wrap:anywhere]">

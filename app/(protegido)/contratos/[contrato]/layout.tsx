@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
 import { exigirAccesoApp } from "@/lib/contratos/autorizacion";
-import { contratoActual } from "@/lib/contratos/contrato-actual";
-import { alertasPendientes } from "@/lib/contratos/acreditacion-alertas";
-import { alertasDeVehiculosPendientes } from "@/lib/contratos/vehiculos-alertas";
+import { contratoActual, urlDelLogo } from "@/lib/contratos/contrato-actual";
 import { tieneAccesoASharePoint } from "@/lib/contratos/graph-credenciales";
+import { puede } from "@/lib/contratos/permisos";
 import { ContratoProvider } from "@/components/contratos/ContratoProvider";
 import { PermisosDelUsuario } from "@/components/contratos/PermisosDelUsuario";
-import PestanasDelContrato from "@/components/contratos/PestanasDelContrato";
+import LogoDelContrato from "@/components/contratos/LogoDelContrato";
 import BotonPrepararCarpetas from "@/components/contratos/BotonPrepararCarpetas";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Un contrato: su nombre arriba, sus módulos en pestañas, y todo lo de core-ih adentro.
+ * Un contrato: su logo y su nombre arriba, y todo lo de core-ih adentro. Sus módulos se recorren
+ * desde la barra lateral: Contratos › <contrato> › Carpeta de arranque › …
  *
  * Pone dos cosas que los componentes traídos de core-ih necesitan: el contrato (para que sus
  * enlaces lleven a este contrato y no a otro) y el rol de quien mira (para esconder lo que no
@@ -21,21 +21,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function LayoutDelContrato({ children }: { children: React.ReactNode }) {
   const [usuario, contrato] = await Promise.all([exigirAccesoApp("contratos"), contratoActual()]);
-  const [alertasPersonas, alertasVehiculos, conectado] = await Promise.all([
-    alertasPendientes(),
-    alertasDeVehiculosPendientes(),
-    contrato.carpetaItemId ? Promise.resolve(true) : tieneAccesoASharePoint(usuario.correo),
-  ]);
-
-  const pestanas = [
-    { etiqueta: "Resumen", ruta: "" },
-    { etiqueta: "Dashboard", ruta: "/dashboard" },
-    { etiqueta: "Documentos generales", ruta: "/DOCUMENTOS%20GENERALES" },
-    { etiqueta: "Acreditación Personas", ruta: "/acreditacion", insignia: alertasPersonas },
-    { etiqueta: "Acreditación Vehículos", ruta: "/acreditacion-vehiculos", insignia: alertasVehiculos },
-    { etiqueta: "Logística", ruta: "/logistica" },
-    { etiqueta: "Gastos de arranque", ruta: "/gastos-arranque" },
-  ];
+  const conectado = contrato.carpetaItemId ? true : await tieneAccesoASharePoint(usuario.correo);
 
   return (
     <ContratoProvider slug={contrato.slug}>
@@ -49,8 +35,15 @@ export default async function LayoutDelContrato({ children }: { children: React.
             Contratos
           </Link>
 
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-            <div className="min-w-0">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="flex min-w-0 items-center gap-4">
+              <LogoDelContrato
+                slug={contrato.slug}
+                url={urlDelLogo(contrato)}
+                nombre={contrato.nombre}
+                editable={puede(usuario.rol, "configurar")}
+              />
+              <div className="min-w-0">
               <h1 className="font-condensed text-2xl font-bold uppercase leading-[0.95] tracking-tight text-tinta [overflow-wrap:anywhere] sm:text-3xl">
                 {contrato.nombre}
               </h1>
@@ -59,6 +52,7 @@ export default async function LayoutDelContrato({ children }: { children: React.
                   {[contrato.cliente, contrato.numero && `N.º ${contrato.numero}`].filter(Boolean).join(" · ")}
                 </p>
               )}
+              </div>
             </div>
             {contrato.carpetaUrl && (
               <a
@@ -72,8 +66,6 @@ export default async function LayoutDelContrato({ children }: { children: React.
               </a>
             )}
           </div>
-
-          <PestanasDelContrato slug={contrato.slug} pestanas={pestanas} />
 
           {!contrato.carpetaItemId && (
             <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
