@@ -122,6 +122,18 @@ export default function FormularioUsuario({
                   <option value="admin">Proyectos: Admin</option>
                 </select>
               )}
+              {app.slug === "contratos" && (
+                <select
+                  name={`rol_extra_${app.id}`}
+                  defaultValue={rolesExtra[app.id] ?? "usuario"}
+                  className="ml-6 rounded-md border border-borde bg-white px-2 py-1 text-xs outline-none focus:border-naranjo/50"
+                  title="Rol dentro de Contratos (solo aplica si la app está asignada arriba). Normal: agrega datos y sube archivos. Especial: además edita y configura. Admin: todo."
+                >
+                  <option value="usuario">Contratos: Usuario Normal</option>
+                  <option value="especial">Contratos: Usuario Especial</option>
+                  <option value="admin">Contratos: Administrador</option>
+                </select>
+              )}
               {app.slug === "cotizador" && (
                 <select
                   name={`rol_extra_${app.id}`}

@@ -12,6 +12,18 @@
   --color-gris-suave: #b8b2a4;
   --color-borde: #e7e1d8;
   --color-superficie: #ffffff;
+
+  /* Los nombres de color con que viene escrito Contratos (traído de core-ih), apuntados a la
+     paleta de Pertec: «azul» era el color de acción de IH y acá es el naranjo; «cian» era su
+     acento y acá es el teal. Así sus componentes quedan con la marca de Pertec sin reescribir
+     las clases de cada uno. Ningún otro módulo los usa. */
+  --color-azul: #c85217;
+  --color-azul-suave: #e07a3d;
+  --color-cian: #00a080;
+  --color-cian-suave: #35b89b;
+  --color-cian-lavado: #e8f6f1;
+  --color-cian-texto: #00785f;
+  --color-fondo: #faf8f5;
 }
 
 /* Oscuro derivado de la misma paleta (no negro puro): naranjo/teal se
@@ -27,6 +39,11 @@
   --color-gris-suave: #6b6459;
   --color-borde: #37322b;
   --color-superficie: #262320;
+  --color-azul: #e07a3d;
+  --color-azul-suave: #f0955f;
+  --color-cian-lavado: #1f2c28;
+  --color-cian-texto: #35b89b;
+  --color-fondo: #1c1a17;
 }
 
 @theme inline {
@@ -40,6 +57,13 @@
   --color-gris-suave: var(--color-gris-suave);
   --color-borde: var(--color-borde);
   --color-superficie: var(--color-superficie);
+  --color-azul: var(--color-azul);
+  --color-azul-suave: var(--color-azul-suave);
+  --color-cian: var(--color-cian);
+  --color-cian-suave: var(--color-cian-suave);
+  --color-cian-lavado: var(--color-cian-lavado);
+  --color-cian-texto: var(--color-cian-texto);
+  --color-fondo: var(--color-fondo);
   --font-sans: var(--font-barlow);
   --font-condensed: var(--font-barlow-condensed);
 }

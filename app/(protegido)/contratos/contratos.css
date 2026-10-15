@@ -1,0 +1,668 @@
+/* =============================================================================
+   Contratos: los estilos que trae el módulo desde core-ih
+
+   Solo lo que core-pertec no tiene (tarjetas de estado, anillos, barras de etapas,
+   gráficos del tablero, el contador animado). Los colores de core-ih —cian y azul—
+   están traducidos a los de Pertec —teal y naranjo— y el bloque azul del tablero a
+   la tinta cálida, con el patrón topográfico de Pertec en vez de la malla de IH.
+
+   Las clases que Pertec YA define (etiqueta-seccion, animar-entrada…) no se repiten:
+   esta hoja se carga al entrar a Contratos y queda puesta al volver a otros módulos,
+   así que redefinirlas cambiaría cómo se ve el resto del core.
+   ============================================================================= */
+
+:root {
+  --sombra-tarjeta: 0 1px 2px rgba(23, 20, 17, 0.05), 0 10px 28px -14px rgba(23, 20, 17, 0.16);
+  --sombra-tarjeta-alta: 0 2px 4px rgba(23, 20, 17, 0.06), 0 22px 44px -18px rgba(23, 20, 17, 0.3);
+}
+:root[data-theme="dark"] {
+  --sombra-tarjeta: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.6);
+  --sombra-tarjeta-alta: 0 2px 4px rgba(0, 0, 0, 0.5), 0 24px 48px -18px rgba(224, 122, 61, 0.22);
+}
+
+/* Los titulares de Contratos con la tipografía condensada de Pertec. En core-ih eran Mulish 800. */
+.titular {
+  font-family: var(--font-condensed);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+
+/* Los títulos que en core-ih iban en el azul de marca, acá en tinta: así se escriben los
+   títulos en el resto de Pertec, y el naranjo queda para lo que se toca. */
+.titular.text-azul {
+  color: var(--color-tinta);
+}
+
+/* Ámbar y verde en tema oscuro, y con más contraste en claro (ver core-ih). */
+[data-theme="dark"] .bg-amber-50 {
+  background-color: color-mix(in srgb, var(--color-superficie) 86%, #d97706);
+}
+[data-theme="dark"] .border-amber-200 {
+  border-color: color-mix(in srgb, #fbbf24 38%, transparent);
+}
+[data-theme="dark"] .text-amber-600,
+[data-theme="dark"] .text-amber-700 {
+  color: #fbbf24;
+}
+[data-theme="dark"] .bg-emerald-50 {
+  background-color: color-mix(in srgb, var(--color-superficie) 86%, #059669);
+}
+[data-theme="dark"] .border-emerald-200 {
+  border-color: color-mix(in srgb, #34d399 38%, transparent);
+}
+[data-theme="dark"] .text-emerald-600,
+[data-theme="dark"] .text-emerald-700 {
+  color: #34d399;
+}
+.text-amber-600 {
+  color: #b45309;
+}
+.text-emerald-600 {
+  color: #047857;
+}
+
+/* -----------------------------------------------------------------------------
+   Tarjetas de estado
+
+   El estado de una carpeta o de un submódulo se lee por COLOR y por FORMA, no solo
+   por un número: franja superior, chip y anillo comparten el mismo par de colores
+   (--estado-1 → --estado-2), que cambia con data-estado. Gris = nadie ha subido
+   nada, cian = hay avance, ámbar = algo requiere atención, verde = completa.
+
+   La elevación al pasar el mouse es solo de SOMBRA, sin `transform`: un elemento
+   con transform se vuelve el bloque contenedor de sus descendientes
+   `position: fixed`, y las tarjetas llevan botones que abren cosas encima. (Mismo
+   aprendizaje que .animar-entrada, más arriba.)
+   ----------------------------------------------------------------------------- */
+.tarjeta-estado,
+.fila-estado {
+  --estado-1: var(--color-gris-suave);
+  --estado-2: var(--color-borde);
+}
+[data-estado="curso"] {
+  --estado-1: #00a080;
+  --estado-2: #35b89b;
+}
+[data-estado="alerta"] {
+  --estado-1: #f59e0b;
+  --estado-2: #ef4444;
+}
+[data-estado="completa"] {
+  --estado-1: #10b981;
+  --estado-2: #34d399;
+}
+
+.tarjeta-estado {
+  box-shadow: var(--sombra-tarjeta);
+  /* El fondo tenue: dos resplandores en los colores del logo —el cian del anillo,
+     arriba a la derecha, y el azul del texto, abajo a la izquierda— sobre la
+     superficie. Al 11% y 5% no compiten con las cifras, pero la tarjeta deja de ser
+     una caja blanca. Salen de los tokens y no de colores fijos, así que en el tema
+     oscuro se adaptan solos. Va acá y no como utilidad de Tailwind porque son dos
+     capas de gradiente más un color de base. */
+  background-color: var(--color-superficie);
+  background-image:
+    radial-gradient(120% 95% at 100% 0%, color-mix(in srgb, var(--color-cian) 11%, transparent), transparent 58%),
+    radial-gradient(95% 80% at 0% 100%, color-mix(in srgb, var(--color-azul) 5%, transparent), transparent 62%);
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.tarjeta-estado:hover,
+.tarjeta-estado:focus-within {
+  box-shadow: var(--sombra-tarjeta-alta);
+  border-color: var(--estado-1);
+}
+
+.tarjeta-franja {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--estado-1), var(--estado-2));
+}
+
+.tarjeta-icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  color: var(--color-azul);
+  background: linear-gradient(145deg, var(--color-cian-lavado), var(--color-superficie));
+  border: 1px solid var(--color-borde);
+}
+
+.tarjeta-chip {
+  flex: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--color-cian-lavado);
+  color: var(--color-azul);
+}
+[data-estado="sin"] .tarjeta-chip,
+[data-estado="vacia"] .tarjeta-chip {
+  background: var(--color-borde);
+  color: var(--color-gris);
+}
+[data-estado="alerta"] .tarjeta-chip {
+  background: #fef3c7;
+  color: #92400e;
+}
+[data-estado="completa"] .tarjeta-chip {
+  background: #d1fae5;
+  color: #065f46;
+}
+[data-theme="dark"] [data-estado="alerta"] .tarjeta-chip {
+  background: #3a2c0c;
+  color: #fbbf24;
+}
+[data-theme="dark"] [data-estado="completa"] .tarjeta-chip {
+  background: #0d3b2e;
+  color: #34d399;
+}
+
+/* -----------------------------------------------------------------------------
+   Las etapas de revisión de un documento: Borrador, En revisión, Validado
+
+   Una sola paleta para todo lo que las muestra —la franja y la etiqueta de la fila, la
+   barra segmentada del avance y la pastilla de cada archivo—, así que una etapa es del
+   mismo color en cualquier parte. Índigo para Borrador (algo entregado pero sin revisar:
+   distinto del gris de «Pendiente», que es nada entregado), ámbar para En revisión y
+   verde para Validado. Se usan por `data-estado` (filas) y `data-etapa` (barra).
+   ----------------------------------------------------------------------------- */
+:root {
+  --etapa-borrador: #6366f1;
+  --etapa-borrador-claro: #a5b4fc;
+  --etapa-revision: #f59e0b;
+  --etapa-revision-claro: #fcd34d;
+  --etapa-validado: #10b981;
+  --etapa-validado-claro: #34d399;
+}
+
+[data-estado="borrador"] {
+  --estado-1: var(--etapa-borrador);
+  --estado-2: var(--etapa-borrador-claro);
+}
+[data-estado="revision"] {
+  --estado-1: var(--etapa-revision);
+  --estado-2: var(--etapa-revision-claro);
+}
+[data-estado="validado"] {
+  --estado-1: var(--etapa-validado);
+  --estado-2: var(--etapa-validado-claro);
+}
+[data-estado="borrador"] .tarjeta-chip {
+  background: #eef2ff;
+  color: #4338ca;
+}
+[data-estado="revision"] .tarjeta-chip {
+  background: #fef3c7;
+  color: #92400e;
+}
+[data-estado="validado"] .tarjeta-chip {
+  background: #d1fae5;
+  color: #065f46;
+}
+[data-theme="dark"] [data-estado="borrador"] .tarjeta-chip {
+  background: color-mix(in srgb, var(--color-superficie) 80%, #6366f1);
+  color: #a5b4fc;
+}
+[data-theme="dark"] [data-estado="revision"] .tarjeta-chip {
+  background: #3a2c0c;
+  color: #fbbf24;
+}
+[data-theme="dark"] [data-estado="validado"] .tarjeta-chip {
+  background: #0d3b2e;
+  color: #34d399;
+}
+
+/* La pastilla que además es un <select>: .tarjeta-chip fija su propio padding (fuera de
+   @layer, así que le gana a las utilidades de Tailwind) y no deja sitio a la flecha. */
+select.tarjeta-chip {
+  padding-right: 1.65rem;
+}
+
+/* La barra segmentada: un tramo por etapa, con una rendija entre tramos para que se lean
+   como piezas y no como un degradé. El ancho lo pone cada tramo con flex-basis. */
+.barra-etapas {
+  display: flex;
+  gap: 2px;
+  height: 0.625rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-borde);
+}
+.barra-etapas > i {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  transition: flex-basis 0.4s ease;
+}
+.barra-etapas > i[data-etapa="validado"] {
+  background: linear-gradient(90deg, var(--etapa-validado), var(--etapa-validado-claro));
+}
+.barra-etapas > i[data-etapa="en_revision"] {
+  background: linear-gradient(90deg, var(--etapa-revision), var(--etapa-revision-claro));
+}
+.barra-etapas > i[data-etapa="borrador"] {
+  background: linear-gradient(90deg, var(--etapa-borrador), var(--etapa-borrador-claro));
+}
+/* «Pendiente» no se pinta: es el fondo de la barra, lo que todavía falta. */
+.barra-etapas > i[data-etapa="pendiente"] {
+  background: transparent;
+}
+.barra-etapas--fina {
+  height: 0.375rem;
+}
+
+/* El punto de color de la leyenda. */
+.punto-etapa {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  flex: none;
+  background: var(--color-borde);
+}
+.punto-etapa[data-etapa="validado"] {
+  background: var(--etapa-validado);
+}
+.punto-etapa[data-etapa="en_revision"] {
+  background: var(--etapa-revision);
+}
+.punto-etapa[data-etapa="borrador"] {
+  background: var(--etapa-borrador);
+}
+.punto-etapa[data-etapa="pendiente"] {
+  background: var(--color-gris-suave);
+  opacity: 0.55;
+}
+
+/* El anillo de avance: un conic-gradient con --p de 0 a 100. El agujero es un
+   círculo de la superficie encima, no una máscara: funciona igual en claro y en
+   oscuro y no necesita SVG. */
+.anillo {
+  --p: 0;
+  --grosor: 6px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: conic-gradient(var(--estado-1) calc(var(--p) * 1%), var(--color-borde) 0);
+}
+.anillo::before {
+  content: "";
+  grid-area: 1 / 1;
+  width: calc(100% - var(--grosor) * 2);
+  height: calc(100% - var(--grosor) * 2);
+  border-radius: 50%;
+  background: var(--color-superficie);
+}
+.anillo > * {
+  grid-area: 1 / 1;
+  position: relative;
+}
+
+.barra-estado {
+  height: 0.375rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-borde);
+}
+.barra-estado > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  /* Con respaldo: la barra también se usa fuera de las tarjetas de estado (la lista de cargos),
+     donde nadie define --estado-1 y el degradé quedaría inválido, o sea invisible. */
+  background: linear-gradient(90deg, var(--estado-1, var(--color-cian)), var(--estado-2, var(--color-azul-suave)));
+  transition: width 0.4s ease;
+}
+
+/* El resumen superior: el bloque de marca de la portada. Degradado del azul de IH
+   con un resplandor cian en la esquina; el texto es siempre claro, así que no
+   cambia con el tema. */
+.hero-marca {
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  background: linear-gradient(135deg, #24201b 0%, #3a2a1f 55%, #35b89b 100%);
+  box-shadow: var(--sombra-tarjeta-alta);
+}
+.hero-marca::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  top: -70px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(224, 122, 61, 0.45), transparent 65%);
+  pointer-events: none;
+}
+[data-theme="dark"] .hero-marca {
+  background: linear-gradient(135deg, #24201b 0%, #33261c 60%, #3a2a1f 100%);
+}
+
+/* La fila de una lista de carpetas: el mismo lenguaje que la tarjeta (franja de color
+   a la izquierda, chip y barra con el par de colores del estado), en una línea. */
+.fila-estado {
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+.fila-estado::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--estado-1), var(--estado-2));
+}
+.fila-estado:hover,
+.fila-estado:focus-within {
+  background-color: color-mix(in srgb, var(--color-cian) 7%, var(--color-superficie));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-estado,
+  .fila-estado,
+  .barra-estado > i,
+  .barra-etapas > i {
+    transition: none;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   El dashboard
+
+   Los gráficos son SVG y HTML sin librería (components/dashboard/graficos.tsx) y
+   toman sus colores de acá: cada TONO define un par de colores (para degradados),
+   uno de texto y uno de fondo suave. Un solo lugar para la paleta, y el modo
+   oscuro la ajusta sin tocar un gráfico.
+
+   El tono nombra una situación, no un color: «ok» es completo, «curso» es que hay
+   avance, «aviso» es que algo está por pasar, «critico» es que ya pasó, «neutro»
+   es que no hay nada que medir. Es el mismo vocabulario de las tarjetas de estado.
+   ----------------------------------------------------------------------------- */
+[data-tono] {
+  --tono-1: #94a3b8;
+  --tono-2: #cbd5e1;
+  --tono-texto: var(--color-gris);
+  --tono-fondo: color-mix(in srgb, var(--color-gris-suave) 12%, var(--color-superficie));
+}
+[data-tono="ok"] {
+  --tono-1: #10b981;
+  --tono-2: #34d399;
+  --tono-texto: #047857;
+  --tono-fondo: #ecfdf5;
+}
+[data-tono="curso"] {
+  --tono-1: #00a080;
+  --tono-2: #35b89b;
+  --tono-texto: #00785f;
+  --tono-fondo: #e6f6f1;
+}
+[data-tono="aviso"] {
+  --tono-1: #f59e0b;
+  --tono-2: #fcd34d;
+  --tono-texto: #b45309;
+  --tono-fondo: #fffbeb;
+}
+[data-tono="critico"] {
+  --tono-1: #ef4444;
+  --tono-2: #fb7185;
+  --tono-texto: #b91c1c;
+  --tono-fondo: #fef2f2;
+}
+[data-theme="dark"] [data-tono="ok"] {
+  --tono-texto: #34d399;
+  --tono-fondo: color-mix(in srgb, #10b981 16%, var(--color-superficie));
+}
+[data-theme="dark"] [data-tono="curso"] {
+  --tono-texto: #5fd3b8;
+  --tono-fondo: color-mix(in srgb, #00a080 14%, var(--color-superficie));
+}
+[data-theme="dark"] [data-tono="aviso"] {
+  --tono-texto: #fbbf24;
+  --tono-fondo: color-mix(in srgb, #f59e0b 16%, var(--color-superficie));
+}
+[data-theme="dark"] [data-tono="critico"] {
+  --tono-texto: #f87171;
+  --tono-fondo: color-mix(in srgb, #ef4444 16%, var(--color-superficie));
+}
+
+.dash-pista {
+  stroke: var(--color-borde);
+}
+.dash-carril {
+  background: var(--color-borde);
+}
+.dash-relleno {
+  background: linear-gradient(90deg, var(--tono-1), var(--tono-2));
+  transform-origin: left center;
+  animation: dash-crecer 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.dash-relleno-tiempo {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-gris-suave) 0 5px,
+    color-mix(in srgb, var(--color-gris-suave) 55%, transparent) 5px 10px
+  );
+}
+.dash-pastilla {
+  background: var(--tono-fondo);
+  color: var(--tono-texto);
+}
+.dash-arco {
+  animation: dash-dibujar 1.1s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Al pasar el cursor por un tramo de la dona, los demás se apagan: se lee cuál es. */
+.dash-tramo {
+  transition: opacity 0.2s ease;
+  animation: dash-aparecer 0.9s ease both;
+}
+.dash-dona:has(.dash-tramo:hover) .dash-tramo:not(:hover) {
+  opacity: 0.28;
+}
+.dash-partida:has(.dash-partida-tramo:hover) .dash-partida-tramo:not(:hover) {
+  opacity: 0.45;
+}
+.dash-partida-tramo {
+  transition: opacity 0.2s ease;
+}
+
+.dash-embudo {
+  animation: dash-ensanchar 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.dash-guia {
+  stroke: var(--color-borde);
+  stroke-width: 1;
+}
+.dash-texto-eje {
+  fill: var(--color-gris-suave);
+  font-size: 10px;
+  font-weight: 600;
+}
+.dash-mes-fondo {
+  fill: transparent;
+  transition: fill 0.15s ease;
+}
+.dash-mes:hover .dash-mes-fondo {
+  fill: color-mix(in srgb, var(--color-cian) 9%, transparent);
+}
+.dash-columna-a {
+  fill: color-mix(in srgb, var(--color-cian) 60%, var(--color-superficie));
+}
+.dash-columna-b {
+  fill: var(--color-azul-suave);
+}
+.dash-columna-a,
+.dash-columna-b {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: dash-subir 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.dash-fila-enlace:hover,
+.dash-fila-enlace:focus-visible {
+  background: var(--color-cian-lavado);
+}
+
+/* La tarjeta de un indicador: se levanta un poco al pasar el cursor, como las del panel. */
+.dash-kpi {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.dash-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sombra-tarjeta-alta);
+  border-color: color-mix(in srgb, var(--color-cian) 55%, var(--color-borde));
+}
+
+/* El bloque de arriba: el azul de marca con la malla del logo y un resplandor cian. */
+.dash-hero {
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  background:
+    radial-gradient(720px 260px at 88% -30%, rgba(224, 122, 61, 0.42), transparent 62%),
+    radial-gradient(520px 260px at -5% 130%, rgba(0, 160, 128, 0.35), transparent 60%),
+    linear-gradient(135deg, #1a1612 0%, #24201b 48%, #3a2a1f 100%);
+  box-shadow: var(--sombra-tarjeta-alta);
+}
+.dash-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/patron-topografico-oscuro.svg");
+  opacity: 0.9;
+  pointer-events: none;
+}
+.dash-hero > * {
+  position: relative;
+}
+[data-theme="dark"] .dash-hero {
+  background:
+    radial-gradient(720px 260px at 88% -30%, rgba(224, 122, 61, 0.3), transparent 62%),
+    linear-gradient(135deg, #1c1a17 0%, #24201b 50%, #33261c 100%);
+  border: 1px solid var(--color-borde);
+}
+/* El logo del cliente en el bloque azul: un halo cálido que respira despacio. Es un adorno, no una
+   alerta: lento (3,6 s), suave, y quieto para quien pidió menos movimiento. */
+.logo-resplandor {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 0 14px 2px rgba(255, 214, 180, 0.55),
+    0 0 38px 6px rgba(233, 93, 44, 0.5);
+  animation: logo-respirar 3.6s ease-in-out infinite;
+}
+@keyframes logo-respirar {
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.55),
+      0 0 20px 4px rgba(255, 214, 180, 0.7),
+      0 0 54px 10px rgba(233, 93, 44, 0.62);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-resplandor {
+    animation: none;
+  }
+}
+
+.dash-hero .dash-pista {
+  stroke: rgba(255, 255, 255, 0.16);
+}
+
+@keyframes dash-dibujar {
+  from {
+    stroke-dasharray: 0 var(--circ);
+  }
+}
+@keyframes dash-aparecer {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dash-crecer {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes dash-ensanchar {
+  from {
+    transform: scaleX(0.15);
+    opacity: 0;
+  }
+}
+@keyframes dash-subir {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-arco,
+  .dash-tramo,
+  .dash-relleno,
+  .dash-embudo,
+  .dash-columna-a,
+  .dash-columna-b {
+    animation: none;
+  }
+  .dash-kpi {
+    transition: none;
+  }
+  .dash-kpi:hover {
+    transform: none;
+  }
+}
+
+/* «marca»: el par de colores de los gráficos que van SOBRE el bloque azul de arriba, donde
+   el azul oscuro del tono «curso» no se vería. */
+[data-tono="marca"] {
+  --tono-1: #00a080;
+  --tono-2: #b3eadc;
+  --tono-texto: #b3eadc;
+  --tono-fondo: rgba(255, 255, 255, 0.12);
+}
+
+/* Un número que cuenta desde cero (components/mi-dia/NumeroAnimado.tsx).
+   Registrada como entero para que el navegador pueda interpolarla; donde no se
+   soporta @property, el número aparece de una, sin la cuenta. */
+@property --n {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+.contar {
+  counter-reset: n var(--n);
+  animation: contar 1s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.contar::after {
+  content: counter(n);
+}
+@keyframes contar {
+  from {
+    --n: 0;
+  }
+}
+
+/* El avatar de un remitente: su tono mezclado con la superficie, que se aclara u
+   oscurece sola con el tema. */
+@media (prefers-reduced-motion: reduce) {
+  .contar {
+    animation: none;
+  }
+}
