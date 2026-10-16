@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { columnasDeContrato, filaAContrato, TABLA_CONTRATOS, urlDelLogo, type Contrato } from "./contrato-actual";
-import { asegurarCarpeta, carpetaRaizDeContratos, olvidarEstructura, renombrarElemento, validarNombre, type Seccion } from "./sharepoint";
+import { asegurarCarpeta, carpetaRaizDeContratos, obtenerElemento, olvidarEstructura, renombrarElemento, validarNombre, type Seccion } from "./sharepoint";
 import { PLANTILLA_DE_CONTRATO, type CarpetaDePlantilla } from "./plantilla";
 import type { UsuarioConAcceso } from "./tipos";
 
@@ -227,14 +227,58 @@ export async function editarContrato(
   };
 
   if (carpeta !== contrato.carpeta) {
-    if (contrato.carpetaItemId) {
-      const { webUrl } = await renombrarElemento(contrato.carpetaItemId, carpeta);
-      cambios.carpeta_url = webUrl;
-    }
+    if (contrato.carpetaItemId) await renombrarElemento(contrato.carpetaItemId, carpeta);
     cambios.carpeta = carpeta;
     olvidarEstructura();
   }
 
+  // El enlace se le pide a SharePoint después de renombrar, por el id: el que devuelve el
+  // renombrado puede venir todavía con la ruta vieja. Se hace siempre, así guardar sin cambios
+  // también repara un enlace que quedó viejo.
+  if (contrato.carpetaItemId) {
+    const actual = await obtenerElemento(contrato.carpetaItemId);
+    if (actual?.webUrl) {
+      cambios.carpeta_url = actual.webUrl;
+      if (contrato.carpetaUrl && contrato.carpetaUrl !== actual.webUrl) {
+        await corregirEnlaces(contrato.carpetaUrl, actual.webUrl);
+      }
+    }
+  }
+
   const { error } = await supabaseAdmin.from(TABLA_CONTRATOS).update(cambios).eq("id", contrato.id);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Lo que guarda enlaces a SharePoint DENTRO de la carpeta de un contrato: la carpeta de cada
+ * persona, vehículo, partida y cotización, y cada archivo. Todos empiezan con la ruta del contrato.
+ */
+const COLUMNAS_CON_ENLACE: [tabla: string, columna: string][] = [
+  ["ct_acreditacion_personas", "carpeta_url"],
+  ["ct_acreditacion_documentos", "archivo_url"],
+  ["ct_acreditacion_archivos", "url"],
+  ["ct_vehiculos", "carpeta_url"],
+  ["ct_vehiculos_documentos", "archivo_url"],
+  ["ct_vehiculos_archivos", "url"],
+  ["ct_arranque_partidas", "carpeta_url"],
+  ["ct_arranque_cotizaciones", "carpeta_url"],
+];
+
+/** Al renombrar la carpeta de un contrato, cambia la ruta vieja por la nueva en todos esos enlaces. */
+async function corregirEnlaces(rutaVieja: string, rutaNueva: string): Promise<void> {
+  const prefijo = rutaVieja.replace(/\/+$/, "") + "/";
+  const nuevo = rutaNueva.replace(/\/+$/, "") + "/";
+  for (const [tabla, columna] of COLUMNAS_CON_ENLACE) {
+    const { data, error } = await supabaseAdmin.from(tabla).select(`id, ${columna}`).like(columna, `${prefijo}%`);
+    if (error) {
+      console.error(`[contratos] No se pudieron leer los enlaces de ${tabla}: ${error.message}`);
+      continue;
+    }
+    for (const fila of (data ?? []) as unknown as Record<string, string>[]) {
+      await supabaseAdmin
+        .from(tabla)
+        .update({ [columna]: nuevo + fila[columna].slice(prefijo.length) })
+        .eq("id", fila.id);
+    }
+  }
 }
