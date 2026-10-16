@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { columnasDeContrato, filaAContrato, TABLA_CONTRATOS, urlDelLogo, type Contrato } from "./contrato-actual";
-import { asegurarCarpeta, carpetaRaizDeContratos, validarNombre, type Seccion } from "./sharepoint";
+import { asegurarCarpeta, carpetaRaizDeContratos, olvidarEstructura, renombrarElemento, validarNombre, type Seccion } from "./sharepoint";
 import { PLANTILLA_DE_CONTRATO, type CarpetaDePlantilla } from "./plantilla";
 import type { UsuarioConAcceso } from "./tipos";
 
@@ -202,4 +202,39 @@ export async function leerLogo(slug: string): Promise<{ tipo: string; bytes: Buf
   const logo = (data?.logo as string | null) ?? null;
   const partes = logo ? /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(logo) : null;
   return partes ? { tipo: partes[1], bytes: Buffer.from(partes[2], "base64") } : null;
+}
+
+/**
+ * Cambia los datos de un contrato y, si cambió, el nombre de su carpeta en SharePoint.
+ *
+ * La carpeta se renombra PRIMERO y por su id: si SharePoint lo rechaza (nombre repetido, sin
+ * permiso) no se cambia nada. Todo lo de adentro sigue igual: los módulos encuentran sus carpetas
+ * por la ruta del contrato, que se arma con el nombre nuevo.
+ */
+export async function editarContrato(
+  contrato: Contrato,
+  datos: { nombre: string; cliente: string | null; numero: string | null; carpeta: string },
+): Promise<void> {
+  const nombre = datos.nombre.trim();
+  if (!nombre) throw new Error("El contrato necesita un nombre.");
+  const carpeta = validarNombre(datos.carpeta);
+
+  const cambios: Record<string, unknown> = {
+    nombre,
+    cliente: datos.cliente?.trim() || null,
+    numero: datos.numero?.trim() || null,
+    actualizado_en: new Date().toISOString(),
+  };
+
+  if (carpeta !== contrato.carpeta) {
+    if (contrato.carpetaItemId) {
+      const { webUrl } = await renombrarElemento(contrato.carpetaItemId, carpeta);
+      cambios.carpeta_url = webUrl;
+    }
+    cambios.carpeta = carpeta;
+    olvidarEstructura();
+  }
+
+  const { error } = await supabaseAdmin.from(TABLA_CONTRATOS).update(cambios).eq("id", contrato.id);
+  if (error) throw new Error(error.message);
 }

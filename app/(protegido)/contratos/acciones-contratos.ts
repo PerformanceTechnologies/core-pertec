@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { signIn } from "@/auth";
 import { exigirCapacidad } from "@/lib/contratos/autorizacion";
-import { crearContrato, guardarLogo, prepararCarpetas, prepararCarpetasDeNombre } from "@/lib/contratos/contratos";
+import { crearContrato, editarContrato, guardarLogo, prepararCarpetas, prepararCarpetasDeNombre } from "@/lib/contratos/contratos";
 import { SCOPES_SHAREPOINT } from "@/lib/contratos/graph-token";
 import { olvidarTokenDe } from "@/lib/contratos/graph-credenciales";
 import { obtenerContratoPorSlug } from "@/lib/contratos/contrato-actual";
@@ -100,4 +100,23 @@ export async function guardarLogoAction(slug: string, logo: string | null): Prom
   }
   revalidatePath("/contratos", "layout");
   return {};
+}
+
+/** Editar el contrato: nombre, cliente, N.º y el nombre de su carpeta en SharePoint. */
+export async function editarContratoAction(slug: string, _previo: EstadoForm, form: FormData): Promise<EstadoForm> {
+  await exigirCapacidad("contratos", "configurar");
+  const contrato = await obtenerContratoPorSlug(slug);
+  if (!contrato) return { error: "El contrato ya no existe." };
+  try {
+    await editarContrato(contrato, {
+      nombre: String(form.get("nombre") ?? ""),
+      cliente: texto(form, "cliente"),
+      numero: texto(form, "numero"),
+      carpeta: String(form.get("carpeta") ?? ""),
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo guardar." };
+  }
+  revalidatePath("/contratos", "layout");
+  return { ok: true };
 }

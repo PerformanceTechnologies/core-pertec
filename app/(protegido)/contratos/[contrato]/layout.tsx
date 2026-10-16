@@ -7,6 +7,7 @@ import { puede } from "@/lib/contratos/permisos";
 import { ContratoProvider } from "@/components/contratos/ContratoProvider";
 import { PermisosDelUsuario } from "@/components/contratos/PermisosDelUsuario";
 import LogoDelContrato from "@/components/contratos/LogoDelContrato";
+import EditarContrato from "@/components/contratos/EditarContrato";
 import BotonPrepararCarpetas from "@/components/contratos/BotonPrepararCarpetas";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +55,13 @@ export default async function LayoutDelContrato({ children }: { children: React.
               )}
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {puede(usuario.rol, "configurar") && (
+              <EditarContrato
+                slug={contrato.slug}
+                valores={{ nombre: contrato.nombre, cliente: contrato.cliente, numero: contrato.numero, carpeta: contrato.carpeta }}
+              />
+            )}
             {contrato.carpetaUrl && (
               <a
                 href={contrato.carpetaUrl}
@@ -65,6 +73,7 @@ export default async function LayoutDelContrato({ children }: { children: React.
                 <IconExternalLink size={14} />
               </a>
             )}
+            </div>
           </div>
 
           {!contrato.carpetaItemId && (
