@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { signIn } from "@/auth";
-import { exigirCapacidad } from "@/lib/contratos/autorizacion";
+import { exigirAdminDeContratos } from "@/lib/contratos/autorizacion";
 import { crearContrato, editarContrato, guardarLogo, prepararCarpetas, prepararCarpetasDeNombre } from "@/lib/contratos/contratos";
 import { SCOPES_SHAREPOINT } from "@/lib/contratos/graph-token";
 import { olvidarTokenDe } from "@/lib/contratos/graph-credenciales";
@@ -27,7 +27,7 @@ function texto(form: FormData, campo: string): string | null {
  * queda y se reutiliza al reintentar: crearla es idempotente.
  */
 export async function crearContratoAction(_previo: EstadoForm, form: FormData): Promise<EstadoForm> {
-  const usuario = await exigirCapacidad("contratos", "configurar");
+  const usuario = await exigirAdminDeContratos();
   const nombre = String(form.get("nombre") ?? "").trim();
 
   let slug: string;
@@ -65,14 +65,14 @@ export async function crearContratoAction(_previo: EstadoForm, form: FormData): 
 
 /** Conectar SharePoint desde «Nuevo contrato»: vuelve ahí mismo, listo para crearlo. */
 export async function conectarParaCrearAction(): Promise<void> {
-  const usuario = await exigirCapacidad("contratos", "configurar");
+  const usuario = await exigirAdminDeContratos();
   olvidarTokenDe(usuario.correo);
   await signIn("microsoft-entra-id", { redirectTo: "/contratos/nuevo" }, { scope: SCOPES_SHAREPOINT });
 }
 
 /** Crea (o completa) las carpetas de SharePoint de un contrato que nació sin ellas. */
 export async function prepararCarpetasAction(slug: string): Promise<{ error?: string }> {
-  await exigirCapacidad("contratos", "crear");
+  await exigirAdminDeContratos();
   const contrato = await obtenerContratoPorSlug(slug);
   if (!contrato) return { error: "El contrato ya no existe." };
 
@@ -87,7 +87,7 @@ export async function prepararCarpetasAction(slug: string): Promise<{ error?: st
 
 /** Cambia (o quita, con null) el logo de la empresa de un contrato. */
 export async function guardarLogoAction(slug: string, logo: string | null): Promise<{ error?: string }> {
-  await exigirCapacidad("contratos", "configurar");
+  await exigirAdminDeContratos();
   const contrato = await obtenerContratoPorSlug(slug);
   if (!contrato) return { error: "El contrato ya no existe." };
 
@@ -104,7 +104,7 @@ export async function guardarLogoAction(slug: string, logo: string | null): Prom
 
 /** Editar el contrato: nombre, cliente, N.º y el nombre de su carpeta en SharePoint. */
 export async function editarContratoAction(slug: string, _previo: EstadoForm, form: FormData): Promise<EstadoForm> {
-  await exigirCapacidad("contratos", "configurar");
+  await exigirAdminDeContratos();
   const contrato = await obtenerContratoPorSlug(slug);
   if (!contrato) return { error: "El contrato ya no existe." };
   try {

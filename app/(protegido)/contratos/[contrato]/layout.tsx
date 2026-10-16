@@ -3,7 +3,6 @@ import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
 import { exigirAccesoApp } from "@/lib/contratos/autorizacion";
 import { contratoActual, urlDelLogo } from "@/lib/contratos/contrato-actual";
 import { tieneAccesoASharePoint } from "@/lib/contratos/graph-credenciales";
-import { puede } from "@/lib/contratos/permisos";
 import { ContratoProvider } from "@/components/contratos/ContratoProvider";
 import { PermisosDelUsuario } from "@/components/contratos/PermisosDelUsuario";
 import LogoDelContrato from "@/components/contratos/LogoDelContrato";
@@ -42,7 +41,7 @@ export default async function LayoutDelContrato({ children }: { children: React.
                 slug={contrato.slug}
                 url={urlDelLogo(contrato)}
                 nombre={contrato.nombre}
-                editable={puede(usuario.rol, "configurar")}
+                editable={usuario.rol === "admin"}
               />
               <div className="min-w-0">
               <h1 className="font-condensed text-2xl font-bold uppercase leading-[0.95] tracking-tight text-tinta [overflow-wrap:anywhere] sm:text-3xl">
@@ -56,7 +55,7 @@ export default async function LayoutDelContrato({ children }: { children: React.
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {puede(usuario.rol, "configurar") && (
+            {usuario.rol === "admin" && (
               <EditarContrato
                 slug={contrato.slug}
                 valores={{ nombre: contrato.nombre, cliente: contrato.cliente, numero: contrato.numero, carpeta: contrato.carpeta }}
@@ -83,7 +82,7 @@ export default async function LayoutDelContrato({ children }: { children: React.
                 Se crea en Core Pertec › CONTRATOS › {contrato.carpeta}, con la estructura de la plantilla.
                 {conectado ? "" : " Primero conecta tu cuenta a SharePoint (más abajo)."}
               </p>
-              {conectado && (
+              {conectado && usuario.rol === "admin" && (
                 <div className="mt-3">
                   <BotonPrepararCarpetas slug={contrato.slug} />
                 </div>

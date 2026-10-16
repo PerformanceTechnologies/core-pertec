@@ -68,3 +68,14 @@ export async function exigirCapacidadFueraDeContrato(capacidad: Capacidad, volve
   if (!puede(usuario.rol, capacidad)) redirect(volverA);
   return usuario;
 }
+
+/**
+ * Administrar los contratos mismos —crearlos, editarlos, su logo y sus carpetas— es solo para
+ * administradores: los del core y quienes tengan rol Administrador en Contratos. Lo de ADENTRO de
+ * cada contrato sigue los roles de siempre.
+ */
+export async function exigirAdminDeContratos(): Promise<UsuarioConAcceso> {
+  const usuario = await exigirAccesoApp("contratos");
+  if (usuario.rol !== "admin") throw new SinPermiso();
+  return usuario;
+}

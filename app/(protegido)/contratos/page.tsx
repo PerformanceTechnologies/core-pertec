@@ -3,7 +3,6 @@ import { IconArrowRight, IconBuildingFactory2, IconCalendarEvent, IconFolder, Ic
 import { exigirAccesoApp } from "@/lib/contratos/autorizacion";
 import { listarContratos } from "@/lib/contratos/contratos";
 import { urlDelLogo } from "@/lib/contratos/contrato-actual";
-import { puede } from "@/lib/contratos/permisos";
 import { BOTON_PRIMARIO } from "@/lib/estilos";
 import { TARJETA } from "@/lib/contratos/estilos";
 
@@ -23,7 +22,8 @@ function fecha(iso: string | null): string | null {
 export default async function ContratosPage() {
   const usuario = await exigirAccesoApp("contratos");
   const contratos = await listarContratos();
-  const puedeCrear = puede(usuario.rol, "configurar");
+  // Crear contratos es solo para administradores.
+  const puedeCrear = usuario.rol === "admin";
 
   return (
     <div className="mx-auto max-w-6xl">

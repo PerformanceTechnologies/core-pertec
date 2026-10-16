@@ -9,7 +9,7 @@ import { TARJETA } from "@/lib/contratos/estilos";
 import { PLANTILLA_DE_CONTRATO } from "@/lib/contratos/plantilla";
 
 export default async function NuevoContratoPage() {
-  const usuario = await exigirCapacidadFueraDeContrato("configurar", "/contratos");
+  const usuario = await exigirCapacidadFueraDeContrato("usuarios", "/contratos");
   // Crear un contrato es crear su carpeta en SharePoint: sin la conexión no se puede, así que se
   // pide ANTES de mostrar el formulario y no se descubre al final.
   const conectado = await tieneAccesoASharePoint(usuario.correo);
