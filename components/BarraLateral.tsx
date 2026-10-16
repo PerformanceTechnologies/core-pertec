@@ -614,7 +614,7 @@ function SubmenuDeContratos({ contratos, pathname }: { contratos: ContratoDelMen
   );
 }
 
-/** Lo de adentro de un contrato: su Dashboard y su Carpeta de arranque, con los módulos colgando. */
+/** Lo de adentro de un contrato: su Carpeta de arranque, con los módulos colgando. El Dashboard se abre desde «Status general». */
 function SeccionesDelContrato({ slug, ruta }: { slug: string; ruta: string }) {
   const base = `/contratos/${slug}`;
   const modulos = [
@@ -629,6 +629,7 @@ function SeccionesDelContrato({ slug, ruta }: { slug: string; ruta: string }) {
   // La carpeta de arranque es la portada del contrato y todo lo que no sea el Dashboard ni un módulo
   // (las carpetas de SharePoint de primer nivel).
   const enCarpeta = !enDashboard && !moduloActivo;
+  // En el Dashboard no se marca nada: no está en el menú.
 
   const clase = (activo: boolean) =>
     `block truncate rounded-md px-2 py-1 text-[12px] transition ${
@@ -637,9 +638,6 @@ function SeccionesDelContrato({ slug, ruta }: { slug: string; ruta: string }) {
 
   return (
     <div className="mb-1 ml-[9px] mt-0.5 flex flex-col border-l border-borde pl-2">
-      <Link href={`${base}/dashboard`} className={clase(enDashboard)}>
-        Dashboard
-      </Link>
       <Link href={base} className={clase(enCarpeta)}>
         Carpeta de arranque
       </Link>

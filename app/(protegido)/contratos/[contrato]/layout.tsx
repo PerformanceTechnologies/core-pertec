@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
+import { IconArrowLeft, IconChartBar, IconExternalLink } from "@tabler/icons-react";
 import { exigirAccesoApp } from "@/lib/contratos/autorizacion";
 import { contratoActual, urlDelLogo } from "@/lib/contratos/contrato-actual";
 import { tieneAccesoASharePoint } from "@/lib/contratos/graph-credenciales";
@@ -53,6 +53,14 @@ export default async function LayoutDelContrato({ children }: { children: React.
                 </p>
               )}
               </div>
+              {/* El estado del contrato en una mirada: el Dashboard, que ya no está en el menú. */}
+              <Link
+                href={`/contratos/${contrato.slug}/dashboard`}
+                className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg bg-naranjo px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-naranjo-suave"
+              >
+                <IconChartBar size={15} />
+                Status general
+              </Link>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {usuario.rol === "admin" && (
