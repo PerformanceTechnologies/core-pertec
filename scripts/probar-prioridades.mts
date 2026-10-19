@@ -1,5 +1,5 @@
 /**
- * Mi Día: tachar prioridades, y que nadie reciba alertas de módulos que no tiene.
+ * Mi Día: tachar prioridades para que no vuelvan a proponerse.
  *
  * Correr con:  npm run probar-prioridades
  *
@@ -10,8 +10,9 @@
  *    función no sirve. Si se vuelve demasiado laxa, tachar una cosa silencia otra
  *    distinta, que es peor: se pierde trabajo sin que nadie se entere.
  *
- *  - El filtro de permisos de los pendientes. Un módulo que se olvida de
- *    preguntar no falla: manda datos de ese módulo a alguien que no lo tiene.
+ *  - Que el guard del lado del servidor sea el que pone el usuario, y no el
+ *    cliente: si el id viajara como parámetro, cualquiera podría tachar
+ *    prioridades ajenas con un fetch a mano.
  */
 
 import assert from "node:assert/strict";
@@ -124,42 +125,6 @@ assert.ok(
 );
 assert.equal(bloqueDescartadas([]), "(ninguna)", "sin tachadas se dice explícitamente");
 
-// ── Permisos: cada fuente pregunta por SU módulo ────────────────────────────
-//
-// Esta es la parte que puede filtrar datos. Antes solo las facturas preguntaban,
-// y por eso alguien sin Panel Odoo igual recibía tareas de Odoo — que además se
-// cruzan por NOMBRE, así que ni siquiera eran datos suyos.
-
-const pendientes = leer("../lib/resumen-diario/pendientes-core.ts");
-for (const slug of ["rendir-gastos", "ofertas", "cotizador", "panel-odoo", "finanzas"]) {
-  assert.ok(
-    new RegExp(`puedeVerApp\\(\\s*\\w+,\\s*"${slug}"\\s*\\)`).test(pendientes),
-    `los pendientes tienen que preguntar por la app "${slug}" antes de nombrar nada suyo`,
-  );
-}
-assert.ok(
-  /usuarioPuedeVerSubpanelFinanzas\(usuarioId, "sii"\)/.test(pendientes),
-  "las facturas además exigen el subpanel del SII: la app de Finanzas sola no alcanza",
-);
-assert.ok(
-  /const conAcceso = await obtenerUsuarioActivo\(/.test(pendientes),
-  "los permisos se leen frescos acá y no se reciben del llamador: a quien le quitaron un " +
-    "módulo ayer, hoy ya no se le nombra",
-);
-
-// La regla de acceso vive en UN solo lugar.
-const autorizacion = leer("../lib/autorizacion.ts");
-assert.ok(
-  /export async function puedeVerApp\(/.test(autorizacion),
-  "puedeVerApp vive en lib/autorizacion.ts, junto a las otras dos formas de la misma regla",
-);
-const herramientas = leer("../lib/consulta-ia/herramientas.ts");
-assert.ok(
-  !/async function puedeVer\(usuario/.test(herramientas),
-  "las herramientas de consulta NO pueden tener su propia copia: una copia que se olvida de " +
-    "mirar el rol deja pasar datos y no falla ruidosamente",
-);
-
 // ── Que el guard esté del lado del servidor ─────────────────────────────────
 
 const accion = leer("../app/(protegido)/mi-dia/acciones.ts");
@@ -200,5 +165,5 @@ assert.ok(
 
 console.log(
   "Prioridades de Mi Día: la misma reconocida pese a la reescritura, dos distintas sin " +
-    "confundirse, el filtro, y que cada pendiente pregunte por su módulo. Todo verificado.",
+    "confundirse, el filtro, y el guard del lado del servidor. Todo verificado.",
 );

@@ -1,6 +1,5 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { bloquePendientes, type PendienteCore } from "./pendientes-core";
 import { bloqueDescartadas, type PrioridadDescartada } from "./prioridades";
 import type { CorreoResumen } from "@/lib/graph-correo";
 import type { ReunionCalendario } from "@/lib/graph-calendario";
@@ -106,19 +105,6 @@ const ESQUEMA = {
         additionalProperties: false,
       },
     },
-    pendientesCore: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          indice: { type: "integer" },
-          porQue: { type: "string" },
-          urgencia: { type: "string", enum: ["alta", "media", "baja"] },
-        },
-        required: ["indice", "porQue", "urgencia"],
-        additionalProperties: false,
-      },
-    },
     prioridades: { type: "array", items: { type: "string" } },
   },
   required: [
@@ -128,7 +114,6 @@ const ESQUEMA = {
     "enCopia",
     "temas",
     "compromisos",
-    "pendientesCore",
     "prioridades",
   ],
   additionalProperties: false,
@@ -166,17 +151,15 @@ REGLAS
 
 9. indice: el número entre corchetes con el que el elemento aparece en los datos que recibes. Va tanto en correosDestacados como en reuniones y tiene que ser EXACTO — el sistema lo usa para enlazar cada fila con el correo o la cita reales en Outlook. Un índice equivocado manda a la persona al mensaje equivocado. Si no puedes determinarlo con certeza, usa 0.
 
-10. pendientesCore: de la lista "PENDIENTES EN EL CORE" elige SOLO los que valga la pena mirar hoy, con su [indice] exacto. Criterio: lo que lleva tiempo parado, lo que tiene plata o un cliente del otro lado, y lo que bloquea a alguien más. "porQue" es una línea que dice por qué ESE y por qué HOY, sin repetir el título — la antigüedad y el módulo ya se muestran solos. Si nada urge de verdad, devuelve lista vacía: es preferible no decir nada a llenar la sección todos los días, porque un aviso que siempre está deja de leerse. Nunca inventes un pendiente que no esté en esa lista.
+10. Lo que esté bajo "YA LAS DIO POR HECHAS" son prioridades que esta persona tachó en los últimos días: las atendió por fuera o decidió no hacerlas. NO vuelvas a proponerlas, ni con otras palabras — lo que importa es la idea, no la frase. Si el trabajo de hoy se parece mucho a una de esas pero es algo genuinamente nuevo, dilo de forma que se note la diferencia.
 
-11. Lo que esté bajo "YA LAS DIO POR HECHAS" son prioridades que esta persona tachó en los últimos días: las atendió por fuera o decidió no hacerlas. NO vuelvas a proponerlas, ni con otras palabras — lo que importa es la idea, no la frase. Si el trabajo de hoy se parece mucho a una de esas pero es algo genuinamente nuevo, dilo de forma que se note la diferencia.
+11. prioridades: exactamente tres, ordenadas, cruzando todo lo anterior. En imperativo y concretas.
 
-12. prioridades: exactamente tres, ordenadas, cruzando todo lo anterior —correo, agenda Y pendientes del core—. En imperativo y concretas.
+12. panorama: tres o cuatro líneas. Cuántas reuniones hay y si el día está cargado, qué es lo que no puede quedar pendiente, y si hay algo fuera de lo normal (una reunión agregada a última hora, un plazo próximo, un correo de hace días sin responder).
 
-13. panorama: tres o cuatro líneas. Cuántas reuniones hay y si el día está cargado, qué es lo que no puede quedar pendiente, y si hay algo fuera de lo normal (una reunión agregada a última hora, un plazo próximo, un correo de hace días sin responder).
+13. No inventes ningún dato que no esté en lo que recibes. Si el correo no menciona el plazo, no lo pongas. Si algo es ambiguo, dilo en vez de completarlo. No cuentes correos: los conteos los calcula el sistema.
 
-14. No inventes ningún dato que no esté en lo que recibes. Si el correo no menciona el plazo, no lo pongas. Si algo es ambiguo, dilo en vez de completarlo. No cuentes correos: los conteos los calcula el sistema.
-
-13. No es un correo ni un mensaje: solo el objeto.`;
+14. No es un correo ni un mensaje: solo el objeto.`;
 
 const ETIQUETA_DIRIGIDO = {
   a_mi: "PARA MÍ",
@@ -233,7 +216,6 @@ export async function generarResumen(
   reuniones: ReunionCalendario[],
   hoyIso: string,
   horasDeCorreo: number,
-  pendientes: PendienteCore[],
   descartadas: PrioridadDescartada[],
 ): Promise<ResumenModelo> {
   // Mañana en fecha local, sin pasar por Date: sumar un día con new Date() sobre
@@ -276,12 +258,6 @@ export async function generarResumen(
               "",
               "=== CORREO DEL PERÍODO ===",
               bloqueCorreos(correos),
-              "",
-              // Van DESPUÉS del correo y con su propia numeración: son otra
-              // lista, y mezclar sus índices con los de los correos es la forma
-              // más fácil de que una fila termine enlazando a otra cosa.
-              "=== PENDIENTES EN EL CORE ===",
-              bloquePendientes(pendientes),
               "",
               "=== YA LAS DIO POR HECHAS, NO LAS VUELVAS A PROPONER ===",
               bloqueDescartadas(descartadas),

@@ -1,6 +1,5 @@
 /**
- * Las dos piezas de IA nuevas: pendientes del core en el resumen diario, y
- * consulta en lenguaje natural sobre los datos.
+ * La consulta en lenguaje natural sobre los datos del core (Ctrl+K).
  *
  * Correr con:  npm run probar-ia-core
  *
@@ -8,107 +7,17 @@
  * se mide acá es lo que se puede romper en silencio y ningún ojo detectaría
  * mirando la pantalla:
  *
- *  - que el servidor, y no el modelo, siga poniendo los enlaces y los conteos.
- *    Es LA regla de este resumen (ver el comentario de ResumenModelo) y la que
- *    se rompe sin querer al agregar una sección: basta con dejar que el modelo
- *    devuelva la URL "porque ya la tiene" para que un día mande a alguien a la
- *    rendición de otro;
- *  - que un índice inventado por el modelo termine en una fila sin enlace y no
- *    en el registro equivocado;
- *  - que TODAS las herramientas de consulta declaren su app y revaliden el
- *    permiso adentro, no solo al armar la lista;
+ *  - que TODAS las herramientas declaren su app y revaliden el permiso ADENTRO,
+ *    no solo al armar la lista que se le ofrece al modelo;
  *  - que ninguna herramienta reciba SQL del modelo;
- *  - que el correo diario siga sin llevar contenido del core, solo el conteo.
+ *  - que el bucle tenga tope y que cada consulta quede registrada.
  */
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { bloquePendientes, type PendienteCore } from "../lib/resumen-diario/pendientes-core";
 
 function leer(ruta: string): string {
   return readFileSync(new URL(ruta, import.meta.url), "utf8");
-}
-
-// ── El bloque que ve el modelo ───────────────────────────────────────────────
-
-const PENDIENTES: PendienteCore[] = [
-  {
-    modulo: "Rendir Gastos",
-    titulo: "Viaje a Calama",
-    detalle: "Fondo asignado de 400.000, sin cargar a Odoo",
-    antiguedadDias: 23,
-    enlace: "/rendir-gastos/abc-123",
-  },
-  {
-    modulo: "Ofertas Técnicas",
-    titulo: "Mantención correa CV-007",
-    detalle: "Para SALFA, sin emitir",
-    antiguedadDias: 1,
-    enlace: "/ofertas/def-456",
-  },
-];
-
-const bloque = bloquePendientes(PENDIENTES);
-
-assert.ok(bloque.includes("[1]") && bloque.includes("[2]"), "los pendientes van numerados desde 1");
-assert.ok(
-  !bloque.includes("/rendir-gastos/abc-123") && !bloque.includes("/ofertas/def-456"),
-  "el modelo NO ve los enlaces: si los viera, un día devolvería uno copiado a mano y mal. " +
-    "Los pega el servidor por índice (ver conDatosReales en lib/resumen-diario/datos.ts)",
-);
-assert.ok(bloque.includes("hace 23 días"), "la antigüedad va en el bloque: es el dato que ordena");
-assert.ok(bloque.includes("hace 1 día"), "y en singular cuando corresponde");
-assert.equal(
-  bloquePendientes([]),
-  "(sin pendientes en el core)",
-  "sin pendientes se dice explícitamente, para que el modelo no invente una sección",
-);
-
-// ── Que el servidor ponga los datos exactos ─────────────────────────────────
-
-const datos = leer("../lib/resumen-diario/datos.ts");
-assert.ok(
-  /pendientesCore: delModelo\.pendientesCore\.map\(\(\{ indice, \.\.\.resto \}\)/.test(datos),
-  "los pendientes se rehidratan por índice, igual que los correos y las reuniones",
-);
-assert.ok(
-  /const real = pendientes\[indice - 1\];/.test(datos),
-  "el índice del prompt empieza en 1, de ahí el -1",
-);
-assert.ok(
-  /enlace: real\?\.enlace \?\? null/.test(datos),
-  "un índice inventado o fuera de rango deja la fila SIN enlace — no clickeable — en vez de " +
-    "mandar a alguien al registro de otra persona",
-);
-assert.ok(
-  /pendientesCoreTotales: pendientes\.length/.test(datos),
-  "el total lo cuenta el servidor: pedirle a un modelo que cuente es donde inventa",
-);
-
-const tipos = leer("../lib/resumen-diario/tipos.ts");
-assert.ok(
-  /export const VERSION_RESUMEN = 6;/.test(tipos),
-  "subir la versión hace que los resúmenes de hoy con el formato viejo se regeneren en vez " +
-    "de pintar una sección vacía",
-);
-assert.ok(
-  !/enlace/.test(tipos.slice(tipos.indexOf("PendienteDestacadoModelo"), tipos.indexOf("PendienteDestacado extends"))),
-  "lo que devuelve el modelo NO incluye enlace",
-);
-
-// ── El correo sigue sin llevar contenido ────────────────────────────────────
-
-const correo = leer("../lib/resumen-diario/correo-html.ts");
-assert.ok(
-  /pendientes = 0/.test(correo),
-  "el correo recibe el conteo de pendientes",
-);
-for (const filtrado of ["titulo", "detalle", "modulo", "enlace"]) {
-  assert.ok(
-    !new RegExp(`\\$\\{[^}]*${filtrado}`).test(correo),
-    `el cuerpo del correo NO puede interpolar ${filtrado}: se sincroniza en teléfonos y ` +
-      "clientes de escritorio, y por eso deliberadamente no lleva contenido (solo el número)",
-  );
 }
 
 // ── Las herramientas de consulta ────────────────────────────────────────────
@@ -204,6 +113,6 @@ assert.ok(
 );
 
 console.log(
-  "IA del core: el bloque sin enlaces, la rehidratación por índice, el correo sin contenido, " +
-    "las rejas de permiso de cada herramienta y el bucle acotado, todo verificado.",
+  "Consulta IA del core: las rejas de permiso de cada herramienta, que ninguna reciba SQL, " +
+    "y el bucle acotado y registrado. Todo verificado.",
 );
