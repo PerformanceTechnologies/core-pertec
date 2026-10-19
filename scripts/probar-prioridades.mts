@@ -174,6 +174,30 @@ assert.ok(
 );
 assert.ok(/limpio\.length > 600/.test(accion), "hay tope de largo para lo que llega del cliente");
 
+// ── La tabla que falta se dice, no se disfraza de error pasajero ────────────
+//
+// La migración se corre a mano, así que su ausencia es un estado esperable. Sin
+// distinguirla, la pantalla decía "no se pudo guardar, probá de nuevo" — y
+// reintentar no iba a funcionar nunca. Pasó de verdad al estrenar la función.
+
+const prioridades = leer("../lib/resumen-diario/prioridades.ts");
+assert.ok(
+  /export class TablaSinCrear extends Error/.test(prioridades),
+  "la falta de la tabla tiene su propio tipo de error, no un string suelto",
+);
+assert.ok(
+  /error\.code === "42P01"/.test(prioridades),
+  "se reconoce por el código de Postgres (42P01 = la relación no existe) y no solo por el texto",
+);
+assert.ok(
+  /0001_prioridades_descartadas\.sql/.test(prioridades),
+  "el mensaje nombra el archivo que hay que correr: mandar a 'revisar la base' no ayuda a nadie",
+);
+assert.ok(
+  /error instanceof TablaSinCrear/.test(accion),
+  "la acción deja pasar ese mensaje tal cual en vez de taparlo con el genérico",
+);
+
 console.log(
   "Prioridades de Mi Día: la misma reconocida pese a la reescritura, dos distintas sin " +
     "confundirse, el filtro, y que cada pendiente pregunte por su módulo. Todo verificado.",

@@ -106,6 +106,31 @@ function sinPronombrePegado(palabra: string): string {
   return palabra;
 }
 
+/**
+ * La migración de esta tabla se corre a mano (ver supabase/resumen-diario/), así
+ * que su ausencia es un estado real y esperable, no un bug.
+ *
+ * Sin distinguirlo, el error que llega a la pantalla es un "no se pudo guardar,
+ * probá de nuevo" — y reintentar NO va a funcionar nunca. Un mensaje que manda a
+ * repetir algo que no puede salir es peor que no decir nada: hace perder tiempo
+ * buscando del lado equivocado.
+ */
+export class TablaSinCrear extends Error {
+  constructor() {
+    super(
+      "La tabla de prioridades tachadas todavía no existe. Hay que correr " +
+        "supabase/resumen-diario/0001_prioridades_descartadas.sql en el SQL Editor de Supabase.",
+    );
+    this.name = "TablaSinCrear";
+  }
+}
+
+/** Postgres contesta 42P01 cuando la relación no existe; PostgREST lo pasa tal cual. */
+function esTablaSinCrear(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "42P01" || /does not exist|no existe la relaci/i.test(error.message ?? "");
+}
+
 export interface PrioridadDescartada {
   clave: string;
   texto: string;
@@ -130,7 +155,13 @@ export async function prioridadesDescartadas(usuarioId: string): Promise<Priorid
   if (error) {
     // No se lanza: que esto falle no puede dejar a alguien sin su resumen. Lo
     // peor que pasa es que reaparezca algo que ya había tachado.
-    console.error("[resumen-diario] No se pudieron leer las prioridades descartadas:", error);
+    if (esTablaSinCrear(error)) {
+      // A propósito un warn y no un error: mientras la migración no se corra, el
+      // resumen funciona entero salvo el tachado. No es una falla del sistema.
+      console.warn("[resumen-diario] Falta correr supabase/resumen-diario/0001_prioridades_descartadas.sql");
+    } else {
+      console.error("[resumen-diario] No se pudieron leer las prioridades descartadas:", error);
+    }
     return [];
   }
   return (data ?? []) as PrioridadDescartada[];
@@ -145,6 +176,7 @@ export async function descartarPrioridad(usuarioId: string, texto: string): Prom
   const { error } = await supabaseAdmin
     .from("prioridades_descartadas")
     .upsert({ usuario_id: usuarioId, clave, texto }, { onConflict: "usuario_id,clave" });
+  if (esTablaSinCrear(error)) throw new TablaSinCrear();
   if (error) throw new Error(`No se pudo tachar la prioridad: ${error.message}`);
 }
 
@@ -156,6 +188,7 @@ export async function restaurarPrioridad(usuarioId: string, texto: string): Prom
     .delete()
     .eq("usuario_id", usuarioId)
     .eq("clave", clave);
+  if (esTablaSinCrear(error)) throw new TablaSinCrear();
   if (error) throw new Error(`No se pudo destachar la prioridad: ${error.message}`);
 }
 

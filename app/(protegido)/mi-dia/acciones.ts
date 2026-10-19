@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
-import { descartarPrioridad, restaurarPrioridad } from "@/lib/resumen-diario/prioridades";
+import { descartarPrioridad, restaurarPrioridad, TablaSinCrear } from "@/lib/resumen-diario/prioridades";
 
 const SLUG_APP = "mi-dia";
 
@@ -37,6 +37,10 @@ export async function alternarPrioridadAction(
     return { ok: true };
   } catch (error) {
     console.error("[mi-dia] No se pudo cambiar la prioridad:", error);
+    // La falta de la tabla se dice con todas las letras: es lo único que esta
+    // pantalla puede fallar sin que reintentar sirva de algo, y el mensaje tiene
+    // que mandar a la persona al lugar correcto.
+    if (error instanceof TablaSinCrear) return { ok: false, error: error.message };
     return { ok: false, error: "No se pudo guardar. Probá de nuevo." };
   }
 }
