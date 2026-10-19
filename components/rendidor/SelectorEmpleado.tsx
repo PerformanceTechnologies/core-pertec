@@ -28,7 +28,7 @@ export default function SelectorEmpleado({ inicial }: { inicial: EmpleadoOpcion 
   const buscar = async () => {
     const termino = busqueda.trim();
     if (termino.length < 2) {
-      setError("Escribí al menos 2 letras del nombre.");
+      setError("Escribe al menos 2 letras del nombre.");
       return;
     }
     setBuscando(true);

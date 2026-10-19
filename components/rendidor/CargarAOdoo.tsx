@@ -209,7 +209,7 @@ export default function CargarAOdoo({
       const adjuntos = await mapaConTope(json.creados, ADJUNTOS_EN_PARALELO, async (c) => {
         const gasto = gastoDe(c.gastoId);
         if (!gasto?.archivoPath) {
-          return [`El gasto ${c.expenseId} no tiene comprobante guardado. Subilo a mano en Odoo.`];
+          return [`El gasto ${c.expenseId} no tiene comprobante guardado. Súbelo a mano en Odoo.`];
         }
         const r = await fetch("/api/rendidor/adjuntar", {
           method: "POST",
@@ -293,8 +293,8 @@ export default function CargarAOdoo({
             {/* Se dice POR QUÉ hay que elegir: sin esto, la pregunta se lee como un trámite
                 y quien la responde no sabe qué está decidiendo. */}
             {porDecidir.length === 1
-              ? "Este gasto tiene más de un proveedor parecido en Odoo. Elegí cuál es: el gasto queda colgado de ese proveedor."
-              : `Estos ${porDecidir.length} gastos tienen más de un proveedor parecido en Odoo. Elegí cuál es en cada uno: el gasto queda colgado de ese proveedor.`}
+              ? "Este gasto tiene más de un proveedor parecido en Odoo. Elige cuál es: el gasto queda colgado de ese proveedor."
+              : `Estos ${porDecidir.length} gastos tienen más de un proveedor parecido en Odoo. Elige cuál es en cada uno: el gasto queda colgado de ese proveedor.`}
           </p>
         )}
 
@@ -378,7 +378,7 @@ export default function CargarAOdoo({
           2 · Fondo por rendir <span className="text-sm font-normal text-tinta/45">· opcional</span>
         </p>
         <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
-          Si estos gastos salen de un fondo entregado, elegilo y quedan agrupados ahí en Odoo. Si no, dejalo
+          Si estos gastos salen de un fondo entregado, elegilo y quedan agrupados ahí en Odoo. Si no, déjalo
           sin fondo.
         </p>
 
@@ -406,7 +406,7 @@ export default function CargarAOdoo({
             <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-borde pt-3">
               <div className="min-w-[14rem] flex-1">
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
-                  O creá uno nuevo
+                  O crea uno nuevo
                 </label>
                 <input
                   value={nombreFondo}

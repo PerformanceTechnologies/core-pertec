@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     // API, y del otro lado no hay nada que hacer con eso.
     console.error("[consulta-ia] Falló la consulta:", error);
     return NextResponse.json(
-      { error: "No se pudo consultar en este momento. Probá de nuevo en un rato." },
+      { error: "No se pudo consultar en este momento. Prueba de nuevo en un rato." },
       { status: 500 },
     );
   }

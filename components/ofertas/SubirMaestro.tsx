@@ -112,7 +112,7 @@ export default function SubirMaestro() {
       {aviso && (
         <div className="mt-3 rounded-lg border border-borde bg-superficie p-3">
           {aviso.length === 0 ? (
-            <p className="text-sm text-teal">Se leyó el estilo completo. Revisá los valores abajo.</p>
+            <p className="text-sm text-teal">Se leyó el estilo completo. Revisa los valores abajo.</p>
           ) : (
             <>
               <p className="text-xs font-semibold uppercase tracking-wide text-naranjo">Quedó por definir</p>

@@ -109,7 +109,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // acá mismo, porque la fila todavía no se tocó.
     await Promise.all(nuevas.map(borrarImagen));
     return NextResponse.json(
-      { error: "No se pudo leer la imagen. Probá con un PNG o un JPG exportado de nuevo." },
+      { error: "No se pudo leer la imagen. Prueba con un PNG o un JPG exportado de nuevo." },
       { status: 400 },
     );
   }

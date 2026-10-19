@@ -166,7 +166,7 @@ REGLAS
 
 9. indice: el número entre corchetes con el que el elemento aparece en los datos que recibes. Va tanto en correosDestacados como en reuniones y tiene que ser EXACTO — el sistema lo usa para enlazar cada fila con el correo o la cita reales en Outlook. Un índice equivocado manda a la persona al mensaje equivocado. Si no puedes determinarlo con certeza, usa 0.
 
-10. pendientesCore: de la lista "PENDIENTES EN EL CORE" elegí SOLO los que valga la pena mirar hoy, con su [indice] exacto. Criterio: lo que lleva tiempo parado, lo que tiene plata o un cliente del otro lado, y lo que bloquea a alguien más. "porQue" es una línea que dice por qué ESE y por qué HOY, sin repetir el título — la antigüedad y el módulo ya se muestran solos. Si nada urge de verdad, devolvé lista vacía: es preferible no decir nada a llenar la sección todos los días, porque un aviso que siempre está deja de leerse. Nunca inventes un pendiente que no esté en esa lista.
+10. pendientesCore: de la lista "PENDIENTES EN EL CORE" elige SOLO los que valga la pena mirar hoy, con su [indice] exacto. Criterio: lo que lleva tiempo parado, lo que tiene plata o un cliente del otro lado, y lo que bloquea a alguien más. "porQue" es una línea que dice por qué ESE y por qué HOY, sin repetir el título — la antigüedad y el módulo ya se muestran solos. Si nada urge de verdad, devuelve lista vacía: es preferible no decir nada a llenar la sección todos los días, porque un aviso que siempre está deja de leerse. Nunca inventes un pendiente que no esté en esa lista.
 
 11. Lo que esté bajo "YA LAS DIO POR HECHAS" son prioridades que esta persona tachó en los últimos días: las atendió por fuera o decidió no hacerlas. NO vuelvas a proponerlas, ni con otras palabras — lo que importa es la idea, no la frase. Si el trabajo de hoy se parece mucho a una de esas pero es algo genuinamente nuevo, dilo de forma que se note la diferencia.
 
@@ -297,7 +297,7 @@ export async function generarResumen(
   }
   if (respuesta.stop_reason === "max_tokens") {
     throw new Error(
-      "El resumen se cortó por largo. Suele ser un buzón con muchísimo correo: bajá TOPE_CORREOS o HORAS_POR_DEFECTO en lib/graph-correo.ts.",
+      "El resumen se cortó por largo. Suele ser un buzón con muchísimo correo: baja TOPE_CORREOS o HORAS_POR_DEFECTO en lib/graph-correo.ts.",
     );
   }
 

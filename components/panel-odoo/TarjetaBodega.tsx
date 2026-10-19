@@ -96,7 +96,7 @@ export default async function TarjetaBodega({
           </div>
 
           <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta/45">
-            {bodegas.length} bodega{bodegas.length === 1 ? "" : "s"} · tocá una para ver qué hay adentro
+            {bodegas.length} bodega{bodegas.length === 1 ? "" : "s"} · toca una para ver qué hay adentro
           </p>
           <ListaBodegasClickeable bodegas={bodegas} stockPorBodega={stockPorBodega} tope={TOPE_PRODUCTOS} />
 

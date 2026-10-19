@@ -120,7 +120,7 @@ export default function BuscadorGlobal({
       if (!r.ok) setErrorConsulta(cuerpo.error ?? "No se pudo consultar.");
       else setRespuesta(cuerpo as RespuestaConsulta);
     } catch {
-      setErrorConsulta("No se pudo consultar: revisá la conexión.");
+      setErrorConsulta("No se pudo consultar: revisa la conexión.");
     } finally {
       setPreguntando(false);
     }

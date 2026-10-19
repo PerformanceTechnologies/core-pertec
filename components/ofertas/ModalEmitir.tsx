@@ -212,7 +212,7 @@ Saludos cordiales.`,
                 Enviar por correo
               </p>
               <p className="text-[11px] text-pretty text-tinta/45">
-                Sale desde tu cuenta y queda en tus enviados. Dejalo vacío para no enviar nada.
+                Sale desde tu cuenta y queda en tus enviados. Déjalo vacío para no enviar nada.
               </p>
               <Campo
                 rotulo="Para"

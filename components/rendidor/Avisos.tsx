@@ -12,7 +12,7 @@
  *  - Se pisaban entre sí. Un solo hueco para el error significaba que el segundo problema
  *    borraba al primero, y de dos comprobantes que fallaron se veía uno.
  *  - Se iban solos con el siguiente evento, así que no había nada que leer con calma:
- *    el aviso de "se cargó pero revisá esto" desaparecía al mover cualquier cosa.
+ *    el aviso de "se cargó pero revisa esto" desaparecía al mover cualquier cosa.
  *
  * Acá quedan fijos sobre la página, apilados, y NO se cierran solos: cada uno se cierra
  * con su ×. Un aviso que se va a los cinco segundos es un aviso que alguien no leyó.

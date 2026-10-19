@@ -30,7 +30,7 @@ export async function leerRespuesta(resp: Response): Promise<Record<string, unkn
 
     if (resp.status === 504 || resp.status === 408) {
       throw new Error(
-        "el análisis tardó más de lo que permite el servidor. Subilo solo, sin otros archivos, o reducí el tamaño de la foto.",
+        "el análisis tardó más de lo que permite el servidor. Súbelo solo, sin otros archivos, o reduce el tamaño de la foto.",
       );
     }
     if (resp.status === 413) {

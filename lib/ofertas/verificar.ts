@@ -183,7 +183,7 @@ export function detectarInconsistencias(
         aritmetica(
           "contenido_ajeno",
           `Un aporte del cliente menciona "${otro}" y el cliente de esta oferta es ${cliente}. ` +
-            "Revisá si quedó de otra oferta.",
+            "Revisa si quedó de otra oferta.",
         );
       }
     }

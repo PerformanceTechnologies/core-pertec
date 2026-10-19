@@ -74,7 +74,7 @@ export default function SubirImagenes({ ofertaId }: { ofertaId: string }) {
         {cargando ? `Subiendo${progreso ? ` ${progreso}` : ""}…` : "Agregar imágenes"}
       </button>
       <p className="text-[10px] text-pretty text-tinta/40">
-        o soltalas acá. Se agregan sin sección: elegí dónde va cada una.
+        o soltalas acá. Se agregan sin sección: elige dónde va cada una.
       </p>
 
       <input

@@ -481,7 +481,7 @@ export default function PanelRendicion({
       if (idGastoPobre) {
         pobres.push(
           `${nuevos[i].name}: ${ancho}×${alto} px. A esa resolución la letra chica de un ` +
-            `comprobante no se puede leer, y ampliarla no la recupera. Subí el PDF original o ` +
+            `comprobante no se puede leer, y ampliarla no la recupera. Sube el PDF original o ` +
             `una captura más grande.`,
         );
       }

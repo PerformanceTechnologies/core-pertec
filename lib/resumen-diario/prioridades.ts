@@ -111,7 +111,7 @@ function sinPronombrePegado(palabra: string): string {
  * que su ausencia es un estado real y esperable, no un bug.
  *
  * Sin distinguirlo, el error que llega a la pantalla es un "no se pudo guardar,
- * probá de nuevo" — y reintentar NO va a funcionar nunca. Un mensaje que manda a
+ * prueba de nuevo" — y reintentar NO va a funcionar nunca. Un mensaje que manda a
  * repetir algo que no puede salir es peor que no decir nada: hace perder tiempo
  * buscando del lado equivocado.
  */

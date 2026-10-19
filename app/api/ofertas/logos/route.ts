@@ -129,7 +129,7 @@ export async function POST(request: Request) {
       const detalle = error instanceof Error ? error.message : String(error);
       console.error("[ofertas] la imagen no se pudo usar como logo:", detalle);
       return NextResponse.json(
-        { error: "No se pudo usar esa imagen como logo. Probá subiendo el archivo." },
+        { error: "No se pudo usar esa imagen como logo. Prueba subiendo el archivo." },
         { status: 400 },
       );
     }
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
   if (archivo.size > LIMITE_SUBIDA_LOGO) {
     const mb = (archivo.size / 1024 / 1024).toFixed(1);
     return NextResponse.json(
-      { error: `El archivo pesa ${mb} MB y el tope es 4 MB. Exportalo más chico.` },
+      { error: `El archivo pesa ${mb} MB y el tope es 4 MB. Expórtalo más chico.` },
       { status: 400 },
     );
   }
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
     const detalle = error instanceof Error ? error.message : String(error);
     console.error("[ofertas] el logo no se pudo procesar:", detalle);
     return NextResponse.json(
-      { error: "No se pudo leer la imagen. Probá con un PNG exportado de nuevo." },
+      { error: "No se pudo leer la imagen. Prueba con un PNG exportado de nuevo." },
       { status: 400 },
     );
   }

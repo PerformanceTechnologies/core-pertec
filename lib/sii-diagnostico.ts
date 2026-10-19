@@ -45,7 +45,7 @@ export interface FalloSii {
   /**
    * Si esto se arregla solo en la próxima corrida automática.
    *
-   * Lo usa la pantalla para decidir si el aviso es "esperá" o "andá a mirar".
+   * Lo usa la pantalla para decidir si el aviso es "espera" o "ve a mirar".
    * Un fallo transitorio anunciado como si fuera grave hace que después nadie
    * crea el que sí lo es.
    */
@@ -107,7 +107,7 @@ const MENSAJES: Record<ClaseFalloSii, { texto: string; seResuelveSolo: boolean }
   },
   login_rechazado: {
     texto:
-      "El SII rechazó el RUT o la clave tributaria. Revisá las credenciales: puede que la " +
+      "El SII rechazó el RUT o la clave tributaria. Revisa las credenciales: puede que la " +
       "clave haya cambiado o esté vencida.",
     seResuelveSolo: false,
   },
@@ -120,7 +120,7 @@ const MENSAJES: Record<ClaseFalloSii, { texto: string; seResuelveSolo: boolean }
   navegador_muerto: {
     texto:
       "El navegador interno se quedó sin recursos antes de terminar. Suele pasar al pedir " +
-      "varios meses seguidos; probá de nuevo en unos minutos o de a un mes.",
+      "varios meses seguidos; prueba de nuevo en unos minutos o de a un mes.",
     seResuelveSolo: true,
   },
   sii_cambio: {

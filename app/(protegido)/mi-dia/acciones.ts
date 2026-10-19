@@ -41,6 +41,6 @@ export async function alternarPrioridadAction(
     // pantalla puede fallar sin que reintentar sirva de algo, y el mensaje tiene
     // que mandar a la persona al lugar correcto.
     if (error instanceof TablaSinCrear) return { ok: false, error: error.message };
-    return { ok: false, error: "No se pudo guardar. Probá de nuevo." };
+    return { ok: false, error: "No se pudo guardar. Prueba de nuevo." };
   }
 }

@@ -15,7 +15,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const oferta = acceso.oferta;
   if (oferta.estado === "emitida") {
     return NextResponse.json(
-      { error: "La oferta ya está emitida. Duplicala si necesitás cambiarla." },
+      { error: "La oferta ya está emitida. Duplícala si necesitas cambiarla." },
       { status: 409 },
     );
   }

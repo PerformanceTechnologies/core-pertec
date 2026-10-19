@@ -85,7 +85,7 @@ export type ResultadoTokenGuardado =
  * se guardara el nuevo, la ejecución siguiente del cron fallaría con el viejo.
  *
  * Cuando Microsoft rechaza el token, el motivo queda anotado en la fila. Eso es
- * lo que permite que /mi-dia diga "volvé a iniciar sesión" en vez de mostrar un
+ * lo que permite que /mi-dia diga "vuelve a iniciar sesión" en vez de mostrar un
  * dashboard vacío sin explicación.
  */
 export async function accessTokenDeUsuario(usuarioId: string): Promise<ResultadoTokenGuardado> {

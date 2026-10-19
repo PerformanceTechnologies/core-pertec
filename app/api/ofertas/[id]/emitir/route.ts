@@ -101,7 +101,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const token = await accessTokenDeUsuario(usuario.id);
     if (token.estado !== "ok") {
       problemas.push(
-        "El correo no se envió: tu cuenta de Microsoft no está conectada. Entrá a Mi Día y volvé a iniciar sesión.",
+        "El correo no se envió: tu cuenta de Microsoft no está conectada. Entra a Mi Día y vuelve a iniciar sesión.",
       );
     } else {
       try {

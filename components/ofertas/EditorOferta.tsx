@@ -420,7 +420,7 @@ export default function EditorOferta({
                     ))}
                     {oferta.precio.lineas.length === 0 && (
                       <p className="text-xs text-tinta/45">
-                        El borrador no traía líneas de precio. Agregá las que correspondan.
+                        El borrador no traía líneas de precio. Agrega las que correspondan.
                       </p>
                     )}
                   </div>
@@ -515,7 +515,7 @@ export default function EditorOferta({
                     ))}
                     {oferta.organizacion.cuadroPersonal.length === 0 && (
                       <p className="text-xs text-tinta/45">
-                        El borrador no traía cuadro de personal. Agregá los cargos que correspondan.
+                        El borrador no traía cuadro de personal. Agrega los cargos que correspondan.
                       </p>
                     )}
                   </div>
@@ -591,7 +591,7 @@ export default function EditorOferta({
                     ))}
                     {oferta.programa.turnos.length === 0 && (
                       <p className="text-xs text-tinta/45">
-                        El borrador no traía turnos. Agregá los que correspondan.
+                        El borrador no traía turnos. Agrega los que correspondan.
                       </p>
                     )}
                   </div>
@@ -652,7 +652,7 @@ export default function EditorOferta({
                     ))}
                     {oferta.especificaciones.length === 0 && (
                       <p className="text-xs text-tinta/45">
-                        El borrador no traía especificaciones. Agregá las que correspondan.
+                        El borrador no traía especificaciones. Agrega las que correspondan.
                       </p>
                     )}
                   </div>
@@ -714,7 +714,7 @@ export default function EditorOferta({
                     ))}
                     {oferta.organizacion.responsabilidades.length === 0 && (
                       <p className="text-xs text-tinta/45">
-                        No hay responsabilidades por cargo. Agregá las que correspondan.
+                        No hay responsabilidades por cargo. Agrega las que correspondan.
                       </p>
                     )}
                   </div>
@@ -804,7 +804,7 @@ export default function EditorOferta({
                     ))}
                     {oferta.cierre.firmantes.length === 0 && (
                       <p className="text-xs text-tinta/45">
-                        El borrador no traía firmantes. Agregá los que correspondan.
+                        El borrador no traía firmantes. Agrega los que correspondan.
                       </p>
                     )}
                   </div>
@@ -1020,7 +1020,7 @@ export default function EditorOferta({
                 </button>
                 <p className="text-[10px] text-pretty text-tinta/40">
                   Al emitir se elige qué hacer con el PDF: descargarlo, guardarlo en el workspace o enviarlo
-                  por correo. La oferta queda de solo lectura, así que guardá antes: se emite lo último
+                  por correo. La oferta queda de solo lectura, así que guarda antes: se emite lo último
                   guardado.
                 </p>
               </>

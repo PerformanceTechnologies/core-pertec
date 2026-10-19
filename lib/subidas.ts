@@ -55,7 +55,7 @@ function explicar(respuesta: Response, texto: string): string {
   if (respuesta.status === 413 || /PAYLOAD_TOO_LARGE|Request Entity Too Large/i.test(texto)) {
     return (
       `El archivo es más grande de lo que acepta el servidor (tope ${mb(LIMITE_SUBIDA)} MB). ` +
-      "Exportalo más liviano y volvé a intentar."
+      "Expórtalo más liviano y vuelve a intentar."
     );
   }
   if (respuesta.status === 504 || /INVOCATION_TIMEOUT/i.test(texto)) {
@@ -65,14 +65,14 @@ function explicar(respuesta: Response, texto: string): string {
     );
   }
   if (respuesta.status === 401 || respuesta.status === 403) {
-    return "La sesión venció. Recargá la página y volvé a entrar.";
+    return "La sesión venció. Recarga la página y vuelve a entrar.";
   }
   // Un guard de página redirige al login en vez de responder un status: llega el
   // HTML del login con 200 y ningún JSON adentro.
   if (respuesta.redirected || /\/ingresar/.test(respuesta.url) || /^\s*</.test(texto)) {
     return (
       `El servidor devolvió una página en vez de un resultado (HTTP ${respuesta.status}). ` +
-      "Suele ser la sesión vencida: recargá la página y volvé a entrar."
+      "Suele ser la sesión vencida: recarga la página y vuelve a entrar."
     );
   }
   return `El servidor respondió HTTP ${respuesta.status} sin explicar por qué${resumen(texto)}`;

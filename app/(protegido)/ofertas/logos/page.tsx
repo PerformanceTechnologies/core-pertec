@@ -64,7 +64,7 @@ export default async function LogosPage() {
             Conviene un PNG con fondo transparente y tinta oscura
           </strong>
           : el encabezado del documento es claro y un logo blanco no se vería. Y si el logo es un SVG con
-          texto, mejor exportalo a PNG antes: el rasterizado corre en el servidor, que no tiene instaladas las
+          texto, mejor expórtalo a PNG antes: el rasterizado corre en el servidor, que no tiene instaladas las
           tipografías del diseño y puede perder las letras.
         </p>
 

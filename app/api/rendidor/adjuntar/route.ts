@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   }
   if (!cuerpo.archivoPath) {
     return NextResponse.json(
-      { error: "Este gasto no tiene respaldo guardado. Subilo a mano en Odoo." },
+      { error: "Este gasto no tiene respaldo guardado. Súbelo a mano en Odoo." },
       { status: 400 },
     );
   }
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const respaldo = await descargarRespaldo(cuerpo.archivoPath);
     if (!respaldo) {
       return NextResponse.json(
-        { error: `El respaldo ${cuerpo.archivoPath} no está en el bucket. Subilo a mano en Odoo.` },
+        { error: `El respaldo ${cuerpo.archivoPath} no está en el bucket. Súbelo a mano en Odoo.` },
         { status: 404 },
       );
     }

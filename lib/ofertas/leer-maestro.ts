@@ -154,7 +154,7 @@ ESTRUCTURA del documento no la describas —las secciones, las tablas y las list
 el sistema—; solo la piel.
 
 REGLAS
-- Los colores van como hex de 6 dígitos. Si dudás entre dos tonos, elegí el que veas en más lugares.
+- Los colores van como hex de 6 dígitos. Si dudás entre dos tonos, elige el que veas en más lugares.
 - No inventes. Todas las claves del esquema van siempre; lo que no puedas determinar va con su valor
   vacío —el texto en blanco, la medida en 0— y nombrado en "noDistinguidos". El sistema
   completa esos con los valores de su maestro por defecto, que es un resultado correcto; un color

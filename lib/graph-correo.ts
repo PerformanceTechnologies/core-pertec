@@ -6,7 +6,7 @@ import { Client } from "@microsoft/microsoft-graph-client";
  *
  * Mismo patrón que lib/graph-calendario.ts: devuelve un estado en vez de lanzar,
  * porque el permiso de correo es opcional en el login. Si el tenant no dio
- * consentimiento a Mail.Read, el módulo tiene que mostrar "conectá tu cuenta",
+ * consentimiento a Mail.Read, el módulo tiene que mostrar "conecta tu cuenta",
  * no una pantalla de error.
  */
 

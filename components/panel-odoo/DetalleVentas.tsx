@@ -273,7 +273,7 @@ export default function DetalleVentas({ ventas }: { ventas: FilaVenta[] }) {
       {/* Gráficos */}
       <div className="mt-4 flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-tinta/45">
-          Gráficos <span className="font-normal normal-case text-tinta/35">— hacé clic para filtrar</span>
+          Gráficos <span className="font-normal normal-case text-tinta/35">— haz clic para filtrar</span>
         </p>
         <button
           type="button"

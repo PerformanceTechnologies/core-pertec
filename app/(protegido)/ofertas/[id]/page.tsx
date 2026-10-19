@@ -96,7 +96,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
           )}
           {borrador ? (
             <>
-              Escribí sobre el documento; la numeración, el índice y los totales los calcula el sistema.{" "}
+              Escribe sobre el documento; la numeración, el índice y los totales los calcula el sistema.{" "}
               <b className="font-semibold text-tinta/70">Emitir</b> genera el PDF y la deja de solo lectura.
             </>
           ) : (

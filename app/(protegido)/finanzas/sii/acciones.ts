@@ -125,7 +125,7 @@ export async function sincronizarSiiAction(
   // El mismo permiso que para VER el subpanel: quien puede mirar las facturas puede
   // pedirle al SII que las relea. No es una escritura de negocio, es refrescar un espejo.
   if (usuario.rol !== "admin" && !(await usuarioPuedeVerSubpanelFinanzas(usuario.id, "sii"))) {
-    throw new Error("No tenés acceso a las facturas del SII.");
+    throw new Error("No tienes acceso a las facturas del SII.");
   }
 
   // Del más viejo al más nuevo: si el tope de tiempo corta el recorrido, lo que queda al

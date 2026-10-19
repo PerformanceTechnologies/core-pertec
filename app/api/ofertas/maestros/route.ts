@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     formulario = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: "El archivo no llegó completo al servidor. Probá de nuevo, o con uno más liviano." },
+      { error: "El archivo no llegó completo al servidor. Prueba de nuevo, o con uno más liviano." },
       { status: 400 },
     );
   }
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       {
         error:
           `El maestro pesa ${mb} MB y el servidor no acepta más de 4 MB por subida. ` +
-          "Exportá el PDF con las imágenes comprimidas.",
+          "Exporta el PDF con las imágenes comprimidas.",
       },
       { status: 413 },
     );

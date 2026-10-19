@@ -60,7 +60,7 @@ export default async function OfertasPage() {
       <SubirBorrador />
 
       {ofertas.length === 0 ? (
-        <p className="mt-8 text-sm text-tinta/50">Todavía no hay ofertas. Subí un borrador para empezar.</p>
+        <p className="mt-8 text-sm text-tinta/50">Todavía no hay ofertas. Sube un borrador para empezar.</p>
       ) : (
         <TablaOfertas ofertas={ofertas} autores={autores} />
       )}

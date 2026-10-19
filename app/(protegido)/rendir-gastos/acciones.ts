@@ -73,7 +73,7 @@ export async function eliminarRendicionAction(id: string): Promise<ResultadoBorr
   if (!rendicion) return { ok: true };
 
   if (rendicion.creadoPor !== usuario.id && usuario.rol !== "admin") {
-    return { ok: false, error: "No podés borrar una rendición de otra persona." };
+    return { ok: false, error: "No puedes borrar una rendición de otra persona." };
   }
 
   // Queda en el log del servidor: es lo unico que sobrevive al borrado y sirve

@@ -235,7 +235,7 @@ corresponde. No transcribas nada.
 - Una FICHA TÉCNICA describe una cosa —un equipo, un material, un repuesto— con sus parámetros.
 - Un PROCEDIMIENTO dice cómo se ejecuta un trabajo, paso por paso, con sus resguardos.
 - Un INFORME reporta algo que ya pasó: una inspección, un avance, un incidente.
-- Si dudás entre dos, elegí el que explique MÁS del documento y decilo en "confianza": con "baja",
+- Si dudás entre dos, elige el que explique MÁS del documento y decilo en "confianza": con "baja",
   la persona que revisa lo ve y lo puede cambiar. Preferí "otro" antes que forzar un tipo.`;
 
 const INSTRUCCIONES_LIBRE = `${PREAMBULO}
@@ -354,7 +354,7 @@ async function leerParte<T>(
     // ESTA respuesta, que está unas líneas más arriba en este archivo.
     throw new Error(
       `La lectura de "${nombreArchivo}" quedó incompleta: la respuesta llegó a su tope de largo. ` +
-        "No tiene que ver con el saldo de la cuenta. Si tenés el borrador en Word, subí el .docx en " +
+        "No tiene que ver con el saldo de la cuenta. Si tienes el borrador en Word, sube el .docx en " +
         "vez del PDF: se lee como texto y ocupa una fracción.",
     );
   }
@@ -559,7 +559,7 @@ export async function leerBorrador(
           : [
               `Se leyó como ${NOMBRE_DE_TIPO[lectura.tipo].toLowerCase()} con confianza ` +
                 `${lectura.confianza}${lectura.porQue ? `: ${lectura.porQue}` : ""}. Si es otra cosa, ` +
-                "cambiá el tipo del documento.",
+                "cambia el tipo del documento.",
               ...armado.porConfirmar,
             ],
     },

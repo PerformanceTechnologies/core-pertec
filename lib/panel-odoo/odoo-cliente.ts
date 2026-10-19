@@ -67,7 +67,7 @@ function mensajeDeErrorOdoo(error: unknown): string {
   if (e?.data?.debug) console.error("[odoo] Traceback del servidor:", e.data.debug);
 
   const mensaje = (e?.data?.message ?? e?.message ?? "").trim();
-  if (!mensaje) return "Odoo devolvió un error sin mensaje. Revisá el log del servidor.";
+  if (!mensaje) return "Odoo devolvió un error sin mensaje. Revisa el log del servidor.";
 
   // Odoo suele mandar el mensaje con saltos de linea y una "Nota:" al final; se
   // deja en una sola linea para que quepa en un aviso de la UI.

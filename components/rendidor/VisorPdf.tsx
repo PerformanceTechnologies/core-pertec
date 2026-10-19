@@ -113,7 +113,7 @@ export default function VisorPdf({ url, nombre }: { url: string; nombre: string 
           // Un PDF que pdf.js no puede abrir no deja el visor en blanco: se dice, y queda
           // el "Abrir aparte" de la barra de arriba como salida.
           <p className="mx-auto max-w-sm rounded-lg border border-borde bg-superficie px-4 py-3 text-center text-xs text-tinta/60">
-            No se pudo mostrar este PDF acá ({error}). Probá con «Abrir aparte».
+            No se pudo mostrar este PDF acá ({error}). Prueba con «Abrir aparte».
           </p>
         ) : (
           <Document

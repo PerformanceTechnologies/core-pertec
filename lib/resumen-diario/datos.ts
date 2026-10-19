@@ -85,7 +85,7 @@ interface OpcionesResumen {
  * Devuelve el resumen de hoy, generándolo si hace falta.
  *
  * Nunca lanza por un problema de permisos o de Graph: devuelve el estado para
- * que la página muestre "conectá tu cuenta" o el motivo del error. Sí puede
+ * que la página muestre "conecta tu cuenta" o el motivo del error. Sí puede
  * lanzar si falta ANTHROPIC_API_KEY o si la base falla, que son errores de
  * configuración y conviene que se vean.
  */

@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     formulario = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: "El archivo no llegó completo al servidor. Probá de nuevo, o con uno más liviano." },
+      { error: "El archivo no llegó completo al servidor. Prueba de nuevo, o con uno más liviano." },
       { status: 400 },
     );
   }
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       {
         error:
           `Entre el borrador y el logo suman ${mb} MB y el servidor no acepta más de 4 MB por subida. ` +
-          "Exportá el borrador más liviano o subí el logo después, en la oferta.",
+          "Exporta el borrador más liviano o sube el logo después, en la oferta.",
       },
       { status: 413 },
     );
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
   if (logoCliente && logoCliente.size > LIMITE_SUBIDA_LOGO) {
     const mb = (logoCliente.size / 1024 / 1024).toFixed(1);
     return NextResponse.json(
-      { error: `El logo pesa ${mb} MB y el tope es 4 MB. Exportalo más chico.` },
+      { error: `El logo pesa ${mb} MB y el tope es 4 MB. Expórtalo más chico.` },
       { status: 400 },
     );
   }
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
         console.error("[ofertas] el logo del cliente no se pudo guardar:", error);
         avisoLogo =
           "La oferta quedó normalizada, pero el logo del cliente no se pudo procesar. " +
-          "Subilo de nuevo en la oferta, mejor como PNG.";
+          "Súbelo de nuevo en la oferta, mejor como PNG.";
       }
     }
 

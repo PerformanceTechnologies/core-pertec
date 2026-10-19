@@ -73,7 +73,7 @@ function obtenerCredencial(): ClientSecretCredential {
     if (!tenant) {
       throw new Error(
         "No se puede enviar el correo: falta el tenant de Microsoft en el entorno. " +
-          "Cargá MS_TENANT_ID (o AZURE_TENANT_ID, es el mismo GUID) en Vercel.",
+          "Carga MS_TENANT_ID (o AZURE_TENANT_ID, es el mismo GUID) en Vercel.",
       );
     }
     if (!secreto) {
