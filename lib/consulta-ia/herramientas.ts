@@ -1,7 +1,7 @@
 import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { obtenerAplicacionPorSlug } from "@/lib/aplicaciones";
+import { puedeVerApp } from "@/lib/autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
 import type { UsuarioConAcceso } from "@/lib/tipos";
 
@@ -47,13 +47,6 @@ interface Herramienta {
     args: Record<string, unknown>,
     usuario: UsuarioConAcceso,
   ) => Promise<ResultadoHerramienta>;
-}
-
-/** Igual que verificarAccesoAppApi, pero sin armar una respuesta HTTP. */
-async function puedeVer(usuario: UsuarioConAcceso, slug: string): Promise<boolean> {
-  if (usuario.rol === "admin") return true;
-  const app = await obtenerAplicacionPorSlug(slug);
-  return Boolean(app && usuario.aplicacionIds.includes(app.id));
 }
 
 function money(n: number): string {
@@ -317,7 +310,7 @@ const TODAS: Herramienta[] = [buscarFacturas, buscarProyectos, buscarTareas, bus
  */
 export async function herramientasPara(usuario: UsuarioConAcceso): Promise<Anthropic.Tool[]> {
   const permitidas = await Promise.all(
-    TODAS.map(async (h) => ((await puedeVer(usuario, h.app)) ? h.definicion : null)),
+    TODAS.map(async (h) => ((await puedeVerApp(usuario, h.app)) ? h.definicion : null)),
   );
   return permitidas.filter((d): d is Anthropic.Tool => d !== null);
 }
@@ -336,7 +329,7 @@ export async function ejecutarHerramienta(
 ): Promise<ResultadoHerramienta> {
   const h = TODAS.find((x) => x.definicion.name === nombre);
   if (!h) return { texto: `No existe una herramienta llamada "${nombre}".`, filas: 0 };
-  if (!(await puedeVer(usuario, h.app))) {
+  if (!(await puedeVerApp(usuario, h.app))) {
     return { texto: "Esta persona no tiene acceso a ese módulo.", filas: 0 };
   }
   return h.ejecutar(args, usuario);

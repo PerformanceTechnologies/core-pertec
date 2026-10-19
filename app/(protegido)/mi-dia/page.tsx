@@ -8,6 +8,7 @@ import type { ResumenGuardado, Urgencia } from "@/lib/resumen-diario/tipos";
 import type { UsuarioConAcceso } from "@/lib/tipos";
 import type { Dirigido } from "@/lib/graph-correo";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
+import PrioridadDelDia from "@/components/mi-dia/PrioridadDelDia";
 
 const SLUG_APP = "mi-dia";
 
@@ -537,12 +538,10 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
             El número grande da el orden sin necesidad de la lista. */}
         <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {r.prioridades.map((prioridad, i) => (
-            <li key={i} className={`rounded-xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
-              <span className="font-condensed text-2xl font-bold leading-none tabular-nums text-naranjo">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <p className="mt-4 text-[15px] leading-relaxed text-pretty text-tinta">{prioridad}</p>
-            </li>
+            // key por TEXTO y no por índice: al tachar una, la lista se recorta en
+            // la próxima carga y con índices React reusaría el estado de la tarjeta
+            // de al lado, dejando tachada la que no era.
+            <PrioridadDelDia key={prioridad} texto={prioridad} numero={i + 1} />
           ))}
         </ol>
       </Seccion>

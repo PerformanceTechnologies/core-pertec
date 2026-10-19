@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { bloquePendientes, type PendienteCore } from "./pendientes-core";
+import { bloqueDescartadas, type PrioridadDescartada } from "./prioridades";
 import type { CorreoResumen } from "@/lib/graph-correo";
 import type { ReunionCalendario } from "@/lib/graph-calendario";
 import type { ResumenModelo } from "./tipos";
@@ -167,11 +168,13 @@ REGLAS
 
 10. pendientesCore: de la lista "PENDIENTES EN EL CORE" elegí SOLO los que valga la pena mirar hoy, con su [indice] exacto. Criterio: lo que lleva tiempo parado, lo que tiene plata o un cliente del otro lado, y lo que bloquea a alguien más. "porQue" es una línea que dice por qué ESE y por qué HOY, sin repetir el título — la antigüedad y el módulo ya se muestran solos. Si nada urge de verdad, devolvé lista vacía: es preferible no decir nada a llenar la sección todos los días, porque un aviso que siempre está deja de leerse. Nunca inventes un pendiente que no esté en esa lista.
 
-11. prioridades: exactamente tres, ordenadas, cruzando todo lo anterior —correo, agenda Y pendientes del core—. En imperativo y concretas.
+11. Lo que esté bajo "YA LAS DIO POR HECHAS" son prioridades que esta persona tachó en los últimos días: las atendió por fuera o decidió no hacerlas. NO vuelvas a proponerlas, ni con otras palabras — lo que importa es la idea, no la frase. Si el trabajo de hoy se parece mucho a una de esas pero es algo genuinamente nuevo, dilo de forma que se note la diferencia.
 
-12. panorama: tres o cuatro líneas. Cuántas reuniones hay y si el día está cargado, qué es lo que no puede quedar pendiente, y si hay algo fuera de lo normal (una reunión agregada a última hora, un plazo próximo, un correo de hace días sin responder).
+12. prioridades: exactamente tres, ordenadas, cruzando todo lo anterior —correo, agenda Y pendientes del core—. En imperativo y concretas.
 
-13. No inventes ningún dato que no esté en lo que recibes. Si el correo no menciona el plazo, no lo pongas. Si algo es ambiguo, dilo en vez de completarlo. No cuentes correos: los conteos los calcula el sistema.
+13. panorama: tres o cuatro líneas. Cuántas reuniones hay y si el día está cargado, qué es lo que no puede quedar pendiente, y si hay algo fuera de lo normal (una reunión agregada a última hora, un plazo próximo, un correo de hace días sin responder).
+
+14. No inventes ningún dato que no esté en lo que recibes. Si el correo no menciona el plazo, no lo pongas. Si algo es ambiguo, dilo en vez de completarlo. No cuentes correos: los conteos los calcula el sistema.
 
 13. No es un correo ni un mensaje: solo el objeto.`;
 
@@ -231,6 +234,7 @@ export async function generarResumen(
   hoyIso: string,
   horasDeCorreo: number,
   pendientes: PendienteCore[],
+  descartadas: PrioridadDescartada[],
 ): Promise<ResumenModelo> {
   // Mañana en fecha local, sin pasar por Date: sumar un día con new Date() sobre
   // una fecha suelta la interpreta como UTC y cerca de fin de mes se corre.
@@ -278,6 +282,9 @@ export async function generarResumen(
               // más fácil de que una fila termine enlazando a otra cosa.
               "=== PENDIENTES EN EL CORE ===",
               bloquePendientes(pendientes),
+              "",
+              "=== YA LAS DIO POR HECHAS, NO LAS VUELVAS A PROPONER ===",
+              bloqueDescartadas(descartadas),
             ].join("\n"),
           },
         ],

@@ -26,6 +26,24 @@ export async function exigirAdmin(): Promise<UsuarioConAcceso> {
   return usuario;
 }
 
+/**
+ * Si esta persona puede ver esa app. Sin redirigir y sin armar una respuesta HTTP.
+ *
+ * Es la MISMA regla que exigirAccesoApp y verificarAccesoAppApi —el admin entra
+ * siempre, el resto solo con la app asignada— pero devolviendo un booleano, para
+ * los sitios que no son ni una página ni un route handler: el resumen diario, que
+ * decide qué pendientes mencionarle a alguien, y las herramientas de consulta.
+ *
+ * Existe para que esa regla esté escrita UNA vez. Antes cada lugar la repetía, y
+ * una copia que se olvida de mirar el rol o la lista de apps no falla ruidosamente:
+ * deja pasar datos de un módulo que esa persona no tiene.
+ */
+export async function puedeVerApp(usuario: UsuarioConAcceso, slug: string): Promise<boolean> {
+  if (usuario.rol === "admin") return true;
+  const app = await obtenerAplicacionPorSlug(slug);
+  return Boolean(app && usuario.aplicacionIds.includes(app.id));
+}
+
 // Para páginas nativas del core (como /reclutamiento) que dependen del
 // mismo catálogo de aplicaciones: el admin siempre entra, un usuario normal
 // solo si tiene esa app asignada — igual que las cartillas del catálogo.

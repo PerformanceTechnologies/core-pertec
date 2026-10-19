@@ -136,7 +136,10 @@ assert.equal(
   "todas declaran de qué app dependen",
 );
 assert.ok(
-  /if \(!\(await puedeVer\(usuario, h\.app\)\)\) \{/.test(herramientas),
+  // puedeVerApp y no un helper local: la regla de acceso vive en lib/autorizacion.ts,
+  // junto a exigirAccesoApp y verificarAccesoAppApi, que son la misma regla en otras
+  // formas. Una copia propia acá es una copia que se puede quedar atrás.
+  /if \(!\(await puedeVerApp\(usuario, h\.app\)\)\) \{/.test(herramientas),
   "ejecutarHerramienta revalida el permiso: filtrar la lista que se le ofrece al modelo es " +
     "comodidad, esta comprobación es la reja. Si mañana alguien agrega una herramienta y se " +
     "olvida de filtrarla, esto la ataja igual",

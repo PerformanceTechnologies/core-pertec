@@ -5,6 +5,7 @@ import { obtenerCorreosRecientes } from "@/lib/graph-correo";
 import { hoyEnSantiago, obtenerReunionesProximas } from "@/lib/graph-calendario";
 import { generarResumen } from "./generar";
 import { reunirPendientesDelCore, type PendienteCore } from "./pendientes-core";
+import { prioridadesDescartadas, sinLasDescartadas } from "./prioridades";
 import {
   VERSION_RESUMEN,
   type EstadoResumen,
@@ -95,7 +96,23 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   // Solo sirve si se generó con la versión actual del formato: si no, la página
   // mostraría campos que ese resumen no tiene.
   const guardado = await leerResumenGuardado(usuarioId, hoy.iso);
-  if (guardado?.vigente) return { estado: "ok", datos: guardado };
+  if (guardado?.vigente) {
+    // Lo tachado se filtra EN CADA LECTURA y no al guardar: el resumen del día ya
+    // está en la base cuando alguien tacha algo, y reescribir esa fila por un
+    // clic obligaría a regenerar o a mantener dos copias sincronizadas. Filtrar
+    // acá es una pasada sobre tres strings y siempre dice la verdad.
+    const descartadas = await prioridadesDescartadas(usuarioId);
+    return {
+      estado: "ok",
+      datos: {
+        ...guardado,
+        resumen: {
+          ...guardado.resumen,
+          prioridades: sinLasDescartadas(guardado.resumen.prioridades, descartadas),
+        },
+      },
+    };
+  }
 
   let accessToken = accessTokenSesion;
   if (!accessToken) {
@@ -111,12 +128,13 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   // pared es el del más lento y no la suma de los dos.
   // Los pendientes del core salen de Supabase y no dependen de Graph: van en el
   // mismo Promise.all para no sumar su tiempo al de las dos llamadas de red.
-  const [correos, reuniones, pendientes] = await Promise.all([
+  const [correos, reuniones, pendientes, descartadas] = await Promise.all([
     obtenerCorreosRecientes(accessToken, correo),
     // Dos días además de hoy: alcanza para que el resumen avise de algo que se
     // viene sin convertirse en una agenda de la semana.
     obtenerReunionesProximas(accessToken, 2),
-    reunirPendientesDelCore({ id: usuarioId, nombre }),
+    reunirPendientesDelCore({ id: usuarioId, nombre, correo }),
+    prioridadesDescartadas(usuarioId),
   ]);
 
   // Sin correo no hay resumen que valga la pena: el calendario solo ya lo
@@ -132,12 +150,17 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
     hoy.iso,
     correos.conteos.horas,
     pendientes,
+    descartadas,
   );
 
   // Los conteos y los enlaces se pegan acá y no se le piden al modelo: los dos
   // son datos exactos, y eso es justo lo que un modelo hace mal.
   const resumen: ResumenDiario = {
     ...conDatosReales(delModelo, correos.correos, listaReuniones, pendientes),
+    // Red de seguridad: al modelo se le pide que no repita lo tachado, pero si
+    // igual lo hace, acá no pasa. La instrucción es la que entiende reformulaciones;
+    // esto es el filtro exacto, y los dos hacen falta.
+    prioridades: sinLasDescartadas(delModelo.prioridades, descartadas),
     conteos: correos.conteos,
     reunionesTotales: listaReuniones.length,
     // Cuántos había EN TOTAL, contados acá: el modelo destaca algunos y la

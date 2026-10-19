@@ -1,6 +1,8 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
+import { puedeVerApp } from "@/lib/autorizacion";
+import { obtenerUsuarioActivo } from "@/lib/usuarios";
 
 // Lo que cada persona tiene pendiente DENTRO del core, para que el resumen
 // diario lo diga junto con el correo y la agenda.
@@ -55,13 +57,33 @@ function diasDesde(iso: string | null): number | null {
 export async function reunirPendientesDelCore(usuario: {
   id: string;
   nombre: string;
+  correo: string;
 }): Promise<PendienteCore[]> {
+  // Los permisos se leen FRESCOS acá, no se reciben del llamador.
+  //
+  // Este resumen se genera desde dos lados —la página de Mi Día y el cron de la
+  // mañana— y ninguno de los dos traía la lista de apps de la persona. Leerla en
+  // este punto es el mismo criterio que usa el layout protegido en cada carga de
+  // página: a quien le quitaron un módulo ayer, hoy ya no se le nombra.
+  const conAcceso = await obtenerUsuarioActivo(usuario.correo);
+  if (!conAcceso) return [];
+
+  // Cada fuente pregunta por SU módulo. Antes solo lo hacían las facturas, y por
+  // eso una persona sin Panel Odoo igual recibía tareas de Odoo en su resumen:
+  // el cruce de tareas va por NOMBRE, así que ni siquiera era data suya.
+  const [puedeRendir, puedeOfertas, puedeCotizar, puedeOdoo] = await Promise.all([
+    puedeVerApp(conAcceso, "rendir-gastos"),
+    puedeVerApp(conAcceso, "ofertas"),
+    puedeVerApp(conAcceso, "cotizador"),
+    puedeVerApp(conAcceso, "panel-odoo"),
+  ]);
+
   const fuentes = await Promise.all([
-    rendicionesSinCerrar(usuario.id),
-    ofertasEnBorrador(usuario.id),
-    cotizacionesEnBorrador(usuario.id),
-    tareasQueLeTocan(usuario.nombre),
-    facturasReclamadas(usuario.id),
+    puedeRendir ? rendicionesSinCerrar(usuario.id) : [],
+    puedeOfertas ? ofertasEnBorrador(usuario.id) : [],
+    puedeCotizar ? cotizacionesEnBorrador(usuario.id) : [],
+    puedeOdoo ? tareasQueLeTocan(usuario.nombre) : [],
+    facturasReclamadas(usuario.id, usuario.correo),
   ]);
 
   return fuentes
@@ -183,8 +205,13 @@ function tareasQueLeTocan(nombre: string): Promise<PendienteCore[]> {
  * una factura reclamada. Sin esa comprobación, el resumen le contaría a toda la
  * empresa qué clientes están rechazando facturas.
  */
-function facturasReclamadas(usuarioId: string): Promise<PendienteCore[]> {
+function facturasReclamadas(usuarioId: string, correo: string): Promise<PendienteCore[]> {
   return aSalvo("Herramientas Finanzas", async () => {
+    // DOS puertas: la app de Finanzas y, dentro de ella, el subpanel del SII.
+    // El subpanel solo no alcanza — alguien a quien le sacaron la app entera
+    // seguiría pasando si su fila de subpanel quedó viva.
+    const conAcceso = await obtenerUsuarioActivo(correo);
+    if (!conAcceso || !(await puedeVerApp(conAcceso, "finanzas"))) return [];
     if (!(await usuarioPuedeVerSubpanelFinanzas(usuarioId, "sii"))) return [];
 
     const { data } = await supabaseAdmin
