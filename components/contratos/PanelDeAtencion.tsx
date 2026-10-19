@@ -1,5 +1,5 @@
 import Link from "@/components/contratos/Enlace";
-import { IconAlertTriangle, IconCalendarDue, IconClockHour4 } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCalendarDue, IconChevronDown, IconClockHour4 } from "@tabler/icons-react";
 import { TARJETA } from "@/lib/contratos/estilos";
 import { textoDeAlerta, type Alerta } from "@/lib/contratos/acreditacion-modelo";
 
@@ -43,17 +43,24 @@ export default function PanelDeAtencion({ alertas }: { alertas: Alerta[] }) {
   };
 
   return (
-    <section className={`${TARJETA} mt-6 overflow-hidden`} aria-label="Requiere atención">
-      <h2 className="flex flex-wrap items-center gap-x-3 border-b border-borde px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-gris">
+    // Plegado de entrada: con muchos avisos empujaba la nómina hacia abajo. El encabezado dice
+    // cuántos hay y cuántos ya pasaron, que es lo que hace decidir si abrirlo.
+    <details className={`${TARJETA} group mt-6 overflow-hidden`} aria-label="Requiere atención">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-gris transition hover:bg-cian-lavado/40 group-open:border-b group-open:border-borde [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-2">
           <span className="h-[2px] w-3 rounded-full bg-cian" />
           Requiere atención
         </span>
         <span className="font-semibold normal-case tracking-normal text-gris-suave">
           {alertas.length} {alertas.length === 1 ? "aviso" : "avisos"}
-          {vencidas > 0 && ` · ${vencidas} ya ${vencidas === 1 ? "pasó" : "pasaron"}`}
+          {vencidas > 0 && (
+            <span className="font-semibold text-red-600">
+              {` · ${vencidas} ya ${vencidas === 1 ? "pasó" : "pasaron"}`}
+            </span>
+          )}
         </span>
-      </h2>
+        <IconChevronDown size={16} className="ml-auto text-gris transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
 
       <ul className="divide-y divide-borde">{primeras.map(fila)}</ul>
 
@@ -67,6 +74,6 @@ export default function PanelDeAtencion({ alertas }: { alertas: Alerta[] }) {
           </ul>
         </details>
       )}
-    </section>
+    </details>
   );
 }
