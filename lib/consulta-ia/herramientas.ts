@@ -53,6 +53,16 @@ function money(n: number): string {
   return `$${Math.round(n).toLocaleString("es-CL")}`;
 }
 
+/**
+ * Limpia el texto de búsqueda antes de meterlo en un filtro .or()/.ilike() de Supabase. Esos
+ * filtros se arman como texto (`col.ilike.%valor%`), y una coma, un paréntesis o un asterisco en el
+ * valor podría cerrar el patrón e inyectar otra condición. Como el valor lo propone el modelo (que
+ * puede venir influido por datos de la base), se quitan esos caracteres y se acota el largo.
+ */
+function limpiarTexto(valor: string): string {
+  return valor.replace(/[,()*\\%]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
 /** Un período "2026" o "2026-09" a su rango de fechas. Null si no se entiende. */
 function rangoDePeriodo(periodo?: string): { desde: string; hasta: string } | null {
   if (!periodo) return null;
@@ -109,10 +119,10 @@ const buscarFacturas: Herramienta = {
     const estado = String(args.estado);
     if (estado !== "todos") q = q.eq("estado", estado);
     if (typeof args.texto === "string" && args.texto.trim()) {
-      const t = args.texto.trim();
+      const t = limpiarTexto(args.texto);
       // or() con ilike: el modelo pasa "SALFA" y tiene que encontrar por nombre
       // o por RUT sin que él tenga que saber cuál de los dos le dieron.
-      q = q.or(`razon_social.ilike.%${t}%,rut.ilike.%${t}%`);
+      if (t) q = q.or(`razon_social.ilike.%${t}%,rut.ilike.%${t}%`);
     }
     const rango = rangoDePeriodo(typeof args.periodo === "string" ? args.periodo : undefined);
     if (rango) q = q.gte("fecha_docto", rango.desde).lte("fecha_docto", rango.hasta);
@@ -166,7 +176,7 @@ const buscarProyectos: Herramienta = {
       .eq("activo", true)
       .limit(TOPE_FILAS);
     if (typeof args.texto === "string" && args.texto.trim()) {
-      q = q.ilike("nombre", `%${args.texto.trim()}%`);
+      q = q.ilike("nombre", `%${limpiarTexto(args.texto)}%`);
     }
     const { data, error } = await q;
     if (error) return { texto: `No se pudo consultar: ${error.message}`, filas: 0 };
@@ -222,10 +232,10 @@ const buscarTareas: Herramienta = {
     }
     if (solo === "vencidas") q = q.lt("fecha_limite", new Date().toISOString().slice(0, 10));
     if (typeof args.proyecto === "string" && args.proyecto.trim()) {
-      q = q.ilike("proyecto_nombre", `%${args.proyecto.trim()}%`);
+      q = q.ilike("proyecto_nombre", `%${limpiarTexto(args.proyecto)}%`);
     }
     if (typeof args.responsable === "string" && args.responsable.trim()) {
-      q = q.ilike("asignados", `%${args.responsable.trim()}%`);
+      q = q.ilike("asignados", `%${limpiarTexto(args.responsable)}%`);
     }
 
     const { data, error } = await q;
@@ -274,7 +284,7 @@ const buscarVentas: Herramienta = {
       .limit(TOPE_FILAS);
     if (args.soloArriendo === true) q = q.eq("es_arriendo", true);
     if (typeof args.texto === "string" && args.texto.trim()) {
-      q = q.ilike("partner_nombre", `%${args.texto.trim()}%`);
+      q = q.ilike("partner_nombre", `%${limpiarTexto(args.texto)}%`);
     }
     const rango = rangoDePeriodo(typeof args.periodo === "string" ? args.periodo : undefined);
     if (rango) q = q.gte("fecha_orden", rango.desde).lte("fecha_orden", `${rango.hasta}T23:59:59`);

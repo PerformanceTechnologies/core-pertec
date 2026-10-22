@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { responderConsulta } from "@/lib/consulta-ia/responder";
+import { verificarYRegistrarUso } from "@/lib/consulta-ia/limite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +27,17 @@ export async function POST(request: Request) {
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  const limite = await verificarYRegistrarUso(usuario.id);
+  if (!limite.permitido) {
+    return NextResponse.json({ error: limite.motivo }, { status: 429 });
+  }
+
   const cuerpo = (await request.json().catch(() => null)) as { pregunta?: unknown } | null;
-  const pregunta = typeof cuerpo?.pregunta === "string" ? cuerpo.pregunta.trim() : "";
+  // Se quitan los caracteres de control (nulos, saltos raros) que a veces vienen en un pegado.
+  const pregunta =
+    typeof cuerpo?.pregunta === "string"
+      ? cuerpo.pregunta.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim()
+      : "";
   if (!pregunta) {
     return NextResponse.json({ error: "Falta la pregunta." }, { status: 400 });
   }
