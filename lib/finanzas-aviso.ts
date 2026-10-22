@@ -1,6 +1,7 @@
 import "server-only";
 import { avisoDeReclamos } from "./finanzas-reclamos";
 import { CORREO_FINANZAS, enviarCorreoFinanzas, enviarCorreoSoporte } from "./notificaciones";
+import { crearNotificacion } from "./buzon";
 import type { FacturaSii } from "./sii-rcv";
 
 /**
@@ -37,6 +38,21 @@ export interface ConstanciaDeAviso {
 export async function avisarReclamos(reclamos: FacturaSii[]): Promise<ConstanciaDeAviso | null> {
   const aviso = avisoDeReclamos(reclamos);
   if (!aviso) return null;
+
+  // También al buzón del core, una por factura, para que aparezca en la campana de Finanzas.
+  for (const f of reclamos) {
+    await crearNotificacion({
+      modulo: "finanzas",
+      tipo: "factura_reclamada",
+      titulo: `Factura N° ${f.folio} reclamada en el SII`,
+      cuerpo: `${f.razonSocial ?? f.rutContraparte}${
+        f.montoTotal === null ? "" : " · $" + Math.round(f.montoTotal).toLocaleString("es-CL")
+      }`,
+      enlace: "/finanzas/sii",
+      severidad: "urgente",
+      clave: `factura-reclamada:${f.folio}:${f.rutContraparte}:${f.periodo}`,
+    });
+  }
 
   const base = {
     folios: reclamos.map((f) => f.folio),

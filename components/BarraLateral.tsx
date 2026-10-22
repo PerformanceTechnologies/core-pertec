@@ -23,6 +23,7 @@ import { obtenerIcono } from "@/lib/iconos";
 import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
+import BuzonNotificaciones from "@/components/BuzonNotificaciones";
 import { BARRA_FIJA } from "@/lib/estilos";
 import type { Aplicacion, Rol } from "@/lib/tipos";
 import type { ContratoDelMenu } from "@/lib/contratos/contratos";
@@ -375,6 +376,10 @@ export default function BarraLateral({
           </>
         )}
       </nav>
+
+      <div className="border-t border-borde px-3 py-2">
+        <BuzonNotificaciones colapsado={colapsado} />
+      </div>
 
       <div className="border-t border-borde px-3 py-3">
         {colapsado ? (
