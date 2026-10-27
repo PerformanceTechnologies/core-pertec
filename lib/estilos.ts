@@ -100,3 +100,7 @@ export const PASTILLA_ESTADO =
 
 /** Lo que nunca se parte en dos líneas: un RUT, un folio, una fecha, un monto. */
 export const CELDA_SIN_CORTE = "whitespace-nowrap";
+
+/** El campo de formulario (input/select) del core: 44 px, borde y foco en teal. */
+export const CAMPO =
+  "min-h-11 w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta placeholder:text-gris-suave focus:border-cian focus:outline-none focus:ring-2 focus:ring-cian/30";
