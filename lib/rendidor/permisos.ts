@@ -18,10 +18,10 @@ export const SLUG_APP = "rendir-gastos";
  * puede ampliar lo que alguien ve sin que un admin lo decida.
  */
 export async function resolverRolRendidor(usuario: UsuarioConAcceso): Promise<RolRendidor> {
-  if (usuario.rol === "admin") return "administrador";
+  if (usuario.rol === "admin") return "admin";
   const app = await obtenerAplicacionPorSlug(SLUG_APP);
   if (!app) return "usuario";
-  return usuario.rolesExtra[app.id] === "administrador" ? "administrador" : "usuario";
+  return usuario.rolesExtra[app.id] === "admin" ? "admin" : "usuario";
 }
 
 export interface AccesoRendidor {

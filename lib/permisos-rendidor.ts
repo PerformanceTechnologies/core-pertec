@@ -13,13 +13,20 @@
  * Solo dos, y no tres como el Cotizador, porque acá la única pregunta es DE
  * QUIÉN son las rendiciones que puedes ver. Todo lo demás —crear, cargar a
  * Odoo, exportar— lo hace cualquiera con la app asignada, sobre lo suyo.
+ *
+ * El valor guardado es "admin", el MISMO que usan Proyectos, Cotizador y
+ * Contratos. La primera versión guardaba "administrador" y el guardado se caía:
+ * usuario_aplicaciones.rol_extra es una columna compartida por todos los
+ * módulos, y un valor que ninguno había usado antes no pasa. Lo que se lee en
+ * pantalla sigue siendo "Administrador de gastos" — la etiqueta es de este
+ * módulo, el valor es del esquema.
  */
-export type RolRendidor = "usuario" | "administrador";
+export type RolRendidor = "usuario" | "admin";
 
 /** Para la pantalla de Usuarios. El texto es el que se lee en el selector. */
 export const ROLES_RENDIDOR: { valor: RolRendidor; etiqueta: string }[] = [
   { valor: "usuario", etiqueta: "Rendir Gastos: Usuario" },
-  { valor: "administrador", etiqueta: "Rendir Gastos: Administrador de gastos" },
+  { valor: "admin", etiqueta: "Rendir Gastos: Administrador de gastos" },
 ];
 
 /**
@@ -36,7 +43,7 @@ export function puedeVerRendicionesAjenas(
   rolDelModulo: RolRendidor,
 ): boolean {
   // El admin del core entra a todo, como en el resto del sistema.
-  return rolDelCore === "admin" || rolDelModulo === "administrador";
+  return rolDelCore === "admin" || rolDelModulo === "admin";
 }
 
 /**

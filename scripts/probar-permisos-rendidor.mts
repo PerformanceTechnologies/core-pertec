@@ -42,7 +42,7 @@ assert.equal(
   "un usuario normal NO abre la de otra persona: es el comportamiento que el módulo tuvo siempre",
 );
 assert.equal(
-  puedeAbrirRendicion(OTRO, YO, "usuario", "administrador"),
+  puedeAbrirRendicion(OTRO, YO, "usuario", "admin"),
   true,
   "el administrador de gastos sí, que es justamente para lo que se creó el rol",
 );
@@ -60,20 +60,20 @@ assert.equal(
     "sido lo cómodo y se la habría mostrado a toda la empresa",
 );
 assert.equal(
-  puedeAbrirRendicion(null, YO, "usuario", "administrador"),
+  puedeAbrirRendicion(null, YO, "usuario", "admin"),
   true,
   "pero quien ve las ajenas sí la ve: si no, quedaría invisible para todos",
 );
 
 assert.equal(puedeVerRendicionesAjenas("usuario", "usuario"), false);
-assert.equal(puedeVerRendicionesAjenas("usuario", "administrador"), true);
+assert.equal(puedeVerRendicionesAjenas("usuario", "admin"), true);
 assert.equal(puedeVerRendicionesAjenas("admin", "usuario"), true);
 
 // ── El rol por omisión no amplía nada ──────────────────────────────────────
 
 const permisos = readFileSync(new URL("../lib/rendidor/permisos.ts", import.meta.url), "utf8");
 assert.ok(
-  /=== "administrador" \? "administrador" : "usuario"/.test(permisos),
+  /=== "admin" \? "admin" : "usuario"/.test(permisos),
   "el rol por omisión es 'usuario': quien tiene la app pero nadie le asignó nada ve lo suyo. " +
     "Un rol nuevo no puede ampliar lo que alguien ve sin que un admin lo decida",
 );
@@ -148,9 +148,21 @@ assert.ok(
 
 assert.deepEqual(
   ROLES_RENDIDOR.map((r) => r.valor),
-  ["usuario", "administrador"],
+  ["usuario", "admin"],
   "los dos roles que ofrece el selector",
 );
+// El valor guardado tiene que ser uno de los que esa columna ya acepta.
+// usuario_aplicaciones.rol_extra la comparten todos los módulos, y la primera
+// versión de este rol guardaba "administrador" —un valor inédito— así que el
+// guardado se caía con un error de Server Components, sin mensaje a la vista.
+const VALORES_YA_EN_USO = ["admin", "especial", "usuario", "visualizador"];
+for (const r of ROLES_RENDIDOR) {
+  assert.ok(
+    VALORES_YA_EN_USO.includes(r.valor),
+    `"${r.valor}" no es un valor que rol_extra ya use. La etiqueta puede decir lo que quiera ` +
+      `("Administrador de gastos"), pero el valor guardado tiene que ser del esquema compartido.`,
+  );
+}
 const formulario = readFileSync(new URL("../components/FormularioUsuario.tsx", import.meta.url), "utf8");
 assert.ok(
   /app\.slug === "rendir-gastos"/.test(formulario) && /ROLES_RENDIDOR/.test(formulario),
