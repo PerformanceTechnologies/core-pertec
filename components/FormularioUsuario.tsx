@@ -2,6 +2,7 @@ import type { Aplicacion, UsuarioConAcceso } from "@/lib/tipos";
 import { MODULOS_PANEL_ODOO } from "@/lib/panel-odoo/modulos-usuario";
 import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
 import BotonEnviar from "@/components/BotonEnviar";
+import { ROLES_RENDIDOR } from "@/lib/permisos-rendidor";
 
 const ETIQUETAS_MODULO_ODOO: Record<string, string> = {
   facturas: "Facturas",
@@ -132,6 +133,20 @@ export default function FormularioUsuario({
                   <option value="usuario">Contratos: Usuario Normal</option>
                   <option value="especial">Contratos: Usuario Especial</option>
                   <option value="admin">Contratos: Administrador</option>
+                </select>
+              )}
+              {app.slug === "rendir-gastos" && (
+                <select
+                  name={`rol_extra_${app.id}`}
+                  defaultValue={rolesExtra[app.id] ?? "usuario"}
+                  className="ml-6 rounded-md border border-borde bg-white px-2 py-1 text-xs outline-none focus:border-naranjo/50"
+                  title="Rol dentro de Rendir Gastos (solo aplica si la app está asignada arriba). Usuario: ve y rinde lo suyo. Administrador de gastos: ve las rendiciones de todos, para revisar antes de cargarlas a Odoo."
+                >
+                  {ROLES_RENDIDOR.map((r) => (
+                    <option key={r.valor} value={r.valor}>
+                      {r.etiqueta}
+                    </option>
+                  ))}
                 </select>
               )}
               {app.slug === "cotizador" && (

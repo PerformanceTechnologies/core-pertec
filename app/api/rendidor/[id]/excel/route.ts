@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { verificarAccesoAppApi } from "@/lib/autorizacion";
+import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { construirLibroRendicion, nombreArchivoRendicion, type RespaldoParaExcel } from "@/lib/rendidor/excel";
 import { adjuntarArchivoAGasto } from "@/lib/rendidor/odoo";
@@ -7,7 +8,6 @@ import { descargarRespaldo } from "@/lib/rendidor/almacenamiento";
 import { miniaturaParaExcel } from "@/lib/rendidor/miniatura";
 import { paginasComoImagen } from "@/lib/rendidor/pdf-a-imagen";
 
-const SLUG_APP = "rendir-gastos";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,7 +25,7 @@ export const maxDuration = 60;
 //   sin `expenseId`  → devuelve el .xlsx para descargar
 //   con `expenseId`  → lo adjunta a ese hr.expense en Odoo y devuelve JSON
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoAppApi(SLUG_APP);
+  const acceso = await verificarAccesoRendidorApi();
   if (!acceso.usuario) {
     return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   }
@@ -36,6 +36,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const rendicion = await obtenerRendicion(id);
     if (!rendicion) {
       return NextResponse.json({ error: "No encontramos esa rendición." }, { status: 404 });
+    }
+    // Esta comprobación FALTABA, y sus tres rutas hermanas (gastos, cargar,
+    // analizar) siempre la tuvieron. Sin ella, cualquiera con la app podía pedir
+    // el id de otra persona y bajarse su planilla COMPLETA, con las boletas y
+    // facturas embebidas; y pasando `expenseId`, adjuntarla a un hr.expense
+    // arbitrario de Odoo.
+    if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
     if (rendicion.gastos.length === 0) {
       return NextResponse.json(

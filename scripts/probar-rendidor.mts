@@ -332,11 +332,20 @@ const cuerpoListar = fuenteDatos.slice(
   fuenteDatos.indexOf("export async function listarRendiciones"),
   fuenteDatos.indexOf("export async function obtenerRendicion"),
 );
+// El quién ve qué ya viene decidido (puedeVerRendicionesAjenas, en
+// lib/permisos-rendidor.ts): acá solo se aplica. Antes esta función volvía a
+// interpretar el rol por su cuenta —"admin" a secas— y era una de las ocho
+// copias de la misma regla; con el rol de administrador de gastos, esa copia se
+// habría quedado atrás y habría seguido mostrando solo lo propio.
 assert.ok(
-  /quien\.rol === "admin"\s*\?\s*consulta\s*:\s*consulta\.eq\("creado_por", quien\.usuarioId\)/.test(
+  /quien\.verTodas\s*\?\s*consulta\s*:\s*consulta\.eq\("creado_por", quien\.usuarioId\)/.test(
     cuerpoListar,
   ),
-  "un admin consulta sin filtro y el resto por su usuario, y se decide EN la consulta",
+  "quien ve todas consulta sin filtro y el resto por su usuario, y se decide EN la consulta",
+);
+assert.ok(
+  !/quien\.rol/.test(cuerpoListar),
+  "listarRendiciones NO vuelve a interpretar el rol: recibe la decisión ya tomada",
 );
 assert.ok(
   /esMia: f\.creado_por === quien\.usuarioId/.test(cuerpoListar),

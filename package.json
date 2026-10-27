@@ -18,6 +18,7 @@
     "probar-selector-empresa": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-selector-empresa.mts",
     "probar-sii-diagnostico": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-sii-diagnostico.mts",
     "probar-facturas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-facturas-sii.mts",
+    "probar-permisos-rendidor": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-permisos-rendidor.mts",
     "probar-rendidor": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-rendidor.mts",
     "probar-tabla": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-tabla-facturas.mts",
     "probar-resumen": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-resumen-diario.mts",

@@ -66,7 +66,8 @@ function filaARendicion(fila: FilaRendicion): Rendicion {
  */
 export async function listarRendiciones(quien: {
   usuarioId: string;
-  rol: string;
+  /** Si ve las de toda la empresa. Lo decide puedeVerRendicionesAjenas, no este archivo. */
+  verTodas: boolean;
 }): Promise<ResumenRendicion[]> {
   const consulta = supabaseAdmin
     .from("rendiciones_resumen")
@@ -79,7 +80,7 @@ export async function listarRendiciones(quien: {
   // El filtro va en la CONSULTA y no en el resultado: filtrar despues significa
   // traer las rendiciones de toda la empresa a la memoria del servidor para
   // descartarlas, y el dia que alguien lea `data` antes del filtro, se filtran.
-  const { data, error } = await (quien.rol === "admin"
+  const { data, error } = await (quien.verTodas
     ? consulta
     : consulta.eq("creado_por", quien.usuarioId));
 

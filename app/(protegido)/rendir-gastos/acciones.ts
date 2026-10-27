@@ -2,17 +2,17 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { exigirAccesoApp } from "@/lib/autorizacion";
+import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { crearRendicion, eliminarRendicion, obtenerRendicion } from "@/lib/rendidor/datos";
 import { obtenerEmpleado } from "@/lib/rendidor/odoo";
 import { borrarRespaldosDeRendicion } from "@/lib/rendidor/almacenamiento";
 
-const SLUG_APP = "rendir-gastos";
 
 // PASO 0 de la skill: los 3 datos iniciales (quién rinde, monto asignado,
 // título), antes de analizar ningún comprobante.
 export async function crearRendicionAction(form: FormData) {
-  const usuario = await exigirAccesoApp(SLUG_APP);
+  const { usuario } = await exigirAccesoRendidor();
 
   const tituloRendicion = String(form.get("tituloRendicion") ?? "").trim();
   const montoAsignado = Number(form.get("montoAsignado") ?? 0) || 0;
@@ -65,14 +65,14 @@ export type ResultadoBorrado = { ok: true } | { ok: false; error: string };
  * justamente lo que hay que mostrarle a quien rinde.
  */
 export async function eliminarRendicionAction(id: string): Promise<ResultadoBorrado> {
-  const usuario = await exigirAccesoApp(SLUG_APP);
+  const { usuario, rol } = await exigirAccesoRendidor();
 
   const rendicion = await obtenerRendicion(id);
   // Ya no existe: se trata como éxito para que un doble clic no muestre un
   // error sobre algo que efectivamente está borrado.
   if (!rendicion) return { ok: true };
 
-  if (rendicion.creadoPor !== usuario.id && usuario.rol !== "admin") {
+  if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol)) {
     return { ok: false, error: "No puedes borrar una rendición de otra persona." };
   }
 

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { verificarAccesoAppApi } from "@/lib/autorizacion";
+import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { analizarComprobante } from "@/lib/rendidor/analizar";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { subirRespaldo } from "@/lib/rendidor/almacenamiento";
 
-const SLUG_APP = "rendir-gastos";
 
 export const runtime = "nodejs";
 // El análisis con visión puede tardar; sin esto Vercel corta antes.
@@ -14,7 +14,7 @@ export const maxDuration = 60;
 // llamada dentro del límite de 60s de Vercel, y así la UI puede mostrar avance
 // real en vez de dejar al rendidor esperando a ciegas.
 export async function POST(request: Request) {
-  const acceso = await verificarAccesoAppApi(SLUG_APP);
+  const acceso = await verificarAccesoRendidorApi();
   if (!acceso.usuario) {
     return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   }
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   if (!rendicion) {
     return NextResponse.json({ error: "No encontramos esa rendición." }, { status: 404 });
   }
-  if (rendicion.creadoPor !== acceso.usuario.id && acceso.usuario.rol !== "admin") {
+  if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

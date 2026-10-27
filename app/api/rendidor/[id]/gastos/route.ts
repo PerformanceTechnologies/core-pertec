@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { verificarAccesoAppApi } from "@/lib/autorizacion";
+import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { guardarGastos, obtenerRendicion } from "@/lib/rendidor/datos";
 import type { GastoRendicion } from "@/lib/rendidor/tipos";
 
-const SLUG_APP = "rendir-gastos";
 
 export const runtime = "nodejs";
 
 // Guarda los gastos corregidos en la tabla de revisión (borrador).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoAppApi(SLUG_APP);
+  const acceso = await verificarAccesoRendidorApi();
   if (!acceso.usuario) {
     return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   }
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Rendición no encontrada." }, { status: 404 });
   }
   // Cada quien edita lo suyo; un admin puede corregir cualquiera.
-  if (rendicion.creadoPor !== acceso.usuario.id && acceso.usuario.rol !== "admin") {
+  if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   if (rendicion.estado === "cargada_odoo") {

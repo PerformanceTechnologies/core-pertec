@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { verificarAccesoAppApi } from "@/lib/autorizacion";
+import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { obtenerRendicion, marcarCargadaOdoo } from "@/lib/rendidor/datos";
 import { armarPreview, crearGastoOdoo, crearProveedor } from "@/lib/rendidor/odoo";
 import { rutValido } from "@/lib/rendidor/iva";
 import type { GastoRendicion } from "@/lib/rendidor/tipos";
 
-const SLUG_APP = "rendir-gastos";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,7 +35,7 @@ interface Cuerpo {
 // /adjuntar, de a un archivo por request, porque el body de Vercel tope ~4,5 MB
 // no aguanta 16 comprobantes juntos.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const acceso = await verificarAccesoAppApi(SLUG_APP);
+  const acceso = await verificarAccesoRendidorApi();
   if (!acceso.usuario) {
     return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   }
@@ -45,7 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!rendicion) {
     return NextResponse.json({ error: "Rendición no encontrada." }, { status: 404 });
   }
-  if (rendicion.creadoPor !== acceso.usuario.id && acceso.usuario.rol !== "admin") {
+  if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   if (rendicion.estado === "cargada_odoo") {

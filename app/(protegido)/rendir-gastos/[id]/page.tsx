@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { exigirAccesoApp } from "@/lib/autorizacion";
+import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
 
-const SLUG_APP = "rendir-gastos";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function RendicionPage({
    */
   searchParams: Promise<{ revisar?: string }>;
 }) {
-  const usuario = await exigirAccesoApp(SLUG_APP);
+  const { usuario, rol } = await exigirAccesoRendidor();
   const { id } = await params;
   const { revisar } = await searchParams;
 
@@ -31,7 +31,7 @@ export default async function RendicionPage({
   if (!rendicion) notFound();
 
   // Cada quien ve lo suyo; un admin puede abrir cualquiera.
-  if (rendicion.creadoPor !== usuario.id && usuario.rol !== "admin") notFound();
+  if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol)) notFound();
 
   // URLs firmadas para previsualizar cada comprobante. Se generan DESPUÉS del
   // chequeo de acceso de arriba, no antes: son credenciales portadoras y no

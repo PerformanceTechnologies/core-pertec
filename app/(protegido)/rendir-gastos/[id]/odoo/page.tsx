@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { exigirAccesoApp } from "@/lib/autorizacion";
+import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { buscarProveedor } from "@/lib/rendidor/odoo";
 import { listarFondos, type FondoOdoo } from "@/lib/rendidor/fondos";
 import CargarAOdoo from "@/components/rendidor/CargarAOdoo";
 
-const SLUG_APP = "rendir-gastos";
 
 export const dynamic = "force-dynamic";
 // Resolver los proveedores son hasta tres consultas XML-RPC por gasto, y una rendición de
@@ -31,12 +31,12 @@ export const maxDuration = 60;
  * van a crear se cuentan en una línea, porque no hay nada que hacer con ellos.
  */
 export default async function CargarAOdooPage({ params }: { params: Promise<{ id: string }> }) {
-  const usuario = await exigirAccesoApp(SLUG_APP);
+  const { usuario, rol } = await exigirAccesoRendidor();
   const { id } = await params;
 
   const rendicion = await obtenerRendicion(id);
   if (!rendicion) notFound();
-  if (rendicion.creadoPor !== usuario.id && usuario.rol !== "admin") notFound();
+  if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol)) notFound();
 
   // Ya cargada, o sin nada que cargar: no hay paso que hacer acá. Se vuelve al detalle en
   // vez de mostrar una pantalla vacía con un botón que duplicaría los gastos.
