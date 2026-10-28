@@ -5,6 +5,7 @@ import { listarAplicaciones } from "@/lib/aplicaciones";
 import BarraLateral from "@/components/BarraLateral";
 import { HUECO_DE_BARRA } from "@/lib/estilos";
 import BotonSubir from "@/components/BotonSubir";
+import TemaEmpresa from "@/components/TemaEmpresa";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 
@@ -39,6 +40,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
 
   return (
     <div className="min-h-screen">
+      <TemaEmpresa slug={empresa.activa?.slug ?? null} />
       <BarraLateral
         correo={usuario.correo}
         rol={usuario.rol}

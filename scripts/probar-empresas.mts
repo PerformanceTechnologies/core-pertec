@@ -24,6 +24,8 @@ import {
   mostrarSelector,
   puedeVerEmpresa,
   resolverEmpresaActiva,
+  TEMAS_EMPRESA,
+  temaDeEmpresa,
   type Empresa,
 } from "../lib/empresas-modelo";
 
@@ -42,7 +44,7 @@ const empresa = (slug: string, nombre: string, extra: Partial<Empresa> = {}): Em
 });
 
 const PERTEC = empresa("pertec", "Performance Technologies");
-const ZEUS = empresa("zeus", "Zeus");
+const ZEUS = empresa("zeus", "Zeus Mining");
 const PS = empresa("performance-service", "Performance Service");
 const TODAS = [PERTEC, ZEUS, PS];
 
@@ -163,8 +165,9 @@ assert.equal(mostrarSelector(TODAS), true);
 
 assert.equal(inicialesDe("Performance Technologies"), "PT");
 assert.equal(inicialesDe("Performance Service"), "PS");
-assert.equal(inicialesDe("Zeus"), "ZE", "una sola palabra usa sus dos primeras letras");
-assert.equal(inicialesDe("  Zeus  "), "ZE", "los espacios de más no cuentan");
+assert.equal(inicialesDe("Zeus Mining"), "ZM");
+assert.equal(inicialesDe("Pertec"), "PE", "una sola palabra usa sus dos primeras letras");
+assert.equal(inicialesDe("  Pertec  "), "PE", "los espacios de más no cuentan");
 assert.equal(inicialesDe(""), "?", "un nombre vacío no deja el chip en blanco");
 assert.equal(inicialesDe("a b"), "AB", "siempre en mayúsculas");
 
@@ -261,8 +264,70 @@ assert.ok(
   "el nombre de la cookie sale del modelo, no escrito a mano en cada archivo",
 );
 
+// ── Zeus se llama siempre Zeus Mining ──────────────────────────────────────
+
+assert.ok(
+  /'Zeus Mining', 'zeus'/.test(sql) && !/'Zeus',/.test(sql),
+  "0001 siembra la empresa como 'Zeus Mining', nunca 'Zeus' a secas",
+);
+const sqlRenombre = leer("../supabase/empresas/0002_zeus_mining.sql");
+assert.ok(
+  /update public\.empresas\s+set nombre = 'Zeus Mining'\s+where slug = 'zeus'/.test(sqlRenombre),
+  "0002 corrige el nombre en una base donde 0001 ya corrió, buscándola por slug",
+);
+
+// ── Cada empresa con su paleta ─────────────────────────────────────────────
+
+const css = leer("../app/globals.css");
+for (const slug of TEMAS_EMPRESA) {
+  assert.ok(
+    new RegExp(`--marca-${slug}:`).test(css),
+    `${slug} necesita su color fijo (--marca-${slug}) para el chip del selector`,
+  );
+  if (slug === SLUG_POR_OMISION) continue; // PERTEC es la paleta de :root
+  for (const sel of [`:root\\[data-empresa="${slug}"\\]`, `:root\\[data-theme="dark"\\]\\[data-empresa="${slug}"\\]`]) {
+    const bloque = css.match(new RegExp(`${sel}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+    for (const v of ["--color-naranjo", "--color-azul"]) {
+      assert.ok(
+        new RegExp(`${v}:`).test(bloque),
+        `la paleta de ${slug} (${sel.replace(/\\/g, "")}) tiene que redefinir ${v}: sin eso, ` +
+          "al cambiar a esa empresa la página sigue naranja",
+      );
+    }
+  }
+}
+for (const slug of ["pertec", "zeus", "performance-service"]) {
+  assert.equal(temaDeEmpresa(slug), slug, `${slug} tiene paleta propia`);
+}
+for (const intento of [undefined, null, "", "inventada", "ZEUS", "zeus\"] {}"]) {
+  assert.equal(
+    temaDeEmpresa(intento),
+    SLUG_POR_OMISION,
+    `una cookie con ${JSON.stringify(intento)} no puede estampar un atributo arbitrario en <html>`,
+  );
+}
+
+const raiz = leer("../app/layout.tsx");
+assert.ok(
+  /temaDeEmpresa\(\(await cookies\(\)\)\.get\(COOKIE_EMPRESA\)\?\.value\)/.test(raiz) &&
+    /data-empresa=\{empresa\}/.test(raiz),
+  "el layout raíz estampa data-empresa desde el servidor, pasado por la lista blanca: hecho en el " +
+    "cliente, la página pintaría un instante con los colores de PERTEC",
+);
+assert.ok(
+  /<TemaEmpresa slug=\{empresa\.activa\?\.slug \?\? null\} \/>/.test(layout),
+  "el layout protegido alinea la paleta con la empresa YA RESUELTA, no con la cookie: si a alguien " +
+    "le quitaron una empresa, no puede quedar con sus colores y los datos de otra",
+);
+assert.ok(
+  !/bg-naranjo|text-naranjo\/|TONO\[/.test(leer("../components/SelectorEmpresa.tsx").replace(/IconCheck[^\n]*/g, "")),
+  "los chips del selector usan el color fijo de cada empresa: naranjo ahora es el de la ACTIVA, y " +
+    "parado en Zeus Mining el chip de PERTEC saldría verde",
+);
+
 console.log(
   "Multiempresa verificada: el admin entra a todas, quien no tiene ninguna asignada ve solo " +
     "PERTEC (nunca todas), una empresa desactivada desaparece para todos, y la cookie jamás " +
-    "decide por su cuenta — se devuelve siempre una de las permitidas.",
+    "decide por su cuenta — se devuelve siempre una de las permitidas. Zeus se llama Zeus Mining, y " +
+    "cada empresa cambia la paleta de la página.",
 );

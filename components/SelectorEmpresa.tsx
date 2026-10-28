@@ -5,13 +5,14 @@ import { IconCheck, IconSelector } from "@tabler/icons-react";
 import { cambiarEmpresaAction } from "@/app/(protegido)/cambiar-empresa";
 import { inicialesDe, mostrarSelector, type Empresa } from "@/lib/empresas-modelo";
 
-// El chip de cada empresa. Los colores son los mismos tres que ya usan las
-// tarjetas de aplicaciones, para no inventar una paleta nueva en el menú.
-const TONO: Record<string, string> = {
-  naranjo: "bg-naranjo/15 text-naranjo",
-  teal: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
-  gris: "bg-tinta/10 text-tinta/70",
-};
+// El chip de cada empresa, con su color de marca FIJO (--marca-<slug>, en
+// app/globals.css). No puede usar naranjo: ese ahora es el color de la empresa
+// ACTIVA, y en el desplegable, parado en Zeus Mining, el chip de PERTEC saldría
+// del color de Zeus. Una empresa sin paleta cae al gris.
+function tonoDe(slug: string): React.CSSProperties {
+  const color = `var(--marca-${slug}, var(--color-gris))`;
+  return { color, backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)` };
+}
 
 /**
  * El cambio de empresa, arriba del menú.
@@ -63,7 +64,6 @@ export default function SelectorEmpresa({
   }
 
   const iniciales = inicialesDe(activa.nombre);
-  const tono = TONO[activa.color] ?? TONO.gris;
 
   return (
     <div ref={caja} className={`relative ${colapsado ? "lg:px-2" : "px-3"}`}>
@@ -79,7 +79,8 @@ export default function SelectorEmpresa({
         }`}
       >
         <span
-          className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight ${tono}`}
+          className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight`}
+          style={tonoDe(activa.slug)}
           aria-hidden
         >
           {iniciales}
@@ -114,9 +115,8 @@ export default function SelectorEmpresa({
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-tinta/80 transition hover:bg-tinta/5"
               >
                 <span
-                  className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight ${
-                    TONO[e.color] ?? TONO.gris
-                  }`}
+                  className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight`}
+                  style={tonoDe(e.slug)}
                   aria-hidden
                 >
                   {inicialesDe(e.nombre)}

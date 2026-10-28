@@ -1,7 +1,7 @@
 -- Multiempresa en el Core PERTEC.
 --
 -- Hasta acá el Core asumía una sola empresa (Performance Technologies) en todas
--- partes. Ahora el grupo son tres —PERTEC, Zeus y Performance Service— y hace
+-- partes. Ahora el grupo son tres —PERTEC, Zeus Mining y Performance Service— y hace
 -- falta poder pararse en una y mirar el Core desde ahí, sobre todo para lo que
 -- viene después: facturación y contabilidad de las otras dos.
 --
@@ -70,7 +70,7 @@ select 'Performance Technologies', 'pertec', 'naranjo', 0
 where not exists (select 1 from public.empresas where slug = 'pertec');
 
 insert into public.empresas (nombre, slug, color, orden)
-select 'Zeus', 'zeus', 'teal', 1
+select 'Zeus Mining', 'zeus', 'teal', 1
 where not exists (select 1 from public.empresas where slug = 'zeus');
 
 insert into public.empresas (nombre, slug, color, orden)

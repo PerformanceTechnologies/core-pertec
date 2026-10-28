@@ -103,3 +103,19 @@ export function inicialesDe(nombre: string): string {
   if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
   return (palabras[0][0] + palabras[1][0]).toUpperCase();
 }
+
+/**
+ * Las empresas que tienen paleta propia en app/globals.css.
+ *
+ * Es la lista blanca del atributo data-empresa de <html>: el layout raíz lo saca
+ * de la cookie, y solo estampa un slug que esté acá. Cualquier otro valor (una
+ * empresa sin paleta, o una cookie editada a mano) deja la paleta de PERTEC.
+ * Agregar una empresa con colores propios es sumar su slug acá y su bloque en
+ * globals.css.
+ */
+export const TEMAS_EMPRESA = ["pertec", "zeus", "performance-service"] as const;
+
+/** El valor de data-empresa para este slug, o el de por omisión si no tiene paleta. */
+export function temaDeEmpresa(slug: string | null | undefined): string {
+  return slug && (TEMAS_EMPRESA as readonly string[]).includes(slug) ? slug : SLUG_POR_OMISION;
+}

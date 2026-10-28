@@ -46,6 +46,58 @@
   --color-fondo: #1c1a17;
 }
 
+/* ── Paleta por empresa ──────────────────────────────────────────────────────
+   Al cambiar de empresa en el selector del menú, la página toma los colores de
+   esa empresa. El layout raíz estampa data-empresa="<slug>" en <html> (ver
+   app/layout.tsx y TEMAS_EMPRESA en lib/empresas-modelo.ts) y estos bloques
+   redefinen el color de acción —naranjo y su alias azul—, así que botones,
+   enlaces, acentos y bordes activos cambian sin tocar las clases de ningún
+   módulo. PERTEC no necesita bloque: es la paleta de :root.
+
+   --marca-<slug> es el color FIJO de cada empresa, el que no cambia con la
+   empresa activa: lo usa el chip de cada una en el selector, que muestra las
+   tres a la vez.
+
+   ⚠ Zeus Mining y Performance Service van con colores PROVISORIOS, tomados de
+   los que ya tenían asignados en la tabla empresas (teal y gris), hasta tener
+   los de su manual de marca. Cambiarlos es cambiar solo estas variables. */
+:root {
+  --marca-pertec: #c85217;
+  --marca-pertec-suave: #e07a3d;
+  --marca-zeus: #00856a;
+  --marca-zeus-suave: #35b89b;
+  --marca-performance-service: #4f5b6b;
+  --marca-performance-service-suave: #7d8a9c;
+}
+
+:root[data-empresa="zeus"] {
+  --color-naranjo: var(--marca-zeus);
+  --color-naranjo-suave: var(--marca-zeus-suave);
+  --color-azul: var(--marca-zeus);
+  --color-azul-suave: var(--marca-zeus-suave);
+}
+
+:root[data-empresa="performance-service"] {
+  --color-naranjo: var(--marca-performance-service);
+  --color-naranjo-suave: var(--marca-performance-service-suave);
+  --color-azul: var(--marca-performance-service);
+  --color-azul-suave: var(--marca-performance-service-suave);
+}
+
+/* En oscuro el color de acción sube un tono, igual que el naranjo de PERTEC
+   (#c85217 → #e07a3d): el tono base se lee mal sobre fondo oscuro. */
+:root[data-theme="dark"][data-empresa="zeus"] {
+  --color-naranjo: var(--marca-zeus-suave);
+  --color-azul: var(--marca-zeus-suave);
+  --color-azul-suave: #5fcdb3;
+}
+
+:root[data-theme="dark"][data-empresa="performance-service"] {
+  --color-naranjo: var(--marca-performance-service-suave);
+  --color-azul: var(--marca-performance-service-suave);
+  --color-azul-suave: #a3aebd;
+}
+
 @theme inline {
   --color-crema: var(--color-crema);
   --color-tinta: var(--color-tinta);
