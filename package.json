@@ -37,6 +37,7 @@
     "probar-graficos-panel": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-panel.mts",
     "probar-ventas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-ventas.mts",
     "probar-graficos-ventas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-ventas.mts",
+    "probar-empresas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-empresas.mts",
     "probar-inventario": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-inventario.mts",
     "probar-gastos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-gastos.mts",
     "probar-graficos-gastos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-gastos.mts"

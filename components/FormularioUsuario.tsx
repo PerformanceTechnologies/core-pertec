@@ -1,4 +1,5 @@
 import type { Aplicacion, UsuarioConAcceso } from "@/lib/tipos";
+import { SLUG_POR_OMISION, type Empresa } from "@/lib/empresas-modelo";
 import { MODULOS_PANEL_ODOO } from "@/lib/panel-odoo/modulos-usuario";
 import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
 import BotonEnviar from "@/components/BotonEnviar";
@@ -19,6 +20,8 @@ const ETIQUETAS_MODULO_ODOO: Record<string, string> = {
 export default function FormularioUsuario({
   accion,
   todasLasApps,
+  todasLasEmpresas = [],
+  empresasAsignadas = [],
   valoresPorDefecto,
   modulosOdooAsignados,
   subpanelesFinanzasAsignados,
@@ -27,6 +30,9 @@ export default function FormularioUsuario({
 }: {
   accion: (form: FormData) => void;
   todasLasApps: Aplicacion[];
+  /** Las empresas del grupo, para marcar en cuáles puede pararse la persona. */
+  todasLasEmpresas?: Empresa[];
+  empresasAsignadas?: string[];
   valoresPorDefecto?: Partial<UsuarioConAcceso>;
   // undefined = sin restricción, ve todos los módulos (ver
   // lib/panel-odoo/modulos-usuario.ts: sin filas guardadas = acceso total)
@@ -216,6 +222,31 @@ export default function FormularioUsuario({
           ))}
         </div>
       </div>
+
+      {todasLasEmpresas.length > 1 && (
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-tinta/70">Empresas</label>
+          <p className="mt-0.5 text-[11px] text-tinta/50">
+            En cuáles se puede parar desde el selector del menú. Sin marcar ninguna ve{" "}
+            {todasLasEmpresas.find((e) => e.slug === SLUG_POR_OMISION)?.nombre ?? "la empresa principal"}.
+            Los admin del core entran a todas.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+            {todasLasEmpresas.map((e) => (
+              <label key={e.id} className="flex items-center gap-2 text-xs text-tinta/70">
+                <input
+                  type="checkbox"
+                  name="empresas"
+                  value={e.id}
+                  defaultChecked={empresasAsignadas.includes(e.id)}
+                  className="h-3.5 w-3.5 rounded border-borde"
+                />
+                {e.nombre}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="sm:col-span-2">
         <BotonEnviar

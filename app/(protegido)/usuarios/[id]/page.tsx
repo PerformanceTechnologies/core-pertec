@@ -5,6 +5,7 @@ import { obtenerUsuarioPorId } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import { obtenerModulosGuardados } from "@/lib/panel-odoo/modulos-usuario";
 import { obtenerSubpanelesFinanzasGuardados } from "@/lib/finanzas-subpaneles-usuario";
+import { empresaIdsDeUsuario, listarEmpresas } from "@/lib/empresas";
 import FormularioUsuario from "@/components/FormularioUsuario";
 import { actualizarUsuarioAction } from "../acciones";
 
@@ -15,12 +16,15 @@ export default async function EditarUsuarioPage({
 }) {
   await exigirAdmin();
   const { id } = await params;
-  const [usuario, apps, modulosOdooAsignados, subpanelesFinanzasAsignados] = await Promise.all([
-    obtenerUsuarioPorId(id),
-    listarAplicaciones(),
-    obtenerModulosGuardados(id),
-    obtenerSubpanelesFinanzasGuardados(id),
-  ]);
+  const [usuario, apps, modulosOdooAsignados, subpanelesFinanzasAsignados, empresas, empresasAsignadas] =
+    await Promise.all([
+      obtenerUsuarioPorId(id),
+      listarAplicaciones(),
+      obtenerModulosGuardados(id),
+      obtenerSubpanelesFinanzasGuardados(id),
+      listarEmpresas(),
+      empresaIdsDeUsuario(id),
+    ]);
   if (!usuario) notFound();
 
   const accionConId = actualizarUsuarioAction.bind(null, id);
@@ -38,6 +42,8 @@ export default async function EditarUsuarioPage({
         <FormularioUsuario
           accion={accionConId}
           todasLasApps={apps}
+          todasLasEmpresas={empresas}
+          empresasAsignadas={empresasAsignadas}
           valoresPorDefecto={usuario}
           modulosOdooAsignados={modulosOdooAsignados}
           subpanelesFinanzasAsignados={subpanelesFinanzasAsignados}

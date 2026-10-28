@@ -2,13 +2,18 @@ import Link from "next/link";
 import { exigirAdmin } from "@/lib/autorizacion";
 import { listarUsuarios } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
+import { listarEmpresas } from "@/lib/empresas";
 import FormularioUsuario from "@/components/FormularioUsuario";
 import BotonEliminar from "@/components/BotonEliminar";
 import { crearUsuarioAction, eliminarUsuarioAction } from "./acciones";
 
 export default async function UsuariosPage() {
   const admin = await exigirAdmin();
-  const [usuarios, apps] = await Promise.all([listarUsuarios(), listarAplicaciones()]);
+  const [usuarios, apps, empresas] = await Promise.all([
+    listarUsuarios(),
+    listarAplicaciones(),
+    listarEmpresas(),
+  ]);
 
   return (
     <div>
@@ -23,6 +28,7 @@ export default async function UsuariosPage() {
           <FormularioUsuario
             accion={crearUsuarioAction}
             todasLasApps={apps}
+            todasLasEmpresas={empresas}
             textoBoton="Crear usuario"
           />
         </div>

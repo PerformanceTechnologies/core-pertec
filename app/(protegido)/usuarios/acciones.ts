@@ -6,6 +6,7 @@ import { exigirAdmin } from "@/lib/autorizacion";
 import { crearUsuario, actualizarUsuario, eliminarUsuario } from "@/lib/usuarios";
 import { reemplazarModulosOdoo } from "@/lib/panel-odoo/modulos-usuario";
 import { reemplazarSubpanelesFinanzas } from "@/lib/finanzas-subpaneles-usuario";
+import { reemplazarEmpresas } from "@/lib/empresas";
 import type { Rol } from "@/lib/tipos";
 
 // Los selectores de rol interno (uno por app que lo soporte) llegan como
@@ -32,6 +33,15 @@ function leerSubpanelesFinanzas(form: FormData): string[] {
   return form.getAll("subpaneles_finanzas").map(String);
 }
 
+// Las empresas en las que la persona se puede parar. Mismo patrón: un paso
+// aparte, porque lib/usuarios.ts no conoce el concepto de empresa.
+//
+// Sin ninguna marcada NO queda sin acceso: ve la empresa de por omisión. Ver
+// empresasPermitidas en lib/empresas-modelo.ts, donde está el porqué.
+function leerEmpresas(form: FormData): string[] {
+  return form.getAll("empresas").map(String);
+}
+
 export async function crearUsuarioAction(form: FormData) {
   await exigirAdmin();
   const usuario = await crearUsuario({
@@ -43,6 +53,7 @@ export async function crearUsuarioAction(form: FormData) {
   });
   await reemplazarModulosOdoo(usuario.id, leerModulosOdoo(form));
   await reemplazarSubpanelesFinanzas(usuario.id, leerSubpanelesFinanzas(form));
+  await reemplazarEmpresas(usuario.id, leerEmpresas(form));
   revalidatePath("/usuarios");
 }
 
@@ -57,6 +68,7 @@ export async function actualizarUsuarioAction(id: string, form: FormData) {
   });
   await reemplazarModulosOdoo(id, leerModulosOdoo(form));
   await reemplazarSubpanelesFinanzas(id, leerSubpanelesFinanzas(form));
+  await reemplazarEmpresas(id, leerEmpresas(form));
   revalidatePath("/usuarios");
   revalidatePath("/");
   redirect("/usuarios");
