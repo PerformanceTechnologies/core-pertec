@@ -7,6 +7,7 @@ import { HUECO_DE_BARRA } from "@/lib/estilos";
 import BotonSubir from "@/components/BotonSubir";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
+import { tieneDatosCargados } from "@/lib/empresas-modelo";
 
 // Sin caché: cada navegación vuelve a consultar Supabase, así que si el
 // admin borra o desactiva a alguien, esa persona queda fuera en la
@@ -34,8 +35,10 @@ export default async function LayoutProtegido({ children }: { children: React.Re
   // Los contratos cuelgan de «Contratos» en el menú: se piden solo si la persona ve esa app.
   // La empresa activa se resuelve en paralelo: la necesita el menú en toda página.
   const promesaEmpresa = contextoDeEmpresa(usuario.id, usuario.rol);
-  const contratos = apps.some((app) => app.slug === "contratos") ? await listarContratosDelMenu() : [];
   const empresa = await promesaEmpresa;
+  // Los contratos y el buzón son de PERTEC: parado en otra empresa no se listan.
+  const conDatos = tieneDatosCargados(empresa.activa);
+  const contratos = conDatos && apps.some((app) => app.slug === "contratos") ? await listarContratosDelMenu() : [];
 
   return (
     <div className="min-h-screen">
@@ -46,6 +49,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         contratos={contratos}
         empresaActiva={empresa.activa}
         empresasPermitidas={empresa.permitidas}
+        mostrarBuzon={conDatos}
       />
       {/* La barra es FIJA (sale del flujo), así que el hueco se lo deja el
           contenido con un padding: ver BARRA_FIJA / HUECO_DE_BARRA en

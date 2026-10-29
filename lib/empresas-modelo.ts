@@ -39,6 +39,19 @@ export const COOKIE_EMPRESA = "core-empresa";
 export const SLUG_POR_OMISION = "pertec";
 
 /**
+ * Si la empresa tiene datos en los módulos.
+ *
+ * Las tablas de los módulos todavía no llevan empresa: todo lo cargado hasta hoy
+ * es de PERTEC. Así que parado en Zeus o en Performance Service, lo correcto es
+ * NO mostrar nada de eso —sería mostrarle a Zeus los contratos de PERTEC—, y no
+ * la tabla de PERTEC con otro logo arriba. Cuando un módulo empiece a guardar
+ * empresa_id, esta regla se reemplaza por el filtro de verdad en ese módulo.
+ */
+export function tieneDatosCargados(empresa: Pick<Empresa, "slug"> | null): boolean {
+  return (empresa?.slug ?? SLUG_POR_OMISION) === SLUG_POR_OMISION;
+}
+
+/**
  * Las empresas en las que esta persona se puede parar.
  *
  * El admin del core entra a todas, como en el resto del sistema. Para el resto

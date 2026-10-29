@@ -266,3 +266,24 @@ console.log(
     "PERTEC (nunca todas), una empresa desactivada desaparece para todos, y la cookie jamás " +
     "decide por su cuenta — se devuelve siempre una de las permitidas.",
 );
+
+// ── El filtro por empresa ────────────────────────────────────────────────────
+{
+  const { tieneDatosCargados } = await import("../lib/empresas-modelo.ts");
+  const { readFileSync, existsSync } = await import("node:fs");
+  assert.equal(tieneDatosCargados({ slug: "pertec" }), true);
+  assert.equal(tieneDatosCargados({ slug: "zeus" }), false);
+  assert.equal(tieneDatosCargados({ slug: "performance-service" }), false);
+  // Sin migración corrida todavía no hay empresa activa: el Core sigue como antes.
+  assert.equal(tieneDatosCargados(null), true);
+
+  // Todo módulo con datos pasa por el filtro; un módulo nuevo que se olvide de
+  // envolverse le mostraría a Zeus los datos de PERTEC.
+  for (const m of ["buzon", "contratos", "cotizador", "finanzas", "inventario", "mi-dia", "ofertas",
+                   "panel-odoo", "proyectos", "reclutamiento", "rendir-gastos"]) {
+    const ruta = `app/(protegido)/${m}/layout.tsx`;
+    assert.ok(existsSync(ruta) && /<FiltroDeEmpresa>/.test(readFileSync(ruta, "utf8")), `${m} no filtra por empresa`);
+  }
+  assert.match(readFileSync("supabase/empresas/0001_empresas.sql", "utf8"), /'zeus', 'dorado'/);
+}
+console.log("Filtro por empresa: solo PERTEC muestra datos; Zeus y Performance Service quedan vacíos.");

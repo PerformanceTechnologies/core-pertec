@@ -146,6 +146,7 @@ export default function BarraLateral({
   contratos = [],
   empresaActiva = null,
   empresasPermitidas = [],
+  mostrarBuzon = true,
 }: {
   correo: string;
   rol: Rol;
@@ -155,6 +156,7 @@ export default function BarraLateral({
   /** En qué empresa está parada la persona, y entre cuáles puede moverse. */
   empresaActiva?: Empresa | null;
   empresasPermitidas?: Empresa[];
+  mostrarBuzon?: boolean;
 }) {
   // "Abierta desde" en vez de un booleano + efecto que lo resetea: al
   // guardar el pathname vigente cuando se abre, "abierta"/"buscadorAbierto"
@@ -389,9 +391,11 @@ export default function BarraLateral({
         )}
       </nav>
 
-      <div className="border-t border-borde px-3 py-2">
-        <BuzonNotificaciones colapsado={colapsado} />
-      </div>
+      {mostrarBuzon && (
+        <div className="border-t border-borde px-3 py-2">
+          <BuzonNotificaciones colapsado={colapsado} />
+        </div>
+      )}
 
       <div className="border-t border-borde px-3 py-3">
         {colapsado ? (

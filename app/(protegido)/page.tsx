@@ -6,6 +6,8 @@ import { obtenerIcono } from "@/lib/iconos";
 import { clasesInsigniaColor, clasesInsigniaEstado, etiquetaEstado } from "@/lib/colores";
 import WidgetCalendario from "@/components/WidgetCalendario";
 import AvanceDelDia, { puedeVerResumenDelDia } from "@/components/mi-dia/AvanceDelDia";
+import { contextoDeEmpresa } from "@/lib/empresas";
+import { tieneDatosCargados } from "@/lib/empresas-modelo";
 
 const ZONA_HORARIA = "America/Santiago";
 
@@ -35,7 +37,9 @@ export default async function DashboardPage() {
     // en el menú de la izquierda como todos los demás módulos.
     .filter((app) => app.slug !== "mi-dia");
   const primerNombre = usuario.nombre?.split(" ")[0];
-  const veResumen = await puedeVerResumenDelDia(usuario);
+  // El resumen del día sale de los datos de PERTEC: en otra empresa no va.
+  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  const veResumen = tieneDatosCargados(activa) && (await puedeVerResumenDelDia(usuario));
 
   return (
     <div>

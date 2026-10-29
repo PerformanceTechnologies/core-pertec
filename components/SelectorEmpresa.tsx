@@ -5,11 +5,10 @@ import { IconCheck, IconSelector } from "@tabler/icons-react";
 import { cambiarEmpresaAction } from "@/app/(protegido)/cambiar-empresa";
 import { inicialesDe, mostrarSelector, type Empresa } from "@/lib/empresas-modelo";
 
-// El chip de cada empresa. Los colores son los mismos tres que ya usan las
-// tarjetas de aplicaciones, para no inventar una paleta nueva en el menú.
+// El chip de cada empresa: PERTEC naranjo, Zeus dorado, Performance Service gris.
 const TONO: Record<string, string> = {
   naranjo: "bg-naranjo/15 text-naranjo",
-  teal: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+  dorado: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
   gris: "bg-tinta/10 text-tinta/70",
 };
 

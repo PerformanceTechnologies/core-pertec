@@ -1,6 +1,7 @@
 import { IconBuildingWarehouse } from "@tabler/icons-react";
 import NavInventario from "@/components/inventario/NavInventario";
 import { exigirAccesoApp } from "@/lib/autorizacion";
+import FiltroDeEmpresa from "@/components/FiltroDeEmpresa";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,10 @@ export default async function LayoutInventario({ children }: { children: React.R
           <p className="text-sm text-gris">Control de stock de doble entrada</p>
         </div>
       </header>
-      <NavInventario />
-      {children}
+      <FiltroDeEmpresa>
+        <NavInventario />
+        {children}
+      </FiltroDeEmpresa>
     </div>
   );
 }

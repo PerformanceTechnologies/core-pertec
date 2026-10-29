@@ -70,7 +70,7 @@ select 'Performance Technologies', 'pertec', 'naranjo', 0
 where not exists (select 1 from public.empresas where slug = 'pertec');
 
 insert into public.empresas (nombre, slug, color, orden)
-select 'Zeus', 'zeus', 'teal', 1
+select 'Zeus', 'zeus', 'dorado', 1
 where not exists (select 1 from public.empresas where slug = 'zeus');
 
 insert into public.empresas (nombre, slug, color, orden)
@@ -89,3 +89,6 @@ from public.usuarios u
 cross join public.empresas e
 where u.rol = 'admin'
 on conflict do nothing;
+
+-- Zeus pasó de teal a dorado: corrige la fila si ya se había creado con el color viejo.
+update public.empresas set color = 'dorado' where slug = 'zeus' and color = 'teal';
