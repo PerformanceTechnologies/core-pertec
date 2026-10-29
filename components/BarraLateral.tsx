@@ -752,7 +752,9 @@ function LogoDeEmpresa({
     <img
       src={tema === "dark" ? completo.oscuro : completo.claro}
       alt={nombre}
-      className={slug === "pertec" ? "h-9 w-auto object-contain" : "h-14 w-auto object-contain"}
+      // El de Zeus es un emblema (dibujo arriba, nombre abajo): pegado a la izquierda
+      // se veía descentrado, así que va al medio. El de PERTEC es horizontal y se lee desde la izquierda.
+      className={slug === "pertec" ? "h-9 w-auto object-contain" : "mx-auto h-14 w-auto object-contain"}
     />
   );
 }
