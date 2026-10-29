@@ -130,3 +130,16 @@ const LOGO_POR_SLUG: Record<string, string> = {
 export function logoDe(empresa: Pick<Empresa, "slug" | "logo">): string | null {
   return empresa.logo || LOGO_POR_SLUG[empresa.slug] || null;
 }
+
+/**
+ * El logo grande de arriba del menú, en claro y en oscuro (en oscuro el texto
+ * negro no se leería). Sin logo, la barra muestra el nombre de la empresa.
+ */
+const LOGO_COMPLETO_POR_SLUG: Record<string, { claro: string; oscuro: string }> = {
+  pertec: { claro: "/empresas/pertec-completo.png", oscuro: "/empresas/pertec-completo-oscuro.png" },
+  zeus: { claro: "/empresas/zeus-completo.png", oscuro: "/empresas/zeus-completo-oscuro.png" },
+};
+
+export function logoCompletoDe(slug: string): { claro: string; oscuro: string } | null {
+  return LOGO_COMPLETO_POR_SLUG[slug] ?? null;
+}

@@ -59,6 +59,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         apps={apps}
         contratos={contratos}
         mostrarBuzon={conDatos}
+        empresaActiva={empresa.activa}
         subpanelesFinanzas={subpanelesFinanzas}
       />
       {/* La barra es FIJA (sale del flujo), así que el hueco se lo deja el

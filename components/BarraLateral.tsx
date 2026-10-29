@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -21,6 +20,7 @@ import {
 } from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
 import { armarMenu } from "@/lib/menu-modelo";
+import { logoCompletoDe, logoDe, type Empresa } from "@/lib/empresas-modelo";
 import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
@@ -144,6 +144,7 @@ export default function BarraLateral({
   apps,
   contratos = [],
   mostrarBuzon = true,
+  empresaActiva = null,
   subpanelesFinanzas = [],
 }: {
   correo: string;
@@ -152,6 +153,8 @@ export default function BarraLateral({
   /** Los contratos, para el submenú de «Contratos». */
   contratos?: ContratoDelMenu[];
   mostrarBuzon?: boolean;
+  /** La empresa activa: su logo va arriba del menú. */
+  empresaActiva?: Empresa | null;
   /** Los subpaneles de Finanzas que la persona tiene concedidos, para el grupo «Finanzas». */
   subpanelesFinanzas?: string[];
 }) {
@@ -246,25 +249,7 @@ export default function BarraLateral({
   const contenido = (
     <div className="flex h-full flex-col">
       <div className={`flex items-center px-5 py-5 ${colapsado ? "lg:justify-center lg:px-3" : ""}`}>
-        {colapsado ? (
-          <Image
-            src="/logo-pertec.png"
-            alt="Performance Technologies — PERTEC"
-            width={220}
-            height={170}
-            className="h-10 w-auto object-contain"
-            priority
-          />
-        ) : (
-          <Image
-            src="/corepertec.png"
-            alt="Core PERTEC"
-            width={927}
-            height={324}
-            className="h-8 w-auto object-contain"
-            priority
-          />
-        )}
+        <LogoDeEmpresa empresa={empresaActiva} colapsado={colapsado} tema={tema} />
       </div>
 
 
@@ -526,13 +511,9 @@ const Icono = obtenerIcono(app.icono);
     <>
       <div className="flex items-center justify-between border-b border-borde bg-crema/95 px-4 py-3 backdrop-blur-sm lg:hidden">
         {pathname === "/" ? (
-          <Image
-            src="/corepertec.png"
-            alt="Core PERTEC"
-            width={927}
-            height={324}
-            className="h-7 w-auto object-contain"
-          />
+          <div className="flex h-8 items-center [&_img]:!h-7">
+            <LogoDeEmpresa empresa={empresaActiva} colapsado={false} tema={tema} />
+          </div>
         ) : (
           <Link href="/" className="flex items-center gap-1.5 text-sm font-semibold text-tinta">
             <IconArrowLeft size={18} stroke={2} />
@@ -732,5 +713,46 @@ function EnlaceNav({
       {icono}
       {!colapsado && <span className="truncate">{children}</span>}
     </Link>
+  );
+}
+
+/**
+ * Arriba del menú, el logo de la empresa activa (ya no el de Core PERTEC).
+ * Plegado va solo el ícono. Sin migración corrida no hay empresa: va PERTEC.
+ */
+function LogoDeEmpresa({
+  empresa,
+  colapsado,
+  tema,
+}: {
+  empresa: Empresa | null;
+  colapsado: boolean;
+  tema: "light" | "dark";
+}) {
+  const slug = empresa?.slug ?? "pertec";
+  const nombre = empresa?.nombre ?? "Performance Technologies";
+  const completo = logoCompletoDe(slug);
+  const icono = logoDe({ slug, logo: empresa?.logo ?? null });
+
+  if (colapsado || !completo) {
+    if (icono) {
+      // eslint-disable-next-line @next/next/no-img-element -- logo servido por el propio core
+      return <img src={icono} alt={nombre} className={colapsado ? "h-10 w-auto object-contain" : "h-9 w-auto object-contain"} />;
+    }
+    return colapsado ? (
+      <span className="grid h-10 w-10 place-items-center rounded-lg bg-tinta/10 text-sm font-bold text-tinta/70">
+        {nombre.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+      </span>
+    ) : (
+      <span className="font-condensed text-lg font-bold uppercase leading-tight text-tinta">{nombre}</span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- logo servido por el propio core
+    <img
+      src={tema === "dark" ? completo.oscuro : completo.claro}
+      alt={nombre}
+      className={slug === "pertec" ? "h-9 w-auto object-contain" : "h-14 w-auto object-contain"}
+    />
   );
 }
