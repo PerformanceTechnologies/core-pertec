@@ -116,3 +116,17 @@ export function inicialesDe(nombre: string): string {
   if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
   return (palabras[0][0] + palabras[1][0]).toUpperCase();
 }
+
+/**
+ * El logo de cada empresa, para el selector de arriba a la derecha. Sacados de
+ * sus páginas web (Pertec-Web y zeusmin). La columna `logo` de la tabla manda
+ * si alguien la llena; sin logo se muestran las iniciales.
+ */
+const LOGO_POR_SLUG: Record<string, string> = {
+  pertec: "/empresas/pertec.png",
+  zeus: "/empresas/zeus.png",
+};
+
+export function logoDe(empresa: Pick<Empresa, "slug" | "logo">): string | null {
+  return empresa.logo || LOGO_POR_SLUG[empresa.slug] || null;
+}

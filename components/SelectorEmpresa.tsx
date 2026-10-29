@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { IconCheck, IconSelector } from "@tabler/icons-react";
 import { cambiarEmpresaAction } from "@/app/(protegido)/cambiar-empresa";
-import { inicialesDe, mostrarSelector, type Empresa } from "@/lib/empresas-modelo";
+import { inicialesDe, logoDe, mostrarSelector, type Empresa } from "@/lib/empresas-modelo";
 
 // El chip de cada empresa: PERTEC naranjo, Zeus dorado, Performance Service gris.
 const TONO: Record<string, string> = {
@@ -59,8 +59,6 @@ export default function SelectorEmpresa({
     });
   }
 
-  const iniciales = inicialesDe(activa.nombre);
-  const tono = TONO[activa.color] ?? TONO.gris;
 
   return (
     <div ref={caja} className="relative">
@@ -73,12 +71,7 @@ export default function SelectorEmpresa({
         title="Cambiar de empresa"
         className="flex items-center gap-2 rounded-lg border border-borde bg-superficie px-2.5 py-1.5 text-sm text-tinta/75 transition hover:border-naranjo/40 disabled:opacity-50"
       >
-        <span
-          className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight ${tono}`}
-          aria-hidden
-        >
-          {iniciales}
-        </span>
+        <Distintivo empresa={activa} />
         <span className="hidden max-w-[14rem] truncate text-left font-medium sm:inline">{activa.nombre}</span>
         <IconSelector size={15} stroke={1.75} className="shrink-0 text-tinta/35" aria-hidden />
       </button>
@@ -102,14 +95,7 @@ export default function SelectorEmpresa({
                 onClick={() => cambiar(e.slug)}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-tinta/80 transition hover:bg-tinta/5"
               >
-                <span
-                  className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight ${
-                    TONO[e.color] ?? TONO.gris
-                  }`}
-                  aria-hidden
-                >
-                  {inicialesDe(e.nombre)}
-                </span>
+                <Distintivo empresa={e} />
                 <span className="min-w-0 flex-1 truncate">{e.nombre}</span>
                 {esActiva && <IconCheck size={15} stroke={2.25} className="shrink-0 text-naranjo" aria-hidden />}
               </button>
@@ -118,5 +104,26 @@ export default function SelectorEmpresa({
         </div>
       )}
     </div>
+  );
+}
+
+/** El logo de la empresa; si no tiene, sus iniciales en su color. */
+function Distintivo({ empresa }: { empresa: Empresa }) {
+  const logo = logoDe(empresa);
+  if (logo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- ícono de 22 px servido por el propio core
+      <img src={logo} alt="" className="h-[22px] w-[22px] shrink-0 object-contain" aria-hidden />
+    );
+  }
+  return (
+    <span
+      className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight ${
+        TONO[empresa.color] ?? TONO.gris
+      }`}
+      aria-hidden
+    >
+      {inicialesDe(empresa.nombre)}
+    </span>
   );
 }
