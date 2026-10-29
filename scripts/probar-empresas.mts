@@ -269,7 +269,7 @@ console.log(
 
 // ── El filtro por empresa ────────────────────────────────────────────────────
 {
-  const { tieneDatosCargados } = await import("../lib/empresas-modelo.ts");
+  const { tieneDatosCargados } = await import("../lib/empresas-modelo");
   const { readFileSync, existsSync } = await import("node:fs");
   assert.equal(tieneDatosCargados({ slug: "pertec" }), true);
   assert.equal(tieneDatosCargados({ slug: "zeus" }), false);
