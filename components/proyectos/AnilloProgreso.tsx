@@ -9,7 +9,7 @@ export default function AnilloProgreso({ pct, size = 140, stroke = 10 }: { pct: 
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <defs>
         <linearGradient id="anillo-progreso-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#C85217" />
+          <stop offset="0%" stopColor="var(--color-naranjo)" />
           <stop offset="60%" stopColor="#E67E3F" />
           <stop offset="100%" stopColor="#00A080" />
         </linearGradient>

@@ -370,7 +370,7 @@ export default function SelectorProyectos({
                   </span>
                   <span
                     className="text-sm font-medium tracking-tight tabular-nums"
-                    style={s.vencen > 0 ? { color: "#C85217" } : { color: "var(--color-tinta)" }}
+                    style={s.vencen > 0 ? { color: "var(--color-naranjo)" } : { color: "var(--color-tinta)" }}
                   >
                     {s.vencen}
                   </span>

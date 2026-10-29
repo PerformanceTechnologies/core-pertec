@@ -46,6 +46,51 @@
   --color-fondo: #1c1a17;
 }
 
+/* La marca de cada empresa. El layout protegido marca su caja con data-empresa y
+   :has() lo sube a <html>, así también lo toman los popovers que cuelgan del body.
+   Se pisan solo los colores de acento (naranjo/teal y sus alias azul/cian de
+   Contratos): fondos, texto y bordes son los mismos para todas. PERTEC no lleva
+   regla: es la paleta de arriba. */
+:root:has([data-empresa="zeus"]) {
+  --color-naranjo: #b08419;
+  --color-naranjo-suave: #d4a53a;
+  --color-teal: #7a5c12;
+  --color-teal-suave: #a07f2c;
+  --color-azul: #b08419;
+  --color-azul-suave: #d4a53a;
+  --color-cian: #7a5c12;
+  --color-cian-suave: #a07f2c;
+  --color-cian-lavado: #f6efdc;
+  --color-cian-texto: #6b5010;
+}
+:root[data-theme="dark"]:has([data-empresa="zeus"]) {
+  --color-naranjo: #d4a53a;
+  --color-azul: #d4a53a;
+  --color-azul-suave: #e6bd5c;
+  --color-cian-lavado: #2c2617;
+  --color-cian-texto: #d4a53a;
+}
+:root:has([data-empresa="performance-service"]) {
+  --color-naranjo: #5c6570;
+  --color-naranjo-suave: #838c97;
+  --color-teal: #3e4650;
+  --color-teal-suave: #66707b;
+  --color-azul: #5c6570;
+  --color-azul-suave: #838c97;
+  --color-cian: #3e4650;
+  --color-cian-suave: #66707b;
+  --color-cian-lavado: #eceef1;
+  --color-cian-texto: #3e4650;
+}
+:root[data-theme="dark"]:has([data-empresa="performance-service"]) {
+  --color-naranjo: #9aa3ae;
+  --color-azul: #9aa3ae;
+  --color-azul-suave: #b4bcc6;
+  --color-teal: #7d8792;
+  --color-cian-lavado: #262a2f;
+  --color-cian-texto: #9aa3ae;
+}
+
 @theme inline {
   --color-crema: var(--color-crema);
   --color-tinta: var(--color-tinta);

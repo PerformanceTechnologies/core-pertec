@@ -7,9 +7,9 @@ import { inicialesDe, mostrarSelector, type Empresa } from "@/lib/empresas-model
 
 // El chip de cada empresa: PERTEC naranjo, Zeus dorado, Performance Service gris.
 const TONO: Record<string, string> = {
-  naranjo: "bg-naranjo/15 text-naranjo",
+  naranjo: "bg-[#c85217]/15 text-[#c85217]",
   dorado: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  gris: "bg-tinta/10 text-tinta/70",
+  gris: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
 };
 
 /**

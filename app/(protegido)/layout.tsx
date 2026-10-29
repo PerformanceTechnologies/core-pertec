@@ -41,7 +41,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
   const contratos = conDatos && apps.some((app) => app.slug === "contratos") ? await listarContratosDelMenu() : [];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" data-empresa={empresa.activa?.slug ?? "pertec"}>
       <BarraLateral
         correo={usuario.correo}
         rol={usuario.rol}
