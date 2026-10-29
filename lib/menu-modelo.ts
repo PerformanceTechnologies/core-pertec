@@ -20,8 +20,11 @@ export interface GrupoDelMenu {
   items: ItemDelMenu[];
 }
 
-/** Rutas que no van en el menú aunque la persona tenga la app. */
-export const RUTAS_OCULTAS = ["/proyectos"];
+/**
+ * Rutas que no van en el menú aunque la persona tenga la app. Mi Día no se
+ * pierde: tiene su botón arriba a la derecha (ver BarraSuperior).
+ */
+export const RUTAS_OCULTAS = ["/proyectos", "/panel-odoo", "/mi-dia"];
 
 /** Subpaneles de Finanzas que van en el menú (facturas-ih queda fuera a propósito). */
 const SUBPANELES_EN_MENU = [

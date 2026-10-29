@@ -13,7 +13,7 @@ const TONO: Record<string, string> = {
 };
 
 /**
- * El cambio de empresa, arriba del menú.
+ * El cambio de empresa, arriba a la derecha de la página.
  *
  * Deliberadamente discreto: un renglón con las iniciales y el nombre, del mismo
  * tamaño que los ítems del menú, que solo aparece si hay más de una empresa
@@ -23,11 +23,9 @@ const TONO: Record<string, string> = {
 export default function SelectorEmpresa({
   activa,
   permitidas,
-  colapsado,
 }: {
   activa: Empresa | null;
   permitidas: Empresa[];
-  colapsado: boolean;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [pendiente, iniciar] = useTransition();
@@ -65,17 +63,15 @@ export default function SelectorEmpresa({
   const tono = TONO[activa.color] ?? TONO.gris;
 
   return (
-    <div ref={caja} className={`relative ${colapsado ? "lg:px-2" : "px-3"}`}>
+    <div ref={caja} className="relative">
       <button
         type="button"
         onClick={() => setAbierto((v) => !v)}
         disabled={pendiente}
         aria-haspopup="listbox"
         aria-expanded={abierto}
-        title={colapsado ? activa.nombre : undefined}
-        className={`flex w-full items-center gap-2.5 rounded-lg py-2 text-sm text-tinta/70 transition hover:bg-tinta/5 disabled:opacity-50 ${
-          colapsado ? "justify-center px-0" : "px-2.5"
-        }`}
+        title="Cambiar de empresa"
+        className="flex items-center gap-2 rounded-lg border border-borde bg-superficie px-2.5 py-1.5 text-sm text-tinta/75 transition hover:border-naranjo/40 disabled:opacity-50"
       >
         <span
           className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight ${tono}`}
@@ -83,20 +79,14 @@ export default function SelectorEmpresa({
         >
           {iniciales}
         </span>
-        {!colapsado && (
-          <>
-            <span className="min-w-0 flex-1 truncate text-left font-medium">{activa.nombre}</span>
-            <IconSelector size={15} stroke={1.75} className="shrink-0 text-tinta/35" aria-hidden />
-          </>
-        )}
+        <span className="hidden max-w-[14rem] truncate text-left font-medium sm:inline">{activa.nombre}</span>
+        <IconSelector size={15} stroke={1.75} className="shrink-0 text-tinta/35" aria-hidden />
       </button>
 
       {abierto && (
         <div
           role="listbox"
-          className={`absolute z-50 mt-1 overflow-hidden rounded-xl border border-borde bg-fondo shadow-lg ${
-            colapsado ? "left-full top-0 ml-2 w-56" : "left-3 right-3"
-          }`}
+          className="absolute right-0 z-50 mt-1 w-64 overflow-hidden rounded-xl border border-borde bg-fondo shadow-lg"
         >
           <p className="border-b border-borde px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-tinta/40">
             Empresa

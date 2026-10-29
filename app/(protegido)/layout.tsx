@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import BarraLateral from "@/components/BarraLateral";
+import BarraSuperior from "@/components/BarraSuperior";
 import { HUECO_DE_BARRA } from "@/lib/estilos";
 import BotonSubir from "@/components/BotonSubir";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
@@ -57,8 +58,6 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         rol={usuario.rol}
         apps={apps}
         contratos={contratos}
-        empresaActiva={empresa.activa}
-        empresasPermitidas={empresa.permitidas}
         mostrarBuzon={conDatos}
         subpanelesFinanzas={subpanelesFinanzas}
       />
@@ -72,7 +71,14 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           del Gantt de Proyectos, con muchas columnas de día de ancho fijo), sin
           esto no scrollea internamente y empuja el layout más ancho que el
           viewport. */}
-      <main className={`min-w-0 py-8 ${HUECO_DE_BARRA}`}>{children}</main>
+      <main className={`min-w-0 py-8 ${HUECO_DE_BARRA}`}>
+        <BarraSuperior
+          veMiDia={apps.some((app) => app.url === "/mi-dia")}
+          empresaActiva={empresa.activa}
+          empresasPermitidas={empresa.permitidas}
+        />
+        {children}
+      </main>
       <BotonSubir />
     </div>
   );

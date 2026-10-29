@@ -17,17 +17,18 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 // El admin: todo, en el orden pedido.
 {
   const g = armarMenu(todas, ["sii", "facturas-historicas", "facturas-ih"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", null, "Página web", null, "Otras"]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", null, "Página web", null]);
   assert.deepEqual(nombres(g[0]), ["Facturas compra y venta", "Rendir Gastos", "Históricos facturas"]);
   assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas"]);
   assert.deepEqual(nombres(g[2]), ["Contratos"]);
   assert.deepEqual(nombres(g[3]), ["Configuración", "Postulaciones", "Cotizador web"]);
   assert.deepEqual(g[3].items.map((i) => i.tipo), ["pronto", "app", "pronto"]);
   assert.deepEqual(nombres(g[4]), ["Inventario"]);
-  // Proyectos oculto, Facturas IH nunca; Panel Odoo y Mi Día no se pierden.
+  // Ocultos: Proyectos, Panel Odoo, Mi Día (va arriba a la derecha) y Facturas IH.
   const todo = g.flatMap(nombres).join("|");
-  assert.ok(!/Proyectos|IH/.test(todo));
-  assert.deepEqual(nombres(g[5]), ["Panel Odoo", "Mi Día"]);
+  assert.ok(!/Proyectos|Panel Odoo|Mi Día|IH/.test(todo));
+  // Una app que no calza en ningún grupo cae en «Otras», no desaparece.
+  assert.deepEqual(armarMenu([app("/nueva", "Nueva")], []).map(nombres), [["Nueva"]]);
 }
 
 // Sin permiso no aparece; un grupo sin nada real desaparece entero.

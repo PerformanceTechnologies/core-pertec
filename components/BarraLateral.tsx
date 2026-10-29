@@ -25,10 +25,8 @@ import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
 import BuzonNotificaciones from "@/components/BuzonNotificaciones";
-import SelectorEmpresa from "@/components/SelectorEmpresa";
 import { BARRA_FIJA } from "@/lib/estilos";
 import type { Aplicacion, Rol } from "@/lib/tipos";
-import type { Empresa } from "@/lib/empresas-modelo";
 import type { ContratoDelMenu } from "@/lib/contratos/contratos";
 
 const CLAVE_COLAPSADA = "core-sidebar-colapsada";
@@ -145,8 +143,6 @@ export default function BarraLateral({
   rol,
   apps,
   contratos = [],
-  empresaActiva = null,
-  empresasPermitidas = [],
   mostrarBuzon = true,
   subpanelesFinanzas = [],
 }: {
@@ -155,9 +151,6 @@ export default function BarraLateral({
   apps: Aplicacion[];
   /** Los contratos, para el submenú de «Contratos». */
   contratos?: ContratoDelMenu[];
-  /** En qué empresa está parada la persona, y entre cuáles puede moverse. */
-  empresaActiva?: Empresa | null;
-  empresasPermitidas?: Empresa[];
   mostrarBuzon?: boolean;
   /** Los subpaneles de Finanzas que la persona tiene concedidos, para el grupo «Finanzas». */
   subpanelesFinanzas?: string[];
@@ -274,10 +267,6 @@ export default function BarraLateral({
         )}
       </div>
 
-      {/* El cambio de empresa va acá arriba, pegado al logo: es el contexto de
-          todo lo que viene abajo, no una aplicación más. Se dibuja solo si hay
-          más de una empresa donde pararse. */}
-      <SelectorEmpresa activa={empresaActiva} permitidas={empresasPermitidas} colapsado={colapsado} />
 
       <nav className={`flex-1 overflow-y-auto pb-4 ${colapsado ? "lg:px-2" : "px-3"}`}>
         <EnlaceNav
