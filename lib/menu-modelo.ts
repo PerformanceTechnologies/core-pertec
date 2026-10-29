@@ -44,7 +44,9 @@ const PLAN: Plan[] = [
     items: [{ subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
   },
   { titulo: "CRM", items: [{ ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }] },
-  { titulo: null, items: [{ ruta: "/contratos" }] },
+  // Contratos e Inventario sueltos desentonaban entre grupos con título: juntos
+  // son la operación del día a día.
+  { titulo: "Operaciones", items: [{ ruta: "/contratos" }, { ruta: "/inventario" }] },
   {
     titulo: "Página web",
     items: [
@@ -53,7 +55,6 @@ const PLAN: Plan[] = [
       { pronto: "Cotizador web", icono: "file-invoice" },
     ],
   },
-  { titulo: null, items: [{ ruta: "/inventario" }] },
 ];
 
 /**
