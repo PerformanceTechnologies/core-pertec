@@ -20,6 +20,7 @@ import {
   IconMoon,
 } from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
+import { armarMenu } from "@/lib/menu-modelo";
 import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
@@ -147,6 +148,7 @@ export default function BarraLateral({
   empresaActiva = null,
   empresasPermitidas = [],
   mostrarBuzon = true,
+  subpanelesFinanzas = [],
 }: {
   correo: string;
   rol: Rol;
@@ -157,6 +159,8 @@ export default function BarraLateral({
   empresaActiva?: Empresa | null;
   empresasPermitidas?: Empresa[];
   mostrarBuzon?: boolean;
+  /** Los subpaneles de Finanzas que la persona tiene concedidos, para el grupo «Finanzas». */
+  subpanelesFinanzas?: string[];
 }) {
   // "Abierta desde" en vez de un booleano + efecto que lo resetea: al
   // guardar el pathname vigente cuando se abre, "abierta"/"buscadorAbierto"
@@ -168,6 +172,7 @@ export default function BarraLateral({
   const [buscadorAbiertoDesde, setBuscadorAbiertoDesde] = useState<string | null>(null);
   const pathname = usePathname();
   const esAdmin = rol === "admin";
+  const grupos = armarMenu(apps, subpanelesFinanzas);
   const abierta = abiertaDesde === pathname;
   const buscadorAbierto = buscadorAbiertoDesde === pathname;
 
@@ -284,80 +289,123 @@ export default function BarraLateral({
           Dashboard
         </EnlaceNav>
 
-        {colapsado ? (
-          <div className="mx-1 mb-2 mt-6 border-t border-borde" />
-        ) : (
-          <p className="mt-6 mb-1 flex items-center gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-tinta/45">
-            <span className="h-[2px] w-3 shrink-0 rounded-full bg-naranjo/70" />
-            Tus aplicaciones
-          </p>
+        {apps.length === 0 && !colapsado && (
+          <p className="mt-6 px-2.5 py-2 text-xs text-tinta/40">Sin aplicaciones asignadas</p>
         )}
-        <div className="mt-1 flex flex-col gap-0.5">
-          {apps.length === 0 && !colapsado && (
-            <p className="px-2.5 py-2 text-xs text-tinta/40">Sin aplicaciones asignadas</p>
-          )}
-          {apps.map((app) => {
-            const Icono = obtenerIcono(app.icono);
-            const deshabilitada = app.estado === "mantenimiento";
-            const href =
-              app.tipo === "interna" ? app.url : app.url.startsWith("http") ? app.url : `https://${app.url}`;
+        {grupos.map((grupo, i) => (
+          <div key={grupo.titulo ?? `suelto-${i}`}>
+            {colapsado ? (
+              <div className="mx-1 mb-2 mt-4 border-t border-borde" />
+            ) : grupo.titulo ? (
+              <p className="mt-5 mb-1 flex items-center gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-tinta/45">
+                <span className="h-[2px] w-3 shrink-0 rounded-full bg-naranjo/70" />
+                {grupo.titulo}
+              </p>
+            ) : (
+              <div className="mt-4" />
+            )}
+            <div className="mt-1 flex flex-col gap-0.5">
+              {grupo.items.map((item) => {
+                if (item.tipo === "pronto") {
+                  const Icono = obtenerIcono(item.icono);
+                  return (
+                    <span
+                      key={item.nombre}
+                      title={colapsado ? `${item.nombre} (próximamente)` : undefined}
+                      className={`flex cursor-default items-center gap-2.5 rounded-lg py-2 text-sm text-tinta/35 ${
+                        colapsado ? "justify-center px-0" : "px-2.5"
+                      }`}
+                    >
+                      <Icono size={17} stroke={1.75} aria-hidden />
+                      {!colapsado && (
+                        <>
+                          <span className="flex-1 truncate">{item.nombre}</span>
+                          <span className="shrink-0 rounded-full bg-gris/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gris">
+                            Pronto
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  );
+                }
+                if (item.tipo === "enlace") {
+                  const Icono = obtenerIcono(item.icono);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      title={colapsado ? item.nombre : undefined}
+                      className={clasesItem(esRutaActiva(item.href, pathname), colapsado)}
+                    >
+                      <Icono size={17} stroke={1.75} aria-hidden />
+                      {!colapsado && <span className="truncate">{item.nombre}</span>}
+                    </Link>
+                  );
+                }
+                const { app, nombre } = item;
+const Icono = obtenerIcono(app.icono);
+                const deshabilitada = app.estado === "mantenimiento";
+                const href =
+                  app.tipo === "interna" ? app.url : app.url.startsWith("http") ? app.url : `https://${app.url}`;
 
-            if (deshabilitada) {
-              return (
-                <span
-                  key={app.id}
-                  title={colapsado ? `${app.nombre} (en mantención)` : undefined}
-                  className={`flex cursor-not-allowed items-center gap-2.5 rounded-lg py-2 text-sm text-tinta/35 ${
-                    colapsado ? "justify-center px-0" : "px-2.5"
-                  }`}
-                >
-                  <Icono size={17} stroke={1.75} aria-hidden />
-                  {!colapsado && (
-                    <>
-                      <span className="flex-1 truncate">{app.nombre}</span>
-                      <span className="shrink-0 rounded-full bg-gris/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gris">
-                        Mantención
-                      </span>
-                    </>
-                  )}
-                </span>
-              );
-            }
+                if (deshabilitada) {
+                  return (
+                    <span
+                      key={app.id}
+                      title={colapsado ? `${nombre} (en mantención)` : undefined}
+                      className={`flex cursor-not-allowed items-center gap-2.5 rounded-lg py-2 text-sm text-tinta/35 ${
+                        colapsado ? "justify-center px-0" : "px-2.5"
+                      }`}
+                    >
+                      <Icono size={17} stroke={1.75} aria-hidden />
+                      {!colapsado && (
+                        <>
+                          <span className="flex-1 truncate">{nombre}</span>
+                          <span className="shrink-0 rounded-full bg-gris/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gris">
+                            Mantención
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  );
+                }
 
-            const activa = esRutaActiva(href, pathname);
-            const clases = clasesItem(activa, colapsado);
-            // La descripción de la app, en el tooltip: "Panel Odoo" o "Cotizador"
-            // no dicen mucho de afuera, y el dato ya está cargado.
-            const titulo = [app.nombre, app.descripcion].filter(Boolean).join(" — ");
-            const secciones = SECCIONES_DE_MODULO[href] ?? [];
+                const activa = esRutaActiva(href, pathname);
+                const clases = clasesItem(activa, colapsado);
+                // La descripción de la app, en el tooltip: "Panel Odoo" o "Cotizador"
+                // no dicen mucho de afuera, y el dato ya está cargado.
+                const titulo = [nombre, app.descripcion].filter(Boolean).join(" — ");
+                const secciones = SECCIONES_DE_MODULO[href] ?? [];
 
-            if (app.tipo === "interna") {
-              return (
-                <div key={app.id}>
-                  <Link href={href} title={titulo} className={clases}>
+                if (app.tipo === "interna") {
+                  return (
+                    <div key={app.id}>
+                      <Link href={href} title={titulo} className={clases}>
+                        <Icono size={17} stroke={1.75} aria-hidden />
+                        {!colapsado && <span className="truncate">{nombre}</span>}
+                      </Link>
+                      {/* Plegado no hay lugar para esto, y desplegarlo al pasar el mouse
+                          taparía el resto del menú. */}
+                      {activa && !colapsado && secciones.length > 0 && (
+                        <SeccionesDelModulo secciones={secciones} base={href} pathname={pathname} />
+                      )}
+                      {activa && !colapsado && href === "/contratos" && (
+                        <SubmenuDeContratos contratos={contratos} pathname={pathname} />
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <a key={app.id} href={href} title={titulo} className={clases}>
                     <Icono size={17} stroke={1.75} aria-hidden />
-                    {!colapsado && <span className="truncate">{app.nombre}</span>}
-                  </Link>
-                  {/* Plegado no hay lugar para esto, y desplegarlo al pasar el mouse
-                      taparía el resto del menú. */}
-                  {activa && !colapsado && secciones.length > 0 && (
-                    <SeccionesDelModulo secciones={secciones} base={href} pathname={pathname} />
-                  )}
-                  {activa && !colapsado && href === "/contratos" && (
-                    <SubmenuDeContratos contratos={contratos} pathname={pathname} />
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <a key={app.id} href={href} title={titulo} className={clases}>
-                <Icono size={17} stroke={1.75} aria-hidden />
-                {!colapsado && <span className="truncate">{app.nombre}</span>}
-              </a>
-            );
-          })}
-        </div>
+                    {!colapsado && <span className="truncate">{nombre}</span>}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
         {esAdmin && (
           <>

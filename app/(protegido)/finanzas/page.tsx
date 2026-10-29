@@ -13,10 +13,10 @@ export default async function FinanzasPage() {
   // lib/finanzas-subpaneles-usuario.ts), asignable por el admin desde
   // /usuarios -- el admin siempre ve todos.
   const guardados = usuario.rol === "admin" ? [] : await obtenerSubpanelesFinanzasGuardados(usuario.id);
-  const subpaneles =
-    usuario.rol === "admin"
-      ? SUBPANELES_FINANZAS
-      : SUBPANELES_FINANZAS.filter((sp) => subpanelFinanzasPermitido(sp.slug, guardados));
+  // Facturas IH no se ofrece: se pidió ocultarla. La ruta sigue existiendo, con su permiso.
+  const subpaneles = SUBPANELES_FINANZAS.filter(
+    (sp) => sp.slug !== "facturas-ih" && (usuario.rol === "admin" || subpanelFinanzasPermitido(sp.slug, guardados)),
+  );
 
   return (
     <div>

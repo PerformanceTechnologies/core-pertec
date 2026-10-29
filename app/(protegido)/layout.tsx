@@ -8,6 +8,8 @@ import BotonSubir from "@/components/BotonSubir";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { tieneDatosCargados } from "@/lib/empresas-modelo";
+import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
+import { obtenerSubpanelesFinanzasGuardados, subpanelFinanzasPermitido } from "@/lib/finanzas-subpaneles-usuario";
 
 // Sin caché: cada navegación vuelve a consultar Supabase, así que si el
 // admin borra o desactiva a alguien, esa persona queda fuera en la
@@ -36,6 +38,14 @@ export default async function LayoutProtegido({ children }: { children: React.Re
   // La empresa activa se resuelve en paralelo: la necesita el menú en toda página.
   const promesaEmpresa = contextoDeEmpresa(usuario.id, usuario.rol);
   const empresa = await promesaEmpresa;
+  // Los subpaneles de Finanzas cuelgan del grupo «Finanzas» del menú: misma regla que su portada.
+  const guardadosFinanzas =
+    usuario.rol === "admin" || !apps.some((app) => app.slug === "finanzas")
+      ? []
+      : await obtenerSubpanelesFinanzasGuardados(usuario.id);
+  const subpanelesFinanzas = SUBPANELES_FINANZAS.filter(
+    (sp) => usuario.rol === "admin" || subpanelFinanzasPermitido(sp.slug, guardadosFinanzas),
+  ).map((sp) => sp.slug);
   // Los contratos y el buzón son de PERTEC: parado en otra empresa no se listan.
   const conDatos = tieneDatosCargados(empresa.activa);
   const contratos = conDatos && apps.some((app) => app.slug === "contratos") ? await listarContratosDelMenu() : [];
@@ -50,6 +60,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         empresaActiva={empresa.activa}
         empresasPermitidas={empresa.permitidas}
         mostrarBuzon={conDatos}
+        subpanelesFinanzas={subpanelesFinanzas}
       />
       {/* La barra es FIJA (sale del flujo), así que el hueco se lo deja el
           contenido con un padding: ver BARRA_FIJA / HUECO_DE_BARRA en
