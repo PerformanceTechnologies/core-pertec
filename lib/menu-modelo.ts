@@ -44,6 +44,8 @@ const PLAN: Plan[] = [
     items: [{ subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
   },
   { titulo: "CRM", items: [{ ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }] },
+  // Contratos e Inventario son categorías de un solo módulo: se ven y pliegan igual que las demás.
+  { titulo: "Contratos", items: [{ ruta: "/contratos" }] },
   {
     titulo: "Página web",
     items: [
@@ -52,8 +54,7 @@ const PLAN: Plan[] = [
       { pronto: "Cotizador web", icono: "file-invoice" },
     ],
   },
-  // Sueltos y al final, sin categoría: uno suelto entre grupos con título desentonaba.
-  { titulo: null, items: [{ ruta: "/inventario" }, { ruta: "/contratos" }] },
+  { titulo: "Inventario", items: [{ ruta: "/inventario" }] },
 ];
 
 /**

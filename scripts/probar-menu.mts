@@ -17,12 +17,13 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 // El admin: todo, en el orden pedido.
 {
   const g = armarMenu(todas, ["sii", "facturas-historicas", "facturas-ih"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Página web", null]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Contratos", "Página web", "Inventario"]);
   assert.deepEqual(nombres(g[0]), ["Facturas compra y venta", "Rendir Gastos", "Históricos facturas"]);
   assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas"]);
-  assert.deepEqual(nombres(g[3]), ["Inventario", "Contratos"]);
-  assert.deepEqual(nombres(g[2]), ["Configuración", "Postulaciones", "Cotizador web"]);
-  assert.deepEqual(g[2].items.map((i) => i.tipo), ["pronto", "app", "pronto"]);
+  assert.deepEqual(nombres(g[2]), ["Contratos"]);
+  assert.deepEqual(nombres(g[4]), ["Inventario"]);
+  assert.deepEqual(nombres(g[3]), ["Configuración", "Postulaciones", "Cotizador web"]);
+  assert.deepEqual(g[3].items.map((i) => i.tipo), ["pronto", "app", "pronto"]);
   // Ocultos: Proyectos, Panel Odoo, Mi Día (va arriba a la derecha) y Facturas IH.
   const todo = g.flatMap(nombres).join("|");
   assert.ok(!/Proyectos|Panel Odoo|Mi Día|IH/.test(todo));
@@ -33,7 +34,7 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 // Sin permiso no aparece; un grupo sin nada real desaparece entero.
 {
   const g = armarMenu([app("/finanzas", "F"), app("/inventario", "Inventario")], ["facturas-historicas"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", null]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "Inventario"]);
   assert.deepEqual(nombres(g[0]), ["Históricos facturas"]);
 }
 // Subpanel concedido pero sin la app Finanzas: no se muestra.
