@@ -119,12 +119,13 @@ export function inicialesDe(nombre: string): string {
 
 /**
  * El logo de cada empresa, para el selector de arriba a la derecha. Sacados de
- * sus páginas web (Pertec-Web y zeusmin). La columna `logo` de la tabla manda
+ * sus páginas web (Pertec-Web y zeusmin; el de Services lo pasó el equipo). La columna `logo` de la tabla manda
  * si alguien la llena; sin logo se muestran las iniciales.
  */
 const LOGO_POR_SLUG: Record<string, string> = {
   pertec: "/empresas/pertec.png",
   zeus: "/empresas/zeus.png",
+  "performance-service": "/empresas/performance-service.png",
 };
 
 export function logoDe(empresa: Pick<Empresa, "slug" | "logo">): string | null {
@@ -138,6 +139,10 @@ export function logoDe(empresa: Pick<Empresa, "slug" | "logo">): string | null {
 const LOGO_COMPLETO_POR_SLUG: Record<string, { claro: string; oscuro: string }> = {
   pertec: { claro: "/empresas/pertec-completo.png", oscuro: "/empresas/pertec-completo-oscuro.png" },
   zeus: { claro: "/empresas/zeus-completo.png", oscuro: "/empresas/zeus-completo-oscuro.png" },
+  "performance-service": {
+    claro: "/empresas/performance-service-completo.png",
+    oscuro: "/empresas/performance-service-completo-oscuro.png",
+  },
 };
 
 export function logoCompletoDe(slug: string): { claro: string; oscuro: string } | null {

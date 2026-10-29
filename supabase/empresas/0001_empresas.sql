@@ -70,7 +70,7 @@ select 'Performance Technologies', 'pertec', 'naranjo', 0
 where not exists (select 1 from public.empresas where slug = 'pertec');
 
 insert into public.empresas (nombre, slug, color, orden)
-select 'Zeus', 'zeus', 'dorado', 1
+select 'Zeus Mining', 'zeus', 'dorado', 1
 where not exists (select 1 from public.empresas where slug = 'zeus');
 
 insert into public.empresas (nombre, slug, color, orden)
@@ -92,3 +92,6 @@ on conflict do nothing;
 
 -- Zeus pasó de teal a dorado: corrige la fila si ya se había creado con el color viejo.
 update public.empresas set color = 'dorado' where slug = 'zeus' and color = 'teal';
+
+-- El nombre es Zeus Mining, no solo Zeus.
+update public.empresas set nombre = 'Zeus Mining' where slug = 'zeus' and nombre = 'Zeus';
