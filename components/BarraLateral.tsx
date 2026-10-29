@@ -13,6 +13,7 @@ import {
   IconArrowLeft,
   IconChevronLeft,
   IconChevronRight,
+  IconChevronDown,
   IconLogout,
   IconSearch,
   IconSun,
@@ -69,6 +70,25 @@ function leerTema(): "light" | "dark" {
 }
 function leerTemaServidor(): "light" | "dark" {
   return "light";
+}
+
+// Los grupos del menú que la persona plegó, por título. Mismo patrón que la
+// barra colapsada: localStorage + evento propio + useSyncExternalStore.
+const CLAVE_GRUPOS = "core-menu-grupos-plegados";
+const EVENTO_GRUPOS = "core-menu-grupos-cambio";
+function suscribirseGrupos(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(EVENTO_GRUPOS, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(EVENTO_GRUPOS, callback);
+  };
+}
+function leerGrupos() {
+  return localStorage.getItem(CLAVE_GRUPOS) ?? "[]";
+}
+function leerGruposServidor() {
+  return "[]";
 }
 
 function suscribirseDesktop(callback: () => void) {
@@ -199,6 +219,24 @@ export default function BarraLateral({
   // ve expandido aunque quede guardada como colapsada.
   const colapsado = colapsada && esDesktop;
 
+  const gruposPlegadosJson = useSyncExternalStore(suscribirseGrupos, leerGrupos, leerGruposServidor);
+  let gruposPlegados: string[] = [];
+  try {
+    gruposPlegados = JSON.parse(gruposPlegadosJson);
+  } catch {}
+  function alternarGrupo(titulo: string) {
+    const nuevos = gruposPlegados.includes(titulo)
+      ? gruposPlegados.filter((t) => t !== titulo)
+      : [...gruposPlegados, titulo];
+    localStorage.setItem(CLAVE_GRUPOS, JSON.stringify(nuevos));
+    window.dispatchEvent(new Event(EVENTO_GRUPOS));
+  }
+  const adminPlegado =
+    !colapsado &&
+    gruposPlegados.includes("Administración") &&
+    !esRutaActiva("/usuarios", pathname) &&
+    !esRutaActiva("/aplicaciones", pathname);
+
   // Sincroniza el atributo que globals.css usa para pintar el tema oscuro.
   // No guarda estado de React, solo refleja "tema" hacia afuera -- uso
   // legítimo de efecto (el script sin-flash de app/layout.tsx ya deja esto
@@ -266,19 +304,26 @@ export default function BarraLateral({
         {apps.length === 0 && !colapsado && (
           <p className="mt-6 px-2.5 py-2 text-xs text-tinta/40">Sin aplicaciones asignadas</p>
         )}
-        {grupos.map((grupo, i) => (
-          <div key={grupo.titulo ?? `suelto-${i}`}>
+        {grupos.map((grupo, i) => {
+          // Plegado, el grupo igual se muestra si adentro está la página abierta:
+          // si no, no habría cómo ver dónde está uno parado.
+          const conActiva = grupo.items.some(
+            (it) =>
+              (it.tipo === "enlace" && esRutaActiva(it.href, pathname)) ||
+              (it.tipo === "app" && it.app.tipo === "interna" && esRutaActiva(it.app.url, pathname)),
+          );
+          const titulo = grupo.titulo;
+          const plegado = !colapsado && !!titulo && gruposPlegados.includes(titulo) && !conActiva;
+          return (
+          <div key={titulo ?? `suelto-${i}`}>
             {colapsado ? (
               <div className="mx-1 mb-2 mt-4 border-t border-borde" />
-            ) : grupo.titulo ? (
-              <p className="mt-5 mb-1 flex items-center gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-tinta/45">
-                <span className="h-[2px] w-3 shrink-0 rounded-full bg-naranjo/70" />
-                {grupo.titulo}
-              </p>
+            ) : titulo ? (
+              <TituloDeGrupo titulo={titulo} plegado={plegado} alAlternar={() => alternarGrupo(titulo)} />
             ) : (
               <div className="mt-4" />
             )}
-            <div className="mt-1 flex flex-col gap-0.5">
+            <div className={`mt-1 flex-col gap-0.5 ${plegado ? "hidden" : "flex"}`}>
               {grupo.items.map((item) => {
                 if (item.tipo === "pronto") {
                   const Icono = obtenerIcono(item.icono);
@@ -379,19 +424,21 @@ const Icono = obtenerIcono(app.icono);
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {esAdmin && (
           <>
             {colapsado ? (
               <div className="mx-1 mb-2 mt-6 border-t border-borde" />
             ) : (
-              <p className="mt-6 mb-1 flex items-center gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-tinta/45">
-                <span className="h-[2px] w-3 shrink-0 rounded-full bg-naranjo/70" />
-                Administración
-              </p>
+              <TituloDeGrupo
+                titulo="Administración"
+                plegado={adminPlegado}
+                alAlternar={() => alternarGrupo("Administración")}
+              />
             )}
-            <div className="mt-1 flex flex-col gap-0.5">
+            <div className={`mt-1 flex-col gap-0.5 ${adminPlegado ? "hidden" : "flex"}`}>
               <EnlaceNav
                 href="/usuarios"
                 activo={esRutaActiva("/usuarios", pathname)}
@@ -756,5 +803,37 @@ function LogoDeEmpresa({
       // se veía descentrado, así que va al medio. El de PERTEC es horizontal y se lee desde la izquierda.
       className={slug === "pertec" ? "h-9 w-auto object-contain" : "mx-auto h-14 w-auto object-contain"}
     />
+  );
+}
+
+/**
+ * El título de un grupo del menú, que pliega y despliega lo de adentro. Más
+ * grande y oscuro que los módulos que agrupa, para que se distinga de ellos.
+ */
+function TituloDeGrupo({
+  titulo,
+  plegado,
+  alAlternar,
+}: {
+  titulo: string;
+  plegado: boolean;
+  alAlternar: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={alAlternar}
+      aria-expanded={!plegado}
+      className="group mt-5 mb-1 flex w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-[13px] font-bold uppercase tracking-wide text-tinta/70 transition hover:text-tinta"
+    >
+      <span className="h-[2px] w-3 shrink-0 rounded-full bg-naranjo/70" />
+      <span className="flex-1 truncate">{titulo}</span>
+      <IconChevronDown
+        size={15}
+        stroke={2}
+        className={`shrink-0 text-tinta/35 transition-transform group-hover:text-tinta/60 ${plegado ? "-rotate-90" : ""}`}
+        aria-hidden
+      />
+    </button>
   );
 }
