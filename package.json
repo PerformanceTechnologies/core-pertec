@@ -41,7 +41,8 @@
     "probar-inventario": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-inventario.mts",
     "probar-gastos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-gastos.mts",
     "probar-graficos-gastos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-graficos-gastos.mts",
-    "probar-menu": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-menu.mts"
+    "probar-menu": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-menu.mts",
+    "probar-pagina-web": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-pagina-web.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

@@ -49,7 +49,8 @@ const PLAN: Plan[] = [
   {
     titulo: "Página web",
     items: [
-      { pronto: "Configuración", icono: "settings" },
+      // Lo que antes se hacía en pertec.cl/admin: catálogo, casos, solicitudes y contacto.
+      { ruta: "/pagina-web", nombre: "Configuración" },
       { ruta: "/reclutamiento", nombre: "Postulaciones" },
       { pronto: "Cotizador web", icono: "file-invoice" },
     ],

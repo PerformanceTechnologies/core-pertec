@@ -125,6 +125,12 @@ const SECCIONES_DE_MODULO: Record<string, { href: string; nombre: string }[]> = 
     { href: "/ofertas/maestros", nombre: "Maestros de formato" },
     { href: "/ofertas/logos", nombre: "Logos" },
   ],
+  "/pagina-web": [
+    { href: "/pagina-web", nombre: "Catálogo" },
+    { href: "/pagina-web/casos", nombre: "Casos de éxito" },
+    { href: "/pagina-web/solicitudes", nombre: "Solicitudes" },
+    { href: "/pagina-web/contacto", nombre: "Contacto" },
+  ],
   "/cotizador": [
     { href: "/cotizador", nombre: "Cotizaciones" },
     { href: "/cotizador/empresas", nombre: "Empresas emisoras" },

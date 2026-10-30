@@ -9,7 +9,7 @@ const app = (url: string, nombre: string, tipo: "interna" | "externa" = "interna
 const todas = [
   app("/finanzas", "Herramientas Finanzas"), app("/rendir-gastos", "Rendir Gastos"),
   app("/cotizador", "Cotizador"), app("/ofertas", "Ofertas"), app("/contratos", "Contratos"),
-  app("/reclutamiento", "Panel de postulación"), app("/inventario", "Inventario"),
+  app("/reclutamiento", "Panel de postulación"), app("/pagina-web", "Página web"), app("/inventario", "Inventario"),
   app("/proyectos", "Proyectos"), app("/panel-odoo", "Panel Odoo"), app("/mi-dia", "Mi Día"),
 ];
 const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => i.nombre);
@@ -23,7 +23,7 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
   assert.deepEqual(nombres(g[2]), ["Contratos"]);
   assert.deepEqual(nombres(g[4]), ["Inventario"]);
   assert.deepEqual(nombres(g[3]), ["Configuración", "Postulaciones", "Cotizador web"]);
-  assert.deepEqual(g[3].items.map((i) => i.tipo), ["pronto", "app", "pronto"]);
+  assert.deepEqual(g[3].items.map((i) => i.tipo), ["app", "app", "pronto"]);
   // Ocultos: Proyectos, Panel Odoo, Mi Día (va arriba a la derecha) y Facturas IH.
   const todo = g.flatMap(nombres).join("|");
   assert.ok(!/Proyectos|Panel Odoo|Mi Día|IH/.test(todo));
@@ -39,7 +39,12 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 }
 // Subpanel concedido pero sin la app Finanzas: no se muestra.
 assert.deepEqual(armarMenu([app("/rendir-gastos", "Rendir Gastos")], ["sii"]).flatMap(nombres), ["Rendir Gastos"]);
-// Sin Postulaciones, «Página web» no queda flotando con solo los «Pronto».
+// La configuración de la web se concede como cualquier app: sin ella no aparece.
+assert.deepEqual(
+  armarMenu([app("/reclutamiento", "P")], []).find((g) => g.titulo === "Página web")?.items.map((i) => i.nombre),
+  ["Postulaciones", "Cotizador web"],
+);
+// Sin Postulaciones ni Configuración, «Página web» no queda flotando con solo los «Pronto».
 assert.ok(!armarMenu([app("/cotizador", "Cotizador")], []).some((g) => g.titulo === "Página web"));
 assert.deepEqual(armarMenu([], []), []);
 
