@@ -119,7 +119,7 @@ export function inicialesDe(nombre: string): string {
 
 /**
  * El logo de cada empresa, para el selector de arriba a la derecha. Sacados de
- * sus páginas web (Pertec-Web y zeusmin; el de Services lo pasó el equipo). La columna `logo` de la tabla manda
+ * sus páginas web (Pertec-Web; el de Services y el horizontal de Zeus Mining los pasó el equipo). La columna `logo` de la tabla manda
  * si alguien la llena; sin logo se muestran las iniciales.
  */
 const LOGO_POR_SLUG: Record<string, string> = {
