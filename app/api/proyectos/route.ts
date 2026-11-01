@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
-import { resolverRolPanel, puedeEnPanel, listarProyectos, listarObjetivosResumen, crearProyecto } from "@/lib/proyectos";
+import {
+  resolverRolPanel,
+  puedeEnPanel,
+  puedeVerGastos,
+  sinDatosDeGastos,
+  listarProyectos,
+  listarObjetivosResumen,
+  crearProyecto,
+} from "@/lib/proyectos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,8 +20,15 @@ export async function GET() {
   if (!acceso.usuario) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
 
   try {
-    const [proyectos, resumenObjetivos] = await Promise.all([listarProyectos(), listarObjetivosResumen()]);
-    return NextResponse.json({ proyectos, resumenObjetivos });
+    const [proyectos, resumenObjetivos, rol] = await Promise.all([
+      listarProyectos(),
+      listarObjetivosResumen(),
+      resolverRolPanel(acceso.usuario),
+    ]);
+    return NextResponse.json({
+      proyectos: puedeVerGastos(rol) ? proyectos : proyectos.map(sinDatosDeGastos),
+      resumenObjetivos,
+    });
   } catch (error) {
     console.error("[proyectos] Error al listar:", error);
     return NextResponse.json({ error: "No pudimos cargar los proyectos." }, { status: 500 });

@@ -371,6 +371,7 @@ export default function VistaProyecto({
             <Gantt
               objetivos={objetivosTop}
               gastosPorObjetivo={gastosPorObjetivo}
+              mostrarGastos={puedeVerGastosProyecto}
               puedeEditar={puedeEditar}
               puedeAlternar={puedeAlternar}
               onAlternar={alternarHecho}

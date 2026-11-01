@@ -11,6 +11,7 @@ const ANCHO_LABEL = 240;
 export default function Gantt({
   objetivos,
   gastosPorObjetivo,
+  mostrarGastos = true,
   puedeEditar,
   puedeAlternar,
   onAlternar,
@@ -18,6 +19,9 @@ export default function Gantt({
 }: {
   objetivos: Objetivo[];
   gastosPorObjetivo: Record<string, { gastado: number; count: number }>;
+  // false para el rol que no ve Gastos: la API ya no le manda las partidas, así que
+  // "Gastado $0 / Disponible" en el tooltip sería un dato falso, no un dato oculto.
+  mostrarGastos?: boolean;
   puedeEditar: boolean;
   puedeAlternar: boolean;
   onAlternar: (o: Objetivo) => void;
@@ -178,7 +182,7 @@ export default function Gantt({
 
                 {hoverId === o.id &&
                   (() => {
-                    const gasto = gastosPorObjetivo[o.id];
+                    const gasto = mostrarGastos ? gastosPorObjetivo[o.id] : undefined;
                     const presupuestoObjetivo = Number(o.presupuesto) || 0;
                     if (!gasto && presupuestoObjetivo === 0) return null;
                     const gastado = gasto?.gastado ?? 0;
@@ -194,6 +198,7 @@ export default function Gantt({
                               <strong className="text-tinta">{fmtCLP(presupuestoObjetivo)}</strong>
                             </span>
                           )}
+                          {mostrarGastos && (
                           <span>
                             Gastado{" "}
                             <strong className={sobre ? "text-red-600" : "text-tinta"}>
@@ -201,7 +206,8 @@ export default function Gantt({
                             </strong>
                             {gasto && ` · ${gasto.count} partida${gasto.count === 1 ? "" : "s"}`}
                           </span>
-                          {presupuestoObjetivo > 0 && (
+                          )}
+                          {mostrarGastos && presupuestoObjetivo > 0 && (
                             <span>
                               {sobre ? "Sobregiro" : "Disponible"}{" "}
                               <strong className={sobre ? "text-red-600" : "text-tinta"}>
