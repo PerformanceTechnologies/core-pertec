@@ -47,9 +47,11 @@ Hay que agregar:
 | `PERTEC_WEB_SUPABASE_URL` | URL de la API de esa segunda base |
 | `PERTEC_WEB_SUPABASE_SERVICE_ROLE_KEY` | Su llave de servicio |
 
-La cadena de conexión se copia desde Supabase → el proyecto → **Connect** → *Session pooler*. Hay que usar el
-pooler y no la conexión directa: la directa solo habla IPv6 y los runners de GitHub no. Tiene la forma
-`postgresql://postgres.<ref>:<contraseña>@<region>.pooler.supabase.com:5432/postgres`.
+Las dos cadenas de conexión usan el **Session pooler** y no la conexión directa (la directa solo habla IPv6 y los
+runners de GitHub no) y se conectan con un usuario propio de **solo lectura**, `respaldo`, no con la contraseña
+principal de la base. Tienen la forma
+`postgresql://respaldo.<ref>:<contraseña>@<host-del-pooler>:5432/postgres` (el host se ve en Supabase →
+**Connect** → *Session pooler*).
 
 **Cargar un secret sin que el valor pase por ningún chat**: en tu propia terminal,
 
@@ -58,6 +60,36 @@ gh secret set SUPABASE_CORE_DB_URL --repo <dueño>/core-pertec
 ```
 
 `gh` pide el valor y no lo muestra ni lo guarda en el historial. Repite con cada secret.
+
+### El usuario `respaldo`
+
+Es un rol de Postgres creado en cada base con lo mínimo para volcarla:
+
+- `pg_read_all_data`: puede leer todas las tablas, pero no tiene ningún permiso de escritura ni de creación.
+- `bypassrls`: las tablas tienen RLS activo sin políticas; sin este atributo `pg_dump` vería cero filas (o fallaría).
+- `default_transaction_read_only = on`, un máximo de 4 conexiones y un tope de 10 minutos por consulta.
+
+Al crearlo se comprobó que no es superusuario, que ve todas las filas de `public` y que tres intentos de escribir
+(crear una tabla, borrar y agregar en `storage`) fallan aun pidiendo explícitamente lectura/escritura.
+
+Para **crearlo de nuevo o rotar su contraseña** (en el SQL Editor de cada proyecto, con una contraseña larga y
+aleatoria propia; después actualizar el secret `SUPABASE_*_DB_URL` correspondiente):
+
+```sql
+do $do$ begin
+  if not exists (select 1 from pg_roles where rolname = 'respaldo') then
+    create role respaldo login bypassrls password '<contraseña>' connection limit 4;
+  else
+    alter role respaldo login bypassrls password '<contraseña>' connection limit 4;
+  end if;
+end $do$;
+grant pg_read_all_data to respaldo;
+alter role respaldo set default_transaction_read_only = on;
+alter role respaldo set statement_timeout = '10min';
+```
+
+Para **eliminarlo** (y dejar de poder hacer el respaldo): `drop role respaldo;`. No afecta al Core ni al sitio: ninguno
+de los dos lo usa.
 
 ## Primera ejecución y control
 
