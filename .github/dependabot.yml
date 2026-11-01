@@ -1,0 +1,31 @@
+# Dependabot: avisa de versiones nuevas con un Pull Request, nunca mezcla nada solo.
+# Una vez por semana y de a poco, para no inundar a Hugo y Alex ni disparar decenas de despliegues
+# de vista previa en Vercel. Los saltos MAYORES se ignoran a propósito (next, react, typescript,
+# sharp...): se hacen a mano, con prueba, cuando alguien lo decida. Los avisos de SEGURIDAD llegan
+# aparte y sin este filtro (Dependabot security updates).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Santiago
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      parches-y-menores:
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "Dependencias"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "Actions"
