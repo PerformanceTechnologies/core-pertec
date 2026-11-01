@@ -1,3 +1,4 @@
+import { bearerCoincide } from "@/lib/cron-bearer";
 import { NextRequest, NextResponse } from "next/server";
 import { limpiar } from "@/lib/limpieza/retencion";
 
@@ -12,7 +13,7 @@ export const maxDuration = 60; // limite del plan Hobby de Vercel
 function autorizado(request: NextRequest): boolean {
   const secreto = process.env.CRON_SECRET;
   if (!secreto) return false;
-  return request.headers.get("authorization") === `Bearer ${secreto}`;
+  return bearerCoincide(request.headers.get("authorization"), secreto);
 }
 
 /**

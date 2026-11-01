@@ -124,6 +124,14 @@ export async function listarArchivosDeCarpeta(itemId: string): Promise<ArchivoCa
   return archivos;
 }
 
+// El id viene del navegador (query string). Un id de Graph es alfanumérico; sin validarlo se podía
+// pedir cualquier ruta del drive del sitio (por ejemplo `root:/Carpeta/archivo.pdf:`).
+const ID_DE_ITEM = /^[A-Za-z0-9!_-]{10,120}$/;
+function itemIdSeguro(itemId: string): string {
+  if (!ID_DE_ITEM.test(itemId)) throw new Error("Identificador de archivo inválido");
+  return encodeURIComponent(itemId);
+}
+
 // Se descarga via el "@microsoft.graph.downloadUrl" (URL firmada, valida
 // unos minutos) en vez de pedir el contenido directo por el SDK: asi el
 // binario se trae con un fetch plano y se controla la codificacion, sin
@@ -131,7 +139,7 @@ export async function listarArchivosDeCarpeta(itemId: string): Promise<ArchivoCa
 async function descargarBuffer(itemId: string): Promise<Buffer> {
   const graph = await clienteGraph();
   const item = await graph
-    .api(`/sites/${SITE_ID()}/drive/items/${itemId}`)
+    .api(`/sites/${SITE_ID()}/drive/items/${itemIdSeguro(itemId)}`)
     .select("@microsoft.graph.downloadUrl")
     .get();
   const downloadUrl = item?.["@microsoft.graph.downloadUrl"];

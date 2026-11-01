@@ -147,6 +147,12 @@ function truncar(texto: string, largoMaximo: number): string {
  * Lo comparten los dos caminos de abajo porque el contenido es el mismo; lo que cambia es
  * por dónde lo acepta Apex (ver `tooltipConDetalle` y el formatter de la dona).
  */
+// El texto de los tooltips viene de Odoo (descripciones de gastos, nombres de vehículos, fondos) y
+// ApexCharts lo inserta como HTML: sin escapar, un texto con etiquetas se ejecutaría en el navegador.
+function esc(texto: unknown): string {
+  return String(texto ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+}
+
 function cuerpoDelDetalle(
   item: Record<string, unknown> | undefined,
   dataKey: string,
@@ -157,7 +163,7 @@ function cuerpoDelDetalle(
   const detalle = Array.isArray(item.detalle) ? (item.detalle as string[]) : [];
   const lineas = detalle
     .slice(0, limite)
-    .map((linea) => `<li style="opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${linea}</li>`)
+    .map((linea) => `<li style="opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(linea)}</li>`)
     .join("");
   const resto =
     detalle.length > limite ? `<p style="opacity:.4;margin:4px 0 0">+${detalle.length - limite} más</p>` : "";
@@ -186,7 +192,7 @@ function tooltipConDetalle(
     if (!cuerpo || !item) return "";
     return (
       `<div style="max-width:${ANCHO_DEL_TOOLTIP}px;padding:10px;border:1px solid ${borde};background:${superficie};color:${tinta};font-size:11px">` +
-      `<p style="font-weight:600;margin:0">${String(item[nameKey] ?? "")} (${cuerpo.valor})</p>` +
+      `<p style="font-weight:600;margin:0">${esc(item[nameKey])} (${cuerpo.valor})</p>` +
       cuerpo.lista +
       cuerpo.resto +
       "</div>"

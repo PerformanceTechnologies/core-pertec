@@ -1,3 +1,4 @@
+import { bearerCoincide } from "@/lib/cron-bearer";
 import { NextRequest, NextResponse } from "next/server";
 import { obtenerUfUtmVigentes } from "@/lib/cotizador/indicadores-mindicador";
 import { actualizarUfUtmVigente } from "@/lib/parametros-legales";
@@ -11,7 +12,7 @@ export const maxDuration = 30;
 function autorizado(request: NextRequest): boolean {
   const secreto = process.env.CRON_SECRET;
   if (!secreto) return false;
-  return request.headers.get("authorization") === `Bearer ${secreto}`;
+  return bearerCoincide(request.headers.get("authorization"), secreto);
 }
 
 // Actualiza SOLO uf/utm del set de parámetros legales vigente con los

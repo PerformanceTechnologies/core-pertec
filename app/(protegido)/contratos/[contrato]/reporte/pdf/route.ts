@@ -1,4 +1,4 @@
-import { exigirSesion } from "@/lib/contratos/autorizacion";
+import { exigirAccesoApp } from "@/lib/contratos/autorizacion";
 import { nombreDeArchivo } from "@/lib/contratos/excel-comun";
 import { armarReporte } from "@/lib/contratos/reporte";
 import { generarReportePdf } from "@/lib/contratos/reporte-pdf";
@@ -15,7 +15,7 @@ export const runtime = "nodejs";
  * AQUÍ y no solo escondiendo el botón: un Route Handler es una URL y se puede pedir directo.
  */
 export async function GET() {
-  const usuario = await exigirSesion();
+  const usuario = await exigirAccesoApp("contratos");
   const datos = await armarReporte(usuario);
   const pdf = await generarReportePdf(datos);
 

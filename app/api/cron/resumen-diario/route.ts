@@ -1,3 +1,4 @@
+import { bearerCoincide } from "@/lib/cron-bearer";
 import { NextRequest, NextResponse } from "next/server";
 import { horaEnSantiago, hoyEnSantiago } from "@/lib/graph-calendario";
 import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
@@ -100,7 +101,7 @@ const HORA_MAXIMA_CHILE = 15;
 function autorizado(request: NextRequest): boolean {
   const secreto = process.env.CRON_SECRET;
   if (!secreto) return false;
-  return request.headers.get("authorization") === `Bearer ${secreto}`;
+  return bearerCoincide(request.headers.get("authorization"), secreto);
 }
 
 function fechaLegible(iso: string): string {

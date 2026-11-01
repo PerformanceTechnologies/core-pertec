@@ -1,3 +1,4 @@
+import { bearerCoincide } from "@/lib/cron-bearer";
 import { NextRequest, NextResponse } from "next/server";
 import {
   extraerFacturasSii,
@@ -56,7 +57,7 @@ export const maxDuration = 300;
 function autorizado(request: NextRequest): boolean {
   const secreto = process.env.CRON_SECRET;
   if (!secreto) return false;
-  return request.headers.get("authorization") === `Bearer ${secreto}`;
+  return bearerCoincide(request.headers.get("authorization"), secreto);
 }
 
 export async function GET(request: NextRequest) {
