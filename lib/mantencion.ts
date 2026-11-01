@@ -301,11 +301,21 @@ export async function obtenerRun(id: string): Promise<ChecklistRun | null> {
 
 // Sube una foto de evidencia al bucket público "equipos" del Supabase de
 // pertec-web (mismo bucket que usaba la edge function del panel original).
-export async function subirFotoEvidencia(archivo: File): Promise<FotoEvidencia> {
-  const extension = archivo.name.split(".").pop() || "jpg";
+// El bucket es público: la ruta valida el MIME contra TIPOS_FOTO_EVIDENCIA
+// (validarSubidaPublica) y pasa la extensión derivada de él, no la del nombre.
+export const TIPOS_FOTO_EVIDENCIA: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+export async function subirFotoEvidencia(archivo: File, extension: string): Promise<FotoEvidencia> {
   const nombreArchivo = `run-items/${crypto.randomUUID()}.${extension}`;
   const { error } = await pertecWebSupabase.storage.from("equipos").upload(nombreArchivo, archivo, {
-    contentType: archivo.type || "image/jpeg",
+    contentType: archivo.type,
   });
   if (error) throw new Error(error.message);
   const { data } = pertecWebSupabase.storage.from("equipos").getPublicUrl(nombreArchivo);

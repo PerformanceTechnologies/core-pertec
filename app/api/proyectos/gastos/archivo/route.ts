@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
-import { resolverRolPanel, puedeEditarGastos, subirArchivoGasto } from "@/lib/proyectos";
+import { resolverRolPanel, puedeEditarGastos, subirArchivoGasto, TIPOS_ARCHIVO_GASTO } from "@/lib/proyectos";
+import { validarSubidaPublica } from "@/lib/subidas";
 
 export const runtime = "nodejs";
 
@@ -21,8 +22,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No se recibió ningún archivo." }, { status: 400 });
   }
 
+  // El bucket "gastos" es público: sin esto se podía subir un .html o .svg y servirlo
+  // desde el dominio de Supabase.
+  const validacion = validarSubidaPublica(
+    archivo,
+    TIPOS_ARCHIVO_GASTO,
+    "imágenes (JPG, PNG, WEBP, GIF, HEIC), PDF, Word y Excel",
+  );
+  if (validacion.extension === null) {
+    return NextResponse.json({ error: validacion.error }, { status: validacion.status });
+  }
+
   try {
-    const archivoSubido = await subirArchivoGasto(archivo);
+    const archivoSubido = await subirArchivoGasto(archivo, validacion.extension);
     return NextResponse.json({ archivo: archivoSubido });
   } catch (error) {
     console.error("[proyectos] Error al subir archivo de gasto:", error);

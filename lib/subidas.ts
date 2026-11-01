@@ -32,6 +32,35 @@ export const LIMITE_SUBIDA = 4 * 1024 * 1024;
 
 const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1).replace(".", ",");
 
+/**
+ * Valida una subida que va a un bucket PÚBLICO de Supabase y devuelve la extensión con la que
+ * guardarla.
+ *
+ * El MIME lo manda el cliente y el nombre también: si se confiaba en ellos, un `.html` o un `.svg`
+ * quedaba servido desde el dominio de Supabase con el content-type que el atacante eligiera
+ * (script almacenado). Por eso solo pasa un MIME de la lista blanca y la extensión sale de ESE
+ * MIME, nunca del nombre original. `tipos` es MIME -> extensión; `aceptados` es el texto para el
+ * mensaje de error.
+ */
+export function validarSubidaPublica(
+  archivo: File,
+  tipos: Record<string, string>,
+  aceptados: string,
+): { extension: string; error: null } | { extension: null; error: string; status: 400 | 413 } {
+  const extension = Object.hasOwn(tipos, archivo.type) ? tipos[archivo.type] : undefined;
+  if (!extension) {
+    return {
+      extension: null,
+      error: `"${archivo.name}" es de tipo ${archivo.type || "desconocido"}. Se aceptan ${aceptados}.`,
+      status: 400,
+    };
+  }
+  if (archivo.size > LIMITE_SUBIDA) {
+    return { extension: null, error: `"${archivo.name}" pasa el tope de 4 MB.`, status: 413 };
+  }
+  return { extension, error: null };
+}
+
 /** El aviso de tamaño, o null si el archivo entra. Se revisa antes de mandarlo. */
 export function avisoDeTamano(archivo: File): string | null {
   if (archivo.size <= LIMITE_SUBIDA) return null;
