@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
-import { resolverRolPanel, puedeEnPanel, obtenerProyecto, actualizarProyecto, eliminarProyecto } from "@/lib/proyectos";
+import {
+  resolverRolPanel,
+  puedeEnPanel,
+  puedeVerGastos,
+  sinDatosDeGastos,
+  obtenerProyecto,
+  actualizarProyecto,
+  eliminarProyecto,
+} from "@/lib/proyectos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +23,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const proyecto = await obtenerProyecto(id);
     if (!proyecto) return NextResponse.json({ error: "Proyecto no encontrado." }, { status: 404 });
-    return NextResponse.json({ proyecto });
+    const rol = await resolverRolPanel(acceso.usuario);
+    return NextResponse.json({ proyecto: puedeVerGastos(rol) ? proyecto : sinDatosDeGastos(proyecto) });
   } catch (error) {
     console.error("[proyectos] Error al obtener:", error);
     return NextResponse.json({ error: "No pudimos cargar el proyecto." }, { status: 500 });

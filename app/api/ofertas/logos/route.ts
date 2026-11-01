@@ -38,8 +38,16 @@ interface Destino {
 async function resolverDestino(
   destino: string,
   clave: string,
+  esAdmin: boolean,
 ): Promise<{ destino: Destino } | { error: string; estado: number }> {
   if (destino === "empresa") {
+    // El logo de la empresa es identidad COMPARTIDA: sale en todas sus ofertas. En el
+    // Cotizador cambiarlo exige administrar_empresas; acá, donde basta tener la app
+    // Ofertas, lo equivalente es ser admin del core. Va en resolverDestino para que
+    // lo cubra tanto subir (archivo o imagen de la oferta) como quitar.
+    if (!esAdmin) {
+      return { error: "Solo un administrador puede cambiar el logo de la empresa.", estado: 403 };
+    }
     if (!esEmpresaValida(clave)) {
       return { error: `"${clave}" no es una de las empresas del sistema.`, estado: 400 };
     }
@@ -90,6 +98,7 @@ export async function POST(request: Request) {
   const resuelto = await resolverDestino(
     String(formulario.get("destino") ?? ""),
     String(formulario.get("clave") ?? ""),
+    acceso.usuario.rol === "admin",
   );
   if ("error" in resuelto) {
     return NextResponse.json({ error: resuelto.error }, { status: resuelto.estado });
@@ -179,6 +188,7 @@ export async function DELETE(request: Request) {
   const resuelto = await resolverDestino(
     String(parametros.get("destino") ?? ""),
     String(parametros.get("clave") ?? ""),
+    acceso.usuario.rol === "admin",
   );
   if ("error" in resuelto) {
     return NextResponse.json({ error: resuelto.error }, { status: resuelto.estado });

@@ -99,6 +99,15 @@ export interface DatosObjetivo {
   presupuesto: number;
 }
 
+// Quita de un proyecto lo que el rol sin acceso a Gastos no debe recibir
+// (puedeVerGastos: el rol "usuario" no ve nada de gastos). Ocultar la pestaña
+// en pantalla no basta: el JSON de la API viaja completo al navegador. Se
+// conserva la forma del objeto (vacío/0 en vez de omitir las claves) porque
+// los componentes leen `gastos ?? []` y `Number(...) || 0`.
+export function sinDatosDeGastos(proyecto: Proyecto): Proyecto {
+  return { ...proyecto, gastos: [], presupuesto_inicial: 0, saldo_global_asignado: 0 };
+}
+
 export async function listarProyectos(): Promise<Proyecto[]> {
   const { data } = await pertecWebSupabase
     .from("proyectos")
