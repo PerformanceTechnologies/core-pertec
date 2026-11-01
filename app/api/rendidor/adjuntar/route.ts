@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { verificarAccesoAppApi } from "@/lib/autorizacion";
+import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
+import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
+import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { adjuntarRespaldo, verificarGasto } from "@/lib/rendidor/odoo";
 import { descargarRespaldo } from "@/lib/rendidor/almacenamiento";
 
-const SLUG_APP = "rendir-gastos";
+// Lo que produce subirRespaldo: `{rendicionId}/{uuid}.{ext}`, con la extensión
+// derivada del MIME aceptado en /analizar (pdf, jpeg, png, gif, webp).
+const FORMATO_RUTA_RESPALDO = /^([A-Za-z0-9-]{1,64})\/[0-9a-f-]{36}\.(?:pdf|jpeg|png|gif|webp)$/;
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,7 +33,7 @@ interface Cuerpo {
 // Odoo por XML-RPC, sin pasar por el contexto de ningún modelo, así que el motivo
 // de la compresión (el costo en tokens de la llamada MCP) no existe acá.
 export async function POST(request: Request) {
-  const acceso = await verificarAccesoAppApi(SLUG_APP);
+  const acceso = await verificarAccesoRendidorApi();
   if (!acceso.usuario) {
     return NextResponse.json({ error: acceso.error }, { status: acceso.status });
   }
@@ -46,7 +50,34 @@ export async function POST(request: Request) {
     );
   }
 
+  // archivoPath y expenseId vienen del cliente: sin ligarlos a una rendición propia,
+  // cualquiera con la app podía mandar la ruta de un respaldo AJENO del bucket
+  // privado (documentos tributarios con RUT y montos) y colgarlo de cualquier
+  // gasto de Odoo. Se exige el formato exacto que arma subirRespaldo
+  // (`{rendicionId}/{uuid}.{ext}`, sin `..` ni subcarpetas), la misma regla de
+  // acceso que el resto de las rutas de la rendición y que ese archivo esté
+  // registrado en un gasto de ella cargado justamente como ese expenseId.
+  const coincidencia =
+    typeof cuerpo.archivoPath === "string" ? FORMATO_RUTA_RESPALDO.exec(cuerpo.archivoPath) : null;
+  if (!coincidencia) {
+    return NextResponse.json({ error: "La ruta del respaldo no es válida." }, { status: 400 });
+  }
+
   try {
+    const rendicion = await obtenerRendicion(coincidencia[1]);
+    if (
+      !rendicion ||
+      !puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)
+    ) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    const gasto = rendicion.gastos.find(
+      (g) => g.archivoPath === cuerpo.archivoPath && g.odooExpenseId === expenseId,
+    );
+    if (!gasto) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const respaldo = await descargarRespaldo(cuerpo.archivoPath);
     if (!respaldo) {
       return NextResponse.json(
