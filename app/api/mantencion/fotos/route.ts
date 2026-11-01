@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { resolverRolPanel, puedeEnPanel } from "@/lib/proyectos";
-import { subirFotoEvidencia } from "@/lib/mantencion";
+import { subirFotoEvidencia, TIPOS_FOTO_EVIDENCIA } from "@/lib/mantencion";
+import { validarSubidaPublica } from "@/lib/subidas";
 
 export const runtime = "nodejs";
 
@@ -22,8 +23,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No se recibió ningún archivo." }, { status: 400 });
   }
 
+  // El bucket "equipos" es público: solo imágenes reales, nunca .html o .svg.
+  const validacion = validarSubidaPublica(archivo, TIPOS_FOTO_EVIDENCIA, "JPG, PNG, WEBP y GIF");
+  if (validacion.extension === null) {
+    return NextResponse.json({ error: validacion.error }, { status: validacion.status });
+  }
+
   try {
-    const foto = await subirFotoEvidencia(archivo);
+    const foto = await subirFotoEvidencia(archivo, validacion.extension);
     return NextResponse.json({ foto });
   } catch (error) {
     console.error("[mantencion] Error al subir foto:", error);

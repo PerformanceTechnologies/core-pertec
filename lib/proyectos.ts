@@ -186,13 +186,29 @@ export async function actualizarGastosProyecto(
 // Sube un documento o foto de respaldo de un gasto al bucket público "gastos"
 // del Supabase de pertec-web (mismo proyecto donde vive la data de
 // Proyectos — ver nota de pertecWebSupabase arriba). Mismo patrón que
-// subirFotoEvidencia de Mantención, pero sin restringir el tipo de archivo
-// (acá se suben tanto fotos como documentos — boletas, facturas, etc).
-export async function subirArchivoGasto(archivo: File): Promise<ArchivoGasto> {
-  const extension = archivo.name.split(".").pop() || "bin";
+// subirFotoEvidencia de Mantención. Acá se suben tanto fotos como documentos
+// (boletas, facturas, etc), pero como el bucket es público el tipo se valida:
+// solo estos MIME y la extensión sale del MIME validado, no del nombre (ver
+// validarSubidaPublica). Son los que ofrece el <input accept> del formulario de
+// gastos, menos los que el navegador ejecutaría (html, svg).
+export const TIPOS_ARCHIVO_GASTO: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+};
+
+// `extension` ya viene validada por la ruta (validarSubidaPublica); el contentType
+// es archivo.type, que esa misma validación acotó a la lista blanca.
+export async function subirArchivoGasto(archivo: File, extension: string): Promise<ArchivoGasto> {
   const nombreArchivo = `${crypto.randomUUID()}.${extension}`;
   const { error } = await pertecWebSupabase.storage.from("gastos").upload(nombreArchivo, archivo, {
-    contentType: archivo.type || "application/octet-stream",
+    contentType: archivo.type,
   });
   if (error) throw new Error(error.message);
   const { data } = pertecWebSupabase.storage.from("gastos").getPublicUrl(nombreArchivo);
@@ -200,7 +216,7 @@ export async function subirArchivoGasto(archivo: File): Promise<ArchivoGasto> {
     url: data.publicUrl,
     path: nombreArchivo,
     nombre: archivo.name,
-    tipo: archivo.type || "application/octet-stream",
+    tipo: archivo.type,
   };
 }
 
