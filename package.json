@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
-    "@azure/identity": "^4.13.1",
+    "@azure/identity": "^4.14.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@napi-rs/canvas": "^0.1.100",
     "@sparticuz/chromium-min": "^131.0.1",
