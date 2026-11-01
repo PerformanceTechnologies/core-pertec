@@ -69,7 +69,7 @@ export async function avisarReclamos(reclamos: FacturaSii[]): Promise<Constancia
       "Herramientas Finanzas: se detectaron facturas reclamadas y el aviso no salió",
       `Se detectaron ${reclamos.length} factura(s) de venta reclamada(s) o rechazada(s) y ` +
         `el correo a ${CORREO_FINANZAS} no se pudo enviar.\n\nError: ${detalle}\n\n${aviso.cuerpo}`,
-    ).catch(() => {});
+    ).catch((e) => console.error("[finanzas] no se pudo avisar a soporte del aviso fallido:", e));
     return { ...base, enviado: false, error: detalle };
   }
 }

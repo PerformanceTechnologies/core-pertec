@@ -164,11 +164,13 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "Error desconocido";
-    await registrarEjecucion(false, 0, mensaje).catch(() => {});
+    await registrarEjecucion(false, 0, mensaje).catch((e) =>
+      console.error("[cron finanzas-sii] no se pudo registrar la corrida fallida:", e)
+    );
     await enviarCorreoSoporte(
       "Herramientas Finanzas: fallo la actualizacion diaria de facturas SII",
       `La corrida automatica de hoy no pudo actualizar las facturas del SII.\n\nError: ${mensaje}\n\nRevisa el dashboard en core.pertec.cl/finanzas y, si persiste, corre el scraper localmente para diagnosticar.`
-    ).catch(() => {});
+    ).catch((e) => console.error("[cron finanzas-sii] no se pudo avisar a soporte de la falla:", e));
     return NextResponse.json({ error: mensaje }, { status: 500 });
   }
 }

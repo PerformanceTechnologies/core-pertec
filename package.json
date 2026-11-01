@@ -66,7 +66,6 @@
     "react-apexcharts": "^2.1.1",
     "react-dom": "19.2.4",
     "react-pdf": "^10.5.0",
-    "recharts": "^3.10.0",
     "server-only": "^0.0.1",
     "sharp": "^0.34.5",
     "write-excel-file": "^4.1.1"
