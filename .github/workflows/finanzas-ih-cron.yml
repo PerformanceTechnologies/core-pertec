@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # @supabase/supabase-js necesita WebSocket nativo, disponible
           # recien desde Node 22 -- con Node 20 tira "Node.js detected but
