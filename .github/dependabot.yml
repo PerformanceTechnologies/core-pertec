@@ -22,6 +22,20 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # Estas se actualizan SOLO a mano y con prueba: next.config.ts depende de sus detalles internos
+      # (empaquetado de Turbopack, carpeta interna de pdf-parse, binarios de Chromium) y un parche
+      # automático puede romper el build o la lectura de facturas sin avisar. Las alertas de
+      # seguridad de GitHub siguen apareciendo igual.
+      - dependency-name: next
+      - dependency-name: eslint-config-next
+      - dependency-name: react
+      - dependency-name: react-dom
+      - dependency-name: pdf-parse
+      - dependency-name: pdfjs-dist
+      - dependency-name: react-pdf
+      - dependency-name: playwright
+      - dependency-name: playwright-core
+      - dependency-name: "@sparticuz/chromium-min"
     groups:
       parches:
         update-types: ["patch"]
