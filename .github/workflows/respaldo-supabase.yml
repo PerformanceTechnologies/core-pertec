@@ -29,7 +29,9 @@ concurrency:
 env:
   # Llave PÚBLICA de age (no es un secreto): solo sirve para cifrar.
   AGE_PUBLIC_KEY: age1f2cxlagnv556k44vt9qjekyhvzdarlxd323jzu9vj9vx5v05vgsqgztvps
-  RESPALDOS_CARPETA: RESPALDOS SUPABASE
+  # Carpeta y sitio de destino: variables del repositorio (opcionales). Sin ellas: carpeta RESP_SUPABASE en el
+  # sitio de Finanzas, donde el app del Core ya tiene permiso de escritura.
+  RESPALDOS_CARPETA: ${{ vars.RESPALDOS_CARPETA || 'RESP_SUPABASE' }}
   RETENCION_DIAS: "30"
 
 jobs:
@@ -135,6 +137,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           SHAREPOINT_FACTURAS_SITE_ID: ${{ secrets.SHAREPOINT_FACTURAS_SITE_ID }}
+          SHAREPOINT_RESPALDOS_SITE_ID: ${{ vars.SHAREPOINT_RESPALDOS_SITE_ID }}
         run: |
           set -euo pipefail
           P="${{ matrix.proyecto }}"

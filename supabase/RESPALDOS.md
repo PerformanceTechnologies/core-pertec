@@ -14,7 +14,8 @@ de GitHub. Por eso:
   Con esa llave solo se puede cifrar. La **llave privada** (la única que descifra) no está en GitHub ni en el repo:
   la guarda quien administra los respaldos, en su gestor de contraseñas.
 - El destino es una carpeta de SharePoint, vía Microsoft Graph con los mismos permisos de aplicación que el Core ya
-  usa para guardar PDF. Aunque la carpeta fuera visible para más gente, el contenido no se puede leer.
+  usa para guardar PDF (ver «Destino en SharePoint»). Aunque la carpeta fuera visible para más gente, el contenido
+  no se puede leer.
 
 Cada día y por proyecto (`core-pertec` y `pertec-web`) se genera `<proyecto>_AAAA-MM-DD.tar.gz.age` más su
 `.sha256`, con:
@@ -91,11 +92,27 @@ alter role respaldo set statement_timeout = '10min';
 Para **eliminarlo** (y dejar de poder hacer el respaldo): `drop role respaldo;`. No afecta al Core ni al sitio: ninguno
 de los dos lo usa.
 
+## Destino en SharePoint
+
+El workflow guarda en `<carpeta>/<proyecto>/` dentro de un sitio de SharePoint, con la identidad del *app* del Core
+(permisos de aplicación `Sites.Selected`). Dos variables del repositorio (GitHub → Settings → Secrets and variables →
+Actions → **Variables**) eligen el destino; ninguna es obligatoria:
+
+| Variable | Por omisión | Qué es |
+|---|---|---|
+| `RESPALDOS_CARPETA` | `RESP_SUPABASE` | Carpeta, en la biblioteca de documentos del sitio |
+| `SHAREPOINT_RESPALDOS_SITE_ID` | el sitio de Finanzas (`SHAREPOINT_FACTURAS_SITE_ID`) | Sitio de destino: `<dominio>.sharepoint.com:/sites/<NombreSitio>` |
+
+**Ojo con el permiso**: el app solo puede escribir en los sitios donde alguien con permisos de administración le haya
+concedido acceso (`Sites.Selected`). Si se apunta a otro sitio sin esa concesión, la subida falla con *403
+accessDenied* y el workflow avisa. El permiso es **de todo el sitio**, no de una carpeta: conviene dárselo a un sitio
+donde no haya documentos delicados que el app no necesite tocar (por ejemplo, uno dedicado a respaldos).
+
 ## Primera ejecución y control
 
 1. Con los secrets cargados: *Actions → Respaldo Supabase → Run workflow*.
 2. Revisar que ambos proyectos queden en verde y que aparezcan los archivos en SharePoint
-   (`RESPALDOS SUPABASE/<proyecto>/`).
+   (`<carpeta>/<proyecto>/`; ver «Destino en SharePoint»).
 3. Descargar uno, **descifrarlo y verificarlo** (ver abajo). Un respaldo que nunca se probó no es un respaldo.
 4. Repetir esa prueba de restauración cada trimestre.
 

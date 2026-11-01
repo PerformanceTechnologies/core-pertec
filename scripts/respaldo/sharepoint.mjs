@@ -7,6 +7,7 @@
 // Variables (las mismas que ya usa el Core con Microsoft Graph y que ya existen como secrets de GitHub):
 //   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET   permisos de APLICACIÓN
 //   SHAREPOINT_FACTURAS_SITE_ID                             "<dominio>.sharepoint.com:/sites/<NombreSitio>"
+//   SHAREPOINT_RESPALDOS_SITE_ID (opcional)                 otro sitio de destino, mismo formato; el app necesita permiso de escritura ahi
 //
 // La retención es conservadora a propósito: solo toca archivos con el nombre exacto que genera el workflow
 // (core-pertec_AAAA-MM-DD.tar.gz.age y su .sha256) y NUNCA deja menos de 7 respaldos por proyecto.
@@ -28,7 +29,8 @@ function entorno(nombre) {
   if (!v) throw new Error(`Falta la variable ${nombre}`);
   return v;
 }
-const sitio = () => `/sites/${entorno("SHAREPOINT_FACTURAS_SITE_ID")}`;
+// Destino: SHAREPOINT_RESPALDOS_SITE_ID si existe; si no, el sitio de Finanzas, donde el app del Core ya tiene permiso de escritura.
+const sitio = () => `/sites/${process.env.SHAREPOINT_RESPALDOS_SITE_ID || entorno("SHAREPOINT_FACTURAS_SITE_ID")}`;
 const codificar = (ruta) => ruta.split("/").map(encodeURIComponent).join("/");
 
 async function token() {
