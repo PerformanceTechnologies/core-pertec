@@ -36,6 +36,11 @@ updates:
       - dependency-name: playwright
       - dependency-name: playwright-core
       - dependency-name: "@sparticuz/chromium-min"
+      # En versiones 0.x un cambio "menor" equivale a uno grande: sharp procesa las imágenes de la
+      # Página web y los logos, y el SDK de Anthropic alimenta Rendir Gastos, Ofertas, el cotizador,
+      # el buscador y el resumen diario.
+      - dependency-name: sharp
+      - dependency-name: "@anthropic-ai/sdk"
     groups:
       parches:
         update-types: ["patch"]
