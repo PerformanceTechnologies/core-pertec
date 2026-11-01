@@ -1,0 +1,163 @@
+name: Respaldo Supabase
+
+# Respaldo diario y CIFRADO de las dos bases de Supabase y de sus archivos de Storage.
+#
+#  1. Vuelca cada base con pg_dump (esquema + datos de public; en pertec-web, además los usuarios del login).
+#  2. Descarga todos los archivos de Storage.
+#  3. Comprime y CIFRA con age usando una llave PÚBLICA: este repositorio es público y los artifacts de un repo
+#     público los puede bajar cualquiera, así que NADA queda en claro ni como artifact. La llave privada no está
+#     en GitHub: la tiene quien administra los respaldos.
+#  4. Sube el archivo cifrado a SharePoint, verifica el tamaño y borra lo de más de 30 días (siempre deja 7).
+#  5. Si algo falla, avisa por correo a soporte.
+#
+# Procedimiento de restauración y secrets necesarios: supabase/RESPALDOS.md
+
+on:
+  schedule:
+    # 07:17 UTC = 03:17 o 04:17 en Chile (según horario de verano). Un minuto "raro" a propósito: a las horas
+    # en punto GitHub se satura y retrasa o descarta ejecuciones programadas.
+    - cron: "17 7 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: respaldo-supabase
+  cancel-in-progress: false
+
+env:
+  # Llave PÚBLICA de age (no es un secreto): solo sirve para cifrar.
+  AGE_PUBLIC_KEY: age1f2cxlagnv556k44vt9qjekyhvzdarlxd323jzu9vj9vx5v05vgsqgztvps
+  RESPALDOS_CARPETA: RESPALDOS SUPABASE
+  RETENCION_DIAS: "30"
+
+jobs:
+  respaldar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - proyecto: core-pertec
+            secreto_db: SUPABASE_CORE_DB_URL
+            secreto_url: NEXT_PUBLIC_SUPABASE_URL
+            secreto_llave: SUPABASE_SERVICE_ROLE_KEY
+            con_auth: "false"
+          - proyecto: pertec-web
+            secreto_db: SUPABASE_WEB_DB_URL
+            secreto_url: PERTEC_WEB_SUPABASE_URL
+            secreto_llave: PERTEC_WEB_SUPABASE_SERVICE_ROLE_KEY
+            con_auth: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Instalar pg_dump 17 y age
+        # Las bases son Postgres 17 y pg_dump no puede volcar un servidor más nuevo que él: el cliente que trae
+        # Ubuntu es el 16, así que se instala el 17 desde el repositorio oficial de PostgreSQL.
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 age jq
+          pg_dump --version
+          age --version
+
+      - name: Volcar la base
+        env:
+          DB_URL: ${{ secrets[matrix.secreto_db] }}
+        run: |
+          set -euo pipefail
+          P="${{ matrix.proyecto }}"
+          D="salida/$P/db"
+          mkdir -p "$D"
+
+          pg_dump "$DB_URL" --format=custom --no-owner --no-privileges --schema=public --file="$D/public.dump"
+          pg_dump "$DB_URL" --schema-only --no-owner --no-privileges --schema=public --file="$D/schema.sql"
+          if [ "${{ matrix.con_auth }}" = "true" ]; then
+            # Usuarios del login de Supabase (contienen hashes de contraseña: por eso todo va cifrado).
+            pg_dump "$DB_URL" --data-only --no-owner -t auth.users -t auth.identities --file="$D/auth.sql"
+          fi
+
+          psql "$DB_URL" -At -v ON_ERROR_STOP=1 -c "select coalesce(jsonb_agg(to_jsonb(b)), '[]'::jsonb) from storage.buckets b" > "$D/storage_buckets.json"
+          psql "$DB_URL" -At -v ON_ERROR_STOP=1 -c "select coalesce(jsonb_agg(to_jsonb(o)), '[]'::jsonb) from storage.objects o" > "$D/storage_objects.json"
+          if [ "$(psql "$DB_URL" -At -c "select to_regclass('cron.job') is not null")" = "t" ]; then
+            psql "$DB_URL" -At -v ON_ERROR_STOP=1 -c "select coalesce(jsonb_agg(jsonb_build_object('jobid', jobid, 'schedule', schedule, 'command', command, 'active', active, 'jobname', jobname)), '[]'::jsonb) from cron.job" > "$D/cron_job.json"
+          fi
+          # Conteo exacto de filas por tabla, en vivo, para comprobar el volcado.
+          psql "$DB_URL" -At -v ON_ERROR_STOP=1 -c "select coalesce(jsonb_object_agg(table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from public.%I', table_name), false, true, '')))[1]::text::bigint), '{}'::jsonb) from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'" > "$D/conteos_en_vivo.json"
+
+          # El volcado tiene que traer los datos de TODAS las tablas de public.
+          TABLAS=$(jq 'length' "$D/conteos_en_vivo.json")
+          CON_DATOS=$(pg_restore --list "$D/public.dump" | grep -c ' TABLE DATA public ')
+          echo "tablas en public: $TABLAS | tablas con datos en el volcado: $CON_DATOS | volcado: $(du -h "$D/public.dump" | cut -f1)"
+          [ "$TABLAS" -gt 0 ] && [ "$TABLAS" -eq "$CON_DATOS" ] || { echo "::error::El volcado no coincide con las tablas de la base"; exit 1; }
+
+      - name: Exportar archivos de Storage
+        env:
+          SUPABASE_URL: ${{ secrets[matrix.secreto_url] }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets[matrix.secreto_llave] }}
+        run: |
+          set -euo pipefail
+          P="${{ matrix.proyecto }}"
+          node scripts/respaldo/storage.mjs "salida/$P"
+          # Lo descargado tiene que coincidir con los objetos que la base registra en Storage.
+          ESPERADOS=$(jq '[.[] | select(.name | endswith(".emptyFolderPlaceholder") | not)] | length' "salida/$P/db/storage_objects.json")
+          DESCARGADOS=$(find "salida/$P/storage" -type f ! -name _indice.json | wc -l)
+          echo "archivos en Storage: $ESPERADOS | descargados: $DESCARGADOS"
+          [ "$ESPERADOS" -eq "$DESCARGADOS" ] || { echo "::error::Faltan archivos de Storage en el respaldo"; exit 1; }
+
+      - name: Comprimir y cifrar
+        run: |
+          set -euo pipefail
+          P="${{ matrix.proyecto }}"
+          (cd "salida/$P" && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          FECHA=$(date -u +%F)
+          ARCH="${P}_${FECHA}.tar.gz"
+          tar -czf "$ARCH" -C salida "$P"
+          age -r "$AGE_PUBLIC_KEY" -o "$ARCH.age" "$ARCH"
+          rm -rf "$ARCH" salida
+          sha256sum "$ARCH.age" > "$ARCH.age.sha256"
+          test -s "$ARCH.age"
+          echo "ARCH=$ARCH" >> "$GITHUB_ENV"
+          ls -l "$ARCH.age" "$ARCH.age.sha256"
+
+      - name: Subir a SharePoint y aplicar la retención
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          SHAREPOINT_FACTURAS_SITE_ID: ${{ secrets.SHAREPOINT_FACTURAS_SITE_ID }}
+        run: |
+          set -euo pipefail
+          P="${{ matrix.proyecto }}"
+          node scripts/respaldo/sharepoint.mjs subir "$ARCH.age" "$RESPALDOS_CARPETA/$P"
+          node scripts/respaldo/sharepoint.mjs subir "$ARCH.age.sha256" "$RESPALDOS_CARPETA/$P"
+          node scripts/respaldo/sharepoint.mjs limpiar "$RESPALDOS_CARPETA/$P" "$RETENCION_DIAS"
+
+  avisar:
+    needs: respaldar
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Avisar a soporte
+        env:
+          MS_TENANT_ID: ${{ secrets.MS_TENANT_ID }}
+          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: node scripts/respaldo/avisar-fallo.mjs "uno o más proyectos" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
