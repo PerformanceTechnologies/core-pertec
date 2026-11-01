@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   // El bucket "equipos" es público: solo imágenes reales, nunca .html o .svg.
-  const validacion = validarSubidaPublica(archivo, TIPOS_FOTO_EVIDENCIA, "JPG, PNG, WEBP y GIF");
+  const validacion = validarSubidaPublica(archivo, TIPOS_FOTO_EVIDENCIA, "JPG, PNG, WEBP, GIF y HEIC");
   if (validacion.extension === null) {
     return NextResponse.json({ error: validacion.error }, { status: validacion.status });
   }

@@ -308,6 +308,8 @@ export const TIPOS_FOTO_EVIDENCIA: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+  "image/heic": "heic",
+  "image/heif": "heif",
 };
 
 export async function subirFotoEvidencia(archivo: File, extension: string): Promise<FotoEvidencia> {

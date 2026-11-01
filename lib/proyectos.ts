@@ -196,6 +196,8 @@ export const TIPOS_ARCHIVO_GASTO: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+  "image/heic": "heic",
+  "image/heif": "heif",
   "application/pdf": "pdf",
   "application/msword": "doc",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",

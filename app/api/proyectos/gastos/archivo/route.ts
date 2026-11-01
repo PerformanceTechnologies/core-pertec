@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const validacion = validarSubidaPublica(
     archivo,
     TIPOS_ARCHIVO_GASTO,
-    "imágenes (JPG, PNG, WEBP, GIF), PDF, Word y Excel",
+    "imágenes (JPG, PNG, WEBP, GIF, HEIC), PDF, Word y Excel",
   );
   if (validacion.extension === null) {
     return NextResponse.json({ error: validacion.error }, { status: validacion.status });
