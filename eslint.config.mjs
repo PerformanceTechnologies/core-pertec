@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Código que no es de la app: copias de worktrees de Claude, el visor
+    // pdf.js ya minificado y la salida de los scripts de exploración. Linterarlos
+    // solo mete ruido en el reporte.
+    ".claude/**",
+    "public/pdfjs/**",
+    "scripts/exploracion-output/**",
   ]),
 ]);
 
