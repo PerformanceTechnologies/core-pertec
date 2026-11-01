@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { obtenerUfUtmVigentes } from "@/lib/cotizador/indicadores-mindicador";
 import { actualizarUfUtmVigente } from "@/lib/parametros-legales";
+import { enviarCorreoSoporte } from "@/lib/notificaciones";
 
 export const maxDuration = 30;
 
@@ -42,6 +43,20 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : String(error);
     console.error("[cron cotizador-parametros]", mensaje);
+
+    // Este cron corre 1x/dia y ya agoto los reintentos hacia mindicador.cl, asi
+    // que cada falla llega como maximo una vez al dia (no hay tabla de
+    // ejecuciones como en panel-odoo para exigir dos fallas seguidas). Si no se
+    // avisa, UF/UTM quedan desactualizadas y nadie se entera hasta cotizar.
+    await enviarCorreoSoporte(
+      "Cotizador: fallo la actualizacion diaria de UF/UTM",
+      `La corrida automatica de hoy no pudo actualizar la UF y la UTM de los parametros legales del cotizador.
+
+Error: ${mensaje}
+
+Los valores vigentes quedan como estaban; si persiste, edita uf/utm a mano en core.pertec.cl/cotizador/parametros.`
+    ).catch((errCorreo) => console.error("[cron cotizador-parametros] fallo al enviar alerta:", errCorreo));
+
     return NextResponse.json({ ok: false, error: mensaje }, { status: 500 });
   }
 }
