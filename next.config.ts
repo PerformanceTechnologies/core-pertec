@@ -112,7 +112,10 @@ const nextConfig: NextConfig = {
   // existir como tal y falla con "Setting up fake worker failed".
   // pdfjs-dist y @napi-rs/canvas, por lo mismo y porque el canvas es un binario
   // nativo: los usa la planilla de Rendir Gastos para pasar un PDF a imagen.
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
+  // @azure/identity trae `open` solo para el login interactivo por navegador (que el core no usa), y
+  // `open` trae `powershell-utils`, que menciona una ruta de Windows: Turbopack 16.4 intenta resolverla
+  // al empaquetar y el build se cae. Externalizarlos evita empaquetarlos sin quitarlos.
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas", "open", "powershell-utils", "wsl-utils"],
   // playwright-core carga browsers.json y otros archivos internos de forma
   // dinamica, y el file tracing de Vercel no los detecta solo — sin esto la
   // funcion serverless del cron falla en runtime con "Cannot find module
