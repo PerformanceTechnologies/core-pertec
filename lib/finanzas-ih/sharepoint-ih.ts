@@ -42,12 +42,20 @@ export interface ArchivoSubidoIh {
   webUrl: string;
 }
 
+// El id viene del navegador (query string). Un id de Graph es alfanumérico; sin validarlo se podía
+// pedir cualquier ruta del drive del sitio (por ejemplo `root:/Carpeta/archivo.pdf:`).
+const ID_DE_ITEM = /^[A-Za-z0-9!_-]{10,120}$/;
+function itemIdSeguro(itemId: string): string {
+  if (!ID_DE_ITEM.test(itemId)) throw new Error("Identificador de archivo inválido");
+  return encodeURIComponent(itemId);
+}
+
 // Se descarga via el "@microsoft.graph.downloadUrl" (URL firmada) en vez de
 // pedir el contenido directo por el SDK -- mismo patron que
 // lib/sharepoint-facturas.ts#descargarBinarioArchivo.
 export async function descargarBinarioArchivoIh(itemId: string): Promise<Buffer> {
   const graph = await clienteGraph();
-  const item = await graph.api(`/sites/${SITE_ID()}/drive/items/${itemId}`).select("@microsoft.graph.downloadUrl").get();
+  const item = await graph.api(`/sites/${SITE_ID()}/drive/items/${itemIdSeguro(itemId)}`).select("@microsoft.graph.downloadUrl").get();
   const downloadUrl = item?.["@microsoft.graph.downloadUrl"];
   if (!downloadUrl) throw new Error(`No se pudo obtener downloadUrl para el item ${itemId}`);
 

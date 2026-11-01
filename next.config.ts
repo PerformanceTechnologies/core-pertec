@@ -86,7 +86,26 @@ const NAVEGADOR = [
   "./node_modules/@sparticuz/chromium-min/**/*",
 ];
 
+/**
+ * Cabeceras de seguridad que no cambian nada de lo que se ve ni se hace.
+ *
+ * SAMEORIGIN y no DENY: los PDF y las vistas previas se muestran en un <iframe> del MISMO origen
+ * (facturas, ofertas, visor de contratos). Queda fuera una CSP completa a propósito: hay scripts y
+ * estilos en línea y habría que probarla módulo por módulo antes de activarla.
+ */
+const CABECERAS_DE_SEGURIDAD = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+];
+
 const nextConfig: NextConfig = {
+  // No anunciar la tecnología del servidor en cada respuesta (X-Powered-By).
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: CABECERAS_DE_SEGURIDAD }];
+  },
   // pdf-parse (pdfjs-dist) necesita resolver su propio pdf.worker.mjs vía
   // require/import normal de Node en tiempo de ejecucion -- si Turbopack/
   // webpack lo empaqueta como cualquier otro modulo, ese archivo deja de
