@@ -226,7 +226,9 @@ export async function sincronizarSiiAction(
     const mensaje = error instanceof Error ? error.message : "Error desconocido";
     // En la base se guarda el CRUDO, no el traducido: es el registro técnico y
     // ahí sí se quiere el "Call log" completo para poder diagnosticar después.
-    await registrarEjecucion(false, 0, mensaje).catch(() => {});
+    await registrarEjecucion(false, 0, mensaje).catch((e) =>
+      console.error("[finanzas/sii] no se pudo registrar la corrida fallida:", e)
+    );
     const fallo = clasificarFalloSii(mensaje);
     // Se DEVUELVE, no se lanza: ver el comentario de `ok`. La primera versión lanzaba y
     // lo único que se veía en pantalla era el error genérico de Server Components; el
