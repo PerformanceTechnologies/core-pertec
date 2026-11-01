@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
+import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
 import { buscarFacturasCompraIndexadas } from "@/lib/facturas-historicas";
 
 const SLUG_APP = "finanzas";
@@ -12,6 +13,15 @@ export async function GET(request: NextRequest) {
   const acceso = await verificarAccesoAppApi(SLUG_APP);
   if (!acceso.usuario) {
     return NextResponse.json({ error: acceso.error }, { status: acceso.status });
+  }
+
+  // La página exige además el subpanel "facturas-historicas" (el admin pasa siempre):
+  // sin esta misma regla acá, quien no lo tiene igual podía llamar la API a mano.
+  if (
+    acceso.usuario.rol !== "admin" &&
+    !(await usuarioPuedeVerSubpanelFinanzas(acceso.usuario.id, "facturas-historicas"))
+  ) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
   const termino = request.nextUrl.searchParams.get("q")?.trim() ?? "";
