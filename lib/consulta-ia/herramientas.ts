@@ -3,6 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { puedeVerApp } from "@/lib/autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
+import { obtenerModulosVisibles, type ModuloVisiblePanelOdoo } from "@/lib/panel-odoo/modulos-usuario";
 import type { UsuarioConAcceso } from "@/lib/tipos";
 
 // Las herramientas con las que el modelo contesta preguntas sobre los datos del
@@ -62,6 +63,23 @@ function money(n: number): string {
 function limpiarTexto(valor: string): string {
   return valor.replace(/[,()*\\%]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }
+
+/**
+ * Si esta persona tiene visible ese módulo del Panel Odoo.
+ *
+ * Tener la app no basta: el admin puede restringir a cada usuario a un subconjunto de módulos
+ * (usuario_odoo_modulos) y la página del panel ya lo respeta. Sin esta misma regla acá, el asistente
+ * le contestaba datos de proyectos o ventas que el panel le oculta. Es la misma función que usa el
+ * panel, así que "sin restricción guardada = ve todos" se comporta igual en los dos lados.
+ */
+async function moduloVisible(usuario: UsuarioConAcceso, modulo: ModuloVisiblePanelOdoo): Promise<boolean> {
+  return (await obtenerModulosVisibles(usuario.id)).includes(modulo);
+}
+
+const SIN_ACCESO_MODULO: ResultadoHerramienta = {
+  texto: "Esta persona no tiene acceso a ese módulo.",
+  filas: 0,
+};
 
 /** Un período "2026" o "2026-09" a su rango de fechas. Null si no se entiende. */
 function rangoDePeriodo(periodo?: string): { desde: string; hasta: string } | null {
@@ -167,7 +185,8 @@ const buscarProyectos: Herramienta = {
     },
     strict: true,
   } as Anthropic.Tool,
-  async ejecutar(args) {
+  async ejecutar(args, usuario) {
+    if (!(await moduloVisible(usuario, "proyectos"))) return SIN_ACCESO_MODULO;
     let q = supabaseAdmin
       .from("panel_odoo_proyectos")
       .select(
@@ -219,7 +238,9 @@ const buscarTareas: Herramienta = {
     },
     strict: true,
   } as Anthropic.Tool,
-  async ejecutar(args) {
+  async ejecutar(args, usuario) {
+    // Las tareas se ven dentro del módulo Proyectos del panel (TarjetaProyectos).
+    if (!(await moduloVisible(usuario, "proyectos"))) return SIN_ACCESO_MODULO;
     let q = supabaseAdmin
       .from("panel_odoo_tareas")
       .select("nombre, proyecto_nombre, etapa, asignados, fecha_limite, completado, estado")
@@ -276,7 +297,8 @@ const buscarVentas: Herramienta = {
     },
     strict: true,
   } as Anthropic.Tool,
-  async ejecutar(args) {
+  async ejecutar(args, usuario) {
+    if (!(await moduloVisible(usuario, "ventas"))) return SIN_ACCESO_MODULO;
     let q = supabaseAdmin
       .from("panel_odoo_ventas")
       .select("numero, partner_nombre, fecha_orden, monto_total, estado, es_arriendo")
