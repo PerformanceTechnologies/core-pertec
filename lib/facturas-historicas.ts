@@ -223,7 +223,13 @@ export async function buscarFacturasCompraIndexadas(
     );
 
   if (filtros.termino) {
-    const patron = `%${filtros.termino.replace(/[%_]/g, "\\$&")}%`;
+    // El término se interpola en un filtro .or() de PostgREST, que se arma como texto: una
+    // coma, un paréntesis, un asterisco, una comilla o un backslash en `q` cerraba el patrón e
+    // inyectaba otra condición (mismo riesgo que limpiarTexto en lib/consulta-ia). Se quitan
+    // ANTES de escapar % y _, para que un RUT, un folio o un nombre normal busquen igual.
+    const limpio = filtros.termino.replace(/[,()*"\\]/g, " ").trim();
+    if (!limpio) return [];
+    const patron = `%${limpio.replace(/[%_]/g, "\\$&")}%`;
     consulta = consulta.or(`texto_extraido.ilike.${patron},nombre_archivo.ilike.${patron}`);
   }
   if (filtros.tiposDocumento && filtros.tiposDocumento.length > 0) {
