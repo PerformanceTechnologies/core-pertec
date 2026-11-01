@@ -1,8 +1,14 @@
-# Dependabot: avisa de versiones nuevas con un Pull Request, nunca mezcla nada solo.
+# Dependabot: avisa de versiones nuevas con un Pull Request, nunca mezcla nada.
 # Una vez por semana y de a poco, para no inundar a Hugo y Alex ni disparar decenas de despliegues
-# de vista previa en Vercel. Los saltos MAYORES se ignoran a propósito (next, react, typescript,
-# sharp...): se hacen a mano, con prueba, cuando alguien lo decida. Los avisos de SEGURIDAD llegan
-# aparte y sin este filtro (Dependabot security updates).
+# de vista previa en Vercel.
+#
+# Los saltos MAYORES se ignoran a propósito, tanto en npm (next, react, typescript, sharp...) como en
+# las GitHub Actions: los workflows de cron (Facturas IH, Panel Odoo) son de producción y una Action
+# nueva puede cambiar su comportamiento. Un salto mayor se hace a mano, con prueba, cuando alguien
+# lo decida. Los avisos de SEGURIDAD llegan aparte (Dependabot security updates).
+#
+# Los parches y los cambios menores van en dos grupos distintos: así un PR con veinte librerías
+# no mezcla lo trivial con lo que puede cambiar el diseño (Tailwind) o la lectura de archivos.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -17,8 +23,10 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
-      parches-y-menores:
-        update-types: ["minor", "patch"]
+      parches:
+        update-types: ["patch"]
+      menores:
+        update-types: ["minor"]
     commit-message:
       prefix: "Dependencias"
 
@@ -27,5 +35,8 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "Actions"
