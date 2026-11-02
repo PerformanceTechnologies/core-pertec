@@ -1,7 +1,7 @@
 // Prueba el agrupado del menú de la izquierda (lib/menu-modelo.ts).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { armarMenu, rutaDeModulo } from "../lib/menu-modelo";
+import { appsSueltasDelInicio, armarMenu, rutaDeModulo } from "../lib/menu-modelo";
 import { iconoDeModulo } from "../lib/iconos-menu";
 import type { Aplicacion } from "../lib/tipos";
 
@@ -76,6 +76,11 @@ assert.deepEqual(armarMenu([], []), []);
   // Sin ningún submódulo visible, el módulo no existe (su página daría 404).
   assert.deepEqual(armarMenu([], [], { admin: false }), []);
 }
+
+// El Inicio muestra módulos; lo que no cuelga de ninguno y no está en el menú (Proyectos) sigue
+// teniendo su tarjeta —es su única puerta—, y Mi Día no (tiene su botón arriba).
+assert.deepEqual(appsSueltasDelInicio(todas).map((a) => a.nombre), ["Proyectos"]);
+assert.deepEqual(appsSueltasDelInicio([app("/mi-dia", "Mi Día"), app("/cotizador", "Cotizador")]), []);
 
 // La barra: el botón de plegar SIEMPRE funciona. Lo que toca la persona manda sobre el valor por
 // omisión (antes, el módulo donde estaba la página abierta se forzaba abierto y el botón parecía roto),

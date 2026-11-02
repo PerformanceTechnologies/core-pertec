@@ -41,6 +41,15 @@ export function rutaDeModulo(slug: string): string {
 export const RUTAS_OCULTAS = ["/proyectos", "/mi-dia"];
 
 /**
+ * Las aplicaciones que no cuelgan de ningún módulo y no van en el menú, pero SÍ en el Inicio:
+ * hoy, Proyectos. Como no está en el menú, el Inicio es la única puerta que tiene: si el Inicio
+ * mostrara solo módulos, quedaría inalcanzable. Mi Día no cuenta: tiene su propio botón arriba.
+ */
+export function appsSueltasDelInicio(apps: Aplicacion[]): Aplicacion[] {
+  return apps.filter((a) => RUTAS_OCULTAS.includes(a.url) && a.url !== "/mi-dia");
+}
+
+/**
  * Las pantallas de adentro de un submódulo, para que se vean desde el menú y desde la página
  * de su módulo.
  *
