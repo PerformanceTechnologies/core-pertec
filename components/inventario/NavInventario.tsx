@@ -11,6 +11,7 @@ const PESTANAS = [
   { href: "/inventario/reabastecimiento", etiqueta: "Reabastecimiento" },
   { href: "/inventario/valorizacion", etiqueta: "Valorización" },
   { href: "/inventario/ubicaciones", etiqueta: "Ubicaciones" },
+  { href: "/inventario/importar", etiqueta: "Carga masiva" },
   { href: "/inventario/configuracion", etiqueta: "Configuración" },
 ];
 
