@@ -35,3 +35,34 @@ export function Pesos({ name, valor }: { name: string; valor?: number }) {
     </span>
   );
 }
+
+/** Un acceso rápido del tablero, igual a los del Inventario. Abre la ventana de su formulario. */
+export function TarjetaAccion({
+  titulo,
+  detalle,
+  Icono,
+  tono,
+  onClick,
+}: {
+  titulo: string;
+  detalle: string;
+  Icono: React.ComponentType<{ size?: number; stroke?: number }>;
+  tono: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center gap-3 rounded-2xl border border-borde bg-superficie p-3.5 text-left shadow-[0_1px_2px_rgba(23,20,17,0.04),0_10px_28px_-14px_rgba(23,20,17,0.12)] transition hover:-translate-y-0.5 hover:border-naranjo/40"
+    >
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tono}`}>
+        <Icono size={20} stroke={1.75} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-tinta">{titulo}</span>
+        <span className="block truncate text-[11px] text-gris">{detalle}</span>
+      </span>
+    </button>
+  );
+}

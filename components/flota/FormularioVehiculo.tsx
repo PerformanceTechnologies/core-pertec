@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
-import { Campo, Pesos, Seccion } from "@/components/flota/Campos";
+import { Campo, Pesos, Seccion, TarjetaAccion } from "@/components/flota/Campos";
 import { Patente } from "@/components/flota/Visual";
 import { CAMPO } from "@/lib/estilos";
 import {
@@ -24,10 +24,13 @@ export default function FormularioVehiculo({
   marcas,
   modelos,
   vehiculo,
+  comoTarjeta = false,
 }: {
   marcas: Marca[];
   modelos: Modelo[];
   vehiculo?: Vehiculo;
+  /** Se abre desde un acceso rápido del tablero en vez del botón. */
+  comoTarjeta?: boolean;
 }) {
   const editar = Boolean(vehiculo);
   const [abierta, setAbierta] = useState(false);
@@ -63,6 +66,9 @@ export default function FormularioVehiculo({
 
   return (
     <>
+      {comoTarjeta ? (
+        <TarjetaAccion titulo="Nuevo vehículo" detalle="Agregar a la flota" Icono={IconPlus} tono="bg-naranjo/10 text-naranjo" onClick={abrir} />
+      ) : (
       <button
         onClick={abrir}
         className={
@@ -74,6 +80,7 @@ export default function FormularioVehiculo({
         {editar ? <IconPencil size={16} /> : <IconPlus size={16} />}
         {editar ? "Editar" : "Nuevo vehículo"}
       </button>
+      )}
 
       <VentanaModal
         abierta={abierta}

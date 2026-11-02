@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { IconFileText } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
-import { Campo, Pesos } from "@/components/flota/Campos";
+import { Campo, Pesos, TarjetaAccion } from "@/components/flota/Campos";
 import { CAMPO } from "@/lib/estilos";
 import {
   ETIQUETA_FRECUENCIA,
@@ -19,7 +19,15 @@ import { crearContratoAction } from "@/app/(protegido)/flota/acciones";
 type VehiculoMin = { id: string; patente: string; nombre: string };
 
 /** Nuevo contrato (leasing, seguro, arriendo…). Con `vehiculo` queda fijo. */
-export default function FormularioContrato({ vehiculos, vehiculo }: { vehiculos?: VehiculoMin[]; vehiculo?: VehiculoMin }) {
+export default function FormularioContrato({
+  vehiculos,
+  vehiculo,
+  comoTarjeta = false,
+}: {
+  vehiculos?: VehiculoMin[];
+  vehiculo?: VehiculoMin;
+  comoTarjeta?: boolean;
+}) {
   const [abierta, setAbierta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
@@ -39,12 +47,16 @@ export default function FormularioContrato({ vehiculos, vehiculo }: { vehiculos?
 
   return (
     <>
+      {comoTarjeta ? (
+        <TarjetaAccion titulo="Contrato" detalle="Seguro, leasing o arriendo" Icono={IconFileText} tono="bg-indigo-500/10 text-indigo-600" onClick={() => { setError(null); setAbierta(true); }} />
+      ) : (
       <button
         onClick={() => { setError(null); setAbierta(true); }}
         className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-borde px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50"
       >
         <IconFileText size={16} /> Nuevo contrato
       </button>
+      )}
 
       <VentanaModal
         abierta={abierta}

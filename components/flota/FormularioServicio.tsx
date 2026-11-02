@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconTool } from "@tabler/icons-react";
+import { IconGasStation, IconTool } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
-import { Campo, Pesos } from "@/components/flota/Campos";
+import { Campo, Pesos, TarjetaAccion } from "@/components/flota/Campos";
 import { CAMPO } from "@/lib/estilos";
 import {
   ETIQUETA_ESTADO_SERVICIO,
@@ -29,13 +29,29 @@ const AYUDA: Record<TipoServicio, string> = {
 };
 
 /** Registrar un servicio. Con `vehiculo` queda fijo; si no, se elige de la lista. */
-export default function FormularioServicio({ vehiculos, vehiculo }: { vehiculos?: VehiculoMin[]; vehiculo?: VehiculoMin }) {
+export default function FormularioServicio({
+  vehiculos,
+  vehiculo,
+  tipoInicial = "mantencion",
+  comoTarjeta = false,
+}: {
+  vehiculos?: VehiculoMin[];
+  vehiculo?: VehiculoMin;
+  tipoInicial?: TipoServicio;
+  comoTarjeta?: boolean;
+}) {
   const [abierta, setAbierta] = useState(false);
-  const [tipo, setTipo] = useState<TipoServicio>("mantencion");
+  const [tipo, setTipo] = useState<TipoServicio>(tipoInicial);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
   const router = useRouter();
   const hoy = new Date().toISOString().slice(0, 10);
+
+  function abrir() {
+    setError(null);
+    setTipo(tipoInicial);
+    setAbierta(true);
+  }
 
   function enviar(fd: FormData) {
     setError(null);
@@ -51,12 +67,20 @@ export default function FormularioServicio({ vehiculos, vehiculo }: { vehiculos?
 
   return (
     <>
-      <button
-        onClick={() => { setError(null); setTipo("mantencion"); setAbierta(true); }}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-naranjo px-4 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
-      >
-        <IconTool size={16} /> Registrar servicio
-      </button>
+      {comoTarjeta ? (
+        tipoInicial === "combustible" ? (
+          <TarjetaAccion titulo="Combustible" detalle="Registrar una carga" Icono={IconGasStation} tono="bg-sky-500/10 text-sky-600" onClick={abrir} />
+        ) : (
+          <TarjetaAccion titulo="Servicio" detalle="Mantención o reparación" Icono={IconTool} tono="bg-amber-500/10 text-amber-600" onClick={abrir} />
+        )
+      ) : (
+        <button
+          onClick={abrir}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-naranjo px-4 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
+        >
+          <IconTool size={16} /> Registrar servicio
+        </button>
+      )}
 
       <VentanaModal
         abierta={abierta}
