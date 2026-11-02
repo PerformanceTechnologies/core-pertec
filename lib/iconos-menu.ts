@@ -5,6 +5,7 @@
 import {
   IconApps,
   IconBuildingWarehouse,
+  IconTruck,
   IconContract,
   IconHeartHandshake,
   IconHome2,
@@ -21,6 +22,7 @@ const ICONOS_DE_MODULO: Record<string, Icon> = {
   tareas: IconLayoutKanban,
   contratos: IconContract,
   inventario: IconBuildingWarehouse,
+  flota: IconTruck,
   "pagina-web": IconWorld,
   otras: IconApps,
   administracion: IconShieldCog,

@@ -116,7 +116,7 @@ const PLAN: Plan[] = [
     descripcion: "Tablero de tareas del equipo: por hacer, en curso y hecho.",
     items: [{ ruta: "/tareas" }],
   },
-  // Tareas, Contratos e Inventario son módulos de una sola aplicación: se ven y pliegan igual que los demás.
+  // Tareas, Contratos, Inventario y Flota son módulos de una sola aplicación: se ven y pliegan igual que los demás.
   {
     slug: "contratos",
     titulo: "Contratos",
@@ -128,6 +128,12 @@ const PLAN: Plan[] = [
     titulo: "Inventario",
     descripcion: "Stock, movimientos y valorización de bodega.",
     items: [{ ruta: "/inventario" }],
+  },
+  {
+    slug: "flota",
+    titulo: "Flota",
+    descripcion: "Vehículos, conductores, mantenciones, contratos y costos.",
+    items: [{ ruta: "/flota" }],
   },
 ];
 
