@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertCircle, IconCalendarEvent, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
+import { IconAlertCircle, IconCalendarEvent, IconHistory, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
 import { CAMPO, SOMBRA_CALIDA } from "@/lib/estilos";
@@ -13,12 +13,14 @@ import {
   iniciales,
   ordenEntre,
   type EstadoTarea,
+  type EventoHistorial,
   type Tarea,
 } from "@/lib/tareas-modelo";
 import {
   actualizarTareaAction,
   crearTareaAction,
   eliminarTareaAction,
+  historialAction,
   moverTareaAction,
 } from "@/app/(protegido)/tareas/acciones";
 
@@ -560,6 +562,8 @@ function FormularioTarea({
         </div>
       )}
 
+      {t && <Historial tareaId={t.id} />}
+
       {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
       <div className="flex items-center justify-between gap-2 border-t border-borde pt-4">
@@ -587,5 +591,84 @@ function Campo({ etiqueta, children }: { etiqueta: string; children: React.React
       <span className="mb-1.5 block text-xs font-semibold text-gris">{etiqueta}</span>
       {children}
     </label>
+  );
+}
+
+const VERBO: Record<EventoHistorial["accion"], string> = {
+  creada: "creó la tarea",
+  editada: "actualizó",
+  estado: "cambió el estado",
+};
+
+/** "hace 5 min", "hace 3 h", "ayer", o la fecha si es más vieja. */
+function haceCuanto(iso: string): string {
+  const seg = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (seg < 60) return "recién";
+  if (seg < 3600) return `hace ${Math.floor(seg / 60)} min`;
+  if (seg < 86400) return `hace ${Math.floor(seg / 3600)} h`;
+  if (seg < 172800) return "ayer";
+  return new Date(iso).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function Historial({ tareaId }: { tareaId: string }) {
+  const [eventos, setEventos] = useState<EventoHistorial[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vigente = true;
+    historialAction(tareaId).then((r) => {
+      if (!vigente) return;
+      if (r.ok) setEventos(r.eventos);
+      else setError(r.error);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [tareaId]);
+
+  const ultimo = eventos?.[0];
+
+  return (
+    <section className="rounded-xl border border-borde bg-tinta/[0.02] p-4">
+      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.08em] text-tinta">
+          <IconHistory size={15} /> Historial
+        </h3>
+        {ultimo && (
+          <span className="text-[11px] text-gris" title={new Date(ultimo.creadoEn).toLocaleString("es-CL")}>
+            Actualizada {haceCuanto(ultimo.creadoEn)} por <strong className="font-semibold text-tinta">{ultimo.nombre ?? ultimo.correo}</strong>
+          </span>
+        )}
+      </header>
+
+      {error && <p className="text-xs text-rose-600">{error}</p>}
+      {!error && eventos === null && <p className="text-xs text-gris">Cargando…</p>}
+      {eventos && eventos.length === 0 && (
+        <p className="text-xs text-gris">Sin movimientos registrados todavía. Desde ahora se anota cada cambio.</p>
+      )}
+
+      {eventos && eventos.length > 0 && (
+        <ol className="max-h-56 space-y-3 overflow-y-auto pr-1">
+          {eventos.map((e, i) => {
+            const quien = e.nombre ?? e.correo ?? "Alguien";
+            return (
+              <li key={e.id} className="relative flex gap-3">
+                {i < eventos.length - 1 && <span className="absolute left-3 top-7 h-[calc(100%-4px)] w-px bg-borde" aria-hidden />}
+                <Avatar nombre={quien} correo={e.correo ?? quien} chico />
+                <div className="min-w-0 flex-1 text-xs leading-relaxed">
+                  <p className="text-tinta">
+                    <strong className="font-semibold">{quien}</strong> <span className="text-gris">{VERBO[e.accion]}</span>{" "}
+                    {e.detalle}
+                  </p>
+                  <p className="text-[11px] text-gris-suave" title={new Date(e.creadoEn).toLocaleString("es-CL")}>
+                    {haceCuanto(e.creadoEn)} · {new Date(e.creadoEn).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
   );
 }

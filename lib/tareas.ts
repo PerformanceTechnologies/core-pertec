@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
-import type { EstadoTarea, Prioridad, Tarea } from "./tareas-modelo";
+import type { AccionHistorial, EstadoTarea, EventoHistorial, Prioridad, Tarea } from "./tareas-modelo";
 
 // -----------------------------------------------------------------------------
 //  Tareas (CRM): lo que toca la base (solo servidor).
@@ -81,6 +81,32 @@ export async function moverTarea(id: string, estado: EstadoTarea, orden: number)
   const { error } = await supabaseAdmin.from(TABLA)
     .update({ estado, orden, actualizado_en: new Date().toISOString() }).eq("id", id);
   revienta("mover tarea", error);
+}
+
+// ---------- Historial --------------------------------------------------------
+
+const HISTORIAL = "crm_tareas_historial";
+
+export async function registrarEvento(
+  tareaId: string,
+  accion: AccionHistorial,
+  detalle: string | null,
+  quien: { correo: string; nombre: string | null },
+): Promise<void> {
+  // El historial acompaña: si falla, la tarea igual quedó guardada.
+  const { error } = await supabaseAdmin.from(HISTORIAL).insert({
+    tarea_id: tareaId, accion, detalle, correo: quien.correo, nombre: quien.nombre,
+  });
+  if (error) console.warn("[tareas] No se pudo registrar el historial:", error.message);
+}
+
+export async function listarHistorial(tareaId: string): Promise<EventoHistorial[]> {
+  const { data, error } = await supabaseAdmin
+    .from(HISTORIAL).select("*").eq("tarea_id", tareaId).order("creado_en", { ascending: false }).limit(100);
+  revienta("leer historial", error);
+  return (data ?? []).map((r) => ({
+    id: r.id, accion: r.accion, detalle: r.detalle, correo: r.correo, nombre: r.nombre, creadoEn: r.creado_en,
+  }));
 }
 
 export async function eliminarTarea(id: string): Promise<void> {

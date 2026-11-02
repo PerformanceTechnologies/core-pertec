@@ -6,12 +6,21 @@ import {
   actualizarTarea,
   crearTarea,
   eliminarTarea,
+  listarHistorial,
   listarResponsables,
   moverTarea,
   obtenerTarea,
+  registrarEvento,
   type DatosTarea,
 } from "@/lib/tareas";
-import { SLUG_APP_TAREAS, esEstado, esPrioridad } from "@/lib/tareas-modelo";
+import {
+  SLUG_APP_TAREAS,
+  describirCambios,
+  esEstado,
+  esPrioridad,
+  tituloDeColumna,
+  type EventoHistorial,
+} from "@/lib/tareas-modelo";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -55,6 +64,7 @@ export async function crearTareaAction(estado: string, fd: FormData): Promise<Re
     const datos = await leerDatos(fd);
     if (typeof datos === "string") return { ok: false, error: datos };
     const id = await crearTarea(estado, datos, usuario.correo);
+    await registrarEvento(id, "creada", `en «${tituloDeColumna(estado)}»`, usuario);
     revalidatePath("/tareas");
     return { ok: true, id };
   } catch (e) {
@@ -64,12 +74,15 @@ export async function crearTareaAction(estado: string, fd: FormData): Promise<Re
 
 export async function actualizarTareaAction(id: string, fd: FormData): Promise<Resultado> {
   try {
-    await exigirAccesoApp(SLUG_APP_TAREAS);
+    const usuario = await exigirAccesoApp(SLUG_APP_TAREAS);
     const actual = await obtenerTarea(id);
     if (!actual) return { ok: false, error: "Esa tarea ya no existe." };
     const datos = await leerDatos(fd, [...actual.responsables, ...(actual.asignadoPor ? [actual.asignadoPor] : [])]);
     if (typeof datos === "string") return { ok: false, error: datos };
     await actualizarTarea(id, datos);
+    const nombres = new Map((await listarResponsables()).map((r) => [r.correo.toLowerCase(), r.nombre]));
+    const cambios = describirCambios(actual, datos, (c) => nombres.get(c.toLowerCase()) ?? c);
+    if (cambios.length) await registrarEvento(id, "editada", cambios.join(" · "), usuario);
     revalidatePath("/tareas");
     return { ok: true };
   } catch (e) {
@@ -79,9 +92,15 @@ export async function actualizarTareaAction(id: string, fd: FormData): Promise<R
 
 export async function moverTareaAction(id: string, estado: string, orden: number): Promise<Resultado> {
   try {
-    await exigirAccesoApp(SLUG_APP_TAREAS);
+    const usuario = await exigirAccesoApp(SLUG_APP_TAREAS);
     if (!esEstado(estado) || !Number.isFinite(orden)) return { ok: false, error: "Movimiento inválido." };
+    const actual = await obtenerTarea(id);
+    if (!actual) return { ok: false, error: "Esa tarea ya no existe." };
     await moverTarea(id, estado, orden);
+    // Reordenar dentro de la misma columna no es un cambio de estado: no va al historial.
+    if (actual.estado !== estado) {
+      await registrarEvento(id, "estado", `de «${tituloDeColumna(actual.estado)}» a «${tituloDeColumna(estado)}»`, usuario);
+    }
     revalidatePath("/tareas");
     return { ok: true };
   } catch (e) {
@@ -97,5 +116,15 @@ export async function eliminarTareaAction(id: string): Promise<Resultado> {
     return { ok: true };
   } catch (e) {
     return fallo(e);
+  }
+}
+
+export async function historialAction(id: string): Promise<{ ok: true; eventos: EventoHistorial[] } | { ok: false; error: string }> {
+  try {
+    await exigirAccesoApp(SLUG_APP_TAREAS);
+    return { ok: true, eventos: await listarHistorial(id) };
+  } catch (e) {
+    const r = fallo(e);
+    return { ok: false, error: r.ok ? "" : r.error };
   }
 }

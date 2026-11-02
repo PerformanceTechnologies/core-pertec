@@ -67,3 +67,59 @@ export function iniciales(nombre: string): string {
   if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
   return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
 }
+
+export type AccionHistorial = "creada" | "editada" | "estado";
+
+export interface EventoHistorial {
+  id: string;
+  accion: AccionHistorial;
+  detalle: string | null;
+  correo: string | null;
+  nombre: string | null;
+  creadoEn: string;
+}
+
+export function tituloDeColumna(estado: string): string {
+  return COLUMNAS.find((c) => c.estado === estado)?.titulo ?? estado;
+}
+
+type Comparable = {
+  titulo: string;
+  descripcion: string | null;
+  prioridad: string;
+  responsables: string[];
+  asignadoPor: string | null;
+  fechaLimite: string | null;
+};
+
+/**
+ * Lo que cambió entre dos versiones de una tarea, en palabras, para el historial.
+ * `nombre` traduce un correo al nombre de la persona.
+ */
+export function describirCambios(antes: Comparable, despues: Comparable, nombre: (correo: string) => string): string[] {
+  const cambios: string[] = [];
+  const etiquetaPrioridad = (p: string) => PRIORIDADES.find((x) => x.valor === p)?.etiqueta ?? p;
+  const fecha = (f: string | null) =>
+    f ? new Date(f + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : "sin fecha";
+  const lista = (cs: string[]) => cs.map(nombre).join(", ");
+
+  if (antes.titulo !== despues.titulo) cambios.push(`título a «${despues.titulo}»`);
+  if ((antes.descripcion ?? "") !== (despues.descripcion ?? "")) cambios.push("la descripción");
+  if (antes.prioridad !== despues.prioridad) {
+    cambios.push(`prioridad de ${etiquetaPrioridad(antes.prioridad)} a ${etiquetaPrioridad(despues.prioridad)}`);
+  }
+  if (antes.fechaLimite !== despues.fechaLimite) cambios.push(`fecha límite a ${fecha(despues.fechaLimite)}`);
+
+  const norm = (cs: string[]) => cs.map((c) => c.toLowerCase());
+  const a = norm(antes.responsables);
+  const d = norm(despues.responsables);
+  const agregados = d.filter((c) => !a.includes(c));
+  const quitados = a.filter((c) => !d.includes(c));
+  if (agregados.length) cambios.push(`agregó a ${lista(agregados)} como responsable${agregados.length > 1 ? "s" : ""}`);
+  if (quitados.length) cambios.push(`quitó a ${lista(quitados)} de responsable${quitados.length > 1 ? "s" : ""}`);
+
+  if ((antes.asignadoPor ?? "").toLowerCase() !== (despues.asignadoPor ?? "").toLowerCase()) {
+    cambios.push(`«asignado por» a ${despues.asignadoPor ? nombre(despues.asignadoPor) : "nadie"}`);
+  }
+  return cambios;
+}
