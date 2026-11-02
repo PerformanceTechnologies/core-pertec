@@ -280,7 +280,7 @@ console.log(
   // Todo módulo con datos pasa por el filtro; un módulo nuevo que se olvide de
   // envolverse le mostraría a Zeus los datos de PERTEC.
   for (const m of ["buzon", "contratos", "cotizador", "finanzas", "inventario", "mi-dia", "ofertas",
-                   "panel-odoo", "proyectos", "reclutamiento", "rendir-gastos"]) {
+                   "proyectos", "reclutamiento", "rendir-gastos"]) {
     const ruta = `app/(protegido)/${m}/layout.tsx`;
     assert.ok(existsSync(ruta) && /<FiltroDeEmpresa>/.test(readFileSync(ruta, "utf8")), `${m} no filtra por empresa`);
   }

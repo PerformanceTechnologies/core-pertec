@@ -14,12 +14,22 @@ async function consultarAplicaciones(): Promise<Aplicacion[]> {
   return (data ?? []) as Aplicacion[];
 }
 
+// Aplicaciones que se retiraron del Core pero cuya fila sigue en la tabla
+// `aplicaciones` de produccion. Se filtran del catalogo para que no aparezcan
+// ni en el dashboard, ni en el menu, ni en el buscador, ni en los permisos de
+// los usuarios, y no lleven a una pagina que ya no existe. Cuando alguien
+// borre la fila desde Administracion > Aplicaciones, se puede quitar de aca.
+//   - panel-odoo: el Panel Odoo se saco (ya no se usa).
+const APPS_RETIRADAS = new Set(["panel-odoo"]);
+
 // El catalogo lo piden la barra lateral (en el layout protegido) y el
 // dashboard en el mismo request, asi que sin cache() se consultaba dos veces
 // por navegacion. Deduplica solo dentro de un pase de render, nunca entre
 // requests: un cambio en el catalogo se sigue viendo en la navegacion
 // siguiente, igual que antes.
-export const listarAplicaciones = cache(consultarAplicaciones);
+export const listarAplicaciones = cache(async function listarAplicaciones(): Promise<Aplicacion[]> {
+  return (await consultarAplicaciones()).filter((app) => !APPS_RETIRADAS.has(app.slug));
+});
 
 // Sube o baja una app un puesto en la lista y renumera el orden de TODAS
 // (0, 1, 2...) según la posición resultante. Renumerar siempre en vez de

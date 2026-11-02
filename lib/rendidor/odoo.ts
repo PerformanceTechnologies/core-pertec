@@ -1,5 +1,5 @@
 import "server-only";
-import { odooSearchRead, odooCreate } from "../panel-odoo/odoo-cliente";
+import { odooSearchRead, odooCreate } from "../odoo/cliente";
 import { desgloseDeGasto, formasDeRut, rutValido, taxIdsParaGasto } from "./iva";
 import { MAPEO_CATEGORIA_ODOO, TRATAMIENTO_DOCUMENTO, type Rendicion } from "./tipos";
 

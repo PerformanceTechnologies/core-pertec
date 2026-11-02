@@ -4,10 +4,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 /**
  * Retención: lo que el core acumula y nadie borra.
  *
- * Tres cosas crecían para siempre:
+ * Dos cosas crecen para siempre:
  *
- *  - `panel_odoo_sync_ejecuciones`, a razón de ~384 filas al día (8 módulos cada
- *    30 minutos). El panel solo usa la última corrida de cada módulo.
  *  - `resumen_diario`, una fila por persona por día, con el resumen completo
  *    guardado en jsonb.
  *  - El bucket `rendiciones-respaldos`, donde queda el archivo cuando alguien
@@ -20,10 +18,6 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
  */
 
 const BUCKET_RESPALDOS = "rendiciones-respaldos";
-
-/** Historial de sincronizaciones: 30 días, con piso de 20 corridas por módulo. */
-const DIAS_SYNC = 30;
-const MINIMO_POR_MODULO = 20;
 
 /** Resúmenes diarios: tres meses. Mi Día solo muestra el de hoy. */
 const DIAS_RESUMENES = 90;
@@ -43,41 +37,16 @@ const TOPE_RESPALDOS = 200;
 
 export interface ResultadoLimpieza {
   simulado: boolean;
-  sincronizaciones: number;
   resumenes: number;
   respaldos: { borrados: number; bytes: number; rutas: string[] };
 }
 
 export async function limpiar(simular = false): Promise<ResultadoLimpieza> {
-  const [sincronizaciones, resumenes, respaldos] = await Promise.all([
-    limpiarSincronizaciones(simular),
+  const [resumenes, respaldos] = await Promise.all([
     limpiarResumenes(simular),
     limpiarRespaldosHuerfanos(simular),
   ]);
-  return { simulado: simular, sincronizaciones, resumenes, respaldos };
-}
-
-/**
- * El borrado vive en una función de Postgres (limpiar_sync_ejecuciones) porque la
- * regla no se puede expresar desde PostgREST: hay que conservar las últimas N de
- * CADA módulo, y eso es un row_number() por partición.
- */
-async function limpiarSincronizaciones(simular: boolean): Promise<number> {
-  if (simular) {
-    const { count } = await supabaseAdmin
-      .from("panel_odoo_sync_ejecuciones")
-      .select("id", { count: "exact", head: true })
-      .lt("ejecutado_en", haceDias(DIAS_SYNC));
-    // Sobreestima: no descuenta el piso por módulo, que solo sabe la función.
-    return count ?? 0;
-  }
-
-  const { data, error } = await supabaseAdmin.rpc("limpiar_sync_ejecuciones", {
-    dias: DIAS_SYNC,
-    minimo_por_modulo: MINIMO_POR_MODULO,
-  });
-  if (error) throw new Error(`limpiar_sync_ejecuciones: ${error.message}`);
-  return (data as number | null) ?? 0;
+  return { simulado: simular, resumenes, respaldos };
 }
 
 async function limpiarResumenes(simular: boolean): Promise<number> {

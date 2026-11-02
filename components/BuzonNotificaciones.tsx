@@ -26,10 +26,11 @@ function haceCuanto(iso: string): string {
 }
 
 /**
- * La campana del menú: un número con lo no leído, y un panel con las notificaciones de los módulos
- * que esta persona ve. Al abrir el panel, lo que estaba sin leer se marca como leído.
+ * La campana de la barra superior, a la izquierda de Mi Día: un número con lo no leído, y un panel
+ * con las notificaciones de los módulos que esta persona ve. Al abrir el panel, lo que estaba sin
+ * leer se marca como leído.
  */
-export default function BuzonNotificaciones({ colapsado }: { colapsado: boolean }) {
+export default function BuzonNotificaciones() {
   const [abierto, setAbierto] = useState(false);
   const [notis, setNotis] = useState<Notificacion[] | null>(null);
   const [noLeidas, setNoLeidas] = useState(0);
@@ -56,8 +57,15 @@ export default function BuzonNotificaciones({ colapsado }: { colapsado: boolean 
     const alClic = (e: MouseEvent) => {
       if (contenedor.current && !contenedor.current.contains(e.target as Node)) setAbierto(false);
     };
+    const alEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAbierto(false);
+    };
     document.addEventListener("mousedown", alClic);
-    return () => document.removeEventListener("mousedown", alClic);
+    document.addEventListener("keydown", alEscape);
+    return () => {
+      document.removeEventListener("mousedown", alClic);
+      document.removeEventListener("keydown", alEscape);
+    };
   }, [abierto]);
 
   const abrir = async () => {
@@ -72,27 +80,36 @@ export default function BuzonNotificaciones({ colapsado }: { colapsado: boolean 
 
   return (
     <div className="relative" ref={contenedor}>
+      {/* Mismo dibujo que el botón de Mi Día (BarraSuperior): en pantallas angostas queda solo la campana. */}
       <button
+        type="button"
         onClick={abrir}
-        className={`relative flex items-center rounded-lg p-2 text-tinta/75 hover:bg-naranjo/10 hover:text-naranjo ${
-          colapsado ? "" : "w-full gap-2"
+        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
+          abierto
+            ? "border-naranjo/40 bg-naranjo/10 text-naranjo"
+            : "border-borde bg-superficie text-tinta/75 hover:border-naranjo/40 hover:text-naranjo"
         }`}
-        aria-label="Notificaciones"
+        aria-label={noLeidas > 0 ? `Notificaciones (${noLeidas} sin leer)` : "Notificaciones"}
+        aria-haspopup="true"
+        aria-expanded={abierto}
         title="Notificaciones"
       >
         <span className="relative">
-          <IconBell size={18} stroke={1.75} />
+          <IconBell size={16} stroke={1.75} aria-hidden />
           {noLeidas > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
               {noLeidas > 9 ? "9+" : noLeidas}
             </span>
           )}
         </span>
-        {!colapsado && <span className="text-sm">Notificaciones</span>}
+        <span className="hidden sm:inline">Notificaciones</span>
       </button>
 
+      {/* Se abre hacia ABAJO (la barra está arriba de la página). En pantallas angostas el botón no
+          queda en el borde derecho, así que el panel se ancla a la ventana y no al botón: anclado al
+          botón se saldría por la izquierda. */}
       {abierto && (
-        <div className="absolute bottom-full left-0 z-50 mb-2 w-80 max-w-[85vw] overflow-hidden rounded-xl border border-borde bg-superficie shadow-xl">
+        <div className="fixed inset-x-3 top-32 z-50 overflow-hidden rounded-xl border border-borde bg-superficie shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
           <div className="border-b border-borde px-4 py-2.5 text-sm font-semibold text-tinta">Notificaciones</div>
           <div className="max-h-[60vh] overflow-y-auto">
             {notis === null && <p className="px-4 py-6 text-center text-xs text-gris">Cargando…</p>}

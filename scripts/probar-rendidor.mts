@@ -368,7 +368,7 @@ assert.ok(
   "advance_id viaja en el create del hr.expense",
 );
 const fuenteCliente = readFileSync(
-  new URL("../lib/panel-odoo/odoo-cliente.ts", import.meta.url),
+  new URL("../lib/odoo/cliente.ts", import.meta.url),
   "utf8",
 );
 assert.ok(

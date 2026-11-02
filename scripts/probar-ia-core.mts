@@ -28,8 +28,8 @@ const herramientas = leer("../lib/consulta-ia/herramientas.ts");
 const nombres = [...herramientas.matchAll(/name: "([a-z_]+)"/g)].map((m) => m[1]);
 assert.deepEqual(
   nombres.sort(),
-  ["buscar_facturas", "buscar_proyectos", "buscar_tareas", "buscar_ventas"],
-  "las cuatro herramientas declaradas",
+  ["buscar_facturas"],
+  "la herramienta declarada (las de proyectos, tareas y ventas de Odoo se fueron con el Panel Odoo)",
 );
 assert.equal(
   // Solo como PROPIEDAD (con su sangría y su coma), no la mención del comentario
@@ -80,7 +80,7 @@ const tablasConsultadas = [...herramientas.matchAll(/supabaseAdmin\s*\n?\s*\.fro
 );
 assert.deepEqual(
   [...new Set(tablasConsultadas)].sort(),
-  ["facturas_sii", "panel_odoo_proyectos", "panel_odoo_tareas", "panel_odoo_ventas"],
+  ["facturas_sii"],
   "las tablas que se consultan están escritas literalmente en el archivo, no las elige el modelo",
 );
 

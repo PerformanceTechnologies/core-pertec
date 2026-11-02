@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     // Este cron corre 1x/dia y ya agoto los reintentos hacia mindicador.cl, asi
     // que cada falla llega como maximo una vez al dia (no hay tabla de
-    // ejecuciones como en panel-odoo para exigir dos fallas seguidas). Si no se
+    // ejecuciones para exigir dos fallas seguidas). Si no se
     // avisa, UF/UTM quedan desactualizadas y nadie se entera hasta cotizar.
     await enviarCorreoSoporte(
       "Cotizador: fallo la actualizacion diaria de UF/UTM",

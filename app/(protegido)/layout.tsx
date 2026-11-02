@@ -58,7 +58,6 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         rol={usuario.rol}
         apps={apps}
         contratos={contratos}
-        mostrarBuzon={conDatos}
         empresaActiva={empresa.activa}
         subpanelesFinanzas={subpanelesFinanzas}
       />
@@ -75,6 +74,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
       <main className={`min-w-0 py-8 ${HUECO_DE_BARRA}`}>
         <BarraSuperior
           veMiDia={apps.some((app) => app.url === "/mi-dia")}
+          mostrarBuzon={conDatos}
           empresaActiva={empresa.activa}
           empresasPermitidas={empresa.permitidas}
         />

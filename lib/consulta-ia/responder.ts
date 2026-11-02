@@ -6,8 +6,8 @@ import { ejecutarHerramienta, herramientasPara } from "./herramientas";
 // Contestar una pregunta en lenguaje natural sobre los datos del core.
 //
 // El buscador (Ctrl+K) ya encontraba apps y secciones; esto contesta sobre lo
-// que hay ADENTRO: "¿cuánto le facturamos a SALFA este año?", "¿qué tiene
-// pendiente Rafael?", "¿qué proyectos se pasaron del presupuesto?".
+// que hay ADENTRO: "¿cuánto le facturamos a SALFA este año?", "¿qué facturas
+// de septiembre están reclamadas?".
 //
 // ── Por qué un bucle a mano y no el tool runner del SDK ─────────────────────
 //
@@ -24,8 +24,8 @@ const MODELO = "claude-haiku-5-5";
 /**
  * Cuántas vueltas de herramienta como máximo.
  *
- * Con cuatro herramientas, una pregunta razonable se contesta en una o dos.
- * Seis deja aire para una pregunta que cruza dos módulos y corta en seco
+ * Con pocas herramientas, una pregunta razonable se contesta en una o dos.
+ * Seis deja aire para una pregunta que se resuelve en varios pasos y corta en seco
  * cualquier lazo: sin tope, un modelo confundido puede quedarse consultando
  * hasta agotar el tiempo de la función.
  */

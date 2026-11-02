@@ -1,10 +1,9 @@
 import "server-only";
-import { odooSearchRead, odooCreate } from "../panel-odoo/odoo-cliente";
+import { odooSearchRead, odooCreate } from "../odoo/cliente";
 
 // Búsqueda/creación de clientes (res.partner) en Odoo para el campo Cliente
-// del Cotizador — en vivo, no vía las tablas cache de Panel Odoo (esas se
-// sincronizan cada 30 min y no sirven para un autocompletado). Reutiliza la
-// misma conexión JSON-RPC (lib/panel-odoo/odoo-cliente.ts).
+// del Cotizador — en vivo contra Odoo, que es lo que sirve para un
+// autocompletado. Usa la conexión JSON-RPC compartida (lib/odoo/cliente.ts).
 
 export interface ClienteOdoo {
   id: number;

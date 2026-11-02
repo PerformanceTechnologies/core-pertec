@@ -3,7 +3,7 @@
 # de vista previa en Vercel.
 #
 # Los saltos MAYORES se ignoran a propósito, tanto en npm (next, react, typescript, sharp...) como en
-# las GitHub Actions: los workflows de cron (Facturas IH, Panel Odoo) son de producción y una Action
+# las GitHub Actions: los workflows de cron (Facturas IH, respaldos de Supabase) son de producción y una Action
 # nueva puede cambiar su comportamiento. Un salto mayor se hace a mano, con prueba, cuando alguien
 # lo decida. Los avisos de SEGURIDAD llegan aparte (Dependabot security updates).
 #
