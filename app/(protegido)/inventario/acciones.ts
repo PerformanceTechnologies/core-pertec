@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import {
   actualizarProducto,
+  enlaceCertificado,
+  quitarCertificado,
   ajustarInventario,
   cancelarTransferencia,
   crearAlmacen,
@@ -36,6 +38,23 @@ function refrescar(...rutas: string[]): void {
 
 // -------- Productos ----------------------------------------------------------
 
+const fechaONull = (v: FormDataEntryValue | null) => {
+  const t = String(v ?? "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+};
+
+/** Bodega, certificación y vencimientos, leídos del formulario del producto. */
+function camposExtra(fd: FormData) {
+  const requiereCertificacion = fd.get("requiereCertificacion") === "si";
+  return {
+    ubicacionId: String(fd.get("ubicacionId") ?? "") || null,
+    requiereCertificacion,
+    // Sin certificación no se guarda una fecha de certificado que no corresponde.
+    certificadoVence: requiereCertificacion ? fechaONull(fd.get("certificadoVence")) : null,
+    fechaVencimiento: fechaONull(fd.get("fechaVencimiento")),
+  };
+}
+
 export async function crearProductoAction(fd: FormData): Promise<Resultado> {
   try {
     await exigirAccesoApp(SLUG);
@@ -50,6 +69,7 @@ export async function crearProductoAction(fd: FormData): Promise<Resultado> {
       tipo: String(fd.get("tipo") ?? "almacenable"),
       seguimiento: String(fd.get("seguimiento") ?? "ninguno"),
       metodoCosto: String(fd.get("metodoCosto") ?? "promedio"),
+      ...camposExtra(fd),
       costo: Number(fd.get("costo") ?? 0) || 0,
       precio: Number(fd.get("precio") ?? 0) || 0,
     });
@@ -72,6 +92,13 @@ export async function actualizarProductoAction(id: string, fd: FormData): Promis
       tipo: String(fd.get("tipo") ?? "almacenable"),
       seguimiento: String(fd.get("seguimiento") ?? "ninguno"),
       metodo_costo: String(fd.get("metodoCosto") ?? "promedio"),
+      ...(() => {
+        const c = camposExtra(fd);
+        return {
+          ubicacion_id: c.ubicacionId, requiere_certificacion: c.requiereCertificacion,
+          certificado_vence: c.certificadoVence, fecha_vencimiento: c.fechaVencimiento,
+        };
+      })(),
       costo: Number(fd.get("costo") ?? 0) || 0,
       precio: Number(fd.get("precio") ?? 0) || 0,
     });
@@ -87,6 +114,28 @@ export async function desactivarProductoAction(id: string): Promise<Resultado> {
     await exigirAccesoApp(SLUG);
     await desactivarProducto(id);
     refrescar("/inventario", "/inventario/productos");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function verCertificadoAction(productoId: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  try {
+    await exigirAccesoApp(SLUG);
+    const url = await enlaceCertificado(productoId);
+    return url ? { ok: true, url } : { ok: false, error: "Este producto no tiene certificado subido." };
+  } catch (e) {
+    const r = fallo(e);
+    return { ok: false, error: r.ok ? "" : r.error };
+  }
+}
+
+export async function quitarCertificadoAction(productoId: string): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG);
+    await quitarCertificado(productoId);
+    refrescar("/inventario/productos", `/inventario/productos/${productoId}`);
     return { ok: true };
   } catch (e) {
     return fallo(e);

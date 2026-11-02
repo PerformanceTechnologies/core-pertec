@@ -55,6 +55,9 @@ const aProducto = (r: any): Producto => ({
   id: r.id, sku: r.sku, nombre: r.nombre, descripcion: r.descripcion,
   categoriaId: r.categoria_id, unidadId: r.unidad_id, tipo: r.tipo, seguimiento: r.seguimiento,
   costo: Number(r.costo), metodoCosto: r.metodo_costo ?? "estandar", precio: Number(r.precio), activo: r.activo,
+  ubicacionId: r.ubicacion_id ?? null, requiereCertificacion: Boolean(r.requiere_certificacion),
+  certificadoNombre: r.certificado_nombre ?? null, tieneCertificado: Boolean(r.certificado_ruta),
+  certificadoVence: r.certificado_vence ?? null, fechaVencimiento: r.fecha_vencimiento ?? null,
 });
 
 const aUbicacion = (r: any): Ubicacion => ({
@@ -561,11 +564,14 @@ export async function valorizacion(): Promise<{ filas: FilaValorizacion[]; total
 export async function crearProducto(d: {
   nombre: string; sku?: string | null; descripcion?: string | null; categoriaId?: string | null;
   unidadId?: string | null; tipo?: string; seguimiento?: string; costo?: number; precio?: number; metodoCosto?: string;
+  ubicacionId?: string | null; requiereCertificacion?: boolean; certificadoVence?: string | null; fechaVencimiento?: string | null;
 }): Promise<string> {
   const { data, error } = await supabaseAdmin.from(T.productos).insert({
     nombre: d.nombre, sku: d.sku || null, descripcion: d.descripcion || null, categoria_id: d.categoriaId || null,
     unidad_id: d.unidadId || null, tipo: d.tipo || "almacenable", seguimiento: d.seguimiento || "ninguno",
     costo: d.costo ?? 0, precio: d.precio ?? 0, metodo_costo: d.metodoCosto || "promedio",
+    ubicacion_id: d.ubicacionId || null, requiere_certificacion: d.requiereCertificacion ?? false,
+    certificado_vence: d.certificadoVence || null, fecha_vencimiento: d.fechaVencimiento || null,
   }).select("id").single();
   revienta("crear producto", error);
   return data!.id;
@@ -622,4 +628,44 @@ export async function guardarRegla(d: { productoId: string; ubicacionId: string;
 export async function eliminarRegla(id: string): Promise<void> {
   const { error } = await supabaseAdmin.from(T.reglas).delete().eq("id", id);
   revienta("eliminar regla", error);
+}
+
+// =============================================================================
+//  CERTIFICADO DEL PRODUCTO (bucket privado "inventario")
+// =============================================================================
+
+const BUCKET_INV = "inventario";
+
+/** Sube (o reemplaza) el certificado de un producto; el anterior se borra después de guardar. */
+export async function guardarCertificado(productoId: string, contenido: Buffer, extension: string, tipo: string, nombre: string): Promise<void> {
+  const { data: antes } = await supabaseAdmin.from(T.productos).select("certificado_ruta").eq("id", productoId).maybeSingle();
+  const ruta = `certificados/${productoId}/${crypto.randomUUID()}.${extension}`;
+  const { error: errSubida } = await supabaseAdmin.storage.from(BUCKET_INV).upload(ruta, contenido, { contentType: tipo, upsert: false });
+  revienta("subir certificado", errSubida);
+  const { error } = await supabaseAdmin.from(T.productos)
+    .update({ certificado_ruta: ruta, certificado_nombre: nombre.slice(0, 200), actualizado_en: new Date().toISOString() })
+    .eq("id", productoId);
+  if (error) {
+    await supabaseAdmin.storage.from(BUCKET_INV).remove([ruta]);
+    revienta("guardar certificado", error);
+  }
+  if (antes?.certificado_ruta) await supabaseAdmin.storage.from(BUCKET_INV).remove([antes.certificado_ruta as string]);
+}
+
+export async function quitarCertificado(productoId: string): Promise<void> {
+  const { data: antes } = await supabaseAdmin.from(T.productos).select("certificado_ruta").eq("id", productoId).maybeSingle();
+  const { error } = await supabaseAdmin.from(T.productos)
+    .update({ certificado_ruta: null, certificado_nombre: null, actualizado_en: new Date().toISOString() }).eq("id", productoId);
+  revienta("quitar certificado", error);
+  if (antes?.certificado_ruta) await supabaseAdmin.storage.from(BUCKET_INV).remove([antes.certificado_ruta as string]);
+}
+
+/** Enlace de un minuto para ver el certificado, con su nombre original. */
+export async function enlaceCertificado(productoId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin.from(T.productos).select("certificado_ruta, certificado_nombre").eq("id", productoId).maybeSingle();
+  if (!data?.certificado_ruta) return null;
+  const { data: firmado, error } = await supabaseAdmin.storage
+    .from(BUCKET_INV).createSignedUrl(data.certificado_ruta as string, 60, { download: (data.certificado_nombre as string) || true });
+  revienta("firmar certificado", error);
+  return firmado!.signedUrl;
 }

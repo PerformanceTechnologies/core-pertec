@@ -1,18 +1,28 @@
 import Link from "next/link";
 import { IconChevronRight } from "@tabler/icons-react";
 import FormularioProducto from "@/components/inventario/FormularioProducto";
-import { listarCategorias, listarProductosConStock, listarUnidades } from "@/lib/inventario";
-import { ETIQUETA_SEGUIMIENTO, ETIQUETA_TIPO_PRODUCTO, formatearCantidad, formatearMonto } from "@/lib/inventario-modelo";
+import { listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades } from "@/lib/inventario";
+import {
+  ETIQUETA_CERTIFICADO,
+  ETIQUETA_SEGUIMIENTO,
+  ETIQUETA_TIPO_PRODUCTO,
+  diasHasta,
+  estadoCertificado,
+  formatearCantidad,
+  formatearMonto,
+} from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductosPage() {
-  const [productos, categorias, unidades] = await Promise.all([
+  const [productos, categorias, unidades, ubicaciones] = await Promise.all([
     listarProductosConStock(),
     listarCategorias(),
     listarUnidades(),
+    listarUbicaciones(),
   ]);
+  const nombreUbi = new Map(ubicaciones.map((u) => [u.id, u.nombre]));
   const nombreCat = new Map(categorias.map((c) => [c.id, c.nombre]));
   const abrevUni = new Map(unidades.map((u) => [u.id, u.abreviacion]));
 
@@ -20,7 +30,7 @@ export default async function ProductosPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-gris">{productos.length} {productos.length === 1 ? "producto" : "productos"}</p>
-        <FormularioProducto categorias={categorias} unidades={unidades} />
+        <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} />
       </div>
 
       {productos.length === 0 ? (
@@ -52,7 +62,9 @@ export default async function ProductosPage() {
                         <span className="block text-xs text-gris">
                           {p.sku ? <span className="font-mono">{p.sku}</span> : "sin SKU"}
                           {p.seguimiento !== "ninguno" ? ` · ${ETIQUETA_SEGUIMIENTO[p.seguimiento]}` : ""}
+                          {p.ubicacionId && nombreUbi.get(p.ubicacionId) ? ` · ${nombreUbi.get(p.ubicacionId)}` : ""}
                         </span>
+                        <Avisos producto={p} />
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-gris">{p.categoriaId ? nombreCat.get(p.categoriaId) ?? "—" : "—"}</td>
@@ -83,5 +95,20 @@ export default async function ProductosPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Certificado faltante o vencido y vencimiento del producto, como etiquetas bajo el nombre. */
+function Avisos({ producto: p }: { producto: Parameters<typeof estadoCertificado>[0] & { fechaVencimiento: string | null } }) {
+  const cert = ETIQUETA_CERTIFICADO[estadoCertificado(p)];
+  const dias = diasHasta(p.fechaVencimiento);
+  const venc =
+    dias === null ? null : dias < 0 ? { texto: "Producto vencido", tono: "bg-rose-500/10 text-rose-600" } : dias <= 30 ? { texto: `Vence en ${dias} d`, tono: "bg-amber-500/10 text-amber-700" } : null;
+  if (!cert && !venc) return null;
+  return (
+    <span className="mt-1 flex flex-wrap gap-1">
+      {cert && <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cert.tono}`}>{cert.texto}</span>}
+      {venc && <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${venc.tono}`}>{venc.texto}</span>}
+    </span>
   );
 }

@@ -42,6 +42,15 @@ export interface Producto {
   metodoCosto: MetodoCosto;
   precio: number;
   activo: boolean;
+  /** Bodega (ubicación interna) por omisión. */
+  ubicacionId: string | null;
+  requiereCertificacion: boolean;
+  certificadoNombre: string | null;
+  /** Hay documento subido (la ruta no sale del servidor). */
+  tieneCertificado: boolean;
+  certificadoVence: string | null;
+  /** Vencimiento del producto en sí (opcional). */
+  fechaVencimiento: string | null;
 }
 
 export interface Almacen {
@@ -281,3 +290,40 @@ export function formatearMonto(n: number): string {
 export function siguienteReferencia(prefijo: string, correlativo: number): string {
   return `${prefijo}${String(correlativo + 1).padStart(5, "0")}`;
 }
+
+// -----------------------------------------------------------------------------
+//  Certificación y vencimiento del producto
+// -----------------------------------------------------------------------------
+
+export type EstadoCertificado = "no_aplica" | "falta" | "sin_fecha" | "vencido" | "por_vencer" | "vigente";
+
+/** En qué está el certificado de un producto que lo requiere. */
+export function estadoCertificado(
+  p: { requiereCertificacion: boolean; tieneCertificado: boolean; certificadoVence: string | null },
+  hoy: Date = new Date(),
+): EstadoCertificado {
+  if (!p.requiereCertificacion) return "no_aplica";
+  if (!p.tieneCertificado) return "falta";
+  if (!p.certificadoVence) return "sin_fecha";
+  const d = diasHasta(p.certificadoVence, hoy)!;
+  if (d < 0) return "vencido";
+  if (d <= DIAS_AVISO_VENCIMIENTO) return "por_vencer";
+  return "vigente";
+}
+
+export const ETIQUETA_CERTIFICADO: Record<EstadoCertificado, { texto: string; tono: string } | null> = {
+  no_aplica: null,
+  falta: { texto: "Falta certificado", tono: "bg-rose-500/10 text-rose-600" },
+  sin_fecha: { texto: "Certificado sin fecha", tono: "bg-amber-500/10 text-amber-700" },
+  vencido: { texto: "Certificado vencido", tono: "bg-rose-500/10 text-rose-600" },
+  por_vencer: { texto: "Certificado por vencer", tono: "bg-amber-500/10 text-amber-700" },
+  vigente: { texto: "Certificado vigente", tono: "bg-emerald-500/10 text-emerald-700" },
+};
+
+/** Lo que se acepta como certificado: MIME → extensión. */
+export const TIPOS_CERTIFICADO: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};

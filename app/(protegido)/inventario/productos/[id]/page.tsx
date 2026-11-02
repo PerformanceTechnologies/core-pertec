@@ -50,7 +50,7 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
             {producto.seguimiento !== "ninguno" ? ` · ${ETIQUETA_SEGUIMIENTO[producto.seguimiento]}` : ""}
           </p>
         </div>
-        <FormularioProducto categorias={categorias} unidades={unidades} producto={producto} />
+        <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} producto={producto} />
       </div>
 
       {/* Resumen de números */}

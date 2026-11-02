@@ -681,7 +681,7 @@ const cuerpos = acciones
   .map((trozo) => ({ nombre: trozo.slice(0, trozo.indexOf("(")), cuerpo: trozo }))
   .filter((a) => a.nombre !== "verificarAcceso");
 
-assert.ok(cuerpos.length === 15, `se esperaban las 15 acciones del módulo, se encontraron ${cuerpos.length}`);
+assert.ok(cuerpos.length === 17, `se esperaban las 17 acciones del módulo, se encontraron ${cuerpos.length}`);
 
 const sinGuard = cuerpos.filter((a) => !/exigirAccesoApp\(SLUG\)/.test(a.cuerpo)).map((a) => a.nombre);
 assert.deepEqual(
@@ -828,4 +828,88 @@ console.log(
     "p_hechas jsonb", "Stock insuficiente", "drop function if exists public.inv_validar_transferencia(uuid)",
   ]) assert.ok(sql.includes(pieza), `0002 debe incluir ${pieza}`);
   console.log("Mejoras Odoo verificadas: costo promedio, pronóstico, backorder y candados de stock/lote.");
+}
+
+// -----------------------------------------------------------------------------
+//  Carga masiva: encabezados, números, fechas y validación de filas.
+// -----------------------------------------------------------------------------
+{
+  const im = await import("../lib/inventario-importacion-modelo");
+
+  // Encabezados con tildes, mayúsculas, asterisco y alias; los desconocidos se ignoran.
+  const { mapa, faltan } = im.mapearEncabezados(["Nombre *", "CATEGORÍA", "Stock", "Código", "Bodega", "Color"]);
+  assert.deepEqual([...mapa.entries()], [[0, "nombre"], [1, "categoria"], [2, "cantidad"], [3, "sku"], [4, "bodega"]]);
+  assert.deepEqual(faltan, []);
+  assert.deepEqual(im.mapearEncabezados(["Producto X"]).faltan, ["Nombre"]);
+
+  // Números chilenos y gringos.
+  assert.equal(im.leerNumero("12.500"), 12500);
+  assert.equal(im.leerNumero("$ 1.234.567"), 1234567);
+  assert.equal(im.leerNumero("12,5"), 12.5);
+  assert.equal(im.leerNumero("1,234.5"), 1234.5);
+  assert.equal(im.leerNumero(""), null);
+  assert.ok(Number.isNaN(im.leerNumero("doce") as number));
+
+  // Fechas.
+  assert.equal(im.leerFecha("2027-06-30"), "2027-06-30");
+  assert.equal(im.leerFecha("30-06-2027"), "2027-06-30");
+  assert.equal(im.leerFecha("30/06/2027"), "2027-06-30");
+  assert.equal(im.leerFecha("31-02-2027"), "");
+  assert.equal(im.leerFecha(""), null);
+
+  const cat = {
+    productosPorSku: new Map([["vul 001", { id: "p1", seguimiento: "ninguno" as const }]]),
+    productosPorNombre: new Map([["parche lote", { id: "p2", seguimiento: "lote" as const }]]),
+    bodegas: new Map([["wh", "u1"], ["bodega central", "u1"]]),
+  };
+  // Existente por SKU → actualizar, aunque el nombre cambie.
+  const a = im.validarFila(2, { sku: "VUL-001", nombre: "Otro nombre", bodega: "WH", cantidad: "10" }, cat);
+  assert.equal(a.accion, "actualizar");
+  assert.equal(a.productoId, "p1");
+  assert.deepEqual(a.errores, []);
+  // Nuevo, sin bodega pero con cantidad → error.
+  assert.match(im.validarFila(3, { nombre: "Nuevo", cantidad: "5" }, cat).errores.join(), /bodega/);
+  // Bodega inexistente.
+  assert.match(im.validarFila(4, { nombre: "Nuevo", bodega: "Narnia", cantidad: "5" }, cat).errores.join(), /No existe la bodega/);
+  // Producto por lote sin lote.
+  assert.match(im.validarFila(5, { nombre: "Parche Lote", bodega: "wh", cantidad: "5" }, cat).errores.join(), /lote/);
+  // Serie con más de 1.
+  assert.match(im.validarFila(6, { nombre: "X", seguimiento: "Serie", lote: "S1", bodega: "wh", cantidad: "2" }, cat).errores.join(), /serie/);
+  // Mínimo > máximo, negativo, tipo inválido.
+  assert.match(im.validarFila(7, { nombre: "X", bodega: "wh", minimo: "10", maximo: "5" }, cat).errores.join(), /máximo/);
+  assert.match(im.validarFila(8, { nombre: "X", costo: "-3" }, cat).errores.join(), /negativo/);
+  assert.match(im.validarFila(9, { nombre: "X", tipo: "Mueble" }, cat).errores.join(), /Tipo/);
+  // Sin nombre.
+  assert.match(im.validarFila(10, { sku: "Z" }, cat).errores.join(), /nombre/);
+
+  // Duplicados: el segundo del mismo producto nuevo actualiza; misma bodega dos veces es error.
+  const d = im.revisarDuplicados([
+    im.validarFila(2, { nombre: "Nuevo", bodega: "wh", cantidad: "1" }, cat),
+    im.validarFila(3, { nombre: "nuevo", bodega: "Bodega Central", cantidad: "2" }, cat),
+  ]);
+  assert.equal(d[0].accion, "crear");
+  assert.equal(d[1].accion, "actualizar");
+  assert.match(d[1].errores.join(), /otra fila/);
+  console.log("Carga masiva verificada: encabezados con alias, números y fechas chilenas, validación por fila y duplicados.");
+}
+
+// -----------------------------------------------------------------------------
+//  Certificación del producto.
+// -----------------------------------------------------------------------------
+{
+  const m = await import("../lib/inventario-modelo");
+  const hoy = new Date(2026, 10, 2);
+  const base = { requiereCertificacion: true, tieneCertificado: true, certificadoVence: "2027-06-30" };
+  assert.equal(m.estadoCertificado({ ...base, requiereCertificacion: false, tieneCertificado: false }, hoy), "no_aplica");
+  assert.equal(m.estadoCertificado({ ...base, tieneCertificado: false }, hoy), "falta");
+  assert.equal(m.estadoCertificado({ ...base, certificadoVence: null }, hoy), "sin_fecha");
+  assert.equal(m.estadoCertificado({ ...base, certificadoVence: "2026-11-01" }, hoy), "vencido");
+  assert.equal(m.estadoCertificado({ ...base, certificadoVence: "2026-11-20" }, hoy), "por_vencer");
+  assert.equal(m.estadoCertificado(base, hoy), "vigente");
+  for (const peligroso of ["text/html", "image/svg+xml"]) assert.ok(!Object.hasOwn(m.TIPOS_CERTIFICADO, peligroso));
+  const sql = readFileSync("supabase/inventario/0003_bodega_y_certificacion.sql", "utf8");
+  assert.ok(/values \('inventario', 'inventario', false/.test(sql), "el bucket de certificados es privado");
+  const ruta = readFileSync("app/api/inventario/certificado/route.ts", "utf8");
+  assert.ok(ruta.includes('verificarAccesoAppApi("inventario")'));
+  console.log("Certificación verificada: estados, tipos aceptados, bucket privado y permiso en la subida.");
 }
