@@ -454,7 +454,13 @@ export async function ajustarInventario(datos: {
     transferencia_id: creada!.id, producto_id: datos.productoId, lote_id: datos.loteId ?? null,
     ubicacion_origen_id: origen, ubicacion_destino_id: destino, cantidad: Math.abs(diferencia),
   });
-  await validarTransferencia(creada!.id);
+  try {
+    await validarTransferencia(creada!.id);
+  } catch (e) {
+    // Si no se pudo validar, el ajuste no queda colgando en borrador: se borra (con su línea).
+    await supabaseAdmin.from(T.transferencias).delete().eq("id", creada!.id);
+    throw e;
+  }
   return { referencia, diferencia };
 }
 

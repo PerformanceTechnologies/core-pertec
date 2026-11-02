@@ -344,8 +344,14 @@ export async function importar(
             .from("inv_lotes").select("id").eq("producto_id", productoId).eq("nombre", f.lote).maybeSingle();
           loteId = (lote?.id as string | undefined) ?? (await crearLote(productoId, f.lote, f.vencimiento));
         }
-        const ajuste = await ajustarInventario({ productoId, ubicacionId: f.ubicacionId, loteId, cantidadContada: f.cantidad, creadoPor: correo });
-        if (ajuste) r.ajustes++;
+        try {
+          const ajuste = await ajustarInventario({ productoId, ubicacionId: f.ubicacionId, loteId, cantidadContada: f.cantidad, creadoPor: correo });
+          if (ajuste) r.ajustes++;
+        } catch (e) {
+          // El producto ya quedó guardado: se dice así, para que se sepa que basta con volver a subir el archivo.
+          const motivo = e instanceof Error ? e.message.replace(/^\[inventario\]\s*/, "") : "error inesperado";
+          throw new Error(`el producto quedó guardado, pero no se cargó su stock (${motivo}). Al corregirlo, vuelve a subir el archivo: la cantidad no se duplica.`);
+        }
       }
       if (f.ubicacionId && (f.minimo !== null || f.maximo !== null)) {
         await guardarRegla({ productoId, ubicacionId: f.ubicacionId, minimo: f.minimo ?? 0, maximo: f.maximo ?? f.minimo ?? 0 });
