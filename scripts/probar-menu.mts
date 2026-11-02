@@ -19,13 +19,14 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 // El admin: todo, en el orden pedido. «Página web» cierra la lista (arriba de Administración).
 {
   const g = armarMenu(todas, ["sii", "facturas-historicas", "facturas-ih"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Contratos", "Inventario", "Página web"]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Tareas", "Contratos", "Inventario", "Página web"]);
   assert.deepEqual(nombres(g[0]), ["Facturas compra y venta", "Rendir Gastos", "Históricos facturas"]);
-  assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas", "Tareas"]);
-  assert.deepEqual(nombres(g[2]), ["Contratos"]);
-  assert.deepEqual(nombres(g[3]), ["Inventario"]);
-  assert.deepEqual(nombres(g[4]), ["Configuración", "Postulaciones"]);
-  assert.deepEqual(g[4].items.map((i) => i.tipo), ["app", "app"]);
+  assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas"]);
+  assert.deepEqual(nombres(g[2]), ["Tareas"]);
+  assert.deepEqual(nombres(g[3]), ["Contratos"]);
+  assert.deepEqual(nombres(g[4]), ["Inventario"]);
+  assert.deepEqual(nombres(g[5]), ["Configuración", "Postulaciones"]);
+  assert.deepEqual(g[5].items.map((i) => i.tipo), ["app", "app"]);
   // Ocultos: Proyectos, Mi Día (va arriba a la derecha) y Facturas IH.
   const todo = g.flatMap(nombres).join("|");
   assert.ok(!/Proyectos|Mi Día|IH/.test(todo));
@@ -36,7 +37,7 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 // «Página web» va SIEMPRE al final, incluso después de «Otras».
 {
   const g = armarMenu([...todas, app("/nueva", "Nueva")], ["sii"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Contratos", "Inventario", "Otras", "Página web"]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Tareas", "Contratos", "Inventario", "Otras", "Página web"]);
   assert.equal(g.at(-1)?.titulo, "Página web");
 }
 
@@ -60,7 +61,7 @@ assert.deepEqual(armarMenu([], []), []);
 // Cada módulo tiene su identificador estable, su descripción, su icono y su página.
 {
   const g = armarMenu(todas, ["sii", "facturas-historicas"], { admin: true });
-  assert.deepEqual(g.map((x) => x.slug), ["finanzas", "crm", "contratos", "inventario", "pagina-web", "administracion"]);
+  assert.deepEqual(g.map((x) => x.slug), ["finanzas", "crm", "tareas", "contratos", "inventario", "pagina-web", "administracion"]);
   assert.equal(new Set(g.map((x) => x.slug)).size, g.length, "los slugs no se repiten: son la dirección de la página del módulo");
   assert.ok(g.every((x) => x.descripcion.length > 10), "todo módulo explica en una línea qué hay adentro");
   for (const x of g) {

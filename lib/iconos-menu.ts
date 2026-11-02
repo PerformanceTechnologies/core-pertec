@@ -8,6 +8,7 @@ import {
   IconContract,
   IconHeartHandshake,
   IconHome2,
+  IconLayoutKanban,
   IconReportMoney,
   IconShieldCog,
   IconWorld,
@@ -17,6 +18,7 @@ import {
 const ICONOS_DE_MODULO: Record<string, Icon> = {
   finanzas: IconReportMoney,
   crm: IconHeartHandshake,
+  tareas: IconLayoutKanban,
   contratos: IconContract,
   inventario: IconBuildingWarehouse,
   "pagina-web": IconWorld,

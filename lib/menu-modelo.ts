@@ -107,10 +107,16 @@ const PLAN: Plan[] = [
   {
     slug: "crm",
     titulo: "CRM",
-    descripcion: "Cotizaciones, ofertas técnicas y el tablero de tareas del equipo.",
-    items: [{ ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }, { ruta: "/tareas" }],
+    descripcion: "Cotizaciones y ofertas técnicas para tus clientes.",
+    items: [{ ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }],
   },
-  // Contratos e Inventario son módulos de una sola aplicación: se ven y pliegan igual que los demás.
+  {
+    slug: "tareas",
+    titulo: "Tareas",
+    descripcion: "Tablero de tareas del equipo: por hacer, en curso y hecho.",
+    items: [{ ruta: "/tareas" }],
+  },
+  // Tareas, Contratos e Inventario son módulos de una sola aplicación: se ven y pliegan igual que los demás.
   {
     slug: "contratos",
     titulo: "Contratos",
