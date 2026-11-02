@@ -11,7 +11,7 @@ const app = (url: string, nombre: string, tipo: "interna" | "externa" = "interna
 const todas = [
   app("/finanzas", "Herramientas Finanzas"), app("/rendir-gastos", "Rendir Gastos"),
   app("/cotizador", "Cotizador"), app("/ofertas", "Ofertas"), app("/contratos", "Contratos"),
-  app("/reclutamiento", "Panel de postulación"), app("/pagina-web", "Página web"), app("/inventario", "Inventario"),
+  app("/reclutamiento", "Panel de postulación"), app("/pagina-web", "Página web"), app("/inventario", "Inventario"), app("/tareas", "Tareas"),
   app("/proyectos", "Proyectos"), app("/mi-dia", "Mi Día"),
 ];
 const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => i.nombre);
@@ -21,7 +21,7 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
   const g = armarMenu(todas, ["sii", "facturas-historicas", "facturas-ih"]);
   assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Contratos", "Inventario", "Página web"]);
   assert.deepEqual(nombres(g[0]), ["Facturas compra y venta", "Rendir Gastos", "Históricos facturas"]);
-  assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas"]);
+  assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas", "Tareas"]);
   assert.deepEqual(nombres(g[2]), ["Contratos"]);
   assert.deepEqual(nombres(g[3]), ["Inventario"]);
   assert.deepEqual(nombres(g[4]), ["Configuración", "Postulaciones", "Cotizador web"]);
