@@ -5,8 +5,14 @@ import Link from "next/link";
 import {
   IconAlertTriangle,
   IconArrowRight,
+  IconCheck,
+  IconChevronDown,
   IconCircleCheck,
+  IconCloudUpload,
+  IconFileCheck,
   IconFlask,
+  IconLoader2,
+  IconShieldCheck,
   IconDownload,
   IconFileSpreadsheet,
   IconRefresh,
@@ -38,6 +44,7 @@ export default function ImportadorMasivo() {
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState<"leyendo" | "probando" | "importando" | null>(null);
   const [soloErrores, setSoloErrores] = useState(false);
+  const [sobre, setSobre] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
 
   async function enviar(f: File, modo: "columnas" | "previsualizar" | "importar") {
@@ -123,70 +130,156 @@ export default function ImportadorMasivo() {
   const conError = previa?.filas.filter((f) => f.errores.length > 0) ?? [];
   const visibles = soloErrores ? conError : previa?.filas ?? [];
 
-  return (
-    <div className="space-y-5">
-      {/* Paso 1 y 2 */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-        <section className={`${TARJETA} p-5`}>
-          <Paso n={1} titulo="Descarga la plantilla" />
-          <p className="mt-2 text-sm text-gris">
-            Un Excel con las columnas, una fila de ejemplo, listas desplegables con tus bodegas y una hoja de instrucciones.
-          </p>
-          <a
-            href="/api/inventario/plantilla"
-            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-borde px-4 py-2.5 text-sm font-semibold text-tinta transition hover:border-naranjo/50"
-          >
-            <IconDownload size={17} /> plantilla-inventario.xlsx
-          </a>
-          <div className="mt-5 border-t border-borde pt-4">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-gris">Columnas</p>
-            <ul className="space-y-1.5 text-xs">
-              {COLUMNAS_IMPORTACION.map((c) => (
-                <li key={c.clave} className="flex gap-2">
-                  <span className={`w-32 shrink-0 font-semibold ${c.obligatoria ? "text-naranjo" : "text-tinta"}`}>
-                    {c.titulo}
-                    {c.obligatoria && " *"}
-                  </span>
-                  <span className="text-gris">{c.ayuda}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+  const pasoActual = resultado ? 4 : previa ? 4 : columnas ? 3 : archivo ? 2 : 1;
 
-        <section className={`${TARJETA} p-5`}>
-          <Paso n={2} titulo="Sube el archivo lleno" />
-          <label
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              elegir(e.dataTransfer.files[0]);
-            }}
-            className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-borde px-6 py-10 text-center transition hover:border-naranjo/50 hover:bg-naranjo/[0.03]"
-          >
-            <IconFileSpreadsheet size={36} stroke={1.5} className="text-naranjo" />
-            {archivo ? (
-              <span className="text-sm font-semibold text-tinta">{archivo.name}</span>
-            ) : (
-              <span className="text-sm font-semibold text-tinta">Arrastra aquí tu Excel o CSV, o haz clic para elegirlo</span>
-            )}
-            <span className="text-xs text-gris">.xlsx o .csv · hasta 4 MB y {MAX_FILAS_IMPORTACION} filas</span>
-            <input
-              ref={entrada}
-              type="file"
-              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-              className="sr-only"
-              onChange={(e) => elegir(e.target.files?.[0])}
-            />
-          </label>
-          {cargando === "leyendo" && <p className="mt-3 text-sm text-gris">Leyendo y validando…</p>}
-          {error && <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
-          <p className="mt-4 text-xs leading-relaxed text-gris">
-            Nada se guarda todavía. Igual que en Odoo, después eliges a qué campo va cada columna (aunque tu archivo use otros
-            títulos), lo pruebas y recién ahí importas.
-          </p>
-        </section>
-      </div>
+  return (
+    <div className="space-y-6">
+      {/* ── Banda con los pasos ── */}
+      <header className="banda-contraste overflow-hidden rounded-2xl px-6 py-7 sm:px-8">
+        <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
+          <span className="h-px w-6 bg-naranjo" /> Carga masiva
+        </span>
+        <h2 className="texto-banda mt-3 font-condensed text-3xl font-bold uppercase leading-tight tracking-tight sm:text-4xl">
+          Sube tu inventario de una vez
+        </h2>
+        <p className="texto-banda-65 mt-2 max-w-2xl text-sm">
+          Productos, bodegas, cantidades, lotes y mínimos desde un Excel o CSV. Igual que en Odoo: eliges a qué campo va cada
+          columna, lo pruebas y recién ahí se guarda.
+        </p>
+        <ol className="mt-6 grid gap-2 sm:grid-cols-4">
+          {[
+            { n: 1, t: "Plantilla", d: "Opcional" },
+            { n: 2, t: "Archivo", d: ".xlsx o .csv" },
+            { n: 3, t: "Columnas", d: "Archivo → Core" },
+            { n: 4, t: "Probar e importar", d: "Revisa y confirma" },
+          ].map((p) => {
+            const hecho = pasoActual > p.n || (p.n === 4 && Boolean(resultado));
+            const actual = pasoActual === p.n && !resultado;
+            return (
+              <li
+                key={p.n}
+                className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
+                  actual ? "border-naranjo bg-naranjo/15" : "borde-banda"
+                }`}
+              >
+                <span
+                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${
+                    hecho ? "bg-emerald-500 text-white" : actual ? "bg-naranjo text-white" : "texto-banda-45 border borde-banda"
+                  }`}
+                >
+                  {hecho ? <IconCheck size={15} /> : p.n}
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-sm font-bold ${actual || hecho ? "texto-banda" : "texto-banda-65"}`}>{p.t}</span>
+                  <span className="texto-banda-45 block text-[11px]">{p.d}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </header>
+
+      {/* ── Paso 1 y 2 ── */}
+      {!resultado && (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <section className={`${TARJETA} flex flex-col p-5`}>
+            <Paso n={1} titulo="Descarga la plantilla" />
+            <p className="mt-2 text-sm text-gris">
+              Trae las columnas con su explicación, listas desplegables con <strong className="text-tinta">tus bodegas</strong> y una hoja de
+              instrucciones. Si ya tienes tu propio Excel, sáltate este paso.
+            </p>
+            <a
+              href="/api/inventario/plantilla"
+              className="group mt-4 flex items-center gap-3 rounded-xl border border-borde bg-tinta/[0.02] p-3 transition hover:border-naranjo/50 hover:bg-naranjo/[0.04]"
+            >
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white">
+                <IconFileSpreadsheet size={22} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-tinta">plantilla-inventario.xlsx</span>
+                <span className="block text-[11px] text-gris">{COLUMNAS_IMPORTACION.length} columnas · solo «Nombre» es obligatoria</span>
+              </span>
+              <IconDownload size={18} className="text-gris transition group-hover:translate-y-0.5 group-hover:text-naranjo" />
+            </a>
+
+            <details className="group mt-4 rounded-xl border border-borde">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold uppercase tracking-[0.08em] text-gris">
+                Qué va en cada columna
+                <IconChevronDown size={15} className="transition group-open:rotate-180" />
+              </summary>
+              <ul className="space-y-2 border-t border-borde px-3 py-3 text-xs">
+                {COLUMNAS_IMPORTACION.map((c) => (
+                  <li key={c.clave} className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-2">
+                    <span className={`font-semibold ${c.obligatoria ? "text-naranjo" : "text-tinta"}`}>
+                      {c.titulo}
+                      {c.obligatoria && " *"}
+                    </span>
+                    <span className="text-gris">{c.ayuda}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
+
+          <section className={`${TARJETA} flex flex-col p-5`}>
+            <Paso n={2} titulo="Sube tu archivo" />
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setSobre(true);
+              }}
+              onDragLeave={() => setSobre(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setSobre(false);
+                elegir(e.dataTransfer.files[0]);
+              }}
+              className={`mt-4 flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition ${
+                sobre ? "scale-[1.01] border-naranjo bg-naranjo/[0.06]" : "border-borde hover:border-naranjo/50 hover:bg-naranjo/[0.03]"
+              }`}
+            >
+              <span className={`grid h-16 w-16 place-items-center rounded-2xl transition ${archivo ? "bg-emerald-500/10 text-emerald-600" : "bg-naranjo/10 text-naranjo"}`}>
+                {cargando === "leyendo" ? (
+                  <IconLoader2 size={30} className="animate-spin" />
+                ) : archivo ? (
+                  <IconFileCheck size={30} stroke={1.5} />
+                ) : (
+                  <IconCloudUpload size={30} stroke={1.5} />
+                )}
+              </span>
+              {archivo ? (
+                <span>
+                  <span className="block text-sm font-bold text-tinta">{archivo.name}</span>
+                  <span className="block text-xs text-gris">
+                    {(archivo.size / 1024).toLocaleString("es-CL", { maximumFractionDigits: 0 })} KB · haz clic para cambiarlo
+                  </span>
+                </span>
+              ) : (
+                <span>
+                  <span className="block text-base font-bold text-tinta">Arrastra tu Excel aquí</span>
+                  <span className="block text-sm text-gris">o haz clic para elegirlo</span>
+                </span>
+              )}
+              <span className="flex flex-wrap justify-center gap-1.5">
+                {[".xlsx", ".csv", "hasta 4 MB", `${MAX_FILAS_IMPORTACION} filas`].map((t) => (
+                  <span key={t} className="rounded-full bg-tinta/[0.05] px-2.5 py-0.5 text-[11px] font-semibold text-gris">{t}</span>
+                ))}
+              </span>
+              <input
+                ref={entrada}
+                type="file"
+                accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                className="sr-only"
+                onChange={(e) => elegir(e.target.files?.[0])}
+              />
+            </label>
+            {error && <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-gris">
+              <IconShieldCheck size={14} className="text-emerald-600" /> Nada se guarda hasta que confirmes la importación.
+            </p>
+          </section>
+        </div>
+      )}
 
       {/* Paso 3: columnas → campos, como la pantalla de importación de Odoo */}
       {columnas && !resultado && (
@@ -401,12 +494,19 @@ export default function ImportadorMasivo() {
 
       {/* Resultado */}
       {resultado && (
-        <section className={`${TARJETA} p-5`}>
-          <div className="flex items-center gap-2">
-            <IconCircleCheck size={22} className="text-emerald-600" />
-            <h2 className="text-base font-bold text-tinta">Carga terminada</h2>
+        <section className={`${TARJETA} p-6`}>
+          <div className="flex items-center gap-4">
+            <span className={`grid h-14 w-14 place-items-center rounded-2xl ${resultado.fallidas.length ? "bg-amber-500/10 text-amber-600" : "bg-emerald-500/10 text-emerald-600"}`}>
+              {resultado.fallidas.length ? <IconAlertTriangle size={28} /> : <IconCircleCheck size={28} />}
+            </span>
+            <div>
+              <h2 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">
+                {resultado.fallidas.length ? "Carga terminada con observaciones" : "¡Carga terminada!"}
+              </h2>
+              <p className="text-sm text-gris">{archivo?.name}</p>
+            </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-wrap gap-2">
             <Cifra valor={resultado.creados} etiqueta="productos creados" tono="verde" />
             <Cifra valor={resultado.actualizados} etiqueta="actualizados" tono="azul" />
             <Cifra valor={resultado.ajustes} etiqueta="ajustes de stock" tono="gris" />
@@ -427,7 +527,7 @@ export default function ImportadorMasivo() {
             </div>
           )}
           <div className="mt-5 flex flex-wrap gap-2">
-            <Link href="/inventario/productos" className="rounded-lg bg-azul px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-azul-suave">
+            <Link href="/inventario/productos" className="rounded-lg bg-naranjo px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-naranjo-suave">
               Ver productos
             </Link>
             <button type="button" onClick={reiniciar} className="inline-flex items-center gap-1.5 rounded-lg border border-borde px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-tinta hover:border-naranjo/50">
@@ -441,6 +541,7 @@ export default function ImportadorMasivo() {
 }
 
 function Paso({ n, titulo }: { n: number; titulo: string }) {
+  // El número va en el mismo naranjo que el paso activo de la banda.
   return (
     <h2 className="flex items-center gap-2.5 text-sm font-bold text-tinta">
       <span className="grid h-6 w-6 place-items-center rounded-full bg-naranjo text-xs font-bold text-white">{n}</span>
