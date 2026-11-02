@@ -10,6 +10,20 @@ import type { EstadoTarea, Prioridad, Tarea } from "./tareas-modelo";
 
 const TABLA = "crm_tareas";
 
+export interface Responsable {
+  correo: string;
+  nombre: string;
+}
+
+/** Las personas activas del Core: de acá se elige el responsable de una tarea. */
+export async function listarResponsables(): Promise<Responsable[]> {
+  const { data, error } = await supabaseAdmin.from("usuarios").select("correo, nombre").eq("activo", true);
+  revienta("listar usuarios", error);
+  return (data ?? [])
+    .map((u) => ({ correo: u.correo as string, nombre: (u.nombre as string | null) || (u.correo as string).split("@")[0] }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const aTarea = (r: any): Tarea => ({
   id: r.id, titulo: r.titulo, descripcion: r.descripcion, estado: r.estado, prioridad: r.prioridad,

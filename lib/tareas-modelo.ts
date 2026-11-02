@@ -5,16 +5,16 @@
 export const SLUG_APP_TAREAS = "tareas";
 
 export const COLUMNAS = [
-  { estado: "por_hacer", titulo: "Por hacer" },
-  { estado: "en_curso", titulo: "En curso" },
-  { estado: "hecho", titulo: "Hecho" },
+  { estado: "por_hacer", titulo: "Por hacer", punto: "bg-slate-400" },
+  { estado: "en_curso", titulo: "En curso", punto: "bg-amber-500" },
+  { estado: "hecho", titulo: "Hecho", punto: "bg-emerald-500" },
 ] as const;
 export type EstadoTarea = (typeof COLUMNAS)[number]["estado"];
 
 export const PRIORIDADES = [
-  { valor: "baja", etiqueta: "Baja", tono: "bg-borde text-gris" },
-  { valor: "media", etiqueta: "Media", tono: "bg-amber-100 text-amber-700" },
-  { valor: "alta", etiqueta: "Alta", tono: "bg-rose-100 text-rose-600" },
+  { valor: "baja", etiqueta: "Baja", tono: "bg-sky-500/10 text-sky-700 dark:text-sky-300", barra: "bg-sky-400" },
+  { valor: "media", etiqueta: "Media", tono: "bg-amber-500/10 text-amber-700 dark:text-amber-300", barra: "bg-amber-400" },
+  { valor: "alta", etiqueta: "Alta", tono: "bg-rose-500/10 text-rose-600 dark:text-rose-300", barra: "bg-rose-500" },
 ] as const;
 export type Prioridad = (typeof PRIORIDADES)[number]["valor"];
 
@@ -55,4 +55,12 @@ export function estaVencida(t: { fechaLimite: string | null; estado: EstadoTarea
   if (!t.fechaLimite || t.estado === "hecho") return false;
   const base = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
   return new Date(t.fechaLimite + "T00:00:00").getTime() < base.getTime();
+}
+
+/** Iniciales para el avatar: "Alex Oliva" → "AO", "alex" → "AL". */
+export function iniciales(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
 }

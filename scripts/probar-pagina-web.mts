@@ -168,7 +168,7 @@ assert.ok(new RegExp(`'${SLUG_APP_PAGINA_WEB}', '/pagina-web'`).test(sql), "la m
 const app = (url: string, nombre: string) =>
   ({ id: url, nombre, slug: url.slice(1), url, tipo: "interna", icono: "apps", color: "naranjo", descripcion: null, estado: "activa", orden: 0 }) as Aplicacion;
 const web = armarMenu([app("/pagina-web", "Página web")], []).find((g) => g.titulo === "Página web");
-assert.deepEqual(web?.items.map((i) => [i.tipo, i.nombre]), [["app", "Configuración"], ["pronto", "Cotizador web"]]);
+assert.deepEqual(web?.items.map((i) => [i.tipo, i.nombre]), [["app", "Configuración"]]);
 
 console.log(
   "Página web verificada: a las tablas del sitio llega solo lo que el sitio conoce, la configuración " +

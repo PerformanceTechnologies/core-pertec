@@ -24,8 +24,8 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
   assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas", "Tareas"]);
   assert.deepEqual(nombres(g[2]), ["Contratos"]);
   assert.deepEqual(nombres(g[3]), ["Inventario"]);
-  assert.deepEqual(nombres(g[4]), ["Configuración", "Postulaciones", "Cotizador web"]);
-  assert.deepEqual(g[4].items.map((i) => i.tipo), ["app", "app", "pronto"]);
+  assert.deepEqual(nombres(g[4]), ["Configuración", "Postulaciones"]);
+  assert.deepEqual(g[4].items.map((i) => i.tipo), ["app", "app"]);
   // Ocultos: Proyectos, Mi Día (va arriba a la derecha) y Facturas IH.
   const todo = g.flatMap(nombres).join("|");
   assert.ok(!/Proyectos|Mi Día|IH/.test(todo));
@@ -51,7 +51,7 @@ assert.deepEqual(armarMenu([app("/rendir-gastos", "Rendir Gastos")], ["sii"]).fl
 // La configuración de la web se concede como cualquier app: sin ella no aparece.
 assert.deepEqual(
   armarMenu([app("/reclutamiento", "P")], []).find((g) => g.titulo === "Página web")?.items.map((i) => i.nombre),
-  ["Postulaciones", "Cotizador web"],
+  ["Postulaciones"],
 );
 // Sin Postulaciones ni Configuración, «Página web» no queda flotando con solo los «Pronto».
 assert.ok(!armarMenu([app("/cotizador", "Cotizador")], []).some((g) => g.titulo === "Página web"));
