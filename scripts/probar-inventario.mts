@@ -934,3 +934,29 @@ console.log(
   assert.deepEqual(im.validarFila(2, { nombre: "Casco", categoria: "EPP" }, cat, { crearFaltantes: false }).errores, []);
   console.log("Importación tipo Odoo verificada: mapeo sugerido, mapeo inválido y crear/no crear categorías y unidades.");
 }
+
+// Valorización por bodega, categoría y ABC.
+{
+  const m = await import("../lib/inventario-modelo");
+  const l = (p: string, b: string, cat: string, cant: number, costo: number) =>
+    ({ productoId: p, nombre: p, sku: null, categoria: cat, bodegaId: b, bodega: `Bodega ${b}`, cantidad: cant, costo, valor: cant * costo });
+  const r = m.resumirValorizacion([
+    l("caro", "AMU", "Equipos", 1, 800_000),
+    l("caro", "CAL", "Equipos", 1, 800_000),
+    l("medio", "AMU", "EPP", 30, 10_000),
+    l("barato", "ENE", "EPP", 10, 1_000),
+    l("gratis", "ENE", "EPP", 5, 0),
+    l("cero", "AMU", "EPP", 0, 999), // sin stock: no cuenta
+  ]);
+  assert.equal(r.total, 1_910_000);
+  assert.deepEqual(r.porBodega.map((b) => [b.id, b.valor]), [["AMU", 1_100_000], ["CAL", 800_000], ["ENE", 10_000]]);
+  assert.equal(r.porBodega[0].productos, 2);
+  assert.deepEqual(r.porCategoria.map((c) => c.id), ["Equipos", "EPP"]);
+  assert.deepEqual(r.productos.map((p) => [p.productoId, p.clase]), [["caro", "A"], ["medio", "B"], ["barato", "C"], ["gratis", "C"]]);
+  assert.deepEqual(r.productos[0].porBodega, { AMU: 800_000, CAL: 800_000 });
+  assert.equal(r.sinCosto, 1);
+  assert.equal(r.abc.A.valor, 1_600_000);
+  assert.ok(Math.abs(r.porBodega.reduce((t, b) => t + b.participacion, 0) - 1) < 1e-9);
+  assert.deepEqual(m.resumirValorizacion([]).porBodega, []);
+  console.log("Valorización verificada: totales por bodega y categoría, clases ABC y productos sin costo.");
+}

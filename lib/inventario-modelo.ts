@@ -327,3 +327,124 @@ export const TIPOS_CERTIFICADO: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/webp": "webp",
 };
+
+// -----------------------------------------------------------------------------
+//  Valorización detallada (dashboard): por bodega, por categoría y ABC
+// -----------------------------------------------------------------------------
+
+/** Una cantidad a mano valorizada: un producto en una bodega. */
+export interface LineaValor {
+  productoId: string;
+  nombre: string;
+  sku: string | null;
+  categoria: string;
+  bodegaId: string;
+  bodega: string;
+  cantidad: number;
+  costo: number;
+  valor: number;
+}
+
+export interface GrupoValor {
+  id: string;
+  nombre: string;
+  valor: number;
+  unidades: number;
+  productos: number;
+  /** Fracción del total (0 a 1). */
+  participacion: number;
+}
+
+export interface ProductoValor {
+  productoId: string;
+  nombre: string;
+  sku: string | null;
+  categoria: string;
+  costo: number;
+  cantidad: number;
+  valor: number;
+  participacion: number;
+  /** Acumulado del ranking, para la clase ABC. */
+  acumulado: number;
+  clase: "A" | "B" | "C";
+  /** Valor por bodega (id → valor). */
+  porBodega: Record<string, number>;
+}
+
+export interface ResumenValorizacion {
+  total: number;
+  unidades: number;
+  porBodega: GrupoValor[];
+  porCategoria: GrupoValor[];
+  productos: ProductoValor[];
+  abc: Record<"A" | "B" | "C", { productos: number; valor: number }>;
+  /** Productos con stock pero costo 0: no suman valor y conviene revisarlos. */
+  sinCosto: number;
+}
+
+function agrupar(lineas: LineaValor[], clave: (l: LineaValor) => [string, string], total: number): GrupoValor[] {
+  const m = new Map<string, { nombre: string; valor: number; unidades: number; productos: Set<string> }>();
+  for (const l of lineas) {
+    const [id, nombre] = clave(l);
+    const g = m.get(id) ?? { nombre, valor: 0, unidades: 0, productos: new Set<string>() };
+    g.valor += l.valor;
+    g.unidades += l.cantidad;
+    g.productos.add(l.productoId);
+    m.set(id, g);
+  }
+  return [...m.entries()]
+    .map(([id, g]) => ({
+      id, nombre: g.nombre, valor: redondear(g.valor), unidades: redondear(g.unidades), productos: g.productos.size,
+      participacion: total > 0 ? g.valor / total : 0,
+    }))
+    .sort((a, b) => b.valor - a.valor || a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * Arma el dashboard de valorización. Clase ABC como se usa en bodega: A son los productos
+ * que juntan el primer 80% del valor, B hasta el 95% y C el resto.
+ */
+export function resumirValorizacion(lineas: LineaValor[]): ResumenValorizacion {
+  const conStock = lineas.filter((l) => l.cantidad > 0);
+  const total = redondear(conStock.reduce((t, l) => t + l.valor, 0));
+
+  const porProducto = new Map<string, ProductoValor>();
+  for (const l of conStock) {
+    const p = porProducto.get(l.productoId) ?? {
+      productoId: l.productoId, nombre: l.nombre, sku: l.sku, categoria: l.categoria, costo: l.costo,
+      cantidad: 0, valor: 0, participacion: 0, acumulado: 0, clase: "C" as const, porBodega: {},
+    };
+    p.cantidad = redondear(p.cantidad + l.cantidad);
+    p.valor = redondear(p.valor + l.valor);
+    p.porBodega[l.bodegaId] = redondear((p.porBodega[l.bodegaId] ?? 0) + l.valor);
+    porProducto.set(l.productoId, p);
+  }
+
+  let acumulado = 0;
+  const productos = [...porProducto.values()]
+    .sort((a, b) => b.valor - a.valor || a.nombre.localeCompare(b.nombre, "es"))
+    .map((p) => {
+      const participacion = total > 0 ? p.valor / total : 0;
+      // La clase se decide por dónde EMPIEZA el producto en el acumulado: el que cruza el 80% sigue siendo A.
+      const clase: "A" | "B" | "C" = acumulado < 0.8 ? "A" : acumulado < 0.95 ? "B" : "C";
+      acumulado += participacion;
+      return { ...p, participacion, acumulado, clase };
+    });
+
+  const abc = { A: { productos: 0, valor: 0 }, B: { productos: 0, valor: 0 }, C: { productos: 0, valor: 0 } };
+  for (const p of productos) {
+    if (p.valor <= 0) continue;
+    abc[p.clase].productos++;
+    abc[p.clase].valor = redondear(abc[p.clase].valor + p.valor);
+  }
+
+  return {
+    total,
+    unidades: redondear(conStock.reduce((t, l) => t + l.cantidad, 0)),
+    porBodega: agrupar(conStock, (l) => [l.bodegaId, l.bodega], total),
+    porCategoria: agrupar(conStock, (l) => [l.categoria, l.categoria], total),
+    productos,
+    abc,
+    sinCosto: productos.filter((p) => p.costo <= 0).length,
+  };
+}

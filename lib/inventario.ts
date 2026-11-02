@@ -10,6 +10,7 @@ import {
   type Almacen,
   type Categoria,
   type ClaseOperacion,
+  type LineaValor,
   type Lote,
   type Movimiento,
   type Producto,
@@ -390,7 +391,13 @@ export async function reservarTransferencia(id: string): Promise<void> {
  * entrega parcial: lo que falte queda en un backorder, cuyo id se devuelve.
  */
 export async function validarTransferencia(id: string, hechas?: Record<string, number>): Promise<string | null> {
-  const { data, error } = await supabaseAdmin.rpc("inv_validar_transferencia", { p_id: id, p_hechas: hechas ?? null });
+  // Sin entrega parcial no se manda p_hechas: así también funciona con la función de la
+  // migración 0001 si la 0002 todavía no se corrió en la base.
+  const parametros = hechas ? { p_id: id, p_hechas: hechas } : { p_id: id };
+  const { data, error } = await supabaseAdmin.rpc("inv_validar_transferencia", parametros);
+  if (error && hechas && /Could not find the function/i.test(error.message)) {
+    throw new Error("[inventario] La entrega parcial necesita la migración supabase/inventario/0002_inventario_odoo.sql en la base.");
+  }
   revienta("validar transferencia", error);
   return (data as string | null) ?? null;
 }
@@ -561,6 +568,43 @@ export async function valorizacion(): Promise<{ filas: FilaValorizacion[]; total
     .sort((a, b) => b.valor - a.valor);
   const total = redondear(filas.reduce((t, f) => t + f.valor, 0));
   return { filas, total };
+}
+
+/**
+ * Cada cantidad a mano en una ubicación interna, valorizada al costo del producto. La
+ * «bodega» es el almacén de la ubicación (o la ubicación misma si no tiene almacén).
+ */
+export async function lineasDeValor(): Promise<LineaValor[]> {
+  const [quants, productos, categorias, ubicaciones, almacenes] = await Promise.all([
+    supabaseAdmin.from(T.quants).select("producto_id, ubicacion_id, cantidad").neq("cantidad", 0),
+    supabaseAdmin.from(T.productos).select("id, nombre, sku, categoria_id, costo, tipo").eq("activo", true).eq("tipo", "almacenable"),
+    listarCategorias(),
+    listarUbicaciones(),
+    listarAlmacenes(),
+  ]);
+  revienta("leer quants", quants.error);
+  revienta("leer productos", productos.error);
+  const prod = new Map((productos.data ?? []).map((p) => [p.id as string, p]));
+  const cat = new Map(categorias.map((c) => [c.id, c.nombre]));
+  const ubi = new Map(ubicaciones.map((u) => [u.id, u]));
+  const alm = new Map(almacenes.map((a) => [a.id, a]));
+
+  const lineas: LineaValor[] = [];
+  for (const q of quants.data ?? []) {
+    const p = prod.get(q.producto_id as string);
+    const u = ubi.get(q.ubicacion_id as string);
+    if (!p || !u || u.tipo !== "interna") continue;
+    const a = u.almacenId ? alm.get(u.almacenId) : undefined;
+    const cantidad = Number(q.cantidad);
+    const costo = Number(p.costo);
+    lineas.push({
+      productoId: p.id as string, nombre: p.nombre as string, sku: (p.sku as string | null) ?? null,
+      categoria: p.categoria_id ? cat.get(p.categoria_id as string) ?? "Sin categoría" : "Sin categoría",
+      bodegaId: a?.id ?? u.id, bodega: a?.nombre ?? u.nombre,
+      cantidad, costo, valor: valorizar(cantidad, costo),
+    });
+  }
+  return lineas;
 }
 
 // =============================================================================
