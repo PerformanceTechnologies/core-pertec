@@ -3,6 +3,9 @@ import { supabaseAdmin } from "./supabase-admin";
 import type {
   Asignacion,
   Contrato,
+  Documento,
+  SeccionDocumento,
+  TipoDocumento,
   LecturaOdometro,
   Marca,
   Modelo,
@@ -24,7 +27,11 @@ const T = {
   servicios: "flo_servicios",
   contratos: "flo_contratos",
   asignaciones: "flo_asignaciones",
+  tiposDocumento: "flo_tipos_documento",
+  documentos: "flo_documentos",
 } as const;
+
+const BUCKET = "flota";
 
 function revienta(que: string, error: { message: string } | null): void {
   if (error) throw new Error(`[flota] No se pudo ${que}: ${error.message}`);
@@ -50,6 +57,10 @@ const aContrato = (r: any): Contrato => ({
   frecuencia: r.frecuencia, cerrado: r.cerrado, notas: r.notas,
 });
 const aLectura = (r: any): LecturaOdometro => ({ id: r.id, vehiculoId: r.vehiculo_id, fecha: r.fecha, valor: Number(r.valor), registradoPor: r.registrado_por });
+const aDocumento = (r: any): Documento => ({
+  id: r.id, vehiculoId: r.vehiculo_id, tipoId: r.tipo_id, seccion: r.seccion, nombre: r.nombre, vence: r.vence,
+  archivoNombre: r.archivo_nombre, tieneArchivo: Boolean(r.archivo_ruta), noAplica: r.no_aplica,
+});
 const aAsignacion = (r: any): Asignacion => ({ id: r.id, vehiculoId: r.vehiculo_id, conductor: r.conductor, faena: r.faena, desde: r.desde, hasta: r.hasta });
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -112,7 +123,8 @@ export async function obtenerVehiculo(id: string): Promise<VehiculoConDatos | nu
   return todos.find((v) => v.id === id) ?? null;
 }
 
-export type DatosVehiculo = Omit<Vehiculo, "id" | "activo">;
+// Las fechas de revisión técnica, permiso y SOAP ya no se editan aquí: viven en los documentos.
+export type DatosVehiculo = Omit<Vehiculo, "id" | "activo" | "revisionTecnicaVence" | "permisoCirculacionVence" | "soapVence">;
 
 const aFila = (d: Partial<DatosVehiculo>) => {
   const fila: Record<string, unknown> = {};
@@ -120,8 +132,7 @@ const aFila = (d: Partial<DatosVehiculo>) => {
     patente: "patente", modeloId: "modelo_id", anio: "anio", color: "color", numeroChasis: "numero_chasis",
     numeroMotor: "numero_motor", combustible: "combustible", unidadOdometro: "unidad_odometro", estado: "estado",
     conductor: "conductor", faena: "faena", propiedad: "propiedad", fechaAdquisicion: "fecha_adquisicion",
-    valorCompra: "valor_compra", revisionTecnicaVence: "revision_tecnica_vence",
-    permisoCirculacionVence: "permiso_circulacion_vence", soapVence: "soap_vence", notas: "notas",
+    valorCompra: "valor_compra", notas: "notas",
   };
   for (const [k, col] of Object.entries(mapa)) if (k in d) fila[col] = d[k as keyof DatosVehiculo];
   return fila;
@@ -242,4 +253,111 @@ export async function crearContrato(d: Omit<Contrato, "id" | "cerrado">, creadoP
 export async function cerrarContrato(id: string, cerrado: boolean): Promise<void> {
   const { error } = await supabaseAdmin.from(T.contratos).update({ cerrado }).eq("id", id);
   revienta("actualizar el contrato", error);
+}
+
+// ---------- Documentos -------------------------------------------------------
+
+export async function listarTiposDocumento(): Promise<TipoDocumento[]> {
+  const { data, error } = await supabaseAdmin.from(T.tiposDocumento).select("*").order("seccion").order("orden");
+  revienta("listar tipos de documento", error);
+  return (data ?? []).map((r) => ({ id: r.id, nombre: r.nombre, seccion: r.seccion, vence: r.vence, orden: r.orden, activo: r.activo }));
+}
+
+export async function crearTipoDocumento(d: { nombre: string; seccion: SeccionDocumento; vence: boolean }): Promise<void> {
+  const { data: ultimo } = await supabaseAdmin.from(T.tiposDocumento).select("orden").eq("seccion", d.seccion).order("orden", { ascending: false }).limit(1).maybeSingle();
+  const { error } = await supabaseAdmin.from(T.tiposDocumento).insert({ ...d, orden: (ultimo?.orden ?? 0) + 1 });
+  if (error?.code === "23505") throw new Error("[flota] Ese documento ya está en la lista de esa sección.");
+  revienta("crear el tipo de documento", error);
+}
+
+export async function activarTipoDocumento(id: string, activo: boolean): Promise<void> {
+  const { error } = await supabaseAdmin.from(T.tiposDocumento).update({ activo }).eq("id", id);
+  revienta("actualizar el tipo de documento", error);
+}
+
+/** Documentos guardados; sin vehículo, los de toda la flota (para las alertas). */
+export async function listarDocumentos(vehiculoId?: string): Promise<Documento[]> {
+  let q = supabaseAdmin.from(T.documentos).select("*").order("creado_en");
+  if (vehiculoId) q = q.eq("vehiculo_id", vehiculoId);
+  const { data, error } = await q;
+  revienta("listar documentos", error);
+  return (data ?? []).map(aDocumento);
+}
+
+export async function obtenerDocumento(id: string): Promise<(Documento & { archivoRuta: string | null }) | null> {
+  const { data } = await supabaseAdmin.from(T.documentos).select("*").eq("id", id).maybeSingle();
+  return data ? { ...aDocumento(data), archivoRuta: data.archivo_ruta } : null;
+}
+
+/**
+ * El id del documento de un tipo para un vehículo: si todavía no tiene fila, la crea.
+ * Así un tipo de la lista se guarda recién cuando alguien le pone fecha o archivo.
+ */
+export async function asegurarDocumento(vehiculoId: string, tipoId: string): Promise<string> {
+  const { data: hay } = await supabaseAdmin.from(T.documentos).select("id").eq("vehiculo_id", vehiculoId).eq("tipo_id", tipoId).maybeSingle();
+  if (hay) return hay.id as string;
+  const { data: tipo } = await supabaseAdmin.from(T.tiposDocumento).select("nombre, seccion").eq("id", tipoId).maybeSingle();
+  if (!tipo) throw new Error("[flota] Ese tipo de documento no existe.");
+  const { data, error } = await supabaseAdmin.from(T.documentos)
+    .insert({ vehiculo_id: vehiculoId, tipo_id: tipoId, seccion: tipo.seccion, nombre: tipo.nombre }).select("id").single();
+  if (error?.code === "23505") return asegurarDocumento(vehiculoId, tipoId);
+  revienta("crear el documento", error);
+  return data!.id as string;
+}
+
+export async function agregarDocumento(vehiculoId: string, seccion: SeccionDocumento, nombre: string, porQuien: string): Promise<void> {
+  const { error } = await supabaseAdmin.from(T.documentos).insert({ vehiculo_id: vehiculoId, seccion, nombre, actualizado_por: porQuien });
+  revienta("agregar el documento", error);
+}
+
+export async function actualizarDocumento(id: string, d: { vence?: string | null; noAplica?: boolean }, porQuien: string): Promise<void> {
+  const fila: Record<string, unknown> = { actualizado_por: porQuien, actualizado_en: new Date().toISOString() };
+  if ("vence" in d) fila.vence = d.vence;
+  if ("noAplica" in d) fila.no_aplica = d.noAplica;
+  const { error } = await supabaseAdmin.from(T.documentos).update(fila).eq("id", id);
+  revienta("actualizar el documento", error);
+}
+
+/** Borra un documento agregado a mano (con su archivo). Los de la lista se marcan «no aplica». */
+export async function eliminarDocumento(id: string): Promise<void> {
+  const doc = await obtenerDocumento(id);
+  if (!doc) return;
+  const { error } = await supabaseAdmin.from(T.documentos).delete().eq("id", id);
+  revienta("eliminar el documento", error);
+  if (doc.archivoRuta) await supabaseAdmin.storage.from(BUCKET).remove([doc.archivoRuta]);
+}
+
+/** Sube (o reemplaza) el archivo de un documento; el anterior se borra después de guardar. */
+export async function guardarArchivoDocumento(id: string, contenido: Buffer, extension: string, tipo: string, nombre: string, porQuien: string): Promise<void> {
+  const doc = await obtenerDocumento(id);
+  if (!doc) throw new Error("[flota] Ese documento ya no existe.");
+  const ruta = `documentos/${doc.vehiculoId}/${crypto.randomUUID()}.${extension}`;
+  const { error: errSubida } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, { contentType: tipo, upsert: false });
+  revienta("subir el archivo", errSubida);
+  const { error } = await supabaseAdmin.from(T.documentos)
+    .update({ archivo_ruta: ruta, archivo_nombre: nombre.slice(0, 200), no_aplica: false, actualizado_por: porQuien, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    await supabaseAdmin.storage.from(BUCKET).remove([ruta]);
+    revienta("guardar el archivo", error);
+  }
+  if (doc.archivoRuta) await supabaseAdmin.storage.from(BUCKET).remove([doc.archivoRuta]);
+}
+
+export async function quitarArchivoDocumento(id: string, porQuien: string): Promise<void> {
+  const doc = await obtenerDocumento(id);
+  if (!doc?.archivoRuta) return;
+  const { error } = await supabaseAdmin.from(T.documentos)
+    .update({ archivo_ruta: null, archivo_nombre: null, actualizado_por: porQuien, actualizado_en: new Date().toISOString() }).eq("id", id);
+  revienta("quitar el archivo", error);
+  await supabaseAdmin.storage.from(BUCKET).remove([doc.archivoRuta]);
+}
+
+/** Enlace firmado de 60 s para ver el archivo (el bucket es privado). */
+export async function enlaceDocumento(id: string): Promise<string | null> {
+  const doc = await obtenerDocumento(id);
+  if (!doc?.archivoRuta) return null;
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(doc.archivoRuta, 60);
+  revienta("abrir el archivo", error);
+  return data?.signedUrl ?? null;
 }

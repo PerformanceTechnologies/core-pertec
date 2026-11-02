@@ -86,7 +86,7 @@ export default function FormularioVehiculo({
         abierta={abierta}
         alCerrar={() => setAbierta(false)}
         titulo={editar ? "Editar vehículo" : "Nuevo vehículo"}
-        descripcion="Solo la patente es obligatoria. Los vencimientos activan los avisos del tablero."
+        descripcion="Solo la patente es obligatoria. Los documentos se cargan después en la ficha del vehículo."
         ancho="max-w-4xl"
       >
         <form action={enviar} className="grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
@@ -102,7 +102,7 @@ export default function FormularioVehiculo({
               </p>
             </div>
             <ol className="hidden space-y-2 text-xs text-gris lg:block">
-              {["Identificación", "Uso", "Documentos", "Compra y notas"].map((t, i) => (
+              {["Identificación", "Uso", "Compra y notas"].map((t, i) => (
                 <li key={t} className="flex items-center gap-2">
                   <span className="grid h-5 w-5 place-items-center rounded-full bg-naranjo/12 text-[10px] font-bold text-naranjo">{i + 1}</span>
                   {t}
@@ -175,21 +175,7 @@ export default function FormularioVehiculo({
               </div>
             </Seccion>
 
-            <Seccion n={3} titulo="Documentos">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Campo etiqueta="Revisión técnica vence">
-                  <input name="revisionTecnicaVence" type="date" defaultValue={vehiculo?.revisionTecnicaVence ?? ""} className={CAMPO} />
-                </Campo>
-                <Campo etiqueta="Permiso de circulación vence">
-                  <input name="permisoCirculacionVence" type="date" defaultValue={vehiculo?.permisoCirculacionVence ?? ""} className={CAMPO} />
-                </Campo>
-                <Campo etiqueta="SOAP vence">
-                  <input name="soapVence" type="date" defaultValue={vehiculo?.soapVence ?? ""} className={CAMPO} />
-                </Campo>
-              </div>
-            </Seccion>
-
-            <Seccion n={4} titulo="Compra y notas">
+            <Seccion n={3} titulo="Compra y notas">
               <div className="grid gap-4 sm:grid-cols-3">
                 <Campo etiqueta="Propiedad">
                   <select name="propiedad" defaultValue={vehiculo?.propiedad ?? "propio"} className={CAMPO}>

@@ -78,6 +78,22 @@ export interface Contrato {
   notas: string | null;
 }
 
+export type SeccionDocumento = "base" | "acreditacion";
+
+export interface TipoDocumento { id: string; nombre: string; seccion: SeccionDocumento; vence: boolean; orden: number; activo: boolean }
+
+export interface Documento {
+  id: string;
+  vehiculoId: string;
+  tipoId: string | null;
+  seccion: SeccionDocumento;
+  nombre: string;
+  vence: string | null;
+  archivoNombre: string | null;
+  tieneArchivo: boolean;
+  noAplica: boolean;
+}
+
 export interface Asignacion { id: string; vehiculoId: string; conductor: string; faena: string | null; desde: string; hasta: string | null }
 
 // ---------- Etiquetas --------------------------------------------------------
@@ -138,12 +154,82 @@ export function estadoVencimiento(fecha: string | null, hoy: Date = new Date()):
   return d <= DIAS_AVISO ? "por_vencer" : "vigente";
 }
 
-/** Los documentos obligatorios de un vehículo en Chile. */
-export const DOCUMENTOS = [
-  { clave: "revisionTecnicaVence", etiqueta: "Revisión técnica" },
-  { clave: "permisoCirculacionVence", etiqueta: "Permiso de circulación" },
-  { clave: "soapVence", etiqueta: "SOAP" },
-] as const;
+export const ETIQUETA_SECCION: Record<SeccionDocumento, string> = {
+  base: "Documentos base del vehículo",
+  acreditacion: "Acreditación",
+};
+
+/** Archivos aceptados para los documentos, con la extensión con que se guardan. */
+export const TIPOS_ARCHIVO: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+export type EstadoDocumento = "falta" | "sin_fecha" | "vigente" | "por_vencer" | "vencido" | "no_aplica";
+
+/** Una fila de la documentación: un tipo de la lista (tenga o no fila guardada) o uno agregado a mano. */
+export interface FilaDocumento {
+  clave: string;
+  tipoId: string | null;
+  documentoId: string | null;
+  seccion: SeccionDocumento;
+  nombre: string;
+  pideFecha: boolean;
+  vence: string | null;
+  archivoNombre: string | null;
+  tieneArchivo: boolean;
+  noAplica: boolean;
+  estado: EstadoDocumento;
+}
+
+/**
+ * El estado de un documento: «falta» sin archivo; con archivo, según su vencimiento
+ * («sin fecha» si el tipo vence y no la tiene). Una fecha vencida manda aunque falte el archivo.
+ */
+export function estadoDocumento(d: { noAplica: boolean; tieneArchivo: boolean; vence: string | null; pideFecha: boolean }, hoy: Date = new Date()): EstadoDocumento {
+  if (d.noAplica) return "no_aplica";
+  const v = estadoVencimiento(d.vence, hoy);
+  if (v === "vencido" || v === "por_vencer") return v;
+  if (!d.tieneArchivo) return "falta";
+  if (v === "sin_fecha") return d.pideFecha ? "sin_fecha" : "vigente";
+  return v;
+}
+
+/**
+ * La documentación de un vehículo por sección: primero los tipos de la lista en su orden
+ * (los inactivos solo si el vehículo ya tenía algo), después los agregados a mano.
+ */
+export function armarDocumentos(tipos: TipoDocumento[], documentos: Documento[], hoy: Date = new Date()): Record<SeccionDocumento, FilaDocumento[]> {
+  const porTipo = new Map(documentos.filter((d) => d.tipoId).map((d) => [d.tipoId!, d]));
+  const res: Record<SeccionDocumento, FilaDocumento[]> = { base: [], acreditacion: [] };
+  const ordenados = [...tipos].sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre));
+  for (const t of ordenados) {
+    const d = porTipo.get(t.id);
+    if (!t.activo && !d) continue;
+    const fila = {
+      clave: `t-${t.id}`, tipoId: t.id, documentoId: d?.id ?? null, seccion: t.seccion, nombre: t.nombre, pideFecha: t.vence,
+      vence: d?.vence ?? null, archivoNombre: d?.archivoNombre ?? null, tieneArchivo: d?.tieneArchivo ?? false, noAplica: d?.noAplica ?? false,
+    };
+    res[t.seccion].push({ ...fila, estado: estadoDocumento(fila, hoy) });
+  }
+  for (const d of documentos) {
+    if (d.tipoId && tipos.some((t) => t.id === d.tipoId)) continue;
+    const fila = {
+      clave: `d-${d.id}`, tipoId: null, documentoId: d.id, seccion: d.seccion, nombre: d.nombre, pideFecha: true,
+      vence: d.vence, archivoNombre: d.archivoNombre, tieneArchivo: d.tieneArchivo, noAplica: d.noAplica,
+    };
+    res[d.seccion].push({ ...fila, estado: estadoDocumento(fila, hoy) });
+  }
+  return res;
+}
+
+/** Cuántos documentos que aplican están al día (con archivo y sin vencer) de cuántos. */
+export function avanceDocumentos(filas: FilaDocumento[]): { listos: number; total: number } {
+  const aplican = filas.filter((f) => f.estado !== "no_aplica");
+  return { listos: aplican.filter((f) => f.estado === "vigente" || f.estado === "sin_fecha").length, total: aplican.length };
+}
 
 export interface Alerta {
   vehiculoId: string;
@@ -151,36 +237,29 @@ export interface Alerta {
   que: string;
   fecha: string | null;
   dias: number | null;
-  estado: Exclude<EstadoVencimiento, "vigente">;
+  estado: "vencido" | "por_vencer";
 }
 
 /**
- * Lo que pide atención en la flota: documentos vencidos, por vencer o sin fecha, y
- * contratos abiertos que terminan pronto. Los dados de baja no avisan. Ordenado de lo
- * más urgente a lo menos (los sin fecha al final).
+ * Lo que pide atención en la flota: documentos y contratos abiertos vencidos o que vencen
+ * en los próximos 30 días. Los dados de baja y los «no aplica» no avisan. De lo más urgente
+ * a lo menos.
  */
-export function alertasDeFlota(vehiculos: Vehiculo[], contratos: Contrato[], hoy: Date = new Date()): Alerta[] {
+export function alertasDeFlota(vehiculos: Vehiculo[], contratos: Contrato[], documentos: Documento[], hoy: Date = new Date()): Alerta[] {
   const activos = vehiculos.filter((v) => v.activo && v.estado !== "baja");
   const patente = new Map(activos.map((v) => [v.id, v.patente]));
   const alertas: Alerta[] = [];
-  for (const v of activos) {
-    for (const d of DOCUMENTOS) {
-      const fecha = v[d.clave];
-      const estado = estadoVencimiento(fecha, hoy);
-      if (estado !== "vigente") alertas.push({ vehiculoId: v.id, patente: v.patente, que: d.etiqueta, fecha, dias: diasHasta(fecha, hoy), estado });
-    }
-  }
+  const avisar = (vehiculoId: string, que: string, fecha: string | null) => {
+    const estado = estadoVencimiento(fecha, hoy);
+    if (estado !== "vencido" && estado !== "por_vencer") return;
+    alertas.push({ vehiculoId, patente: patente.get(vehiculoId)!, que, fecha, dias: diasHasta(fecha, hoy), estado });
+  };
+  for (const d of documentos) if (!d.noAplica && patente.has(d.vehiculoId)) avisar(d.vehiculoId, d.nombre, d.vence);
   for (const c of contratos) {
-    if (c.cerrado || !c.fin || !patente.has(c.vehiculoId)) continue;
-    const estado = estadoVencimiento(c.fin, hoy);
-    if (estado === "vigente") continue;
-    alertas.push({
-      vehiculoId: c.vehiculoId, patente: patente.get(c.vehiculoId)!,
-      que: `Contrato ${ETIQUETA_TIPO_CONTRATO[c.tipo].toLowerCase()}${c.proveedor ? ` (${c.proveedor})` : ""}`,
-      fecha: c.fin, dias: diasHasta(c.fin, hoy), estado: estado as Alerta["estado"],
-    });
+    if (c.cerrado || !patente.has(c.vehiculoId)) continue;
+    avisar(c.vehiculoId, `Contrato ${ETIQUETA_TIPO_CONTRATO[c.tipo].toLowerCase()}${c.proveedor ? ` (${c.proveedor})` : ""}`, c.fin);
   }
-  return alertas.sort((a, b) => (a.dias ?? Infinity) - (b.dias ?? Infinity));
+  return alertas.sort((a, b) => (a.dias ?? 0) - (b.dias ?? 0));
 }
 
 /** Una lectura nueva no puede ser menor que la última (el odómetro no retrocede). */

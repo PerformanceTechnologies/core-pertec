@@ -2,12 +2,12 @@ import Link from "next/link";
 import { IconCar, IconChevronRight, IconSearch, IconSteeringWheel } from "@tabler/icons-react";
 import IntroSeccion from "@/components/inventario/IntroSeccion";
 import FormularioVehiculo from "@/components/flota/FormularioVehiculo";
-import { ChipEstado, ChipVencimiento, IconoVehiculo, Patente } from "@/components/flota/Visual";
-import { listarMarcas, listarModelos, listarVehiculos } from "@/lib/flota";
+import { ChipEstado, IconoVehiculo, Patente } from "@/components/flota/Visual";
+import { listarDocumentos, listarMarcas, listarModelos, listarTiposDocumento, listarVehiculos } from "@/lib/flota";
 import {
-  DOCUMENTOS,
   ETIQUETA_ESTADO,
-  estadoVencimiento,
+  armarDocumentos,
+  avanceDocumentos,
   esEstadoVehiculo,
   formatearNumero,
   nombreVehiculo,
@@ -21,7 +21,7 @@ const FILTROS: (EstadoVehiculo | "")[] = ["", "disponible", "asignado", "en_tall
 
 export default async function VehiculosPage({ searchParams }: { searchParams: Promise<{ estado?: string; q?: string }> }) {
   const { estado, q } = await searchParams;
-  const [todos, marcas, modelos] = await Promise.all([listarVehiculos(), listarMarcas(), listarModelos()]);
+  const [todos, marcas, modelos, tipos, documentos] = await Promise.all([listarVehiculos(), listarMarcas(), listarModelos(), listarTiposDocumento(), listarDocumentos()]);
   const filtro = esEstadoVehiculo(estado) ? estado : "";
   const texto = (q ?? "").trim().toLowerCase();
   const vehiculos = todos
@@ -88,10 +88,12 @@ export default async function VehiculosPage({ searchParams }: { searchParams: Pr
               </thead>
               <tbody className="divide-y divide-borde">
                 {vehiculos.map((v) => {
-                  // El documento más urgente resume la columna; el detalle está en la ficha.
-                  const peor = DOCUMENTOS.map((d) => v[d.clave])
-                    .map((f) => ({ f, e: estadoVencimiento(f) }))
-                    .sort((a, b) => ORDEN[a.e] - ORDEN[b.e] || (a.f ?? "").localeCompare(b.f ?? ""))[0];
+                  // Avance de la documentación y si algo está vencido; el detalle está en la ficha.
+                  const secs = armarDocumentos(tipos, documentos.filter((d) => d.vehiculoId === v.id));
+                  const filas = [...secs.base, ...secs.acreditacion];
+                  const { listos, total } = avanceDocumentos(filas);
+                  const vencidos = filas.filter((f) => f.estado === "vencido").length;
+                  const porVencer = filas.filter((f) => f.estado === "por_vencer").length;
                   return (
                     <tr key={v.id} className="group transition hover:bg-tinta/[0.02]">
                       <td className="px-4 py-3">
@@ -108,7 +110,19 @@ export default async function VehiculosPage({ searchParams }: { searchParams: Pr
                         {v.faena && <span className="block text-xs">{v.faena}</span>}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-tinta">{v.odometro !== null ? `${formatearNumero(v.odometro)} ${v.unidadOdometro}` : "—"}</td>
-                      <td className="px-4 py-3"><ChipVencimiento fecha={peor.f} corto /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-tinta/[0.06]">
+                            <div className={`h-full rounded-full ${listos === total ? "bg-emerald-500" : "bg-naranjo"}`} style={{ width: `${total ? (listos / total) * 100 : 0}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums text-gris">{listos}/{total}</span>
+                        </div>
+                        {(vencidos > 0 || porVencer > 0) && (
+                          <span className={`mt-1 inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold ${vencidos ? "bg-rose-500/12 text-rose-700" : "bg-amber-500/12 text-amber-700"}`}>
+                            {vencidos ? `${vencidos} vencido${vencidos > 1 ? "s" : ""}` : `${porVencer} por vencer`}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3"><ChipEstado estado={v.estado} /></td>
                       <td className="px-4 py-3 text-right">
                         <Link href={`/flota/vehiculos/${v.id}`} className="text-gris-suave group-hover:text-naranjo" aria-label="Ver ficha"><IconChevronRight size={18} /></Link>
@@ -125,4 +139,3 @@ export default async function VehiculosPage({ searchParams }: { searchParams: Pr
   );
 }
 
-const ORDEN = { vencido: 0, por_vencer: 1, sin_fecha: 2, vigente: 3 } as const;

@@ -13,12 +13,14 @@ import FormularioVehiculo from "@/components/flota/FormularioVehiculo";
 import FormularioServicio from "@/components/flota/FormularioServicio";
 import FormularioContrato from "@/components/flota/FormularioContrato";
 import { ChipEstado, IconoVehiculo, Patente } from "@/components/flota/Visual";
-import { listarContratos, listarMarcas, listarModelos, listarServicios, listarVehiculos } from "@/lib/flota";
+import { listarContratos, listarDocumentos, listarMarcas, listarModelos, listarServicios, listarTiposDocumento, listarVehiculos } from "@/lib/flota";
 import {
   ESTADOS_TABLERO,
   ETIQUETA_ESTADO,
   ETIQUETA_TIPO_SERVICIO,
   alertasDeFlota,
+  armarDocumentos,
+  avanceDocumentos,
   formatearMonto,
   formatearNumero,
   type Alerta,
@@ -31,28 +33,37 @@ const COLOR_ESTADO = { disponible: "#10b981", asignado: "#0ea5e9", en_taller: "#
 const fechaCorta = (f: string) => new Date(f + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" });
 
 export default async function TableroFlotaPage() {
-  const [vehiculos, servicios, contratos, marcas, modelos] = await Promise.all([
+  const [vehiculos, servicios, contratos, marcas, modelos, tipos, documentos] = await Promise.all([
     listarVehiculos(false),
     listarServicios(),
     listarContratos(),
     listarMarcas(),
     listarModelos(),
+    listarTiposDocumento(),
+    listarDocumentos(),
   ]);
   const hoy = new Date();
   const mesActual = hoy.toISOString().slice(0, 7);
   const costoMes = servicios.filter((s) => s.estado === "hecho" && s.fecha.startsWith(mesActual)).reduce((t, s) => t + s.costo, 0);
-  const alertas = alertasDeFlota(vehiculos, contratos, hoy);
+  const alertas = alertasDeFlota(vehiculos, contratos, documentos, hoy);
   const programados = servicios.filter((s) => s.estado === "programado" || s.estado === "en_curso");
   const recientes = servicios.filter((s) => s.estado === "hecho").slice(0, 6);
   const vehiculo = new Map(vehiculos.map((v) => [v.id, v]));
   const minimos = vehiculos.map((v) => ({ id: v.id, patente: v.patente, nombre: modeloDe(v) ?? v.patente }));
   const enUso = vehiculos.filter((v) => v.estado === "asignado").length;
 
-  // Las alertas, juntas por vehículo: tres documentos sin fecha de un auto son un solo aviso.
+  // Las alertas, juntas por vehículo: varios documentos de un mismo auto son un solo aviso.
   const porVehiculo = new Map<string, Alerta[]>();
   for (const a of alertas) porVehiculo.set(a.vehiculoId, [...(porVehiculo.get(a.vehiculoId) ?? []), a]);
-  const urgentes = [...porVehiculo.values()].filter((as) => as.some((a) => a.estado !== "sin_fecha"));
-  const sinFecha = [...porVehiculo.values()].filter((as) => as.every((a) => a.estado === "sin_fecha"));
+  const urgentes = [...porVehiculo.values()];
+  // Vehículos con documentación incompleta (sin archivo o sin fecha), del más atrasado al menos.
+  const incompletos = vehiculos
+    .map((v) => {
+      const s = armarDocumentos(tipos, documentos.filter((d) => d.vehiculoId === v.id), hoy);
+      return { v, ...avanceDocumentos([...s.base, ...s.acreditacion]) };
+    })
+    .filter((x) => x.listos < x.total)
+    .sort((a, b) => a.listos / a.total - b.listos / b.total);
 
   return (
     <div className="space-y-7">
@@ -193,24 +204,24 @@ export default async function TableroFlotaPage() {
         {/* ── Requiere atención ── */}
         <div id="alertas" className="scroll-mt-6">
           <Seccion titulo="Requiere atención" icono={<IconAlertTriangle size={15} />}>
-            {urgentes.length === 0 && sinFecha.length === 0 && programados.length === 0 ? (
+            {urgentes.length === 0 && incompletos.length === 0 && programados.length === 0 ? (
               <div className={`${TARJETA} flex flex-col items-center gap-2 px-6 py-10 text-center`}>
                 <IconCircleCheck size={34} stroke={1.5} className="text-emerald-500" />
                 <p className="text-sm font-semibold text-tinta">Todo en orden</p>
-                <p className="text-xs text-gris">Documentos al día y sin mantenciones pendientes.</p>
+                <p className="text-xs text-gris">Documentación completa y sin mantenciones pendientes.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {urgentes.length > 0 && (
                   <Grupo titulo="Documentos por vencer" cuenta={urgentes.length} tono="text-rose-600">
                     {urgentes.map((as) => {
-                      const peor = as.find((a) => a.estado !== "sin_fecha")!;
+                      const peor = as[0];
                       return (
                         <FilaAlerta
                           key={peor.vehiculoId}
                           href={`/flota/vehiculos/${peor.vehiculoId}`}
                           patente={peor.patente}
-                          detalle={as.filter((a) => a.estado !== "sin_fecha").map((a) => a.que).join(", ")}
+                          detalle={as.map((a) => a.que).join(", ")}
                           etiqueta={peor.estado === "vencido" ? "Vencido" : peor.dias === 0 ? "Vence hoy" : `En ${peor.dias} d`}
                           tono={peor.estado === "vencido" ? "bg-rose-500/10 text-rose-600" : "bg-amber-500/10 text-amber-700"}
                         />
@@ -232,15 +243,15 @@ export default async function TableroFlotaPage() {
                     ))}
                   </Grupo>
                 )}
-                {sinFecha.length > 0 && (
-                  <Grupo titulo="Faltan fechas de documentos" cuenta={sinFecha.length} tono="text-gris">
-                    {sinFecha.map((as) => (
+                {incompletos.length > 0 && (
+                  <Grupo titulo="Documentación incompleta" cuenta={incompletos.length} tono="text-gris">
+                    {incompletos.slice(0, 6).map(({ v, listos, total }) => (
                       <FilaAlerta
-                        key={as[0].vehiculoId}
-                        href={`/flota/vehiculos/${as[0].vehiculoId}`}
-                        patente={as[0].patente}
-                        detalle={as.map((a) => a.que).join(", ")}
-                        etiqueta="Completar"
+                        key={v.id}
+                        href={`/flota/vehiculos/${v.id}`}
+                        patente={v.patente}
+                        detalle={`${total - listos} de ${total} documentos por cargar`}
+                        etiqueta={`${listos}/${total}`}
                         tono="bg-borde/70 text-gris"
                       />
                     ))}

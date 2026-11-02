@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import {
   alertasDeFlota,
+  armarDocumentos,
+  avanceDocumentos,
+  estadoDocumento,
   costoDeContrato,
   estadoVencimiento,
   formatearPatente,
@@ -9,6 +12,8 @@ import {
   resumirCostos,
   revisarLectura,
   type Contrato,
+  type Documento,
+  type TipoDocumento,
   type Servicio,
   type Vehiculo,
 } from "../lib/flota-modelo";
@@ -47,12 +52,63 @@ const contrato = (c: Partial<Contrato>): Contrato => ({
   costoInicial: 0, costoRecurrente: 0, frecuencia: "mensual", cerrado: false, notas: null, ...c,
 });
 
-// Alertas: documentos del activo (la de baja no avisa) y contratos que terminan pronto.
+const doc = (d: Partial<Documento>): Documento => ({
+  id: "d", vehiculoId: "v1", tipoId: null, seccion: "base", nombre: "Doc", vence: null, archivoNombre: null,
+  tieneArchivo: false, noAplica: false, ...d,
+});
+
+// Alertas: documentos con fecha vencida o por vencer (no los «no aplica» ni los de un vehículo
+// dado de baja) y contratos abiertos que terminan pronto. Lo sin fecha no es alerta.
 {
-  const a = alertasDeFlota([base, baja], [contrato({ fin: "2026-11-15" }), contrato({ fin: "2026-11-10", cerrado: true })], hoy);
+  const a = alertasDeFlota(
+    [base, baja],
+    [contrato({ fin: "2026-11-15" }), contrato({ fin: "2026-11-10", cerrado: true })],
+    [
+      doc({ nombre: "Revisión técnica", vence: "2026-10-30" }),
+      doc({ nombre: "SOAP", vence: "2026-11-20" }),
+      doc({ nombre: "Pase minero", vence: "2026-10-01", noAplica: true }),
+      doc({ nombre: "Padrón", vence: null }),
+      doc({ nombre: "Permiso", vence: "2027-03-31" }),
+      doc({ vehiculoId: "v2", nombre: "SOAP", vence: "2020-01-01" }),
+    ],
+    hoy,
+  );
   assert.deepEqual(a.map((x) => x.que), ["Revisión técnica", "Contrato seguro (HDI)", "SOAP"]);
   assert.ok(a.every((x) => x.patente === "ABCD12"));
   assert.equal(a[0].estado, "vencido");
+}
+
+// Estado de un documento.
+{
+  const e = (d: Partial<{ noAplica: boolean; tieneArchivo: boolean; vence: string | null; pideFecha: boolean }>) =>
+    estadoDocumento({ noAplica: false, tieneArchivo: false, vence: null, pideFecha: true, ...d }, hoy);
+  assert.equal(e({}), "falta");
+  assert.equal(e({ tieneArchivo: true }), "sin_fecha");
+  assert.equal(e({ tieneArchivo: true, pideFecha: false }), "vigente"); // el padrón no vence
+  assert.equal(e({ tieneArchivo: true, vence: "2027-01-01" }), "vigente");
+  assert.equal(e({ tieneArchivo: true, vence: "2026-11-10" }), "por_vencer");
+  assert.equal(e({ vence: "2026-10-01" }), "vencido"); // vencido manda aunque falte el archivo
+  assert.equal(e({ noAplica: true, vence: "2026-10-01" }), "no_aplica");
+}
+
+// La documentación: los tipos en su orden (con o sin fila), los inactivos solo si hay fila,
+// y los agregados a mano al final de su sección.
+{
+  const tipos: TipoDocumento[] = [
+    { id: "t2", nombre: "SOAP", seccion: "base", vence: true, orden: 2, activo: true },
+    { id: "t1", nombre: "Padrón", seccion: "base", vence: false, orden: 1, activo: true },
+    { id: "t3", nombre: "Viejo", seccion: "base", vence: true, orden: 3, activo: false },
+    { id: "t4", nombre: "Pase", seccion: "acreditacion", vence: true, orden: 1, activo: true },
+  ];
+  const s = armarDocumentos(tipos, [
+    doc({ id: "d1", tipoId: "t1", nombre: "Padrón", tieneArchivo: true }),
+    doc({ id: "d2", nombre: "Extra", seccion: "acreditacion", tieneArchivo: true, vence: "2027-05-01" }),
+    doc({ id: "d3", tipoId: "t4", nombre: "Pase", seccion: "acreditacion", noAplica: true }),
+  ], hoy);
+  assert.deepEqual(s.base.map((f) => [f.nombre, f.estado]), [["Padrón", "vigente"], ["SOAP", "falta"]]);
+  assert.deepEqual(s.acreditacion.map((f) => [f.nombre, f.estado]), [["Pase", "no_aplica"], ["Extra", "vigente"]]);
+  assert.equal(s.base[1].documentoId, null); // SOAP aún no tiene fila: se crea al tocarla
+  assert.deepEqual(avanceDocumentos([...s.base, ...s.acreditacion]), { listos: 2, total: 3 });
 }
 
 // Costo de contrato: inicial dentro del período + cuotas mensuales/anuales cumplidas.

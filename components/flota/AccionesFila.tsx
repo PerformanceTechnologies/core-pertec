@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IconCheck, IconLock, IconLockOpen, IconTrash } from "@tabler/icons-react";
-import { cambiarEstadoServicioAction, cerrarContratoAction, eliminarServicioAction } from "@/app/(protegido)/flota/acciones";
+import { activarTipoDocumentoAction, cambiarEstadoServicioAction, cerrarContratoAction, eliminarServicioAction } from "@/app/(protegido)/flota/acciones";
 import type { EstadoServicio } from "@/lib/flota-modelo";
 
 const BOTON = "grid h-8 w-8 place-items-center rounded-lg text-gris-suave transition disabled:opacity-50";
@@ -56,6 +56,28 @@ export function AccionesContrato({ id, vehiculoId, cerrado }: { id: string; vehi
       className={`${BOTON} hover:text-tinta`}
     >
       {cerrado ? <IconLockOpen size={16} /> : <IconLock size={16} />}
+    </button>
+  );
+}
+
+/** Sacar o devolver un documento de la lista que se pide a cada vehículo. */
+export function ActivarTipoDocumento({ id, activo }: { id: string; activo: boolean }) {
+  const [pendiente, iniciar] = useTransition();
+  const router = useRouter();
+  return (
+    <button
+      type="button"
+      disabled={pendiente}
+      onClick={() =>
+        iniciar(async () => {
+          const r = await activarTipoDocumentoAction(id, !activo);
+          if (r.ok) router.refresh();
+          else alert(r.error);
+        })
+      }
+      className={`text-xs font-semibold transition disabled:opacity-50 ${activo ? "text-gris hover:text-rose-600" : "text-cian hover:underline"}`}
+    >
+      {activo ? "Quitar" : "Volver a pedir"}
     </button>
   );
 }

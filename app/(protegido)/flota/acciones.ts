@@ -3,6 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import {
+  activarTipoDocumento,
+  actualizarDocumento,
+  agregarDocumento,
+  asegurarDocumento,
+  crearTipoDocumento,
+  eliminarDocumento,
+  enlaceDocumento,
+  obtenerDocumento,
+  quitarArchivoDocumento,
   actualizarVehiculo,
   asignarConductor,
   cambiarEstado,
@@ -82,9 +91,6 @@ function leerVehiculo(fd: FormData): DatosVehiculo | string {
     propiedad: esPropiedad(propiedad) ? propiedad : "propio",
     fechaAdquisicion: fecha(fd, "fechaAdquisicion"),
     valorCompra: monto(fd, "valorCompra"),
-    revisionTecnicaVence: fecha(fd, "revisionTecnicaVence"),
-    permisoCirculacionVence: fecha(fd, "permisoCirculacionVence"),
-    soapVence: fecha(fd, "soapVence"),
     notas: texto(fd, "notas", 2000),
   };
 }
@@ -299,6 +305,130 @@ export async function crearModeloAction(fd: FormData): Promise<Resultado> {
     await crearModelo({ marcaId, nombre, categoria: esCategoria(categoria) ? categoria : "camioneta" });
     revalidatePath("/flota/configuracion");
     revalidatePath("/flota/vehiculos");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Documentos -------------------------------------------------------
+
+/** Una fila de la documentación: por su documento guardado o por su tipo (se crea al tocarla). */
+type RefDocumento = { vehiculoId: string; documentoId?: string | null; tipoId?: string | null };
+
+async function idDocumento(ref: RefDocumento): Promise<string> {
+  if (ref.documentoId) {
+    const d = await obtenerDocumento(ref.documentoId);
+    if (!d || d.vehiculoId !== ref.vehiculoId) throw new Error("[flota] Ese documento ya no existe.");
+    return d.id;
+  }
+  if (ref.tipoId) return asegurarDocumento(ref.vehiculoId, ref.tipoId);
+  throw new Error("[flota] Falta el documento.");
+}
+
+export async function fechaDocumentoAction(ref: RefDocumento, vence: string | null): Promise<Resultado> {
+  try {
+    const u = await exigirAccesoApp(SLUG_APP_FLOTA);
+    if (vence && !/^\d{4}-\d{2}-\d{2}$/.test(vence)) return { ok: false, error: "Fecha no válida." };
+    await actualizarDocumento(await idDocumento(ref), { vence: vence || null }, u.correo);
+    refrescar(ref.vehiculoId);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Preparar la fila antes de subir su archivo (la subida va por /api/flota/documento). */
+export async function prepararDocumentoAction(ref: RefDocumento): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG_APP_FLOTA);
+    return { ok: true, id: await idDocumento(ref) };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function noAplicaDocumentoAction(ref: RefDocumento, noAplica: boolean): Promise<Resultado> {
+  try {
+    const u = await exigirAccesoApp(SLUG_APP_FLOTA);
+    await actualizarDocumento(await idDocumento(ref), { noAplica }, u.correo);
+    refrescar(ref.vehiculoId);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function eliminarDocumentoAction(vehiculoId: string, documentoId: string): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG_APP_FLOTA);
+    const d = await obtenerDocumento(documentoId);
+    if (!d || d.vehiculoId !== vehiculoId) return { ok: false, error: "Ese documento ya no existe." };
+    if (d.tipoId) return { ok: false, error: "Los documentos de la lista no se borran: márcalo como «no aplica»." };
+    await eliminarDocumento(documentoId);
+    refrescar(vehiculoId);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function quitarArchivoDocumentoAction(vehiculoId: string, documentoId: string): Promise<Resultado> {
+  try {
+    const u = await exigirAccesoApp(SLUG_APP_FLOTA);
+    const d = await obtenerDocumento(documentoId);
+    if (!d || d.vehiculoId !== vehiculoId) return { ok: false, error: "Ese documento ya no existe." };
+    await quitarArchivoDocumento(documentoId, u.correo);
+    refrescar(vehiculoId);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function agregarDocumentoAction(vehiculoId: string, seccion: string, nombre: string): Promise<Resultado> {
+  try {
+    const u = await exigirAccesoApp(SLUG_APP_FLOTA);
+    const limpio = nombre.trim().slice(0, 200);
+    if (!limpio) return { ok: false, error: "Escribe el nombre del documento." };
+    if (seccion !== "base" && seccion !== "acreditacion") return { ok: false, error: "Sección no válida." };
+    await agregarDocumento(vehiculoId, seccion, limpio, u.correo);
+    refrescar(vehiculoId);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function verDocumentoAction(documentoId: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  try {
+    await exigirAccesoApp(SLUG_APP_FLOTA);
+    const url = await enlaceDocumento(documentoId);
+    return url ? { ok: true, url } : { ok: false, error: "Ese documento no tiene archivo." };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function crearTipoDocumentoAction(fd: FormData): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG_APP_FLOTA);
+    const nombre = texto(fd, "nombre", 200);
+    const seccion = fd.get("seccion") === "acreditacion" ? "acreditacion" : "base";
+    if (!nombre) return { ok: false, error: "Escribe el nombre del documento." };
+    await crearTipoDocumento({ nombre, seccion, vence: fd.get("vence") !== "no" });
+    revalidatePath("/flota/configuracion");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function activarTipoDocumentoAction(id: string, activo: boolean): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG_APP_FLOTA);
+    await activarTipoDocumento(id, activo);
+    revalidatePath("/flota/configuracion");
     return { ok: true };
   } catch (e) {
     return fallo(e);

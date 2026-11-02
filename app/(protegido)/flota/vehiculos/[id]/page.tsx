@@ -7,17 +7,20 @@ import FormularioContrato from "@/components/flota/FormularioContrato";
 import { AsignarConductor, DarDeBaja, RegistrarLectura, SelectorEstado } from "@/components/flota/AccionesVehiculo";
 import { AccionesContrato, AccionesServicio } from "@/components/flota/AccionesFila";
 import { ChipEstado, ChipVencimiento, IconoVehiculo, Patente } from "@/components/flota/Visual";
+import Documentacion from "@/components/flota/Documentacion";
 import {
   listarAsignaciones,
   listarContratos,
+  listarDocumentos,
   listarLecturas,
   listarMarcas,
   listarModelos,
   listarServicios,
+  listarTiposDocumento,
   obtenerVehiculo,
 } from "@/lib/flota";
 import {
-  DOCUMENTOS,
+  armarDocumentos,
   ETIQUETA_CATEGORIA,
   ETIQUETA_COMBUSTIBLE,
   ETIQUETA_ESTADO_SERVICIO,
@@ -40,14 +43,17 @@ export default async function FichaVehiculoPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const v = await obtenerVehiculo(id);
   if (!v) notFound();
-  const [lecturas, servicios, contratos, asignaciones, marcas, modelos] = await Promise.all([
+  const [lecturas, servicios, contratos, asignaciones, marcas, modelos, tipos, documentos] = await Promise.all([
     listarLecturas(id),
     listarServicios({ vehiculoId: id }),
     listarContratos({ vehiculoId: id }),
     listarAsignaciones(id),
     listarMarcas(),
     listarModelos(),
+    listarTiposDocumento(),
+    listarDocumentos(id),
   ]);
+  const documentacion = armarDocumentos(tipos, documentos);
   const minimo = { id: v.id, patente: v.patente, nombre: nombreVehiculo(v) };
   const anio = new Date().getFullYear();
   const costoAnio = resumirCostos([v], servicios, contratos, `${anio}-01-01`, `${anio}-12-31`);
@@ -98,18 +104,8 @@ export default async function FichaVehiculoPage({ params }: { params: Promise<{ 
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-5">
-          {/* ── Documentos ── */}
-          <Bloque titulo="Documentos" Icono={IconFileText}>
-            <ul className="grid gap-3 p-4 sm:grid-cols-3">
-              {DOCUMENTOS.map((d) => (
-                <li key={d.clave} className="rounded-xl border border-borde p-3">
-                  <p className="text-xs font-semibold text-gris">{d.etiqueta}</p>
-                  <p className="mt-1 text-sm font-bold text-tinta">{v[d.clave] ? fechaCl(v[d.clave]!) : "—"}</p>
-                  <div className="mt-2"><ChipVencimiento fecha={v[d.clave]} corto /></div>
-                </li>
-              ))}
-            </ul>
-          </Bloque>
+          {/* ── Documentación ── */}
+          <Documentacion vehiculoId={v.id} secciones={documentacion} editable={!baja} />
 
           {/* ── Servicios ── */}
           <Bloque titulo={`Servicios · ${servicios.length}`} Icono={IconTool}>
