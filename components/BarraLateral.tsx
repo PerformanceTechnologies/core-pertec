@@ -293,7 +293,7 @@ export function BarraLateralVista({
         )}
       </nav>
 
-      <div className="border-t border-borde px-3 py-3">
+      <div className="barra-pie-borde border-t px-3 py-3">
         {colapsado ? (
           <div className="flex flex-col items-center gap-2">
             <button
@@ -415,6 +415,8 @@ export function BarraLateralVista({
         {/* El resplandor de la marca de la empresa activa, arriba: es lo que hace que se lea como
             una barra con carácter y no como una lista pegada al borde. Va detrás de todo. */}
         <div aria-hidden className="barra-brillo pointer-events-none absolute inset-x-0 top-0 -z-10 h-56" />
+        {/* Y el contrapeso, abajo, con el otro color del logo (ver .barra-pie en globals.css). */}
+        <div aria-hidden className="barra-pie pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-80" />
 
         <button
           type="button"
