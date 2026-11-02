@@ -575,8 +575,10 @@ function FormularioTarea({
 
           {t ? (
             <>
-              <Notas tareaId={t.id} yo={yo} alCambiar={() => setVersionHistorial((v) => v + 1)} />
-              <Historial tareaId={t.id} version={versionHistorial} />
+              <Actividad
+                notas={<Notas tareaId={t.id} yo={yo} alCambiar={() => setVersionHistorial((v) => v + 1)} />}
+                historial={<Historial tareaId={t.id} version={versionHistorial} />}
+              />
             </>
           ) : (
             <p className="rounded-xl border border-dashed border-borde px-4 py-5 text-center text-xs text-gris">
@@ -890,9 +892,6 @@ function Notas({ tareaId, yo, alCambiar }: { tareaId: string; yo: string; alCamb
 
   return (
     <section className="rounded-xl border border-borde p-4">
-      <h3 className="mb-3 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.08em] text-tinta">
-        <IconNotes size={15} /> Notas {notas && notas.length > 0 && <span className="font-semibold text-gris">· {notas.length}</span>}
-      </h3>
 
       {/* Redactar: no es un <form> porque ya está dentro del de la tarea. */}
       <div className="rounded-lg border border-borde bg-superficie focus-within:border-cian focus-within:ring-2 focus-within:ring-cian/30">
@@ -952,7 +951,7 @@ function Notas({ tareaId, yo, alCambiar }: { tareaId: string; yo: string; alCamb
 
       {notas === null && !error && <p className="mt-3 text-xs text-gris">Cargando…</p>}
       {notas && notas.length > 0 && (
-        <ul className="mt-4 max-h-72 space-y-4 overflow-y-auto pr-1">
+        <ul className="mt-4 max-h-56 space-y-4 overflow-y-auto overscroll-contain pr-1">
           {notas.map((n) => {
             const quien = n.nombre ?? n.correo;
             const mia = n.correo.toLowerCase() === yo.toLowerCase();
@@ -1006,4 +1005,37 @@ function Notas({ tareaId, yo, alCambiar }: { tareaId: string; yo: string; alCamb
 
 function Etiqueta({ children }: { children: React.ReactNode }) {
   return <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.08em] text-gris">{children}</span>;
+}
+
+/**
+ * Notas e Historial en pestañas, en el mismo lugar: así la ventana no crece con cada nota
+ * o cambio (cada lista se desplaza dentro de su propio alto). Las dos quedan montadas
+ * para no perder lo escrito ni volver a cargar al cambiar de pestaña.
+ */
+function Actividad({ notas, historial }: { notas: React.ReactNode; historial: React.ReactNode }) {
+  const [pestana, setPestana] = useState<"notas" | "historial">("notas");
+  const opciones = [
+    { v: "notas" as const, t: "Notas", I: IconNotes },
+    { v: "historial" as const, t: "Historial", I: IconHistory },
+  ];
+  return (
+    <div>
+      <div className="mb-3 flex gap-1 border-b border-borde">
+        {opciones.map(({ v, t, I }) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setPestana(v)}
+            className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] transition ${
+              pestana === v ? "border-naranjo text-tinta" : "border-transparent text-gris hover:text-tinta"
+            }`}
+          >
+            <I size={15} /> {t}
+          </button>
+        ))}
+      </div>
+      <div className={pestana === "notas" ? "" : "hidden"}>{notas}</div>
+      <div className={pestana === "historial" ? "" : "hidden"}>{historial}</div>
+    </div>
+  );
 }
