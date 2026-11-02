@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
-import { importar, previsualizar } from "@/lib/inventario-importacion";
+import { importar, leerColumnas, previsualizar } from "@/lib/inventario-importacion";
+import { COLUMNAS_IMPORTACION, type ClaveColumna } from "@/lib/inventario-importacion-modelo";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
 
 export const runtime = "nodejs";
@@ -29,15 +30,29 @@ export async function POST(request: Request) {
   if (archivo.size > LIMITE_SUBIDA) return NextResponse.json({ error: "El archivo pasa el tope de 4 MB." }, { status: 413 });
 
   const contenido = Buffer.from(await archivo.arrayBuffer());
+  const modo = String(fd.get("modo") ?? "previsualizar");
+  // El mapeo llega del navegador: solo se aceptan claves de campos que existen.
+  let mapeo: (ClaveColumna | null)[] | undefined;
+  if (fd.get("mapeo")) {
+    try {
+      const crudo = JSON.parse(String(fd.get("mapeo")));
+      if (!Array.isArray(crudo)) throw new Error();
+      mapeo = crudo.map((c) => (COLUMNAS_IMPORTACION.some((x) => x.clave === c) ? (c as ClaveColumna) : null));
+    } catch {
+      return NextResponse.json({ error: "El mapeo de columnas no es válido." }, { status: 400 });
+    }
+  }
+  const opciones = { crearFaltantes: fd.get("crearFaltantes") !== "no" };
   try {
-    if (fd.get("modo") === "importar") {
-      const resultado = await importar(contenido, archivo.name, acceso.usuario.correo);
+    if (modo === "columnas") return NextResponse.json({ ok: true, columnas: await leerColumnas(contenido, archivo.name) });
+    if (modo === "importar") {
+      const resultado = await importar(contenido, archivo.name, acceso.usuario.correo, mapeo, opciones);
       for (const r of ["/inventario", "/inventario/productos", "/inventario/ajustes", "/inventario/reabastecimiento", "/inventario/valorizacion"]) {
         revalidatePath(r);
       }
       return NextResponse.json({ ok: true, resultado });
     }
-    return NextResponse.json({ ok: true, previa: await previsualizar(contenido, archivo.name) });
+    return NextResponse.json({ ok: true, previa: await previsualizar(contenido, archivo.name, mapeo, opciones) });
   } catch (e) {
     const mensaje = e instanceof Error ? e.message.replace(/^\[inventario\]\s*/, "") : "No se pudo leer el archivo.";
     return NextResponse.json({ error: `No se pudo procesar el archivo: ${mensaje}` }, { status: 400 });

@@ -8,10 +8,13 @@ import {
   mapearEncabezados,
   normalizar,
   revisarDuplicados,
+  revisarMapeo,
+  sugerirMapeo,
   validarFila,
   type CatalogosImportacion,
   type ClaveColumna,
   type FilaImportacion,
+  type OpcionesImportacion,
 } from "./inventario-importacion-modelo";
 import type { Seguimiento } from "./inventario-modelo";
 
@@ -79,11 +82,15 @@ async function leerFilas(contenido: Buffer, nombreArchivo: string): Promise<stri
 // ---------- Catálogos --------------------------------------------------------
 
 async function cargarCatalogos(): Promise<CatalogosImportacion> {
-  const [{ data: productos }, ubicaciones, almacenes] = await Promise.all([
+  const [{ data: productos }, ubicaciones, almacenes, { data: cats }, { data: unis }] = await Promise.all([
     supabaseAdmin.from("inv_productos").select("id, sku, nombre, seguimiento").eq("activo", true),
     listarUbicaciones(),
     listarAlmacenes(),
+    supabaseAdmin.from("inv_categorias").select("nombre"),
+    supabaseAdmin.from("inv_unidades").select("nombre, abreviacion"),
   ]);
+  const categorias = new Set((cats ?? []).map((c) => normalizar(c.nombre as string)));
+  const unidades = new Set((unis ?? []).flatMap((u) => [normalizar(u.nombre as string), normalizar(u.abreviacion as string)]));
   const productosPorSku = new Map<string, { id: string; seguimiento: Seguimiento }>();
   const productosPorNombre = new Map<string, { id: string; seguimiento: Seguimiento }>();
   for (const p of productos ?? []) {
@@ -106,7 +113,7 @@ async function cargarCatalogos(): Promise<CatalogosImportacion> {
     bodegas.set(normalizar(u.nombre), u.id);
     if (u.codigo) bodegas.set(normalizar(u.codigo), u.id);
   }
-  return { productosPorSku, productosPorNombre, bodegas };
+  return { productosPorSku, productosPorNombre, bodegas, categorias, unidades };
 }
 
 // ---------- Vista previa -----------------------------------------------------
@@ -121,15 +128,64 @@ export interface Previsualizacion {
   ignoradas: string[];
 }
 
-export async function previsualizar(contenido: Buffer, nombreArchivo: string): Promise<Previsualizacion> {
+/**
+ * La fila de encabezados: la primera que tiene una columna reconocible como «Nombre» (la
+ * plantilla puede traer un título encima) o, si ninguna, la primera con datos.
+ */
+function filaDeEncabezado(filas: string[][]): number {
+  const i = filas.findIndex((f) => mapearEncabezados(f).faltan.length === 0);
+  return i >= 0 ? i : filas.findIndex((f) => f.some((c) => c.trim() !== ""));
+}
+
+export interface ColumnasDelArchivo {
+  /** Los títulos de cada columna del archivo. */
+  encabezados: string[];
+  /** Hasta 3 valores de ejemplo por columna, como la pantalla de Odoo. */
+  ejemplos: string[][];
+  /** El campo propuesto para cada columna (null = no importar). */
+  sugerido: (ClaveColumna | null)[];
+  totalFilas: number;
+}
+
+/** Paso 1 de Odoo: leer las columnas del archivo y proponer a qué campo va cada una. */
+export async function leerColumnas(contenido: Buffer, nombreArchivo: string): Promise<ColumnasDelArchivo> {
   const filas = await leerFilas(contenido, nombreArchivo);
-  // El encabezado es la primera fila que tiene una columna «Nombre» (la plantilla puede traer un título encima).
-  const iEnc = filas.findIndex((f) => mapearEncabezados(f).faltan.length === 0);
-  if (iEnc < 0) {
-    return { filas: [], faltan: COLUMNAS_IMPORTACION.filter((c) => c.obligatoria).map((c) => c.titulo), reconocidas: [], ignoradas: [] };
-  }
+  const iEnc = filaDeEncabezado(filas);
+  if (iEnc < 0) return { encabezados: [], ejemplos: [], sugerido: [], totalFilas: 0 };
+  const datos = filas.slice(iEnc + 1).filter((f) => f.some((c) => c.trim() !== ""));
+  const ancho = Math.max(filas[iEnc].length, ...datos.slice(0, 50).map((f) => f.length));
+  const encabezados = Array.from({ length: ancho }, (_, i) => (filas[iEnc][i] ?? "").trim() || `Columna ${i + 1}`);
+  return {
+    encabezados,
+    ejemplos: encabezados.map((_, i) => datos.map((f) => (f[i] ?? "").trim()).filter(Boolean).slice(0, 3)),
+    sugerido: sugerirMapeo(filas[iEnc]).concat(Array(Math.max(0, ancho - filas[iEnc].length)).fill(null)),
+    totalFilas: datos.length,
+  };
+}
+
+export async function previsualizar(
+  contenido: Buffer,
+  nombreArchivo: string,
+  mapeo?: (ClaveColumna | null)[],
+  opciones: OpcionesImportacion = { crearFaltantes: true },
+): Promise<Previsualizacion> {
+  const filas = await leerFilas(contenido, nombreArchivo);
+  const iEnc = filaDeEncabezado(filas);
+  const faltanTodas = COLUMNAS_IMPORTACION.filter((c) => c.obligatoria).map((c) => c.titulo);
+  if (iEnc < 0) return { filas: [], faltan: faltanTodas, reconocidas: [], ignoradas: [] };
   const encabezados = filas[iEnc];
-  const { mapa } = mapearEncabezados(encabezados);
+
+  // Con mapeo elegido en pantalla manda ese; sin él, el que se deduce de los títulos.
+  const mapa = new Map<number, ClaveColumna>();
+  if (mapeo) {
+    const problemas = revisarMapeo(mapeo);
+    if (problemas.length) throw new Error(`[inventario] ${problemas.join(" ")}`);
+    mapeo.forEach((c, i) => c && mapa.set(i, c));
+  } else {
+    const deducido = mapearEncabezados(encabezados);
+    if (deducido.faltan.length) return { filas: [], faltan: deducido.faltan, reconocidas: [], ignoradas: [] };
+    deducido.mapa.forEach((c, i) => mapa.set(i, c));
+  }
   const catalogos = await cargarCatalogos();
 
   const datos = filas
@@ -141,7 +197,7 @@ export async function previsualizar(contenido: Buffer, nombreArchivo: string): P
   const validadas = datos.map(({ celdas, numero }) => {
     const porClave: Partial<Record<ClaveColumna, string>> = {};
     mapa.forEach((clave, i) => (porClave[clave] = celdas[i] ?? ""));
-    return validarFila(numero, porClave, catalogos);
+    return validarFila(numero, porClave, catalogos, opciones);
   });
 
   return {
@@ -168,8 +224,14 @@ export interface ResultadoImportacion {
  * anota y se sigue con la siguiente. Cada cantidad entra como AJUSTE de inventario (queda
  * su documento y su movimiento, igual que un conteo hecho a mano).
  */
-export async function importar(contenido: Buffer, nombreArchivo: string, correo: string): Promise<ResultadoImportacion> {
-  const { filas, faltan } = await previsualizar(contenido, nombreArchivo);
+export async function importar(
+  contenido: Buffer,
+  nombreArchivo: string,
+  correo: string,
+  mapeo?: (ClaveColumna | null)[],
+  opciones: OpcionesImportacion = { crearFaltantes: true },
+): Promise<ResultadoImportacion> {
+  const { filas, faltan } = await previsualizar(contenido, nombreArchivo, mapeo, opciones);
   if (faltan.length) throw new Error(`[inventario] Falta la columna obligatoria: ${faltan.join(", ")}.`);
 
   const r: ResultadoImportacion = { creados: 0, actualizados: 0, ajustes: 0, reglas: 0, fallidas: [] };

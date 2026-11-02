@@ -913,3 +913,24 @@ console.log(
   assert.ok(ruta.includes('verificarAccesoAppApi("inventario")'));
   console.log("Certificación verificada: estados, tipos aceptados, bucket privado y permiso en la subida.");
 }
+
+// Carga masiva al estilo Odoo: mapeo de columnas y «crear lo que falte».
+{
+  const im = await import("../lib/inventario-importacion-modelo");
+  assert.deepEqual(im.sugerirMapeo(["Producto", "Familia", "Cosa rara", "Existencia"]), ["nombre", "categoria", null, "cantidad"]);
+  assert.deepEqual(im.revisarMapeo(["nombre", "categoria", null]), []);
+  assert.match(im.revisarMapeo(["categoria", null]).join(), /Nombre/);
+  assert.match(im.revisarMapeo(["nombre", "costo", "costo"]).join(), /2 columnas/);
+
+  const cat = {
+    productosPorSku: new Map(), productosPorNombre: new Map(), bodegas: new Map(),
+    categorias: new Set(["epp"]), unidades: new Set(["un", "unidad"]),
+  };
+  const crea = im.validarFila(2, { nombre: "Casco", categoria: "Herramientas", unidad: "UN" }, cat);
+  assert.deepEqual(crea.errores, []);
+  assert.deepEqual(crea.nuevas, ["categoría «Herramientas»"]);
+  const noCrea = im.validarFila(2, { nombre: "Casco", categoria: "Herramientas", unidad: "caja" }, cat, { crearFaltantes: false });
+  assert.equal(noCrea.errores.length, 2);
+  assert.deepEqual(im.validarFila(2, { nombre: "Casco", categoria: "EPP" }, cat, { crearFaltantes: false }).errores, []);
+  console.log("Importación tipo Odoo verificada: mapeo sugerido, mapeo inválido y crear/no crear categorías y unidades.");
+}

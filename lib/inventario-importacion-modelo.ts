@@ -29,7 +29,7 @@ export const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
   { clave: "seguimiento", titulo: "Seguimiento", ayuda: "Ninguno, Lote o Serie. Vacío = Ninguno.", ejemplo: "Lote", alias: ["seguimiento", "trazabilidad", "control"] },
   { clave: "costo", titulo: "Costo unitario", ayuda: "En pesos, sin puntos de miles ni signo $.", ejemplo: "12500", alias: ["costo", "costo unitario", "precio costo", "valor unitario", "costo unit"] },
   { clave: "precio", titulo: "Precio venta", ayuda: "En pesos.", ejemplo: "18900", alias: ["precio", "precio venta", "precio de venta", "pvp"] },
-  { clave: "bodega", titulo: "Bodega / Ubicación", ayuda: "Nombre o código de una bodega o ubicación interna que ya exista. Necesaria si hay cantidad o mínimos.", ejemplo: "WH", alias: ["bodega", "ubicacion", "ubicación", "almacen", "almacén", "bodega ubicacion"] },
+  { clave: "bodega", titulo: "Bodega / Ubicación", ayuda: "Nombre o código de una bodega o ubicación interna que ya exista. Necesaria si hay cantidad o mínimos.", ejemplo: "AMU", alias: ["bodega", "ubicacion", "ubicación", "almacen", "almacén", "bodega ubicacion"] },
   { clave: "cantidad", titulo: "Cantidad", ayuda: "Stock que HAY HOY en esa bodega (conteo). El sistema ajusta la diferencia; no se suma a lo que ya había.", ejemplo: "40", alias: ["cantidad", "stock", "existencia", "cantidad a mano", "conteo", "saldo"] },
   { clave: "lote", titulo: "Lote / Serie", ayuda: "Obligatorio con cantidad si el producto se sigue por lote o serie. Si no existe, se crea.", ejemplo: "L-2026-11", alias: ["lote", "serie", "numero de serie", "n serie", "lote serie"] },
   { clave: "vencimiento", titulo: "Vencimiento", ayuda: "Fecha de vencimiento del lote: AAAA-MM-DD o DD-MM-AAAA.", ejemplo: "2027-06-30", alias: ["vencimiento", "fecha vencimiento", "vence", "caducidad"] },
@@ -105,6 +105,39 @@ export interface CatalogosImportacion {
   productosPorNombre: Map<string, { id: string; seguimiento: Seguimiento }>;
   /** nombre o código normalizado → id de ubicación INTERNA donde queda el stock */
   bodegas: Map<string, string>;
+  /** Nombres normalizados de las categorías que ya existen. */
+  categorias?: Set<string>;
+  /** Nombres y abreviaciones normalizados de las unidades que ya existen. */
+  unidades?: Set<string>;
+}
+
+/** Las opciones de la importación, como en Odoo. */
+export interface OpcionesImportacion {
+  /** true: una categoría o unidad que no existe se crea. false: la fila queda con error. */
+  crearFaltantes: boolean;
+}
+
+/**
+ * Un mapeo columna del archivo → campo del Core (null = no importar), como la pantalla de
+ * Odoo. Revisa que no haya un campo elegido dos veces y que esté el obligatorio.
+ */
+export function revisarMapeo(mapeo: (ClaveColumna | null)[]): string[] {
+  const errores: string[] = [];
+  const vistas = new Map<ClaveColumna, number>();
+  for (const c of mapeo) if (c) vistas.set(c, (vistas.get(c) ?? 0) + 1);
+  for (const [c, n] of vistas) {
+    if (n > 1) errores.push(`«${COLUMNAS_IMPORTACION.find((x) => x.clave === c)!.titulo}» está elegido en ${n} columnas.`);
+  }
+  for (const c of COLUMNAS_IMPORTACION) {
+    if (c.obligatoria && !vistas.has(c.clave)) errores.push(`Falta elegir qué columna es «${c.titulo}».`);
+  }
+  return errores;
+}
+
+/** El mapeo sugerido para unos encabezados (lo que Odoo propone solo al subir el archivo). */
+export function sugerirMapeo(encabezados: string[]): (ClaveColumna | null)[] {
+  const { mapa } = mapearEncabezados(encabezados);
+  return encabezados.map((_, i) => mapa.get(i) ?? null);
 }
 
 export interface FilaImportacion {
@@ -128,6 +161,8 @@ export interface FilaImportacion {
   vencimiento: string | null;
   minimo: number | null;
   maximo: number | null;
+  /** Lo que esta fila va a crear además del producto («categoría», «unidad»). */
+  nuevas: string[];
   errores: string[];
 }
 
@@ -135,9 +170,25 @@ export interface FilaImportacion {
  * Valida una fila y decide si crea o actualiza. Una fila con errores no se importa; las
  * demás sí (la carga no es todo o nada: se informa cuáles quedaron fuera y por qué).
  */
-export function validarFila(numero: number, celdas: Partial<Record<ClaveColumna, string>>, cat: CatalogosImportacion): FilaImportacion {
+export function validarFila(
+  numero: number,
+  celdas: Partial<Record<ClaveColumna, string>>,
+  cat: CatalogosImportacion,
+  opciones: OpcionesImportacion = { crearFaltantes: true },
+): FilaImportacion {
   const v = (c: ClaveColumna) => (celdas[c] ?? "").toString().trim();
   const errores: string[] = [];
+  const nuevas: string[] = [];
+  // Categoría y unidad: se buscan por nombre (y la unidad también por abreviación).
+  for (const [campo, catalogo, etiqueta] of [
+    ["categoria", cat.categorias, "categoría"],
+    ["unidad", cat.unidades, "unidad"],
+  ] as const) {
+    const valor = v(campo);
+    if (!valor || !catalogo || catalogo.has(normalizar(valor))) continue;
+    if (opciones.crearFaltantes) nuevas.push(`${etiqueta} «${valor}»`);
+    else errores.push(`No existe la ${etiqueta} «${valor}».`);
+  }
 
   const nombre = v("nombre").slice(0, 200);
   const sku = v("sku").slice(0, 80) || null;
@@ -218,6 +269,7 @@ export function validarFila(numero: number, celdas: Partial<Record<ClaveColumna,
     vencimiento: vencimiento || null,
     minimo,
     maximo,
+    nuevas,
     errores,
   };
 }
