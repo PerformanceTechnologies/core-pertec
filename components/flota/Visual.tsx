@@ -27,15 +27,16 @@ export function ChipEstado({ estado }: { estado: EstadoVehiculo }) {
   );
 }
 
-/** La patente dibujada como placa chilena: blanca, borde oscuro, letras grandes. */
+/** La patente dibujada como placa chilena: blanca, borde negro, «CHILE» arriba y los pares separados por punto. */
 export function Patente({ patente, chica = false }: { patente: string; chica?: boolean }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-md border-2 border-tinta/80 bg-white font-mono font-extrabold tracking-wider text-neutral-900 shadow-sm ${
-        chica ? "px-1.5 py-0.5 text-[11px]" : "px-2.5 py-1 text-sm"
+      className={`inline-flex shrink-0 flex-col items-center rounded-md border-2 border-neutral-900 bg-white leading-none text-neutral-900 shadow-sm ${
+        chica ? "px-1.5 pb-0.5 pt-px" : "px-3 pb-1.5 pt-1"
       }`}
     >
-      {formatearPatente(patente)}
+      <span className={`font-sans font-bold tracking-[0.35em] ${chica ? "text-[5px]" : "text-[8px]"}`}>CHILE</span>
+      <span className={`font-mono font-extrabold tracking-wider ${chica ? "text-[11px]" : "text-xl"}`}>{formatearPatente(patente)}</span>
     </span>
   );
 }

@@ -94,7 +94,7 @@ export default function FormularioVehiculo({
             <div className="banda-contraste rounded-2xl p-5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">Vista previa</span>
               <div className="mt-4">
-                <Patente patente={patente || "AA·0000"} />
+                <Patente patente={patente || "AABB10"} />
               </div>
               <p className="texto-banda mt-3 text-sm font-bold">{titulo}</p>
               <p className="texto-banda-65 text-xs">
@@ -115,7 +115,7 @@ export default function FormularioVehiculo({
             <Seccion n={1} titulo="Identificación">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Campo etiqueta="Patente" obligatorio>
-                  <input name="patente" required value={patente} onChange={(e) => setPatente(e.target.value.toUpperCase())} className={`${CAMPO} font-mono uppercase`} placeholder="ABCD12" autoFocus />
+                  <input name="patente" required value={patente} onChange={(e) => setPatente(e.target.value.toUpperCase().replace(/[^A-Z0-9·.\s-]/g, ""))} maxLength={10} className={`${CAMPO} font-mono uppercase`} placeholder="Ej: ABCD12" autoFocus />
                 </Campo>
                 <Campo etiqueta="Marca y modelo" ayuda={modelos.length === 0 ? "Créalos en Configuración" : undefined}>
                   <select name="modeloId" value={modeloId} onChange={(e) => setModeloId(e.target.value)} className={CAMPO}>

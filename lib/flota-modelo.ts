@@ -280,11 +280,13 @@ export function normalizarPatente(p: string): string {
   return p.toUpperCase().replace(/[\s.·-]/g, "");
 }
 
-/** «ABCD12» → «ABCD·12», «AB1234» → «AB·1234»: como se lee en la placa. */
+/**
+ * Como se lee en la placa chilena: de a pares separados por un punto.
+ * «ABCD12» → «AB·CD·12» (formato actual) y «AB1234» → «AB·12·34» (formato antiguo).
+ */
 export function formatearPatente(p: string): string {
   const n = normalizarPatente(p);
-  const m = /^([A-Z]{2,4})(\d{2,4})$/.exec(n);
-  return m ? `${m[1]}·${m[2]}` : n;
+  return /^[A-Z0-9]{6}$/.test(n) ? n.match(/.{2}/g)!.join("·") : n;
 }
 
 export function formatearNumero(n: number): string {
