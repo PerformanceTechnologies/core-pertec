@@ -10,7 +10,6 @@ import {
   IconDots,
   IconGasStation,
   IconLoader,
-  IconSearch,
   IconTool,
   IconTools,
   IconWheel,
@@ -20,6 +19,7 @@ import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
 import { Campo, Seccion, TarjetaAccion } from "@/components/flota/Campos";
 import { Patente } from "@/components/flota/Visual";
+import BuscadorVehiculo from "@/components/flota/BuscadorVehiculo";
 import { CAMPO } from "@/lib/estilos";
 import {
   ETIQUETA_ESTADO_SERVICIO,
@@ -63,7 +63,6 @@ export default function FormularioServicio({
   const hoy = new Date().toISOString().slice(0, 10);
   const [abierta, setAbierta] = useState(false);
   const [vehiculoId, setVehiculoId] = useState(vehiculo?.id ?? "");
-  const [buscar, setBuscar] = useState("");
   const [tipo, setTipo] = useState<TipoServicio>(tipoInicial);
   const [estado, setEstado] = useState<EstadoServicio>("hecho");
   const [costo, setCosto] = useState("");
@@ -74,13 +73,10 @@ export default function FormularioServicio({
 
   const lista = vehiculos ?? [];
   const elegido = vehiculo ?? lista.find((v) => v.id === vehiculoId);
-  const filtro = buscar.trim().toLowerCase().replace(/[\s·.-]/g, "");
-  const visibles = filtro ? lista.filter((v) => `${v.patente}${v.nombre}`.toLowerCase().replace(/[\s·.-]/g, "").includes(filtro)) : lista;
 
   function abrir() {
     setError(null);
     setVehiculoId(vehiculo?.id ?? (lista.length === 1 ? lista[0].id : ""));
-    setBuscar("");
     setTipo(tipoInicial);
     setEstado("hecho");
     setCosto("");
@@ -162,28 +158,7 @@ export default function FormularioServicio({
           <div className="space-y-6">
             {!vehiculo && (
               <Seccion n={1} titulo="¿A qué vehículo?">
-                {lista.length > 6 && (
-                  <div className="relative">
-                    <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris" />
-                    <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar por patente o modelo" className={`${CAMPO} pl-9`} />
-                  </div>
-                )}
-                <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                  {visibles.map((v) => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      onClick={() => setVehiculoId(v.id)}
-                      className={`flex items-center gap-3 rounded-xl border p-2.5 text-left transition ${
-                        v.id === vehiculoId ? "border-naranjo bg-naranjo/[0.06] ring-2 ring-naranjo/15" : "border-borde hover:border-naranjo/40"
-                      }`}
-                    >
-                      <Patente patente={v.patente} chica />
-                      <span className="min-w-0 truncate text-sm text-tinta">{v.nombre}</span>
-                    </button>
-                  ))}
-                  {visibles.length === 0 && <p className="col-span-full py-3 text-center text-sm text-gris">Ningún vehículo coincide.</p>}
-                </div>
+                <BuscadorVehiculo vehiculos={lista} elegido={elegido} alElegir={setVehiculoId} />
               </Seccion>
             )}
 
