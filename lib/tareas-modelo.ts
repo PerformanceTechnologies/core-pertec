@@ -24,7 +24,10 @@ export interface Tarea {
   descripcion: string | null;
   estado: EstadoTarea;
   prioridad: Prioridad;
-  responsable: string | null;
+  /** Correos de los usuarios a cargo. */
+  responsables: string[];
+  /** Correo de quien asignó la tarea. */
+  asignadoPor: string | null;
   fechaLimite: string | null;
   orden: number;
   creadoPor: string | null;

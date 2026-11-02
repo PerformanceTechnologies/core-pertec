@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertCircle, IconCalendarEvent, IconPlus, IconSearch, IconTrash } from "@tabler/icons-react";
+import { IconAlertCircle, IconCalendarEvent, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
 import { CAMPO, SOMBRA_CALIDA } from "@/lib/estilos";
@@ -71,7 +71,7 @@ export default function TableroTareas({
     const q = busqueda.trim().toLowerCase();
     return tareas.filter(
       (t) =>
-        (!soloMias || t.responsable?.toLowerCase() === yo.toLowerCase()) &&
+        (!soloMias || t.responsables.some((c) => c.toLowerCase() === yo.toLowerCase())) &&
         (!q || t.titulo.toLowerCase().includes(q) || (t.descripcion ?? "").toLowerCase().includes(q)),
     );
   }, [tareas, busqueda, soloMias, yo]);
@@ -205,7 +205,8 @@ export default function TableroTareas({
                     {arrastrada && arrastrada !== t.id && destino?.estado === col.estado && destino.antesDe === t.id && <Marcador />}
                     <Tarjeta
                       tarea={t}
-                      nombre={t.responsable ? nombreDe.get(t.responsable.toLowerCase()) ?? t.responsable : null}
+                      personas={t.responsables.map((c) => ({ correo: c, nombre: nombreDe.get(c.toLowerCase()) ?? c }))}
+                      asignadoPor={t.asignadoPor ? nombreDe.get(t.asignadoPor.toLowerCase()) ?? t.asignadoPor : null}
                       arrastrando={arrastrada === t.id}
                       alArrastrar={() => setArrastrada(t.id)}
                       alPasarEncima={() => {
@@ -284,20 +285,81 @@ function Marcador() {
   return <div className="mx-1 mb-2 h-0.5 rounded-full bg-naranjo shadow-[0_0_0_3px_rgba(0,0,0,0)]" />;
 }
 
-function Avatar({ nombre, correo, chico = false }: { nombre: string; correo: string; chico?: boolean }) {
+function Avatar({ nombre, correo, chico = false, anillo = false }: { nombre: string; correo: string; chico?: boolean; anillo?: boolean }) {
   return (
     <span
       title={nombre}
-      className={`grid shrink-0 place-items-center rounded-full font-bold ${tonoDe(correo)} ${chico ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs"}`}
+      className={`grid shrink-0 place-items-center rounded-full bg-superficie font-bold ${chico ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs"} ${
+        anillo ? "ring-2 ring-superficie" : ""
+      }`}
     >
-      {iniciales(nombre)}
+      <span className={`grid h-full w-full place-items-center rounded-full ${tonoDe(correo)}`}>{iniciales(nombre)}</span>
     </span>
   );
 }
 
+/** Varios responsables: los elegidos como fichas, y una lista para sumar más. */
+function SelectorResponsables({
+  opciones,
+  elegidos,
+  setElegidos,
+  yo,
+}: {
+  opciones: Responsable[];
+  elegidos: string[];
+  setElegidos: (v: string[]) => void;
+  yo: string;
+}) {
+  const esYo = (c: string) => c.toLowerCase() === yo.toLowerCase();
+  const nombre = (c: string) => opciones.find((o) => o.correo.toLowerCase() === c.toLowerCase())?.nombre ?? c;
+  const libres = opciones.filter((o) => !elegidos.some((e) => e.toLowerCase() === o.correo.toLowerCase()));
+  return (
+    <div className="space-y-2">
+      {elegidos.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {elegidos.map((c) => (
+            <span key={c} className="inline-flex items-center gap-1.5 rounded-full border border-borde bg-superficie py-1 pl-1 pr-2 text-xs font-semibold text-tinta">
+              <Avatar nombre={nombre(c)} correo={c} chico />
+              {nombre(c)}
+              {esYo(c) ? " (tú)" : ""}
+              <input type="hidden" name="responsables" value={c} />
+              <button
+                type="button"
+                onClick={() => setElegidos(elegidos.filter((e) => e !== c))}
+                className="grid h-4 w-4 place-items-center rounded-full text-gris transition hover:bg-rose-500/10 hover:text-rose-600"
+                aria-label={`Quitar a ${nombre(c)}`}
+              >
+                <IconX size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {libres.length > 0 && (
+        <select
+          value=""
+          onChange={(e) => e.target.value && setElegidos([...elegidos, e.target.value])}
+          className={CAMPO}
+          aria-label="Agregar responsable"
+        >
+          <option value="">{elegidos.length ? "+ Agregar otro responsable" : "Sin asignar · elige responsables"}</option>
+          {libres.map((o) => (
+            <option key={o.correo} value={o.correo}>
+              {o.nombre}
+              {esYo(o.correo) ? " (tú)" : ""}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+
 function Tarjeta({
   tarea: t,
-  nombre,
+  personas,
+  asignadoPor,
   arrastrando,
   alArrastrar,
   alPasarEncima,
@@ -305,7 +367,8 @@ function Tarjeta({
   alAbrir,
 }: {
   tarea: Tarea;
-  nombre: string | null;
+  personas: Responsable[];
+  asignadoPor: string | null;
   arrastrando: boolean;
   alArrastrar: () => void;
   alPasarEncima: () => void;
@@ -357,7 +420,18 @@ function Tarjeta({
           </span>
         )}
         <span className="flex-1" />
-        {t.responsable && nombre && <Avatar nombre={nombre} correo={t.responsable} chico />}
+        {personas.length > 0 && (
+          <span className="flex -space-x-1.5" title={personas.map((p) => p.nombre).join(", ") + (asignadoPor ? ` · asignada por ${asignadoPor}` : "")}>
+            {personas.slice(0, 3).map((p) => (
+              <Avatar key={p.correo} nombre={p.nombre} correo={p.correo} chico anillo />
+            ))}
+            {personas.length > 3 && (
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-borde text-[10px] font-bold text-gris ring-2 ring-superficie">
+                +{personas.length - 3}
+              </span>
+            )}
+          </span>
+        )}
       </div>
     </article>
   );
@@ -380,6 +454,7 @@ function FormularioTarea({
   const [pendiente, iniciar] = useTransition();
   const t = edicion.tipo === "editar" ? edicion.tarea : null;
   const [prioridad, setPrioridad] = useState(t?.prioridad ?? "media");
+  const [elegidos, setElegidos] = useState<string[]>(t ? t.responsables : [yo]);
 
   function enviar(fd: FormData) {
     setError(null);
@@ -402,12 +477,14 @@ function FormularioTarea({
     });
   }
 
-  // Si el responsable guardado ya no es usuario activo, se mantiene visible en la lista.
-  const actual = t?.responsable ?? "";
-  const opciones =
-    actual && !responsables.some((r) => r.correo.toLowerCase() === actual.toLowerCase())
-      ? [...responsables, { correo: actual, nombre: `${actual} (inactivo)` }]
-      : responsables;
+  // Quien estaba en la tarea y ya no es usuario activo se sigue viendo, marcado como inactivo.
+  const previos = t ? [...t.responsables, ...(t.asignadoPor ? [t.asignadoPor] : [])] : [];
+  const opciones = [
+    ...responsables,
+    ...[...new Set(previos)]
+      .filter((c) => !responsables.some((r) => r.correo.toLowerCase() === c.toLowerCase()))
+      .map((c) => ({ correo: c, nombre: `${c} (inactivo)` })),
+  ];
 
   return (
     <form action={enviar} className="space-y-5">
@@ -425,10 +502,15 @@ function FormularioTarea({
         <textarea name="descripcion" rows={3} defaultValue={t?.descripcion ?? ""} className={CAMPO} placeholder="Detalles, links, contexto…" />
       </Campo>
 
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold text-gris">Responsables</span>
+        <SelectorResponsables opciones={opciones} elegidos={elegidos} setElegidos={setElegidos} yo={yo} />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
-        <Campo etiqueta="Responsable">
-          <select name="responsable" defaultValue={t ? actual : yo} className={CAMPO}>
-            <option value="">Sin asignar</option>
+        <Campo etiqueta="Asignado por">
+          <select name="asignadoPor" defaultValue={t ? t.asignadoPor ?? "" : yo} className={CAMPO}>
+            <option value="">—</option>
             {opciones.map((r) => (
               <option key={r.correo} value={r.correo}>
                 {r.nombre}

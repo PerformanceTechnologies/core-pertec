@@ -27,7 +27,7 @@ export async function listarResponsables(): Promise<Responsable[]> {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const aTarea = (r: any): Tarea => ({
   id: r.id, titulo: r.titulo, descripcion: r.descripcion, estado: r.estado, prioridad: r.prioridad,
-  responsable: r.responsable, fechaLimite: r.fecha_limite, orden: Number(r.orden),
+  responsables: r.responsables ?? [], asignadoPor: r.asignado_por ?? null, fechaLimite: r.fecha_limite, orden: Number(r.orden),
   creadoPor: r.creado_por, creadoEn: r.creado_en,
 });
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -46,7 +46,8 @@ export interface DatosTarea {
   titulo: string;
   descripcion: string | null;
   prioridad: Prioridad;
-  responsable: string | null;
+  responsables: string[];
+  asignadoPor: string | null;
   fechaLimite: string | null;
 }
 
@@ -55,7 +56,7 @@ export async function crearTarea(estado: EstadoTarea, d: DatosTarea, creadoPor: 
   const { data: ultima } = await supabaseAdmin
     .from(TABLA).select("orden").eq("estado", estado).order("orden", { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await supabaseAdmin.from(TABLA).insert({
-    titulo: d.titulo, descripcion: d.descripcion, prioridad: d.prioridad, responsable: d.responsable,
+    titulo: d.titulo, descripcion: d.descripcion, prioridad: d.prioridad, responsables: d.responsables, asignado_por: d.asignadoPor,
     fecha_limite: d.fechaLimite, estado, orden: Number(ultima?.orden ?? 0) + 1000, creado_por: creadoPor,
   }).select("id").single();
   revienta("crear tarea", error);
@@ -64,10 +65,16 @@ export async function crearTarea(estado: EstadoTarea, d: DatosTarea, creadoPor: 
 
 export async function actualizarTarea(id: string, d: DatosTarea): Promise<void> {
   const { error } = await supabaseAdmin.from(TABLA).update({
-    titulo: d.titulo, descripcion: d.descripcion, prioridad: d.prioridad, responsable: d.responsable,
+    titulo: d.titulo, descripcion: d.descripcion, prioridad: d.prioridad, responsables: d.responsables, asignado_por: d.asignadoPor,
     fecha_limite: d.fechaLimite, actualizado_en: new Date().toISOString(),
   }).eq("id", id);
   revienta("guardar tarea", error);
+}
+
+export async function obtenerTarea(id: string): Promise<Tarea | null> {
+  const { data, error } = await supabaseAdmin.from(TABLA).select("*").eq("id", id).maybeSingle();
+  revienta("leer tarea", error);
+  return data ? aTarea(data) : null;
 }
 
 export async function moverTarea(id: string, estado: EstadoTarea, orden: number): Promise<void> {

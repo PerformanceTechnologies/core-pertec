@@ -23,6 +23,11 @@ assert.ok(sql.includes(`check (estado in (${COLUMNAS.map((c) => `'${c.estado}'`)
 assert.ok(sql.includes("check (prioridad in ('baja', 'media', 'alta'))"));
 assert.ok(sql.includes("enable row level security"));
 
+// Varios responsables y quién asignó: la migración copia el responsable de antes a la lista.
+const sql2 = readFileSync("supabase/tareas/0002_varios_responsables.sql", "utf8");
+assert.ok(sql2.includes("responsables text[]") && sql2.includes("asignado_por text"));
+assert.ok(sql2.includes("set responsables = array[responsable]"));
+
 // Toda Server Action exige la app antes de escribir.
 const acciones = readFileSync("app/(protegido)/tareas/acciones.ts", "utf8");
 const exportadas = acciones.match(/export async function \w+/g) ?? [];

@@ -2,7 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
-import { actualizarTarea, crearTarea, eliminarTarea, listarResponsables, moverTarea, type DatosTarea } from "@/lib/tareas";
+import {
+  actualizarTarea,
+  crearTarea,
+  eliminarTarea,
+  listarResponsables,
+  moverTarea,
+  obtenerTarea,
+  type DatosTarea,
+} from "@/lib/tareas";
 import { SLUG_APP_TAREAS, esEstado, esPrioridad } from "@/lib/tareas-modelo";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
@@ -12,22 +20,30 @@ function fallo(e: unknown): Resultado {
   return { ok: false, error };
 }
 
-// Del formulario llega cualquier cosa: se arma la fila campo por campo. El responsable
-// se guarda por correo y tiene que ser una persona activa del Core.
-async function leerDatos(fd: FormData): Promise<DatosTarea | string> {
+// Del formulario llega cualquier cosa: se arma la fila campo por campo. Responsables y
+// "asignado por" se guardan por correo y tienen que ser personas activas del Core; al
+// editar, se aceptan también los que la tarea ya tenía (alguien que después se desactivó).
+async function leerDatos(fd: FormData, yaEstaban: string[] = []): Promise<DatosTarea | string> {
   const titulo = String(fd.get("titulo") ?? "").trim().slice(0, 200);
   if (!titulo) return "El título es obligatorio.";
   const prioridad = String(fd.get("prioridad") ?? "media");
   const fecha = String(fd.get("fechaLimite") ?? "");
-  const responsable = String(fd.get("responsable") ?? "").trim().toLowerCase();
-  if (responsable && !(await listarResponsables()).some((r) => r.correo.toLowerCase() === responsable)) {
-    return "El responsable tiene que ser un usuario activo del Core.";
-  }
+  const validos = new Set([
+    ...(await listarResponsables()).map((r) => r.correo.toLowerCase()),
+    ...yaEstaban.map((c) => c.toLowerCase()),
+  ]);
+  const responsables = [
+    ...new Set(fd.getAll("responsables").map((v) => String(v).trim().toLowerCase()).filter(Boolean)),
+  ].slice(0, 20);
+  if (responsables.some((c) => !validos.has(c))) return "Los responsables tienen que ser usuarios activos del Core.";
+  const asignadoPor = String(fd.get("asignadoPor") ?? "").trim().toLowerCase();
+  if (asignadoPor && !validos.has(asignadoPor)) return "«Asignado por» tiene que ser un usuario activo del Core.";
   return {
     titulo,
     descripcion: String(fd.get("descripcion") ?? "").trim().slice(0, 4000) || null,
     prioridad: esPrioridad(prioridad) ? prioridad : "media",
-    responsable: responsable || null,
+    responsables,
+    asignadoPor: asignadoPor || null,
     fechaLimite: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null,
   };
 }
@@ -49,7 +65,9 @@ export async function crearTareaAction(estado: string, fd: FormData): Promise<Re
 export async function actualizarTareaAction(id: string, fd: FormData): Promise<Resultado> {
   try {
     await exigirAccesoApp(SLUG_APP_TAREAS);
-    const datos = await leerDatos(fd);
+    const actual = await obtenerTarea(id);
+    if (!actual) return { ok: false, error: "Esa tarea ya no existe." };
+    const datos = await leerDatos(fd, [...actual.responsables, ...(actual.asignadoPor ? [actual.asignadoPor] : [])]);
     if (typeof datos === "string") return { ok: false, error: datos };
     await actualizarTarea(id, datos);
     revalidatePath("/tareas");
