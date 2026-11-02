@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   IconAlertCircle,
@@ -374,20 +374,12 @@ function SelectorResponsables({
         </div>
       )}
       {libres.length > 0 && (
-        <select
-          value=""
-          onChange={(e) => e.target.value && setElegidos([...elegidos, e.target.value])}
-          className={CAMPO}
-          aria-label="Agregar responsable"
-        >
-          <option value="">{elegidos.length ? "+ Agregar otro responsable" : "Sin asignar · elige responsables"}</option>
-          {libres.map((o) => (
-            <option key={o.correo} value={o.correo}>
-              {o.nombre}
-              {esYo(o.correo) ? " (tú)" : ""}
-            </option>
-          ))}
-        </select>
+        <BuscadorPersona
+          opciones={libres}
+          yo={yo}
+          placeholder={elegidos.length ? "+ Agregar otro responsable: escribe un nombre" : "Escribe un nombre para asignar"}
+          alElegir={(c) => setElegidos([...elegidos, c])}
+        />
       )}
     </div>
   );
@@ -1036,6 +1028,112 @@ function Actividad({ notas, historial }: { notas: React.ReactNode; historial: Re
       </div>
       <div className={pestana === "notas" ? "" : "hidden"}>{notas}</div>
       <div className={pestana === "historial" ? "" : "hidden"}>{historial}</div>
+    </div>
+  );
+}
+
+/**
+ * Un campo donde se escribe y se elige a una persona: filtra por nombre o correo (sin
+ * importar tildes ni mayúsculas) y se maneja también con el teclado (↑ ↓, Enter, Esc).
+ */
+function BuscadorPersona({
+  opciones,
+  yo,
+  placeholder,
+  alElegir,
+}: {
+  opciones: Responsable[];
+  yo: string;
+  placeholder: string;
+  alElegir: (correo: string) => void;
+}) {
+  const [texto, setTexto] = useState("");
+  const [abierto, setAbierto] = useState(false);
+  const [marcado, setMarcado] = useState(0);
+  const idLista = useId();
+  const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const q = sinTildes(texto.trim());
+  const filtradas = opciones.filter((o) => !q || sinTildes(o.nombre).includes(q) || o.correo.toLowerCase().includes(q)).slice(0, 8);
+  const esYo = (c: string) => c.toLowerCase() === yo.toLowerCase();
+
+  function elegir(o: Responsable) {
+    alElegir(o.correo);
+    setTexto("");
+    setMarcado(0);
+  }
+
+  return (
+    <div className="relative">
+      <IconSearch size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris-suave" />
+      <input
+        value={texto}
+        onChange={(e) => {
+          setTexto(e.target.value);
+          setAbierto(true);
+          setMarcado(0);
+        }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setAbierto(false)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setAbierto(true);
+            setMarcado((m) => Math.min(m + 1, filtradas.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setMarcado((m) => Math.max(m - 1, 0));
+          } else if (e.key === "Enter") {
+            // Enter elige a la persona marcada y NO envía el formulario de la tarea.
+            e.preventDefault();
+            if (abierto && filtradas[marcado]) elegir(filtradas[marcado]);
+          } else if (e.key === "Escape" && abierto) {
+            e.stopPropagation();
+            setAbierto(false);
+          }
+        }}
+        placeholder={placeholder}
+        className={`${CAMPO} pl-9`}
+        role="combobox"
+        aria-controls={idLista}
+        aria-expanded={abierto}
+        aria-autocomplete="list"
+        aria-label="Buscar responsable"
+      />
+      {abierto && (
+        <ul
+          id={idLista}
+          role="listbox"
+          className="absolute inset-x-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border border-borde bg-superficie py-1 shadow-xl"
+        >
+          {filtradas.length === 0 ? (
+            <li className="px-3 py-2.5 text-xs text-gris">Nadie con «{texto}».</li>
+          ) : (
+            filtradas.map((o, i) => (
+              <li
+                key={o.correo}
+                role="option"
+                aria-selected={i === marcado}
+                // onMouseDown y no onClick: el clic llega antes de que el input pierda el foco y cierre la lista.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  elegir(o);
+                }}
+                onMouseEnter={() => setMarcado(i)}
+                className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm ${i === marcado ? "bg-naranjo/[0.07]" : ""}`}
+              >
+                <Avatar nombre={o.nombre} correo={o.correo} chico />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold text-tinta">
+                    {o.nombre}
+                    {esYo(o.correo) && <span className="ml-1 font-normal text-gris">(tú)</span>}
+                  </span>
+                  <span className="block truncate text-[11px] text-gris">{o.correo}</span>
+                </span>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
     </div>
   );
 }
