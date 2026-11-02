@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { IconChevronRight } from "@tabler/icons-react";
 import FormularioProducto from "@/components/inventario/FormularioProducto";
+import { FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
 import { listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades } from "@/lib/inventario";
 import {
   ETIQUETA_CERTIFICADO,
@@ -42,7 +43,7 @@ export default async function ProductosPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-borde text-left text-xs font-semibold uppercase tracking-wide text-gris">
+                <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
                   <th className="px-4 py-3">Producto</th>
                   <th className="px-4 py-3">Categoría</th>
                   <th className="px-4 py-3">Tipo</th>
@@ -55,19 +56,28 @@ export default async function ProductosPage() {
               </thead>
               <tbody className="divide-y divide-borde">
                 {productos.map((p) => (
-                  <tr key={p.id} className="group transition hover:bg-borde/30">
+                  <tr key={p.id} className="group transition hover:bg-tinta/[0.02]">
                     <td className="px-4 py-3">
-                      <Link href={`/inventario/productos/${p.id}`} className="block">
-                        <span className="font-semibold text-tinta">{p.nombre}</span>
+                      <Link href={`/inventario/productos/${p.id}`} className="flex items-start gap-3">
+                        <FichaProducto nombre={p.nombre} categoria={p.categoriaId ? nombreCat.get(p.categoriaId) ?? null : null} />
+                        <span className="min-w-0">
+                        <span className="font-semibold text-tinta group-hover:text-naranjo">{p.nombre}</span>
                         <span className="block text-xs text-gris">
                           {p.sku ? <span className="font-mono">{p.sku}</span> : "sin SKU"}
                           {p.seguimiento !== "ninguno" ? ` · ${ETIQUETA_SEGUIMIENTO[p.seguimiento]}` : ""}
                           {p.ubicacionId && nombreUbi.get(p.ubicacionId) ? ` · ${nombreUbi.get(p.ubicacionId)}` : ""}
                         </span>
                         <Avisos producto={p} />
+                        </span>
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-gris">{p.categoriaId ? nombreCat.get(p.categoriaId) ?? "—" : "—"}</td>
+                    <td className="px-4 py-3">
+                      {p.categoriaId && nombreCat.get(p.categoriaId) ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tonoDeTexto(nombreCat.get(p.categoriaId)!)}`}>{nombreCat.get(p.categoriaId)}</span>
+                      ) : (
+                        <span className="text-gris-suave">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gris">{ETIQUETA_TIPO_PRODUCTO[p.tipo]}</td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-tinta">
                       {p.tipo === "servicio" ? "—" : `${formatearCantidad(p.aMano)} ${abrevUni.get(p.unidadId ?? "") ?? ""}`}

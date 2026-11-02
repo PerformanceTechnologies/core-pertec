@@ -113,7 +113,7 @@ export default function FormularioProducto({
         className={
           editar
             ? "inline-flex items-center gap-1.5 rounded-lg border border-borde px-3 py-2 text-sm font-semibold text-azul transition hover:border-cian"
-            : "inline-flex items-center gap-1.5 rounded-lg bg-azul px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-azul-suave"
+            : "inline-flex items-center gap-1.5 rounded-lg bg-naranjo px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
         }
       >
         {editar ? <IconPencil size={16} /> : <IconPlus size={16} />}

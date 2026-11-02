@@ -1,6 +1,6 @@
 import Link from "next/link";
 import FormularioAjuste from "@/components/inventario/FormularioAjuste";
-import { ChipEstado } from "@/app/(protegido)/inventario/page";
+import { ChipEstado } from "@/components/inventario/Visual";
 import { listarProductosConStock, listarTransferencias, listarUbicaciones } from "@/lib/inventario";
 import { TARJETA } from "@/lib/estilos";
 

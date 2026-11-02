@@ -6,13 +6,16 @@ import { TARJETA } from "@/lib/estilos";
 
 export const dynamic = "force-dynamic";
 
-export default async function NuevaOperacionPage() {
-  const [tipos, productos, ubicaciones, unidades] = await Promise.all([
+export default async function NuevaOperacionPage({ searchParams }: { searchParams: Promise<{ clase?: string }> }) {
+  const { clase } = await searchParams;
+  const [todosLosTipos, productos, ubicaciones, unidades] = await Promise.all([
     listarTiposOperacion(),
     listarProductosConStock(),
     listarUbicaciones(),
     listarUnidades(),
   ]);
+  // Desde los atajos del tablero (?clase=recepcion) se abre con ese tipo elegido.
+  const tipos = clase ? [...todosLosTipos].sort((a, b) => Number(b.clase === clase) - Number(a.clase === clase)) : todosLosTipos;
   const abrevUni = new Map(unidades.map((u) => [u.id, u.abreviacion]));
 
   // Lotes de los productos que llevan seguimiento (para asignarlos en la línea).

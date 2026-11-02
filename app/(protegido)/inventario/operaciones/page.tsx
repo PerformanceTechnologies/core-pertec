@@ -3,7 +3,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { listarTransferencias } from "@/lib/inventario";
 import { ETIQUETA_CLASE, type ClaseOperacion } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
-import { ChipEstado } from "@/app/(protegido)/inventario/page";
+import { ChipEstado, IconoClase } from "@/components/inventario/Visual";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +29,14 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
               <Link
                 key={f.clave}
                 href={f.clave ? `/inventario/operaciones?clase=${f.clave}` : "/inventario/operaciones"}
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${on ? "bg-azul text-white" : "border border-borde text-gris hover:text-tinta"}`}
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${on ? "border-tinta bg-tinta text-superficie" : "border-borde bg-superficie text-gris hover:border-naranjo/50 hover:text-tinta"}`}
               >
                 {f.etiqueta}
               </Link>
             );
           })}
         </div>
-        <Link href="/inventario/operaciones/nueva" className="inline-flex items-center gap-1.5 rounded-lg bg-azul px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-azul-suave">
+        <Link href="/inventario/operaciones/nueva" className="inline-flex items-center gap-1.5 rounded-lg bg-naranjo px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave">
           <IconPlus size={16} /> Nueva operación
         </Link>
       </div>
@@ -50,9 +50,8 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-borde text-left text-xs font-semibold uppercase tracking-wide text-gris">
+                <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
                   <th className="px-4 py-3">Documento</th>
-                  <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3">Contraparte</th>
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Estado</th>
@@ -60,11 +59,16 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
               </thead>
               <tbody className="divide-y divide-borde">
                 {transferencias.map((t) => (
-                  <tr key={t.id} className="transition hover:bg-borde/30">
+                  <tr key={t.id} className="transition hover:bg-tinta/[0.02]">
                     <td className="px-4 py-3">
-                      <Link href={`/inventario/operaciones/${t.id}`} className="font-mono font-bold text-azul hover:underline">{t.referencia}</Link>
+                      <Link href={`/inventario/operaciones/${t.id}`} className="flex items-center gap-3">
+                        <IconoClase clase={t.clase} chico />
+                        <span>
+                          <span className="block font-mono font-bold text-tinta hover:text-naranjo">{t.referencia}</span>
+                          <span className="block text-xs text-gris">{ETIQUETA_CLASE[t.clase]}</span>
+                        </span>
+                      </Link>
                     </td>
-                    <td className="px-4 py-3 text-gris">{ETIQUETA_CLASE[t.clase]}</td>
                     <td className="px-4 py-3 text-gris">{t.contraparte ?? "—"}</td>
                     <td className="px-4 py-3 text-gris">{new Date(t.creadoEn).toLocaleDateString("es-CL")}</td>
                     <td className="px-4 py-3"><ChipEstado estado={t.estado} /></td>

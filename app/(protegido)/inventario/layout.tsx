@@ -11,12 +11,12 @@ export default async function LayoutInventario({ children }: { children: React.R
   return (
     <div className="animar-entrada">
       <header className="mb-5 flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-azul/10 text-azul">
-          <IconBuildingWarehouse size={22} stroke={1.75} />
+        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-naranjo text-white shadow-sm">
+          <IconBuildingWarehouse size={23} stroke={1.75} />
         </span>
         <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-tinta">Inventario</h1>
-          <p className="text-sm text-gris">Control de stock de doble entrada</p>
+          <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Inventario</h1>
+          <p className="text-sm text-gris">Stock, bodegas y movimientos de doble entrada</p>
         </div>
       </header>
       <FiltroDeEmpresa>

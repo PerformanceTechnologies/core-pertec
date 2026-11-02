@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconArrowLeft } from "@tabler/icons-react";
 import AccionesTransferencia from "@/components/inventario/AccionesTransferencia";
-import { ChipEstado } from "@/app/(protegido)/inventario/page";
+import { ChipEstado } from "@/components/inventario/Visual";
 import { listarProductosConStock, listarUbicaciones, obtenerTransferencia } from "@/lib/inventario";
 import { ETIQUETA_CLASE, formatearCantidad } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
