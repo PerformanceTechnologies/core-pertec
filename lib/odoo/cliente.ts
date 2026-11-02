@@ -2,12 +2,13 @@ import "server-only";
 
 // Cliente JSON-RPC generico contra Odoo (mismo patron que el script
 // exploratorio scripts/probar-odoo.mjs, pero reutilizable desde lib/).
+// Lo usan Rendir Gastos (lib/rendidor) y el Cotizador (lib/cotizador/clientes-odoo.ts).
 // Por defecto solo lectura: no se expone un execute_kw generico, para que
-// sea imposible que un sincronizador futuro escriba por error en la
-// instancia de Odoo que el equipo sigue desarrollando. La unica excepcion es
-// odooCreate — necesaria para crear clientes (res.partner) desde el
-// Cotizador (ver lib/cotizador/clientes-odoo.ts) — expuesta a proposito y de
-// forma acotada (un solo metodo, "create"), no un wildcard de escritura.
+// sea imposible que un modulo futuro escriba por error en la instancia de
+// Odoo que el equipo sigue desarrollando. La unica excepcion es odooCreate —
+// necesaria para crear clientes (res.partner) desde el Cotizador y gastos
+// (hr.expense) desde Rendir Gastos — expuesta a proposito y de forma
+// acotada (un solo metodo, "create"), no un wildcard de escritura.
 
 interface ConfigOdoo {
   url: string;
@@ -89,8 +90,8 @@ async function obtenerUid(config: ConfigOdoo): Promise<number> {
   return uid;
 }
 
-// searchRead cubre todo lo que necesitan los sincronizadores de Panel Odoo:
-// no se expone un execute_kw generico para no tentar a usarlo para escribir.
+// searchRead cubre todo lo que necesitan las lecturas del Core: no se expone
+// un execute_kw generico para no tentar a usarlo para escribir.
 export async function odooSearchRead<T = Record<string, unknown>>(
   model: string,
   domain: unknown[],

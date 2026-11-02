@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const resultado = await limpiar(simular);
     console.log(
       `[limpieza] ${simular ? "simulacion" : "corrida"}: ` +
-        `${resultado.sincronizaciones} sincronizaciones, ${resultado.resumenes} resumenes, ` +
+        `${resultado.resumenes} resumenes, ` +
         `${resultado.respaldos.borrados} respaldos (${Math.round(resultado.respaldos.bytes / 1024)} KB)`,
     );
     return NextResponse.json({ ok: true, ...resultado });

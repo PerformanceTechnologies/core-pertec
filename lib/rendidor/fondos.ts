@@ -1,5 +1,5 @@
 import "server-only";
-import { odooCampos, odooCreate, odooSearchRead } from "../panel-odoo/odoo-cliente";
+import { odooCampos, odooCreate, odooSearchRead } from "../odoo/cliente";
 
 /**
  * El "Fondo por Rendir" de Odoo (`hr.expense.advance`).

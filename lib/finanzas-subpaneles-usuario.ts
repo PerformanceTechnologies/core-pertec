@@ -2,11 +2,10 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
 import { SUBPANELES_FINANZAS } from "./finanzas-subpaneles";
 
-// Igual patron que lib/panel-odoo/modulos-usuario.ts (checkbox: sin marcar
-// ninguno = ve todos, marcar alguno = restringe a solo esos) -- CON UNA
-// EXCEPCION: "facturas-ih" es informacion tributaria sensible de ambas
-// empresas, asi que para ese slug puntual "sin fila" significa SIN ACCESO,
-// no "ve todo". Por eso no se puede reusar reemplazarModulosOdoo tal cual.
+// Patron de checkbox: sin marcar ninguno = ve todos, marcar alguno =
+// restringe a solo esos -- CON UNA EXCEPCION: "facturas-ih" es informacion
+// tributaria sensible de ambas empresas, asi que para ese slug puntual
+// "sin fila" significa SIN ACCESO, no "ve todo".
 const SLUGS_DENEGADOS_POR_DEFECTO = new Set(["facturas-ih"]);
 
 // Filas guardadas tal cual, sin default -- lo usa el formulario de admin

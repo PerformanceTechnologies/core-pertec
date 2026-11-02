@@ -3,21 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconSunHigh } from "@tabler/icons-react";
+import BuzonNotificaciones from "@/components/BuzonNotificaciones";
 import SelectorEmpresa from "@/components/SelectorEmpresa";
 import type { Empresa } from "@/lib/empresas-modelo";
 
 /**
- * Arriba a la derecha de toda página: Mi Día y el cambio de empresa.
+ * Arriba a la derecha de toda página, de izquierda a derecha: las notificaciones,
+ * Mi Día y el cambio de empresa.
  *
- * Mi Día salió del menú de la izquierda para estar siempre a mano, y la
- * empresa va al lado porque es el contexto de todo lo que se ve abajo.
+ * Mi Día salió del menú de la izquierda para estar siempre a mano, y las
+ * notificaciones —que vivían abajo en ese menú— se vinieron a su lado. La
+ * empresa va al final porque es el contexto de todo lo que se ve abajo.
  */
 export default function BarraSuperior({
   veMiDia,
+  mostrarBuzon,
   empresaActiva,
   empresasPermitidas,
 }: {
   veMiDia: boolean;
+  /** El buzón es de PERTEC: parado en otra empresa no se muestra. */
+  mostrarBuzon: boolean;
   empresaActiva: Empresa | null;
   empresasPermitidas: Empresa[];
 }) {
@@ -26,6 +32,7 @@ export default function BarraSuperior({
 
   return (
     <div className="mb-4 flex items-center justify-end gap-2">
+      {mostrarBuzon && <BuzonNotificaciones />}
       {veMiDia && (
         <Link
           href="/mi-dia"

@@ -54,7 +54,7 @@ Odoo, Contratos, sincronizaciones del SII).
   idempotente (`if not exists`, `create or replace`) y revisado en el PR.
 - Se aplica **primero en la base de desarrollo**, luego en producción cuando el PR se mezcla,
   y se avisa a la otra persona.
-- Tablas con `CHECK` (p. ej. `facturas_sii.estado`, `rol_extra`, los módulos de Panel Odoo):
+- Tablas con `CHECK` (p. ej. `facturas_sii.estado`, `rol_extra`):
   agregar un valor nuevo exige migración o la escritura falla en producción.
 
 ## Secretos y variables

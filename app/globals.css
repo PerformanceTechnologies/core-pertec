@@ -189,42 +189,6 @@
   fill-opacity: 0.1;
 }
 
-/* 4. Las tarjetas de Panel Odoo.
-   Cada módulo tiene su color y la tarjeta lo llevaba como fondo tintado al 6%
-   —sin superficie propia—, así que en claro se leía como una tarjeta apenas
-   teñida y en oscuro como una mancha marrón o verdosa directamente sobre el
-   fondo de la página: dejaba de parecer una tarjeta. Ahora el fondo es la
-   superficie del tema con un lavado del color del módulo encima, que es lo
-   mismo que se veía en claro y lo correcto en oscuro. */
-.tarjeta-modulo {
-  background-color: color-mix(in srgb, var(--color-superficie) 94%, var(--acento-modulo, transparent));
-  border-color: color-mix(in srgb, var(--acento-modulo, var(--color-borde)) 22%, transparent);
-}
-[data-theme="dark"] .tarjeta-modulo {
-  /* Un poco más de color y de borde: sobre fondo oscuro, un 6% de tinte no se
-     distingue de la superficie plana. */
-  background-color: color-mix(in srgb, var(--color-superficie) 90%, var(--acento-modulo, transparent));
-  border-color: color-mix(in srgb, var(--acento-modulo, var(--color-borde)) 30%, transparent);
-}
-.acento-naranjo {
-  --acento-modulo: var(--color-naranjo);
-}
-.acento-naranjo-suave {
-  --acento-modulo: var(--color-naranjo-suave);
-}
-.acento-teal {
-  --acento-modulo: var(--color-teal);
-}
-.acento-teal-suave {
-  --acento-modulo: var(--color-teal-suave);
-}
-.acento-gris {
-  --acento-modulo: var(--color-gris);
-}
-.acento-gris-suave {
-  --acento-modulo: var(--color-gris-suave);
-}
-
 /* 5. La banda de Mi Día.
    Es el bloque de máximo contraste de esa pantalla y en claro funciona: un
    degradado de tinta sobre la página clara. Invertido se volvía una placa casi

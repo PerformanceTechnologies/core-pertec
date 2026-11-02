@@ -25,7 +25,6 @@ import { logoCompletoDe, logoDe, type Empresa } from "@/lib/empresas-modelo";
 import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
-import BuzonNotificaciones from "@/components/BuzonNotificaciones";
 import { BARRA_FIJA } from "@/lib/estilos";
 import type { Aplicacion, Rol } from "@/lib/tipos";
 import type { ContratoDelMenu } from "@/lib/contratos/contratos";
@@ -70,25 +69,6 @@ function leerTema(): "light" | "dark" {
 }
 function leerTemaServidor(): "light" | "dark" {
   return "light";
-}
-
-// Los grupos del menú que la persona plegó, por título. Mismo patrón que la
-// barra colapsada: localStorage + evento propio + useSyncExternalStore.
-const CLAVE_GRUPOS = "core-menu-grupos-plegados";
-const EVENTO_GRUPOS = "core-menu-grupos-cambio";
-function suscribirseGrupos(callback: () => void) {
-  window.addEventListener("storage", callback);
-  window.addEventListener(EVENTO_GRUPOS, callback);
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener(EVENTO_GRUPOS, callback);
-  };
-}
-function leerGrupos() {
-  return localStorage.getItem(CLAVE_GRUPOS) ?? "[]";
-}
-function leerGruposServidor() {
-  return "[]";
 }
 
 function suscribirseDesktop(callback: () => void) {
@@ -169,7 +149,6 @@ export default function BarraLateral({
   rol,
   apps,
   contratos = [],
-  mostrarBuzon = true,
   empresaActiva = null,
   subpanelesFinanzas = [],
 }: {
@@ -178,7 +157,6 @@ export default function BarraLateral({
   apps: Aplicacion[];
   /** Los contratos, para el submenú de «Contratos». */
   contratos?: ContratoDelMenu[];
-  mostrarBuzon?: boolean;
   /** La empresa activa: su logo va arriba del menú. */
   empresaActiva?: Empresa | null;
   /** Los subpaneles de Finanzas que la persona tiene concedidos, para el grupo «Finanzas». */
@@ -225,23 +203,19 @@ export default function BarraLateral({
   // ve expandido aunque quede guardada como colapsada.
   const colapsado = colapsada && esDesktop;
 
-  const gruposPlegadosJson = useSyncExternalStore(suscribirseGrupos, leerGrupos, leerGruposServidor);
-  let gruposPlegados: string[] = [];
-  try {
-    gruposPlegados = JSON.parse(gruposPlegadosJson);
-  } catch {}
+  // Los grupos del menú que están DESPLEGADOS, por título. Arranca vacío: al cargar, todos los
+  // módulos aparecen minimizados. Es estado de React y no de localStorage a propósito: la barra
+  // vive en el layout, así que navegar entre páginas no lo pierde, pero recargar vuelve a dejar
+  // todo minimizado, que es lo que se pidió.
+  const [gruposAbiertos, setGruposAbiertos] = useState<string[]>([]);
   function alternarGrupo(titulo: string) {
-    const nuevos = gruposPlegados.includes(titulo)
-      ? gruposPlegados.filter((t) => t !== titulo)
-      : [...gruposPlegados, titulo];
-    localStorage.setItem(CLAVE_GRUPOS, JSON.stringify(nuevos));
-    window.dispatchEvent(new Event(EVENTO_GRUPOS));
+    setGruposAbiertos((actuales) =>
+      actuales.includes(titulo) ? actuales.filter((t) => t !== titulo) : [...actuales, titulo],
+    );
   }
-  const adminPlegado =
-    !colapsado &&
-    gruposPlegados.includes("Administración") &&
-    !esRutaActiva("/usuarios", pathname) &&
-    !esRutaActiva("/aplicaciones", pathname);
+  // Con la barra en modo íconos no hay títulos que plegar: se ven todos los módulos como íconos.
+  const adminPlegado = !colapsado && !gruposAbiertos.includes("Administración");
+  const adminConActiva = esRutaActiva("/usuarios", pathname) || esRutaActiva("/aplicaciones", pathname);
 
   // Sincroniza el atributo que globals.css usa para pintar el tema oscuro.
   // No guarda estado de React, solo refleja "tema" hacia afuera -- uso
@@ -311,21 +285,28 @@ export default function BarraLateral({
           <p className="mt-6 px-2.5 py-2 text-xs text-tinta/40">Sin aplicaciones asignadas</p>
         )}
         {grupos.map((grupo, i) => {
-          // Plegado, el grupo igual se muestra si adentro está la página abierta:
-          // si no, no habría cómo ver dónde está uno parado.
+          // El botón de plegar SIEMPRE funciona: ya no se fuerza abierto el grupo donde está la
+          // página actual (eso hacía que el botón pareciera roto ahí). Para no perder el "dónde
+          // estoy", el título del grupo plegado que contiene la página abierta se marca (ver
+          // TituloDeGrupo).
           const conActiva = grupo.items.some(
             (it) =>
               (it.tipo === "enlace" && esRutaActiva(it.href, pathname)) ||
               (it.tipo === "app" && it.app.tipo === "interna" && esRutaActiva(it.app.url, pathname)),
           );
           const titulo = grupo.titulo;
-          const plegado = !colapsado && !!titulo && gruposPlegados.includes(titulo) && !conActiva;
+          const plegado = !colapsado && !!titulo && !gruposAbiertos.includes(titulo);
           return (
           <div key={titulo ?? `suelto-${i}`}>
             {colapsado ? (
               <div className="mx-1 mb-2 mt-4 border-t border-borde" />
             ) : titulo ? (
-              <TituloDeGrupo titulo={titulo} plegado={plegado} alAlternar={() => alternarGrupo(titulo)} />
+              <TituloDeGrupo
+                titulo={titulo}
+                plegado={plegado}
+                conActiva={conActiva}
+                alAlternar={() => alternarGrupo(titulo)}
+              />
             ) : (
               <div className="mt-4" />
             )}
@@ -397,7 +378,7 @@ const Icono = obtenerIcono(app.icono);
 
                 const activa = esRutaActiva(href, pathname);
                 const clases = clasesItem(activa, colapsado);
-                // La descripción de la app, en el tooltip: "Panel Odoo" o "Cotizador"
+                // La descripción de la app, en el tooltip: "Rendir Gastos" o "Cotizador"
                 // no dicen mucho de afuera, y el dato ya está cargado.
                 const titulo = [nombre, app.descripcion].filter(Boolean).join(" — ");
                 const secciones = SECCIONES_DE_MODULO[href] ?? [];
@@ -441,6 +422,7 @@ const Icono = obtenerIcono(app.icono);
               <TituloDeGrupo
                 titulo="Administración"
                 plegado={adminPlegado}
+                conActiva={adminConActiva}
                 alAlternar={() => alternarGrupo("Administración")}
               />
             )}
@@ -465,12 +447,6 @@ const Icono = obtenerIcono(app.icono);
           </>
         )}
       </nav>
-
-      {mostrarBuzon && (
-        <div className="border-t border-borde px-3 py-2">
-          <BuzonNotificaciones colapsado={colapsado} />
-        </div>
-      )}
 
       <div className="border-t border-borde px-3 py-3">
         {colapsado ? (
@@ -819,10 +795,13 @@ function LogoDeEmpresa({
 function TituloDeGrupo({
   titulo,
   plegado,
+  conActiva,
   alAlternar,
 }: {
   titulo: string;
   plegado: boolean;
+  /** La página abierta cuelga de este grupo: plegado, se marca para saber dónde está uno parado. */
+  conActiva: boolean;
   alAlternar: () => void;
 }) {
   return (
@@ -830,7 +809,9 @@ function TituloDeGrupo({
       type="button"
       onClick={alAlternar}
       aria-expanded={!plegado}
-      className="group mt-5 mb-1 flex w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-[13px] font-bold uppercase tracking-wide text-tinta/70 transition hover:text-tinta"
+      className={`group mt-5 mb-1 flex w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-[13px] font-bold uppercase tracking-wide transition ${
+        conActiva ? "text-naranjo" : "text-tinta/70 hover:text-tinta"
+      }`}
     >
       <span className="h-[2px] w-3 shrink-0 rounded-full bg-naranjo/70" />
       <span className="flex-1 truncate">{titulo}</span>

@@ -10,25 +10,32 @@ const todas = [
   app("/finanzas", "Herramientas Finanzas"), app("/rendir-gastos", "Rendir Gastos"),
   app("/cotizador", "Cotizador"), app("/ofertas", "Ofertas"), app("/contratos", "Contratos"),
   app("/reclutamiento", "Panel de postulación"), app("/pagina-web", "Página web"), app("/inventario", "Inventario"),
-  app("/proyectos", "Proyectos"), app("/panel-odoo", "Panel Odoo"), app("/mi-dia", "Mi Día"),
+  app("/proyectos", "Proyectos"), app("/mi-dia", "Mi Día"),
 ];
 const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => i.nombre);
 
-// El admin: todo, en el orden pedido.
+// El admin: todo, en el orden pedido. «Página web» cierra la lista (arriba de Administración).
 {
   const g = armarMenu(todas, ["sii", "facturas-historicas", "facturas-ih"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Contratos", "Página web", "Inventario"]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Contratos", "Inventario", "Página web"]);
   assert.deepEqual(nombres(g[0]), ["Facturas compra y venta", "Rendir Gastos", "Históricos facturas"]);
   assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas"]);
   assert.deepEqual(nombres(g[2]), ["Contratos"]);
-  assert.deepEqual(nombres(g[4]), ["Inventario"]);
-  assert.deepEqual(nombres(g[3]), ["Configuración", "Postulaciones", "Cotizador web"]);
-  assert.deepEqual(g[3].items.map((i) => i.tipo), ["app", "app", "pronto"]);
-  // Ocultos: Proyectos, Panel Odoo, Mi Día (va arriba a la derecha) y Facturas IH.
+  assert.deepEqual(nombres(g[3]), ["Inventario"]);
+  assert.deepEqual(nombres(g[4]), ["Configuración", "Postulaciones", "Cotizador web"]);
+  assert.deepEqual(g[4].items.map((i) => i.tipo), ["app", "app", "pronto"]);
+  // Ocultos: Proyectos, Mi Día (va arriba a la derecha) y Facturas IH.
   const todo = g.flatMap(nombres).join("|");
-  assert.ok(!/Proyectos|Panel Odoo|Mi Día|IH/.test(todo));
+  assert.ok(!/Proyectos|Mi Día|IH/.test(todo));
   // Una app que no calza en ningún grupo cae en «Otras», no desaparece.
   assert.deepEqual(armarMenu([app("/nueva", "Nueva")], []).map(nombres), [["Nueva"]]);
+}
+
+// «Página web» va SIEMPRE al final, incluso después de «Otras».
+{
+  const g = armarMenu([...todas, app("/nueva", "Nueva")], ["sii"]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Contratos", "Inventario", "Otras", "Página web"]);
+  assert.equal(g.at(-1)?.titulo, "Página web");
 }
 
 // Sin permiso no aparece; un grupo sin nada real desaparece entero.
@@ -48,4 +55,4 @@ assert.deepEqual(
 assert.ok(!armarMenu([app("/cotizador", "Cotizador")], []).some((g) => g.titulo === "Página web"));
 assert.deepEqual(armarMenu([], []), []);
 
-console.log("Menú verificado: Finanzas, CRM, Contratos, Página web e Inventario en orden; Proyectos y Facturas IH ocultos; nada sin permiso.");
+console.log("Menú verificado: Finanzas, CRM, Contratos e Inventario en orden y Página web siempre al final; Proyectos y Facturas IH ocultos; nada sin permiso.");

@@ -52,7 +52,7 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 - Los guards viven en `lib/autorizacion.ts` (`exigirAdmin`, `exigirAccesoApp`, `verificarAccesoAppApi`,
   `puedeVerApp`). **Hay que llamarlos también dentro de cada Server Action y route handler**: se pueden invocar
   sin pasar por la pantalla.
-- Finanzas añade permisos por subpanel; Panel Odoo, por módulo; multiempresa, por empresa asignada.
+- Finanzas añade permisos por subpanel; multiempresa, por empresa asignada.
 
 ## 5. Módulos
 
@@ -66,7 +66,6 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 | Ofertas técnicas | `/ofertas` | Convierte un borrador en oferta editable y la emite en PDF |
 | Contratos | `/contratos/[contrato]/…` | Acreditación de personas y vehículos, logística, gastos de arranque, dashboard y reportes |
 | Inventario | `/inventario` | Stock de doble entrada con movimientos entre ubicaciones |
-| Panel Odoo | `/panel-odoo` | Copia local de datos de Odoo con gráficos y filtros |
 | Proyectos / Mantención | `/proyectos` | Gantt, objetivos, gastos; checklists de equipos |
 | Reclutamiento | `/reclutamiento` | Postulaciones recibidas desde el formulario público |
 | Página web | `/pagina-web` | Administra catálogo, casos, solicitudes y contacto del sitio público |
@@ -82,7 +81,7 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 - **Microsoft Graph**, de dos formas: con permisos de **aplicación** (leer listas y carpetas, guardar PDF) y con el
   token **delegado** de cada persona (Contratos, resumen diario, envío de ofertas). Los tokens de refresco se
   guardan cifrados (`lib/cifrado.ts`).
-- **Odoo** por JSON-RPC (`lib/panel-odoo/odoo-cliente.ts`): casi todo lectura; escribe gastos y contactos.
+- **Odoo** por JSON-RPC (`lib/odoo/cliente.ts`): casi todo lectura; escribe gastos y contactos (Rendir Gastos y Cotizador).
 - **SII**: scraping con Playwright. El SII invalida sesiones, así que las corridas son secuenciales.
 - **Anthropic**: lectura de documentos (Rendir Gastos, Ofertas, Cotizador), resumen diario y buscador.
 
@@ -91,14 +90,14 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 Todos con `Authorization: Bearer <secreto>`.
 - **Vercel** (`vercel.json`): parámetros del cotizador (diario), limpieza (semanal), finanzas SII (varias veces al día),
   facturas históricas, resumen diario (varias tandas).
-- **GitHub Actions**: Panel Odoo (GitHub puede retrasar o descartar ejecuciones programadas) y Facturas IH (diario).
+- **GitHub Actions**: Facturas IH (diario; GitHub puede retrasar o descartar ejecuciones programadas) y respaldos de Supabase.
 - Límites de Vercel Hobby: una expresión de cron como máximo una vez al día, y un rango horario rompe el deploy.
 
 ## 8. Base de datos
 
 - Migraciones por módulo en `supabase/<modulo>/000N_*.sql`: archivo nuevo para cada cambio, idempotente, revisado en
   el PR. Se aplican a mano; primero en una base de desarrollo.
-- Tablas con `CHECK` (estados de facturas, `rol_extra`, módulos de Panel Odoo): agregar un valor exige migración, o la
+- Tablas con `CHECK` (estados de facturas, `rol_extra`): agregar un valor exige migración, o la
   escritura falla en producción.
 - Tablas nuevas: activar RLS. Revisar los requisitos de permisos (`GRANT`) que Supabase exige para tablas nuevas.
 

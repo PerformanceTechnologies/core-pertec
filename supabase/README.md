@@ -5,7 +5,7 @@ se obtienen del dashboard de Supabase o de las variables de Vercel.
 
 | Base | Variable | Uso |
 |---|---|---|
-| Core | `NEXT_PUBLIC_SUPABASE_URL` | Usuarios, apps, finanzas, Panel Odoo, cotizador, ofertas, rendiciones, contratos, inventario… |
+| Core | `NEXT_PUBLIC_SUPABASE_URL` | Usuarios, apps, finanzas, cotizador, ofertas, rendiciones, contratos, inventario… |
 | pertec-web | `PERTEC_WEB_SUPABASE_URL` | Proyectos, mantención, página web. Compartida con el sitio público pertec.cl |
 | Desarrollo | las mismas variables, en tu `.env.local` | A crear (ver abajo) |
 
@@ -21,7 +21,7 @@ numérico, y todas son idempotentes.
 
 ## Pendiente: esquema base
 
-Las tablas originales (usuarios, aplicaciones, facturas_sii, panel_odoo_*, cotizaciones,
+Las tablas originales (usuarios, aplicaciones, facturas_sii, cotizaciones,
 rendiciones, ofertas_*, finanzas_ih_*, etc.) se crearon antes de que existiera esta carpeta y
 **su SQL no está en el repo**. Para poder levantar una base de desarrollo desde cero hay que
 extraerlo de producción (solo lectura) y guardarlo en `supabase/esquema/`:

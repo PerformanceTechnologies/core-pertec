@@ -3,7 +3,6 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { puedeVerApp } from "@/lib/autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
-import { obtenerModulosVisibles, type ModuloVisiblePanelOdoo } from "@/lib/panel-odoo/modulos-usuario";
 import type { UsuarioConAcceso } from "@/lib/tipos";
 
 // Las herramientas con las que el modelo contesta preguntas sobre los datos del
@@ -63,23 +62,6 @@ function money(n: number): string {
 function limpiarTexto(valor: string): string {
   return valor.replace(/[,()*\\%]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }
-
-/**
- * Si esta persona tiene visible ese módulo del Panel Odoo.
- *
- * Tener la app no basta: el admin puede restringir a cada usuario a un subconjunto de módulos
- * (usuario_odoo_modulos) y la página del panel ya lo respeta. Sin esta misma regla acá, el asistente
- * le contestaba datos de proyectos o ventas que el panel le oculta. Es la misma función que usa el
- * panel, así que "sin restricción guardada = ve todos" se comporta igual en los dos lados.
- */
-async function moduloVisible(usuario: UsuarioConAcceso, modulo: ModuloVisiblePanelOdoo): Promise<boolean> {
-  return (await obtenerModulosVisibles(usuario.id)).includes(modulo);
-}
-
-const SIN_ACCESO_MODULO: ResultadoHerramienta = {
-  texto: "Esta persona no tiene acceso a ese módulo.",
-  filas: 0,
-};
 
 /** Un período "2026" o "2026-09" a su rango de fechas. Null si no se entiende. */
 function rangoDePeriodo(periodo?: string): { desde: string; hasta: string } | null {
@@ -165,173 +147,7 @@ const buscarFacturas: Herramienta = {
   },
 };
 
-// ── Proyectos y tareas ──────────────────────────────────────────────────────
-
-const buscarProyectos: Herramienta = {
-  app: "panel-odoo",
-  definicion: {
-    name: "buscar_proyectos",
-    description:
-      "Lista los proyectos activos con su presupuesto, lo gastado, lo disponible y el avance de " +
-      "objetivos. Sirve para 'cómo va el Plan Harris', 'qué proyectos se pasaron del presupuesto' " +
-      "o 'cuánto llevamos gastado en proyectos'.",
-    input_schema: {
-      type: "object",
-      properties: {
-        texto: { type: "string", description: "Parte del nombre del proyecto. Opcional." },
-      },
-      required: [],
-      additionalProperties: false,
-    },
-    strict: true,
-  } as Anthropic.Tool,
-  async ejecutar(args, usuario) {
-    if (!(await moduloVisible(usuario, "proyectos"))) return SIN_ACCESO_MODULO;
-    let q = supabaseAdmin
-      .from("panel_odoo_proyectos")
-      .select(
-        "nombre, partner_nombre, responsable, presupuesto, gastado, disponible, porcentaje_gastado, objetivos_total, objetivos_hechos, estado_salud, fecha_vencimiento",
-      )
-      .eq("activo", true)
-      .limit(TOPE_FILAS);
-    if (typeof args.texto === "string" && args.texto.trim()) {
-      q = q.ilike("nombre", `%${limpiarTexto(args.texto)}%`);
-    }
-    const { data, error } = await q;
-    if (error) return { texto: `No se pudo consultar: ${error.message}`, filas: 0 };
-    const filas = data ?? [];
-    if (filas.length === 0) return { texto: "Sin proyectos activos que coincidan.", filas: 0 };
-
-    const detalle = filas
-      .map((p) => {
-        const plata =
-          Number(p.presupuesto) > 0
-            ? `presupuesto ${money(Number(p.presupuesto))}, gastado ${money(Number(p.gastado))} (${Math.round(Number(p.porcentaje_gastado))}%), queda ${money(Number(p.disponible))}`
-            : "sin presupuesto cargado en Odoo";
-        return (
-          `${p.nombre} · cliente ${p.partner_nombre ?? "(sin dato)"} · responsable ${p.responsable ?? "(sin dato)"} · ` +
-          `objetivos ${p.objetivos_hechos}/${p.objetivos_total} · ${plata} · estado ${p.estado_salud ?? "sin cargar"}` +
-          `${p.fecha_vencimiento ? ` · vence ${p.fecha_vencimiento}` : ""}`
-        );
-      })
-      .join("\n");
-    return { texto: `${filas.length} proyecto(s):\n${detalle}`, filas: filas.length };
-  },
-};
-
-const buscarTareas: Herramienta = {
-  app: "panel-odoo",
-  definicion: {
-    name: "buscar_tareas",
-    description:
-      "Busca tareas de proyecto. Sirve para 'qué tiene pendiente Rafael', 'tareas vencidas' o " +
-      "'qué falta en el Plan Harris'.",
-    input_schema: {
-      type: "object",
-      properties: {
-        proyecto: { type: "string", description: "Parte del nombre del proyecto. Opcional." },
-        responsable: { type: "string", description: "Parte del nombre del responsable. Opcional." },
-        solo: { type: "string", enum: ["abiertas", "vencidas", "todas"] },
-      },
-      required: ["solo"],
-      additionalProperties: false,
-    },
-    strict: true,
-  } as Anthropic.Tool,
-  async ejecutar(args, usuario) {
-    // Las tareas se ven dentro del módulo Proyectos del panel (TarjetaProyectos).
-    if (!(await moduloVisible(usuario, "proyectos"))) return SIN_ACCESO_MODULO;
-    let q = supabaseAdmin
-      .from("panel_odoo_tareas")
-      .select("nombre, proyecto_nombre, etapa, asignados, fecha_limite, completado, estado")
-      .order("fecha_limite", { ascending: true, nullsFirst: false })
-      .limit(TOPE_FILAS);
-
-    const solo = String(args.solo);
-    if (solo !== "todas") {
-      q = q.eq("completado", false).not("estado", "in", "(1_done,1_canceled)");
-    }
-    if (solo === "vencidas") q = q.lt("fecha_limite", new Date().toISOString().slice(0, 10));
-    if (typeof args.proyecto === "string" && args.proyecto.trim()) {
-      q = q.ilike("proyecto_nombre", `%${limpiarTexto(args.proyecto)}%`);
-    }
-    if (typeof args.responsable === "string" && args.responsable.trim()) {
-      q = q.ilike("asignados", `%${limpiarTexto(args.responsable)}%`);
-    }
-
-    const { data, error } = await q;
-    if (error) return { texto: `No se pudo consultar: ${error.message}`, filas: 0 };
-    const filas = data ?? [];
-    if (filas.length === 0) return { texto: "Sin tareas que cumplan esos criterios.", filas: 0 };
-
-    const detalle = filas
-      .map(
-        (t) =>
-          `${t.nombre} · ${t.proyecto_nombre ?? "sin proyecto"} · ${t.etapa ?? "sin etapa"} · ` +
-          `${t.asignados ?? "sin asignar"} · ${t.fecha_limite ? `vence ${String(t.fecha_limite).slice(0, 10)}` : "sin plazo"}` +
-          `${t.completado ? " · CUMPLIDA" : ""}`,
-      )
-      .join("\n");
-    return { texto: `${filas.length} tarea(s):\n${detalle}`, filas: filas.length };
-  },
-};
-
-// ── Ventas y compras de Odoo ────────────────────────────────────────────────
-
-const buscarVentas: Herramienta = {
-  app: "panel-odoo",
-  definicion: {
-    name: "buscar_ventas",
-    description:
-      "Busca órdenes de venta y de arriendo de Odoo. Sirve para 'qué le vendimos a Codelco', " +
-      "'arriendos activos' o 'ventas de este mes'. El período va como 'AAAA' o 'AAAA-MM'.",
-    input_schema: {
-      type: "object",
-      properties: {
-        texto: { type: "string", description: "Parte del nombre del cliente. Opcional." },
-        periodo: { type: "string", description: "'AAAA' o 'AAAA-MM'. Opcional." },
-        soloArriendo: { type: "boolean" },
-      },
-      required: ["soloArriendo"],
-      additionalProperties: false,
-    },
-    strict: true,
-  } as Anthropic.Tool,
-  async ejecutar(args, usuario) {
-    if (!(await moduloVisible(usuario, "ventas"))) return SIN_ACCESO_MODULO;
-    let q = supabaseAdmin
-      .from("panel_odoo_ventas")
-      .select("numero, partner_nombre, fecha_orden, monto_total, estado, es_arriendo")
-      .order("fecha_orden", { ascending: false })
-      .limit(TOPE_FILAS);
-    if (args.soloArriendo === true) q = q.eq("es_arriendo", true);
-    if (typeof args.texto === "string" && args.texto.trim()) {
-      q = q.ilike("partner_nombre", `%${limpiarTexto(args.texto)}%`);
-    }
-    const rango = rangoDePeriodo(typeof args.periodo === "string" ? args.periodo : undefined);
-    if (rango) q = q.gte("fecha_orden", rango.desde).lte("fecha_orden", `${rango.hasta}T23:59:59`);
-
-    const { data, error } = await q;
-    if (error) return { texto: `No se pudo consultar: ${error.message}`, filas: 0 };
-    const filas = data ?? [];
-    if (filas.length === 0) return { texto: "Sin órdenes que cumplan esos criterios.", filas: 0 };
-
-    const total = filas.reduce((a, v) => a + Number(v.monto_total ?? 0), 0);
-    const detalle = filas
-      .map(
-        (v) =>
-          `${v.numero} · ${v.partner_nombre ?? "(sin cliente)"} · ${String(v.fecha_orden ?? "").slice(0, 10)} · ` +
-          `${money(Number(v.monto_total ?? 0))} · ${v.estado}${v.es_arriendo ? " · ARRIENDO" : ""}`,
-      )
-      .join("\n");
-    return {
-      texto: `${filas.length} orden(es), total ${money(total)}:\n${detalle}`,
-      filas: filas.length,
-    };
-  },
-};
-
-const TODAS: Herramienta[] = [buscarFacturas, buscarProyectos, buscarTareas, buscarVentas];
+const TODAS: Herramienta[] = [buscarFacturas];
 
 /**
  * Las herramientas que ESTA persona puede usar.

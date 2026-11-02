@@ -24,7 +24,7 @@ export interface GrupoDelMenu {
  * Rutas que no van en el menú aunque la persona tenga la app. Mi Día no se
  * pierde: tiene su botón arriba a la derecha (ver BarraSuperior).
  */
-export const RUTAS_OCULTAS = ["/proyectos", "/panel-odoo", "/mi-dia"];
+export const RUTAS_OCULTAS = ["/proyectos", "/mi-dia"];
 
 /** Subpaneles de Finanzas que van en el menú (facturas-ih queda fuera a propósito). */
 const SUBPANELES_EN_MENU = [
@@ -46,17 +46,22 @@ const PLAN: Plan[] = [
   { titulo: "CRM", items: [{ ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }] },
   // Contratos e Inventario son categorías de un solo módulo: se ven y pliegan igual que las demás.
   { titulo: "Contratos", items: [{ ruta: "/contratos" }] },
-  {
-    titulo: "Página web",
-    items: [
-      // Lo que antes se hacía en pertec.cl/admin: catálogo, casos, solicitudes y contacto.
-      { ruta: "/pagina-web", nombre: "Configuración" },
-      { ruta: "/reclutamiento", nombre: "Postulaciones" },
-      { pronto: "Cotizador web", icono: "file-invoice" },
-    ],
-  },
   { titulo: "Inventario", items: [{ ruta: "/inventario" }] },
 ];
+
+/**
+ * «Página web» va siempre al final del menú, justo arriba de «Administración», pase lo que pase con
+ * los demás grupos (incluidas las «Otras»). Por eso no está en PLAN: armarMenu lo agrega al cierre.
+ */
+const PAGINA_WEB: Plan = {
+  titulo: "Página web",
+  items: [
+    // Lo que antes se hacía en pertec.cl/admin: catálogo, casos, solicitudes y contacto.
+    { ruta: "/pagina-web", nombre: "Configuración" },
+    { ruta: "/reclutamiento", nombre: "Postulaciones" },
+    { pronto: "Cotizador web", icono: "file-invoice" },
+  ],
+};
 
 /**
  * Arma los grupos con lo que la persona puede ver.
@@ -64,8 +69,9 @@ const PLAN: Plan[] = [
  * `apps` ya viene filtrada por permiso, y `subpanelesFinanzas` son los slugs de
  * Finanzas que tiene concedidos: un ítem sin permiso no aparece. Un grupo sin
  * nada real (solo "próximamente") tampoco. Las apps que no calzan en ningún
- * grupo —Panel Odoo, Mi Día, las externas— van al final en «Otras», para que
- * agregar una app nueva nunca la deje sin entrada en el menú.
+ * grupo —las externas, una app nueva— van en «Otras», para que agregar una app
+ * nunca la deje sin entrada en el menú. «Página web» cierra la lista, después de
+ * «Otras» (y la barra pone «Administración» a continuación).
  */
 export function armarMenu(apps: Aplicacion[], subpanelesFinanzas: string[]): GrupoDelMenu[] {
   const porRuta = new Map(apps.map((a) => [a.url, a]));
@@ -73,8 +79,7 @@ export function armarMenu(apps: Aplicacion[], subpanelesFinanzas: string[]): Gru
   const tieneFinanzas = porRuta.has("/finanzas");
   usadas.add("/finanzas");
 
-  const grupos: GrupoDelMenu[] = [];
-  for (const plan of PLAN) {
+  function armarGrupo(plan: Plan): GrupoDelMenu | null {
     const items: ItemDelMenu[] = [];
     for (const paso of plan.items) {
       if ("ruta" in paso) {
@@ -90,12 +95,21 @@ export function armarMenu(apps: Aplicacion[], subpanelesFinanzas: string[]): Gru
         items.push({ tipo: "pronto", nombre: paso.pronto, icono: paso.icono });
       }
     }
-    if (items.some((i) => i.tipo !== "pronto")) grupos.push({ titulo: plan.titulo, items });
+    return items.some((i) => i.tipo !== "pronto") ? { titulo: plan.titulo, items } : null;
   }
+
+  const grupos: GrupoDelMenu[] = [];
+  for (const plan of PLAN) {
+    const grupo = armarGrupo(plan);
+    if (grupo) grupos.push(grupo);
+  }
+  // Se arma ANTES de calcular «Otras» (marca sus rutas como usadas) pero se agrega DESPUÉS: va al cierre.
+  const paginaWeb = armarGrupo(PAGINA_WEB);
 
   const otras = apps.filter((a) => !usadas.has(a.url));
   if (otras.length > 0) {
     grupos.push({ titulo: "Otras", items: otras.map((app) => ({ tipo: "app", app, nombre: app.nombre })) });
   }
+  if (paginaWeb) grupos.push(paginaWeb);
   return grupos;
 }
