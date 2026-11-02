@@ -613,6 +613,7 @@ function haceCuanto(iso: string): string {
 function Historial({ tareaId }: { tareaId: string }) {
   const [eventos, setEventos] = useState<EventoHistorial[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [verTodo, setVerTodo] = useState(false);
 
   useEffect(() => {
     let vigente = true;
@@ -647,28 +648,45 @@ function Historial({ tareaId }: { tareaId: string }) {
         <p className="text-xs text-gris">Sin movimientos registrados todavía. Desde ahora se anota cada cambio.</p>
       )}
 
-      {eventos && eventos.length > 0 && (
-        <ol className="max-h-56 space-y-3 overflow-y-auto pr-1">
-          {eventos.map((e, i) => {
-            const quien = e.nombre ?? e.correo ?? "Alguien";
-            return (
-              <li key={e.id} className="relative flex gap-3">
-                {i < eventos.length - 1 && <span className="absolute left-3 top-7 h-[calc(100%-4px)] w-px bg-borde" aria-hidden />}
-                <Avatar nombre={quien} correo={e.correo ?? quien} chico />
-                <div className="min-w-0 flex-1 text-xs leading-relaxed">
-                  <p className="text-tinta">
-                    <strong className="font-semibold">{quien}</strong> <span className="text-gris">{VERBO[e.accion]}</span>{" "}
-                    {e.detalle}
-                  </p>
-                  <p className="text-[11px] text-gris-suave" title={new Date(e.creadoEn).toLocaleString("es-CL")}>
-                    {haceCuanto(e.creadoEn)} · {new Date(e.creadoEn).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+      {eventos && eventos.length > 0 && <ListaEventos eventos={eventos.slice(0, 3)} />}
+
+      {eventos && eventos.length > 3 && (
+        <button
+          type="button"
+          onClick={() => setVerTodo(true)}
+          className="mt-3 w-full rounded-lg border border-borde py-2 text-xs font-semibold text-gris transition hover:border-naranjo/50 hover:text-tinta"
+        >
+          Ver más ({eventos.length - 3} anteriores)
+        </button>
       )}
+
+      <VentanaModal abierta={verTodo} alCerrar={() => setVerTodo(false)} titulo="Historial completo" ancho="max-w-lg">
+        {eventos && <ListaEventos eventos={eventos} />}
+      </VentanaModal>
     </section>
+  );
+}
+
+function ListaEventos({ eventos }: { eventos: EventoHistorial[] }) {
+  return (
+    <ol className="space-y-3">
+      {eventos.map((e, i) => {
+        const quien = e.nombre ?? e.correo ?? "Alguien";
+        return (
+          <li key={e.id} className="relative flex gap-3">
+            {i < eventos.length - 1 && <span className="absolute left-3 top-7 h-[calc(100%-4px)] w-px bg-borde" aria-hidden />}
+            <Avatar nombre={quien} correo={e.correo ?? quien} chico />
+            <div className="min-w-0 flex-1 text-xs leading-relaxed">
+              <p className="text-tinta">
+                <strong className="font-semibold">{quien}</strong> <span className="text-gris">{VERBO[e.accion]}</span> {e.detalle}
+              </p>
+              <p className="text-[11px] text-gris-suave">
+                {haceCuanto(e.creadoEn)} · {new Date(e.creadoEn).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
