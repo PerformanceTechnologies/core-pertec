@@ -360,7 +360,9 @@ export function BarraLateralVista({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-tinta">{correo}</p>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-teal">
+                {/* Neutro y no teal: este renglón queda justo sobre la parte más teñida del fondo, y
+                    un verde sobre un lavado verde no se lee. */}
+                <span className="text-[10px] font-bold uppercase tracking-wide text-tinta/70">
                   {esAdmin ? "Administrador" : "Usuario"}
                 </span>
               </div>
@@ -414,9 +416,9 @@ export function BarraLateralVista({
       >
         {/* El resplandor de la marca de la empresa activa, arriba: es lo que hace que se lea como
             una barra con carácter y no como una lista pegada al borde. Va detrás de todo. */}
-        <div aria-hidden className="barra-brillo pointer-events-none absolute inset-x-0 top-0 -z-10 h-56" />
+        <div aria-hidden className="barra-brillo pointer-events-none absolute inset-x-0 top-0 -z-10 h-72" />
         {/* Y el contrapeso, abajo, con el otro color del logo (ver .barra-pie en globals.css). */}
-        <div aria-hidden className="barra-pie pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-80" />
+        <div aria-hidden className="barra-pie pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[26rem]" />
 
         <button
           type="button"

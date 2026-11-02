@@ -13,9 +13,13 @@
   --color-borde: #e7e1d8;
   --color-superficie: #ffffff;
 
-  /* El SEGUNDO color del logo de la empresa activa (el primero es el de acento, naranjo arriba).
-     Lo usa el fondo del pie de la barra lateral (.barra-pie). En PERTEC es el verde azulado del
-     tallo de la T; cada empresa pisa el suyo más abajo, junto a su acento. */
+  /* Los DOS colores del logo de la empresa activa, para el fondo de la barra lateral: el primero
+     tiñe arriba (.barra-brillo) y el segundo abajo (.barra-pie), y la barra se lee como un
+     degradado de uno a otro. No son el acento de la interfaz (naranjo/teal): ese es el de la
+     marca de la aplicación y en Performance Service, por ejemplo, es un gris pizarra que no sale
+     en su logo. En PERTEC son el naranjo y el verde azulado de la T; cada empresa pisa los suyos
+     más abajo, junto a su acento. */
+  --color-marca-1: #c85217;
   --color-marca-2: #00a080;
 
   /* Los nombres de color con que viene escrito Contratos (traído de core-ih), apuntados a la
@@ -49,6 +53,7 @@
   --color-cian-lavado: #1f2c28;
   --color-cian-texto: #35b89b;
   --color-fondo: #1c1a17;
+  --color-marca-1: #e07a3d;
   --color-marca-2: #2fbf9f;
 }
 
@@ -68,8 +73,10 @@
   --color-cian-suave: #a07f2c;
   --color-cian-lavado: #f6efdc;
   --color-cian-texto: #6b5010;
-  /* El azul acero oscuro de su logo, junto al dorado. */
-  --color-marca-2: #3a4f6b;
+  /* El dorado y el azul acero oscuro de su logo (el azul, con algo más de croma que el del
+     logo, que es casi negro: sobre un fondo claro, un azul apagado se lee como gris). */
+  --color-marca-1: #d19a1c;
+  --color-marca-2: #2e5282;
 }
 :root[data-theme="dark"]:has([data-empresa="zeus"]) {
   --color-naranjo: #d4a53a;
@@ -77,7 +84,8 @@
   --color-azul-suave: #e6bd5c;
   --color-cian-lavado: #2c2617;
   --color-cian-texto: #d4a53a;
-  --color-marca-2: #7b98bd;
+  --color-marca-1: #e0b040;
+  --color-marca-2: #6a93c9;
 }
 :root:has([data-empresa="performance-service"]) {
   --color-naranjo: #5c6570;
@@ -90,7 +98,8 @@
   --color-cian-suave: #66707b;
   --color-cian-lavado: #eceef1;
   --color-cian-texto: #3e4650;
-  /* El verde azulado del tallo de la T de su logo (más frío que el de PERTEC). */
+  /* El coral y el verde azulado de la T de su logo (el verde, más frío que el de PERTEC). */
+  --color-marca-1: #d2562f;
   --color-marca-2: #1c9a8e;
 }
 :root[data-theme="dark"]:has([data-empresa="performance-service"]) {
@@ -100,6 +109,7 @@
   --color-teal: #7d8792;
   --color-cian-lavado: #262a2f;
   --color-cian-texto: #9aa3ae;
+  --color-marca-1: #e6784f;
   --color-marca-2: #3cc0b3;
 }
 
@@ -201,59 +211,59 @@
   fill-opacity: 0.1;
 }
 
-/* 4. El resplandor de la marca arriba de la barra lateral.
-   Un lavado radial del color de acento de la empresa activa (naranjo en PERTEC, dorado en
-   Zeus, gris en Performance Service: lee el mismo token que todo lo demás), desde la esquina
-   del logo. Es lo que separa a la barra del fondo de la página sin recurrir a una sombra más
-   fuerte. En oscuro sube un poco: un 9% de tinte sobre fondo oscuro casi no se ve. */
+/* 4. El fondo de la barra lateral: un degradado entre los dos colores del logo.
+   Arriba entra el primer color (--color-marca-1: naranjo en PERTEC, dorado en Zeus, coral en
+   Performance Service) y abajo el segundo (--color-marca-2: verde azulado, azul acero, verde
+   frío). Es lo que separa a la barra del fondo de la página sin recurrir a una sombra más fuerte
+   y la hace leerse como una pieza de la marca y no como una lista pegada al borde.
+
+   Cada extremo son dos capas, no un tinte plano: un lavado radial desde la esquina (la luz) y,
+   debajo, un velo lineal que sigue por detrás de la lista y evita que el lavado se vea como una
+   mancha. Los dos extremos son altos a propósito (18 y 26 rem): con la lista de módulos en medio
+   se tocan en un solo recorrido de color y no quedan dos manchas con un fondo liso entre ellas.
+
+   Los porcentajes son de color sobre el fondo crema. Se subieron desde un 9 % arriba y un 21 %
+   abajo, que a la vista casi no se distinguían del resto de la página. En oscuro un color
+   saturado pesa más sobre el fondo, así que sube menos de lo que parece. */
 .barra-brillo {
-  background-image: radial-gradient(
-    120% 90% at 0% 0%,
-    color-mix(in srgb, var(--color-naranjo) 9%, transparent),
-    transparent 70%
-  );
+  background-image:
+    radial-gradient(
+      130% 75% at 0% 0%,
+      color-mix(in srgb, var(--color-marca-1) 26%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-marca-1) 9%, transparent), transparent 62%);
 }
 [data-theme="dark"] .barra-brillo {
-  background-image: radial-gradient(
-    120% 90% at 0% 0%,
-    color-mix(in srgb, var(--color-naranjo) 14%, transparent),
-    transparent 70%
-  );
+  background-image:
+    radial-gradient(
+      130% 75% at 0% 0%,
+      color-mix(in srgb, var(--color-marca-1) 28%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-marca-1) 11%, transparent), transparent 62%);
 }
-
-/* 4b. El fondo del pie de la barra lateral.
-   Contrapeso del resplandor de arriba: ahí entra el color de acento del logo y acá el OTRO color
-   (--color-marca-2: el verde azulado de PERTEC, el azul acero de Zeus, el verde de Performance
-   Service). Así la barra se lee como un degradado entre los dos colores de la marca, de arriba a
-   abajo, y no como una lista sobre un fondo liso.
-
-   Son dos capas, no un tinte plano: un lavado radial desde la esquina inferior izquierda (la
-   misma lógica de luz que el de arriba, invertida) y, debajo, un velo lineal muy parejo que
-   sube por detrás de la lista y evita que el lavado se vea como una mancha. Los porcentajes son
-   de color sobre el fondo crema: en claro con 21 % en la esquina ya se distingue del resto de la
-   página sin dejar de ser un fondo; en oscuro el tinte rinde distinto (sobre fondo oscuro un
-   color saturado pesa más), así que sube poco. */
 .barra-pie {
   background-image:
     radial-gradient(
-      140% 80% at 0% 100%,
-      color-mix(in srgb, var(--color-marca-2) 21%, transparent),
-      transparent 68%
+      140% 75% at 0% 100%,
+      color-mix(in srgb, var(--color-marca-2) 34%, transparent),
+      transparent 72%
     ),
-    linear-gradient(to top, color-mix(in srgb, var(--color-marca-2) 10%, transparent), transparent 62%);
+    linear-gradient(to top, color-mix(in srgb, var(--color-marca-2) 18%, transparent), transparent 65%);
 }
 [data-theme="dark"] .barra-pie {
   background-image:
     radial-gradient(
-      140% 80% at 0% 100%,
-      color-mix(in srgb, var(--color-marca-2) 22%, transparent),
-      transparent 68%
+      140% 75% at 0% 100%,
+      color-mix(in srgb, var(--color-marca-2) 30%, transparent),
+      transparent 72%
     ),
-    linear-gradient(to top, color-mix(in srgb, var(--color-marca-2) 11%, transparent), transparent 62%);
+    linear-gradient(to top, color-mix(in srgb, var(--color-marca-2) 15%, transparent), transparent 65%);
 }
 /* La línea que separa el pie (búsqueda y usuario) de la lista, con un poco del mismo color. */
 .barra-pie-borde {
-  border-color: color-mix(in srgb, var(--color-marca-2) 28%, var(--color-borde));
+  border-color: color-mix(in srgb, var(--color-marca-2) 40%, var(--color-borde));
 }
 
 /* 5. La banda de Mi Día.
