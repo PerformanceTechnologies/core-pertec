@@ -46,6 +46,17 @@ export async function empresaIdsDeUsuario(usuarioId: string): Promise<string[]> 
   return (data ?? []).map((r) => r.empresa_id as string);
 }
 
+/** Los ids de empresa de TODAS las personas de una vez (usuario_id → ids), para listarlas sin una consulta por fila. */
+export async function empresaIdsPorUsuario(): Promise<Map<string, string[]>> {
+  const { data } = await supabaseAdmin.from("usuario_empresas").select("usuario_id, empresa_id");
+  const mapa = new Map<string, string[]>();
+  for (const fila of data ?? []) {
+    const id = fila.usuario_id as string;
+    mapa.set(id, [...(mapa.get(id) ?? []), fila.empresa_id as string]);
+  }
+  return mapa;
+}
+
 /** Reemplaza las empresas de una persona. Mismo patrón que las aplicaciones. */
 export async function reemplazarEmpresas(usuarioId: string, empresaIds: string[]): Promise<void> {
   await supabaseAdmin.from("usuario_empresas").delete().eq("usuario_id", usuarioId);

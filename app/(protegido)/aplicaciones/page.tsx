@@ -1,119 +1,96 @@
-import Link from "next/link";
-import { IconChevronUp, IconChevronDown } from "@tabler/icons-react";
 import { exigirAdmin } from "@/lib/autorizacion";
-import { listarAplicaciones } from "@/lib/aplicaciones";
-import { clasesInsigniaEstado, etiquetaEstado } from "@/lib/colores";
-import { obtenerIcono } from "@/lib/iconos";
+import { contarUsuariosPorApp, listarAplicaciones } from "@/lib/aplicaciones";
+import { agruparCatalogo } from "@/lib/menu-modelo";
+import {
+  contarAppsPorEstado,
+  filtrarApps,
+  hayFiltrosDeApps,
+  hrefConFiltros,
+  leerFiltrosDeApps,
+  parametrosDeApps,
+  type FiltroEstadoApp,
+} from "@/lib/administracion-modelo";
 import FormularioAplicacion from "@/components/FormularioAplicacion";
-import BotonEliminar from "@/components/BotonEliminar";
+import CatalogoDeAplicaciones from "@/components/admin/CatalogoDeAplicaciones";
+import EncabezadoAdmin from "@/components/admin/EncabezadoAdmin";
+import PanelDeCreacion from "@/components/admin/PanelDeCreacion";
+import { Buscador, CifrasQueFiltran, ResultadoDeFiltros, SinResultados } from "@/components/admin/Filtros";
 import { crearAplicacionAction, eliminarAplicacionAction, moverAplicacionAction } from "./acciones";
 
-export default async function AplicacionesPage() {
+export const dynamic = "force-dynamic";
+
+/**
+ * Administración > Aplicaciones: el catálogo del Core agrupado como se ve el menú, con filtros por
+ * estado y búsqueda. Los filtros viajan en la dirección (?estado=…&q=…): se pueden compartir y el
+ * botón «atrás» los respeta.
+ */
+export default async function AplicacionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await exigirAdmin();
-  const apps = await listarAplicaciones();
+  const filtros = leerFiltrosDeApps(await searchParams);
+  const [apps, usuariosPorApp] = await Promise.all([listarAplicaciones(), contarUsuariosPorApp()]);
+
+  const conteo = contarAppsPorEstado(apps);
+  const visibles = filtrarApps(apps, filtros);
+  const grupos = agruparCatalogo(visibles);
+
+  // Tocar una cifra cambia el estado y deja la búsqueda como estaba.
+  const sinEstado = parametrosDeApps({ ...filtros, estado: "todas" });
+  const hrefEstado = (estado: FiltroEstadoApp) =>
+    hrefConFiltros("/aplicaciones", sinEstado, { estado: estado === "todas" ? undefined : estado });
 
   return (
-    <div>
-      <span className="etiqueta-seccion">Administración</span>
-      <h1 className="mt-2 font-condensed text-2xl font-bold uppercase text-tinta">
-        Aplicaciones
-      </h1>
+    <div className="animar-entrada space-y-6">
+      <EncabezadoAdmin
+        titulo="Aplicaciones"
+        descripcion="El catálogo del Core: qué aplicaciones existen, a qué módulo pertenecen, dónde viven y en qué estado están."
+      />
 
-      <details className="mt-6 rounded-xl border border-borde bg-white p-4">
-        <summary className="cursor-pointer font-condensed text-sm font-bold uppercase text-tinta">
-          + Nueva aplicación
-        </summary>
-        <div className="mt-4">
-          <FormularioAplicacion accion={crearAplicacionAction} textoBoton="Crear aplicación" />
-        </div>
-      </details>
+      <PanelDeCreacion titulo="Nueva aplicación" ayuda="Súmala al catálogo; después asígnala a las personas desde Usuarios.">
+        <FormularioAplicacion accion={crearAplicacionAction} textoBoton="Crear aplicación" />
+      </PanelDeCreacion>
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-borde bg-white">
-        <table className="w-full min-w-[560px] text-left text-sm">
-          <thead className="border-b border-borde bg-crema/60 text-xs uppercase text-tinta/50">
-            <tr>
-              <th className="px-2 py-3">
-                <span className="sr-only">Orden</span>
-              </th>
-              <th className="px-4 py-3">Aplicación</th>
-              <th className="px-4 py-3">URL</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {apps.map((app, indice) => {
-              const Icono = obtenerIcono(app.icono);
-              return (
-                <tr key={app.id} className="border-b border-borde last:border-0">
-                  <td className="px-2 py-3">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <form action={moverAplicacionAction}>
-                        <input type="hidden" name="id" value={app.id} />
-                        <input type="hidden" name="direccion" value="arriba" />
-                        <button
-                          type="submit"
-                          disabled={indice === 0}
-                          aria-label={`Subir ${app.nombre}`}
-                          className="rounded p-0.5 text-tinta/40 transition hover:bg-tinta/5 hover:text-naranjo disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-tinta/40"
-                        >
-                          <IconChevronUp size={14} stroke={2} />
-                        </button>
-                      </form>
-                      <form action={moverAplicacionAction}>
-                        <input type="hidden" name="id" value={app.id} />
-                        <input type="hidden" name="direccion" value="abajo" />
-                        <button
-                          type="submit"
-                          disabled={indice === apps.length - 1}
-                          aria-label={`Bajar ${app.nombre}`}
-                          className="rounded p-0.5 text-tinta/40 transition hover:bg-tinta/5 hover:text-naranjo disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-tinta/40"
-                        >
-                          <IconChevronDown size={14} stroke={2} />
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                  <td className="flex items-center gap-2 px-4 py-3 font-medium text-tinta">
-                    <Icono size={16} stroke={1.75} aria-hidden />
-                    {app.nombre}
-                  </td>
-                  <td className="px-4 py-3 text-tinta/60">{app.url}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${clasesInsigniaEstado(app.estado)}`}
-                    >
-                      {etiquetaEstado(app.estado)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-3">
-                      <Link
-                        href={`/aplicaciones/${app.id}`}
-                        className="text-xs font-medium text-tinta/70 hover:text-naranjo"
-                      >
-                        Editar
-                      </Link>
-                      <BotonEliminar
-                        accion={eliminarAplicacionAction}
-                        id={app.id}
-                        mensajeConfirmacion={`¿Eliminar "${app.nombre}" del catálogo?`}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {apps.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-tinta/50">
-                  Todavía no hay aplicaciones registradas.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <CifrasQueFiltran
+        etiqueta="Filtrar por estado"
+        cifras={[
+          { clave: "todas", etiqueta: "Todas", valor: conteo.total, href: hrefEstado("todas"), activa: filtros.estado === "todas" },
+          { clave: "activa", etiqueta: "Activas", valor: conteo.activa, href: hrefEstado("activa"), activa: filtros.estado === "activa" },
+          { clave: "en_desarrollo", etiqueta: "En desarrollo", valor: conteo.en_desarrollo, href: hrefEstado("en_desarrollo"), activa: filtros.estado === "en_desarrollo" },
+          { clave: "mantenimiento", etiqueta: "En mantención", valor: conteo.mantenimiento, href: hrefEstado("mantenimiento"), activa: filtros.estado === "mantenimiento", tono: "aviso" },
+          { clave: "en-pausa", etiqueta: "En pausa", valor: conteo["en-pausa"], href: hrefEstado("en-pausa"), activa: filtros.estado === "en-pausa" },
+        ]}
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <Buscador
+          accion="/aplicaciones"
+          placeholder="Buscar por nombre, descripción o ruta"
+          valor={filtros.q}
+          conservar={filtros.estado === "todas" ? {} : { estado: filtros.estado }}
+        />
+        <ResultadoDeFiltros
+          mostrados={visibles.length}
+          total={apps.length}
+          unidad="aplicaciones"
+          limpiarHref={hayFiltrosDeApps(filtros) ? "/aplicaciones" : null}
+        />
       </div>
+
+      {apps.length === 0 ? (
+        <SinResultados texto="Todavía no hay aplicaciones registradas." limpiarHref={null} />
+      ) : grupos.length === 0 ? (
+        <SinResultados texto="Ninguna aplicación calza con los filtros." limpiarHref="/aplicaciones" />
+      ) : (
+        <CatalogoDeAplicaciones
+          grupos={grupos}
+          usuariosPorApp={usuariosPorApp}
+          eliminar={eliminarAplicacionAction}
+          mover={moverAplicacionAction}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 // Prueba el agrupado del menú de la izquierda (lib/menu-modelo.ts).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { appsSueltasDelInicio, armarMenu, rutaDeModulo } from "../lib/menu-modelo";
+import { agruparCatalogo, armarMenu, rutaDeModulo } from "../lib/menu-modelo";
+import { estaPausada, SLUGS_PAUSADOS } from "../lib/apps-pausadas";
 import { iconoDeModulo } from "../lib/iconos-menu";
 import type { Aplicacion } from "../lib/tipos";
 
@@ -19,15 +20,16 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 // El admin: todo, en el orden pedido. «Página web» cierra la lista (arriba de Administración).
 {
   const g = armarMenu(todas, ["sii", "facturas-historicas", "facturas-ih"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Tareas", "Contratos", "Inventario", "Flota", "Página web"]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Tareas", "Contratos", "Inventario", "Página web"]);
   assert.deepEqual(nombres(g[0]), ["Facturas compra y venta", "Rendir Gastos", "Históricos facturas"]);
   assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas"]);
   assert.deepEqual(nombres(g[2]), ["Tareas"]);
   assert.deepEqual(nombres(g[3]), ["Contratos"]);
-  assert.deepEqual(nombres(g[4]), ["Inventario"]);
-  assert.deepEqual(nombres(g[5]), ["Flota"]);
-  assert.deepEqual(nombres(g[6]), ["Configuración", "Postulaciones"]);
-  assert.deepEqual(g[6].items.map((i) => i.tipo), ["app", "app"]);
+  // Flota cuelga de Inventario (es otra aplicación, con su permiso y sus rutas, pero el mismo módulo).
+  assert.deepEqual(nombres(g[4]), ["Stock y bodegas", "Flota"]);
+  assert.deepEqual(g[4].items.map((i) => (i.tipo === "app" ? i.app.url : "")), ["/inventario", "/flota"]);
+  assert.deepEqual(nombres(g[5]), ["Configuración", "Postulaciones"]);
+  assert.deepEqual(g[5].items.map((i) => i.tipo), ["app", "app"]);
   // Ocultos: Proyectos, Mi Día (va arriba a la derecha) y Facturas IH.
   const todo = g.flatMap(nombres).join("|");
   assert.ok(!/Proyectos|Mi Día|IH/.test(todo));
@@ -38,7 +40,7 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
 // «Página web» va SIEMPRE al final, incluso después de «Otras».
 {
   const g = armarMenu([...todas, app("/nueva", "Nueva")], ["sii"]);
-  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Tareas", "Contratos", "Inventario", "Flota", "Otras", "Página web"]);
+  assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "CRM", "Tareas", "Contratos", "Inventario", "Otras", "Página web"]);
   assert.equal(g.at(-1)?.titulo, "Página web");
 }
 
@@ -62,7 +64,7 @@ assert.deepEqual(armarMenu([], []), []);
 // Cada módulo tiene su identificador estable, su descripción, su icono y su página.
 {
   const g = armarMenu(todas, ["sii", "facturas-historicas"], { admin: true });
-  assert.deepEqual(g.map((x) => x.slug), ["finanzas", "crm", "tareas", "contratos", "inventario", "flota", "pagina-web", "administracion"]);
+  assert.deepEqual(g.map((x) => x.slug), ["finanzas", "crm", "tareas", "contratos", "inventario", "pagina-web", "administracion"]);
   assert.equal(new Set(g.map((x) => x.slug)).size, g.length, "los slugs no se repiten: son la dirección de la página del módulo");
   assert.ok(g.every((x) => x.descripcion.length > 10), "todo módulo explica en una línea qué hay adentro");
   for (const x of g) {
@@ -79,10 +81,32 @@ assert.deepEqual(armarMenu([], []), []);
   assert.deepEqual(armarMenu([], [], { admin: false }), []);
 }
 
-// El Inicio muestra módulos; lo que no cuelga de ninguno y no está en el menú (Proyectos) sigue
-// teniendo su tarjeta —es su única puerta—, y Mi Día no (tiene su botón arriba).
-assert.deepEqual(appsSueltasDelInicio(todas).map((a) => a.nombre), ["Proyectos"]);
-assert.deepEqual(appsSueltasDelInicio([app("/mi-dia", "Mi Día"), app("/cotizador", "Cotizador")]), []);
+// Sin permiso sobre Inventario pero CON permiso sobre Flota: Flota sigue apareciendo, en su módulo.
+{
+  const g = armarMenu([app("/flota", "Flota")], []);
+  assert.deepEqual(g.map((x) => x.titulo), ["Inventario"]);
+  assert.deepEqual(nombres(g[0]), ["Flota"]);
+}
+
+// Proyectos está en pausa: se esconde de todos lados (menú, Inicio, buscador, su página y su API),
+// pero NO del catálogo de Administración, donde se reactiva y se sigue asignando.
+{
+  assert.deepEqual([...SLUGS_PAUSADOS], ["proyectos"]);
+  assert.ok(estaPausada("proyectos"));
+  assert.ok(!estaPausada("flota") && !estaPausada("inventario"));
+  const grupos = agruparCatalogo(todas);
+  assert.deepEqual(grupos.map((x) => x.slug), ["finanzas", "crm", "tareas", "contratos", "inventario", "pagina-web", "fuera-del-menu", "en-pausa"]);
+  assert.deepEqual(grupos.find((x) => x.slug === "inventario")?.apps.map((a) => a.nombre), ["Inventario", "Flota"]);
+  assert.deepEqual(grupos.find((x) => x.slug === "finanzas")?.apps.map((a) => a.nombre), ["Herramientas Finanzas", "Rendir Gastos"]);
+  assert.deepEqual(grupos.find((x) => x.slug === "en-pausa")?.apps.map((a) => a.nombre), ["Proyectos"]);
+  assert.deepEqual(grupos.find((x) => x.slug === "fuera-del-menu")?.apps.map((a) => a.nombre), ["Mi Día"]);
+  // Ninguna aplicación se pierde ni se repite al agrupar.
+  const todasLasAgrupadas = grupos.flatMap((x) => x.apps.map((a) => a.id));
+  assert.equal(new Set(todasLasAgrupadas).size, todas.length);
+  // Una aplicación nueva cae en «Otras», antes de «Página web».
+  const conNueva = agruparCatalogo([...todas, app("/nueva", "Nueva")]).map((x) => x.slug);
+  assert.deepEqual(conNueva.slice(-4), ["otras", "pagina-web", "fuera-del-menu", "en-pausa"]);
+}
 
 // La barra: el botón de plegar SIEMPRE funciona. Lo que toca la persona manda sobre el valor por
 // omisión (antes, el módulo donde estaba la página abierta se forzaba abierto y el botón parecía roto),
@@ -96,4 +120,4 @@ assert.deepEqual(appsSueltasDelInicio([app("/mi-dia", "Mi Día"), app("/cotizado
   assert.match(barra, /motion-reduce:transition-none/, "las animaciones respetan «reducir movimiento»");
 }
 
-console.log("Menú verificado: módulos con slug, descripción e icono; Página web siempre al final y Administración solo para el admin; Proyectos y Facturas IH ocultos; nada sin permiso; el botón de plegar siempre funciona.");
+console.log("Menú verificado: módulos con slug, descripción e icono; Página web siempre al final y Administración solo para el admin; Flota dentro de Inventario; Proyectos en pausa (fuera del menú y presente en el catálogo) y Facturas IH ocultos; nada sin permiso; el botón de plegar siempre funciona.");

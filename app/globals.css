@@ -468,3 +468,32 @@ select:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px var(--color-superficie) inset;
   -webkit-text-fill-color: var(--color-tinta);
 }
+
+/* ── Tonos de estado: las cifras de los módulos y las pantallas de Administración ──
+   Rojo, ámbar y verde que SÍ se leen en los dos temas. Los de Tailwind (text-rose-600,
+   text-amber-700) en oscuro sobre la superficie quedan en ~3:1, por debajo del 4,5:1 que pide
+   WCAG para texto chico; acá cada tono tiene su valor claro y su valor oscuro, medidos aparte.
+
+   El tono nunca va solo: siempre lo acompaña un ícono y un texto (un daltónico no distingue el
+   rojo del verde). La clase pinta `color`; el fondo suave sale del mismo color con color-mix. */
+.tono-alerta {
+  color: #b4233a;
+}
+.tono-aviso {
+  color: #92520a;
+}
+.tono-ok {
+  color: #0a6f58;
+}
+[data-theme="dark"] .tono-alerta {
+  color: #fb7185;
+}
+[data-theme="dark"] .tono-aviso {
+  color: #f5b455;
+}
+[data-theme="dark"] .tono-ok {
+  color: #35b89b;
+}
+.fondo-tono {
+  background-color: color-mix(in srgb, currentColor 10%, transparent);
+}

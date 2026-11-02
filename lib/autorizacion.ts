@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "./usuarios";
 import { obtenerAplicacionPorSlug } from "./aplicaciones";
+import { estaPausada } from "./apps-pausadas";
 import type { UsuarioConAcceso } from "./tipos";
 
 export interface AccesoApiDenegado {
@@ -39,6 +40,7 @@ export async function exigirAdmin(): Promise<UsuarioConAcceso> {
  * deja pasar datos de un módulo que esa persona no tiene.
  */
 export async function puedeVerApp(usuario: UsuarioConAcceso, slug: string): Promise<boolean> {
+  if (estaPausada(slug)) return false; // en pausa: nadie, ni el admin (ver lib/apps-pausadas.ts)
   if (usuario.rol === "admin") return true;
   const app = await obtenerAplicacionPorSlug(slug);
   return Boolean(app && usuario.aplicacionIds.includes(app.id));
@@ -51,6 +53,7 @@ export async function exigirAccesoApp(slug: string): Promise<UsuarioConAcceso> {
   const session = await auth();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) redirect("/ingresar");
+  if (estaPausada(slug)) redirect("/"); // en pausa: nadie, ni el admin (ver lib/apps-pausadas.ts)
   if (usuario.rol === "admin") return usuario;
 
   const app = await obtenerAplicacionPorSlug(slug);
@@ -64,6 +67,7 @@ export async function verificarAccesoAppApi(slug: string): Promise<AccesoApiDene
   const session = await auth();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) return { usuario: null, status: 401, error: "No autorizado" };
+  if (estaPausada(slug)) return { usuario: null, status: 403, error: "No autorizado" }; // ver lib/apps-pausadas.ts
   if (usuario.rol === "admin") return { usuario, status: null, error: null };
 
   const app = await obtenerAplicacionPorSlug(slug);

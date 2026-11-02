@@ -46,7 +46,9 @@ export async function moverAplicacionAction(form: FormData) {
   await exigirAdmin();
   const id = String(form.get("id"));
   const direccion = form.get("direccion") === "abajo" ? "abajo" : "arriba";
-  await moverAplicacion(id, direccion);
+  // Los ids del grupo que se está mirando (ver moverAplicacion); sin ellos, mueve en la lista completa.
+  const entre = String(form.get("entre") ?? "").split(",").filter(Boolean);
+  await moverAplicacion(id, direccion, entre.length > 0 ? entre : undefined);
   revalidatePath("/aplicaciones");
   revalidatePath("/");
 }

@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import { filtrarAppsDelUsuario, subpanelesFinanzasDelMenu } from "@/lib/menu-usuario";
-import { appsSueltasDelInicio, armarMenu } from "@/lib/menu-modelo";
+import { armarMenu } from "@/lib/menu-modelo";
 import GrillaDeModulos from "@/components/modulos/GrillaDeModulos";
 import WidgetCalendario from "@/components/WidgetCalendario";
 import AvanceDelDia, { puedeVerResumenDelDia } from "@/components/mi-dia/AvanceDelDia";
@@ -32,10 +32,8 @@ export default async function DashboardPage() {
   // izquierda (armarMenu), así que cada persona ve acá exactamente los módulos que ve allá.
   // «Administración» no va: es configuración del Core y siempre se llegó a ella por el menú.
   // Mi Día tampoco: su resumen está destacado arriba con su propio botón (armarMenu ya lo deja fuera).
+  // Proyectos tampoco: está en pausa (lib/apps-pausadas.ts) y filtrarAppsDelUsuario ya lo sacó.
   const modulos = armarMenu(apps, await subpanelesFinanzasDelMenu(usuario, apps));
-  // Salvo lo que no cuelga de ningún módulo y no está en el menú (Proyectos): sin esta tarjeta
-  // quedaría inalcanzable. Ver appsSueltasDelInicio.
-  const sueltas = appsSueltasDelInicio(apps);
   const primerNombre = usuario.nombre?.split(" ")[0];
   // El resumen del día sale de los datos de PERTEC: en otra empresa no va.
   const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
@@ -91,12 +89,12 @@ export default async function DashboardPage() {
         <span className="etiqueta-seccion">Accesos</span>
         <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">Tus módulos</h2>
 
-        {modulos.length === 0 && sueltas.length === 0 ? (
+        {modulos.length === 0 ? (
           <p className="mt-4 text-sm text-tinta/60">
             Todavía no tienes aplicaciones asignadas. Pídele a un administrador que te dé acceso.
           </p>
         ) : (
-          <GrillaDeModulos grupos={modulos} sueltas={sueltas} />
+          <GrillaDeModulos grupos={modulos} />
         )}
       </div>
     </div>

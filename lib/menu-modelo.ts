@@ -13,6 +13,7 @@
 //   - SECCIÓN: las pantallas de adentro de un submódulo (ver SECCIONES_DE_MODULO).
 
 import type { Aplicacion } from "./tipos";
+import { estaPausada } from "./apps-pausadas";
 import { SUBPANELES_FINANZAS } from "./finanzas-subpaneles";
 
 export type ItemDelMenu =
@@ -35,19 +36,11 @@ export function rutaDeModulo(slug: string): string {
 }
 
 /**
- * Rutas que no van en el menú aunque la persona tenga la app. Mi Día no se
- * pierde: tiene su botón arriba a la derecha (ver BarraSuperior).
+ * Rutas que no van en el menú aunque la persona tenga la app. Mi Día no se pierde: tiene su botón
+ * arriba a la derecha (ver BarraSuperior). Proyectos está en pausa (lib/apps-pausadas.ts): ya ni
+ * siquiera le llega a armarMenu, y queda acá por si alguna vez se la dejara pasar.
  */
 export const RUTAS_OCULTAS = ["/proyectos", "/mi-dia"];
-
-/**
- * Las aplicaciones que no cuelgan de ningún módulo y no van en el menú, pero SÍ en el Inicio:
- * hoy, Proyectos. Como no está en el menú, el Inicio es la única puerta que tiene: si el Inicio
- * mostrara solo módulos, quedaría inalcanzable. Mi Día no cuenta: tiene su propio botón arriba.
- */
-export function appsSueltasDelInicio(apps: Aplicacion[]): Aplicacion[] {
-  return apps.filter((a) => RUTAS_OCULTAS.includes(a.url) && a.url !== "/mi-dia");
-}
 
 /**
  * Las pantallas de adentro de un submódulo, para que se vean desde el menú y desde la página
@@ -116,24 +109,21 @@ const PLAN: Plan[] = [
     descripcion: "Tablero de tareas del equipo: por hacer, en curso y hecho.",
     items: [{ ruta: "/tareas" }],
   },
-  // Tareas, Contratos, Inventario y Flota son módulos de una sola aplicación: se ven y pliegan igual que los demás.
+  // Tareas y Contratos son módulos de una sola aplicación: se ven y pliegan igual que los demás.
   {
     slug: "contratos",
     titulo: "Contratos",
     descripcion: "Acreditación, logística y gastos de arranque de cada contrato.",
     items: [{ ruta: "/contratos" }],
   },
+  // Flota cuelga de Inventario: es una aplicación aparte (su propio permiso y sus propias rutas
+  // /flota), pero para la gente es parte de lo mismo: lo que la empresa tiene y mueve. La de stock
+  // se llama «Stock y bodegas» para que el módulo no tenga un submódulo del mismo nombre.
   {
     slug: "inventario",
     titulo: "Inventario",
-    descripcion: "Stock, movimientos y valorización de bodega.",
-    items: [{ ruta: "/inventario" }],
-  },
-  {
-    slug: "flota",
-    titulo: "Flota",
-    descripcion: "Vehículos, conductores, mantenciones, contratos y costos.",
-    items: [{ ruta: "/flota" }],
+    descripcion: "Stock y bodegas, y la flota de vehículos de la empresa.",
+    items: [{ ruta: "/inventario", nombre: "Stock y bodegas" }, { ruta: "/flota" }],
   },
 ];
 
@@ -241,5 +231,69 @@ export function armarMenu(
   }
   if (paginaWeb) grupos.push(paginaWeb);
   if (opciones.admin) grupos.push(ADMINISTRACION);
+  return grupos;
+}
+
+/** Una agrupación del catálogo de aplicaciones tal como la ve Administración. */
+export interface GrupoDelCatalogo {
+  /** Un módulo del menú, o uno de los tres aparte: «otras», «fuera-del-menu» y «en-pausa». */
+  slug: string;
+  titulo: string;
+  /** Una línea que explica por qué las aplicaciones están ahí. */
+  nota: string;
+  apps: Aplicacion[];
+}
+
+/**
+ * El catálogo de aplicaciones agrupado como se ve el menú: un grupo por módulo y, aparte, las que
+ * no cuelgan de ninguno.
+ *
+ * Es para Administración (Aplicaciones y el formulario de usuarios): una lista plana en el orden de
+ * la tabla no dice a qué módulo pertenece cada aplicación ni por qué una no aparece en el menú.
+ * No filtra por permiso —el admin ve todo el catálogo— ni por estado: las que están en pausa
+ * (lib/apps-pausadas.ts) van en su propio grupo en vez de desaparecer, que es lo que hace falta
+ * para poder reactivarlas o asignarlas.
+ *
+ * El orden de los módulos y de las aplicaciones dentro de cada uno es el del menú. Un grupo sin
+ * aplicaciones no se devuelve.
+ */
+export function agruparCatalogo(apps: Aplicacion[]): GrupoDelCatalogo[] {
+  const porRuta = new Map(apps.map((a) => [a.url, a]));
+  const usadas = new Set<string>();
+  const grupos: GrupoDelCatalogo[] = [];
+
+  const enPausa = apps.filter((a) => estaPausada(a.slug));
+  const pausadas = new Set(enPausa.map((a) => a.id));
+
+  function agregar(plan: Plan, extras: string[] = []) {
+    const rutas = [...extras, ...plan.items.flatMap((p) => ("ruta" in p ? [p.ruta] : []))];
+    const delModulo: Aplicacion[] = [];
+    for (const ruta of rutas) {
+      const app = porRuta.get(ruta);
+      if (!app || pausadas.has(app.id) || usadas.has(ruta)) continue;
+      usadas.add(ruta);
+      delModulo.push(app);
+    }
+    if (delModulo.length > 0) {
+      grupos.push({ slug: plan.slug, titulo: plan.titulo, nota: plan.descripcion, apps: delModulo });
+    }
+  }
+
+  for (const plan of PLAN) agregar(plan, plan.slug === "finanzas" ? ["/finanzas"] : []);
+
+  const fueraDelMenu = apps.filter((a) => a.url === "/mi-dia" && !pausadas.has(a.id));
+  fueraDelMenu.forEach((a) => usadas.add(a.url));
+  const otras = apps.filter((a) => !usadas.has(a.url) && !pausadas.has(a.id) && !PAGINA_WEB.items.some((p) => "ruta" in p && p.ruta === a.url));
+  if (otras.length > 0) {
+    grupos.push({ slug: "otras", titulo: "Otras", nota: "No cuelgan de ningún módulo: salen en «Otras» del menú.", apps: otras });
+  }
+  agregar(PAGINA_WEB);
+
+  if (fueraDelMenu.length > 0) {
+    grupos.push({ slug: "fuera-del-menu", titulo: "Fuera del menú", nota: "Tienen su propio botón en la barra de arriba.", apps: fueraDelMenu });
+  }
+  if (enPausa.length > 0) {
+    grupos.push({ slug: "en-pausa", titulo: "En pausa", nota: "Ocultas de todo el Core por ahora; conservan sus permisos y sus datos.", apps: enPausa });
+  }
   return grupos;
 }
