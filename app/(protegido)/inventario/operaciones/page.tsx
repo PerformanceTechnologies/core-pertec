@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { IconPlus } from "@tabler/icons-react";
+import { IconArrowsExchange, IconPlus } from "@tabler/icons-react";
+import IntroSeccion, { Pistas } from "@/components/inventario/IntroSeccion";
 import { listarTransferencias } from "@/lib/inventario";
 import { ETIQUETA_CLASE, type ClaseOperacion } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
@@ -21,7 +22,16 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <IntroSeccion
+        Icono={IconArrowsExchange}
+        tono="bg-violet-500/10 text-violet-600"
+        titulo="Operaciones"
+        bajada="Todo lo que entra, sale o se mueve entre bodegas. Cada operación es un documento con su número."
+        accion={{ href: "/inventario/operaciones/nueva", texto: "Nueva operación", Icono: IconPlus }}
+      >
+        <Pistas items={["Crea la operación", "Revisa los productos", "Valida para mover el stock"]} />
+      </IntroSeccion>
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap gap-1.5">
           {FILTROS.map((f) => {
             const on = (clase ?? "") === f.clave;
@@ -36,14 +46,14 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
             );
           })}
         </div>
-        <Link href="/inventario/operaciones/nueva" className="inline-flex items-center gap-1.5 rounded-lg bg-naranjo px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave">
-          <IconPlus size={16} /> Nueva operación
-        </Link>
       </div>
 
       {transferencias.length === 0 ? (
         <div className={`${TARJETA} p-10 text-center`}>
           <p className="text-sm text-gris">No hay operaciones{clase ? " de este tipo" : ""} todavía.</p>
+          <Link href={`/inventario/operaciones/nueva${clase ? `?clase=${clase}` : ""}`} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-naranjo hover:underline">
+            <IconPlus size={16} /> Crear la primera
+          </Link>
         </div>
       ) : (
         <div className={`${TARJETA} overflow-hidden`}>

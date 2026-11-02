@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { IconChevronRight } from "@tabler/icons-react";
+import { IconChevronRight, IconPackage, IconUpload } from "@tabler/icons-react";
+import IntroSeccion from "@/components/inventario/IntroSeccion";
 import FormularioProducto from "@/components/inventario/FormularioProducto";
 import { FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
 import { listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades } from "@/lib/inventario";
@@ -29,10 +30,20 @@ export default async function ProductosPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-gris">{productos.length} {productos.length === 1 ? "producto" : "productos"}</p>
-        <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} />
-      </div>
+      <IntroSeccion
+        Icono={IconPackage}
+        tono="bg-naranjo/12 text-naranjo"
+        titulo="Productos"
+        bajada="El catálogo: cada producto con su stock en todas las bodegas. Toca uno para ver su ficha, lotes y movimientos."
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} />
+          <Link href="/inventario/importar" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-borde px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50">
+            <IconUpload size={16} /> Carga masiva
+          </Link>
+          <span className="text-sm text-gris">{productos.length} {productos.length === 1 ? "producto" : "productos"}</span>
+        </div>
+      </IntroSeccion>
 
       {productos.length === 0 ? (
         <div className={`${TARJETA} p-10 text-center`}>

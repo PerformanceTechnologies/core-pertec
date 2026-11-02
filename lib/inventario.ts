@@ -210,6 +210,28 @@ export async function listarProductosConStock(): Promise<ProductoConStock[]> {
   });
 }
 
+/**
+ * Lo que hay hoy de cada producto en cada ubicación interna, con clave «producto|ubicación».
+ * Lo usan los asistentes de operación y ajuste para mostrar el stock mientras se completa.
+ */
+export async function mapaDeStock(): Promise<Record<string, { aMano: number; disponible: number }>> {
+  const [quants, internas] = await Promise.all([
+    supabaseAdmin.from(T.quants).select("producto_id, ubicacion_id, cantidad, reservado"),
+    idsInternos(),
+  ]);
+  revienta("leer quants", quants.error);
+  const mapa: Record<string, { aMano: number; disponible: number }> = {};
+  for (const q of quants.data ?? []) {
+    if (!internas.has(q.ubicacion_id)) continue;
+    const clave = `${q.producto_id}|${q.ubicacion_id}`;
+    const acc = mapa[clave] ?? { aMano: 0, disponible: 0 };
+    acc.aMano = redondear(acc.aMano + Number(q.cantidad));
+    acc.disponible = redondear(acc.disponible + disponible({ cantidad: Number(q.cantidad), reservado: Number(q.reservado) }));
+    mapa[clave] = acc;
+  }
+  return mapa;
+}
+
 /** Conjunto de ids de ubicaciones internas (las que cuentan como stock propio). */
 async function idsInternos(): Promise<Set<string>> {
   const { data } = await supabaseAdmin.from(T.ubicaciones).select("id").eq("tipo", "interna");

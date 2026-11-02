@@ -1,3 +1,5 @@
+import { IconSettings } from "@tabler/icons-react";
+import IntroSeccion from "@/components/inventario/IntroSeccion";
 import CreadorEntidad from "@/components/inventario/CreadorEntidad";
 import { crearCategoriaAction, crearUnidadAction } from "@/app/(protegido)/inventario/acciones";
 import { listarCategorias, listarTiposOperacion, listarUnidades } from "@/lib/inventario";
@@ -11,6 +13,14 @@ export default async function ConfiguracionInventarioPage() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      <div className="lg:col-span-2">
+        <IntroSeccion
+          Icono={IconSettings}
+          tono="bg-slate-500/10 text-slate-600"
+          titulo="Configuración"
+          bajada="Las listas que usan los productos: categorías y unidades de medida. Los tipos de operación definen de dónde a dónde mueve cada documento."
+        />
+      </div>
       {/* Categorías */}
       <section className={`${TARJETA} p-5`}>
         <h2 className="mb-3 text-sm font-bold text-tinta">Categorías de producto</h2>

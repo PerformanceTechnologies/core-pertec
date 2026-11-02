@@ -1,3 +1,5 @@
+import { IconMapPin } from "@tabler/icons-react";
+import IntroSeccion from "@/components/inventario/IntroSeccion";
 import CreadorEntidad from "@/components/inventario/CreadorEntidad";
 import { crearAlmacenAction, crearUbicacionAction } from "@/app/(protegido)/inventario/acciones";
 import { listarAlmacenes, listarUbicaciones } from "@/lib/inventario";
@@ -15,6 +17,12 @@ export default async function UbicacionesPage() {
 
   return (
     <div className="space-y-6">
+      <IntroSeccion
+        Icono={IconMapPin}
+        tono="bg-sky-500/10 text-sky-600"
+        titulo="Bodegas y ubicaciones"
+        bajada="Una bodega (almacén) agrupa ubicaciones. Las ubicaciones internas guardan stock; las virtuales son el otro lado de cada movimiento (proveedor, cliente, ajuste)."
+      />
       {/* Almacenes */}
       <section className={`${TARJETA} p-5`}>
         <h2 className="mb-3 text-sm font-bold text-tinta">Almacenes (bodegas)</h2>
