@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
-import { obtenerIcono } from "@/lib/iconos";
-import { clasesInsigniaColor, clasesInsigniaEstado, etiquetaEstado } from "@/lib/colores";
+import { filtrarAppsDelUsuario, subpanelesFinanzasDelMenu } from "@/lib/menu-usuario";
+import { appsSueltasDelInicio, armarMenu } from "@/lib/menu-modelo";
+import GrillaDeModulos from "@/components/modulos/GrillaDeModulos";
 import WidgetCalendario from "@/components/WidgetCalendario";
 import AvanceDelDia, { puedeVerResumenDelDia } from "@/components/mi-dia/AvanceDelDia";
 import { contextoDeEmpresa } from "@/lib/empresas";
@@ -26,16 +26,16 @@ export default async function DashboardPage() {
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) return null; // el layout ya redirige antes de llegar aquí
 
-  const todasLasApps = await listarAplicaciones();
-  const apps = (
-    usuario.rol === "admin"
-      ? todasLasApps
-      : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id))
-  )
-    // Mi Día no va en la grilla: su resumen está destacado arriba con su propio
-    // botón, y tener las dos cosas hace dudar de si llevan al mismo lado. Sigue
-    // en el menú de la izquierda como todos los demás módulos.
-    .filter((app) => app.slug !== "mi-dia");
+  const apps = filtrarAppsDelUsuario(await listarAplicaciones(), usuario);
+  // El Inicio muestra los MÓDULOS principales (Finanzas, CRM, Contratos…), no cada aplicación
+  // que cuelga de ellos: esas se ven al entrar al módulo. Es el mismo armado que el menú de la
+  // izquierda (armarMenu), así que cada persona ve acá exactamente los módulos que ve allá.
+  // «Administración» no va: es configuración del Core y siempre se llegó a ella por el menú.
+  // Mi Día tampoco: su resumen está destacado arriba con su propio botón (armarMenu ya lo deja fuera).
+  const modulos = armarMenu(apps, await subpanelesFinanzasDelMenu(usuario, apps));
+  // Salvo lo que no cuelga de ningún módulo y no está en el menú (Proyectos): sin esta tarjeta
+  // quedaría inalcanzable. Ver appsSueltasDelInicio.
+  const sueltas = appsSueltasDelInicio(apps);
   const primerNombre = usuario.nombre?.split(" ")[0];
   // El resumen del día sale de los datos de PERTEC: en otra empresa no va.
   const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
@@ -89,71 +89,14 @@ export default async function DashboardPage() {
 
       <div className="mt-10">
         <span className="etiqueta-seccion">Accesos</span>
-        <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">Tus aplicaciones</h2>
+        <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">Tus módulos</h2>
 
-        {apps.length === 0 ? (
+        {modulos.length === 0 && sueltas.length === 0 ? (
           <p className="mt-4 text-sm text-tinta/60">
             Todavía no tienes aplicaciones asignadas. Pídele a un administrador que te dé acceso.
           </p>
         ) : (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {apps.map((app) => {
-              const Icono = obtenerIcono(app.icono);
-              const deshabilitada = app.estado === "mantenimiento";
-              const href =
-                app.tipo === "interna"
-                  ? app.url
-                  : app.url.startsWith("http")
-                    ? app.url
-                    : `https://${app.url}`;
-
-              const contenido = (
-                <>
-                  <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${clasesInsigniaColor(app.color)}`}
-                  >
-                    <Icono size={20} stroke={1.75} aria-hidden />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-tinta">{app.nombre}</p>
-                      {app.estado !== "activa" && (
-                        <span
-                          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${clasesInsigniaEstado(app.estado)}`}
-                        >
-                          {etiquetaEstado(app.estado)}
-                        </span>
-                      )}
-                    </div>
-                    {app.descripcion && (
-                      <p className="mt-0.5 truncate text-xs text-tinta/50">{app.descripcion}</p>
-                    )}
-                  </div>
-                </>
-              );
-
-              if (deshabilitada) {
-                return (
-                  <div
-                    key={app.id}
-                    className="flex cursor-not-allowed items-center gap-3.5 rounded-xl border border-borde bg-white/60 p-4 opacity-60"
-                  >
-                    {contenido}
-                  </div>
-                );
-              }
-
-              return (
-                <Link
-                  key={app.id}
-                  href={href}
-                  className="group flex items-center gap-3.5 rounded-xl border border-borde bg-white p-4 transition hover:-translate-y-0.5 hover:border-naranjo/30 hover:shadow-md"
-                >
-                  {contenido}
-                </Link>
-              );
-            })}
-          </div>
+          <GrillaDeModulos grupos={modulos} sueltas={sueltas} />
         )}
       </div>
     </div>
