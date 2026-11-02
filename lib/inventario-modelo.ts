@@ -10,6 +10,7 @@
 // -----------------------------------------------------------------------------
 
 export type TipoProducto = "almacenable" | "consumible" | "servicio";
+export type MetodoCosto = "estandar" | "promedio";
 export type Seguimiento = "ninguno" | "lote" | "serie";
 export type TipoUbicacion = "interna" | "proveedor" | "cliente" | "ajuste" | "transito" | "vista";
 export type ClaseOperacion = "recepcion" | "entrega" | "interna" | "ajuste";
@@ -38,6 +39,7 @@ export interface Producto {
   tipo: TipoProducto;
   seguimiento: Seguimiento;
   costo: number;
+  metodoCosto: MetodoCosto;
   precio: number;
   activo: boolean;
 }
@@ -108,6 +110,8 @@ export interface Transferencia {
   fechaValidacion: string | null;
   creadoPor: string | null;
   creadoEn: string;
+  /** Si es el saldo de una entrega parcial, la transferencia original. */
+  backorderDe: string | null;
 }
 
 export interface Quant {
@@ -142,6 +146,11 @@ export const ETIQUETA_SEGUIMIENTO: Record<Seguimiento, string> = {
   ninguno: "Sin seguimiento",
   lote: "Por lote",
   serie: "Por número de serie",
+};
+
+export const ETIQUETA_METODO_COSTO: Record<MetodoCosto, string> = {
+  estandar: "Estándar (fijo)",
+  promedio: "Costo promedio (AVCO)",
 };
 
 export const ETIQUETA_TIPO_UBICACION: Record<TipoUbicacion, string> = {
@@ -207,6 +216,27 @@ export function sumarCantidad(quants: { cantidad: number }[]): number {
 /** Valor del inventario a costo estándar: cantidad a mano × costo del producto. */
 export function valorizar(cantidad: number, costo: number): number {
   return redondear(cantidad * costo);
+}
+
+/**
+ * Costo promedio ponderado (AVCO) tras una recepción, como lo calcula el motor:
+ * lo que había a mano a su costo más lo que entra a su costo unitario. Un a mano
+ * negativo no pondera (no hay unidades reales que valorizar).
+ */
+export function costoPromedio(aMano: number, costoActual: number, entra: number, costoEntrada: number): number {
+  const base = Math.max(aMano, 0);
+  if (base + entra <= 0) return costoActual;
+  return Math.round(((base * costoActual + entra * costoEntrada) / (base + entra)) * 10_000) / 10_000;
+}
+
+/** Cantidad pronosticada, como el "Forecasted" de Odoo: a mano + lo que viene - lo que sale. */
+export function pronosticado(aMano: number, entrante: number, saliente: number): number {
+  return redondear(aMano + entrante - saliente);
+}
+
+/** Lo que queda para el backorder de una línea validada en forma parcial. */
+export function saldoParaBackorder(cantidad: number, hecha: number): number {
+  return redondear(Math.max(cantidad - hecha, 0));
 }
 
 /** Cuánto falta reponer según una regla mín/máx y el disponible actual. */

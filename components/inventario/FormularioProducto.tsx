@@ -7,9 +7,11 @@ import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
 import { CAMPO } from "@/lib/estilos";
 import {
+  ETIQUETA_METODO_COSTO,
   ETIQUETA_SEGUIMIENTO,
   ETIQUETA_TIPO_PRODUCTO,
   type Categoria,
+  type MetodoCosto,
   type Producto,
   type Seguimiento,
   type TipoProducto,
@@ -114,6 +116,14 @@ export default function FormularioProducto({
               </Campo>
             </div>
           </div>
+
+          <Campo etiqueta="Método de costo">
+            <select name="metodoCosto" defaultValue={producto?.metodoCosto ?? "promedio"} className={CAMPO}>
+              {(Object.keys(ETIQUETA_METODO_COSTO) as MetodoCosto[]).map((m) => (
+                <option key={m} value={m}>{ETIQUETA_METODO_COSTO[m]}</option>
+              ))}
+            </select>
+          </Campo>
 
           <Campo etiqueta="Descripción">
             <textarea name="descripcion" rows={2} defaultValue={producto?.descripcion ?? ""} className={CAMPO} />

@@ -70,13 +70,25 @@ export default async function DetalleOperacionPage({ params }: { params: Promise
         <aside className="space-y-4">
           <section className={`${TARJETA} p-4`}>
             <h3 className="mb-3 text-sm font-bold text-tinta">Acciones</h3>
-            <AccionesTransferencia id={t.id} estado={t.estado} />
+            <AccionesTransferencia
+              id={t.id}
+              estado={t.estado}
+              lineas={movimientos
+                .filter((m) => m.estado === "borrador")
+                .map((m) => ({ id: m.id, nombre: nombreProd.get(m.productoId) ?? "Producto", cantidad: m.cantidad }))}
+            />
           </section>
           <section className={`${TARJETA} space-y-2 p-4 text-sm`}>
             <Fila etiqueta="Creada" valor={new Date(t.creadoEn).toLocaleString("es-CL")} />
             {t.fechaValidacion && <Fila etiqueta="Validada" valor={new Date(t.fechaValidacion).toLocaleString("es-CL")} />}
             {t.creadoPor && <Fila etiqueta="Por" valor={t.creadoPor} />}
             {t.nota && <Fila etiqueta="Nota" valor={t.nota} />}
+            {t.backorderDe && (
+              <div className="flex justify-between gap-3">
+                <span className="text-gris">Saldo de</span>
+                <Link href={`/inventario/operaciones/${t.backorderDe}`} className="font-semibold text-cian hover:underline">Ver original</Link>
+              </div>
+            )}
           </section>
         </aside>
       </div>

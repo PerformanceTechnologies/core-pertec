@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
 import {
   disponible,
+  pronosticado,
   redondear,
   siguienteReferencia,
   sugerenciaDeReposicion,
@@ -53,7 +54,7 @@ const aAlmacen = (r: any): Almacen => ({ id: r.id, nombre: r.nombre, codigo: r.c
 const aProducto = (r: any): Producto => ({
   id: r.id, sku: r.sku, nombre: r.nombre, descripcion: r.descripcion,
   categoriaId: r.categoria_id, unidadId: r.unidad_id, tipo: r.tipo, seguimiento: r.seguimiento,
-  costo: Number(r.costo), precio: Number(r.precio), activo: r.activo,
+  costo: Number(r.costo), metodoCosto: r.metodo_costo ?? "estandar", precio: Number(r.precio), activo: r.activo,
 });
 
 const aUbicacion = (r: any): Ubicacion => ({
@@ -76,6 +77,7 @@ const aTransferencia = (r: any): Transferencia => ({
   ubicacionOrigenId: r.ubicacion_origen_id, ubicacionDestinoId: r.ubicacion_destino_id, estado: r.estado,
   contraparte: r.contraparte, nota: r.nota, fechaProgramada: r.fecha_programada,
   fechaValidacion: r.fecha_validacion, creadoPor: r.creado_por, creadoEn: r.creado_en,
+  backorderDe: r.backorder_de ?? null,
 });
 
 const aMovimiento = (r: any): Movimiento => ({
@@ -145,16 +147,28 @@ export interface ProductoConStock extends Producto {
   aMano: number;
   /** Disponible = a mano - reservado. */
   disponible: number;
+  /** Lo que llega en recepciones aún no validadas. */
+  entrante: number;
+  /** Lo que sale en entregas aún no validadas. */
+  saliente: number;
+  /** a mano + entrante - saliente. */
+  pronosticado: number;
   valor: number;
 }
 
 /** Productos con su stock total (solo cuenta ubicaciones internas). */
 export async function listarProductosConStock(): Promise<ProductoConStock[]> {
-  const [productos, quants, internas] = await Promise.all([
+  const [productos, quants, internas, pendientes] = await Promise.all([
     supabaseAdmin.from(T.productos).select("*").eq("activo", true).order("nombre"),
     supabaseAdmin.from(T.quants).select("producto_id, ubicacion_id, cantidad, reservado"),
     idsInternos(),
+    supabaseAdmin
+      .from(T.movimientos)
+      .select("producto_id, ubicacion_origen_id, ubicacion_destino_id, cantidad, inv_transferencias!inner(estado)")
+      .eq("estado", "borrador")
+      .in("inv_transferencias.estado", ["borrador", "listo"]),
   ]);
+  revienta("leer movimientos pendientes", pendientes.error);
   revienta("listar productos", productos.error);
   revienta("leer quants", quants.error);
 
@@ -167,11 +181,28 @@ export async function listarProductosConStock(): Promise<ProductoConStock[]> {
     porProducto.set(q.producto_id, acc);
   }
 
+  // Entra lo que va de fuera hacia stock propio; sale lo que va de stock hacia fuera.
+  const flujo = new Map<string, { entrante: number; saliente: number }>();
+  for (const m of pendientes.data ?? []) {
+    const desdeStock = internas.has(m.ubicacion_origen_id);
+    const haciaStock = internas.has(m.ubicacion_destino_id);
+    if (desdeStock === haciaStock) continue;
+    const acc = flujo.get(m.producto_id) ?? { entrante: 0, saliente: 0 };
+    if (haciaStock) acc.entrante += Number(m.cantidad);
+    else acc.saliente += Number(m.cantidad);
+    flujo.set(m.producto_id, acc);
+  }
+
   return (productos.data ?? []).map((r) => {
     const p = aProducto(r);
     const s = porProducto.get(p.id) ?? { aMano: 0, reservado: 0 };
+    const f = flujo.get(p.id) ?? { entrante: 0, saliente: 0 };
     const aMano = redondear(s.aMano);
-    return { ...p, aMano, disponible: disponible({ cantidad: s.aMano, reservado: s.reservado }), valor: valorizar(aMano, p.costo) };
+    return {
+      ...p, aMano, disponible: disponible({ cantidad: s.aMano, reservado: s.reservado }),
+      entrante: redondear(f.entrante), saliente: redondear(f.saliente),
+      pronosticado: pronosticado(aMano, f.entrante, f.saliente), valor: valorizar(aMano, p.costo),
+    };
   });
 }
 
@@ -277,6 +308,8 @@ export interface LineaNueva {
   cantidad: number;
   unidadId?: string | null;
   loteId?: string | null;
+  /** Costo de compra por unidad; en recepciones alimenta el costo promedio. */
+  costoUnitario?: number | null;
 }
 
 /**
@@ -336,6 +369,7 @@ export async function crearTransferencia(datos: {
     ubicacion_origen_id: origen,
     ubicacion_destino_id: destino,
     cantidad: l.cantidad,
+    costo_unitario: l.costoUnitario ?? null,
   }));
   const { error: errM } = await supabaseAdmin.from(T.movimientos).insert(filas);
   revienta("crear líneas", errM);
@@ -348,9 +382,14 @@ export async function reservarTransferencia(id: string): Promise<void> {
   revienta("reservar transferencia", error);
 }
 
-export async function validarTransferencia(id: string): Promise<void> {
-  const { error } = await supabaseAdmin.rpc("inv_validar_transferencia", { p_id: id });
+/**
+ * Valida una transferencia. `hechas` (id de línea → cantidad) permite una
+ * entrega parcial: lo que falte queda en un backorder, cuyo id se devuelve.
+ */
+export async function validarTransferencia(id: string, hechas?: Record<string, number>): Promise<string | null> {
+  const { data, error } = await supabaseAdmin.rpc("inv_validar_transferencia", { p_id: id, p_hechas: hechas ?? null });
   revienta("validar transferencia", error);
+  return (data as string | null) ?? null;
 }
 
 export async function cancelarTransferencia(id: string): Promise<void> {
@@ -521,12 +560,12 @@ export async function valorizacion(): Promise<{ filas: FilaValorizacion[]; total
 
 export async function crearProducto(d: {
   nombre: string; sku?: string | null; descripcion?: string | null; categoriaId?: string | null;
-  unidadId?: string | null; tipo?: string; seguimiento?: string; costo?: number; precio?: number;
+  unidadId?: string | null; tipo?: string; seguimiento?: string; costo?: number; precio?: number; metodoCosto?: string;
 }): Promise<string> {
   const { data, error } = await supabaseAdmin.from(T.productos).insert({
     nombre: d.nombre, sku: d.sku || null, descripcion: d.descripcion || null, categoria_id: d.categoriaId || null,
     unidad_id: d.unidadId || null, tipo: d.tipo || "almacenable", seguimiento: d.seguimiento || "ninguno",
-    costo: d.costo ?? 0, precio: d.precio ?? 0,
+    costo: d.costo ?? 0, precio: d.precio ?? 0, metodo_costo: d.metodoCosto || "promedio",
   }).select("id").single();
   revienta("crear producto", error);
   return data!.id;

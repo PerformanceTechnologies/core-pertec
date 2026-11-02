@@ -805,3 +805,27 @@ console.log(
     "y el motor de doble entrada en ciclos completos — recepción, reserva, entrega, ajuste, " +
     "cancelación, lotes — cuadrando sin crear ni perder stock.",
 );
+
+// -----------------------------------------------------------------------------
+//  Mejoras al estilo Odoo (migración 0002): AVCO, pronóstico, backorders y candados.
+// -----------------------------------------------------------------------------
+{
+  const m = await import("../lib/inventario-modelo");
+  // 10 a $1.000 + 10 a $2.000 → $1.500.
+  assert.equal(m.costoPromedio(10, 1000, 10, 2000), 1500);
+  // Sin stock previo, el costo es el de la entrada.
+  assert.equal(m.costoPromedio(0, 1000, 5, 1200), 1200);
+  // Un a mano negativo no pondera.
+  assert.equal(m.costoPromedio(-3, 1000, 5, 1200), 1200);
+  assert.equal(m.costoPromedio(0, 777, 0, 1), 777);
+  assert.equal(m.pronosticado(10, 5, 12), 3);
+  assert.equal(m.saldoParaBackorder(10, 7), 3);
+  assert.equal(m.saldoParaBackorder(10, 10), 0);
+
+  const sql = readFileSync("supabase/inventario/0002_inventario_odoo.sql", "utf8");
+  for (const pieza of [
+    "inv_revisar_salida", "inv_revisar_seguimiento", "backorder_de", "metodo_costo",
+    "p_hechas jsonb", "Stock insuficiente", "drop function if exists public.inv_validar_transferencia(uuid)",
+  ]) assert.ok(sql.includes(pieza), `0002 debe incluir ${pieza}`);
+  console.log("Mejoras Odoo verificadas: costo promedio, pronóstico, backorder y candados de stock/lote.");
+}

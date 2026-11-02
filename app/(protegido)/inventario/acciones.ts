@@ -49,6 +49,7 @@ export async function crearProductoAction(fd: FormData): Promise<Resultado> {
       unidadId: String(fd.get("unidadId") ?? "") || null,
       tipo: String(fd.get("tipo") ?? "almacenable"),
       seguimiento: String(fd.get("seguimiento") ?? "ninguno"),
+      metodoCosto: String(fd.get("metodoCosto") ?? "promedio"),
       costo: Number(fd.get("costo") ?? 0) || 0,
       precio: Number(fd.get("precio") ?? 0) || 0,
     });
@@ -70,6 +71,7 @@ export async function actualizarProductoAction(id: string, fd: FormData): Promis
       unidad_id: String(fd.get("unidadId") ?? "") || null,
       tipo: String(fd.get("tipo") ?? "almacenable"),
       seguimiento: String(fd.get("seguimiento") ?? "ninguno"),
+      metodo_costo: String(fd.get("metodoCosto") ?? "promedio"),
       costo: Number(fd.get("costo") ?? 0) || 0,
       precio: Number(fd.get("precio") ?? 0) || 0,
     });
@@ -230,12 +232,12 @@ export async function reservarAction(id: string): Promise<Resultado> {
   }
 }
 
-export async function validarAction(id: string): Promise<Resultado> {
+export async function validarAction(id: string, hechas?: Record<string, number>): Promise<Resultado> {
   try {
     await exigirAccesoApp(SLUG);
-    await validarTransferencia(id);
+    const backorder = await validarTransferencia(id, hechas);
     refrescar("/inventario", "/inventario/operaciones", `/inventario/operaciones/${id}`, "/inventario/productos");
-    return { ok: true };
+    return backorder ? { ok: true, id: backorder, mensaje: "Lo pendiente quedó en una nueva operación (backorder)." } : { ok: true };
   } catch (e) {
     return fallo(e);
   }

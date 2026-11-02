@@ -38,6 +38,7 @@ export default async function ProductosPage() {
                   <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3 text-right">A mano</th>
                   <th className="px-4 py-3 text-right">Disponible</th>
+                  <th className="px-4 py-3 text-right" title="A mano + lo que llega - lo que sale en operaciones pendientes">Pronosticado</th>
                   <th className="px-4 py-3 text-right">Valor</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -61,6 +62,12 @@ export default async function ProductosPage() {
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gris">
                       {p.tipo === "servicio" ? "—" : formatearCantidad(p.disponible)}
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-right tabular-nums ${p.pronosticado < 0 ? "font-semibold text-rose-600" : "text-gris"}`}
+                      title={p.tipo === "servicio" ? undefined : `+${formatearCantidad(p.entrante)} entrante · −${formatearCantidad(p.saliente)} saliente`}
+                    >
+                      {p.tipo === "servicio" ? "—" : formatearCantidad(p.pronosticado)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gris">{formatearMonto(p.valor)}</td>
                     <td className="px-4 py-3 text-right">

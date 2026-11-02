@@ -9,7 +9,7 @@ import { crearTransferenciaAction } from "@/app/(protegido)/inventario/acciones"
 import { ETIQUETA_CLASE, type Lote, type TipoOperacion, type Ubicacion } from "@/lib/inventario-modelo";
 
 type ProductoMin = { id: string; nombre: string; unidadAbrev: string };
-type Linea = { productoId: string; cantidad: string; loteId: string };
+type Linea = { productoId: string; cantidad: string; loteId: string; costo: string };
 
 export default function FormularioTransferencia({
   tipos,
@@ -25,12 +25,13 @@ export default function FormularioTransferencia({
   const [tipoId, setTipoId] = useState(tipos[0]?.id ?? "");
   const [contraparte, setContraparte] = useState("");
   const [nota, setNota] = useState("");
-  const [lineas, setLineas] = useState<Linea[]>([{ productoId: "", cantidad: "", loteId: "" }]);
+  const [lineas, setLineas] = useState<Linea[]>([{ productoId: "", cantidad: "", loteId: "", costo: "" }]);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
   const router = useRouter();
 
   const tipo = useMemo(() => tipos.find((t) => t.id === tipoId), [tipos, tipoId]);
+  const esRecepcion = tipo?.clase === "recepcion";
   const nombreUbi = new Map(ubicaciones.map((u) => [u.id, u.nombre]));
   const etiquetaContraparte =
     tipo?.clase === "recepcion" ? "Proveedor" : tipo?.clase === "entrega" ? "Cliente / faena" : "Referencia";
@@ -38,14 +39,17 @@ export default function FormularioTransferencia({
   function cambiarLinea(i: number, campo: keyof Linea, valor: string) {
     setLineas((ls) => ls.map((l, j) => (j === i ? { ...l, [campo]: valor, ...(campo === "productoId" ? { loteId: "" } : {}) } : l)));
   }
-  const agregar = () => setLineas((ls) => [...ls, { productoId: "", cantidad: "", loteId: "" }]);
+  const agregar = () => setLineas((ls) => [...ls, { productoId: "", cantidad: "", loteId: "", costo: "" }]);
   const quitar = (i: number) => setLineas((ls) => (ls.length === 1 ? ls : ls.filter((_, j) => j !== i)));
 
   function enviar() {
     setError(null);
     const limpias = lineas
       .filter((l) => l.productoId && Number(l.cantidad) > 0)
-      .map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad), loteId: l.loteId || null }));
+      .map((l) => ({
+        productoId: l.productoId, cantidad: Number(l.cantidad), loteId: l.loteId || null,
+        costoUnitario: esRecepcion && l.costo !== "" ? Number(l.costo) : null,
+      }));
     if (!tipoId) return setError("Elige un tipo de operación.");
     if (limpias.length === 0) return setError("Agrega al menos una línea con producto y cantidad.");
 
@@ -100,6 +104,15 @@ export default function FormularioTransferencia({
                 type="number" min="0" step="0.001" placeholder="Cant."
                 className={`${CAMPO} w-28`}
               />
+              {esRecepcion && (
+                <input
+                  value={l.costo}
+                  onChange={(e) => cambiarLinea(i, "costo", e.target.value)}
+                  type="number" min="0" step="1" placeholder="Costo unit. $"
+                  title="Costo de compra por unidad: actualiza el costo promedio del producto"
+                  className={`${CAMPO} w-36`}
+                />
+              )}
               <button type="button" onClick={() => quitar(i)} className="grid h-11 w-10 place-items-center rounded-lg text-gris-suave transition hover:text-rose-500" title="Quitar línea">
                 <IconTrash size={16} />
               </button>
