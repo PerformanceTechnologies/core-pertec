@@ -189,6 +189,26 @@
   fill-opacity: 0.1;
 }
 
+/* 4. El resplandor de la marca arriba de la barra lateral.
+   Un lavado radial del color de acento de la empresa activa (naranjo en PERTEC, dorado en
+   Zeus, gris en Performance Service: lee el mismo token que todo lo demás), desde la esquina
+   del logo. Es lo que separa a la barra del fondo de la página sin recurrir a una sombra más
+   fuerte. En oscuro sube un poco: un 9% de tinte sobre fondo oscuro casi no se ve. */
+.barra-brillo {
+  background-image: radial-gradient(
+    120% 90% at 0% 0%,
+    color-mix(in srgb, var(--color-naranjo) 9%, transparent),
+    transparent 70%
+  );
+}
+[data-theme="dark"] .barra-brillo {
+  background-image: radial-gradient(
+    120% 90% at 0% 0%,
+    color-mix(in srgb, var(--color-naranjo) 14%, transparent),
+    transparent 70%
+  );
+}
+
 /* 5. La banda de Mi Día.
    Es el bloque de máximo contraste de esa pantalla y en claro funciona: un
    degradado de tinta sobre la página clara. Invertido se volvía una placa casi

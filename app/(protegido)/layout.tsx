@@ -9,8 +9,7 @@ import BotonSubir from "@/components/BotonSubir";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { tieneDatosCargados } from "@/lib/empresas-modelo";
-import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
-import { obtenerSubpanelesFinanzasGuardados, subpanelFinanzasPermitido } from "@/lib/finanzas-subpaneles-usuario";
+import { filtrarAppsDelUsuario, subpanelesFinanzasDelMenu } from "@/lib/menu-usuario";
 
 // Sin caché: cada navegación vuelve a consultar Supabase, así que si el
 // admin borra o desactiva a alguien, esa persona queda fuera en la
@@ -30,23 +29,14 @@ export default async function LayoutProtegido({ children }: { children: React.Re
   if (!usuario) redirect("/ingresar?error=sin_acceso");
 
   const todasLasApps = await promesaApps;
-  const apps =
-    usuario.rol === "admin"
-      ? todasLasApps
-      : todasLasApps.filter((app) => usuario.aplicacionIds.includes(app.id));
+  const apps = filtrarAppsDelUsuario(todasLasApps, usuario);
 
   // Los contratos cuelgan de «Contratos» en el menú: se piden solo si la persona ve esa app.
   // La empresa activa se resuelve en paralelo: la necesita el menú en toda página.
   const promesaEmpresa = contextoDeEmpresa(usuario.id, usuario.rol);
   const empresa = await promesaEmpresa;
-  // Los subpaneles de Finanzas cuelgan del grupo «Finanzas» del menú: misma regla que su portada.
-  const guardadosFinanzas =
-    usuario.rol === "admin" || !apps.some((app) => app.slug === "finanzas")
-      ? []
-      : await obtenerSubpanelesFinanzasGuardados(usuario.id);
-  const subpanelesFinanzas = SUBPANELES_FINANZAS.filter(
-    (sp) => usuario.rol === "admin" || subpanelFinanzasPermitido(sp.slug, guardadosFinanzas),
-  ).map((sp) => sp.slug);
+  // Los subpaneles de Finanzas cuelgan del módulo «Finanzas» del menú: misma regla que su portada.
+  const subpanelesFinanzas = await subpanelesFinanzasDelMenu(usuario, apps);
   // Los contratos y el buzón son de PERTEC: parado en otra empresa no se listan.
   const conDatos = tieneDatosCargados(empresa.activa);
   const contratos = conDatos && apps.some((app) => app.slug === "contratos") ? await listarContratosDelMenu() : [];

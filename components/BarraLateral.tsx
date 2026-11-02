@@ -7,9 +7,6 @@ import { usePathname } from "next/navigation";
 import {
   IconMenu2,
   IconX,
-  IconLayoutDashboard,
-  IconUsers,
-  IconSettings2,
   IconArrowLeft,
   IconChevronLeft,
   IconChevronRight,
@@ -18,9 +15,17 @@ import {
   IconSearch,
   IconSun,
   IconMoon,
+  type Icon,
 } from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
-import { armarMenu } from "@/lib/menu-modelo";
+import { iconoDeModulo, IconoInicio } from "@/lib/iconos-menu";
+import {
+  armarMenu,
+  rutaDeModulo,
+  SECCIONES_DE_MODULO,
+  type GrupoDelMenu,
+  type ItemDelMenu,
+} from "@/lib/menu-modelo";
 import { logoCompletoDe, logoDe, type Empresa } from "@/lib/empresas-modelo";
 import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
@@ -52,7 +57,6 @@ function leerColapsadaServidor() {
   return false;
 }
 
-
 // Mismo patrón que colapsada: localStorage no avisa a la misma pestaña que
 // escribe, así que se dispara un evento propio para que useSyncExternalStore
 // vuelva a leer acá mismo.
@@ -83,42 +87,6 @@ function leerEsDesktopServidor() {
   return false;
 }
 
-/**
- * Las pantallas de adentro de un módulo, para que se vean desde el menú.
- *
- * Hasta ahora solo se llegaba a ellas desde links dentro del propio módulo, así
- * que quien entraba por primera vez no tenía forma de saber que existían: los
- * formatos de las ofertas, las empresas emisoras del cotizador y los catálogos de
- * precios estaban a un clic de distancia y a cero pistas de distancia.
- *
- * Solo se dibujan cuando el módulo está abierto: el menú tiene que decir dónde
- * estás parado, no listar todo lo que hay.
- *
- * Herramientas Finanzas no está acá a propósito, aunque también tenga pantallas adentro:
- * las suyas se conceden por usuario (ver lib/finanzas-subpaneles-usuario.ts, donde
- * "facturas-ih" además deniega por defecto), y listarlas sin consultar ese permiso
- * mostraría puertas cerradas. Su propia portada ya las presenta con su descripción.
- */
-const SECCIONES_DE_MODULO: Record<string, { href: string; nombre: string }[]> = {
-  "/ofertas": [
-    { href: "/ofertas", nombre: "Ofertas" },
-    { href: "/ofertas/maestros", nombre: "Maestros de formato" },
-    { href: "/ofertas/logos", nombre: "Logos" },
-  ],
-  "/pagina-web": [
-    { href: "/pagina-web", nombre: "Catálogo" },
-    { href: "/pagina-web/casos", nombre: "Casos de éxito" },
-    { href: "/pagina-web/solicitudes", nombre: "Solicitudes" },
-    { href: "/pagina-web/contacto", nombre: "Contacto" },
-  ],
-  "/cotizador": [
-    { href: "/cotizador", nombre: "Cotizaciones" },
-    { href: "/cotizador/empresas", nombre: "Empresas emisoras" },
-    { href: "/cotizador/catalogos", nombre: "Catálogos de precios" },
-    { href: "/cotizador/parametros", nombre: "Parámetros legales" },
-  ],
-};
-
 function esRutaActiva(href: string, pathname: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -131,27 +99,29 @@ function iniciales(correo: string) {
   return letras.join("") || "?";
 }
 
-function clasesItem(activo: boolean, colapsado: boolean) {
-  const base = "group flex items-center gap-2.5 rounded-lg py-2 text-sm font-medium transition";
-  const layout = colapsado ? "justify-center px-0" : "border-l-[3px] pl-[7px] pr-2.5";
-  if (activo) {
-    const estado = colapsado ? "bg-naranjo/10 text-naranjo" : "border-naranjo bg-naranjo/10 text-naranjo";
-    return `${base} ${layout} ${estado}`;
-  }
-  const estado = colapsado
-    ? "text-tinta/70 hover:bg-naranjo/10 hover:text-naranjo"
-    : "border-transparent text-tinta/75 hover:bg-naranjo/10 hover:text-naranjo";
-  return `${base} ${layout} ${estado}`;
+// ── Estilos compartidos del menú ────────────────────────────────────────────
+//
+// Tres niveles, que se distinguen a propósito por TRES cosas a la vez (no solo por el color):
+//   1. MÓDULO (Finanzas, CRM…): ficha con ícono, mayúsculas condensadas, nombre que lleva a su página.
+//   2. SUBMÓDULO (una aplicación): cuelga de una línea guía, texto normal, ícono chico.
+//   3. SECCIÓN (una pantalla de adentro): una línea guía más hondo, texto más chico, sin ícono.
+// Todo se anima con las mismas dos duraciones (150 ms los colores, 200 ms lo que se despliega) y
+// con `motion-reduce` se apaga: es movimiento que explica un cambio de estado, no decoración.
+
+const FOCO = "focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-naranjo";
+const TRANSICION = "transition-colors duration-150 ease-out motion-reduce:transition-none";
+const ROTULO_MODULO = "truncate font-condensed text-[13px] font-bold uppercase tracking-[0.08em]";
+
+/** Los controles que reparten el estado desplegado/plegado del menú. */
+interface Despliegue {
+  /** ¿Está abierto? `porDefecto` manda mientras la persona no lo haya tocado. */
+  abierto: (clave: string, porDefecto: boolean) => boolean;
+  alternar: (clave: string, porDefecto: boolean) => void;
+  /** Abre sin alternar: lo que hace tocar el nombre de un módulo. */
+  abrir: (clave: string) => void;
 }
 
-export default function BarraLateral({
-  correo,
-  rol,
-  apps,
-  contratos = [],
-  empresaActiva = null,
-  subpanelesFinanzas = [],
-}: {
+export interface PropsBarraLateral {
   correo: string;
   rol: Rol;
   apps: Aplicacion[];
@@ -159,9 +129,28 @@ export default function BarraLateral({
   contratos?: ContratoDelMenu[];
   /** La empresa activa: su logo va arriba del menú. */
   empresaActiva?: Empresa | null;
-  /** Los subpaneles de Finanzas que la persona tiene concedidos, para el grupo «Finanzas». */
+  /** Los subpaneles de Finanzas que la persona tiene concedidos, para el módulo «Finanzas». */
   subpanelesFinanzas?: string[];
-}) {
+}
+
+/**
+ * La barra lateral. Lee la ruta del navegador y se la pasa a BarraLateralVista, que es la que
+ * dibuja: así la vista se puede montar en cualquier ruta (pruebas visuales) sin simular el router.
+ */
+export default function BarraLateral(props: PropsBarraLateral) {
+  const pathname = usePathname();
+  return <BarraLateralVista {...props} pathname={pathname} />;
+}
+
+export function BarraLateralVista({
+  correo,
+  rol,
+  apps,
+  contratos = [],
+  empresaActiva = null,
+  subpanelesFinanzas = [],
+  pathname,
+}: PropsBarraLateral & { pathname: string }) {
   // "Abierta desde" en vez de un booleano + efecto que lo resetea: al
   // guardar el pathname vigente cuando se abre, "abierta"/"buscadorAbierto"
   // se derivan comparando contra el pathname actual en cada render, así que
@@ -170,9 +159,8 @@ export default function BarraLateral({
   // del navegador) sin necesitar un useEffect que llame setState.
   const [abiertaDesde, setAbiertaDesde] = useState<string | null>(null);
   const [buscadorAbiertoDesde, setBuscadorAbiertoDesde] = useState<string | null>(null);
-  const pathname = usePathname();
   const esAdmin = rol === "admin";
-  const grupos = armarMenu(apps, subpanelesFinanzas);
+  const grupos = armarMenu(apps, subpanelesFinanzas, { admin: esAdmin });
   const abierta = abiertaDesde === pathname;
   const buscadorAbierto = buscadorAbiertoDesde === pathname;
 
@@ -203,24 +191,19 @@ export default function BarraLateral({
   // ve expandido aunque quede guardada como colapsada.
   const colapsado = colapsada && esDesktop;
 
-  // Los grupos del menú que están DESPLEGADOS, por título. Arranca vacío: al cargar, todos los
-  // módulos aparecen minimizados. Es estado de React y no de localStorage a propósito: la barra
-  // vive en el layout, así que navegar entre páginas no lo pierde, pero recargar vuelve a dejar
-  // todo minimizado, que es lo que se pidió.
-  const [gruposAbiertos, setGruposAbiertos] = useState<string[]>([]);
-  function alternarGrupo(titulo: string) {
-    setGruposAbiertos((actuales) =>
-      actuales.includes(titulo) ? actuales.filter((t) => t !== titulo) : [...actuales, titulo],
-    );
-  }
-  // Con la barra en modo íconos no hay títulos que plegar: se ven todos los módulos como íconos.
-  const adminPlegado = !colapsado && !gruposAbiertos.includes("Administración");
-  const adminConActiva = esRutaActiva("/usuarios", pathname) || esRutaActiva("/aplicaciones", pathname);
+  // Qué está desplegado, por clave (`modulo:<slug>`, `app:<ruta>`, `contrato:<slug>`). Arranca
+  // vacío: al cargar, todos los módulos aparecen minimizados. Lo que la persona toca queda
+  // guardado acá y manda sobre el valor por omisión, de modo que el botón de plegar SIEMPRE
+  // funciona, incluso en lo que contiene la página abierta. Es estado de React y no de
+  // localStorage a propósito: la barra vive en el layout, así que navegar entre páginas no lo
+  // pierde, pero recargar vuelve a dejar todo minimizado.
+  const [tocados, setTocados] = useState<Record<string, boolean>>({});
+  const despliegue: Despliegue = {
+    abierto: (clave, porDefecto) => tocados[clave] ?? porDefecto,
+    alternar: (clave, porDefecto) => setTocados((t) => ({ ...t, [clave]: !(t[clave] ?? porDefecto) })),
+    abrir: (clave) => setTocados((t) => (t[clave] ? t : { ...t, [clave]: true })),
+  };
 
-  // Sincroniza el atributo que globals.css usa para pintar el tema oscuro.
-  // No guarda estado de React, solo refleja "tema" hacia afuera -- uso
-  // legítimo de efecto (el script sin-flash de app/layout.tsx ya deja esto
-  // bien en el primer paint; esto solo lo mantiene al cambiar en caliente).
   // El ancho de la barra, publicado como variable CSS.
   //
   // Hace falta porque la barra es FIJA: sale del flujo, así que el contenido no se
@@ -236,6 +219,10 @@ export default function BarraLateral({
     );
   }, [colapsado]);
 
+  // Sincroniza el atributo que globals.css usa para pintar el tema oscuro.
+  // No guarda estado de React, solo refleja "tema" hacia afuera -- uso
+  // legítimo de efecto (el script sin-flash de app/layout.tsx ya deja esto
+  // bien en el primer paint; esto solo lo mantiene al cambiar en caliente).
   useEffect(() => {
     if (tema === "dark") document.documentElement.setAttribute("data-theme", "dark");
     else document.documentElement.removeAttribute("data-theme");
@@ -270,179 +257,37 @@ export default function BarraLateral({
         <LogoDeEmpresa empresa={empresaActiva} colapsado={colapsado} tema={tema} />
       </div>
 
-
-      <nav className={`flex-1 overflow-y-auto pb-4 ${colapsado ? "lg:px-2" : "px-3"}`}>
-        <EnlaceNav
-          href="/"
-          activo={esRutaActiva("/", pathname)}
-          icono={<IconLayoutDashboard size={18} stroke={1.75} />}
-          colapsado={colapsado}
-        >
-          Dashboard
-        </EnlaceNav>
-
-        {apps.length === 0 && !colapsado && (
-          <p className="mt-6 px-2.5 py-2 text-xs text-tinta/40">Sin aplicaciones asignadas</p>
-        )}
-        {grupos.map((grupo, i) => {
-          // El botón de plegar SIEMPRE funciona: ya no se fuerza abierto el grupo donde está la
-          // página actual (eso hacía que el botón pareciera roto ahí). Para no perder el "dónde
-          // estoy", el título del grupo plegado que contiene la página abierta se marca (ver
-          // TituloDeGrupo).
-          const conActiva = grupo.items.some(
-            (it) =>
-              (it.tipo === "enlace" && esRutaActiva(it.href, pathname)) ||
-              (it.tipo === "app" && it.app.tipo === "interna" && esRutaActiva(it.app.url, pathname)),
-          );
-          const titulo = grupo.titulo;
-          const plegado = !colapsado && !!titulo && !gruposAbiertos.includes(titulo);
-          return (
-          <div key={titulo ?? `suelto-${i}`}>
-            {colapsado ? (
-              <div className="mx-1 mb-2 mt-4 border-t border-borde" />
-            ) : titulo ? (
-              <TituloDeGrupo
-                titulo={titulo}
-                plegado={plegado}
-                conActiva={conActiva}
-                alAlternar={() => alternarGrupo(titulo)}
-              />
-            ) : (
-              <div className="mt-4" />
-            )}
-            <div className={`mt-1 flex-col gap-0.5 ${plegado ? "hidden" : "flex"}`}>
-              {grupo.items.map((item) => {
-                if (item.tipo === "pronto") {
-                  const Icono = obtenerIcono(item.icono);
-                  return (
-                    <span
-                      key={item.nombre}
-                      title={colapsado ? `${item.nombre} (próximamente)` : undefined}
-                      className={`flex cursor-default items-center gap-2.5 rounded-lg py-2 text-sm text-tinta/35 ${
-                        colapsado ? "justify-center px-0" : "px-2.5"
-                      }`}
-                    >
-                      <Icono size={17} stroke={1.75} aria-hidden />
-                      {!colapsado && (
-                        <>
-                          <span className="flex-1 truncate">{item.nombre}</span>
-                          <span className="shrink-0 rounded-full bg-gris/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gris">
-                            Pronto
-                          </span>
-                        </>
-                      )}
-                    </span>
-                  );
-                }
-                if (item.tipo === "enlace") {
-                  const Icono = obtenerIcono(item.icono);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      title={colapsado ? item.nombre : undefined}
-                      className={clasesItem(esRutaActiva(item.href, pathname), colapsado)}
-                    >
-                      <Icono size={17} stroke={1.75} aria-hidden />
-                      {!colapsado && <span className="truncate">{item.nombre}</span>}
-                    </Link>
-                  );
-                }
-                const { app, nombre } = item;
-const Icono = obtenerIcono(app.icono);
-                const deshabilitada = app.estado === "mantenimiento";
-                const href =
-                  app.tipo === "interna" ? app.url : app.url.startsWith("http") ? app.url : `https://${app.url}`;
-
-                if (deshabilitada) {
-                  return (
-                    <span
-                      key={app.id}
-                      title={colapsado ? `${nombre} (en mantención)` : undefined}
-                      className={`flex cursor-not-allowed items-center gap-2.5 rounded-lg py-2 text-sm text-tinta/35 ${
-                        colapsado ? "justify-center px-0" : "px-2.5"
-                      }`}
-                    >
-                      <Icono size={17} stroke={1.75} aria-hidden />
-                      {!colapsado && (
-                        <>
-                          <span className="flex-1 truncate">{nombre}</span>
-                          <span className="shrink-0 rounded-full bg-gris/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gris">
-                            Mantención
-                          </span>
-                        </>
-                      )}
-                    </span>
-                  );
-                }
-
-                const activa = esRutaActiva(href, pathname);
-                const clases = clasesItem(activa, colapsado);
-                // La descripción de la app, en el tooltip: "Rendir Gastos" o "Cotizador"
-                // no dicen mucho de afuera, y el dato ya está cargado.
-                const titulo = [nombre, app.descripcion].filter(Boolean).join(" — ");
-                const secciones = SECCIONES_DE_MODULO[href] ?? [];
-
-                if (app.tipo === "interna") {
-                  return (
-                    <div key={app.id}>
-                      <Link href={href} title={titulo} className={clases}>
-                        <Icono size={17} stroke={1.75} aria-hidden />
-                        {!colapsado && <span className="truncate">{nombre}</span>}
-                      </Link>
-                      {/* Plegado no hay lugar para esto, y desplegarlo al pasar el mouse
-                          taparía el resto del menú. */}
-                      {activa && !colapsado && secciones.length > 0 && (
-                        <SeccionesDelModulo secciones={secciones} base={href} pathname={pathname} />
-                      )}
-                      {activa && !colapsado && href === "/contratos" && (
-                        <SubmenuDeContratos contratos={contratos} pathname={pathname} />
-                      )}
-                    </div>
-                  );
-                }
-
-                return (
-                  <a key={app.id} href={href} title={titulo} className={clases}>
-                    <Icono size={17} stroke={1.75} aria-hidden />
-                    {!colapsado && <span className="truncate">{nombre}</span>}
-                  </a>
-                );
-              })}
-            </div>
-          </div>
-          );
-        })}
-
-        {esAdmin && (
+      {/* El desvanecido de arriba y abajo avisa que la lista sigue cuando no cabe entera. El
+          padding de arriba (pt-3) es del mismo alto que el desvanecido: así el primer renglón
+          nunca queda debajo de él. */}
+      <nav
+        aria-label="Principal"
+        className={`flex-1 overflow-y-auto pb-4 pt-3 [scrollbar-color:var(--color-borde)_transparent] [scrollbar-width:thin] [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%_-_16px),transparent)] ${
+          colapsado ? "lg:px-2" : "px-3"
+        }`}
+      >
+        {colapsado ? (
+          <NavegacionColapsada grupos={grupos} pathname={pathname} />
+        ) : (
           <>
-            {colapsado ? (
-              <div className="mx-1 mb-2 mt-6 border-t border-borde" />
-            ) : (
-              <TituloDeGrupo
-                titulo="Administración"
-                plegado={adminPlegado}
-                conActiva={adminConActiva}
-                alAlternar={() => alternarGrupo("Administración")}
-              />
+            <FilaDeInicio activa={esRutaActiva("/", pathname)} />
+
+            {apps.length === 0 && (
+              <p className="mt-6 px-2.5 py-2 text-xs text-tinta/40">Sin aplicaciones asignadas</p>
             )}
-            <div className={`mt-1 flex-col gap-0.5 ${adminPlegado ? "hidden" : "flex"}`}>
-              <EnlaceNav
-                href="/usuarios"
-                activo={esRutaActiva("/usuarios", pathname)}
-                icono={<IconUsers size={18} stroke={1.75} />}
-                colapsado={colapsado}
-              >
-                Usuarios
-              </EnlaceNav>
-              <EnlaceNav
-                href="/aplicaciones"
-                activo={esRutaActiva("/aplicaciones", pathname)}
-                icono={<IconSettings2 size={18} stroke={1.75} />}
-                colapsado={colapsado}
-              >
-                Aplicaciones
-              </EnlaceNav>
+
+            <div className="mt-3 flex flex-col gap-1">
+              {grupos.map((grupo) => (
+                <Modulo
+                  key={grupo.slug}
+                  grupo={grupo}
+                  pathname={pathname}
+                  contratos={contratos}
+                  despliegue={despliegue}
+                  // Administración se separa del resto: es de otra naturaleza (configura el Core).
+                  separado={grupo.slug === "administracion"}
+                />
+              ))}
             </div>
           </>
         )}
@@ -455,7 +300,7 @@ const Icono = obtenerIcono(app.icono);
               type="button"
               onClick={abrirBuscador}
               title="Buscar"
-              className="rounded-lg p-2 text-tinta/45 transition hover:bg-naranjo/10 hover:text-naranjo"
+              className={`rounded-xl p-2 text-tinta/45 hover:bg-naranjo/10 hover:text-naranjo ${TRANSICION} ${FOCO}`}
             >
               <IconSearch size={16} stroke={1.75} />
             </button>
@@ -463,7 +308,7 @@ const Icono = obtenerIcono(app.icono);
               type="button"
               onClick={alternarTema}
               title={tema === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-              className="rounded-lg p-2 text-tinta/45 transition hover:bg-naranjo/10 hover:text-naranjo"
+              className={`rounded-xl p-2 text-tinta/45 hover:bg-naranjo/10 hover:text-naranjo ${TRANSICION} ${FOCO}`}
             >
               {tema === "dark" ? <IconSun size={16} stroke={1.75} /> : <IconMoon size={16} stroke={1.75} />}
             </button>
@@ -478,7 +323,7 @@ const Icono = obtenerIcono(app.icono);
                 type="submit"
                 title="Cerrar sesión"
                 aria-label="Cerrar sesión"
-                className="rounded-lg p-2 text-tinta/40 transition hover:bg-naranjo/10 hover:text-naranjo"
+                className={`rounded-xl p-2 text-tinta/40 hover:bg-naranjo/10 hover:text-naranjo ${TRANSICION} ${FOCO}`}
               >
                 <IconLogout size={16} stroke={1.75} />
               </button>
@@ -491,7 +336,7 @@ const Icono = obtenerIcono(app.icono);
                 type="button"
                 onClick={abrirBuscador}
                 title="Buscar"
-                className="flex flex-1 items-center gap-2.5 rounded-lg border border-borde px-2.5 py-2 text-tinta/45 transition hover:border-naranjo/30 hover:text-naranjo"
+                className={`flex flex-1 items-center gap-2.5 rounded-xl border border-borde bg-superficie/60 px-2.5 py-2 text-tinta/45 hover:border-naranjo/30 hover:text-naranjo ${TRANSICION} ${FOCO}`}
               >
                 <IconSearch size={16} stroke={1.75} className="shrink-0" />
                 <span className="flex-1 text-left text-sm">Buscar</span>
@@ -503,13 +348,13 @@ const Icono = obtenerIcono(app.icono);
                 type="button"
                 onClick={alternarTema}
                 title={tema === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-                className="shrink-0 rounded-lg border border-borde p-2 text-tinta/45 transition hover:border-naranjo/30 hover:text-naranjo"
+                className={`shrink-0 rounded-xl border border-borde bg-superficie/60 p-2 text-tinta/45 hover:border-naranjo/30 hover:text-naranjo ${TRANSICION} ${FOCO}`}
               >
                 {tema === "dark" ? <IconSun size={16} stroke={1.75} /> : <IconMoon size={16} stroke={1.75} />}
               </button>
             </div>
 
-            <div className="flex items-center gap-2.5 rounded-lg px-1 py-1">
+            <div className="flex items-center gap-2.5 rounded-xl px-1 py-1">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo">
                 {iniciales(correo)}
               </div>
@@ -524,7 +369,7 @@ const Icono = obtenerIcono(app.icono);
                   type="submit"
                   title="Cerrar sesión"
                   aria-label="Cerrar sesión"
-                  className="shrink-0 rounded-lg p-2 text-tinta/40 transition hover:bg-naranjo/10 hover:text-naranjo"
+                  className={`shrink-0 rounded-xl p-2 text-tinta/40 hover:bg-naranjo/10 hover:text-naranjo ${TRANSICION} ${FOCO}`}
                 >
                   <IconLogout size={16} stroke={1.75} />
                 </button>
@@ -563,10 +408,14 @@ const Icono = obtenerIcono(app.icono);
 
       <aside
         style={colapsado ? { width: ANCHO_COLAPSADO } : undefined}
-        className={`${BARRA_FIJA} border-r border-borde bg-crema shadow-[4px_0_16px_-8px_rgba(23,20,17,0.15)] ${
+        className={`${BARRA_FIJA} border-r border-borde bg-crema shadow-[4px_0_24px_-12px_rgba(23,20,17,0.18)] ${
           abierta ? "translate-x-0" : "-translate-x-full"
         }`}
       >
+        {/* El resplandor de la marca de la empresa activa, arriba: es lo que hace que se lea como
+            una barra con carácter y no como una lista pegada al borde. Va detrás de todo. */}
+        <div aria-hidden className="barra-brillo pointer-events-none absolute inset-x-0 top-0 -z-10 h-56" />
+
         <button
           type="button"
           onClick={cerrarMenu}
@@ -595,14 +444,357 @@ const Icono = obtenerIcono(app.icono);
 }
 
 /**
- * Las pantallas del módulo abierto, colgando de él.
+ * Una región que se pliega con animación.
  *
- * La primera es la portada del módulo y las demás son sus pantallas internas. Se
- * marca activa la interna que calce, y si no calza ninguna, la portada: sin eso,
- * "Ofertas" quedaba encendida también estando en Maestros, porque su ruta es
- * prefijo de todas las de adentro.
+ * Anima `grid-template-rows` (0fr → 1fr) y no `height`: así no hace falta medir el contenido y
+ * el navegador resuelve el alto real. Plegada queda `inert`, que la saca del orden del teclado y
+ * de los lectores de pantalla: sin eso se podría tabular a links que no se ven.
  */
-function SeccionesDelModulo({
+function Colapsable({ abierto, id, children }: { abierto: boolean; id: string; children: ReactNode }) {
+  return (
+    <div
+      id={id}
+      inert={!abierto}
+      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
+        abierto ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+      }`}
+    >
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  );
+}
+
+/** El id de la región que controla un botón de plegar, a partir de la clave del menú. */
+function idDeRegion(clave: string) {
+  return `region-${clave.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+}
+
+/** La flechita que pliega y despliega. SIEMPRE alterna: el valor por omisión solo manda hasta el primer toque. */
+function BotonDeDespliegue({
+  abierto,
+  clave,
+  etiqueta,
+  alAlternar,
+}: {
+  abierto: boolean;
+  clave: string;
+  etiqueta: string;
+  alAlternar: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={alAlternar}
+      aria-expanded={abierto}
+      aria-controls={idDeRegion(clave)}
+      aria-label={`${abierto ? "Plegar" : "Desplegar"} ${etiqueta}`}
+      className={`mr-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-tinta/35 hover:bg-tinta/[0.07] hover:text-tinta/70 ${TRANSICION} ${FOCO}`}
+    >
+      <IconChevronDown
+        size={15}
+        stroke={2}
+        aria-hidden
+        className={`transition-transform duration-200 ease-out motion-reduce:transition-none ${abierto ? "" : "-rotate-90"}`}
+      />
+    </button>
+  );
+}
+
+/**
+ * La ficha del ícono de un módulo: un cuadrado redondeado. Es lo que dice "esto es un módulo"
+ * de un vistazo, y lo que no tienen los submódulos (que llevan el ícono suelto).
+ *
+ *  - `activa`: la página abierta ES esta (la portada del módulo, o Inicio): ficha llena.
+ *  - `resaltada`: la página abierta cuelga de este módulo: ficha teñida.
+ */
+function Ficha({ icono: Icono, activa, resaltada = false }: { icono: Icon; activa: boolean; resaltada?: boolean }) {
+  return (
+    <span
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 motion-reduce:transition-none ${
+        activa
+          ? "bg-naranjo text-white shadow-sm shadow-naranjo/30"
+          : resaltada
+            ? "bg-naranjo/15 text-naranjo"
+            : "bg-tinta/[0.06] text-tinta/60 group-hover/fila:bg-naranjo/10 group-hover/fila:text-naranjo"
+      }`}
+    >
+      <Icono size={16} stroke={1.9} aria-hidden />
+    </span>
+  );
+}
+
+/** «Inicio»: la portada del Core. Misma ficha y mismo rótulo que un módulo, para que se lea del mismo nivel. */
+function FilaDeInicio({ activa }: { activa: boolean }) {
+  return (
+    <Link
+      href="/"
+      aria-current={activa ? "page" : undefined}
+      className={`group/fila flex items-center gap-2.5 rounded-xl py-2 pl-1.5 pr-2.5 lg:py-1.5 ${TRANSICION} ${FOCO} ${
+        activa ? "bg-naranjo/10" : "hover:bg-tinta/[0.04]"
+      }`}
+    >
+      <Ficha icono={IconoInicio} activa={activa} />
+      <span className={`${ROTULO_MODULO} ${activa ? "text-naranjo" : "text-tinta/80"}`}>Inicio</span>
+    </Link>
+  );
+}
+
+/**
+ * Un MÓDULO del menú: su nombre lleva a su página (con los submódulos como cartillas) y,
+ * además, abre su lista acá. La flecha de la derecha solo pliega o despliega, sin navegar.
+ */
+function Modulo({
+  grupo,
+  pathname,
+  contratos,
+  despliegue,
+  separado,
+}: {
+  grupo: GrupoDelMenu;
+  pathname: string;
+  contratos: ContratoDelMenu[];
+  despliegue: Despliegue;
+  separado: boolean;
+}) {
+  const clave = `modulo:${grupo.slug}`;
+  const ruta = rutaDeModulo(grupo.slug);
+  const enPortada = pathname === ruta;
+  // La página abierta cuelga de este módulo. Plegado, el módulo se marca igual: si no, no habría
+  // cómo saber dónde está uno parado sin desplegar todo.
+  const conActiva = grupo.items.some(
+    (it) =>
+      (it.tipo === "enlace" && esRutaActiva(it.href, pathname)) ||
+      (it.tipo === "app" && it.app.tipo === "interna" && esRutaActiva(it.app.url, pathname)),
+  );
+  const abierto = despliegue.abierto(clave, false);
+  const Icono = iconoDeModulo(grupo.slug);
+
+  return (
+    <div className={separado ? "mt-3 border-t border-borde pt-4" : undefined}>
+      <div
+        className={`group/fila flex items-center rounded-xl ${TRANSICION} ${
+          enPortada ? "bg-naranjo/10" : "hover:bg-tinta/[0.04]"
+        }`}
+      >
+        <Link
+          href={ruta}
+          onClick={() => despliegue.abrir(clave)}
+          aria-current={enPortada ? "page" : undefined}
+          title={grupo.descripcion}
+          className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-xl py-2 pl-1.5 pr-1 lg:py-1.5 ${FOCO}`}
+        >
+          <Ficha icono={Icono} activa={enPortada} resaltada={conActiva} />
+          <span className={`${ROTULO_MODULO} ${enPortada || conActiva ? "text-naranjo" : "text-tinta/80"}`}>
+            {grupo.titulo}
+          </span>
+        </Link>
+        <BotonDeDespliegue
+          abierto={abierto}
+          clave={clave}
+          etiqueta={grupo.titulo}
+          alAlternar={() => despliegue.alternar(clave, false)}
+        />
+      </div>
+
+      <Colapsable abierto={abierto} id={idDeRegion(clave)}>
+        {/* La línea guía queda justo debajo del centro de la ficha del módulo: de ahí "cuelgan" los submódulos. */}
+        <div className="ml-[19px] flex flex-col gap-0.5 border-l border-borde pb-1 pl-2 pt-1">
+          {grupo.items.map((item) => (
+            <Submodulo
+              key={itemClave(item)}
+              item={item}
+              pathname={pathname}
+              contratos={contratos}
+              despliegue={despliegue}
+            />
+          ))}
+        </div>
+      </Colapsable>
+    </div>
+  );
+}
+
+function itemClave(item: ItemDelMenu) {
+  return item.tipo === "app" ? item.app.id : item.tipo === "enlace" ? item.href : `pronto-${item.nombre}`;
+}
+
+/**
+ * El fondo, el marcador y el enlace de una fila de submódulo. El marcador naranjo sobre la línea
+ * guía (barrita de 3 px) es lo que dice "estás acá": crece desde el centro al activarse.
+ */
+function FilaDeSubmodulo({
+  activa,
+  href,
+  externo = false,
+  titulo,
+  icono: Icono,
+  nombre,
+  extra,
+}: {
+  activa: boolean;
+  href: string;
+  externo?: boolean;
+  titulo?: string;
+  icono: Icon;
+  nombre: string;
+  /** Lo que va a la derecha de la fila (la flechita de plegar). */
+  extra?: ReactNode;
+}) {
+  const clasesEnlace = `group/item flex min-w-0 flex-1 items-center gap-2.5 rounded-lg py-2 pl-2.5 pr-2 text-[13px] lg:py-1.5 ${FOCO} ${
+    activa ? "font-semibold text-naranjo" : "font-medium text-tinta/70 group-hover/fila:text-tinta"
+  }`;
+  const contenido = (
+    <>
+      <Icono
+        size={16}
+        stroke={1.75}
+        aria-hidden
+        className={`shrink-0 transition-colors duration-150 motion-reduce:transition-none ${
+          activa ? "" : "text-tinta/45 group-hover/item:text-naranjo"
+        }`}
+      />
+      <span className="truncate">{nombre}</span>
+    </>
+  );
+  return (
+    <div
+      className={`group/fila relative flex items-center rounded-lg ${TRANSICION} ${
+        activa ? "bg-naranjo/10" : "hover:bg-tinta/[0.04]"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`absolute -left-[10px] top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-naranjo transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none ${
+          activa ? "scale-y-100 opacity-100" : "scale-y-0 opacity-0"
+        }`}
+      />
+      {externo ? (
+        <a href={href} title={titulo} className={clasesEnlace}>
+          {contenido}
+        </a>
+      ) : (
+        <Link href={href} title={titulo} aria-current={activa ? "page" : undefined} className={clasesEnlace}>
+          {contenido}
+        </Link>
+      )}
+      {extra}
+    </div>
+  );
+}
+
+/** Una fila que no se puede abrir (próximamente, en mantención): sin enlace, apagada y con su insignia. */
+function FilaApagada({ icono: Icono, nombre, insignia, titulo }: { icono: Icon; nombre: string; insignia: string; titulo: string }) {
+  return (
+    <span
+      title={titulo}
+      className="flex cursor-default items-center gap-2.5 rounded-lg py-2 pl-2.5 pr-2 text-[13px] text-tinta/35 lg:py-1.5"
+    >
+      <Icono size={16} stroke={1.75} aria-hidden className="shrink-0" />
+      <span className="flex-1 truncate">{nombre}</span>
+      <span className="shrink-0 rounded-full bg-gris/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gris">
+        {insignia}
+      </span>
+    </span>
+  );
+}
+
+/** Un SUBMÓDULO: una aplicación o pantalla que cuelga de un módulo. Si tiene pantallas adentro, se pliega. */
+function Submodulo({
+  item,
+  pathname,
+  contratos,
+  despliegue,
+}: {
+  item: ItemDelMenu;
+  pathname: string;
+  contratos: ContratoDelMenu[];
+  despliegue: Despliegue;
+}) {
+  if (item.tipo === "pronto") {
+    return <FilaApagada icono={obtenerIcono(item.icono)} nombre={item.nombre} insignia="Pronto" titulo={`${item.nombre} (próximamente)`} />;
+  }
+
+  if (item.tipo === "enlace") {
+    return (
+      <FilaDeSubmodulo
+        activa={esRutaActiva(item.href, pathname)}
+        href={item.href}
+        titulo={item.descripcion ? `${item.nombre} — ${item.descripcion}` : item.nombre}
+        icono={obtenerIcono(item.icono)}
+        nombre={item.nombre}
+      />
+    );
+  }
+
+  const { app, nombre } = item;
+  const Icono = obtenerIcono(app.icono);
+  if (app.estado === "mantenimiento") {
+    return <FilaApagada icono={Icono} nombre={nombre} insignia="Mantención" titulo={`${nombre} (en mantención)`} />;
+  }
+
+  const href = app.tipo === "interna" ? app.url : app.url.startsWith("http") ? app.url : `https://${app.url}`;
+  // La descripción de la app, en el tooltip: "Rendir Gastos" o "Cotizador" no dicen mucho de
+  // afuera, y el dato ya está cargado.
+  const titulo = [nombre, app.descripcion].filter(Boolean).join(" — ");
+  const activa = esRutaActiva(href, pathname);
+
+  if (app.tipo !== "interna") {
+    return <FilaDeSubmodulo activa={false} href={href} externo titulo={titulo} icono={Icono} nombre={nombre} />;
+  }
+
+  const secciones = SECCIONES_DE_MODULO[href] ?? [];
+  const esContratos = href === "/contratos";
+  const tieneHijos = secciones.length > 0 || esContratos;
+  if (!tieneHijos) {
+    return <FilaDeSubmodulo activa={activa} href={href} titulo={titulo} icono={Icono} nombre={nombre} />;
+  }
+
+  // Abierto por omisión solo si es donde está la persona; después manda lo que toque.
+  const clave = `app:${href}`;
+  const abierto = despliegue.abierto(clave, activa);
+  return (
+    <div>
+      <FilaDeSubmodulo
+        activa={activa}
+        href={href}
+        titulo={titulo}
+        icono={Icono}
+        nombre={nombre}
+        extra={
+          <BotonDeDespliegue
+            abierto={abierto}
+            clave={clave}
+            etiqueta={nombre}
+            alAlternar={() => despliegue.alternar(clave, activa)}
+          />
+        }
+      />
+      <Colapsable abierto={abierto} id={idDeRegion(clave)}>
+        {esContratos ? (
+          <SubmenuDeContratos contratos={contratos} pathname={pathname} despliegue={despliegue} />
+        ) : (
+          <SeccionesDelSubmodulo secciones={secciones} base={href} pathname={pathname} />
+        )}
+      </Colapsable>
+    </div>
+  );
+}
+
+/** El estilo de una SECCIÓN (el nivel más hondo): texto chico, sin ícono, con su propia línea guía. */
+function claseDeSeccion(activa: boolean) {
+  return `relative block truncate rounded-md py-1 pl-1.5 pr-1.5 text-[12px] ${TRANSICION} ${FOCO} ${
+    activa ? "bg-naranjo/10 font-semibold text-naranjo" : "text-tinta/55 hover:bg-tinta/[0.04] hover:text-naranjo"
+  }`;
+}
+
+/**
+ * Las pantallas del submódulo, colgando de él.
+ *
+ * La primera es la portada del submódulo y las demás son sus pantallas internas. Se marca activa
+ * la interna que calce, y si no calza ninguna, la portada: sin eso, "Ofertas" quedaba encendida
+ * también estando en Maestros, porque su ruta es prefijo de todas las de adentro.
+ */
+function SeccionesDelSubmodulo({
   secciones,
   base,
   pathname,
@@ -612,17 +804,18 @@ function SeccionesDelModulo({
   pathname: string;
 }) {
   const interna = secciones.find((s) => s.href !== base && esRutaActiva(s.href, pathname));
-  const activa = interna?.href ?? base;
+  // Solo se marca alguna si la persona está dentro del submódulo: afuera, ninguna.
+  const activa = esRutaActiva(base, pathname) ? (interna?.href ?? base) : null;
 
   return (
-    <div className="mb-1 ml-[18px] mt-0.5 flex flex-col border-l border-borde pl-2">
+    <div className="mb-1 ml-[13px] mt-0.5 flex flex-col gap-px border-l border-borde pl-2">
       {secciones.map((seccion) => (
         <Link
           key={seccion.href}
           href={seccion.href}
-          className={`truncate rounded-md px-2 py-1 text-[12px] transition ${
-            seccion.href === activa ? "font-medium text-naranjo" : "text-tinta/55 hover:text-naranjo"
-          }`}
+          title={seccion.nombre}
+          aria-current={seccion.href === activa ? "page" : undefined}
+          className={claseDeSeccion(seccion.href === activa)}
         >
           {seccion.nombre}
         </Link>
@@ -633,19 +826,28 @@ function SeccionesDelModulo({
 
 /**
  * Los contratos, colgando de «Contratos»: cada uno con su logo, y el que está abierto desplegado
- * con su Dashboard y su Carpeta de arranque, de la que cuelgan todos sus módulos.
+ * con su Carpeta de arranque, de la que cuelgan todos sus módulos. Cada contrato se pliega solo.
  *
- * Es el mismo dibujo que las pantallas del Cotizador (una línea a la izquierda, texto chico), un
- * nivel más hondo por cada nivel del contrato.
+ * Es el mismo dibujo que las secciones de los demás submódulos (una línea a la izquierda, texto
+ * chico), un nivel más hondo por cada nivel del contrato.
  */
-function SubmenuDeContratos({ contratos, pathname }: { contratos: ContratoDelMenu[]; pathname: string }) {
+function SubmenuDeContratos({
+  contratos,
+  pathname,
+  despliegue,
+}: {
+  contratos: ContratoDelMenu[];
+  pathname: string;
+  despliegue: Despliegue;
+}) {
   const ruta = decodeURIComponent(pathname);
-  const [, , abierto] = ruta.split("/");
+  // Solo dentro de /contratos/<contrato>/…: en otra ruta ningún contrato está "abierto".
+  const abierto = ruta.startsWith("/contratos/") ? ruta.split("/")[2] : undefined;
 
   if (contratos.length === 0) {
     return (
-      <div className="mb-1 ml-[18px] mt-0.5 border-l border-borde pl-2">
-        <Link href="/contratos" className="block truncate rounded-md px-2 py-1 text-[12px] text-tinta/45 hover:text-naranjo">
+      <div className="mb-1 ml-[13px] mt-0.5 border-l border-borde pl-2">
+        <Link href="/contratos" className={claseDeSeccion(false)}>
           Sin contratos todavía
         </Link>
       </div>
@@ -653,28 +855,45 @@ function SubmenuDeContratos({ contratos, pathname }: { contratos: ContratoDelMen
   }
 
   return (
-    <div className="mb-1 ml-[18px] mt-0.5 flex flex-col border-l border-borde pl-2">
+    <div className="mb-1 ml-[13px] mt-0.5 flex flex-col gap-px border-l border-borde pl-2">
       {contratos.map((c) => {
         const esAbierto = c.slug === abierto;
+        const clave = `contrato:${c.slug}`;
+        const desplegado = despliegue.abierto(clave, esAbierto);
         return (
           <div key={c.slug}>
-            <Link
-              href={`/contratos/${c.slug}`}
-              className={`flex items-center gap-2 truncate rounded-md px-2 py-1 text-[12px] transition ${
-                esAbierto ? "font-semibold text-naranjo" : "text-tinta/60 hover:text-naranjo"
+            <div
+              className={`group/fila flex items-center rounded-md ${TRANSICION} ${
+                esAbierto ? "bg-naranjo/10" : "hover:bg-tinta/[0.04]"
               } ${c.activo ? "" : "opacity-60"}`}
             >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[4px]">
-                {c.logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- ícono de 16 px servido por el propio core
-                  <img src={c.logo} alt="" className="h-full w-full object-contain" />
-                ) : (
-                  <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
-                )}
-              </span>
-              <span className="truncate">{c.nombre}</span>
-            </Link>
-            {esAbierto && <SeccionesDelContrato slug={c.slug} ruta={ruta} />}
+              <Link
+                href={`/contratos/${c.slug}`}
+                aria-current={esAbierto ? "page" : undefined}
+                className={`flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pl-1.5 pr-1 text-[12px] ${FOCO} ${
+                  esAbierto ? "font-semibold text-naranjo" : "text-tinta/60 group-hover/fila:text-naranjo"
+                }`}
+              >
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[4px]">
+                  {c.logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- ícono de 16 px servido por el propio core
+                    <img src={c.logo} alt="" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+                  )}
+                </span>
+                <span className="truncate">{c.nombre}</span>
+              </Link>
+              <BotonDeDespliegue
+                abierto={desplegado}
+                clave={clave}
+                etiqueta={c.nombre}
+                alAlternar={() => despliegue.alternar(clave, esAbierto)}
+              />
+            </div>
+            <Colapsable abierto={desplegado} id={idDeRegion(clave)}>
+              <SeccionesDelContrato slug={c.slug} ruta={ruta} />
+            </Colapsable>
           </div>
         );
       })}
@@ -692,26 +911,22 @@ function SeccionesDelContrato({ slug, ruta }: { slug: string; ruta: string }) {
     { href: `${base}/logistica`, enlace: `${base}/logistica`, nombre: "Logística" },
     { href: `${base}/gastos-arranque`, enlace: `${base}/gastos-arranque`, nombre: "Gastos de arranque" },
   ];
+  const dentro = esRutaActiva(base, ruta);
   const enDashboard = esRutaActiva(`${base}/dashboard`, ruta);
   const moduloActivo = modulos.find((m) => esRutaActiva(m.href, ruta));
   // La carpeta de arranque es la portada del contrato y todo lo que no sea el Dashboard ni un módulo
-  // (las carpetas de SharePoint de primer nivel).
-  const enCarpeta = !enDashboard && !moduloActivo;
+  // (las carpetas de SharePoint de primer nivel). Solo se marca si la persona está en ESTE contrato.
+  const enCarpeta = dentro && !enDashboard && !moduloActivo;
   // En el Dashboard no se marca nada: no está en el menú.
 
-  const clase = (activo: boolean) =>
-    `block truncate rounded-md px-2 py-1 text-[12px] transition ${
-      activo ? "font-medium text-naranjo" : "text-tinta/55 hover:text-naranjo"
-    }`;
-
   return (
-    <div className="mb-1 ml-[9px] mt-0.5 flex flex-col border-l border-borde pl-2">
-      <Link href={base} className={clase(enCarpeta)}>
+    <div className="mb-1 ml-[9px] mt-0.5 flex flex-col gap-px border-l border-borde pl-1.5">
+      <Link href={base} className={claseDeSeccion(enCarpeta)}>
         Carpeta de arranque
       </Link>
-      <div className="mb-1 ml-[9px] flex flex-col border-l border-borde pl-2">
+      <div className="mb-1 ml-[6px] flex flex-col gap-px border-l border-borde pl-1.5">
         {modulos.map((m) => (
-          <Link key={m.href} href={m.enlace} className={clase(m === moduloActivo)}>
+          <Link key={m.href} href={m.enlace} title={m.nombre} className={claseDeSeccion(dentro && m === moduloActivo)}>
             {m.nombre}
           </Link>
         ))}
@@ -720,28 +935,94 @@ function SeccionesDelContrato({ slug, ruta }: { slug: string; ruta: string }) {
   );
 }
 
-function EnlaceNav({
-  href,
-  activo,
-  icono,
-  colapsado,
-  children,
-}: {
-  href: string;
-  activo: boolean;
-  icono: ReactNode;
-  colapsado: boolean;
-  children: ReactNode;
-}) {
+/**
+ * El menú con la barra en modo íconos: sin títulos que plegar, cada módulo es un tramo separado
+ * por una línea y sus submódulos van como íconos sueltos (el nombre sale en el tooltip). Para
+ * ver las cartillas de un módulo, se expande la barra.
+ */
+function NavegacionColapsada({ grupos, pathname }: { grupos: GrupoDelMenu[]; pathname: string }) {
+  const clases = (activo: boolean) =>
+    `group flex items-center justify-center rounded-xl py-2 ${TRANSICION} ${FOCO} ${
+      activo ? "bg-naranjo/10 text-naranjo" : "text-tinta/70 hover:bg-naranjo/10 hover:text-naranjo"
+    }`;
+  const inicio = esRutaActiva("/", pathname);
+
   return (
-    <Link
-      href={href}
-      title={colapsado ? String(children) : undefined}
-      className={clasesItem(activo, colapsado)}
-    >
-      {icono}
-      {!colapsado && <span className="truncate">{children}</span>}
-    </Link>
+    <div className="flex flex-col gap-0.5">
+      <Link href="/" title="Inicio" aria-label="Inicio" aria-current={inicio ? "page" : undefined} className={clases(inicio)}>
+        <IconoInicio size={18} stroke={1.75} aria-hidden />
+      </Link>
+      {grupos.map((grupo) => (
+        <div key={grupo.slug} className="flex flex-col gap-0.5">
+          <div className="mx-1 mb-1 mt-3 border-t border-borde" />
+          {grupo.items.map((item) => {
+            if (item.tipo === "pronto") {
+              const Icono = obtenerIcono(item.icono);
+              return (
+                <span
+                  key={item.nombre}
+                  title={`${item.nombre} (próximamente)`}
+                  className="flex cursor-default items-center justify-center py-2 text-tinta/35"
+                >
+                  <Icono size={17} stroke={1.75} aria-hidden />
+                </span>
+              );
+            }
+            if (item.tipo === "enlace") {
+              const Icono = obtenerIcono(item.icono);
+              const activo = esRutaActiva(item.href, pathname);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.nombre}
+                  aria-label={item.nombre}
+                  aria-current={activo ? "page" : undefined}
+                  className={clases(activo)}
+                >
+                  <Icono size={17} stroke={1.75} aria-hidden />
+                </Link>
+              );
+            }
+            const { app, nombre } = item;
+            const Icono = obtenerIcono(app.icono);
+            if (app.estado === "mantenimiento") {
+              return (
+                <span
+                  key={app.id}
+                  title={`${nombre} (en mantención)`}
+                  className="flex cursor-not-allowed items-center justify-center py-2 text-tinta/35"
+                >
+                  <Icono size={17} stroke={1.75} aria-hidden />
+                </span>
+              );
+            }
+            const href = app.tipo === "interna" ? app.url : app.url.startsWith("http") ? app.url : `https://${app.url}`;
+            const titulo = [nombre, app.descripcion].filter(Boolean).join(" — ");
+            if (app.tipo !== "interna") {
+              return (
+                <a key={app.id} href={href} title={titulo} aria-label={nombre} className={clases(false)}>
+                  <Icono size={17} stroke={1.75} aria-hidden />
+                </a>
+              );
+            }
+            const activo = esRutaActiva(href, pathname);
+            return (
+              <Link
+                key={app.id}
+                href={href}
+                title={titulo}
+                aria-label={nombre}
+                aria-current={activo ? "page" : undefined}
+                className={clases(activo)}
+              >
+                <Icono size={17} stroke={1.75} aria-hidden />
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -785,42 +1066,5 @@ function LogoDeEmpresa({
       // leen desde la izquierda, a la misma altura.
       className="h-9 w-auto object-contain"
     />
-  );
-}
-
-/**
- * El título de un grupo del menú, que pliega y despliega lo de adentro. Más
- * grande y oscuro que los módulos que agrupa, para que se distinga de ellos.
- */
-function TituloDeGrupo({
-  titulo,
-  plegado,
-  conActiva,
-  alAlternar,
-}: {
-  titulo: string;
-  plegado: boolean;
-  /** La página abierta cuelga de este grupo: plegado, se marca para saber dónde está uno parado. */
-  conActiva: boolean;
-  alAlternar: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={alAlternar}
-      aria-expanded={!plegado}
-      className={`group mt-5 mb-1 flex w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-[13px] font-bold uppercase tracking-wide transition ${
-        conActiva ? "text-naranjo" : "text-tinta/70 hover:text-tinta"
-      }`}
-    >
-      <span className="h-[2px] w-3 shrink-0 rounded-full bg-naranjo/70" />
-      <span className="flex-1 truncate">{titulo}</span>
-      <IconChevronDown
-        size={15}
-        stroke={2}
-        className={`shrink-0 text-tinta/35 transition-transform group-hover:text-tinta/60 ${plegado ? "-rotate-90" : ""}`}
-        aria-hidden
-      />
-    </button>
   );
 }
