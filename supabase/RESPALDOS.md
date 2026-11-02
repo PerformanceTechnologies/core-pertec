@@ -103,10 +103,22 @@ Actions → **Variables**) eligen el destino; ninguna es obligatoria:
 | `RESPALDOS_CARPETA` | `RESP_SUPABASE` | Carpeta, en la biblioteca de documentos del sitio |
 | `SHAREPOINT_RESPALDOS_SITE_ID` | el sitio de Finanzas (`SHAREPOINT_FACTURAS_SITE_ID`) | Sitio de destino: `<dominio>.sharepoint.com:/sites/<NombreSitio>` |
 
+**Configuración actual**: sitio **COREPERTEC**, carpeta `RESP_SUPABASE` (en la biblioteca «Documentos» del sitio, que
+SharePoint muestra como «Documentos compartidos»), con una subcarpeta por proyecto. La variable
+`SHAREPOINT_RESPALDOS_SITE_ID` apunta a ese sitio; `RESPALDOS_CARPETA` no está definida y usa su valor por omisión.
+
 **Ojo con el permiso**: el app solo puede escribir en los sitios donde alguien con permisos de administración le haya
 concedido acceso (`Sites.Selected`). Si se apunta a otro sitio sin esa concesión, la subida falla con *403
-accessDenied* y el workflow avisa. El permiso es **de todo el sitio**, no de una carpeta: conviene dárselo a un sitio
-donde no haya documentos delicados que el app no necesite tocar (por ejemplo, uno dedicado a respaldos).
+accessDenied* y el workflow avisa. El permiso es **de todo el sitio**, no de una carpeta: para COREPERTEC se concedió
+el rol `write` al app `core-pertec` (el mínimo que permite subir y borrar por retención), lo que también le da
+escritura sobre el resto del sitio, incluidos los documentos de Contratos. Si algún día se prefiere acotarlo, basta
+mover el destino a un sitio dedicado solo a respaldos y quitar el permiso de COREPERTEC
+(`DELETE /sites/{id-del-sitio}/permissions/{id-del-permiso}` en Graph, o *Revoke-PnPAzureADAppSitePermission*).
+
+**Cómo se comprobó (2026-11-01)**: se subieron a mano los dos respaldos manuales del día con el mismo script
+(`scripts/respaldo/sharepoint.mjs`), se verificó el tamaño de cada archivo y se descargaron de vuelta para comparar su
+huella SHA-256 con la de los originales: idéntica. El script resuelve el sitio a su identificador antes de usarlo
+porque Graph rechaza, en COREPERTEC, la dirección por ruta seguida de `/drive/…`.
 
 ## Primera ejecución y control
 

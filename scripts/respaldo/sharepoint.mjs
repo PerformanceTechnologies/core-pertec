@@ -30,7 +30,21 @@ function entorno(nombre) {
   return v;
 }
 // Destino: SHAREPOINT_RESPALDOS_SITE_ID si existe; si no, el sitio de Finanzas, donde el app del Core ya tiene permiso de escritura.
-const sitio = () => `/sites/${process.env.SHAREPOINT_RESPALDOS_SITE_ID || entorno("SHAREPOINT_FACTURAS_SITE_ID")}`;
+// Si viene como "<dominio>.sharepoint.com:/sites/<Nombre>" se resuelve primero a su identificador: la forma por ruta
+// seguida de "/drive/..." la rechaza Graph en algunos sitios (comprobado en COREPERTEC: 404/400), y por id siempre funciona.
+let sitioResuelto;
+async function sitio(tk) {
+  if (sitioResuelto) return sitioResuelto;
+  const valor = process.env.SHAREPOINT_RESPALDOS_SITE_ID || entorno("SHAREPOINT_FACTURAS_SITE_ID");
+  if (valor.includes(":/")) {
+    const r = await graph(tk, `/sites/${valor}?$select=id`);
+    if (!r.ok) throw new Error(`No se pudo resolver el sitio de destino: HTTP ${r.status}`);
+    sitioResuelto = `/sites/${(await r.json()).id}`;
+  } else {
+    sitioResuelto = `/sites/${valor}`;
+  }
+  return sitioResuelto;
+}
 const codificar = (ruta) => ruta.split("/").map(encodeURIComponent).join("/");
 
 async function token() {
@@ -61,7 +75,7 @@ async function subir(archivo, carpeta) {
   if (simular) return;
 
   const tk = await token();
-  const rs = await graph(tk, `${sitio()}/drive/root:/${codificar(destino)}:/createUploadSession`, {
+  const rs = await graph(tk, `${await sitio(tk)}/drive/root:/${codificar(destino)}:/createUploadSession`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "replace" } }),
@@ -93,7 +107,7 @@ async function subir(archivo, carpeta) {
 
 async function listarCarpeta(tk, carpeta) {
   const elementos = [];
-  let ruta = `${sitio()}/drive/root:/${codificar(carpeta)}:/children?$top=200&$select=id,name,lastModifiedDateTime,size,file`;
+  let ruta = `${await sitio(tk)}/drive/root:/${codificar(carpeta)}:/children?$top=200&$select=id,name,lastModifiedDateTime,size,file`;
   while (ruta) {
     const r = await graph(tk, ruta);
     if (r.status === 404) return elementos; // la carpeta todavía no existe
@@ -145,7 +159,7 @@ async function limpiar(carpeta, dias) {
   const elementos = await listarCarpeta(tk, carpeta);
   const borrar = elegirParaBorrar(elementos, Date.now(), dias);
   for (const e of borrar) {
-    const r = await graph(tk, `${sitio()}/drive/items/${e.id}`, { method: "DELETE" });
+    const r = await graph(tk, `${await sitio(tk)}/drive/items/${e.id}`, { method: "DELETE" });
     if (!r.ok && r.status !== 404) throw new Error(`No se pudo borrar ${e.name}: HTTP ${r.status}`);
     console.log(`borrado ${e.proyecto}: ${e.name}`);
   }
