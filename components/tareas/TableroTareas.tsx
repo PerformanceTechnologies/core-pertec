@@ -281,7 +281,7 @@ export default function TableroTareas({
         descripcion={
           edicion?.tipo === "nueva" ? `Se agrega en «${COLUMNAS.find((c) => c.estado === edicion.estado)?.titulo}».` : undefined
         }
-        ancho="max-w-lg"
+        ancho="max-w-5xl"
       >
         {edicion && (
           <FormularioTarea
@@ -528,92 +528,135 @@ function FormularioTarea({
   ];
 
   return (
-    <form action={enviar} className="space-y-5">
-      <VistaGeneral
-        activa={visibleGeneral}
-        cambiar={setVisibleGeneral}
-        bloqueada={!puedeCambiarVisibilidad}
-      />
-
-      <input
-        name="titulo"
-        required
-        autoFocus
-        maxLength={200}
-        defaultValue={t?.titulo ?? ""}
-        placeholder="¿Qué hay que hacer?"
-        className="w-full border-0 border-b border-borde bg-transparent px-0 pb-2 text-lg font-bold text-tinta placeholder:font-semibold placeholder:text-gris-suave focus:border-naranjo focus:outline-none focus:ring-0"
-      />
-
-      <Campo etiqueta="Descripción">
-        <textarea name="descripcion" rows={3} defaultValue={t?.descripcion ?? ""} className={CAMPO} placeholder="Detalles, links, contexto…" />
-      </Campo>
-
-      <div>
-        <span className="mb-1.5 block text-xs font-semibold text-gris">Responsables</span>
-        <SelectorResponsables opciones={opciones} elegidos={elegidos} setElegidos={setElegidos} yo={yo} />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Campo etiqueta="Asignado por">
-          <select name="asignadoPor" defaultValue={t ? t.asignadoPor ?? "" : yo} className={CAMPO}>
-            <option value="">—</option>
-            {opciones.map((r) => (
-              <option key={r.correo} value={r.correo}>
-                {r.nombre}
-                {r.correo.toLowerCase() === yo.toLowerCase() ? " (tú)" : ""}
-              </option>
-            ))}
-          </select>
-        </Campo>
-        <Campo etiqueta="Fecha límite">
-          <input name="fechaLimite" type="date" defaultValue={t?.fechaLimite ?? ""} className={CAMPO} />
-        </Campo>
-      </div>
-
-      <div>
-        <span className="mb-1.5 block text-xs font-semibold text-gris">Prioridad</span>
-        <div className="grid grid-cols-3 gap-2">
-          {PRIORIDADES.map((p) => (
-            <button
-              key={p.valor}
-              type="button"
-              onClick={() => setPrioridad(p.valor)}
-              className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${
-                prioridad === p.valor ? "border-naranjo bg-naranjo/[0.06] text-tinta" : "border-borde text-gris hover:text-tinta"
-              }`}
-            >
-              <span className={`h-2 w-2 rounded-full ${p.barra}`} /> {p.etiqueta}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {t && (
-        <div>
-          <span className="mb-1.5 block text-xs font-semibold text-gris">Mover a</span>
-          <div className="flex flex-wrap gap-2">
-            {COLUMNAS.filter((c) => c.estado !== t.estado).map((c) => (
-              <button
-                key={c.estado}
-                type="button"
-                onClick={() => alMover(c.estado)}
-                className="inline-flex items-center gap-2 rounded-lg border border-borde px-3 py-2 text-xs font-semibold text-tinta transition hover:border-naranjo/50"
-              >
-                <span className={`h-2 w-2 rounded-full ${c.punto}`} /> {c.titulo}
-              </button>
-            ))}
+    <form action={enviar} className="-mx-1">
+      <div className="grid gap-8 px-1 lg:grid-cols-[minmax(0,1fr)_300px]">
+        {/* ── Columna principal: qué es, la conversación y lo que pasó ── */}
+        <div className="min-w-0 space-y-6">
+          <div>
+            {t && (
+              <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-tinta/[0.05] px-2.5 py-1 text-[11px] font-semibold text-gris">
+                <span className={`h-2 w-2 rounded-full ${COLUMNAS.find((c) => c.estado === t.estado)?.punto}`} />
+                {COLUMNAS.find((c) => c.estado === t.estado)?.titulo}
+                {!visibleGeneral && (
+                  <>
+                    <span className="text-gris-suave">·</span> <IconLock size={12} /> Privada
+                  </>
+                )}
+              </span>
+            )}
+            <input
+              name="titulo"
+              required
+              autoFocus={!t}
+              maxLength={200}
+              defaultValue={t?.titulo ?? ""}
+              placeholder="¿Qué hay que hacer?"
+              className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1.5 -mx-2 text-2xl font-extrabold tracking-tight text-tinta placeholder:font-bold placeholder:text-gris-suave hover:border-borde focus:border-cian focus:outline-none focus:ring-2 focus:ring-cian/30"
+            />
           </div>
+
+          <div>
+            <Etiqueta>Descripción</Etiqueta>
+            <textarea
+              name="descripcion"
+              rows={4}
+              defaultValue={t?.descripcion ?? ""}
+              className={`${CAMPO} leading-relaxed`}
+              placeholder="Detalles, links, contexto…"
+            />
+          </div>
+
+          {t ? (
+            <>
+              <Notas tareaId={t.id} yo={yo} alCambiar={() => setVersionHistorial((v) => v + 1)} />
+              <Historial tareaId={t.id} version={versionHistorial} />
+            </>
+          ) : (
+            <p className="rounded-xl border border-dashed border-borde px-4 py-5 text-center text-xs text-gris">
+              Las notas, los archivos y el historial aparecen cuando la tarea ya está creada.
+            </p>
+          )}
         </div>
-      )}
 
-      {t && <Notas tareaId={t.id} yo={yo} alCambiar={() => setVersionHistorial((v) => v + 1)} />}
+        {/* ── Barra lateral: los datos de la tarea ── */}
+        <aside className="space-y-5 lg:sticky lg:top-0 lg:self-start">
+          <div className="space-y-5 rounded-2xl border border-borde bg-tinta/[0.02] p-4">
+            {t && (
+              <div>
+                <Etiqueta>Estado</Etiqueta>
+                <div className="grid grid-cols-3 gap-1 rounded-lg bg-tinta/[0.05] p-1">
+                  {COLUMNAS.map((c) => {
+                    const actual = c.estado === t.estado;
+                    return (
+                      <button
+                        key={c.estado}
+                        type="button"
+                        onClick={() => !actual && alMover(c.estado)}
+                        className={`flex items-center justify-center gap-1.5 rounded-md px-1 py-1.5 text-[11px] font-semibold transition ${
+                          actual ? "bg-superficie text-tinta shadow-sm" : "text-gris hover:text-tinta"
+                        }`}
+                        title={actual ? "Estado actual" : `Mover a ${c.titulo}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${c.punto}`} />
+                        {c.titulo}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-      {t && <Historial tareaId={t.id} version={versionHistorial} />}
+            <div>
+              <Etiqueta>Prioridad</Etiqueta>
+              <div className="grid grid-cols-3 gap-1.5">
+                {PRIORIDADES.map((p) => (
+                  <button
+                    key={p.valor}
+                    type="button"
+                    onClick={() => setPrioridad(p.valor)}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                      prioridad === p.valor ? "border-naranjo bg-naranjo/[0.07] text-tinta" : "border-borde bg-superficie text-gris hover:text-tinta"
+                    }`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${p.barra}`} /> {p.etiqueta}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-      {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
+            <div>
+              <Etiqueta>Fecha límite</Etiqueta>
+              <input name="fechaLimite" type="date" defaultValue={t?.fechaLimite ?? ""} className={CAMPO} />
+            </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-borde pt-4">
+            <div className="h-px bg-borde" />
+
+            <div>
+              <Etiqueta>Responsables</Etiqueta>
+              <SelectorResponsables opciones={opciones} elegidos={elegidos} setElegidos={setElegidos} yo={yo} />
+            </div>
+
+            <div>
+              <Etiqueta>Asignado por</Etiqueta>
+              <select name="asignadoPor" defaultValue={t ? t.asignadoPor ?? "" : yo} className={CAMPO}>
+                <option value="">—</option>
+                {opciones.map((r) => (
+                  <option key={r.correo} value={r.correo}>
+                    {r.nombre}
+                    {r.correo.toLowerCase() === yo.toLowerCase() ? " (tú)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <VistaGeneral activa={visibleGeneral} cambiar={setVisibleGeneral} bloqueada={!puedeCambiarVisibilidad} />
+        </aside>
+      </div>
+
+      {error && <p className="mx-1 mt-5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
+
+      <div className="mx-1 mt-6 flex items-center justify-between gap-2 border-t border-borde pt-4">
         {t ? (
           <button
             type="button"
@@ -621,7 +664,7 @@ function FormularioTarea({
             disabled={pendiente}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide text-rose-600 transition hover:bg-rose-500/10"
           >
-            <IconTrash size={15} /> Eliminar
+            <IconTrash size={15} /> Eliminar tarea
           </button>
         ) : (
           <span />
@@ -632,14 +675,6 @@ function FormularioTarea({
   );
 }
 
-function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-gris">{etiqueta}</span>
-      {children}
-    </label>
-  );
-}
 
 const VERBO: Record<EventoHistorial["accion"], string> = {
   creada: "creó la tarea",
@@ -960,4 +995,8 @@ function Notas({ tareaId, yo, alCambiar }: { tareaId: string; yo: string; alCamb
       )}
     </section>
   );
+}
+
+function Etiqueta({ children }: { children: React.ReactNode }) {
+  return <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.08em] text-gris">{children}</span>;
 }
