@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { horaEnSantiago, hoyEnSantiago } from "@/lib/graph-calendario";
 import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
 import { enviarResumenPorCorreo } from "@/lib/graph-correo";
-import { armarCorreoHtml } from "@/lib/resumen-diario/correo-html";
+import { armarCorreoHtml, type ConteoTareas } from "@/lib/resumen-diario/correo-html";
+import { tareasPendientesDe, usaTareas } from "@/lib/tareas";
+import { resumirMisTareas } from "@/lib/tareas-modelo";
 import { conTope, enTandas } from "@/lib/resumen-diario/tandas";
 import {
   destinatariosDelCron,
@@ -195,7 +197,7 @@ export async function GET(request: NextRequest) {
       // El correo es solo un aviso con un botón al core; el resumen no viaja en él.
       // Se genera igual antes de mandarlo porque así, cuando la persona hace clic, la
       // página ya lo tiene en caché y abre al instante.
-      armarCorreoHtml(persona.nombre, fechaLegible(hoy.iso)),
+      armarCorreoHtml(persona.nombre, fechaLegible(hoy.iso), await conteoDeTareas(persona, hoy.iso)),
     );
 
     await marcarEnviado(persona.id, hoy.iso);
@@ -276,4 +278,18 @@ export async function GET(request: NextRequest) {
     // se vea en el log del cron y no haya que ir a preguntarle a la base.
     sinCredencial,
   });
+}
+
+/**
+ * Cuántas tareas tiene la persona como responsable, para la línea del correo. Si no usa
+ * Tareas o algo falla, el correo sale igual, sin la línea.
+ */
+async function conteoDeTareas(persona: { id: string; correo: string }, hoyIso: string): Promise<ConteoTareas | null> {
+  try {
+    if (!(await usaTareas(persona.id))) return null;
+    const r = resumirMisTareas(await tareasPendientesDe(persona.correo), persona.correo, hoyIso);
+    return { pendientes: r.total, vencidas: r.vencidas.length, hoy: r.hoy.length };
+  } catch {
+    return null;
+  }
 }

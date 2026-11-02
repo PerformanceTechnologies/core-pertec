@@ -40,7 +40,22 @@ function esc(texto: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export function armarCorreoHtml(nombre: string, fechaLegible: string): string {
+/** Solo cifras de las tareas propias: ni títulos ni detalle viajan en el correo. */
+export interface ConteoTareas {
+  pendientes: number;
+  vencidas: number;
+  hoy: number;
+}
+
+function lineaTareas(t: ConteoTareas | null): string {
+  if (!t || t.pendientes === 0) return "";
+  const partes = [`<strong>${t.pendientes}</strong> ${t.pendientes === 1 ? "tarea pendiente" : "tareas pendientes"}`];
+  if (t.vencidas > 0) partes.push(`<strong style="color:#e11d48">${t.vencidas} ${t.vencidas === 1 ? "vencida" : "vencidas"}</strong>`);
+  if (t.hoy > 0) partes.push(`<strong style="color:#c85217">${t.hoy} ${t.hoy === 1 ? "vence" : "vencen"} hoy</strong>`);
+  return `<tr><td style="padding:24px 28px 0 28px;font:14px/1.6 Arial,sans-serif;color:#171411">Tienes ${partes.join(" · ")}.</td></tr>`;
+}
+
+export function armarCorreoHtml(nombre: string, fechaLegible: string, tareas: ConteoTareas | null = null): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf8f5;padding:32px 0">
   <tr><td align="center">
     <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:100%;background:#ffffff;border:1px solid #e7e1d8;border-radius:14px;overflow:hidden">
@@ -51,7 +66,7 @@ export function armarCorreoHtml(nombre: string, fechaLegible: string): string {
         <div style="font:700 22px/1.3 Arial,sans-serif;color:#faf8f5">${esc(nombre)}</div>
         <div style="font:13px/1.5 Arial,sans-serif;color:rgba(250,248,245,.5)">${esc(fechaLegible)}</div>
       </td></tr>
-
+${lineaTareas(tareas)}
       <tr><td align="center" style="padding:32px 28px 36px 28px">
         <!-- El botón va como tabla con el fondo en el <td>, no como un <a> con
              padding: Outlook de escritorio no respeta el padding de un enlace en

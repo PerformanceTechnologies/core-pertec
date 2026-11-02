@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
-import { exigirAccesoApp } from "@/lib/autorizacion";
+import { exigirAccesoApp, puedeVerApp } from "@/lib/autorizacion";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
 import { obtenerResumenDeHoy } from "@/lib/resumen-diario/datos";
 import { tieneCredencialGuardada } from "@/lib/graph-credenciales";
@@ -8,6 +9,9 @@ import type { UsuarioConAcceso } from "@/lib/tipos";
 import type { Dirigido } from "@/lib/graph-correo";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
 import PrioridadDelDia from "@/components/mi-dia/PrioridadDelDia";
+import MisTareas from "@/components/mi-dia/MisTareas";
+import { tareasPendientesDe } from "@/lib/tareas";
+import { resumirMisTareas, SLUG_APP_TAREAS } from "@/lib/tareas-modelo";
 
 const SLUG_APP = "mi-dia";
 
@@ -382,9 +386,23 @@ export default async function MiDiaPage() {
         </div>
       </header>
 
+      {/* Las tareas van en vivo y aparte del resumen: no esperan al modelo. */}
+      <Suspense fallback={null}>
+        <SeccionTareas usuario={usuario} hoyIso={hoy.iso} />
+      </Suspense>
+
       <CuerpoResumen datos={datos} />
     </div>
   );
+}
+
+/** Solo las tareas donde la persona es responsable, y solo si tiene la app Tareas. */
+async function SeccionTareas({ usuario, hoyIso }: { usuario: UsuarioConAcceso; hoyIso: string }) {
+  if (!(await puedeVerApp(usuario, SLUG_APP_TAREAS))) return null;
+  // Si Tareas falla (p. ej. falta la migración), Mi Día sigue funcionando sin la sección.
+  const tareas = await tareasPendientesDe(usuario.correo).catch(() => null);
+  if (!tareas) return null;
+  return <MisTareas resumen={resumirMisTareas(tareas, usuario.correo, hoyIso)} />;
 }
 
 /** Las cuatro cifras del período, en la banda oscura. */
