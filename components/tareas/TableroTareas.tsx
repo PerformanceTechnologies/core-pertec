@@ -91,6 +91,13 @@ export default function TableroTareas({
     const t = abrir ? iniciales_.find((x) => x.id === abrir) : undefined;
     return t ? { tipo: "editar", tarea: t } : null;
   });
+  // Un enlace nuevo con ?abrir= (desde la campana) estando ya en el tablero: abre esa tarea.
+  const [abrirPrevio, setAbrirPrevio] = useState(abrir);
+  if (abrir !== abrirPrevio) {
+    setAbrirPrevio(abrir);
+    const t = abrir ? iniciales_.find((x) => x.id === abrir) : undefined;
+    if (t) setEdicion({ tipo: "editar", tarea: t });
+  }
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [soloMias, setSoloMias] = useState(false);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { borrarAdjuntos, crearNota, obtenerTarea, registrarEvento, subirAdjunto } from "@/lib/tareas";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
+import { avisarNota } from "@/lib/tareas-avisos";
 import {
   ADJUNTOS_ACEPTADOS,
   SLUG_APP_TAREAS,
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
       subidos.length ? `${subidos.length} archivo${subidos.length > 1 ? "s" : ""} (${subidos.map((s) => s.nombre).join(", ")})` : null,
     ].filter(Boolean).join(" con ");
     await registrarEvento(tareaId, "nota", detalle, usuario);
+    await avisarNota(tarea, usuario, texto ?? detalle);
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     // Si algo falló a medio camino, no quedan archivos huérfanos en el bucket.

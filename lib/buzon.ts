@@ -27,6 +27,8 @@ export interface NuevaNotificacion {
   severidad?: Severidad;
   /** Llave única para no duplicar el mismo aviso entre corridas. */
   clave: string;
+  /** Correo de la única persona que la ve (avisos personales). Sin esto, la ven todos los del módulo. */
+  destinatario?: string | null;
 }
 
 /** Crea una notificación si no existe otra con la misma `clave`. Devuelve true si la creó. */
@@ -42,6 +44,7 @@ export async function crearNotificacion(datos: NuevaNotificacion): Promise<boole
         enlace: datos.enlace ?? null,
         severidad: datos.severidad ?? "info",
         clave: datos.clave,
+        destinatario: datos.destinatario ? datos.destinatario.toLowerCase() : null,
       },
       { onConflict: "clave", ignoreDuplicates: true }
     )
@@ -60,15 +63,27 @@ async function modulosVisibles(usuario: UsuarioConAcceso): Promise<string[] | nu
   return apps.filter((a) => usuario.aplicacionIds.includes(a.id)).map((a) => a.slug);
 }
 
-/** Notificaciones que ve esta persona, más recientes primero, con el estado leída/no leída. */
-export async function listarNotificaciones(usuario: UsuarioConAcceso, limite = 30): Promise<Notificacion[]> {
+/**
+ * Notificaciones que ve esta persona, más recientes primero, con el estado leída/no leída.
+ * Las personales de otro no las ve nadie más, ni el admin. Con `soloPendientes`, solo las
+ * que todavía no abrió (la campana muestra solo esas: al abrir una, desaparece).
+ */
+export async function listarNotificaciones(
+  usuario: UsuarioConAcceso,
+  limite = 30,
+  soloPendientes = false,
+): Promise<Notificacion[]> {
   const modulos = await modulosVisibles(usuario);
+  // El correo va dentro de un filtro de PostgREST: entre comillas dobles, y sin las que pudiera traer.
+  const correo = usuario.correo.toLowerCase().replace(/"/g, "");
 
   let query = supabaseAdmin
     .from("notificaciones")
     .select("id, modulo, tipo, titulo, cuerpo, enlace, severidad, creado_en")
+    .or(`destinatario.is.null,destinatario.eq."${correo}"`)
     .order("creado_en", { ascending: false })
-    .limit(limite);
+    // Con soloPendientes se piden más: las ya vistas se descartan después.
+    .limit(soloPendientes ? limite * 4 : limite);
   if (modulos !== null) {
     query = modulos.length
       ? query.or(`modulo.is.null,modulo.in.(${modulos.join(",")})`)
@@ -89,7 +104,8 @@ export async function listarNotificaciones(usuario: UsuarioConAcceso, limite = 3
     .in("notificacion_id", notis.map((n) => n.id));
   const leidas = new Set((vistas ?? []).map((v) => v.notificacion_id));
 
-  return notis.map((n) => ({ ...(n as Omit<Notificacion, "leida">), leida: leidas.has(n.id) }));
+  const todas = notis.map((n) => ({ ...(n as Omit<Notificacion, "leida">), leida: leidas.has(n.id) }));
+  return soloPendientes ? todas.filter((n) => !n.leida).slice(0, limite) : todas;
 }
 
 /** Marca como leídas. Sin `ids`, todas las visibles de esta persona. */

@@ -26,9 +26,9 @@ function haceCuanto(iso: string): string {
 }
 
 /**
- * La campana de la barra superior, a la izquierda de Mi Día: un número con lo no leído, y un panel
- * con las notificaciones de los módulos que esta persona ve. Al abrir el panel, lo que estaba sin
- * leer se marca como leído.
+ * La campana de la barra superior, a la izquierda de Mi Día: un número con lo pendiente y un panel
+ * con las notificaciones de los módulos que esta persona ve y sus avisos personales (Tareas).
+ * Abrir el panel NO las marca: cada una desaparece cuando se abre (o con «Marcar todas como leídas»).
  */
 export default function BuzonNotificaciones() {
   const [abierto, setAbierto] = useState(false);
@@ -42,7 +42,7 @@ export default function BuzonNotificaciones() {
       const lista = await listarMisNotificacionesAction().catch(() => [] as Notificacion[]);
       if (!vigente) return;
       setNotis(lista);
-      setNoLeidas(lista.filter((n) => !n.leida).length);
+      setNoLeidas(lista.length);
     };
     void traer();
     const t = setInterval(traer, 120_000);
@@ -68,14 +68,20 @@ export default function BuzonNotificaciones() {
     };
   }, [abierto]);
 
-  const abrir = async () => {
-    const abrirAhora = !abierto;
-    setAbierto(abrirAhora);
-    if (abrirAhora && noLeidas > 0) {
-      setNoLeidas(0);
-      setNotis((prev) => (prev ? prev.map((n) => ({ ...n, leida: true })) : prev));
-      marcarNotificacionesLeidasAction().catch(() => {});
-    }
+  const abrir = () => setAbierto((a) => !a);
+
+  /** La saca de la lista al instante; el servidor la marca como vista por detrás. */
+  const descartar = (id: string) => {
+    setNotis((prev) => (prev ? prev.filter((n) => n.id !== id) : prev));
+    setNoLeidas((n) => Math.max(0, n - 1));
+    marcarNotificacionesLeidasAction([id]).catch(() => {});
+  };
+
+  const descartarTodas = () => {
+    const ids = (notis ?? []).map((n) => n.id);
+    setNotis([]);
+    setNoLeidas(0);
+    if (ids.length) marcarNotificacionesLeidasAction(ids).catch(() => {});
   };
 
   return (
@@ -110,15 +116,22 @@ export default function BuzonNotificaciones() {
           botón se saldría por la izquierda. */}
       {abierto && (
         <div className="fixed inset-x-3 top-32 z-50 overflow-hidden rounded-xl border border-borde bg-superficie shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
-          <div className="border-b border-borde px-4 py-2.5 text-sm font-semibold text-tinta">Notificaciones</div>
+          <div className="flex items-center justify-between gap-2 border-b border-borde px-4 py-2.5">
+            <span className="text-sm font-semibold text-tinta">Notificaciones</span>
+            {notis && notis.length > 0 && (
+              <button type="button" onClick={descartarTodas} className="text-[11px] font-semibold text-gris transition hover:text-naranjo">
+                Marcar todas como leídas
+              </button>
+            )}
+          </div>
           <div className="max-h-[60vh] overflow-y-auto">
             {notis === null && <p className="px-4 py-6 text-center text-xs text-gris">Cargando…</p>}
             {notis && notis.length === 0 && (
-              <p className="px-4 py-6 text-center text-xs text-gris">No tienes notificaciones.</p>
+              <p className="px-4 py-6 text-center text-xs text-gris">Estás al día: no tienes notificaciones pendientes.</p>
             )}
             {notis?.map((n) => {
               const cuerpo = (
-                <div className="flex gap-2.5 px-4 py-3 hover:bg-tinta/[0.03]">
+                <div className="group flex gap-2.5 px-4 py-3 hover:bg-tinta/[0.03]">
                   <IconPointFilled
                     size={12}
                     className={`mt-1 shrink-0 ${COLOR_SEVERIDAD[n.severidad] ?? COLOR_SEVERIDAD.info}`}
@@ -131,11 +144,21 @@ export default function BuzonNotificaciones() {
                 </div>
               );
               return n.enlace ? (
-                <Link key={n.id} href={n.enlace} onClick={() => setAbierto(false)} className="block">
+                <Link
+                  key={n.id}
+                  href={n.enlace}
+                  onClick={() => {
+                    descartar(n.id);
+                    setAbierto(false);
+                  }}
+                  className="block"
+                >
                   {cuerpo}
                 </Link>
               ) : (
-                <div key={n.id}>{cuerpo}</div>
+                <button key={n.id} type="button" onClick={() => descartar(n.id)} className="block w-full text-left" title="Marcar como leída">
+                  {cuerpo}
+                </button>
               );
             })}
           </div>

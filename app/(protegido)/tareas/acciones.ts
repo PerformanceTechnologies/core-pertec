@@ -32,6 +32,7 @@ import {
   type Tarea,
 } from "@/lib/tareas-modelo";
 import type { UsuarioConAcceso } from "@/lib/tipos";
+import { avisarAsignacion, avisarCambioDeEstado } from "@/lib/tareas-avisos";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -92,6 +93,7 @@ export async function crearTareaAction(estado: string, fd: FormData): Promise<Re
     if (!datos.visibleGeneral && !esDeLaTarea(datos, usuario.correo)) return { ok: false, error: SIN_QUEDAR_FUERA };
     const id = await crearTarea(estado, datos, usuario.correo);
     await registrarEvento(id, "creada", `en «${tituloDeColumna(estado)}»`, usuario);
+    await avisarAsignacion({ id, titulo: datos.titulo }, datos.responsables, usuario);
     revalidatePath("/tareas");
     return { ok: true, id };
   } catch (e) {
@@ -118,6 +120,8 @@ export async function actualizarTareaAction(id: string, fd: FormData): Promise<R
     const nombres = new Map((await listarResponsables()).map((r) => [r.correo.toLowerCase(), r.nombre]));
     const cambios = describirCambios(actual, datos, (c) => nombres.get(c.toLowerCase()) ?? c);
     if (cambios.length) await registrarEvento(id, "editada", cambios.join(" · "), usuario);
+    const antes = new Set(actual.responsables.map((c) => c.toLowerCase()));
+    await avisarAsignacion({ id, titulo: datos.titulo }, datos.responsables.filter((c) => !antes.has(c)), usuario);
     revalidatePath("/tareas");
     return { ok: true };
   } catch (e) {
@@ -135,6 +139,7 @@ export async function moverTareaAction(id: string, estado: string, orden: number
     // Reordenar dentro de la misma columna no es un cambio de estado: no va al historial.
     if (actual.estado !== estado) {
       await registrarEvento(id, "estado", `de «${tituloDeColumna(actual.estado)}» a «${tituloDeColumna(estado)}»`, usuario);
+      await avisarCambioDeEstado(actual, actual.estado, estado, usuario);
     }
     revalidatePath("/tareas");
     return { ok: true };
