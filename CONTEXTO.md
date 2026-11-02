@@ -65,13 +65,15 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 | Cotizador | `/cotizador` | Motor de costos y remuneraciones, modo obra, ECO-1 en PDF, importación de propuestas |
 | Ofertas técnicas | `/ofertas` | Convierte un borrador en oferta editable y la emite en PDF |
 | Contratos | `/contratos/[contrato]/…` | Acreditación de personas y vehículos, logística, gastos de arranque, dashboard y reportes |
-| Inventario | `/inventario` | Stock de doble entrada con movimientos entre ubicaciones |
-| Proyectos / Mantención | `/proyectos` | Gantt, objetivos, gastos; checklists de equipos |
+| Inventario | `/inventario` | Stock de doble entrada con movimientos entre ubicaciones (en el menú se llama «Stock y bodegas») |
+| Flota | `/flota` | Vehículos, conductores, servicios, contratos y documentos; en el menú cuelga del módulo Inventario |
+| Proyectos / Mantención | `/proyectos` | Gantt, objetivos, gastos; checklists de equipos. **En pausa**: oculto de todo el Core (`lib/apps-pausadas.ts`) |
 | Reclutamiento | `/reclutamiento` | Postulaciones recibidas desde el formulario público |
 | Página web | `/pagina-web` | Administra catálogo, casos, solicitudes y contacto del sitio público |
 | Mi Día | `/mi-dia` | Resumen diario de correo y agenda, enviado también por correo |
 | Buzón / Buscador | campana y Ctrl+K | Avisos por módulo; consultas de solo lectura con IA |
-| Usuarios / Aplicaciones | `/usuarios`, `/aplicaciones` | Administración (solo admin) |
+| Usuarios / Aplicaciones | `/usuarios`, `/aplicaciones` | Administración (solo admin): filtros en la dirección, catálogo agrupado por módulo |
+| Resumen de módulo | `/modulos/[módulo]` | Cada módulo del menú abre un resumen con las cifras de sus submódulos (`lib/modulos-resumen.ts`) |
 
 ## 6. Integraciones
 

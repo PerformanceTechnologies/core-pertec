@@ -31,18 +31,56 @@ export const listarAplicaciones = cache(async function listarAplicaciones(): Pro
   return (await consultarAplicaciones()).filter((app) => !APPS_RETIRADAS.has(app.slug));
 });
 
+/**
+ * Cuántas personas tienen asignada cada aplicación (aplicacion_id → cantidad), sin contar las
+ * cuentas inactivas ni a los administradores: ellos ven todas por ser admin, no por asignación.
+ * Es para Administración; null si la consulta falla (la pantalla funciona igual, sin esa columna).
+ */
+export async function contarUsuariosPorApp(): Promise<Map<string, number> | null> {
+  const { data, error } = await supabaseAdmin
+    .from("usuario_aplicaciones")
+    .select("aplicacion_id, usuarios!inner(activo, rol)");
+  if (error) {
+    console.error(`[aplicaciones] No se pudo contar los usuarios por aplicación: ${error.message}`);
+    return null;
+  }
+  const cuenta = new Map<string, number>();
+  for (const fila of (data ?? []) as unknown as { aplicacion_id: string; usuarios: { activo: boolean; rol: string } | { activo: boolean; rol: string }[] | null }[]) {
+    const usuario = Array.isArray(fila.usuarios) ? fila.usuarios[0] : fila.usuarios;
+    if (!usuario?.activo || usuario.rol === "admin") continue;
+    cuenta.set(fila.aplicacion_id, (cuenta.get(fila.aplicacion_id) ?? 0) + 1);
+  }
+  return cuenta;
+}
+
 // Sube o baja una app un puesto en la lista y renumera el orden de TODAS
 // (0, 1, 2...) según la posición resultante. Renumerar siempre en vez de
 // solo intercambiar el campo "orden" de las dos apps movidas evita quedar
 // pisado por empates (dos apps con el mismo "orden", desempatadas hoy por
 // nombre) que harían que "subir" no cambiara nada visualmente.
-export async function moverAplicacion(id: string, direccion: "arriba" | "abajo"): Promise<void> {
+export async function moverAplicacion(
+  id: string,
+  direccion: "arriba" | "abajo",
+  entre?: string[],
+): Promise<void> {
   const apps = await consultarAplicaciones();
   const indice = apps.findIndex((a) => a.id === id);
   if (indice === -1) return;
 
-  const destino = direccion === "arriba" ? indice - 1 : indice + 1;
-  if (destino < 0 || destino >= apps.length) return; // ya está en el extremo
+  // Con `entre` (los ids de un grupo de la pantalla) se intercambia con el vecino DEL GRUPO, que
+  // no es el de al lado en la lista completa: en Administración las apps se muestran agrupadas, y
+  // subir "Otras" una posición no puede mover a una app de otro módulo y dejar todo igual a la vista.
+  let destino: number;
+  if (entre) {
+    const delGrupo = apps.map((app, i) => ({ id: app.id, i })).filter((x) => entre.includes(x.id));
+    const posicion = delGrupo.findIndex((x) => x.id === id);
+    const vecino = delGrupo[direccion === "arriba" ? posicion - 1 : posicion + 1];
+    if (posicion === -1 || !vecino) return; // ya está en el extremo del grupo
+    destino = vecino.i;
+  } else {
+    destino = direccion === "arriba" ? indice - 1 : indice + 1;
+    if (destino < 0 || destino >= apps.length) return; // ya está en el extremo
+  }
 
   const reordenadas = [...apps];
   [reordenadas[indice], reordenadas[destino]] = [reordenadas[destino], reordenadas[indice]];
