@@ -3,7 +3,7 @@ import {
   ETIQUETA_ESTADO,
   diasHasta,
   estadoVencimiento,
-  formatearPatente,
+  gruposPatente,
   type CategoriaModelo,
   type EstadoVehiculo,
 } from "@/lib/flota-modelo";
@@ -27,17 +27,40 @@ export function ChipEstado({ estado }: { estado: EstadoVehiculo }) {
   );
 }
 
-/** La patente dibujada como placa chilena: blanca, borde negro, «CHILE» arriba y los pares separados por punto. */
+/**
+ * La patente dibujada como la placa chilena: blanca, doble borde negro, letras condensadas,
+ * el escudo con la estrella después del primer par, un punto antes del último y «CHILE» abajo.
+ */
 export function Patente({ patente, chica = false }: { patente: string; chica?: boolean }) {
+  const grupos = gruposPatente(patente);
   return (
     <span
-      className={`inline-flex shrink-0 flex-col items-center rounded-md border-2 border-neutral-900 bg-white leading-none text-neutral-900 shadow-sm ${
-        chica ? "px-1.5 pb-0.5 pt-px" : "px-3 pb-1.5 pt-1"
+      className={`inline-flex shrink-0 flex-col items-center rounded-[5px] bg-white text-neutral-950 shadow-sm ring-1 ring-neutral-950 ${
+        chica ? "border border-white px-1.5 pt-0.5" : "border-2 border-white px-3 pt-1"
       }`}
+      style={{ outline: "1.5px solid #0a0a0a", outlineOffset: chica ? -3 : -4 }}
+      aria-label={`Patente ${grupos.join(" ")}`}
     >
-      <span className={`font-sans font-bold tracking-[0.35em] ${chica ? "text-[5px]" : "text-[8px]"}`}>CHILE</span>
-      <span className={`font-mono font-extrabold tracking-wider ${chica ? "text-[11px]" : "text-xl"}`}>{formatearPatente(patente)}</span>
+      <span className={`flex items-center font-condensed font-bold leading-none tracking-tight ${chica ? "gap-0.5 text-[15px]" : "gap-1 text-[30px]"}`}>
+        {grupos.map((g, i) => (
+          <span key={i} className="flex items-center gap-[inherit]">
+            {i > 0 && (i === 1 ? <Escudo chica={chica} /> : <span className={`rounded-full bg-neutral-950 ${chica ? "h-[3px] w-[3px]" : "h-1.5 w-1.5"}`} />)}
+            {g}
+          </span>
+        ))}
+      </span>
+      <span className={`font-sans font-bold leading-none tracking-[0.4em] ${chica ? "pb-0.5 pl-[0.4em] text-[4px]" : "pb-1 pl-[0.4em] text-[7px]"}`}>CHILE</span>
     </span>
+  );
+}
+
+/** El escudo de Carabineros con la estrella, el separador del primer par. */
+function Escudo({ chica }: { chica: boolean }) {
+  return (
+    <svg viewBox="0 0 20 22" className={chica ? "h-[7px] w-[6px]" : "h-3.5 w-3"} aria-hidden>
+      <path d="M2 2h16v10c0 5-4 8-8 9.5C6 20 2 17 2 12z" fill="#0a0a0a" />
+      <path d="M10 5.2l1.4 3.4 3.6.3-2.8 2.3.9 3.5L10 12.8l-3.1 1.9.9-3.5L5 8.9l3.6-.3z" fill="#fff" />
+    </svg>
   );
 }
 

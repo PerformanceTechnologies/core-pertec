@@ -26,7 +26,7 @@ assert.equal(estadoVencimiento(null, hoy), "sin_fecha");
 assert.equal(normalizarPatente(" ab-cd 12 "), "ABCD12");
 assert.equal(formatearPatente("abcd12"), "AB·CD·12");
 assert.equal(formatearPatente("AB1234"), "AB·12·34");
-assert.equal(formatearPatente("ABC12"), "ABC12"); // fuera de formato: tal cual
+assert.equal(formatearPatente("AS11EWW"), "AS·11·EWW"); // fuera de formato: corta entre letras y números
 
 // El odómetro no retrocede.
 assert.equal(revisarLectura(1000, null), null);

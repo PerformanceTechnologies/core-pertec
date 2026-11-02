@@ -281,12 +281,18 @@ export function normalizarPatente(p: string): string {
 }
 
 /**
- * Como se lee en la placa chilena: de a pares separados por un punto.
- * «ABCD12» → «AB·CD·12» (formato actual) y «AB1234» → «AB·12·34» (formato antiguo).
+ * Los grupos de la placa chilena: de a pares si tiene 6 caracteres («ABCD12» → AB, CD, 12;
+ * «AB1234» → AB, 12, 34). Si no calza, se corta donde cambia de letras a números.
  */
-export function formatearPatente(p: string): string {
+export function gruposPatente(p: string): string[] {
   const n = normalizarPatente(p);
-  return /^[A-Z0-9]{6}$/.test(n) ? n.match(/.{2}/g)!.join("·") : n;
+  if (/^[A-Z0-9]{6}$/.test(n)) return n.match(/.{2}/g)!;
+  return n.match(/[A-Z]+|\d+/g) ?? [n];
+}
+
+/** La patente como se lee en la placa: «AB·CD·12». */
+export function formatearPatente(p: string): string {
+  return gruposPatente(p).join("·");
 }
 
 export function formatearNumero(n: number): string {
