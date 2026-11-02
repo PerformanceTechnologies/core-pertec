@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconArrowLeft, IconFileText, IconGauge, IconHistory, IconSteeringWheel, IconTool } from "@tabler/icons-react";
+import { IconArrowLeft, IconFileText, IconFiles, IconLayoutDashboard, IconGauge, IconHistory, IconSteeringWheel, IconTool } from "@tabler/icons-react";
 import FormularioVehiculo from "@/components/flota/FormularioVehiculo";
 import FormularioServicio from "@/components/flota/FormularioServicio";
 import FormularioContrato from "@/components/flota/FormularioContrato";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/flota";
 import {
   armarDocumentos,
+  avanceDocumentos,
   ETIQUETA_CATEGORIA,
   ETIQUETA_COMBUSTIBLE,
   ETIQUETA_ESTADO_SERVICIO,
@@ -39,8 +40,15 @@ export const dynamic = "force-dynamic";
 
 const fechaCl = (f: string) => new Date(f + "T00:00:00").toLocaleDateString("es-CL");
 
-export default async function FichaVehiculoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FichaVehiculoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { id } = await params;
+  const enDocumentos = (await searchParams).tab === "documentos";
   const v = await obtenerVehiculo(id);
   if (!v) notFound();
   const [lecturas, servicios, contratos, asignaciones, marcas, modelos, tipos, documentos] = await Promise.all([
@@ -54,6 +62,9 @@ export default async function FichaVehiculoPage({ params }: { params: Promise<{ 
     listarDocumentos(id),
   ]);
   const documentacion = armarDocumentos(tipos, documentos);
+  const filasDoc = [...documentacion.base, ...documentacion.acreditacion];
+  const avanceDoc = avanceDocumentos(filasDoc);
+  const alertasDoc = filasDoc.filter((f) => f.estado === "vencido" || f.estado === "por_vencer").length;
   const minimo = { id: v.id, patente: v.patente, nombre: nombreVehiculo(v) };
   const anio = new Date().getFullYear();
   const costoAnio = resumirCostos([v], servicios, contratos, `${anio}-01-01`, `${anio}-12-31`);
@@ -92,6 +103,33 @@ export default async function FichaVehiculoPage({ params }: { params: Promise<{ 
         </dl>
       </header>
 
+      {/* ── Pestañas de la ficha ── */}
+      <nav className="flex gap-1 border-b border-borde">
+        {[
+          { href: `/flota/vehiculos/${v.id}`, texto: "Resumen", on: !enDocumentos, Icono: IconLayoutDashboard, extra: null },
+          {
+            href: `/flota/vehiculos/${v.id}?tab=documentos`, texto: "Documentos", on: enDocumentos, Icono: IconFiles,
+            extra: alertasDoc > 0 ? { t: String(alertasDoc), tono: "bg-rose-500 text-white" } : { t: `${avanceDoc.listos}/${avanceDoc.total}`, tono: "bg-tinta/[0.06] text-gris" },
+          },
+        ].map((t) => (
+          <Link
+            key={t.texto}
+            href={t.href}
+            scroll={false}
+            className={`-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
+              t.on ? "border-naranjo text-tinta" : "border-transparent text-gris hover:text-tinta"
+            }`}
+          >
+            <t.Icono size={16} stroke={1.75} /> {t.texto}
+            {t.extra && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${t.extra.tono}`}>{t.extra.t}</span>}
+          </Link>
+        ))}
+      </nav>
+
+      {enDocumentos ? (
+        <Documentacion vehiculoId={v.id} secciones={documentacion} editable={!baja} />
+      ) : (
+      <>
       {!baja && (
         <div className="flex flex-wrap items-center gap-3">
           <SelectorEstado id={v.id} estado={v.estado} />
@@ -104,8 +142,20 @@ export default async function FichaVehiculoPage({ params }: { params: Promise<{ 
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-5">
-          {/* ── Documentación ── */}
-          <Documentacion vehiculoId={v.id} secciones={documentacion} editable={!baja} />
+          {/* ── Documentos, en corto: el detalle va en su pestaña ── */}
+          <Link href={`/flota/vehiculos/${v.id}?tab=documentos`} scroll={false} className={`${TARJETA} group flex flex-wrap items-center gap-4 p-4 transition hover:border-naranjo/40`}>
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-naranjo/10 text-naranjo"><IconFiles size={22} stroke={1.75} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-tinta">Documentos</p>
+              <p className="text-xs text-gris">
+                {avanceDoc.listos} de {avanceDoc.total} al día{alertasDoc > 0 ? ` · ${alertasDoc} vencido${alertasDoc > 1 ? "s" : ""} o por vencer` : ""}
+              </p>
+            </div>
+            <div className="h-2 w-32 overflow-hidden rounded-full bg-tinta/[0.06]">
+              <div className={`h-full rounded-full ${avanceDoc.listos === avanceDoc.total ? "bg-emerald-500" : "bg-naranjo"}`} style={{ width: `${avanceDoc.total ? (avanceDoc.listos / avanceDoc.total) * 100 : 0}%` }} />
+            </div>
+            <span className="text-xs font-semibold text-gris group-hover:text-naranjo">Ver documentos →</span>
+          </Link>
 
           {/* ── Servicios ── */}
           <Bloque titulo={`Servicios · ${servicios.length}`} Icono={IconTool}>
@@ -230,6 +280,8 @@ export default async function FichaVehiculoPage({ params }: { params: Promise<{ 
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
