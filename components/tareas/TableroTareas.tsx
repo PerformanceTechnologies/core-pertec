@@ -2,26 +2,49 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertCircle, IconCalendarEvent, IconHistory, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconCalendarEvent,
+  IconFile,
+  IconHistory,
+  IconLock,
+  IconNotes,
+  IconPaperclip,
+  IconPlus,
+  IconSearch,
+  IconSend,
+  IconTrash,
+  IconWorld,
+  IconX,
+} from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
 import { CAMPO, SOMBRA_CALIDA } from "@/lib/estilos";
+import { LIMITE_SUBIDA, leerRespuesta } from "@/lib/subidas";
 import {
+  ADJUNTOS_ACEPTADOS,
   COLUMNAS,
   PRIORIDADES,
+  TIPOS_ADJUNTO,
+  esDeLaTarea,
   estaVencida,
   iniciales,
   ordenEntre,
+  pesoLegible,
   type EstadoTarea,
   type EventoHistorial,
+  type Nota,
   type Tarea,
 } from "@/lib/tareas-modelo";
 import {
   actualizarTareaAction,
   crearTareaAction,
+  descargarAdjuntoAction,
+  eliminarNotaAction,
   eliminarTareaAction,
   historialAction,
   moverTareaAction,
+  notasAction,
 } from "@/app/(protegido)/tareas/acciones";
 
 type Responsable = { correo: string; nombre: string };
@@ -47,10 +70,13 @@ export default function TableroTareas({
   tareas: iniciales_,
   responsables,
   yo,
+  abrir = null,
 }: {
   tareas: Tarea[];
   responsables: Responsable[];
   yo: string;
+  /** Id de una tarea para abrirla de entrada (los enlaces de Mi Día). */
+  abrir?: string | null;
 }) {
   // Copia local para mover al instante; el servidor confirma por detrás.
   const [tareas, setTareas] = useState(iniciales_);
@@ -61,7 +87,10 @@ export default function TableroTareas({
   }
   const [arrastrada, setArrastrada] = useState<string | null>(null);
   const [destino, setDestino] = useState<Destino | null>(null);
-  const [edicion, setEdicion] = useState<Edicion>(null);
+  const [edicion, setEdicion] = useState<Edicion>(() => {
+    const t = abrir ? iniciales_.find((x) => x.id === abrir) : undefined;
+    return t ? { tipo: "editar", tarea: t } : null;
+  });
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [soloMias, setSoloMias] = useState(false);
@@ -400,6 +429,11 @@ function Tarjeta({
     >
       {prioridad && <span className={`absolute inset-y-0 left-0 w-1 ${prioridad.barra}`} aria-hidden />}
 
+      {!t.visibleGeneral && (
+        <span className="float-right ml-2 mt-0.5 text-gris-suave" title="Privada: solo responsables y quien la asignó">
+          <IconLock size={14} />
+        </span>
+      )}
       <p className={`text-[14px] font-semibold leading-snug ${hecha ? "text-gris line-through decoration-gris/50" : "text-tinta"}`}>
         {t.titulo}
       </p>
@@ -457,10 +491,15 @@ function FormularioTarea({
   const t = edicion.tipo === "editar" ? edicion.tarea : null;
   const [prioridad, setPrioridad] = useState(t?.prioridad ?? "media");
   const [elegidos, setElegidos] = useState<string[]>(t ? t.responsables : [yo]);
+  const [visibleGeneral, setVisibleGeneral] = useState(t?.visibleGeneral ?? true);
+  const [versionHistorial, setVersionHistorial] = useState(0);
+  // La visibilidad solo la cambian responsables y quien asignó; al crear, quien crea.
+  const puedeCambiarVisibilidad = !t || esDeLaTarea(t, yo);
 
   function enviar(fd: FormData) {
     setError(null);
     fd.set("prioridad", prioridad);
+    fd.set("visibleGeneral", visibleGeneral ? "si" : "no");
     iniciar(async () => {
       const r = t
         ? await actualizarTareaAction(t.id, fd)
@@ -490,6 +529,12 @@ function FormularioTarea({
 
   return (
     <form action={enviar} className="space-y-5">
+      <VistaGeneral
+        activa={visibleGeneral}
+        cambiar={setVisibleGeneral}
+        bloqueada={!puedeCambiarVisibilidad}
+      />
+
       <input
         name="titulo"
         required
@@ -562,7 +607,9 @@ function FormularioTarea({
         </div>
       )}
 
-      {t && <Historial tareaId={t.id} />}
+      {t && <Notas tareaId={t.id} yo={yo} alCambiar={() => setVersionHistorial((v) => v + 1)} />}
+
+      {t && <Historial tareaId={t.id} version={versionHistorial} />}
 
       {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
@@ -598,6 +645,7 @@ const VERBO: Record<EventoHistorial["accion"], string> = {
   creada: "creó la tarea",
   editada: "actualizó",
   estado: "cambió el estado",
+  nota: "agregó",
 };
 
 /** "hace 5 min", "hace 3 h", "ayer", o la fecha si es más vieja. */
@@ -610,7 +658,7 @@ function haceCuanto(iso: string): string {
   return new Date(iso).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function Historial({ tareaId }: { tareaId: string }) {
+function Historial({ tareaId, version }: { tareaId: string; version: number }) {
   const [eventos, setEventos] = useState<EventoHistorial[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [verTodo, setVerTodo] = useState(false);
@@ -625,7 +673,7 @@ function Historial({ tareaId }: { tareaId: string }) {
     return () => {
       vigente = false;
     };
-  }, [tareaId]);
+  }, [tareaId, version]);
 
   const ultimo = eventos?.[0];
 
@@ -688,5 +736,228 @@ function ListaEventos({ eventos }: { eventos: EventoHistorial[] }) {
         );
       })}
     </ol>
+  );
+}
+
+function VistaGeneral({ activa, cambiar, bloqueada }: { activa: boolean; cambiar: (v: boolean) => void; bloqueada: boolean }) {
+  return (
+    <section
+      className={`flex items-start gap-3 rounded-xl border p-3.5 transition ${
+        activa ? "border-borde bg-tinta/[0.02]" : "border-naranjo/40 bg-naranjo/[0.05]"
+      }`}
+    >
+      <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${activa ? "bg-sky-500/10 text-sky-600" : "bg-naranjo/10 text-naranjo"}`}>
+        {activa ? <IconWorld size={17} /> : <IconLock size={17} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-tinta">Vista general</p>
+        <p className="text-xs leading-relaxed text-gris">
+          {activa
+            ? "La ve todo el que tiene acceso a Tareas."
+            : "Privada: solo la ven sus responsables y quien la asignó."}
+          {bloqueada && " Solo ellos pueden cambiar esto."}
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={activa}
+        aria-label="Vista general"
+        disabled={bloqueada}
+        onClick={() => cambiar(!activa)}
+        className={`relative mt-1 h-6 w-11 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          activa ? "bg-naranjo" : "bg-borde"
+        }`}
+      >
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${activa ? "left-[22px]" : "left-0.5"}`} />
+      </button>
+    </section>
+  );
+}
+
+const ACEPTA_ARCHIVOS = Object.keys(TIPOS_ADJUNTO).join(",");
+
+function Notas({ tareaId, yo, alCambiar }: { tareaId: string; yo: string; alCambiar: () => void }) {
+  const [notas, setNotas] = useState<Nota[] | null>(null);
+  const [version, setVersion] = useState(0);
+  const [texto, setTexto] = useState("");
+  const [archivos, setArchivos] = useState<File[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    let vigente = true;
+    notasAction(tareaId).then((r) => {
+      if (!vigente) return;
+      if (r.ok) setNotas(r.notas);
+      else setError(r.error);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [tareaId, version]);
+
+  function elegir(lista: FileList | null) {
+    if (!lista) return;
+    setError(null);
+    const nuevos = [...lista];
+    for (const f of nuevos) {
+      if (!Object.hasOwn(TIPOS_ADJUNTO, f.type)) return setError(`"${f.name}" no se puede adjuntar. Se aceptan ${ADJUNTOS_ACEPTADOS}.`);
+    }
+    const todos = [...archivos, ...nuevos];
+    const total = todos.reduce((t, f) => t + f.size, 0);
+    if (total > LIMITE_SUBIDA) {
+      return setError(`Los archivos de una nota no pueden pasar de 4 MB en total (van ${pesoLegible(total)}).`);
+    }
+    setArchivos(todos.slice(0, 10));
+  }
+
+  async function publicar() {
+    if (!texto.trim() && archivos.length === 0) return;
+    setError(null);
+    setEnviando(true);
+    try {
+      const fd = new FormData();
+      fd.set("tareaId", tareaId);
+      fd.set("texto", texto);
+      for (const a of archivos) fd.append("archivos", a);
+      await leerRespuesta<{ ok: true }>(await fetch("/api/tareas/notas", { method: "POST", body: fd }));
+      setTexto("");
+      setArchivos([]);
+      setVersion((v) => v + 1);
+      alCambiar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar la nota.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function borrar(n: Nota) {
+    if (!confirm("¿Eliminar esta nota y sus archivos?")) return;
+    const r = await eliminarNotaAction(n.id);
+    if (r.ok) setVersion((v) => v + 1);
+    else setError(r.error);
+  }
+
+  async function abrir(n: Nota, i: number) {
+    const r = await descargarAdjuntoAction(n.id, i);
+    if (r.ok) window.open(r.url, "_blank", "noopener");
+    else setError(r.error);
+  }
+
+  return (
+    <section className="rounded-xl border border-borde p-4">
+      <h3 className="mb-3 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.08em] text-tinta">
+        <IconNotes size={15} /> Notas {notas && notas.length > 0 && <span className="font-semibold text-gris">· {notas.length}</span>}
+      </h3>
+
+      {/* Redactar: no es un <form> porque ya está dentro del de la tarea. */}
+      <div className="rounded-lg border border-borde bg-superficie focus-within:border-cian focus-within:ring-2 focus-within:ring-cian/30">
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              publicar();
+            }
+          }}
+          rows={2}
+          maxLength={8000}
+          placeholder="Escribe una nota…"
+          className="block w-full resize-y border-0 bg-transparent px-3 py-2.5 text-sm text-tinta placeholder:text-gris-suave focus:outline-none focus:ring-0"
+        />
+        {archivos.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+            {archivos.map((a, i) => (
+              <span key={i} className="inline-flex items-center gap-1 rounded-md bg-tinta/[0.05] px-2 py-1 text-[11px] text-tinta">
+                <IconFile size={12} /> <span className="max-w-40 truncate">{a.name}</span>
+                <span className="text-gris">{pesoLegible(a.size)}</span>
+                <button type="button" onClick={() => setArchivos(archivos.filter((_, j) => j !== i))} className="text-gris hover:text-rose-600" aria-label={`Quitar ${a.name}`}>
+                  <IconX size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center justify-between border-t border-borde px-2 py-1.5">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-semibold text-gris transition hover:bg-tinta/[0.05] hover:text-tinta">
+            <IconPaperclip size={15} /> Adjuntar
+            <input
+              type="file"
+              multiple
+              accept={ACEPTA_ARCHIVOS}
+              className="sr-only"
+              onChange={(e) => {
+                elegir(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={publicar}
+            disabled={enviando || (!texto.trim() && archivos.length === 0)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-naranjo px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-naranjo-suave disabled:opacity-40"
+          >
+            <IconSend size={14} /> {enviando ? "Guardando…" : "Agregar nota"}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
+
+      {notas === null && !error && <p className="mt-3 text-xs text-gris">Cargando…</p>}
+      {notas && notas.length > 0 && (
+        <ul className="mt-4 max-h-72 space-y-4 overflow-y-auto pr-1">
+          {notas.map((n) => {
+            const quien = n.nombre ?? n.correo;
+            const mia = n.correo.toLowerCase() === yo.toLowerCase();
+            return (
+              <li key={n.id} className="group flex gap-3">
+                <Avatar nombre={quien} correo={n.correo} chico />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2 text-xs">
+                    <strong className="font-semibold text-tinta">{quien}</strong>
+                    <span className="text-[11px] text-gris-suave" title={new Date(n.creadoEn).toLocaleString("es-CL")}>
+                      {haceCuanto(n.creadoEn)}
+                    </span>
+                    {mia && (
+                      <button
+                        type="button"
+                        onClick={() => borrar(n)}
+                        className="ml-auto text-gris-suave opacity-0 transition hover:text-rose-600 group-hover:opacity-100"
+                        aria-label="Eliminar nota"
+                      >
+                        <IconTrash size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {n.texto && <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-tinta">{n.texto}</p>}
+                  {n.archivos.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {n.archivos.map((a, i) => (
+                        <button
+                          key={a.ruta}
+                          type="button"
+                          onClick={() => abrir(n, i)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-borde bg-superficie px-2.5 py-1.5 text-[11px] font-medium text-tinta transition hover:border-naranjo/50"
+                          title={`Descargar ${a.nombre}`}
+                        >
+                          <IconFile size={13} className="text-naranjo" />
+                          <span className="max-w-44 truncate">{a.nombre}</span>
+                          <span className="text-gris">{pesoLegible(a.tamano)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

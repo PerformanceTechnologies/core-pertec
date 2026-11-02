@@ -28,6 +28,8 @@ export interface Tarea {
   responsables: string[];
   /** Correo de quien asignó la tarea. */
   asignadoPor: string | null;
+  /** false: solo la ven sus responsables y quien la asignó. */
+  visibleGeneral: boolean;
   fechaLimite: string | null;
   orden: number;
   creadoPor: string | null;
@@ -68,7 +70,7 @@ export function iniciales(nombre: string): string {
   return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
 }
 
-export type AccionHistorial = "creada" | "editada" | "estado";
+export type AccionHistorial = "creada" | "editada" | "estado" | "nota";
 
 export interface EventoHistorial {
   id: string;
@@ -84,6 +86,7 @@ export function tituloDeColumna(estado: string): string {
 }
 
 type Comparable = {
+  visibleGeneral?: boolean;
   titulo: string;
   descripcion: string | null;
   prioridad: string;
@@ -103,6 +106,9 @@ export function describirCambios(antes: Comparable, despues: Comparable, nombre:
     f ? new Date(f + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : "sin fecha";
   const lista = (cs: string[]) => cs.map(nombre).join(", ");
 
+  if (antes.visibleGeneral !== undefined && despues.visibleGeneral !== undefined && antes.visibleGeneral !== despues.visibleGeneral) {
+    cambios.push(despues.visibleGeneral ? "la visibilidad a vista general" : "la visibilidad a solo responsables y asignador");
+  }
   if (antes.titulo !== despues.titulo) cambios.push(`título a «${despues.titulo}»`);
   if ((antes.descripcion ?? "") !== (despues.descripcion ?? "")) cambios.push("la descripción");
   if (antes.prioridad !== despues.prioridad) {
@@ -122,4 +128,109 @@ export function describirCambios(antes: Comparable, despues: Comparable, nombre:
     cambios.push(`«asignado por» a ${despues.asignadoPor ? nombre(despues.asignadoPor) : "nadie"}`);
   }
   return cambios;
+}
+
+// ---------- Visibilidad ------------------------------------------------------
+
+const igual = (a: string | null | undefined, b: string) => (a ?? "").toLowerCase() === b.toLowerCase();
+
+/** Responsable o quien la asignó: los únicos que pueden cambiar la visibilidad. */
+export function esDeLaTarea(t: { responsables: string[]; asignadoPor: string | null }, correo: string): boolean {
+  return igual(t.asignadoPor, correo) || t.responsables.some((r) => igual(r, correo));
+}
+
+/** Vista general: todos. Si no: solo responsables y quien la asignó. */
+export function puedeVerTarea(
+  t: { visibleGeneral: boolean; responsables: string[]; asignadoPor: string | null },
+  correo: string,
+): boolean {
+  return t.visibleGeneral || esDeLaTarea(t, correo);
+}
+
+// ---------- Notas ------------------------------------------------------------
+
+export interface ArchivoNota {
+  nombre: string;
+  ruta: string;
+  tipo: string;
+  tamano: number;
+}
+
+export interface Nota {
+  id: string;
+  texto: string | null;
+  archivos: ArchivoNota[];
+  correo: string;
+  nombre: string | null;
+  creadoEn: string;
+}
+
+/** Lo que se acepta adjuntar a una nota: MIME → extensión con la que se guarda. */
+export const TIPOS_ADJUNTO: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/heic": "heic",
+  "text/plain": "txt",
+  "text/csv": "csv",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "application/zip": "zip",
+};
+
+export const ADJUNTOS_ACEPTADOS = "PDF, imágenes, Word, Excel, PowerPoint, texto, CSV o ZIP";
+
+/** Peso legible: 532 B, 14 KB, 2,3 MB. */
+export function pesoLegible(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+}
+
+// ---------- Mi Día -----------------------------------------------------------
+
+export interface ResumenMisTareas {
+  /** Con fecha límite ya pasada. */
+  vencidas: Tarea[];
+  /** Vencen hoy. */
+  hoy: Tarea[];
+  /** Vencen en los próximos 3 días (sin contar hoy). */
+  proximas: Tarea[];
+  /** En curso, sin fecha cercana. */
+  enCurso: Tarea[];
+  /** Por hacer, sin fecha cercana. */
+  porHacer: Tarea[];
+  /** Todas las no hechas donde la persona es responsable. */
+  total: number;
+}
+
+/**
+ * Las tareas de UNA persona (donde es responsable y no están hechas), agrupadas por
+ * urgencia para Mi Día. Cada tarea cae en un solo grupo, el más urgente que le toca.
+ * `hoyIso` es la fecha de Chile (YYYY-MM-DD).
+ */
+export function resumirMisTareas(tareas: Tarea[], correo: string, hoyIso: string): ResumenMisTareas {
+  const mias = tareas
+    .filter((t) => t.estado !== "hecho" && t.responsables.some((r) => igual(r, correo)))
+    .sort((a, b) => (a.fechaLimite ?? "9999").localeCompare(b.fechaLimite ?? "9999") || a.orden - b.orden);
+  const en3 = new Date(`${hoyIso}T12:00:00Z`);
+  en3.setUTCDate(en3.getUTCDate() + 3);
+  const limiteProximas = en3.toISOString().slice(0, 10);
+
+  const r: ResumenMisTareas = { vencidas: [], hoy: [], proximas: [], enCurso: [], porHacer: [], total: mias.length };
+  for (const t of mias) {
+    const f = t.fechaLimite;
+    if (f && f < hoyIso) r.vencidas.push(t);
+    else if (f === hoyIso) r.hoy.push(t);
+    else if (f && f <= limiteProximas) r.proximas.push(t);
+    else if (t.estado === "en_curso") r.enCurso.push(t);
+    else r.porHacer.push(t);
+  }
+  return r;
 }
