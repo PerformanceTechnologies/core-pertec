@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { IconSearch, IconLayoutDashboard, IconUsers, IconSettings2, IconSparkles } from "@tabler/icons-react";
+import { IconSearch, IconHome2, IconUsers, IconSettings2, IconSparkles } from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
 import type { Aplicacion } from "@/lib/tipos";
 
@@ -23,7 +23,7 @@ interface ItemBusqueda {
 
 function construirItems(apps: Aplicacion[], esAdmin: boolean): ItemBusqueda[] {
   const items: ItemBusqueda[] = [
-    { id: "dashboard", etiqueta: "Dashboard", href: "/", icono: <IconLayoutDashboard size={17} stroke={1.75} />, externo: false },
+    { id: "inicio", etiqueta: "Inicio", href: "/", icono: <IconHome2 size={17} stroke={1.75} />, externo: false },
   ];
 
   apps

@@ -1,6 +1,8 @@
 // Prueba el agrupado del menú de la izquierda (lib/menu-modelo.ts).
 import assert from "node:assert/strict";
-import { armarMenu } from "../lib/menu-modelo";
+import { readFileSync } from "node:fs";
+import { armarMenu, rutaDeModulo } from "../lib/menu-modelo";
+import { iconoDeModulo } from "../lib/iconos-menu";
 import type { Aplicacion } from "../lib/tipos";
 
 const app = (url: string, nombre: string, tipo: "interna" | "externa" = "interna"): Aplicacion =>
@@ -55,4 +57,36 @@ assert.deepEqual(
 assert.ok(!armarMenu([app("/cotizador", "Cotizador")], []).some((g) => g.titulo === "Página web"));
 assert.deepEqual(armarMenu([], []), []);
 
-console.log("Menú verificado: Finanzas, CRM, Contratos e Inventario en orden y Página web siempre al final; Proyectos y Facturas IH ocultos; nada sin permiso.");
+// Cada módulo tiene su identificador estable, su descripción, su icono y su página.
+{
+  const g = armarMenu(todas, ["sii", "facturas-historicas"], { admin: true });
+  assert.deepEqual(g.map((x) => x.slug), ["finanzas", "crm", "contratos", "inventario", "pagina-web", "administracion"]);
+  assert.equal(new Set(g.map((x) => x.slug)).size, g.length, "los slugs no se repiten: son la dirección de la página del módulo");
+  assert.ok(g.every((x) => x.descripcion.length > 10), "todo módulo explica en una línea qué hay adentro");
+  for (const x of g) {
+    assert.notEqual(iconoDeModulo(x.slug), iconoDeModulo("desconocido"), `«${x.titulo}» tiene su propio icono`);
+  }
+  assert.equal(rutaDeModulo("pagina-web"), "/modulos/pagina-web");
+  // Los submódulos de Finanzas traen su descripción para la cartilla de la página del módulo.
+  for (const i of g[0].items) if (i.tipo === "enlace") assert.ok(i.descripcion, `«${i.nombre}» trae descripción`);
+  // «Administración» solo para el admin del Core, y siempre lo último (después de «Página web»).
+  assert.equal(g.at(-1)?.titulo, "Administración");
+  assert.deepEqual(nombres(g.at(-1)!), ["Usuarios", "Aplicaciones"]);
+  assert.ok(!armarMenu(todas, ["sii"]).some((x) => x.slug === "administracion"), "sin admin no hay Administración");
+  // Sin ningún submódulo visible, el módulo no existe (su página daría 404).
+  assert.deepEqual(armarMenu([], [], { admin: false }), []);
+}
+
+// La barra: el botón de plegar SIEMPRE funciona. Lo que toca la persona manda sobre el valor por
+// omisión (antes, el módulo donde estaba la página abierta se forzaba abierto y el botón parecía roto),
+// y un módulo arranca plegado.
+{
+  const barra = readFileSync(new URL("../components/BarraLateral.tsx", import.meta.url), "utf8");
+  assert.match(barra, /tocados\[clave\] \?\? porDefecto/, "lo tocado manda sobre el valor por omisión");
+  assert.match(barra, /despliegue\.abierto\(clave, false\)/, "un módulo arranca plegado");
+  assert.doesNotMatch(barra, /plegado = .*conActiva/, "el módulo con la página abierta ya no se fuerza abierto");
+  assert.match(barra, /inert=\{!abierto\}/, "lo plegado sale del orden del teclado");
+  assert.match(barra, /motion-reduce:transition-none/, "las animaciones respetan «reducir movimiento»");
+}
+
+console.log("Menú verificado: módulos con slug, descripción e icono; Página web siempre al final y Administración solo para el admin; Proyectos y Facturas IH ocultos; nada sin permiso; el botón de plegar siempre funciona.");
