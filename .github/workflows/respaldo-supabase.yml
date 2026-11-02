@@ -120,7 +120,7 @@ jobs:
         run: |
           set -euo pipefail
           P="${{ matrix.proyecto }}"
-          (cd "salida/$P" && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          (cd "salida/$P" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
           FECHA=$(date -u +%F)
           ARCH="${P}_${FECHA}.tar.gz"
           tar -czf "$ARCH" -C salida "$P"
