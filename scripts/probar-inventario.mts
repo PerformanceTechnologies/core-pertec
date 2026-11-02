@@ -840,7 +840,7 @@ console.log(
   const { mapa, faltan } = im.mapearEncabezados(["Nombre *", "CATEGORÍA", "Stock", "Código", "Bodega", "Color"]);
   assert.deepEqual([...mapa.entries()], [[0, "nombre"], [1, "categoria"], [2, "cantidad"], [3, "sku"], [4, "bodega"]]);
   assert.deepEqual(faltan, []);
-  assert.deepEqual(im.mapearEncabezados(["Producto X"]).faltan, ["Nombre"]);
+  assert.deepEqual(im.mapearEncabezados(["Producto X"]).faltan, ["Nombre", "Categoría", "Bodega / Ubicación", "Cantidad"]);
 
   // Números chilenos y gringos.
   assert.equal(im.leerNumero("12.500"), 12500);
@@ -863,7 +863,7 @@ console.log(
     bodegas: new Map([["wh", "u1"], ["bodega central", "u1"]]),
   };
   // Existente por SKU → actualizar, aunque el nombre cambie.
-  const a = im.validarFila(2, { sku: "VUL-001", nombre: "Otro nombre", bodega: "WH", cantidad: "10" }, cat);
+  const a = im.validarFila(2, { sku: "VUL-001", nombre: "Otro nombre", categoria: "Insumos", bodega: "WH", cantidad: "10" }, cat);
   assert.equal(a.accion, "actualizar");
   assert.equal(a.productoId, "p1");
   assert.deepEqual(a.errores, []);
@@ -879,13 +879,19 @@ console.log(
   assert.match(im.validarFila(7, { nombre: "X", bodega: "wh", minimo: "10", maximo: "5" }, cat).errores.join(), /máximo/);
   assert.match(im.validarFila(8, { nombre: "X", costo: "-3" }, cat).errores.join(), /negativo/);
   assert.match(im.validarFila(9, { nombre: "X", tipo: "Mueble" }, cat).errores.join(), /Tipo/);
+  // Obligatorias: categoría, bodega y cantidad (salvo en un servicio).
+  const sinNada = im.validarFila(11, { nombre: "Solo nombre" }, cat).errores.join();
+  assert.match(sinNada, /categoría/);
+  assert.match(sinNada, /bodega/);
+  assert.match(sinNada, /cantidad/);
+  assert.doesNotMatch(im.validarFila(12, { nombre: "Svc", categoria: "S", tipo: "Servicio" }, cat).errores.join(), /bodega|cantidad/);
   // Sin nombre.
   assert.match(im.validarFila(10, { sku: "Z" }, cat).errores.join(), /nombre/);
 
   // Duplicados: el segundo del mismo producto nuevo actualiza; misma bodega dos veces es error.
   const d = im.revisarDuplicados([
-    im.validarFila(2, { nombre: "Nuevo", bodega: "wh", cantidad: "1" }, cat),
-    im.validarFila(3, { nombre: "nuevo", bodega: "Bodega Central", cantidad: "2" }, cat),
+    im.validarFila(2, { nombre: "Nuevo", categoria: "C", bodega: "wh", cantidad: "1" }, cat),
+    im.validarFila(3, { nombre: "nuevo", categoria: "C", bodega: "Bodega Central", cantidad: "2" }, cat),
   ]);
   assert.equal(d[0].accion, "crear");
   assert.equal(d[1].accion, "actualizar");
@@ -918,7 +924,8 @@ console.log(
 {
   const im = await import("../lib/inventario-importacion-modelo");
   assert.deepEqual(im.sugerirMapeo(["Producto", "Familia", "Cosa rara", "Existencia"]), ["nombre", "categoria", null, "cantidad"]);
-  assert.deepEqual(im.revisarMapeo(["nombre", "categoria", null]), []);
+  assert.deepEqual(im.revisarMapeo(["nombre", "categoria", null, "bodega", "cantidad"]), []);
+  assert.match(im.revisarMapeo(["nombre", "categoria"]).join(), /Bodega/);
   assert.match(im.revisarMapeo(["categoria", null]).join(), /Nombre/);
   assert.match(im.revisarMapeo(["nombre", "costo", "costo"]).join(), /2 columnas/);
 
@@ -926,12 +933,12 @@ console.log(
     productosPorSku: new Map(), productosPorNombre: new Map(), bodegas: new Map(),
     categorias: new Set(["epp"]), unidades: new Set(["un", "unidad"]),
   };
-  const crea = im.validarFila(2, { nombre: "Casco", categoria: "Herramientas", unidad: "UN" }, cat);
+  const crea = im.validarFila(2, { nombre: "Casco", categoria: "Herramientas", unidad: "UN", tipo: "Servicio" }, cat);
   assert.deepEqual(crea.errores, []);
   assert.deepEqual(crea.nuevas, ["categoría «Herramientas»"]);
-  const noCrea = im.validarFila(2, { nombre: "Casco", categoria: "Herramientas", unidad: "caja" }, cat, { crearFaltantes: false });
+  const noCrea = im.validarFila(2, { nombre: "Casco", categoria: "Herramientas", unidad: "caja", tipo: "Servicio" }, cat, { crearFaltantes: false });
   assert.equal(noCrea.errores.length, 2);
-  assert.deepEqual(im.validarFila(2, { nombre: "Casco", categoria: "EPP" }, cat, { crearFaltantes: false }).errores, []);
+  assert.deepEqual(im.validarFila(2, { nombre: "Casco", categoria: "EPP", tipo: "servicio" }, cat, { crearFaltantes: false }).errores, []);
   console.log("Importación tipo Odoo verificada: mapeo sugerido, mapeo inválido y crear/no crear categorías y unidades.");
 }
 

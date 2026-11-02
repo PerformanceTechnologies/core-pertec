@@ -23,14 +23,14 @@ export type ClaveColumna =
 export const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
   { clave: "sku", titulo: "SKU / Código", ayuda: "Código interno. Si existe, se actualiza ese producto; si no, se busca por nombre.", ejemplo: "VUL-001", alias: ["sku", "codigo", "código", "cod", "referencia interna", "codigo interno"] },
   { clave: "nombre", titulo: "Nombre", obligatoria: true, ayuda: "Nombre del producto.", ejemplo: "Parche radial 120x180", alias: ["nombre", "producto", "nombre producto", "descripcion corta"] },
-  { clave: "categoria", titulo: "Categoría", ayuda: "Si no existe, se crea.", ejemplo: "Insumos de vulcanización", alias: ["categoria", "familia", "grupo"] },
+  { clave: "categoria", titulo: "Categoría", obligatoria: true, ayuda: "Si no existe, se crea (o queda con error, según la opción).", ejemplo: "Insumos de vulcanización", alias: ["categoria", "familia", "grupo"] },
   { clave: "unidad", titulo: "Unidad", ayuda: "Nombre o abreviación (un, kg, lt…). Si no existe, se crea.", ejemplo: "un", alias: ["unidad", "unidad de medida", "um", "u/m", "uom"] },
   { clave: "tipo", titulo: "Tipo", ayuda: "Almacenable, Consumible o Servicio. Vacío = Almacenable.", ejemplo: "Almacenable", alias: ["tipo", "tipo producto"] },
   { clave: "seguimiento", titulo: "Seguimiento", ayuda: "Ninguno, Lote o Serie. Vacío = Ninguno.", ejemplo: "Lote", alias: ["seguimiento", "trazabilidad", "control"] },
   { clave: "costo", titulo: "Costo unitario", ayuda: "En pesos, sin puntos de miles ni signo $.", ejemplo: "12500", alias: ["costo", "costo unitario", "precio costo", "valor unitario", "costo unit"] },
   { clave: "precio", titulo: "Precio venta", ayuda: "En pesos.", ejemplo: "18900", alias: ["precio", "precio venta", "precio de venta", "pvp"] },
-  { clave: "bodega", titulo: "Bodega / Ubicación", ayuda: "Nombre o código de una bodega o ubicación interna que ya exista. Necesaria si hay cantidad o mínimos.", ejemplo: "AMU", alias: ["bodega", "ubicacion", "ubicación", "almacen", "almacén", "bodega ubicacion"] },
-  { clave: "cantidad", titulo: "Cantidad", ayuda: "Stock que HAY HOY en esa bodega (conteo). El sistema ajusta la diferencia; no se suma a lo que ya había.", ejemplo: "40", alias: ["cantidad", "stock", "existencia", "cantidad a mano", "conteo", "saldo"] },
+  { clave: "bodega", titulo: "Bodega / Ubicación", obligatoria: true, ayuda: "Nombre o código de una bodega o ubicación interna que ya exista (AMU, CAL, ENE…).", ejemplo: "AMU", alias: ["bodega", "ubicacion", "ubicación", "almacen", "almacén", "bodega ubicacion"] },
+  { clave: "cantidad", titulo: "Cantidad", obligatoria: true, ayuda: "Stock que HAY HOY en esa bodega (conteo; puede ser 0). El sistema ajusta la diferencia; no se suma a lo que ya había.", ejemplo: "40", alias: ["cantidad", "stock", "existencia", "cantidad a mano", "conteo", "saldo"] },
   { clave: "lote", titulo: "Lote / Serie", ayuda: "Obligatorio con cantidad si el producto se sigue por lote o serie. Si no existe, se crea.", ejemplo: "L-2026-11", alias: ["lote", "serie", "numero de serie", "n serie", "lote serie"] },
   { clave: "vencimiento", titulo: "Vencimiento", ayuda: "Fecha de vencimiento del lote: AAAA-MM-DD o DD-MM-AAAA.", ejemplo: "2027-06-30", alias: ["vencimiento", "fecha vencimiento", "vence", "caducidad"] },
   { clave: "minimo", titulo: "Stock mínimo", ayuda: "Regla de reabastecimiento en esa bodega.", ejemplo: "10", alias: ["minimo", "mínimo", "stock minimo", "min"] },
@@ -193,6 +193,11 @@ export function validarFila(
   const nombre = v("nombre").slice(0, 200);
   const sku = v("sku").slice(0, 80) || null;
   if (!nombre) errores.push("Falta el nombre.");
+  // Bodega, categoría y cantidad son obligatorias, salvo en un servicio (no lleva stock).
+  const esServicio = normalizar(v("tipo")) === "servicio";
+  if (!v("categoria")) errores.push("Falta la categoría.");
+  if (!esServicio && !v("bodega")) errores.push("Falta la bodega.");
+  if (!esServicio && !v("cantidad")) errores.push("Falta la cantidad (puede ser 0).");
 
   const existente = (sku && cat.productosPorSku.get(normalizar(sku))) || (nombre ? cat.productosPorNombre.get(normalizar(nombre)) : undefined) || null;
 
@@ -232,8 +237,6 @@ export function validarFila(
   if (bodega) {
     ubicacionId = cat.bodegas.get(normalizar(bodega)) ?? null;
     if (!ubicacionId) errores.push(`No existe la bodega o ubicación interna «${bodega}». Créala primero en Ubicaciones.`);
-  } else if (cantidad !== null || minimo !== null || maximo !== null) {
-    errores.push("Para cargar cantidad o mínimos hay que indicar la bodega.");
   }
 
   const tipoFinal = tipo ?? (existente ? null : "almacenable");

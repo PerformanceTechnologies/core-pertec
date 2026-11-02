@@ -425,7 +425,7 @@ export async function plantilla(): Promise<Buffer> {
   inst.addRow([]);
   for (const linea of [
     "Llena la hoja «Productos», una fila por producto (y por bodega/lote si cargas stock). Borra la fila de ejemplo.",
-    "Solo «Nombre» es obligatorio. Las celdas vacías NO borran lo que el producto ya tenía.",
+    "Obligatorias (*): Nombre, Categoría, Bodega y Cantidad (en un Servicio, bodega y cantidad no van). Las demás celdas vacías NO borran lo que el producto ya tenía.",
     "Si el SKU ya existe se actualiza ese producto; si no hay SKU, se busca por nombre exacto. Si no existe, se crea.",
     "«Cantidad» es el stock que hay HOY en esa bodega: el sistema hace un ajuste por la diferencia (no suma).",
     "Las bodegas deben existir en el Core. Categorías y unidades nuevas se crean solas.",

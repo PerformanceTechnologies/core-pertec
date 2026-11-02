@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconArrowRight,
   IconCheck,
   IconChevronDown,
@@ -131,22 +132,45 @@ export default function ImportadorMasivo() {
   const visibles = soloErrores ? conError : previa?.filas ?? [];
 
   const pasoActual = resultado ? 4 : previa ? 4 : columnas ? 3 : archivo ? 2 : 1;
+  const compacto = pasoActual >= 3;
+
+  // Cada paso reemplaza al anterior en vez de apilarse: al cambiar, se vuelve arriba.
+  const vista = resultado ? "resultado" : previa ? "prueba" : columnas ? "columnas" : "inicio";
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [vista]);
+
+  /** Volver a un paso anterior desde la banda. */
+  function irAPaso(n: number) {
+    if (cargando) return;
+    if (n <= 2 && (columnas || resultado)) {
+      if (!resultado && !confirm("¿Elegir otro archivo? Se pierde el mapeo de columnas.")) return;
+      reiniciar();
+    } else if (n === 3 && previa) {
+      setPrevia(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
       {/* ── Banda con los pasos ── */}
-      <header className="banda-contraste overflow-hidden rounded-2xl px-6 py-7 sm:px-8">
-        <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
-          <span className="h-px w-6 bg-naranjo" /> Carga masiva
-        </span>
-        <h2 className="texto-banda mt-3 font-condensed text-3xl font-bold uppercase leading-tight tracking-tight sm:text-4xl">
-          Sube tu inventario de una vez
-        </h2>
-        <p className="texto-banda-65 mt-2 max-w-2xl text-sm">
-          Productos, bodegas, cantidades, lotes y mínimos desde un Excel o CSV. Igual que en Odoo: eliges a qué campo va cada
-          columna, lo pruebas y recién ahí se guarda.
-        </p>
-        <ol className="mt-6 grid gap-2 sm:grid-cols-4">
+      <header className={`banda-contraste overflow-hidden rounded-2xl px-6 sm:px-8 ${compacto ? "py-4" : "py-7"}`}>
+        {/* Pasado el archivo, la banda se achica a solo los pasos: lo que importa está abajo. */}
+        {!compacto && (
+          <>
+            <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
+              <span className="h-px w-6 bg-naranjo" /> Carga masiva
+            </span>
+            <h2 className="texto-banda mt-3 font-condensed text-3xl font-bold uppercase leading-tight tracking-tight sm:text-4xl">
+              Sube tu inventario de una vez
+            </h2>
+            <p className="texto-banda-65 mt-2 max-w-2xl text-sm">
+              Productos, bodegas, cantidades, lotes y mínimos desde un Excel o CSV. Igual que en Odoo: eliges a qué campo va cada
+              columna, lo pruebas y recién ahí se guarda.
+            </p>
+          </>
+        )}
+        <ol className={`grid gap-2 sm:grid-cols-4 ${compacto ? "" : "mt-6"}`}>
           {[
             { n: 1, t: "Plantilla", d: "Opcional" },
             { n: 2, t: "Archivo", d: ".xlsx o .csv" },
@@ -155,12 +179,15 @@ export default function ImportadorMasivo() {
           ].map((p) => {
             const hecho = pasoActual > p.n || (p.n === 4 && Boolean(resultado));
             const actual = pasoActual === p.n && !resultado;
+            const volver = hecho && (p.n <= 2 || (p.n === 3 && Boolean(previa)));
             return (
               <li
                 key={p.n}
+                onClick={volver ? () => irAPaso(p.n) : undefined}
+                title={volver ? "Volver a este paso" : undefined}
                 className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
                   actual ? "border-naranjo bg-naranjo/15" : "borde-banda"
-                }`}
+                } ${volver ? "cursor-pointer hover:border-naranjo/60" : ""}`}
               >
                 <span
                   className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${
@@ -179,8 +206,31 @@ export default function ImportadorMasivo() {
         </ol>
       </header>
 
+      {/* Ya elegido el archivo: una barra con él, en vez de los pasos 1 y 2 completos. */}
+      {columnas && !resultado && archivo && (
+        <div className={`${TARJETA} flex flex-wrap items-center gap-3 px-4 py-3`}>
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white">
+            <IconFileSpreadsheet size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold text-tinta">{archivo.name}</p>
+            <p className="text-xs text-gris">
+              {columnas.totalFilas} {columnas.totalFilas === 1 ? "fila" : "filas"} · {columnas.encabezados.length} columnas ·{" "}
+              {mapeo.filter(Boolean).length} se importan
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => irAPaso(2)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-borde px-3 py-2 text-xs font-semibold text-tinta transition hover:border-naranjo/50"
+          >
+            <IconRefresh size={14} /> Cambiar archivo
+          </button>
+        </div>
+      )}
+
       {/* ── Paso 1 y 2 ── */}
-      {!resultado && (
+      {!columnas && !resultado && (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
           <section className={`${TARJETA} flex flex-col p-5`}>
             <Paso n={1} titulo="Descarga la plantilla" />
@@ -197,7 +247,7 @@ export default function ImportadorMasivo() {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold text-tinta">plantilla-inventario.xlsx</span>
-                <span className="block text-[11px] text-gris">{COLUMNAS_IMPORTACION.length} columnas · solo «Nombre» es obligatoria</span>
+                <span className="block text-[11px] text-gris">{COLUMNAS_IMPORTACION.length} columnas · {COLUMNAS_IMPORTACION.filter((c) => c.obligatoria).length} obligatorias (*)</span>
               </span>
               <IconDownload size={18} className="text-gris transition group-hover:translate-y-0.5 group-hover:text-naranjo" />
             </a>
@@ -282,7 +332,7 @@ export default function ImportadorMasivo() {
       )}
 
       {/* Paso 3: columnas → campos, como la pantalla de importación de Odoo */}
-      {columnas && !resultado && (
+      {columnas && !previa && !resultado && (
         <section className={`${TARJETA} overflow-hidden`}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borde px-5 py-4">
             <Paso n={3} titulo="Elige a qué campo va cada columna" />
@@ -473,8 +523,8 @@ export default function ImportadorMasivo() {
                     : "Todo listo. Las cantidades entran como ajustes de inventario, con su documento."}
                 </p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={reiniciar} className="rounded-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-gris hover:text-tinta">
-                    Cancelar
+                  <button type="button" onClick={() => setPrevia(null)} className="inline-flex items-center gap-1.5 rounded-lg border border-borde px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-tinta hover:border-naranjo/50">
+                    <IconArrowLeft size={15} /> Volver a columnas
                   </button>
                   <button
                     type="button"
