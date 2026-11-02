@@ -270,6 +270,17 @@ export async function crearTipoDocumento(d: { nombre: string; seccion: SeccionDo
   revienta("crear el tipo de documento", error);
 }
 
+/** Renombra o cambia si vence. El nombre nuevo pasa también a los documentos ya guardados de ese tipo. */
+export async function actualizarTipoDocumento(id: string, d: { nombre?: string; vence?: boolean }): Promise<void> {
+  const { error } = await supabaseAdmin.from(T.tiposDocumento).update(d).eq("id", id);
+  if (error?.code === "23505") throw new Error("[flota] Ya hay un documento con ese nombre en la sección.");
+  revienta("actualizar el tipo de documento", error);
+  if (d.nombre) {
+    const { error: e2 } = await supabaseAdmin.from(T.documentos).update({ nombre: d.nombre }).eq("tipo_id", id);
+    revienta("renombrar los documentos", e2);
+  }
+}
+
 export async function activarTipoDocumento(id: string, activo: boolean): Promise<void> {
   const { error } = await supabaseAdmin.from(T.tiposDocumento).update({ activo }).eq("id", id);
   revienta("actualizar el tipo de documento", error);

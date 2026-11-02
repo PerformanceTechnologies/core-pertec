@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import {
   activarTipoDocumento,
+  actualizarTipoDocumento,
   actualizarDocumento,
   agregarDocumento,
   asegurarDocumento,
@@ -429,6 +430,26 @@ export async function activarTipoDocumentoAction(id: string, activo: boolean): P
     await exigirAccesoApp(SLUG_APP_FLOTA);
     await activarTipoDocumento(id, activo);
     revalidatePath("/flota/configuracion");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function actualizarTipoDocumentoAction(id: string, d: { nombre?: string; vence?: boolean }): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG_APP_FLOTA);
+    const cambios: { nombre?: string; vence?: boolean } = {};
+    if (d.nombre !== undefined) {
+      const nombre = d.nombre.trim().slice(0, 200);
+      if (!nombre) return { ok: false, error: "El nombre no puede quedar vacío." };
+      cambios.nombre = nombre;
+    }
+    if (typeof d.vence === "boolean") cambios.vence = d.vence;
+    await actualizarTipoDocumento(id, cambios);
+    revalidatePath("/flota/configuracion");
+    revalidatePath("/flota/vehiculos", "layout");
+    revalidatePath("/flota");
     return { ok: true };
   } catch (e) {
     return fallo(e);
