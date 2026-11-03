@@ -11,6 +11,7 @@ import {
   eliminarPersona,
   exigirAccesoContactos,
   importarDesdeOdoo,
+  obtenerContacto,
   type ResultadoImportacion,
 } from "@/lib/contactos";
 import {
@@ -93,7 +94,17 @@ function leerContacto(fd: FormData): DatosContacto | string {
     esProveedor: fd.get("esProveedor") === "on",
     plazoPagoDias,
     notas: String(fd.get("notas") ?? "").trim().slice(0, 4000) || null,
+    // Solo una persona es «contacto de» una empresa; el id se comprueba en la acción.
+    empresaId: fd.get("tipoPersona") === "persona" && fd.get("esDeEmpresa") === "si" ? texto(fd, "empresaId", 40) : null,
   };
+}
+
+/** La empresa elegida tiene que existir y ser una empresa (y no el mismo contacto). */
+async function empresaValida(d: DatosContacto, salvo?: string): Promise<string | null> {
+  if (!d.empresaId) return null;
+  if (d.empresaId === salvo) return "Un contacto no puede ser contacto de sí mismo.";
+  const e = await obtenerContacto(d.empresaId);
+  return e && e.tipoPersona === "empresa" ? null : "La empresa elegida ya no existe.";
 }
 
 async function rutLibre(rut: string | null, salvo?: string): Promise<string | null> {
@@ -107,7 +118,7 @@ export async function crearContactoAction(fd: FormData): Promise<Resultado> {
     const u = await exigirAccesoContactos();
     const d = leerContacto(fd);
     if (typeof d === "string") return { ok: false, error: d };
-    const duplicado = await rutLibre(d.rut);
+    const duplicado = (await rutLibre(d.rut)) ?? (await empresaValida(d));
     if (duplicado) return { ok: false, error: duplicado };
     const id = await crearContacto(d, u.correo);
     refrescar(id);
@@ -122,7 +133,7 @@ export async function actualizarContactoAction(id: string, fd: FormData): Promis
     const u = await exigirAccesoContactos();
     const d = leerContacto(fd);
     if (typeof d === "string") return { ok: false, error: d };
-    const duplicado = await rutLibre(d.rut, id);
+    const duplicado = (await rutLibre(d.rut, id)) ?? (await empresaValida(d, id));
     if (duplicado) return { ok: false, error: duplicado };
     await actualizarContacto(id, d, u.correo);
     refrescar(id);

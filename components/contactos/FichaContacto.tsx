@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { IconAlertTriangle, IconArrowLeft, IconCircleCheck, IconMail, IconNotes, IconPhone, IconReceipt, IconUsers } from "@tabler/icons-react";
-import FormularioContacto from "@/components/contactos/FormularioContacto";
+import { IconAlertTriangle, IconArrowLeft, IconBuilding, IconCircleCheck, IconMail, IconNotes, IconPhone, IconReceipt, IconUsers } from "@tabler/icons-react";
+import FormularioContacto, { type EmpresaMin } from "@/components/contactos/FormularioContacto";
 import { AccionesPersona, ArchivarContacto, FormularioPersona } from "@/components/contactos/Acciones";
 import { Avatar, ChipsRol, Rut, VistaReceptor } from "@/components/contactos/Visual";
 import {
@@ -19,7 +19,19 @@ import { TARJETA } from "@/lib/estilos";
 const fechaCl = (f: string) => new Date(f).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 
 /** La ficha de un contacto: datos tributarios, envío y cobro, personas y cómo sale en la factura. */
-export default function FichaContacto({ contacto: c }: { contacto: ContactoConPersonas }) {
+export default function FichaContacto({
+  contacto: c,
+  empresas = [],
+  empresa = null,
+  vinculados = [],
+}: {
+  contacto: ContactoConPersonas;
+  empresas?: EmpresaMin[];
+  /** Si es una persona: la empresa de la que es contacto. */
+  empresa?: { id: string; razonSocial: string } | null;
+  /** Si es una empresa: las personas de la libreta que son contacto suyo. */
+  vinculados?: { id: string; nombre: string; correo: string | null; telefono: string | null }[];
+}) {
   const faltantes = faltantesParaFacturar(c);
   const bloquean = faltantes.filter((f) => f.bloquea);
   const avisos = faltantes.filter((f) => !f.bloquea);
@@ -44,10 +56,17 @@ export default function FichaContacto({ contacto: c }: { contacto: ContactoConPe
             <p className="texto-banda-65 mt-1 text-sm">
               {[c.tipoPersona === "empresa" ? "Empresa" : "Persona", ETIQUETA_TIPO_CONTRIBUYENTE[c.tipoContribuyente], c.activo ? null : "Archivado"].filter(Boolean).join(" · ")}
             </p>
-            <div className="mt-2"><ChipsRol cliente={c.esCliente} proveedor={c.esProveedor} enBanda /></div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <ChipsRol cliente={c.esCliente} proveedor={c.esProveedor} enBanda />
+              {empresa && (
+                <Link href={`/finanzas/contactos/${empresa.id}`} className="borde-banda texto-banda inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition hover:border-naranjo">
+                  <IconBuilding size={12} /> Contacto de {empresa.razonSocial}
+                </Link>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {c.activo && <FormularioContacto contacto={c} />}
+            {c.activo && <FormularioContacto contacto={c} empresas={empresas} />}
             <ArchivarContacto id={c.id} activo={c.activo} />
           </div>
         </div>
@@ -61,7 +80,7 @@ export default function FichaContacto({ contacto: c }: { contacto: ContactoConPe
             <p className="text-sm font-bold">Todavía no se le puede emitir una factura electrónica</p>
             <p className="mt-0.5 text-xs">{bloquean.map((f) => f.texto).join(" · ")}</p>
           </div>
-          {c.activo && <FormularioContacto contacto={c} completar />}
+          {c.activo && <FormularioContacto contacto={c} empresas={empresas} completar />}
         </section>
       ) : (
         <section className="tono-ok fondo-tono flex items-center gap-3 rounded-xl px-4 py-3">
@@ -95,6 +114,29 @@ export default function FichaContacto({ contacto: c }: { contacto: ContactoConPe
               {c.tipoContribuyente === "extranjero" ? <Dato etiqueta="País" valor={c.pais} /> : <Dato etiqueta="Ciudad" valor={c.ciudad} opcional />}
             </dl>
           </section>
+
+          {/* ── Personas de la libreta que son contacto de esta empresa ── */}
+          {vinculados.length > 0 && (
+            <section className={`${TARJETA} p-5`}>
+              <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
+                <IconUsers size={18} className="text-naranjo" /> Contactos vinculados
+                <span className="ml-auto text-[11px] font-normal text-gris-suave">{vinculados.length} {vinculados.length === 1 ? "persona" : "personas"}</span>
+              </h3>
+              <ul className="mt-3 divide-y divide-borde">
+                {vinculados.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/finanzas/contactos/${p.id}`} className="flex items-center gap-3 py-2 transition hover:text-naranjo">
+                      <Avatar nombre={p.nombre} tipo="persona" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-tinta">{p.nombre}</span>
+                        <span className="block truncate text-xs text-gris">{[p.correo, p.telefono].filter(Boolean).join(" · ") || "Sin datos de contacto"}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {/* ── Envío y cobro ── */}
           <section className={`${TARJETA} p-5`}>

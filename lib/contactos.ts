@@ -48,7 +48,7 @@ const aContacto = (r: any): Contacto => ({
   id: r.id, rut: r.rut, tipoPersona: r.tipo_persona, razonSocial: r.razon_social, giro: r.giro,
   direccion: r.direccion, comuna: r.comuna, ciudad: r.ciudad, pais: r.pais, tipoContribuyente: r.tipo_contribuyente,
   correoDte: r.correo_dte, correo: r.correo, telefono: r.telefono, esCliente: r.es_cliente, esProveedor: r.es_proveedor,
-  plazoPagoDias: r.plazo_pago_dias, notas: r.notas, activo: r.activo, odooId: r.odoo_id, odooIds: r.odoo_ids ?? [],
+  plazoPagoDias: r.plazo_pago_dias, notas: r.notas, empresaId: r.empresa_id ?? null, activo: r.activo, odooId: r.odoo_id, odooIds: r.odoo_ids ?? [],
   creadoPor: r.creado_por, actualizadoPor: r.actualizado_por, creadoEn: r.creado_en, actualizadoEn: r.actualizado_en,
 });
 const aPersona = (r: any): Persona => ({
@@ -57,6 +57,8 @@ const aPersona = (r: any): Persona => ({
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const aFila = (d: DatosContacto) => ({
+  // La empresa solo se escribe si viene: lo que trae Odoo no la tiene y no debe borrarla.
+  ...("empresaId" in d ? { empresa_id: d.tipoPersona === "persona" ? d.empresaId ?? null : null } : {}),
   rut: d.rut, tipo_persona: d.tipoPersona, razon_social: d.razonSocial, giro: d.giro, direccion: d.direccion,
   comuna: d.comuna, ciudad: d.ciudad, pais: d.pais, tipo_contribuyente: d.tipoContribuyente, correo_dte: d.correoDte,
   correo: d.correo, telefono: d.telefono, es_cliente: d.esCliente, es_proveedor: d.esProveedor,

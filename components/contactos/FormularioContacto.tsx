@@ -1,17 +1,17 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconBuilding, IconCircleCheck, IconCircleDashed, IconPencil, IconPlus, IconUser } from "@tabler/icons-react";
+import { IconBuilding, IconCircleCheck, IconCircleDashed, IconPencil, IconPlus, IconSearch, IconUser, IconX } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
 import { Campo, Seccion } from "@/components/flota/Campos";
 import { VistaReceptor } from "@/components/contactos/Visual";
 import { CAMPO } from "@/lib/estilos";
 import { formatearRut, normalizarRut } from "@/lib/contratos/rut";
+import { COMUNAS_POR_REGION, REGIONES } from "@/lib/contratos/chile-comunas";
 import {
   AYUDA_TIPO_CONTRIBUYENTE,
-  COMUNAS_ORDENADAS,
   ETIQUETA_TIPO_CONTRIBUYENTE,
   LARGO,
   comunaOficial,
@@ -34,13 +34,24 @@ function Contador({ valor, max }: { valor: string; max: number }) {
   return <span className={`tabular-nums ${pasado ? "tono-alerta font-bold" : ""}`}>{valor.length}/{max}</span>;
 }
 
-export default function FormularioContacto({ contacto, completar = false }: { contacto?: Contacto; /** Botón «Completar datos» en vez de «Editar», para la franja de lo que falta. */ completar?: boolean }) {
+export type EmpresaMin = { id: string; razonSocial: string; rut: string | null };
+
+export default function FormularioContacto({
+  contacto,
+  completar = false,
+  empresas = [],
+}: {
+  contacto?: Contacto;
+  /** Botón «Completar datos» en vez de «Editar», para la franja de lo que falta. */
+  completar?: boolean;
+  /** Las empresas de la libreta, para marcar a una persona como contacto de una de ellas. */
+  empresas?: EmpresaMin[];
+}) {
   const editar = Boolean(contacto);
   const [abierta, setAbierta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
   const router = useRouter();
-  const idComunas = useId();
 
   const inicial = () => ({
     tipoPersona: (contacto?.tipoPersona ?? "empresa") as TipoPersona,
@@ -52,6 +63,9 @@ export default function FormularioContacto({ contacto, completar = false }: { co
     comuna: contacto?.comuna ?? "",
     ciudad: contacto?.ciudad ?? "",
     pais: contacto?.pais && contacto.pais !== "Chile" ? contacto.pais : "",
+    region: (contacto?.comuna && regionDeComuna(contacto.comuna)) || "",
+    empresaId: contacto?.empresaId ?? "",
+    esDeEmpresa: Boolean(contacto?.empresaId),
   });
   const [v, setV] = useState(inicial);
   const poner = <K extends keyof ReturnType<typeof inicial>>(k: K, valor: ReturnType<typeof inicial>[K]) => setV((x) => ({ ...x, [k]: valor }));
@@ -60,7 +74,13 @@ export default function FormularioContacto({ contacto, completar = false }: { co
   const rutNormal = v.rut ? normalizarRut(v.rut) : "";
   const rutOk = rutNormal ? rutUsable(rutNormal) : null;
   const comuna = comunaOficial(v.comuna);
-  const region = comuna ? regionDeComuna(comuna) : null;
+  const comunasDeRegion = v.region ? COMUNAS_POR_REGION[v.region] ?? [] : [];
+  const [buscarEmpresa, setBuscarEmpresa] = useState("");
+  const empresaElegida = empresas.find((e) => e.id === v.empresaId);
+  const qEmp = buscarEmpresa.trim().toLowerCase();
+  const empresasVisibles = empresas
+    .filter((e) => e.id !== contacto?.id && (!qEmp || `${e.razonSocial} ${e.rut ?? ""}`.toLowerCase().includes(qEmp)))
+    .slice(0, 8);
 
   // Lo mismo que verá la ficha: qué falta para facturar, en vivo.
   const borrador: DatosContacto = {
@@ -92,6 +112,7 @@ export default function FormularioContacto({ contacto, completar = false }: { co
 
   function abrir() {
     setV(inicial());
+    setBuscarEmpresa("");
     setError(null);
     setAbierta(true);
   }
@@ -174,6 +195,63 @@ export default function FormularioContacto({ contacto, completar = false }: { co
                   </label>
                 ))}
               </div>
+
+              {/* Una persona puede ser contacto de una empresa de la libreta. */}
+              {v.tipoPersona === "persona" && (
+                <div className="rounded-xl border border-borde bg-tinta/[0.015] p-3">
+                  <input type="hidden" name="esDeEmpresa" value={v.esDeEmpresa ? "si" : "no"} />
+                  <input type="hidden" name="empresaId" value={v.esDeEmpresa ? v.empresaId : ""} />
+                  <p className="text-xs font-semibold text-gris">¿Es contacto de alguna empresa?</p>
+                  <div className="mt-2 inline-flex rounded-lg border border-borde bg-superficie p-0.5 text-xs font-semibold">
+                    {[
+                      { on: false, t: "No, es independiente" },
+                      { on: true, t: "Sí, de una empresa" },
+                    ].map((o) => (
+                      <button
+                        key={o.t}
+                        type="button"
+                        onClick={() => poner("esDeEmpresa", o.on)}
+                        className={`rounded-md px-3 py-1.5 transition ${v.esDeEmpresa === o.on ? "bg-tinta text-superficie" : "text-gris hover:text-tinta"}`}
+                      >
+                        {o.t}
+                      </button>
+                    ))}
+                  </div>
+                  {v.esDeEmpresa &&
+                    (empresaElegida ? (
+                      <div className="mt-3 flex items-center gap-3 rounded-lg border border-naranjo/40 bg-naranjo/[0.04] px-3 py-2">
+                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-naranjo/10 text-naranjo"><IconBuilding size={16} /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-tinta">{empresaElegida.razonSocial}</span>
+                          {empresaElegida.rut && <span className="block font-mono text-[11px] text-gris">{formatearRut(empresaElegida.rut)}</span>}
+                        </span>
+                        <button type="button" onClick={() => poner("empresaId", "")} className="inline-flex items-center gap-1 text-xs font-semibold text-gris hover:text-tinta">
+                          <IconX size={14} /> Cambiar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-3">
+                        <div className="relative">
+                          <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris" />
+                          <input value={buscarEmpresa} onChange={(e) => setBuscarEmpresa(e.target.value)} placeholder="Busca la empresa por nombre o RUT" className={`${CAMPO} pl-9`} />
+                        </div>
+                        <ul className="mt-1.5 max-h-48 divide-y divide-borde overflow-y-auto rounded-lg border border-borde bg-superficie">
+                          {empresasVisibles.map((e) => (
+                            <li key={e.id}>
+                              <button type="button" onClick={() => poner("empresaId", e.id)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-naranjo/[0.05]">
+                                <IconBuilding size={14} className="shrink-0 text-gris" />
+                                <span className="min-w-0 flex-1 truncate text-tinta">{e.razonSocial}</span>
+                                {e.rut && <span className="font-mono text-[11px] text-gris">{formatearRut(e.rut)}</span>}
+                              </button>
+                            </li>
+                          ))}
+                          {empresasVisibles.length === 0 && <li className="px-3 py-2.5 text-xs text-gris">Ninguna empresa coincide. Créala primero como «Empresa».</li>}
+                        </ul>
+                      </div>
+                    ))}
+                </div>
+              )}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 {!extranjero && (
                   <Campo etiqueta="RUT" ayuda={rutOk === false ? undefined : "Con dígito verificador"}>
@@ -251,27 +329,38 @@ export default function FormularioContacto({ contacto, completar = false }: { co
                   </Campo>
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Campo etiqueta="Comuna">
-                    <input
-                      name="comuna"
-                      list={idComunas}
-                      value={v.comuna}
-                      onChange={(e) => poner("comuna", e.target.value)}
-                      onBlur={() => comuna && poner("comuna", comuna)}
-                      autoComplete="off"
-                      className={`${CAMPO} ${v.comuna && !comuna ? "border-amber-500/60" : ""}`}
-                      placeholder="Escribe y elige"
-                    />
-                    <datalist id={idComunas}>
-                      {COMUNAS_ORDENADAS.map((c) => <option key={c} value={c} />)}
-                    </datalist>
-                    <span className="mt-1 block text-[11px] text-gris-suave">
-                      {region ? `Región de ${region}` : v.comuna ? <span className="tono-aviso font-semibold">Elige una comuna de la lista</span> : "Las 346 comunas oficiales"}
-                    </span>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Campo etiqueta="Región">
+                    <select
+                      value={v.region}
+                      onChange={(e) => setV((x) => ({ ...x, region: e.target.value, comuna: "", ciudad: "" }))}
+                      className={CAMPO}
+                    >
+                      <option value="">Elige la región</option>
+                      {REGIONES.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
                   </Campo>
-                  <Campo etiqueta="Ciudad" ayuda="Opcional">
-                    <input name="ciudad" value={v.ciudad} onChange={(e) => poner("ciudad", e.target.value)} maxLength={LARGO.ciudad} className={CAMPO} placeholder="Ej: Santiago" />
+                  <Campo etiqueta="Comuna">
+                    <select
+                      name="comuna"
+                      value={comuna ?? v.comuna}
+                      disabled={!v.region && !v.comuna}
+                      // La ciudad parte igual a la comuna (es lo habitual en la factura) y se puede cambiar.
+                      onChange={(e) => setV((x) => ({ ...x, comuna: e.target.value, ciudad: !x.ciudad || x.ciudad === x.comuna ? e.target.value : x.ciudad }))}
+                      className={`${CAMPO} disabled:opacity-50`}
+                    >
+                      <option value="">{v.region ? "Elige la comuna" : "Primero la región"}</option>
+                      {v.comuna && !comuna && <option value={v.comuna}>{v.comuna} (no oficial)</option>}
+                      {[...comunasDeRegion].sort((a, b) => a.localeCompare(b, "es")).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    {v.comuna && !comuna && <span className="tono-aviso mt-1 block text-[11px] font-semibold">«{v.comuna}» no es una comuna oficial: elígela de nuevo</span>}
+                  </Campo>
+                  <Campo etiqueta="Ciudad">
+                    <select name="ciudad" value={v.ciudad} disabled={!v.region} onChange={(e) => poner("ciudad", e.target.value)} className={`${CAMPO} disabled:opacity-50`}>
+                      <option value="">{v.region ? "Elige la ciudad" : "Primero la región"}</option>
+                      {v.ciudad && !comunasDeRegion.includes(v.ciudad) && <option value={v.ciudad}>{v.ciudad}</option>}
+                      {[...comunasDeRegion].sort((a, b) => a.localeCompare(b, "es")).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
                   </Campo>
                 </div>
               )}

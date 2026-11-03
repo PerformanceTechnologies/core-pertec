@@ -75,6 +75,8 @@ export interface DatosContacto {
   esProveedor: boolean;
   plazoPagoDias: number | null;
   notas: string | null;
+  /** Solo personas: la empresa de la que es contacto. Opcional para lo que viene de Odoo. */
+  empresaId?: string | null;
 }
 
 export interface Contacto extends DatosContacto {
