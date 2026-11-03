@@ -7,8 +7,10 @@ import {
   comunaOficial,
   contactosDesdeOdoo,
   faltantesParaFacturar,
+  correoMinuscula,
   iniciales,
   listoParaFacturar,
+  nombrePropio,
   pasaFiltro,
   rutUsable,
   type Contacto,
@@ -81,6 +83,65 @@ assert.ok(!coincideBusqueda(c, "antofagasta"));
 assert.ok(pasaFiltro(c, "clientes") && !pasaFiltro(c, "proveedores") && !pasaFiltro(c, "por_completar"));
 assert.ok(pasaFiltro({ ...c, activo: false }, "archivados") && !pasaFiltro({ ...c, activo: false }, "todos"));
 
+// ---------- Nombre Propio ---------------------------------------------------------
+
+const np = (x: string) => nombrePropio(x, { siempre: true });
+// La sociedad y las siglas conocidas, los conectores en minúscula y la primera palabra siempre con mayúscula.
+assert.equal(np("ADMINISTRADORA DE COMBUSTIBLE CANTAGALLO"), "Administradora de Combustible Cantagallo");
+assert.equal(np("MINERA DE LOS ANDES SPA"), "Minera de los Andes SpA");
+assert.equal(np("MINERA LOS ANDES SPA"), "Minera Los Andes SpA", "el artículo es parte del nombre");
+assert.equal(np("VILLAR HERMANOS S.A."), "Villar Hermanos S.A.");
+assert.equal(np("COMERCIAL XYZ LTDA."), "Comercial Xyz Ltda.");
+assert.equal(np("comercial xyz ltda"), "Comercial Xyz Ltda.");
+assert.equal(np("ARELEKTRIC SPA."), "Arelektric SpA.");
+assert.equal(np("EDUARDO CHACON E.I.R.L."), "Eduardo Chacon E.I.R.L.");
+assert.equal(np("DE LA PAZ Y COMPAÑIA"), "De la Paz y Compañia");
+assert.equal(np("MINERA LAS CENIZAS S.A."), "Minera Las Cenizas S.A.");
+assert.equal(np("GPS CHILE"), "GPS Chile");
+assert.equal(np("BCI SEGUROS"), "BCI Seguros");
+assert.equal(np("D&C INGENIERIA"), "D&C Ingenieria");
+// Direcciones: números y códigos en mayúscula, abreviaturas con su inicial, «O'Higgins».
+assert.equal(np("AV. LIBERTADOR BERNARDO O'HIGGINS 2259 OF. 501"), "Av. Libertador Bernardo O'Higgins 2259 Of. 501");
+assert.equal(np("RUTA E-30-F S/N°"), "Ruta E-30-F S/N°");
+assert.equal(np("PARCELA 5 13 LOTE YALQUINCHA P5-L36"), "Parcela 5 13 Lote Yalquincha P5-L36");
+assert.equal(np("AV VENTISQUERO 1204 MOD 55 WORK CENTER VESPUCIO"), "Av Ventisquero 1204 Mod 55 Work Center Vespucio");
+assert.equal(np("LOS CARRERA N°6651"), "Los Carrera N°6651");
+assert.equal(np("SOC CONCESIONARIA AUTOPISTA CENTRAL S A"), "Soc Concesionaria Autopista Central S.A.");
+assert.equal(np("SQM INDUSTRIAL S. A."), "SQM Industrial S.A.");
+assert.equal(np("D&C SERVICIOS A LA MINERIA SPA"), "D&C Servicios a la Mineria SpA");
+assert.equal(np("Grafica24 Limitada"), "Grafica24 Limitada");
+assert.equal(np("Import and Export Specialized Equipment and Services Inc."), "Import and Export Specialized Equipment and Services Inc.");
+// En un texto que ya mezcla, una sigla corta es a propósito (MLA, CHM); en uno todo en mayúscula no hay forma de saberlo.
+assert.equal(np("Ingeniero en Confiabilidad – MLA"), "Ingeniero en Confiabilidad – MLA");
+assert.equal(np("Sociedad de Servicios e Inversiones CHM SPA"), "Sociedad de Servicios e Inversiones CHM SpA");
+assert.equal(np("INGENIERO EN CONFIABILIDAD MLA"), "Ingeniero en Confiabilidad Mla");
+// Un correo (Odoo lo usa de nombre) sigue siendo un correo; no se inventan tildes.
+assert.equal(np("Javier.M.Palma@FluorSalfa.com"), "javier.m.palma@fluorsalfa.com");
+assert.equal(np("JOSÉ PEREZ"), "José Perez");
+assert.equal(correoMinuscula(" Cvalderrama@Loval.cl; "), "cvalderrama@loval.cl");
+// Sin `siempre` solo se toca lo que está TODO en mayúscula o TODO en minúscula: lo mezclado se respeta.
+assert.equal(nombrePropio("MINERA DE LOS ANDES SPA"), "Minera de los Andes SpA");
+assert.equal(nombrePropio("juan pérez soto"), "Juan Pérez Soto");
+assert.equal(nombrePropio("Minera de los Andes SpA"), "Minera de los Andes SpA");
+assert.equal(nombrePropio("McKenzie y Asociados"), "McKenzie y Asociados");
+assert.equal(nombrePropio("  Compañía   Minera  "), "Compañía Minera");
+assert.equal(nombrePropio(""), "");
+// En una dirección, «AV» y «OF» son abreviaturas aunque el resto ya esté bien escrito.
+assert.equal(nombrePropio("AV Los Leones N°927, Santiago", { siempre: true, direccion: true }), "Av Los Leones N°927, Santiago");
+assert.equal(nombrePropio("14 de Febrero N°2065 OF 103", { siempre: true, direccion: true }), "14 de Febrero N°2065 Of 103");
+assert.equal(nombrePropio("Ingeniero en Confiabilidad – MLA", { siempre: true, direccion: true }), "Ingeniero en Confiabilidad – Mla");
+// Es estable: pasarlo dos veces da lo mismo.
+// Más direcciones reales: números al comienzo, «Of.» de oficina, artículos de calle, comas pegadas y romanos.
+assert.equal(np("14 DE FEBRERO N°2065 OF 103"), "14 de Febrero N°2065 Of 103");
+assert.equal(np("AV LA DEHESA 1201 O- 814"), "Av La Dehesa 1201 O- 814");
+assert.equal(np("AV. LOS CONQUISTADORES N°1700, PISO 13 OF. A"), "Av. Los Conquistadores N°1700, Piso 13 Of. A");
+assert.equal(np("De La Foresta 3556,La Florida"), "De la Foresta 3556,La Florida");
+assert.equal(np("AVENIDA JUAN DE LA FUENTE 455"), "Avenida Juan de la Fuente 455");
+assert.equal(np("ROGER DE FLOR 2725 OF 1001 PS 10"), "Roger de Flor 2725 Of 1001 Ps 10");
+assert.equal(np("PJ ALUMINIO 4129 LA ARBOLEDA II"), "Pj Aluminio 4129 La Arboleda II");
+assert.equal(np("AV.E.PEREZ ZUJOVIC 5030"), "Av.E.Perez Zujovic 5030");
+for (const x of ["MINERA LOS ANDES SPA", "AV. LAS CONDES 123 OF. 4", "pedro@x.cl", "D.M.G. SERVICIOS"]) assert.equal(np(np(x)), np(x));
+
 // ---------- Desde Odoo ----------------------------------------------------------
 
 const fila = (x: Partial<FilaOdoo> & { id: number; name: string }): FilaOdoo => ({
@@ -112,13 +173,17 @@ const { contactos, omitidos } = contactosDesdeOdoo(
 );
 
 assert.deepEqual(contactos.map((x) => x.razonSocial), ["Eléctrica SpA", "Municipalidad"]);
+assert.equal(
+  contactosDesdeOdoo([fila({ id: 90, name: "ASESORIAS LOS ROBLES LTDA.", vat: "76.000.001-K", street: "AV. APOQUINDO 3000", city: "LAS CONDES", l10n_cl_activity_description: "VENTA DE ARTICULOS", email: "Ventas@Robles.CL" })], []).contactos[0].direccion,
+  "Av. Apoquindo 3000",
+);
 const e = contactos[0];
 assert.equal(e.rut, "96814370-0");
 assert.deepEqual(e.odooIds, [10, 11, 12]);
 assert.equal(e.odooId, 11, "manda la ficha más completa");
 assert.equal(e.comuna, "Las Condes");
 assert.equal(e.direccion, "Presidente Riesco 5711");
-assert.equal(e.giro, "Energía eléctrica");
+assert.equal(e.giro, "Energía Eléctrica");
 assert.ok(e.esCliente && e.esProveedor, "cliente en una ficha y proveedor en otra");
 assert.equal(e.plazoPagoDias, 30);
 assert.match(e.notas ?? "", /Otra dirección en Odoo: Puchuncavi/);

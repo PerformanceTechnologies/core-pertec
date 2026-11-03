@@ -2,7 +2,7 @@ import Link from "next/link";
 import { IconAlertTriangle, IconArrowLeft, IconBuilding, IconCircleCheck, IconMail, IconNotes, IconPhone, IconReceipt, IconUsers } from "@tabler/icons-react";
 import FormularioContacto, { type EmpresaMin } from "@/components/contactos/FormularioContacto";
 import { AccionesPersona, ArchivarContacto, FormularioPersona } from "@/components/contactos/Acciones";
-import { Avatar, ChipsRol, Rut, VistaReceptor } from "@/components/contactos/Visual";
+import { Avatar, ChipsRol, HOJA, Rut, VistaReceptor } from "@/components/contactos/Visual";
 import {
   ETIQUETA_TIPO_CONTRIBUYENTE,
   LARGO,
@@ -14,7 +14,6 @@ import {
   type DatosContacto,
 } from "@/lib/contactos-modelo";
 import { formatearRut } from "@/lib/contratos/rut";
-import { TARJETA } from "@/lib/estilos";
 
 const fechaCl = (f: string) => new Date(f).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 
@@ -42,24 +41,24 @@ export default function FichaContacto({
 
   return (
     <div className="space-y-5">
-      <Link href="/finanzas/contactos" className="inline-flex items-center gap-1 text-sm font-semibold text-gris transition hover:text-tinta">
+      <Link href="/finanzas/contactos" className="inline-flex items-center gap-1 rounded-full text-sm font-semibold text-gris transition hover:text-tinta">
         <IconArrowLeft size={16} /> Volver a contactos
       </Link>
 
       {/* ── Cabecera ── */}
-      <header className="banda-contraste overflow-hidden rounded-2xl px-6 py-6 sm:px-8">
-        <div className="flex flex-wrap items-start gap-5">
+      <header className={`${HOJA} p-5 sm:p-6`}>
+        <div className="flex flex-wrap items-start gap-4 sm:gap-5">
           <Avatar nombre={c.razonSocial} tipo={c.tipoPersona} grande />
           <div className="min-w-0 flex-1">
-            <Rut rut={c.rut} claro />
-            <h2 className="texto-banda mt-1 break-words font-condensed text-3xl font-bold uppercase leading-tight tracking-tight">{c.razonSocial}</h2>
-            <p className="texto-banda-65 mt-1 text-sm">
+            <Rut rut={c.rut} />
+            <h2 className="mt-0.5 break-words text-2xl font-extrabold leading-tight tracking-tight text-tinta sm:text-[28px]">{c.razonSocial}</h2>
+            <p className="mt-1 text-sm text-gris">
               {[c.tipoPersona === "empresa" ? "Empresa" : "Persona", ETIQUETA_TIPO_CONTRIBUYENTE[c.tipoContribuyente], c.activo ? null : "Archivado"].filter(Boolean).join(" · ")}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <ChipsRol cliente={c.esCliente} proveedor={c.esProveedor} enBanda />
+              <ChipsRol cliente={c.esCliente} proveedor={c.esProveedor} />
               {empresa && (
-                <Link href={`/finanzas/contactos/${empresa.id}`} className="borde-banda texto-banda inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition hover:border-naranjo">
+                <Link href={`/finanzas/contactos/${empresa.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-tinta/[0.06] px-2.5 py-0.5 text-[11px] font-semibold text-tinta transition hover:bg-tinta/[0.1]">
                   <IconBuilding size={12} /> Contacto de {empresa.razonSocial}
                 </Link>
               )}
@@ -74,7 +73,7 @@ export default function FichaContacto({
 
       {/* ── ¿Se le puede facturar? ── */}
       {bloquean.length > 0 ? (
-        <section className="tono-aviso fondo-tono flex flex-wrap items-center gap-3 rounded-xl px-4 py-3">
+        <section className="tono-aviso fondo-tono flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
           <IconAlertTriangle size={20} stroke={2} className="shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">Todavía no se le puede emitir una factura electrónica</p>
@@ -83,7 +82,7 @@ export default function FichaContacto({
           {c.activo && <FormularioContacto contacto={c} empresas={empresas} completar />}
         </section>
       ) : (
-        <section className="tono-ok fondo-tono flex items-center gap-3 rounded-xl px-4 py-3">
+        <section className="tono-ok fondo-tono flex items-center gap-3 rounded-2xl px-4 py-3">
           <IconCircleCheck size={20} stroke={2} className="shrink-0" />
           <p className="text-sm font-bold">
             Listo para facturar
@@ -95,7 +94,7 @@ export default function FichaContacto({
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <div className="space-y-5">
           {/* ── Datos tributarios ── */}
-          <section className={`${TARJETA} p-5`}>
+          <section className={`${HOJA} p-5`}>
             <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
               <IconReceipt size={18} className="text-naranjo" /> Datos tributarios
               <span className="ml-auto text-[11px] font-normal text-gris-suave">Lo que pide el SII en la factura</span>
@@ -117,7 +116,7 @@ export default function FichaContacto({
 
           {/* ── Personas de la libreta que son contacto de esta empresa ── */}
           {vinculados.length > 0 && (
-            <section className={`${TARJETA} p-5`}>
+            <section className={`${HOJA} p-5`}>
               <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
                 <IconUsers size={18} className="text-naranjo" /> Contactos vinculados
                 <span className="ml-auto text-[11px] font-normal text-gris-suave">{vinculados.length} {vinculados.length === 1 ? "persona" : "personas"}</span>
@@ -139,7 +138,7 @@ export default function FichaContacto({
           )}
 
           {/* ── Envío y cobro ── */}
-          <section className={`${TARJETA} p-5`}>
+          <section className={`${HOJA} p-5`}>
             <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
               <IconMail size={18} className="text-naranjo" /> Envío y cobro
             </h3>
@@ -152,7 +151,7 @@ export default function FichaContacto({
           </section>
 
           {c.notas && (
-            <section className={`${TARJETA} p-5`}>
+            <section className={`${HOJA} p-5`}>
               <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
                 <IconNotes size={18} className="text-naranjo" /> Notas
               </h3>
@@ -165,7 +164,7 @@ export default function FichaContacto({
           <VistaReceptor contacto={c as DatosContacto} atencion={principal} />
 
           {/* ── Personas de contacto ── */}
-          <section className={`${TARJETA} p-5`}>
+          <section className={`${HOJA} p-5`}>
             <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
               <IconUsers size={18} className="text-naranjo" /> Personas de contacto
               <span className="rounded-full bg-tinta/[0.06] px-2 py-0.5 text-[10px] font-bold tabular-nums text-gris">{c.personas.length}</span>

@@ -28,6 +28,7 @@ export default function VentanaModal({
   titulo,
   descripcion,
   ancho = "max-w-2xl",
+  variante = "estandar",
   children,
 }: {
   abierta: boolean;
@@ -36,6 +37,11 @@ export default function VentanaModal({
   descripcion?: string;
   /** Una clase `max-w-*` de Tailwind. */
   ancho?: string;
+  /**
+   * «hoja»: más redondeada y compacta, con el fondo desenfocado (la usa Contactos). La estándar
+   * es la de siempre: el resto del Core no cambia.
+   */
+  variante?: "estandar" | "hoja";
   children: React.ReactNode;
 }) {
   const cerrar = useRef<HTMLButtonElement>(null);
@@ -65,10 +71,11 @@ export default function VentanaModal({
   }, [abierta]);
 
   if (!abierta) return null;
+  const hoja = variante === "hoja";
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-tinta/60 p-3 sm:p-8"
+      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6 ${hoja ? "bg-tinta/35 backdrop-blur-sm" : "bg-tinta/60 sm:p-8"}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) alCerrar();
       }}
@@ -76,10 +83,10 @@ export default function VentanaModal({
       aria-modal="true"
       aria-label={titulo}
     >
-      <div className={`my-auto w-full ${ancho} rounded-2xl bg-superficie shadow-2xl`}>
-        <div className="flex items-start gap-3 border-b border-borde px-5 py-4">
+      <div className={`my-auto w-full ${ancho} bg-superficie ${hoja ? "rounded-[28px] border border-borde/60 shadow-[0_24px_64px_-12px_rgba(23,20,17,0.35)]" : "rounded-2xl shadow-2xl"}`}>
+        <div className={`flex items-start gap-3 ${hoja ? "px-5 pb-1 pt-4" : "border-b border-borde px-5 py-4"}`}>
           <div className="min-w-0 flex-1">
-            <h2 className="titular text-base text-azul">{titulo}</h2>
+            <h2 className={hoja ? "text-[17px] font-bold tracking-tight text-tinta" : "titular text-base text-azul"}>{titulo}</h2>
             {descripcion && <p className="mt-0.5 text-xs text-gris">{descripcion}</p>}
           </div>
           <button
@@ -87,13 +94,17 @@ export default function VentanaModal({
             type="button"
             onClick={alCerrar}
             aria-label="Cerrar"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gris transition hover:bg-borde/60 hover:text-tinta"
+            className={
+              hoja
+                ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tinta/[0.06] text-gris transition hover:bg-tinta/[0.12] hover:text-tinta"
+                : "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gris transition hover:bg-borde/60 hover:text-tinta"
+            }
           >
-            <IconX size={18} />
+            <IconX size={hoja ? 16 : 18} />
           </button>
         </div>
 
-        <div className="p-5">{children}</div>
+        <div className={hoja ? "px-5 pb-5 pt-3" : "p-5"}>{children}</div>
       </div>
     </div>,
     document.body,
