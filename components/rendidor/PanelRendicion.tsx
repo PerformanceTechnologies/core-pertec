@@ -13,8 +13,26 @@ import {
 } from "@/lib/rendidor/tipos";
 import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { leerRespuesta, mapaConTope } from "@/lib/rendidor/red";
-import { TextInput, NumInput, SelectInput, DeleteButton } from "@/components/cotizador/campos/Campos";
+import { TextInput, NumInput, SelectInput } from "@/components/cotizador/campos/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
+import {
+  IconAlertCircle,
+  IconBed,
+  IconCalendar,
+  IconCar,
+  IconChevronDown,
+  IconCircleCheck,
+  IconCloudCheck,
+  IconCloudUpload,
+  IconFileSpreadsheet,
+  IconGasStation,
+  IconPackage,
+  IconRoad,
+  IconSend,
+  IconToolsKitchen2,
+  IconTrash,
+  type Icon,
+} from "@tabler/icons-react";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
 import Avisos, { type Aviso } from "@/components/rendidor/Avisos";
 import VisorComprobante, { type Comprobante } from "./VisorComprobante";
@@ -137,6 +155,19 @@ interface ComprobanteLeidoUI {
   ilegibles: string[] | null;
 }
 
+/** Un ícono y un color por categoría: se reconocen de un vistazo en la lista y en el selector. */
+const ESTILO_CATEGORIA: Record<CategoriaGasto, { Icono: Icon; tono: string }> = {
+  Combustible: { Icono: IconGasStation, tono: "bg-sky-500/10 text-sky-600" },
+  Peajes: { Icono: IconRoad, tono: "bg-slate-500/10 text-slate-600" },
+  Alimentación: { Icono: IconToolsKitchen2, tono: "bg-orange-500/10 text-orange-600" },
+  Alojamiento: { Icono: IconBed, tono: "bg-violet-500/10 text-violet-600" },
+  Transporte: { Icono: IconCar, tono: "bg-teal-500/10 text-teal-600" },
+  "Insumos / Otros": { Icono: IconPackage, tono: "bg-amber-500/10 text-amber-700" },
+};
+
+const fechaCorta = (f: string | null) =>
+  f ? new Date(f + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" }) : null;
+
 /**
  * Un campo del editor de gastos: etiqueta arriba, control abajo.
  *
@@ -158,7 +189,7 @@ function Campo({
 }) {
   return (
     <label className={`block min-w-0 ${ancho}`}>
-      <span className="mb-1 block text-[10px] font-medium text-tinta/45">{etiqueta}</span>
+      <span className="mb-1 block text-xs font-semibold text-gris">{etiqueta}</span>
       {children}
     </label>
   );
@@ -194,7 +225,7 @@ function Previsualizacion({
 }) {
   if (!url) {
     return (
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border border-dashed border-borde text-center text-[9px] leading-tight text-tinta/35">
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-borde text-center text-[9px] leading-tight text-tinta/35">
         Sin
         <br />
         comprobante
@@ -215,7 +246,7 @@ function Previsualizacion({
         onAbrir({ url, nombre, esPdf });
       }}
       title={`Ver ${nombre}`}
-      className="group/vista relative block h-20 w-20 shrink-0 overflow-hidden rounded-md border border-borde bg-crema/60 transition hover:border-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+      className="group/vista relative block h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-borde bg-crema/60 transition hover:border-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
     >
       {esPdf ? (
         <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-tinta/45">
@@ -343,6 +374,10 @@ export default function PanelRendicion({
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [vistasLocales]);
 
+  /** Qué gastos se muestran: todos, solo los que piden revisión, o los listos. */
+  const [verGastos, setVerGastos] = useState<"todos" | "revisar" | "listos">("todos");
+  /** Si hay archivos arrastrándose sobre la zona de subida. */
+  const [arrastrando, setArrastrando] = useState(false);
   /** Mientras se guarda y se envía a revisión. */
   const [enviando, setEnviando] = useState(false);
 
@@ -719,40 +754,69 @@ export default function PanelRendicion({
     // El <main> del core no tiene tope de ancho: sin esto los campos del editor
     // se estiran a 1900px en un monitor grande.
     <div>
-      {/* PASO 1 — subir comprobantes */}
+      {/* PASO 1 — subir comprobantes: una zona grande para soltar o elegir archivos */}
       {!yaCargada && (
-        <div className={`rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
-          <p className="flex items-center gap-2.5 text-sm font-bold text-tinta"><span className="grid h-6 w-6 place-items-center rounded-full bg-naranjo text-[11px] font-bold text-white">1</span> Subir comprobantes</p>
-          <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
-            PDF o imagen. Se analizan de a varios a la vez y puedes corregir todo después. Los comprobantes
-            quedan guardados: si cierras la página puedes volver más tarde y seguir donde estabas, sin subir
-            nada de nuevo.
-          </p>
+        <label
+          onDragOver={(e) => { e.preventDefault(); if (!analizando) setArrastrando(true); }}
+          onDragLeave={() => setArrastrando(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setArrastrando(false);
+            if (!analizando && e.dataTransfer.files.length) subirYAnalizar(e.dataTransfer.files);
+          }}
+          className={`group relative flex cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed px-6 py-9 text-center transition ${
+            arrastrando ? "border-naranjo bg-naranjo/[0.07]" : "border-borde bg-superficie hover:border-naranjo/60 hover:bg-naranjo/[0.03]"
+          } ${analizando ? "pointer-events-none" : ""}`}
+        >
           <input
             type="file"
             multiple
             accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
             disabled={analizando !== null}
             onChange={(e) => e.target.files && subirYAnalizar(e.target.files)}
-            className="mt-4 block w-full text-xs text-tinta/70 file:mr-3 file:mb-2 file:rounded-md file:border file:border-borde file:bg-crema/60 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-tinta sm:file:mb-0"
+            className="sr-only"
           />
-          {analizando && (
-            <p className="mt-2 flex items-center gap-2 text-xs font-medium text-naranjo">
-              <RuedaCarga />
-              Analizando comprobante {analizando.actual} de {analizando.total}...
-            </p>
+          {analizando ? (
+            <>
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-naranjo/10 text-naranjo">
+                <RuedaCarga className="h-6 w-6" />
+              </span>
+              <p className="text-sm font-bold text-tinta">Leyendo comprobante {analizando.actual} de {analizando.total}…</p>
+              <div className="h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-tinta/[0.06]">
+                <div className="h-full rounded-full bg-naranjo transition-all" style={{ width: `${(analizando.actual / Math.max(1, analizando.total)) * 100}%` }} />
+              </div>
+              <p className="text-xs text-gris">Puedes seguir revisando los que ya están listos abajo.</p>
+            </>
+          ) : (
+            <>
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-naranjo/10 text-naranjo transition group-hover:scale-105">
+                <IconCloudUpload size={28} stroke={1.6} />
+              </span>
+              <div>
+                <p className="text-base font-bold text-tinta">
+                  {rendicion.gastos.length === 0 ? "Sube tus boletas y facturas" : "Agregar más comprobantes"}
+                </p>
+                <p className="mt-1 text-sm text-gris">
+                  Arrástralas aquí o <span className="font-semibold text-naranjo underline underline-offset-2">elige archivos</span>. Se leen solas: proveedor, RUT, fecha, total e IVA.
+                </p>
+              </div>
+              <p className="text-[11px] text-gris-suave">PDF, JPG, PNG o WEBP · varias a la vez · fotos del celular sirven</p>
+            </>
           )}
-        </div>
+        </label>
       )}
 
       {/* PASO 2 — revisar y corregir */}
       {rendicion.gastos.length > 0 && (
-        <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="flex items-center gap-2.5 text-sm font-bold text-tinta">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-naranjo text-[11px] font-bold text-white">2</span>
-              {yaCargada ? "Comprobantes" : "Revisar y corregir"}
-            </p>
+        <div className={`${yaCargada ? "" : "mt-5"} rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div>
+              <p className="text-base font-bold text-tinta">{yaCargada ? "Comprobantes" : "Revisa lo que se leyó"}</p>
+              <p className="text-xs text-gris">
+                {filas.length} {filas.length === 1 ? "comprobante" : "comprobantes"}
+                {pendientes.length > 0 ? ` · ${pendientes.length} por revisar` : " · todo listo"}
+              </p>
+            </div>
             {/* Todo lo demás agrupado a la derecha: con cuatro elementos sueltos,
                 justify-between los repartía a lo ancho y el estado del guardado
                 quedaba flotando en el medio de la nada. */}
@@ -762,7 +826,7 @@ export default function PanelRendicion({
                 que interrumpa. */}
               {!yaCargada && (
                 <span
-                  className="flex items-center gap-1.5 text-[11px] text-tinta/40"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-tinta/[0.04] px-2.5 py-1 text-[11px] text-gris"
                   // aria-live para que un lector de pantalla anuncie el cambio de
                   // estado, que es el único indicio de que se guardó.
                   aria-live="polite"
@@ -774,9 +838,9 @@ export default function PanelRendicion({
                     </>
                   )}
                   {estadoGuardado === "pendiente" && "Cambios sin guardar"}
-                  {estadoGuardado === "guardado" && <span className="text-teal">Guardado {guardadoEn}</span>}
+                  {estadoGuardado === "guardado" && <span className="inline-flex items-center gap-1 text-emerald-600"><IconCloudCheck size={13} /> Guardado {guardadoEn}</span>}
                   {estadoGuardado === "error" && <span className="text-red-600">No se pudo guardar</span>}
-                  {estadoGuardado === "limpio" && "Se guarda solo"}
+                  {estadoGuardado === "limpio" && <><IconCloudCheck size={13} /> Se guarda solo</>}
                 </span>
               )}
               {/* Solo con más de una tarjeta: con una sola, plegar y desplegar todo
@@ -800,17 +864,31 @@ export default function PanelRendicion({
                   </button>
                 </span>
               )}
-              {pendientes.length > 0 && (
-                <span className="rounded-full bg-naranjo/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-naranjo">
-                  {pendientes.length} por confirmar
-                </span>
+              {filas.length > 1 && (
+                <div className="inline-flex rounded-lg border border-borde p-0.5 text-xs font-semibold">
+                  {([
+                    ["todos", `Todos ${filas.length}`],
+                    ["revisar", `Por revisar ${pendientes.length}`],
+                    ["listos", `Listos ${filas.length - pendientes.length}`],
+                  ] as const).map(([k, t]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setVerGastos(k)}
+                      className={`rounded-md px-2.5 py-1 transition ${verGastos === k ? (k === "revisar" ? "bg-naranjo text-white" : "bg-tinta text-superficie") : "text-gris hover:text-tinta"}`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           </div>
-          <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
-            El neto y el IVA se calculan desde el total impreso según el tipo de documento. Lo que corrijas
-            aquí es exactamente lo que se rinde.
-          </p>
+          {!yaCargada && (
+            <p className="mt-2 text-xs text-gris">
+              Toca un comprobante para corregirlo. El neto y el IVA salen solos del total y el tipo de documento.
+            </p>
+          )}
 
           {/* Una tarjeta por gasto, en vez de una tabla de 1100px con scroll
               horizontal. Diez campos editables no caben en una fila en ninguna
@@ -822,6 +900,9 @@ export default function PanelRendicion({
               desplazamiento lateral. */}
           <ul ref={listaGastos} className="mt-4 flex flex-col gap-3">
             {filas.map(({ gasto: g, neto, iva, advertencias }, i) => {
+              const porRevisar = pendientes.some((p) => p.gasto.id === g.id);
+              if ((verGastos === "revisar" && !porRevisar) || (verGastos === "listos" && porRevisar)) return null;
+              const cat = g.categoria ? ESTILO_CATEGORIA[g.categoria] : null;
               const avisos = [...g.pendientes.map((p) => `Ilegible: ${p}`), ...advertencias];
               const rutMalo = Boolean(g.rutProveedor?.trim()) && !rutValido(g.rutProveedor!);
 
@@ -838,78 +919,68 @@ export default function PanelRendicion({
                 <li
                   key={g.id}
                   id={`gasto-${g.id}`}
-                  className={`overflow-hidden rounded-xl border bg-superficie ${SOMBRA_CALIDA} ${
-                    avisos.length > 0 || rutMalo ? "border-naranjo/40" : "border-borde"
+                  className={`relative overflow-hidden rounded-2xl border bg-superficie transition hover:border-naranjo/40 ${
+                    porRevisar || rutMalo ? "border-naranjo/40" : "border-borde"
                   }`}
                 >
                   <details open={abierto} className="group/gasto">
                     {/* <details> y no estado propio: plegar y desplegar no tiene
                         por qué re-renderizar el formulario ni arriesgar que un
                         input pierda el foco mientras alguien escribe. */}
-                    <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-crema/40">
-                      <div className="flex min-w-0 items-start gap-3">
-                        {/* La miniatura del comprobante, para poder cotejar lo que
-                            dice el documento contra lo que quedó en los campos sin
-                            tener que abrirlo en otra pestaña. */}
-                        <Previsualizacion
-                          url={vistasLocales[g.id] ?? urlsRespaldo[g.id]}
-                          nombre={g.archivoNombre}
-                          tipo={g.archivoTipo}
-                          onAbrir={setViendo}
-                        />
-                        <div className="min-w-0">
-                          <span className="font-condensed text-base font-bold leading-none tabular-nums text-tinta">
-                            {i + 1}
-                          </span>
-                          {/* El proveedor identifica el gasto de un vistazo, y es
-                              lo único que se ve con la tarjeta plegada. */}
-                          <p className="truncate text-xs text-tinta/45">
-                            {g.proveedor?.trim() || "Sin proveedor"}
-                          </p>
-                          <p className="mt-0.5 truncate text-[10px] text-tinta/30" title={g.archivoNombre}>
-                            {g.archivoNombre || "sin archivo"}
-                          </p>
+                    <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-3 transition-colors hover:bg-tinta/[0.015] sm:gap-4 sm:px-4">
+                      <span className={`absolute inset-y-0 left-0 w-1 ${porRevisar || rutMalo ? "bg-naranjo" : "bg-emerald-500"}`} />
+                      <Previsualizacion
+                        url={vistasLocales[g.id] ?? urlsRespaldo[g.id]}
+                        nombre={g.archivoNombre}
+                        tipo={g.archivoTipo}
+                        onAbrir={setViendo}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold tabular-nums text-gris-suave">#{i + 1}</span>
+                          <span className="truncate text-sm font-bold text-tinta">{g.proveedor?.trim() || "Sin proveedor"}</span>
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          {cat && g.categoria ? (
+                            <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold ${cat.tono}`}>
+                              <cat.Icono size={12} /> {g.categoria}
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-naranjo/10 px-1.5 py-0.5 font-semibold text-naranjo">Sin categoría</span>
+                          )}
+                          {g.tipoDocumento && <span className="rounded-md bg-tinta/[0.05] px-1.5 py-0.5 text-gris">{TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta}</span>}
+                          {fechaCorta(g.fecha) ? (
+                            <span className="inline-flex items-center gap-1 text-gris"><IconCalendar size={12} /> {fechaCorta(g.fecha)}</span>
+                          ) : (
+                            <span className="text-naranjo">Sin fecha</span>
+                          )}
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-3">
-                        {/* El total va en el resumen: es la cifra que se recorre
-                            cuando se revisa una rendición entera plegada. */}
+                      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                         <div className="text-right">
-                          <p className="font-condensed text-base font-bold tabular-nums text-tinta">
-                            {money(g.total)}
-                          </p>
-                          {(avisos.length > 0 || rutMalo) && (
-                            <p className="text-[10px] font-semibold text-naranjo">Revisar</p>
+                          <p className="font-condensed text-xl font-bold tabular-nums text-tinta">{money(g.total)}</p>
+                          {porRevisar || rutMalo ? (
+                            <p className="inline-flex items-center gap-1 text-[11px] font-semibold text-naranjo"><IconAlertCircle size={12} /> Revisar</p>
+                          ) : (
+                            <p className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><IconCircleCheck size={12} /> Listo</p>
                           )}
                         </div>
                         {!yaCargada && (
-                          // preventDefault en el span y no en el botón: DeleteButton
-                          // no recibe el evento, y sin esto el clic burbujea al
-                          // <summary> y además pliega la tarjeta.
-                          <span onClick={(e) => e.preventDefault()}>
-                            <DeleteButton onClick={() => quitarGasto(g.id)} />
-                          </span>
+                          <button
+                            type="button"
+                            title="Quitar comprobante"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (confirm(`¿Quitar el comprobante de ${g.proveedor || "este gasto"}?`)) quitarGasto(g.id); }}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-gris-suave transition hover:bg-rose-500/10 hover:text-rose-500"
+                          >
+                            <IconTrash size={16} />
+                          </button>
                         )}
-                        {/* La flecha gira al abrir. Es el único indicio de que la
-                            fila se despliega, así que no puede faltar. */}
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          aria-hidden
-                          className="shrink-0 text-tinta/35 transition-transform duration-200 group-open/gasto:rotate-180"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
+                        <IconChevronDown size={16} className="shrink-0 text-gris-suave transition-transform duration-200 group-open/gasto:rotate-180" />
                       </div>
                     </summary>
 
-                    <div className="border-t border-borde px-4 pb-4">
+                    <div className="border-t border-borde bg-tinta/[0.012] px-4 pb-4 pl-5">
                       <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
                         <Campo etiqueta="Fecha">
                           <input
@@ -969,21 +1040,27 @@ export default function PanelRendicion({
                           />
                         </Campo>
 
-                        <Campo etiqueta="Categoría">
-                          <SelectInput
-                            value={(g.categoria ?? "") as CategoriaGasto | ""}
-                            disabled={yaCargada}
-                            onChange={(v) =>
-                              actualizarGasto(g.id, { categoria: (v || null) as CategoriaGasto | null })
-                            }
-                            options={[
-                              { value: "" as CategoriaGasto | "", label: "— elegir —" },
-                              ...CATEGORIAS_GASTO.map((c) => ({
-                                value: c as CategoriaGasto | "",
-                                label: c,
-                              })),
-                            ]}
-                          />
+                        <Campo etiqueta="Categoría" ancho="sm:col-span-2 xl:col-span-4">
+                          <span className="flex flex-wrap gap-1.5">
+                            {CATEGORIAS_GASTO.map((c) => {
+                              const e = ESTILO_CATEGORIA[c];
+                              const on = g.categoria === c;
+                              return (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  disabled={yaCargada}
+                                  onClick={(ev) => { ev.preventDefault(); actualizarGasto(g.id, { categoria: c }); }}
+                                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition disabled:cursor-default ${
+                                    on ? "border-naranjo bg-naranjo/[0.07] text-tinta ring-2 ring-naranjo/15" : "border-borde text-gris hover:border-naranjo/40 hover:text-tinta"
+                                  } ${yaCargada && !on ? "opacity-40" : ""}`}
+                                >
+                                  <span className={`grid h-5 w-5 place-items-center rounded ${e.tono}`}><e.Icono size={12} /></span>
+                                  {c}
+                                </button>
+                              );
+                            })}
+                          </span>
                         </Campo>
 
                         <Campo etiqueta="Detalle" ancho="sm:col-span-2 xl:col-span-3">
@@ -1012,7 +1089,8 @@ export default function PanelRendicion({
                       </div>
 
                       {avisos.length > 0 && (
-                        <p className="mt-3 rounded-md border-l-2 border-naranjo bg-naranjo/[0.06] px-2.5 py-1.5 text-[11px] leading-snug text-pretty text-naranjo">
+                        <p className="mt-3 flex items-start gap-2 rounded-lg bg-naranjo/[0.07] px-3 py-2 text-xs leading-snug text-pretty text-naranjo">
+                          <IconAlertCircle size={15} className="mt-px shrink-0" />
                           {avisos.join(" · ")}
                         </p>
                       )}
@@ -1026,42 +1104,29 @@ export default function PanelRendicion({
           {/* Los totales de la tabla vivían en un <tfoot> que quedaba fuera de
               vista con el scroll horizontal. Ahora van acá, junto al fondo y el
               saldo, que es la única cifra que a alguien le interesa de verdad. */}
-          <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl bg-crema/60 px-4 py-3.5 sm:grid-cols-5">
+          <div className="banda-contraste mt-5 grid grid-cols-2 gap-x-6 gap-y-4 rounded-2xl px-5 py-4 sm:grid-cols-5">
+            {[
+              { e: "Neto", v: money(totales.neto) },
+              { e: "IVA", v: money(totales.iva) },
+              { e: "Fondo entregado", v: money(rendicion.montoAsignado) },
+              { e: "Total rendido", v: money(totales.total) },
+            ].map((x) => (
+              <div key={x.e}>
+                <p className="texto-banda-45 text-[10px] font-semibold uppercase tracking-[0.14em]">{x.e}</p>
+                <p className="texto-banda mt-1 font-condensed text-xl font-bold tabular-nums">{x.v}</p>
+              </div>
+            ))}
             <div>
-              <p className="text-[10px] text-tinta/45">Neto</p>
-              <p className="font-condensed text-sm font-bold tabular-nums">{money(totales.neto)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-tinta/45">IVA</p>
-              <p className="font-condensed text-sm font-bold tabular-nums">{money(totales.iva)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-tinta/45">Fondo entregado</p>
-              <p className="font-condensed text-sm font-bold tabular-nums">
-                {money(rendicion.montoAsignado)}
+              <p className="texto-banda-45 text-[10px] font-semibold uppercase tracking-[0.14em]">
+                {totales.saldo >= 0 ? "A reembolsar" : "A reintegrar"}
               </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-tinta/45">Total rendido</p>
-              <p className="font-condensed text-sm font-bold tabular-nums">{money(totales.total)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-pretty text-tinta/45">
-                {totales.saldo >= 0
-                  ? `A reembolsar a ${rendicion.nombreQuienRinde}`
-                  : "A reintegrar a la empresa"}
-              </p>
-              <p
-                className={`font-condensed text-sm font-bold tabular-nums ${
-                  totales.saldo >= 0 ? "text-teal" : "text-naranjo"
-                }`}
-              >
+              <p className={`mt-1 font-condensed text-xl font-bold tabular-nums ${totales.saldo >= 0 ? "text-emerald-400" : "text-amber-400"}`}>
                 {money(Math.abs(totales.saldo))}
               </p>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <div className="mt-5 flex flex-col items-center gap-2 sm:flex-row sm:flex-wrap">
             {/* No hay botón de guardar: se guarda solo. El único botón que
                 aparece es el de reintentar, y solo cuando el autoguardado falló —
                 un botón de guardar permanente al lado de un autoguardado que
@@ -1080,9 +1145,9 @@ export default function PanelRendicion({
               onClick={descargarExcel}
               disabled={generandoExcel || rendicion.gastos.length === 0}
               aria-busy={generandoExcel}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-borde bg-superficie px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-borde bg-superficie px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 disabled:cursor-progress disabled:opacity-40 sm:w-auto"
             >
-              {generandoExcel && <RuedaCarga />}
+              {generandoExcel ? <RuedaCarga /> : <IconFileSpreadsheet size={16} />}
               {generandoExcel ? "Generando planilla..." : "Descargar Excel"}
             </button>
             {puedeEnviar && (
@@ -1092,10 +1157,10 @@ export default function PanelRendicion({
                 disabled={enviando || rendicion.gastos.length === 0 || pendientes.length > 0}
                 aria-busy={enviando}
                 title={pendientes.length > 0 ? "Confirma primero los datos marcados" : undefined}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-naranjo px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-naranjo-suave disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto sm:w-auto sm:py-2"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-naranjo px-5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto sm:w-auto"
               >
-                {enviando && <RuedaCarga />}
-                {enviando ? "Enviando..." : "Enviar a revisión →"}
+                {enviando ? <RuedaCarga /> : <IconSend size={16} />}
+                {enviando ? "Enviando..." : pendientes.length > 0 ? `Revisa ${pendientes.length} antes de enviar` : "Enviar a revisión"}
               </button>
             )}
           </div>
