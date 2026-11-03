@@ -115,6 +115,141 @@ export function sinTildes(texto: string): string {
   return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
+// ---------- Nombre Propio -------------------------------------------------------
+
+/** Palabras que van siempre en minúscula dentro de un nombre («Minera de Andes»), salvo la primera. */
+const CONECTORES = new Set(["de", "del", "y", "e", "en", "al", "con", "por", "para", "sin", "and", "the"]);
+
+/**
+ * Los artículos van con mayúscula cuando son parte del nombre de algo («Av. Las Condes», «Minera Las
+ * Cenizas») y en minúscula detrás de una preposición («Roger de Flor», «Juan de la Fuente»).
+ */
+const ARTICULOS = new Set(["la", "las", "los", "el"]);
+const PREPOSICIONES = new Set(["de", "del", "en", "por", "para", "con", "sin", "a"]);
+
+/** Formas fijas: la sociedad y las siglas que se conocen. Se pueden agregar más acá. */
+const FORMAS_FIJAS: Record<string, string> = {
+  spa: "SpA",
+  sa: "S.A.",
+  ltda: "Ltda.",
+  eirl: "EIRL",
+  cia: "Cía.",
+  gps: "GPS",
+  hdi: "HDI",
+  bci: "BCI",
+  edp: "EDP",
+  yhc: "YHC",
+  dhl: "DHL",
+  sqm: "SQM",
+  tys: "TYS",
+  irc: "IRC",
+  cpa: "CPA",
+  msc: "MSC",
+  mlt: "MLT",
+  syr: "SYR",
+  chm: "CHM",
+  ti: "TI",
+  sii: "SII",
+  iva: "IVA",
+  rrhh: "RRHH",
+};
+
+const ROMANOS = /^(ii|iii|iv|vi|vii|viii|ix|xi|xii)$/i;
+
+/** Una palabra suelta (sin espacios): «ANDINAS» → «Andinas»; «S.A.» y «SpA» quedan como están. */
+function palabraPropia(
+  cruda: string,
+  ctx: { primera: boolean; suelta: boolean; respetarSiglas: boolean; previa: string },
+): string {
+  const m = /^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}.&]*)$/u.exec(cruda);
+  if (!m) return cruda;
+  const [, antes, nucleo, despues] = m;
+  if (!nucleo) return cruda;
+  // «S.A.», «D.M.G.», «E.»: letras sueltas con punto; y «D&C», «M&P»: se escriben en mayúscula.
+  if (/^(\p{L}\.)+\p{L}?$/u.test(nucleo) || /^\p{L}(&\p{L})+$/u.test(nucleo)) return antes + nucleo.toUpperCase() + despues;
+  const sinPunto = nucleo.replace(/\.$/, "");
+  const clave = sinPunto.toLowerCase();
+  const forma = FORMAS_FIJAS[clave];
+  if (forma) {
+    // La forma ya trae su punto («Ltda.», «S.A.»); si no, se conserva el que escribió la persona.
+    return antes + (forma.endsWith(".") || !nucleo.endsWith(".") ? forma : `${forma}.`) + despues;
+  }
+  // Una palabra con su número pegado es una marca («Grafica24»); lo demás con números es un código
+  // o una dirección («5711», «P5-L36», «N°6651») y va con las letras en mayúscula.
+  if (/\d/.test(nucleo)) {
+    return antes + (/^\p{L}{4,}\d+$/u.test(nucleo) ? nucleo[0].toUpperCase() + nucleo.slice(1).toLowerCase() : nucleo.toUpperCase()) + despues;
+  }
+  if (ROMANOS.test(nucleo)) return antes + nucleo.toUpperCase() + despues;
+  // En un texto que ya mezcla («Ingeniero en Confiabilidad – MLA»), una sigla corta en mayúscula es a propósito.
+  if (ctx.respetarSiglas && /^\p{Lu}{2,4}$/u.test(nucleo) && !CONECTORES.has(clave) && !ARTICULOS.has(clave)) return antes + nucleo + despues;
+  // «McKenzie», «iPhone»: ya trae su propia forma, se respeta.
+  if (/\p{Ll}\p{Lu}/u.test(nucleo)) return antes + nucleo + despues;
+  const minuscula = nucleo.toLowerCase();
+  // Solo una palabra suelta es conector: la «E» de «E-30-F» es una letra de un código.
+  if (ctx.suelta && !ctx.primera) {
+    if (CONECTORES.has(minuscula)) return antes + minuscula + despues;
+    if (ARTICULOS.has(minuscula) && PREPOSICIONES.has(ctx.previa)) return antes + minuscula + despues;
+  }
+  // «O'Higgins», «D'Alessandro»: cada parte con su mayúscula.
+  const titulo = minuscula.replace(/(^|['’])(\p{L})/gu, (_, sep: string, l: string) => sep + l.toUpperCase());
+  return antes + titulo + despues;
+}
+
+/**
+ * Pone un texto en Nombre Propio: «MINERA DE LOS ANDES SPA» → «Minera de los Andes SpA».
+ *
+ * Por defecto solo toca lo que está TODO en mayúscula o TODO en minúscula, que es lo que se
+ * escribe sin cuidado; un texto que ya mezcla («Minera de los Andes») se deja como lo escribió
+ * la persona. Con `siempre` se normaliza igual (para ordenar lo que ya estaba guardado).
+ *
+ * En una dirección (`direccion`) las palabras cortas en mayúscula son abreviaturas («AV», «OF», «DP»), no
+ * siglas, así que también se ordenan.
+ *
+ * Respeta la sociedad y las siglas conocidas (SpA, S.A., Ltda., EIRL, GPS…), deja las
+ * preposiciones en minúscula (de, del, en, y…), conserva los códigos con números (P5-L36) y no
+ * inventa tildes: «PEREZ» queda «Perez», no «Pérez».
+ */
+export function nombrePropio(texto: string, opciones: { siempre?: boolean; direccion?: boolean } = {}): string {
+  const limpio = texto.replace(/\s+/g, " ").trim();
+  if (!limpio) return limpio;
+  // Odoo guarda como «nombre» el correo de quien escribió: sigue siendo un correo.
+  if (limpio.includes("@")) return limpio.toLowerCase();
+  const tieneMinuscula = /\p{Ll}/u.test(limpio);
+  const tieneMayuscula = /\p{Lu}/u.test(limpio);
+  if (!opciones.siempre && tieneMinuscula && tieneMayuscula) return limpio;
+  const respetarSiglas = tieneMinuscula && tieneMayuscula && !opciones.direccion;
+  let previa = "";
+  const resultado = limpio
+    .split(" ")
+    .map((palabra, i) => {
+      // «AV-LAS-CONDES», «ALMAGRO/CHILE», «3556,LA»: cada pedazo es una palabra. «AV.E.PEREZ» también.
+      const separador = /^\p{L}{2,}\.\p{L}/u.test(palabra) ? /([/,.-])/ : /([/,-])/;
+      const pedazos = palabra.split(separador);
+      return pedazos
+        .map((pedazo, j) => {
+          if (j % 2 === 1) return pedazo; // el separador
+          const r = palabraPropia(pedazo, { primera: i === 0 && j === 0, suelta: pedazos.length === 1, respetarSiglas, previa });
+          const letras = pedazo.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+          if (letras) previa = letras;
+          return r;
+        })
+        .join("");
+    })
+    .join(" ");
+  return (
+    resultado
+      // «… Central S A», «S. A.», «S.A» → «S.A.»
+      .replace(/ S\.? ?A\.?(?=$| |,)/g, " S.A.")
+      // «Servicios a la Minería»: «a» solo es preposición delante de un artículo.
+      .replace(/ A (?=(?:la|las|los|el)(?: |$))/g, " a ")
+  );
+}
+
+/** Un correo siempre va en minúscula y sin espacios ni «;» de más. */
+export function correoMinuscula(correo: string): string {
+  return correo.trim().replace(/[;,\s]+$/, "").toLowerCase();
+}
+
 const TODAS_LAS_COMUNAS = Object.values(COMUNAS_POR_REGION).flat();
 const COMUNA_POR_CLAVE = new Map(TODAS_LAS_COMUNAS.map((c) => [sinTildes(c), c]));
 
@@ -293,6 +428,15 @@ export interface ResultadoTraduccion {
 const DOMINIOS_GENERICOS = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "live.com", "icloud.com", "pertec.cl"]);
 
 const t = (v: string | false | null | undefined) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "") || null;
+/** Lo mismo pero en Nombre Propio: lo que viene de Odoo llega en mayúsculas, minúsculas o mezclado. */
+const np = (v: string | false | null | undefined, direccion = false) => {
+  const x = t(v);
+  return x ? nombrePropio(x, { siempre: true, direccion }) : null;
+};
+const correoDe = (v: string | false | null | undefined) => {
+  const x = t(v);
+  return x ? correoMinuscula(x) : null;
+};
 const pareceCorreo = (v: string) => /^\S+@\S+$/.test(v.trim());
 const dominio = (correo: string | null) => correo?.toLowerCase().split("@")[1]?.replace(/[;,\s]+$/, "") ?? null;
 
@@ -332,7 +476,7 @@ function riqueza(f: FilaOdoo): number {
 export function contactosDesdeOdoo(filas: FilaOdoo[], propias: number[]): ResultadoTraduccion {
   const omitidos: ResultadoTraduccion["omitidos"] = [];
   const propiasSet = new Set(propias);
-  const nombre = (f: FilaOdoo) => t(f.name) ?? `Contacto ${f.id}`;
+  const nombre = (f: FilaOdoo) => np(f.name) ?? `Contacto ${f.id}`;
 
   const fuera = new Map<number, string>();
   for (const f of filas) {
@@ -382,8 +526,8 @@ export function contactosDesdeOdoo(filas: FilaOdoo[], propias: number[]): Result
     // Dirección: calle y complemento si caben en los 70 del SII; si no, el complemento a notas.
     // Calle y complemento de la MISMA ficha: mezclarlos de dos duplicados repite la dirección.
     const conCalle = grupo.find((g) => t(g.street) || t(g.street2));
-    const calle = t(conCalle?.street);
-    const calle2 = t(conCalle?.street2);
+    const calle = np(conCalle?.street, true);
+    const calle2 = np(conCalle?.street2, true);
     let direccion = calle;
     if (calle && calle2) {
       if (`${calle}, ${calle2}`.length <= LARGO.direccion) direccion = `${calle}, ${calle2}`;
@@ -396,20 +540,20 @@ export function contactosDesdeOdoo(filas: FilaOdoo[], propias: number[]): Result
 
     const pais = (primero("country_id") as [number, string] | false) || null;
     const enChile = !pais || pais[1] === "Chile";
-    const ciudadOdoo = t(primero("city") as string | false);
+    const ciudadOdoo = np(primero("city") as string | false);
     const comuna = enChile ? (comunaOficial(ciudadOdoo) ?? ciudadOdoo?.slice(0, LARGO.comuna) ?? null) : null;
 
     const tipoOdoo = t(primero("l10n_cl_sii_taxpayer_type") as string | false);
     const tipoContribuyente: TipoContribuyente = tipoOdoo && TIPO_ODOO[tipoOdoo] ? TIPO_ODOO[tipoOdoo] : enChile ? "primera_categoria" : "extranjero";
 
     for (const g of resto) {
-      if (t(g.name) && sinTildes(t(g.name)!) !== sinTildes(nombre(p))) notas.push(`En Odoo también figuraba como «${t(g.name)}» (id ${g.id}).`);
-      const otraDir = [t(g.street), t(g.city)].filter(Boolean).join(", ");
+      if (np(g.name) && sinTildes(np(g.name)!) !== sinTildes(nombre(p))) notas.push(`En Odoo también figuraba como «${np(g.name)}» (id ${g.id}).`);
+      const otraDir = [np(g.street, true), np(g.city)].filter(Boolean).join(", ");
       const dirPrincipal = [calle, ciudadOdoo].filter(Boolean).join(", ");
       if (otraDir && sinTildes(otraDir) !== sinTildes(dirPrincipal)) notas.push(`Otra dirección en Odoo: ${otraDir}.`);
     }
     for (const g of grupo) if (rutInvalido.has(g.id)) notas.push(`RUT en Odoo no válido: ${rutInvalido.get(g.id)}.`);
-    const giro = t(primero("l10n_cl_activity_description") as string | false);
+    const giro = np(primero("l10n_cl_activity_description") as string | false);
 
     const c: ContactoImportado = {
       rut,
@@ -421,8 +565,8 @@ export function contactosDesdeOdoo(filas: FilaOdoo[], propias: number[]): Result
       ciudad: enChile ? null : ciudadOdoo?.slice(0, LARGO.ciudad) ?? null,
       pais: pais ? pais[1] : "Chile",
       tipoContribuyente,
-      correoDte: t(primero("l10n_cl_dte_email") as string | false)?.slice(0, LARGO.correo) ?? null,
-      correo: t(primero("email") as string | false)?.replace(/[;,]+$/, "").slice(0, LARGO.correo) ?? null,
+      correoDte: correoDe(primero("l10n_cl_dte_email") as string | false)?.slice(0, LARGO.correo) ?? null,
+      correo: correoDe(primero("email") as string | false)?.slice(0, LARGO.correo) ?? null,
       telefono: t(primero("phone") as string | false)?.slice(0, LARGO.telefono) ?? null,
       esCliente: grupo.some((g) => g.customer_rank > 0),
       esProveedor: grupo.some((g) => g.supplier_rank > 0),
@@ -438,13 +582,13 @@ export function contactosDesdeOdoo(filas: FilaOdoo[], propias: number[]): Result
 
   const agregarPersona = (c: ContactoImportado, f: FilaOdoo): boolean => {
     const n = nombre(f);
-    const correo = t(f.email)?.replace(/[;,]+$/, "") ?? null;
+    const correo = correoDe(f.email);
     // Odoo a veces guarda la dirección de facturación como un «contacto» que se llama como el RUT.
     if (!correo && !t(f.phone) && (/^[\d.\-kK\s]+$/.test(n) || n === c.razonSocial)) return false;
     if (c.personas.some((x) => sinTildes(x.nombre) === sinTildes(n) && (x.correo ?? "") === (correo ?? ""))) return false;
     c.personas.push({
       nombre: n.slice(0, LARGO.persona),
-      cargo: t(f.function)?.slice(0, 80) ?? null,
+      cargo: np(f.function)?.slice(0, 80) ?? null,
       correo: correo?.slice(0, LARGO.correo) ?? null,
       telefono: t(f.phone)?.slice(0, LARGO.telefono) ?? null,
       principal: false,

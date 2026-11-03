@@ -4,11 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IconArchive, IconArchiveOff, IconCloudDownload, IconPencil, IconStar, IconStarFilled, IconTrash, IconUserPlus } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
-import BotonGuardar from "@/components/inventario/BotonGuardar";
-import { Campo } from "@/components/flota/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
-import { CAMPO } from "@/lib/estilos";
-import { LARGO, type Persona } from "@/lib/contactos-modelo";
+import { BOTON_C, BOTON_SUAVE_C, CAMPO_C } from "@/components/contactos/Visual";
+import { LARGO, nombrePropio, type Persona } from "@/lib/contactos-modelo";
 import {
   archivarContactoAction,
   eliminarPersonaAction,
@@ -16,7 +14,17 @@ import {
   importarDesdeOdooAction,
 } from "@/app/(protegido)/finanzas/contactos/acciones";
 
-const BOTON_ICONO = "grid h-9 w-9 place-items-center rounded-lg text-gris-suave transition hover:bg-tinta/[0.04] disabled:opacity-50";
+const BOTON_ICONO = "grid h-9 w-9 place-items-center rounded-full text-gris-suave transition hover:bg-tinta/[0.06] disabled:opacity-50";
+
+/** Un campo del formulario de la persona: etiqueta chica arriba. */
+function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1 block text-[11px] font-semibold text-gris">{etiqueta}</span>
+      {children}
+    </label>
+  );
+}
 
 /** Archivar o reactivar: archivar no borra, solo lo saca de las listas. */
 export function ArchivarContacto({ id, activo }: { id: string; activo: boolean }) {
@@ -33,7 +41,7 @@ export function ArchivarContacto({ id, activo }: { id: string; activo: boolean }
           else alert(r.error);
         });
       }}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-borde px-3 py-2 text-sm font-semibold text-gris transition hover:text-tinta disabled:opacity-50"
+      className={BOTON_SUAVE_C}
     >
       {activo ? <IconArchive size={16} /> : <IconArchiveOff size={16} />}
       {activo ? "Archivar" : "Reactivar"}
@@ -45,6 +53,7 @@ export function ArchivarContacto({ id, activo }: { id: string; activo: boolean }
 export function FormularioPersona({ contactoId, persona }: { contactoId: string; persona?: Persona }) {
   const [abierta, setAbierta] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nombre, setNombre] = useState(persona?.nombre ?? "");
   const [pendiente, iniciar] = useTransition();
   const router = useRouter();
 
@@ -61,45 +70,60 @@ export function FormularioPersona({ contactoId, persona }: { contactoId: string;
   return (
     <>
       {persona ? (
-        <button title="Editar" onClick={() => { setError(null); setAbierta(true); }} className={`${BOTON_ICONO} hover:text-tinta`}>
+        <button title="Editar" onClick={() => { setError(null); setNombre(persona?.nombre ?? ""); setAbierta(true); }} className={`${BOTON_ICONO} hover:text-tinta`}>
           <IconPencil size={16} />
         </button>
       ) : (
-        <button onClick={() => { setError(null); setAbierta(true); }} className="inline-flex items-center gap-1.5 rounded-lg border border-borde px-3 py-2 text-sm font-semibold text-azul transition hover:border-cian">
+        <button onClick={() => { setError(null); setNombre(""); setAbierta(true); }} className={BOTON_SUAVE_C}>
           <IconUserPlus size={16} /> Agregar persona
         </button>
       )}
       <VentanaModal
         abierta={abierta}
         alCerrar={() => setAbierta(false)}
-        titulo={persona ? "Editar persona de contacto" : "Nueva persona de contacto"}
-        descripcion="Quien recibe la factura en la empresa. La principal sale como «Atención A:» en la factura."
+        titulo={persona ? "Editar persona" : "Nueva persona"}
+        descripcion="Quien recibe la factura en la empresa. La principal sale como «Atención A:»."
+        variante="hoja"
+        ancho="max-w-md"
       >
-        <form action={enviar} className="space-y-4">
-          <Campo etiqueta="Nombre" obligatorio>
-            <input name="nombre" required defaultValue={persona?.nombre ?? ""} maxLength={LARGO.persona} className={CAMPO} placeholder="Ej: María González" autoFocus />
+        <form action={enviar} className="space-y-3">
+          <Campo etiqueta="Nombre *">
+            <input
+              name="nombre"
+              required
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              onBlur={() => setNombre(nombrePropio(nombre))}
+              maxLength={LARGO.persona}
+              className={CAMPO_C}
+              placeholder="Ej: María González"
+              autoFocus
+            />
           </Campo>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Campo etiqueta="Cargo" ayuda="Opcional">
-              <input name="cargo" defaultValue={persona?.cargo ?? ""} maxLength={80} className={CAMPO} placeholder="Ej: Jefa de compras" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Campo etiqueta="Cargo">
+              <input name="cargo" defaultValue={persona?.cargo ?? ""} maxLength={80} className={CAMPO_C} placeholder="Ej: Jefa de compras" />
             </Campo>
-            <Campo etiqueta="Teléfono" ayuda="Opcional">
-              <input name="telefono" type="tel" defaultValue={persona?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO} placeholder="+56 9 1234 5678" />
+            <Campo etiqueta="Teléfono">
+              <input name="telefono" type="tel" defaultValue={persona?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO_C} placeholder="+56 9 1234 5678" />
             </Campo>
           </div>
-          <Campo etiqueta="Correo" ayuda="Opcional">
-            <input name="correo" type="email" defaultValue={persona?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO} placeholder="nombre@empresa.cl" />
+          <Campo etiqueta="Correo">
+            <input name="correo" type="email" defaultValue={persona?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO_C} placeholder="nombre@empresa.cl" />
           </Campo>
-          <label className="flex cursor-pointer items-center gap-2.5 text-sm text-tinta">
+          <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-tinta/[0.05] px-3 py-2 text-[13px] font-semibold text-tinta">
             <input type="checkbox" name="principal" defaultChecked={persona?.principal ?? false} className="h-4 w-4 accent-[var(--color-cian)]" />
-            Contacto principal (sale como «Atención A:» en la factura)
+            <span aria-hidden>⭐</span> Contacto principal
           </label>
-          {error && <p className="tono-alerta fondo-tono rounded-lg px-3 py-2 text-sm font-semibold">{error}</p>}
-          <div className="flex justify-end gap-2 border-t border-borde pt-4">
-            <button type="button" onClick={() => setAbierta(false)} className="rounded-lg border border-borde px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-gris transition hover:text-tinta">
+          {error && <p className="tono-alerta fondo-tono rounded-xl px-3 py-2 text-sm font-semibold">{error}</p>}
+          <div className="flex justify-end gap-2 border-t border-borde/60 pt-3">
+            <button type="button" onClick={() => setAbierta(false)} className={BOTON_SUAVE_C}>
               Cancelar
             </button>
-            <BotonGuardar pendiente={pendiente}>{persona ? "Guardar" : "Agregar"}</BotonGuardar>
+            <button type="submit" disabled={pendiente} aria-busy={pendiente} className={BOTON_C}>
+              {pendiente && <RuedaCarga className="h-4 w-4" />}
+              {pendiente ? "Guardando…" : persona ? "Guardar" : "Agregar"}
+            </button>
           </div>
         </form>
       </VentanaModal>

@@ -19,6 +19,7 @@ import {
   comunaOficial,
   correoValido,
   esTipoContribuyente,
+  nombrePropio,
   rutUsable,
   type DatosContacto,
   type DatosPersona,
@@ -39,6 +40,15 @@ function refrescar(id?: string): void {
 
 const texto = (fd: FormData, k: string, max: number) => String(fd.get(k) ?? "").replace(/\s+/g, " ").trim().slice(0, max) || null;
 
+/**
+ * Lo mismo, en Nombre Propio: lo que se escribe TODO en mayúscula (o todo en minúscula) se
+ * ordena solo («MINERA LOS ANDES SPA» → «Minera los Andes SpA»); lo que ya mezcla se respeta.
+ */
+const propio = (fd: FormData, k: string, max: number, direccion = false) => {
+  const v = texto(fd, k, max);
+  return v ? nombrePropio(v, { direccion }) : null;
+};
+
 // ---------- Contactos ----------------------------------------------------------
 
 /**
@@ -48,7 +58,7 @@ const texto = (fd: FormData, k: string, max: number) => String(fd.get(k) ?? "").
  * los largos del SII y que la comuna sea una comuna de verdad.
  */
 function leerContacto(fd: FormData): DatosContacto | string {
-  const razonSocial = texto(fd, "razonSocial", 200);
+  const razonSocial = propio(fd, "razonSocial", 200);
   if (!razonSocial) return "La razón social es obligatoria.";
   if (razonSocial.length > LARGO.razonSocial) return `La razón social no puede pasar de ${LARGO.razonSocial} caracteres (límite del SII).`;
 
@@ -59,9 +69,9 @@ function leerContacto(fd: FormData): DatosContacto | string {
   const rut = rutCrudo && !extranjero ? normalizarRut(rutCrudo) : null;
   if (rut && !rutUsable(rut)) return "El RUT no es válido: revisa el dígito verificador.";
 
-  const giro = texto(fd, "giro", 200);
+  const giro = propio(fd, "giro", 200);
   if (giro && giro.length > LARGO.giro) return `El giro no puede pasar de ${LARGO.giro} caracteres (límite del SII). Usa una versión corta.`;
-  const direccion = texto(fd, "direccion", 200);
+  const direccion = propio(fd, "direccion", 200, true);
   if (direccion && direccion.length > LARGO.direccion) return `La dirección no puede pasar de ${LARGO.direccion} caracteres (límite del SII).`;
 
   const comunaEscrita = texto(fd, "comuna", 60);
@@ -84,8 +94,8 @@ function leerContacto(fd: FormData): DatosContacto | string {
     giro,
     direccion,
     comuna,
-    ciudad: texto(fd, "ciudad", LARGO.ciudad),
-    pais: extranjero ? texto(fd, "pais", 60) ?? "Extranjero" : "Chile",
+    ciudad: propio(fd, "ciudad", LARGO.ciudad),
+    pais: extranjero ? propio(fd, "pais", 60) ?? "Extranjero" : "Chile",
     tipoContribuyente,
     correoDte,
     correo,
@@ -157,11 +167,11 @@ export async function archivarContactoAction(id: string, archivar: boolean): Pro
 // ---------- Personas de contacto ---------------------------------------------
 
 function leerPersona(fd: FormData): DatosPersona | string {
-  const nombre = texto(fd, "nombre", LARGO.persona);
+  const nombre = propio(fd, "nombre", LARGO.persona);
   if (!nombre) return "El nombre es obligatorio.";
   const correo = texto(fd, "correo", LARGO.correo)?.toLowerCase() ?? null;
   if (correo && !correoValido(correo)) return "El correo no es válido.";
-  return { nombre, cargo: texto(fd, "cargo", 80), correo, telefono: texto(fd, "telefono", LARGO.telefono), principal: fd.get("principal") === "on" };
+  return { nombre, cargo: propio(fd, "cargo", 80), correo, telefono: texto(fd, "telefono", LARGO.telefono), principal: fd.get("principal") === "on" };
 }
 
 export async function guardarPersonaAction(contactoId: string, personaId: string | null, fd: FormData): Promise<Resultado> {
