@@ -111,6 +111,11 @@ function linea(p: Partial<LineaCompra>): LineaCompra {
   assert.equal(r.documentos, 4);
   assert.deepEqual(r.unidades, ["UN"], "UN y Unid son la misma unidad");
 
+  // Una línea regalada a $0 no es un precio: no baja el mínimo ni pasa a ser el último costo.
+  const conRegalo = resumirLineas([...ls, linea({ fecha: "2025-01-01", cantidad: 1, valorAjustado: 0, costoUnitario: 0, folio: 9 })]);
+  assert.equal(conRegalo.costoMin, 800);
+  assert.equal(conRegalo.ultimoCosto, 1200);
+
   const [item] = armarCatalogo(ls);
   assert.equal(item.compras, 4);
   assert.equal(item.costoPromedio, 1000, "promedio ponderado = monto neto / cantidad neta");
@@ -284,6 +289,10 @@ async function libroDePrueba(): Promise<Buffer> {
   con.addRow(["D. Documentos duplicados excluidos"]);
   con.addRow(["Archivo excluido", "Tipo", "Folio", "RUT", "Fecha", "Proveedor"]);
   con.addRow(["2026/05 Mayo/DTE_R_CODIGO_2.pdf", "Guía de Despacho", 683, null, new Date(Date.UTC(2026, 1, 6)), "PERFORMANCE TECHNOLOGIES SPA"]);
+  con.addRow([]);
+  con.addRow(["E. Documentos en alcance que no cuadran"]);
+  con.addRow(["Archivo", "Tipo", "Folio", "Neto", "Fecha", "Proveedor"]);
+  con.addRow(["2023/07 Julio/DTE_R_CODIGO_3.pdf", "Factura", 9155157, 44000, new Date(Date.UTC(2023, 6, 20)), "Kupfer Hermanos S.A"]);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
@@ -315,6 +324,8 @@ async function libroDePrueba(): Promise<Buffer> {
   assert.deepEqual(r.control.metodologia, ["Fuente única: PDF de DTE recibidos."]);
   assert.equal(r.control.duplicados[0].fecha, "2026-02-06");
   assert.equal(r.control.duplicados[0].rut, null);
+  assert.equal(r.control.duplicados.length, 1, "la sección E no se mezcla con los duplicados");
+  assert.deepEqual(r.control.noCuadran, [{ archivo: "2023/07 Julio/DTE_R_CODIGO_3.pdf", tipo: "Factura", folio: 9155157, neto: 44000, fecha: "2023-07-20", proveedor: "Kupfer Hermanos S.A" }]);
 }
 
 {

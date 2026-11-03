@@ -113,6 +113,16 @@ export interface Duplicado {
   proveedor: string | null;
 }
 
+/** Un documento en alcance cuya suma de líneas no da su neto (sección E de la hoja de control). */
+export interface NoCuadra {
+  archivo: string;
+  tipo: string;
+  folio: number | null;
+  neto: number | null;
+  fecha: string | null;
+  proveedor: string | null;
+}
+
 /** Hoja «Control y observaciones»: de dónde salió el registro y qué tan limpio está. */
 export interface ControlRegistro {
   universo: FilaUniverso[];
@@ -121,6 +131,7 @@ export interface ControlRegistro {
   observaciones: { concepto: string; valor: number }[];
   metodologia: string[];
   duplicados: Duplicado[];
+  noCuadran: NoCuadra[];
 }
 
 export interface Importacion {
@@ -145,7 +156,7 @@ export interface DatosHistoricos {
   control: ControlRegistro;
 }
 
-export const CONTROL_VACIO: ControlRegistro = { universo: [], porTipo: [], destinos: [], observaciones: [], metodologia: [], duplicados: [] };
+export const CONTROL_VACIO: ControlRegistro = { universo: [], porTipo: [], destinos: [], observaciones: [], metodologia: [], duplicados: [], noCuadran: [] };
 
 // -----------------------------------------------------------------------------
 //  Formato
@@ -291,7 +302,9 @@ export interface ResumenLineas {
 
 /**
  * Las cifras de arriba del Buscador. Mínimo, máximo y último costo miran solo compras con cantidad
- * positiva (una nota de crédito no es un precio), como MINIFS/MAXIFS/LOOKUP en la planilla.
+ * positiva (una nota de crédito no es un precio), como MINIFS/MAXIFS/LOOKUP en la planilla, y con
+ * costo mayor a cero: una línea regalada o bonificada a $0 tampoco es un precio (en el Excel sí
+ * cuenta, y el «costo mínimo» de casi cualquier búsqueda amplia salía $0).
  */
 export function resumirLineas(lineas: LineaCompra[]): ResumenLineas {
   let cant = 0, total = 0;
@@ -307,7 +320,7 @@ export function resumirLineas(lineas: LineaCompra[]): ResumenLineas {
     const u = unidadLegible(l.unidad);
     if (u) unidades.add(u);
     if (!primera || l.fecha < primera) primera = l.fecha;
-    if ((l.cantidad ?? 0) > 0 && l.costoUnitario !== null) {
+    if ((l.cantidad ?? 0) > 0 && l.costoUnitario !== null && l.costoUnitario > 0) {
       min = min === null ? l.costoUnitario : Math.min(min, l.costoUnitario);
       max = max === null ? l.costoUnitario : Math.max(max, l.costoUnitario);
       if (!ultima || l.fecha > ultima.fecha || (l.fecha === ultima.fecha && l.n > ultima.n)) ultima = l;
@@ -396,6 +409,13 @@ export function armarCatalogo(lineas: LineaCompra[]): ItemCatalogo[] {
     });
   }
   return items.sort((a, b) => b.monto - a.monto || a.clave.localeCompare(b.clave));
+}
+
+/** Los productos que más veces se compraron (Guante, Lente…): atajos para empezar a buscar. */
+export function productosFrecuentes(catalogo: ItemCatalogo[], cuantos: number): string[] {
+  const veces = new Map<string, number>();
+  for (const i of catalogo) if (i.producto) veces.set(i.producto, (veces.get(i.producto) ?? 0) + i.compras);
+  return [...veces.entries()].sort((a, b) => b[1] - a[1]).slice(0, cuantos).map(([p]) => p);
 }
 
 /** Variación entre el primer y el último costo de un ítem (+0,25 = subió 25 %). Null si no hay dos precios. */

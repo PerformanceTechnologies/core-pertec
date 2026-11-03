@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconAlertTriangle, IconDownload, IconListDetails, IconPackages } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBulb, IconDownload, IconListDetails, IconPackages } from "@tabler/icons-react";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { cargarVista } from "@/lib/valorizacion-historica";
 import {
@@ -11,6 +11,7 @@ import {
   filtrarLineas,
   masRecientesPrimero,
   monto,
+  productosFrecuentes,
   resumirLineas,
   unidadLegible,
   type LineaCompra,
@@ -18,7 +19,7 @@ import {
 import { TARJETA } from "@/lib/estilos";
 import FiltrosUrl from "@/components/valorizacion-historica/FiltrosUrl";
 import Resaltar from "@/components/valorizacion-historica/Resaltar";
-import { ChipCategoria, ChipTipoDoc, CifraBanda, EnlacePdf, Orden, Paginacion, SinRegistro, conParametros } from "@/components/valorizacion-historica/Piezas";
+import { ChipCategoria, ChipTipoDoc, EnlacePdf, Orden, Paginacion, SinRegistro, conParametros } from "@/components/valorizacion-historica/Piezas";
 
 export const dynamic = "force-dynamic";
 
@@ -77,31 +78,72 @@ export default async function BuscadorPage({ searchParams }: { searchParams: Pro
           Busca en glosa, producto, marca, modelo, proveedor, subcategoría, código y folio, sin importar tildes ni mayúsculas. Varias palabras = todas deben aparecer;
           con <code className="rounded bg-tinta/[0.06] px-1 font-mono">*</code> exiges un orden: <code className="rounded bg-tinta/[0.06] px-1 font-mono">taladro*makita</code>.
         </p>
+        {!sp.q && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-gris">Prueba con</span>
+            {productosFrecuentes(vista.catalogo, 10).map((p) => (
+              <Link key={p} href={enlace({ q: p, pagina: null })} scroll={false} className="rounded-full border border-borde bg-superficie px-3 py-1 text-xs font-semibold text-tinta transition hover:border-naranjo/50 hover:text-naranjo">
+                {p}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Lo que dice la búsqueda ── */}
       <section className="banda-contraste overflow-hidden rounded-2xl px-6 py-6 sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-3">
           <div className="min-w-0">
             <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
-              <span className="h-px w-6 bg-naranjo" /> {hayBusqueda ? (sp.q ? `«${sp.q}»` : "Filtrado") : "Todo el registro"}
+              <span className="h-px w-6 shrink-0 bg-naranjo" />
+              <span className="truncate">{sp.q ? `Resultado de «${sp.q}»` : hayBusqueda ? "Resultado del filtro" : "Todo el registro"}</span>
             </span>
             <p className="texto-banda mt-3 font-condensed text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">{monto(r.monto)}</p>
-            <p className="texto-banda-65 mt-2 text-sm">
-              {n(r.lineas)} {r.lineas === 1 ? "línea" : "líneas"} en {n(r.documentos)} {r.documentos === 1 ? "documento" : "documentos"} de {n(r.proveedores)} {r.proveedores === 1 ? "proveedor" : "proveedores"}
-              {r.primeraFecha && ` · ${fechaCorta(r.primeraFecha)} – ${fechaCorta(r.ultimaFecha ?? encontradas[0]?.fecha)}`}
+            <p className="texto-banda-45 mt-1.5 text-xs">Monto neto comprado, sin IVA</p>
+          </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <Dato valor={n(r.lineas)} texto={r.lineas === 1 ? "línea" : "líneas"} />
+            <Dato valor={n(r.documentos)} texto={r.documentos === 1 ? "documento" : "documentos"} />
+            <Dato valor={n(r.proveedores)} texto={r.proveedores === 1 ? "proveedor" : "proveedores"} />
+            {r.primeraFecha && <Dato valor={`${fechaCorta(r.primeraFecha)} – ${fechaCorta(r.ultimaFecha ?? encontradas[0]?.fecha)}`} texto="período" />}
+          </div>
+        </div>
+
+        {sp.q ? (
+          <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Casilla
+              etiqueta="Último costo"
+              valor={r.ultimoCosto === null ? "—" : monto(r.ultimoCosto)}
+              detalle={r.ultimaFecha ? `${fechaCorta(r.ultimaFecha)} · ${r.ultimoProveedor}` : "Sin compras con precio"}
+              destacado
+            />
+            <Casilla etiqueta="Costo mínimo" valor={r.costoMin === null ? "—" : monto(r.costoMin)} detalle="Lo más barato que se pagó" />
+            <Casilla etiqueta="Costo máximo" valor={r.costoMax === null ? "—" : monto(r.costoMax)} detalle="Lo más caro que se pagó" />
+            <Casilla
+              etiqueta="Cantidad neta"
+              valor={cantidad(r.cantidad)}
+              detalle={r.unidades.length > 1 ? `Suma ${r.unidades.length} unidades distintas` : r.unidades[0] ? `En ${r.unidades[0]}, menos devoluciones` : "Menos devoluciones"}
+            />
+          </dl>
+        ) : (
+          <div className="borde-banda texto-banda-65 mt-6 flex items-start gap-3 rounded-xl border px-5 py-4 text-sm">
+            <IconBulb size={18} className="mt-0.5 shrink-0 text-naranjo" />
+            <p>
+              Escribe un producto, marca o proveedor en el buscador de arriba y aquí vas a ver <strong className="texto-banda">el último costo, el mínimo, el máximo y la cantidad comprada</strong>.
+              {hayBusqueda && " Con solo filtros se mezclan productos muy distintos, así que esas cifras no se muestran."}
             </p>
           </div>
-          <dl className="borde-banda grid grid-cols-2 gap-x-8 gap-y-4 rounded-xl border px-5 py-4 sm:grid-cols-4 lg:min-w-[38rem]">
-            <CifraBanda etiqueta="Cantidad neta" valor={cantidad(r.cantidad)} detalle={r.unidades.length > 1 ? `Mezcla ${r.unidades.join(", ")}` : r.unidades[0] ?? undefined} />
-            <CifraBanda etiqueta="Costo mínimo" valor={r.costoMin === null ? "—" : monto(r.costoMin)} />
-            <CifraBanda etiqueta="Costo máximo" valor={r.costoMax === null ? "—" : monto(r.costoMax)} />
-            <CifraBanda etiqueta="Último costo" valor={r.ultimoCosto === null ? "—" : monto(r.ultimoCosto)} detalle={r.ultimaFecha ? `${fechaCorta(r.ultimaFecha)} · ${r.ultimoProveedor}` : undefined} />
-          </dl>
-        </div>
-        {r.unidades.length > 1 && (
-          <p className="texto-banda-65 mt-4 flex items-center gap-1.5 text-xs">
-            <IconAlertTriangle size={14} className="text-amber-400" /> Se están sumando unidades distintas: la cantidad total es referencial. Afina la búsqueda o mira «Por ítem».
+        )}
+
+        {sp.q && r.unidades.length > 1 && (
+          <p className="texto-banda-65 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <IconAlertTriangle size={14} className="shrink-0 text-amber-400" />
+            La búsqueda junta productos distintos ({r.unidades.slice(0, 4).join(", ")}{r.unidades.length > 4 ? "…" : ""}): la cantidad y los costos son de referencia.
+            {!porItem && (
+              <Link href={enlace({ ver: "items", pagina: null })} scroll={false} className="font-semibold text-naranjo hover:underline">
+                Ver el costo de cada ítem →
+              </Link>
+            )}
           </p>
         )}
       </section>
@@ -205,6 +247,26 @@ function TablaLineas({ lineas, sp, enlace, docs }: { lineas: LineaCompra[]; sp: 
         </div>
       </div>
       <Paginacion pagina={pagina} paginas={paginas} total={ordenadas.length} porPagina={POR_PAGINA} enlace={(p) => enlace({ pagina: p })} />
+    </div>
+  );
+}
+
+function Dato({ valor, texto }: { valor: string; texto: string }) {
+  return (
+    <div>
+      <p className="texto-banda font-semibold tabular-nums">{valor}</p>
+      <p className="texto-banda-45 text-[11px]">{texto}</p>
+    </div>
+  );
+}
+
+/** Una cifra de la búsqueda dentro de la banda; la primera (el último costo) va resaltada. */
+function Casilla({ etiqueta, valor, detalle, destacado = false }: { etiqueta: string; valor: string; detalle: string; destacado?: boolean }) {
+  return (
+    <div className={`min-w-0 rounded-xl border px-4 py-3.5 sm:px-5 ${destacado ? "border-naranjo/40 bg-naranjo/[0.12]" : "borde-banda bg-white/[0.03]"}`}>
+      <dt className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${destacado ? "text-naranjo" : "texto-banda-45"}`}>{etiqueta}</dt>
+      <dd className="texto-banda mt-1 truncate font-condensed text-2xl font-bold tabular-nums sm:text-3xl">{valor}</dd>
+      <dd className="texto-banda-45 mt-0.5 truncate text-[11px]" title={detalle}>{detalle}</dd>
     </div>
   );
 }

@@ -15,7 +15,7 @@ import {
 } from "@tabler/icons-react";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { cargarVista } from "@/lib/valorizacion-historica";
-import { RUTA_VH, SLUG_APP_VH, fechaCorta, monto, montoCorto, pct } from "@/lib/valorizacion-historica-modelo";
+import { RUTA_VH, SLUG_APP_VH, fechaCorta, monto, montoCorto, pct, productosFrecuentes } from "@/lib/valorizacion-historica-modelo";
 import { SOMBRA_CALIDA, TARJETA } from "@/lib/estilos";
 import { Barra, COLORES, CifraBanda, Seccion, SinRegistro } from "@/components/valorizacion-historica/Piezas";
 
@@ -36,11 +36,7 @@ export default async function ResumenHistoricoPage() {
   const top = vista.proveedores.slice(0, 15);
   const maxProv = top[0]?.monto ?? 1;
 
-  // Los productos que más veces se compraron: atajos para el buscador (por plata salían equipos
-  // que se compraron una vez, como una vulcanizadora).
-  const productos = new Map<string, number>();
-  for (const i of vista.catalogo) if (i.producto) productos.set(i.producto, (productos.get(i.producto) ?? 0) + i.compras);
-  const sugerencias = [...productos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p]) => p);
+  const sugerencias = productosFrecuentes(vista.catalogo, 8);
 
   // Un año incompleto se marca con sus meses: 2022 parte en septiembre, el último puede ir a medias.
   const rango = (desde: string, hasta: string) => {

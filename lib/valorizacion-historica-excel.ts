@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { sinComentarios } from "./excel-sin-comentarios";
 import {
+  CONTROL_VACIO,
   normalizar,
   type CategoriaCompra,
   type ControlRegistro,
@@ -326,8 +327,8 @@ function leerCategorias(h: ExcelJS.Worksheet): CategoriaCompra[] {
  * Metodología, D) mirando el título de cada bloque. Si alguna no está, queda vacía y listo.
  */
 function leerControl(h: ExcelJS.Worksheet): ControlRegistro {
-  const control: ControlRegistro = { universo: [], porTipo: [], destinos: [], observaciones: [], metodologia: [], duplicados: [] };
-  let seccion: "" | "universo" | "porTipo" | "destinos" | "observaciones" | "metodologia" | "duplicados" = "";
+  const control: ControlRegistro = { universo: [], porTipo: [], destinos: [], observaciones: [], metodologia: [], duplicados: [], noCuadran: [] };
+  let seccion: "" | "universo" | "porTipo" | "destinos" | "observaciones" | "metodologia" | "duplicados" | "noCuadran" = "";
   for (let f = 1; f <= h.rowCount; f++) {
     const r = h.getRow(f);
     const a = texto(r.getCell(1));
@@ -339,7 +340,9 @@ function leerControl(h: ExcelJS.Worksheet): ControlRegistro {
     if (/^c\.\s/.test(t)) { seccion = "observaciones"; continue; }
     if (t.startsWith("metodologia")) { seccion = "metodologia"; continue; }
     if (/^d\.\s/.test(t)) { seccion = "duplicados"; continue; }
-    if (["concepto", "destino del gasto", "archivo excluido"].includes(t)) continue; // encabezados
+    if (/^e\.\s/.test(t)) { seccion = "noCuadran"; continue; }
+    if (/^[f-z]\.\s/.test(t)) { seccion = ""; continue; } // una sección nueva que todavía no se conoce
+    if (["concepto", "destino del gasto", "archivo excluido", "archivo"].includes(t)) continue; // encabezados
 
     const fila: FilaUniverso = { concepto: a, documentos: numero(r.getCell(2)), monto: numero(r.getCell(3)), tratamiento: texto(r.getCell(6)) };
     switch (seccion) {
@@ -384,6 +387,9 @@ function leerControl(h: ExcelJS.Worksheet): ControlRegistro {
         control.duplicados.push(d);
         break;
       }
+      case "noCuadran":
+        control.noCuadran.push({ archivo: a, tipo: texto(r.getCell(2)) ?? "", folio: numero(r.getCell(3)), neto: numero(r.getCell(4)), fecha: fecha(r.getCell(5)), proveedor: texto(r.getCell(6)) });
+        break;
     }
   }
   return control;
@@ -402,7 +408,7 @@ export async function leerRegistroMaestro(contenido: Buffer): Promise<RegistroLe
   const proveedores = leerProveedores(hoja(libro, "Proveedores"));
   const categorias = leerCategorias(hoja(libro, "Categorías"));
   const hControl = libro.worksheets.find((w) => normalizar(w.name).startsWith("control"));
-  const control = hControl ? leerControl(hControl) : { universo: [], porTipo: [], destinos: [], observaciones: [], metodologia: [], duplicados: [] };
+  const control = hControl ? leerControl(hControl) : CONTROL_VACIO;
 
   if (lineas.length === 0) throw new Error("La hoja «Detalle compras» no trae líneas.");
   if (documentos.length === 0) throw new Error("La hoja «Facturas» no trae documentos.");
