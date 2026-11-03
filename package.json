@@ -33,7 +33,8 @@
     "probar-pagina-web": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-pagina-web.mts",
     "probar-tareas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-tareas.mts",
     "probar-flota": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-flota.mts",
-    "probar-contactos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-contactos.mts"
+    "probar-contactos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-contactos.mts",
+    "probar-valorizacion-historica": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-valorizacion-historica.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

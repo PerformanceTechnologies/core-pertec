@@ -101,6 +101,24 @@ const inventario: Cargador = async () => {
   };
 };
 
+// ─── Valorización histórica ───────────────────────────────────────────────────
+
+const valorizacionHistorica: Cargador = async () => {
+  const [{ cargarVista }, { montoCorto, fechaCorta }] = await Promise.all([import("./valorizacion-historica"), import("./valorizacion-historica-modelo")]);
+  const v = await cargarVista();
+  if (!v.datos.importacion) return null;
+  const r = v.resumen;
+  return {
+    metricas: [
+      { etiqueta: "Total comprado", valor: montoCorto(r.total), detalle: "Materiales, herramientas y EPP", href: "/valorizacion-historica" },
+      { etiqueta: "Ítems", valor: n(r.items), detalle: "Con su último costo", href: "/valorizacion-historica/catalogo" },
+      { etiqueta: "Documentos", valor: n(r.documentos), detalle: `De ${n(r.proveedores)} proveedores`, href: "/valorizacion-historica/documentos" },
+    ],
+    avisos: [],
+    pie: `Período ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`,
+  };
+};
+
 // ─── Flota ───────────────────────────────────────────────────────────────────
 
 const flota: Cargador = async ({ hoy }) => {
@@ -446,6 +464,7 @@ const aplicaciones: Cargador = async () => {
 const CARGADORES: Record<string, Cargador> = {
   "/inventario": inventario,
   "/flota": flota,
+  "/valorizacion-historica": valorizacionHistorica,
   "/tareas": tareas,
   "/contratos": contratos,
   "/cotizador": cotizador,

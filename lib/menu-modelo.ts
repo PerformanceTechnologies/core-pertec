@@ -117,14 +117,15 @@ const PLAN: Plan[] = [
     descripcion: "Acreditación, logística y gastos de arranque de cada contrato.",
     items: [{ ruta: "/contratos" }],
   },
-  // Flota cuelga de Inventario: es una aplicación aparte (su propio permiso y sus propias rutas
-  // /flota), pero para la gente es parte de lo mismo: lo que la empresa tiene y mueve. La de stock
-  // se llama «Stock y bodegas» para que el módulo no tenga un submódulo del mismo nombre.
+  // Flota y Valorización histórica cuelgan de Inventario: son aplicaciones aparte (su propio
+  // permiso y sus propias rutas), pero para la gente es parte de lo mismo: lo que la empresa tiene,
+  // mueve y compró. La de stock se llama «Stock y bodegas» para que el módulo no tenga un
+  // submódulo del mismo nombre.
   {
     slug: "inventario",
     titulo: "Inventario",
-    descripcion: "Stock y bodegas, y la flota de vehículos de la empresa.",
-    items: [{ ruta: "/inventario", nombre: "Stock y bodegas" }, { ruta: "/flota" }],
+    descripcion: "Stock y bodegas, la flota de vehículos y la valorización histórica de lo comprado.",
+    items: [{ ruta: "/inventario", nombre: "Stock y bodegas" }, { ruta: "/flota" }, { ruta: "/valorizacion-historica", nombre: "Valorización histórica" }],
   },
 ];
 

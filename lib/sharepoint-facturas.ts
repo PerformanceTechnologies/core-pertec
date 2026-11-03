@@ -167,3 +167,20 @@ export async function descargarBinarioArchivo(itemId: string): Promise<Buffer> {
 // en Supabase, ver lib/indexador-facturas-compra.ts y
 // facturas-historicas.ts#buscarFacturasCompraIndexadas (que exporta el tipo
 // ResultadoBusquedaCompra).
+
+// Un PDF de DTE_SII por su ruta dentro de la carpeta («2022/09 Septiembre/DTE_R_CODIGO_1.pdf»),
+// como la guarda el Registro Maestro de Compras (ver lib/valorizacion-historica-excel.ts). Solo
+// acepta esa forma —año, una carpeta de mes y un archivo DTE_R_CODIGO_*.pdf— para que no se pueda
+// pedir otra cosa del drive del sitio.
+const RUTA_DTE_SII = /^\d{4}\/[\p{L}\d ]{1,30}\/DTE_R_CODIGO_\d{1,15}\.pdf$/u;
+
+export async function descargarCompraDteSii(rutaRelativa: string): Promise<Buffer> {
+  if (!RUTA_DTE_SII.test(rutaRelativa)) throw new Error("Ruta de PDF inválida");
+  const graph = await clienteGraph();
+  const item = await graph
+    .api(`/sites/${SITE_ID()}/drive/root:/${codificarRuta(`${CARPETA_COMPRAS}/${rutaRelativa}`)}`)
+    .select("id")
+    .get();
+  if (!item?.id) throw new Error("No se encontró el PDF en SharePoint");
+  return descargarBuffer(item.id);
+}

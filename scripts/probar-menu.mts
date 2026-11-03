@@ -13,7 +13,7 @@ const todas = [
   app("/finanzas", "Herramientas Finanzas"), app("/rendir-gastos", "Rendir Gastos"),
   app("/cotizador", "Cotizador"), app("/ofertas", "Ofertas"), app("/contratos", "Contratos"),
   app("/reclutamiento", "Panel de postulación"), app("/pagina-web", "Página web"), app("/inventario", "Inventario"), app("/tareas", "Tareas"), app("/flota", "Flota"),
-  app("/proyectos", "Proyectos"), app("/mi-dia", "Mi Día"),
+  app("/valorizacion-historica", "Valorización histórica"), app("/proyectos", "Proyectos"), app("/mi-dia", "Mi Día"),
 ];
 const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => i.nombre);
 
@@ -25,9 +25,10 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
   assert.deepEqual(nombres(g[1]), ["Cotizador", "Ofertas técnicas"]);
   assert.deepEqual(nombres(g[2]), ["Tareas"]);
   assert.deepEqual(nombres(g[3]), ["Contratos"]);
-  // Flota cuelga de Inventario (es otra aplicación, con su permiso y sus rutas, pero el mismo módulo).
-  assert.deepEqual(nombres(g[4]), ["Stock y bodegas", "Flota"]);
-  assert.deepEqual(g[4].items.map((i) => (i.tipo === "app" ? i.app.url : "")), ["/inventario", "/flota"]);
+  // Flota y Valorización histórica cuelgan de Inventario (son otras aplicaciones, con su permiso y
+  // sus rutas, pero el mismo módulo).
+  assert.deepEqual(nombres(g[4]), ["Stock y bodegas", "Flota", "Valorización histórica"]);
+  assert.deepEqual(g[4].items.map((i) => (i.tipo === "app" ? i.app.url : "")), ["/inventario", "/flota", "/valorizacion-historica"]);
   assert.deepEqual(nombres(g[5]), ["Configuración", "Postulaciones"]);
   assert.deepEqual(g[5].items.map((i) => i.tipo), ["app", "app"]);
   // Ocultos: Proyectos, Mi Día (va arriba a la derecha) y Facturas IH.
@@ -102,7 +103,7 @@ assert.deepEqual(armarMenu([], []), []);
   assert.ok(!estaPausada("flota") && !estaPausada("inventario"));
   const grupos = agruparCatalogo(todas);
   assert.deepEqual(grupos.map((x) => x.slug), ["finanzas", "crm", "tareas", "contratos", "inventario", "pagina-web", "fuera-del-menu", "en-pausa"]);
-  assert.deepEqual(grupos.find((x) => x.slug === "inventario")?.apps.map((a) => a.nombre), ["Inventario", "Flota"]);
+  assert.deepEqual(grupos.find((x) => x.slug === "inventario")?.apps.map((a) => a.nombre), ["Inventario", "Flota", "Valorización histórica"]);
   assert.deepEqual(grupos.find((x) => x.slug === "finanzas")?.apps.map((a) => a.nombre), ["Herramientas Finanzas", "Rendir Gastos"]);
   assert.deepEqual(grupos.find((x) => x.slug === "en-pausa")?.apps.map((a) => a.nombre), ["Proyectos"]);
   assert.deepEqual(grupos.find((x) => x.slug === "fuera-del-menu")?.apps.map((a) => a.nombre), ["Mi Día"]);
