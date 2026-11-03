@@ -50,6 +50,12 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
   assert.deepEqual(g.map((x) => x.titulo), ["Finanzas", "Inventario"]);
   assert.deepEqual(nombres(g[0]), ["Históricos facturas"]);
 }
+// Contactos encabeza Finanzas: es la base de la facturación.
+{
+  const g = armarMenu(todas, ["contactos", "sii", "facturas-historicas"]);
+  assert.deepEqual(nombres(g[0]), ["Contactos", "Facturas compra y venta", "Rendir Gastos", "Históricos facturas"]);
+  assert.deepEqual(g[0].items[0].tipo === "enlace" ? g[0].items[0].href : null, "/finanzas/contactos");
+}
 // Subpanel concedido pero sin la app Finanzas: no se muestra.
 assert.deepEqual(armarMenu([app("/rendir-gastos", "Rendir Gastos")], ["sii"]).flatMap(nombres), ["Rendir Gastos"]);
 // La configuración de la web se concede como cualquier app: sin ella no aparece.
