@@ -51,27 +51,40 @@ export default function ListaContactos({
 
   return (
     <div className="space-y-4">
-      {/* ── Cifras, en una franja compacta ── */}
-      <div className={`${TARJETA} grid grid-cols-2 divide-borde overflow-hidden sm:grid-cols-4 sm:divide-x`}>
-        {cifras.map((m) => (
-          <Link key={m.etiqueta} href={url(m.f)} className="group flex items-baseline justify-between gap-2 px-4 py-3 transition hover:bg-tinta/[0.02]">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-gris group-hover:text-naranjo">{m.etiqueta}</span>
-            <span className="font-condensed text-2xl font-bold tabular-nums text-tinta">{m.valor.toLocaleString("es-CL")}</span>
-          </Link>
-        ))}
-        <Link href={url("por_completar")} className="group px-4 py-3 transition hover:bg-tinta/[0.02]">
-          <span className="flex items-baseline justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-gris group-hover:text-naranjo">Listos para facturar</span>
-            <span className="font-condensed text-2xl font-bold tabular-nums text-tinta">
-              {listos.toLocaleString("es-CL")}
-              <span className="ml-1 text-xs font-semibold text-gris">{pctListos}%</span>
+      {/* ── Banda: la libreta de un vistazo ── */}
+      <section className="banda-contraste overflow-hidden rounded-2xl px-6 py-5 sm:px-7">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div>
+            <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
+              <span className="h-px w-6 bg-naranjo" /> Libreta de contactos
             </span>
-          </span>
-          <span className="mt-1 block h-1 overflow-hidden rounded-full bg-tinta/[0.06]">
-            <span className="block h-full rounded-full bg-cian" style={{ width: `${pctListos}%` }} />
-          </span>
-        </Link>
-      </div>
+            <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
+              <p className="texto-banda font-condensed text-4xl font-bold leading-none tabular-nums">
+                {pctListos}%<span className="texto-banda-65 ml-2 text-lg font-semibold">listos para facturar</span>
+              </p>
+            </div>
+            <div className="mt-3 h-1.5 max-w-md overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pctListos}%` }} />
+            </div>
+            <p className="texto-banda-65 mt-2 text-xs">
+              {listos.toLocaleString("es-CL")} de {activos.length.toLocaleString("es-CL")} tienen todo lo que pide el SII.{" "}
+              {activos.length - listos > 0 && (
+                <Link href={url("por_completar")} className="font-semibold text-naranjo hover:underline">
+                  Ver los {(activos.length - listos).toLocaleString("es-CL")} por completar →
+                </Link>
+              )}
+            </p>
+          </div>
+          <dl className="borde-banda grid grid-cols-3 gap-x-7 rounded-xl border px-5 py-3">
+            {cifras.map((m) => (
+              <Link key={m.etiqueta} href={url(m.f)} className="group">
+                <dt className="texto-banda-45 text-[10px] font-semibold uppercase tracking-[0.14em]">{m.etiqueta}</dt>
+                <dd className="texto-banda mt-0.5 font-condensed text-2xl font-bold tabular-nums transition group-hover:text-naranjo">{m.valor.toLocaleString("es-CL")}</dd>
+              </Link>
+            ))}
+          </dl>
+        </div>
+      </section>
 
       {/* ── Buscador a la izquierda, filtros al medio, nuevo contacto a la derecha ── */}
       <div className="flex flex-wrap items-center gap-3">
@@ -107,7 +120,7 @@ export default function ListaContactos({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
+                <tr className="border-b border-borde bg-tinta/[0.02] text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
                   <th className="px-4 py-2.5">Contacto</th>
                   <th className="hidden px-4 py-2.5 md:table-cell">Giro y comuna</th>
                   <th className="hidden px-4 py-2.5 sm:table-cell">Relación</th>
@@ -118,7 +131,8 @@ export default function ListaContactos({
               <tbody className="divide-y divide-borde">
                 {contactos.map((c) => (
                   <tr key={c.id} className={`group transition hover:bg-tinta/[0.02] ${c.activo ? "" : "opacity-60"}`}>
-                    <td className="px-4 py-2">
+                    <td className="relative px-4 py-2">
+                      <span className={`absolute inset-y-0 left-0 w-1 ${faltantesParaFacturar(c).some((f) => f.bloquea) ? "bg-amber-400" : "bg-emerald-500"}`} />
                       <Link href={`/finanzas/contactos/${c.id}`} className="flex items-center gap-3">
                         <Avatar nombre={c.razonSocial} tipo={c.tipoPersona} />
                         <span className="min-w-0">
