@@ -248,25 +248,41 @@ const ofertas: Cargador = async ({ usuario }) => {
 // ─── Finanzas ────────────────────────────────────────────────────────────────
 
 const rendirGastos: Cargador = async ({ usuario }) => {
-  const { listarRendiciones } = await import("./rendidor/datos");
-  // Solo las propias: la portada de un módulo es personal. Quien administra gastos ve las de todos
-  // dentro de la pantalla de Rendir Gastos, que es donde se revisan.
-  const todas = await listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: false });
-  const enMano = todas.filter((r) => r.estado === "borrador" || r.estado === "rechazada");
+  const [{ listarRendiciones }, { resolverRolRendidor }, { puedeVerRendicionesAjenas }] = await Promise.all([
+    import("./rendidor/datos"),
+    import("./rendidor/permisos"),
+    import("./permisos-rendidor"),
+  ]);
+  // Quien administra gastos ve las de toda la empresa, igual que en la pantalla del módulo:
+  // si la portada mostrara solo las propias, para quien revisa saldría todo en cero.
+  const revisa = puedeVerRendicionesAjenas(usuario.rol, await resolverRolRendidor(usuario));
+  const todas = await listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: revisa });
+  const enMano = todas.filter((r) => r.esMia && (r.estado === "borrador" || r.estado === "rechazada"));
   const enRevision = todas.filter((r) => r.estado === "enviada");
   const porPagar = todas.filter((r) => r.estado === "aprobada");
-  const rechazadas = todas.filter((r) => r.estado === "rechazada");
+  const historicas = todas.filter((r) => r.estado === "cargada_odoo");
+  const rechazadas = todas.filter((r) => r.esMia && r.estado === "rechazada");
+  const suma = (rs: typeof todas) => rs.reduce((t, r) => t + r.totalGastos, 0);
   return {
     metricas: [
-      { etiqueta: "Mis rendiciones", valor: n(todas.length), href: "/rendir-gastos" },
-      { etiqueta: "Por enviar", valor: n(enMano.length), tono: enMano.length > 0 ? "aviso" : "ok", detalle: "Borradores y rechazadas", href: "/rendir-gastos?ver=borrador" },
-      { etiqueta: "En revisión", valor: n(enRevision.length), href: "/rendir-gastos?ver=enviada" },
-      { etiqueta: "Por pagar", valor: money(porPagar.reduce((t, r) => t + r.totalGastos, 0)), detalle: "Aprobadas sin pagar", href: "/rendir-gastos?ver=aprobada" },
+      {
+        etiqueta: revisa ? "Rendiciones" : "Mis rendiciones",
+        valor: n(todas.length),
+        detalle: historicas.length > 0 ? `${n(historicas.length)} históricas de Odoo` : undefined,
+        href: "/rendir-gastos",
+      },
+      revisa
+        ? { etiqueta: "Por revisar", valor: n(enRevision.length), tono: enRevision.length > 0 ? ("aviso" as const) : ("ok" as const), detalle: "Esperan aprobación", href: "/rendir-gastos?ver=enviada" }
+        : { etiqueta: "Por enviar", valor: n(enMano.length), tono: enMano.length > 0 ? ("aviso" as const) : ("ok" as const), detalle: "Borradores y rechazadas", href: "/rendir-gastos?ver=borrador" },
+      { etiqueta: "Por pagar", valor: money(suma(porPagar)), detalle: `${n(porPagar.length)} aprobada${porPagar.length === 1 ? "" : "s"}`, href: "/rendir-gastos?ver=aprobada" },
+      { etiqueta: "Históricas (Odoo)", valor: money(suma(historicas)), detalle: `${n(historicas.length)} rendicion${historicas.length === 1 ? "" : "es"} ya cargadas`, href: "/rendir-gastos?ver=cargada_odoo" },
     ],
     avisos:
       rechazadas.length > 0
         ? [{ texto: `${rechazadas.length} ${rechazadas.length === 1 ? "rendición rechazada" : "rendiciones rechazadas"}: corrige y vuelve a enviar.`, tono: "alerta" as const, href: "/rendir-gastos?ver=rechazada" }]
-        : [],
+        : revisa && enRevision.length > 0
+          ? [{ texto: `${enRevision.length} ${enRevision.length === 1 ? "rendición espera" : "rendiciones esperan"} tu revisión.`, tono: "aviso" as const, href: "/rendir-gastos?ver=enviada" }]
+          : [],
   };
 };
 
