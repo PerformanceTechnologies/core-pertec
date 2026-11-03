@@ -131,7 +131,7 @@ export default async function DocumentoPage({ params }: { params: Promise<{ n: s
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-tinta">{cantidad(l.cantidad)} <span className="text-[11px] text-gris">{unidadLegible(l.unidad)}</span></td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gris">{l.precioUnitario === null ? "—" : monto(l.precioUnitario)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gris">
-                      {l.descuentoLinea ? `${Math.round(l.descuentoLinea * 1000) / 10}%` : "—"}
+                      {l.descuentoLinea && l.descuentoLinea <= 1 ? `${Math.round(l.descuentoLinea * 1000) / 10}%` : l.descuentoLinea ? l.descuentoLinea.toLocaleString("es-CL") : "—"}
                       {l.factorDescuentoGlobal !== 1 && <span className="block text-[10px] text-emerald-600">global ×{l.factorDescuentoGlobal.toLocaleString("es-CL", { maximumFractionDigits: 4 })}</span>}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gris">{monto(l.valorLinea)}</td>

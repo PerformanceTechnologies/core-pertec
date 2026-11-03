@@ -192,7 +192,8 @@ function TablaLineas({ lineas, sp, enlace, docs }: { lineas: LineaCompra[]; sp: 
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gris">
                     {l.precioUnitario === null ? "—" : monto(l.precioUnitario)}
-                    {l.descuentoLinea ? <span className="block text-[10px] text-emerald-600">−{Math.round(l.descuentoLinea * 1000) / 10}%</span> : null}
+                    {/* Un «descuento» sobre 100 % es un dato mal leído del PDF: no se muestra como porcentaje. */}
+                    {l.descuentoLinea && l.descuentoLinea <= 1 ? <span className="block text-[10px] text-emerald-600">−{Math.round(l.descuentoLinea * 1000) / 10}%</span> : null}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-tinta">{l.costoUnitario === null ? "—" : monto(l.costoUnitario)}</td>
                   <td className={`whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums ${l.valorAjustado < 0 ? "text-rose-600" : "text-tinta"}`}>{monto(l.valorAjustado)}</td>
