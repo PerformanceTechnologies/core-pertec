@@ -167,7 +167,7 @@ for (const r of ROLES_RENDIDOR) {
 }
 const formulario = readFileSync(new URL("../components/FormularioUsuario.tsx", import.meta.url), "utf8");
 assert.ok(
-  /app\.slug === "rendir-gastos"/.test(formulario) && /ROLES_RENDIDOR/.test(formulario),
+  /"rendir-gastos":/.test(formulario) && /ROLES_RENDIDOR/.test(formulario),
   "sin el selector en Usuarios el rol existe pero nadie puede asignarlo",
 );
 

@@ -251,17 +251,22 @@ const rendirGastos: Cargador = async ({ usuario }) => {
   const { listarRendiciones } = await import("./rendidor/datos");
   // Solo las propias: la portada de un módulo es personal. Quien administra gastos ve las de todos
   // dentro de la pantalla de Rendir Gastos, que es donde se revisan.
-  const todas = await listarRendiciones({ usuarioId: usuario.id, verTodas: false });
-  const borradores = todas.filter((r) => r.estado === "borrador");
-  const porCargar = borradores.reduce((t, r) => t + r.totalGastos, 0);
+  const todas = await listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: false });
+  const enMano = todas.filter((r) => r.estado === "borrador" || r.estado === "rechazada");
+  const enRevision = todas.filter((r) => r.estado === "enviada");
+  const porPagar = todas.filter((r) => r.estado === "aprobada");
+  const rechazadas = todas.filter((r) => r.estado === "rechazada");
   return {
     metricas: [
       { etiqueta: "Mis rendiciones", valor: n(todas.length), href: "/rendir-gastos" },
-      { etiqueta: "En borrador", valor: n(borradores.length), tono: borradores.length > 0 ? "aviso" : "ok", detalle: "Sin cargar a Odoo", href: "/rendir-gastos" },
-      { etiqueta: "Cargadas a Odoo", valor: n(todas.length - borradores.length), href: "/rendir-gastos" },
-      { etiqueta: "Por cargar", valor: money(porCargar), detalle: "Suma de los borradores", href: "/rendir-gastos" },
+      { etiqueta: "Por enviar", valor: n(enMano.length), tono: enMano.length > 0 ? "aviso" : "ok", detalle: "Borradores y rechazadas", href: "/rendir-gastos?ver=borrador" },
+      { etiqueta: "En revisión", valor: n(enRevision.length), href: "/rendir-gastos?ver=enviada" },
+      { etiqueta: "Por pagar", valor: money(porPagar.reduce((t, r) => t + r.totalGastos, 0)), detalle: "Aprobadas sin pagar", href: "/rendir-gastos?ver=aprobada" },
     ],
-    avisos: [],
+    avisos:
+      rechazadas.length > 0
+        ? [{ texto: `${rechazadas.length} ${rechazadas.length === 1 ? "rendición rechazada" : "rendiciones rechazadas"}: corrige y vuelve a enviar.`, tono: "alerta" as const, href: "/rendir-gastos?ver=rechazada" }]
+        : [],
   };
 };
 
