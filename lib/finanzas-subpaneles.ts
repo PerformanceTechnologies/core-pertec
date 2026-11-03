@@ -19,6 +19,13 @@ export const SUBPANELES_FINANZAS: SubpanelFinanzas[] = [
     icono: "file-invoice",
   },
   {
+    slug: "contactos",
+    nombre: "Contactos",
+    descripcion: "Clientes y proveedores con RUT, razón social, giro, dirección y comuna: los datos que pide el SII para facturar.",
+    href: "/finanzas/contactos",
+    icono: "address-book",
+  },
+  {
     slug: "facturas-historicas",
     nombre: "Facturas Históricas",
     descripcion: "Buscador de las facturas de compra y venta archivadas en SharePoint, con vista previa del documento original.",

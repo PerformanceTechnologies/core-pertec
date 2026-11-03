@@ -80,6 +80,7 @@ export const SECCIONES_DE_MODULO: Record<string, { href: string; nombre: string 
 
 /** Subpaneles de Finanzas que van en el menú (facturas-ih queda fuera a propósito). */
 const SUBPANELES_EN_MENU = [
+  { slug: "contactos", href: "/finanzas/contactos", nombre: "Contactos", icono: "address-book" },
   { slug: "sii", href: "/finanzas/sii", nombre: "Facturas compra y venta", icono: "file-invoice" },
   { slug: "facturas-historicas", href: "/finanzas/facturas-historicas", nombre: "Históricos facturas", icono: "folder" },
 ];
@@ -94,8 +95,8 @@ const PLAN: Plan[] = [
   {
     slug: "finanzas",
     titulo: "Finanzas",
-    descripcion: "Facturas del SII, rendición de gastos y facturas históricas.",
-    items: [{ subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
+    descripcion: "Contactos para facturar, facturas del SII, rendición de gastos y facturas históricas.",
+    items: [{ subpanel: "contactos" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
   },
   {
     slug: "crm",

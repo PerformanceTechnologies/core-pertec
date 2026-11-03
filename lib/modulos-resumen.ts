@@ -296,6 +296,26 @@ const facturasSii: Cargador = async () => {
   };
 };
 
+const contactos: Cargador = async () => {
+  const [{ listarContactos }, { listoParaFacturar }] = await Promise.all([import("./contactos"), import("./contactos-modelo")]);
+  const activos = (await listarContactos()).filter((c) => c.activo);
+  const clientes = activos.filter((c) => c.esCliente);
+  const porCompletar = activos.filter((c) => !listoParaFacturar(c)).length;
+  const clientesPorCompletar = clientes.filter((c) => !listoParaFacturar(c)).length;
+  return {
+    metricas: [
+      { etiqueta: "Contactos", valor: n(activos.length), href: "/finanzas/contactos" },
+      { etiqueta: "Clientes", valor: n(clientes.length), href: "/finanzas/contactos?ver=clientes" },
+      { etiqueta: "Proveedores", valor: n(activos.filter((c) => c.esProveedor).length), href: "/finanzas/contactos?ver=proveedores" },
+      { etiqueta: "Por completar", valor: n(porCompletar), detalle: "Les falta algo para facturar", tono: porCompletar > 0 ? "aviso" : "ok", href: "/finanzas/contactos?ver=por_completar" },
+    ],
+    avisos:
+      clientesPorCompletar > 0
+        ? [{ texto: `${cuenta(clientesPorCompletar, "cliente sin los datos para facturarle", "clientes sin los datos para facturarles")}`, tono: "aviso", href: "/finanzas/contactos?ver=por_completar" }]
+        : [],
+  };
+};
+
 const facturasHistoricas: Cargador = async () => {
   const [compras, ventas, { obtenerUltimaEjecucionHistoricoExitosa }] = await Promise.all([
     contarFilas(supabaseAdmin, "facturas_compra_historico"),
@@ -410,6 +430,7 @@ const CARGADORES: Record<string, Cargador> = {
   "/cotizador": cotizador,
   "/ofertas": ofertas,
   "/rendir-gastos": rendirGastos,
+  "/finanzas/contactos": contactos,
   "/finanzas/sii": facturasSii,
   "/finanzas/facturas-historicas": facturasHistoricas,
   "/pagina-web": paginaWeb,

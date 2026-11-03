@@ -1,4 +1,5 @@
 import {
+  IconAddressBook,
   IconApps,
   IconFileInvoice,
   IconMusic,
@@ -36,6 +37,7 @@ export const ICONOS_DISPONIBLES: { clave: string; etiqueta: string; Componente: 
   { clave: "clipboard-check", etiqueta: "Cumplimiento", Componente: IconClipboardCheck },
   { clave: "shield-check", etiqueta: "Seguridad", Componente: IconShieldCheck },
   { clave: "users", etiqueta: "Recursos humanos", Componente: IconUsers },
+  { clave: "address-book", etiqueta: "Contactos / clientes", Componente: IconAddressBook },
   { clave: "briefcase", etiqueta: "Reclutamiento", Componente: IconBriefcase },
   { clave: "settings", etiqueta: "Configuración / TI", Componente: IconSettings },
   { clave: "folder", etiqueta: "Documentos", Componente: IconFolder },
