@@ -268,14 +268,14 @@ const rendirGastos: Cargador = async ({ usuario }) => {
       {
         etiqueta: revisa ? "Rendiciones" : "Mis rendiciones",
         valor: n(todas.length),
-        detalle: historicas.length > 0 ? `${n(historicas.length)} históricas de Odoo` : undefined,
+        detalle: historicas.length > 0 ? `${n(historicas.length)} históricas` : undefined,
         href: "/rendir-gastos",
       },
       revisa
         ? { etiqueta: "Por revisar", valor: n(enRevision.length), tono: enRevision.length > 0 ? ("aviso" as const) : ("ok" as const), detalle: "Esperan aprobación", href: "/rendir-gastos?ver=enviada" }
         : { etiqueta: "Por enviar", valor: n(enMano.length), tono: enMano.length > 0 ? ("aviso" as const) : ("ok" as const), detalle: "Borradores y rechazadas", href: "/rendir-gastos?ver=borrador" },
       { etiqueta: "Por pagar", valor: money(suma(porPagar)), detalle: `${n(porPagar.length)} aprobada${porPagar.length === 1 ? "" : "s"}`, href: "/rendir-gastos?ver=aprobada" },
-      { etiqueta: "Históricas (Odoo)", valor: money(suma(historicas)), detalle: `${n(historicas.length)} rendicion${historicas.length === 1 ? "" : "es"} ya cargadas`, href: "/rendir-gastos?ver=cargada_odoo" },
+      { etiqueta: "Históricas", valor: money(suma(historicas)), detalle: `${n(historicas.length)} rendicion${historicas.length === 1 ? "" : "es"} ya cargadas`, href: "/rendir-gastos?ver=cargada_odoo" },
     ],
     avisos:
       rechazadas.length > 0
