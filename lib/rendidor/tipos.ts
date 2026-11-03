@@ -158,7 +158,12 @@ export interface GastoRendicion {
   odooPartnerId: number | null;
 }
 
-export type EstadoRendicion = "borrador" | "cargada_odoo";
+/**
+ * El ciclo de una rendición, ya sin Odoo:
+ *   borrador → enviada → aprobada → pagada, y enviada → rechazada → (corrige) → enviada.
+ * «cargada_odoo» queda solo para las históricas, de antes de dejar Odoo: se leen, no se tocan.
+ */
+export type EstadoRendicion = "borrador" | "enviada" | "aprobada" | "rechazada" | "pagada" | "cargada_odoo";
 
 /**
  * Lo que necesita la pantalla de lista, y nada más.
@@ -169,40 +174,37 @@ export type EstadoRendicion = "borrador" | "cargada_odoo";
 export interface ResumenRendicion {
   id: string;
   nombreQuienRinde: string;
+  rindeCorreo: string | null;
   montoAsignado: number;
   tituloRendicion: string;
   estado: EstadoRendicion;
   cantidadGastos: number;
   totalGastos: number;
-  /**
-   * Los hr.expense ya creados en Odoo, en orden.
-   *
-   * La lista los necesita para poder mostrarlos al confirmar un borrado: al
-   * borrar una rendicion cargada se va la unica traza local de que gastos se
-   * crearon, y esos gastos NO se borran de Odoo.
-   */
-  odooExpenseIds: number[];
-  /**
-   * Si la rendicion es de quien esta mirando la lista.
-   *
-   * Un admin ve las de todos, y sin esto no hay forma de distinguir en pantalla
-   * "la mia" de "la de otra persona": las dos se ven igual y las acciones que
-   * ofrece la fila —borrar, entre otras— pasan a leerse como si fueran sobre lo
-   * propio.
-   */
+  /** Si la rendición es de quien está mirando (la creó o la rinde). Un admin ve las de todos. */
   esMia: boolean;
+  enviadaEn: string | null;
+  revisadaEn: string | null;
+  motivoRechazo: string | null;
+  pagadaEn: string | null;
   creadoEn: string;
 }
 
 export interface Rendicion {
   id: string;
   nombreQuienRinde: string;
+  rindeCorreo: string | null;
   montoAsignado: number;
   tituloRendicion: string;
   estado: EstadoRendicion;
   empresaCompanyId: number;
-  odooEmployeeId: number | null;
   gastos: GastoRendicion[];
   creadoPor: string | null;
   creadoEn: string;
+  enviadaEn: string | null;
+  revisadaPor: string | null;
+  revisadaEn: string | null;
+  motivoRechazo: string | null;
+  pagadaPor: string | null;
+  pagadaEn: string | null;
+  notaPago: string | null;
 }

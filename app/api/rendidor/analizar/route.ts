@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
-import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
+import { esEditable, puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { analizarComprobante } from "@/lib/rendidor/analizar";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { subirRespaldo } from "@/lib/rendidor/almacenamiento";
@@ -36,8 +36,11 @@ export async function POST(request: Request) {
   if (!rendicion) {
     return NextResponse.json({ error: "No encontramos esa rendición." }, { status: 404 });
   }
-  if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)) {
+  if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol, rendicion.rindeCorreo, acceso.usuario.correo)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+  if (!esEditable(rendicion.estado)) {
+    return NextResponse.json({ error: "La rendición ya se envió a revisión: no se le pueden sumar comprobantes." }, { status: 409 });
   }
 
   const TIPOS_ACEPTADOS = [

@@ -18,6 +18,7 @@ import RuedaCarga from "@/components/RuedaCarga";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
 import Avisos, { type Aviso } from "@/components/rendidor/Avisos";
 import VisorComprobante, { type Comprobante } from "./VisorComprobante";
+import { moverRendicionAction } from "@/app/(protegido)/rendir-gastos/acciones";
 
 
 // Las fotos de celular llegan a 4000 px y varios MB, así que se reducen antes de
@@ -242,15 +243,14 @@ function Previsualizacion({
 export default function PanelRendicion({
   rendicionInicial,
   urlsRespaldo = {},
-  revisar = [],
+  editable,
+  puedeEnviar,
 }: {
   rendicionInicial: Rendicion;
-  /**
-   * Lo que la carga a Odoo dejó por revisar: un adjunto que no subió, la planilla que no
-   * se pudo colgar. Viene de la URL (ver [id]/page.tsx), no de un estado de este
-   * componente, porque la carga ya no pasa acá — pasa en ./odoo.
-   */
-  revisar?: string[];
+  /** Si los gastos se pueden tocar: solo en borrador o rechazada, y por quien puede abrirla. */
+  editable: boolean;
+  /** Si quien mira puede enviarla a revisión (es suya y está en sus manos). */
+  puedeEnviar: boolean;
   /**
    * URL firmada por gasto, generada en el servidor. De vida corta, ver
    * lib/rendidor/almacenamiento.ts.
@@ -276,7 +276,7 @@ export default function PanelRendicion({
    *
    * Antes eran dos strings —uno de error y uno de aviso— dibujados debajo del título. Se
    * veían solo arriba, se pisaban entre sí y se iban con el siguiente evento: quien
-   * apretaba "cargar a Odoo" al final del paso 3 no veía nada y volvía a apretar.
+   * apretaba "enviar" al final del paso 2 no veía nada y volvía a apretar.
    */
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   /**
@@ -299,7 +299,7 @@ export default function PanelRendicion({
   /**
    * Pone un aviso arriba de la pila.
    *
-   * Los del mismo `clave` se reemplazan: apretar dos veces "cargar a Odoo" con el mismo
+   * Los del mismo `clave` se reemplazan: apretar dos veces "enviar" con el mismo
    * problema tiene que dejar UN aviso, no dos idénticos. Los que no traen clave se
    * acumulan, que es lo correcto para los que hablan de cosas distintas.
    */
@@ -343,19 +343,13 @@ export default function PanelRendicion({
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [vistasLocales]);
 
-  /**
-   * Mientras se guarda antes de pasar a la página de Odoo.
-   *
-   * El paso de Odoo —elegir el proveedor de cada gasto y el fondo— vive en su propia
-   * página (./odoo). Acá solo queda guardar y navegar: los proveedores se resuelven allá,
-   * en el servidor, así que este componente ya no tiene estado de Odoo.
-   */
-  const [yendoAOdoo, setYendoAOdoo] = useState(false);
+  /** Mientras se guarda y se envía a revisión. */
+  const [enviando, setEnviando] = useState(false);
 
-  const yaCargada = rendicion.estado === "cargada_odoo";
+  const yaCargada = !editable;
 
-  // El desglose se recalcula acá con las MISMAS reglas que usa la carga a Odoo,
-  // así que lo que se ve en pantalla es exactamente lo que se va a cargar.
+  // El desglose se recalcula acá con las MISMAS reglas que la planilla, así que lo
+  // que se ve en pantalla es exactamente lo que se rinde.
   const filas = useMemo(
     () =>
       rendicion.gastos.map((g) => {
@@ -364,7 +358,7 @@ export default function PanelRendicion({
         const advertencias: string[] = [];
 
         try {
-          // Misma puerta que usan el preview de Odoo y la planilla: lo que se ve
+          // Misma puerta que usa la planilla: lo que se ve
           // acá es exactamente lo que se exporta y lo que se carga.
           const d = desgloseDeGasto(g);
           if (d) {
@@ -430,7 +424,7 @@ export default function PanelRendicion({
     let completados = 0;
 
     const resultados = await mapaConTope(nuevos, ANALISIS_EN_PARALELO, async (origen) => {
-      // Se sube (y después se adjunta a Odoo) la versión reducida, para que el
+      // Se sube la versión reducida, para que el
       // respaldo sea exactamente el archivo que el modelo leyó.
       const { archivo, ancho, alto } = await reducirImagen(origen);
 
@@ -556,9 +550,9 @@ export default function PanelRendicion({
   /**
    * Persiste los gastos y lanza si falla.
    *
-   * Es obligatorio antes de generar la planilla y antes de cargar a Odoo: las dos
+   * Es obligatorio antes de generar la planilla y antes de enviar: las dos
    * rutas leen los gastos DE LA BASE, no del body. Sin esto, una corrección hecha
-   * en la tabla que no se guardó a mano se perdería en silencio y a Odoo llegarían
+   * en la tabla que no se guardó a mano se perdería en silencio y llegarían
    * los datos que leyó el modelo, no los que confirmó quien rinde.
    */
   const persistirGastos = async () => {
@@ -573,7 +567,7 @@ export default function PanelRendicion({
   const descargarExcel = async () => {
     setGenerandoExcel(true);
     try {
-      // Ya cargada a Odoo los gastos están congelados (el PATCH responde 409) y
+      // Ya enviada, los gastos están congelados (el PATCH responde 409) y
       // la tabla no se puede editar: lo que está en la base es lo que vale.
       if (!yaCargada) await persistirGastos();
       // Sin cuerpo: el servidor baja los respaldos del bucket por su cuenta.
@@ -678,7 +672,7 @@ export default function PanelRendicion({
       primerRender.current = false;
       return;
     }
-    // Una rendición ya cargada a Odoo es de solo lectura.
+    // Una rendición enviada, aprobada o pagada es de solo lectura.
     if (yaCargada) return;
 
     const t = setTimeout(persistir, 1200);
@@ -701,73 +695,34 @@ export default function PanelRendicion({
   }, [estadoGuardado]);
 
   /**
-   * Guarda y pasa a la página de Odoo.
+   * Guarda y envía a revisión.
    *
-   * El guardado es lo que hace que la página siguiente vea lo mismo que la pantalla: ahí
-   * los proveedores se resuelven EN EL SERVIDOR leyendo la rendición de la base, así que
-   * una corrección todavía en el compás de espera del autoguardado se resolvería contra
-   * el dato viejo — el proveedor que se acaba de corregir se buscaría por el anterior.
+   * El guardado va primero: el servidor valida LO QUE ESTÁ EN LA BASE (que no falten
+   * datos), y una corrección todavía en el compás del autoguardado se validaría vieja.
    */
-  const irAOdoo = async () => {
-    setYendoAOdoo(true);
+  const enviar = async () => {
+    setEnviando(true);
     try {
       await persistirGastos();
-      router.push(`/rendir-gastos/${rendicion.id}/odoo`);
+      const r = await moverRendicionAction(rendicion.id, "enviar");
+      if (!r.ok) throw new Error(r.error);
+      avisar({ tono: "ok", titulo: "Enviada a revisión", detalle: "Te avisaremos en la campana cuando la aprueben o si hay que corregir algo." });
+      router.refresh();
     } catch (e) {
-      setYendoAOdoo(false);
-      avisar({
-        tono: "error",
-        clave: "guardar",
-        titulo: "No se pudo guardar antes de continuar",
-        detalle: e instanceof Error ? e.message : undefined,
-      });
+      avisar({ tono: "error", clave: "enviar", titulo: "No se pudo enviar", detalle: e instanceof Error ? e.message : undefined });
+    } finally {
+      setEnviando(false);
     }
   };
 
   return (
     // El <main> del core no tiene tope de ancho: sin esto los campos del editor
     // se estiran a 1900px en un monitor grande.
-    <div className="animar-entrada max-w-[1500px]">
-      <span className="etiqueta-seccion">Rendir Gastos</span>
-      <h1 className="mt-2 font-condensed text-3xl font-bold uppercase leading-none tracking-tight text-tinta sm:text-4xl">
-        {rendicion.tituloRendicion}
-      </h1>
-      <p className="mt-2 text-sm text-tinta/60">
-        {rendicion.nombreQuienRinde} · Fondo entregado {money(rendicion.montoAsignado)}
-        {yaCargada && " · Ya cargada a Odoo"}
-      </p>
-
-
-      {/* Lo que quedó por revisar en Odoo, si la carga dejó algo a medias.
-          Llega en la URL desde la página de carga, que es la que sabe qué pasó: así
-          sobrevive al refresco y se puede compartir el enlace con quien tenga que
-          revisarlo en Odoo. Un adjunto que falló no cancela la carga —los gastos ya
-          están creados— pero hay que subirlo a mano, y esto es lo único que lo dice. */}
-      {yaCargada && (
-        <div className="mt-4 rounded-2xl border border-teal/30 bg-teal/5 p-5">
-          <p className="font-condensed text-base font-bold uppercase text-teal">Cargada a Odoo</p>
-          <p className="mt-1 text-sm text-tinta/70">
-            {rendicion.gastos.length} gasto(s) en Odoo. Los comprobantes y la planilla quedaron adjuntos.
-          </p>
-          {revisar.length > 0 && (
-            <div className="mt-3 rounded-lg border border-naranjo/25 bg-naranjo/5 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-naranjo">
-                Revisar en Odoo ({revisar.length})
-              </p>
-              <ul className="mt-1 list-inside list-disc text-xs text-tinta/70">
-                {revisar.map((p, i) => (
-                  <li key={i}>{p}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-
+    <div>
       {/* PASO 1 — subir comprobantes */}
       {!yaCargada && (
-        <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
-          <p className="font-condensed text-lg font-bold tracking-tight text-tinta">1 · Subir comprobantes</p>
+        <div className={`rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
+          <p className="flex items-center gap-2.5 text-sm font-bold text-tinta"><span className="grid h-6 w-6 place-items-center rounded-full bg-naranjo text-[11px] font-bold text-white">1</span> Subir comprobantes</p>
           <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
             PDF o imagen. Se analizan de a varios a la vez y puedes corregir todo después. Los comprobantes
             quedan guardados: si cierras la página puedes volver más tarde y seguir donde estabas, sin subir
@@ -794,8 +749,9 @@ export default function PanelRendicion({
       {rendicion.gastos.length > 0 && (
         <div className={`mt-6 rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="font-condensed text-lg font-bold tracking-tight text-tinta">
-              2 · Revisar y corregir
+            <p className="flex items-center gap-2.5 text-sm font-bold text-tinta">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-naranjo text-[11px] font-bold text-white">2</span>
+              {yaCargada ? "Comprobantes" : "Revisar y corregir"}
             </p>
             {/* Todo lo demás agrupado a la derecha: con cuatro elementos sueltos,
                 justify-between los repartía a lo ancho y el estado del guardado
@@ -853,7 +809,7 @@ export default function PanelRendicion({
           </div>
           <p className="mt-1 max-w-[70ch] text-xs text-pretty text-tinta/55">
             El neto y el IVA se calculan desde el total impreso según el tipo de documento. Lo que corrijas
-            aquí es exactamente lo que se carga a Odoo.
+            aquí es exactamente lo que se rinde.
           </p>
 
           {/* Una tarjeta por gasto, en vez de una tabla de 1100px con scroll
@@ -996,9 +952,8 @@ export default function PanelRendicion({
                             disabled={yaCargada}
                             onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
                           />
-                          {/* Se avisa al escribirlo, no al cargar: Odoo valida el
-                          dígito verificador y rechaza el proveedor recién en la
-                          carga, cuando ya hay gastos creados. */}
+                          {/* Se avisa al escribirlo: un RUT con el dígito verificador
+                          malo es casi siempre un error de lectura del comprobante. */}
                           {rutMalo && (
                             <span className="mt-1 block text-[10px] leading-tight text-red-600">
                               El dígito verificador no calza
@@ -1130,16 +1085,17 @@ export default function PanelRendicion({
               {generandoExcel && <RuedaCarga />}
               {generandoExcel ? "Generando planilla..." : "Descargar Excel"}
             </button>
-            {!yaCargada && (
+            {puedeEnviar && (
               <button
                 type="button"
-                onClick={irAOdoo}
-                disabled={yendoAOdoo || rendicion.gastos.length === 0}
-                aria-busy={yendoAOdoo}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-tinta px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-crema transition hover:bg-tinta/85 disabled:cursor-progress disabled:opacity-40 sm:w-auto sm:py-2"
+                onClick={enviar}
+                disabled={enviando || rendicion.gastos.length === 0 || pendientes.length > 0}
+                aria-busy={enviando}
+                title={pendientes.length > 0 ? "Confirma primero los datos marcados" : undefined}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-naranjo px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-naranjo-suave disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto sm:w-auto sm:py-2"
               >
-                {yendoAOdoo && <RuedaCarga />}
-                {yendoAOdoo ? "Guardando cambios..." : "Continuar a Odoo →"}
+                {enviando && <RuedaCarga />}
+                {enviando ? "Enviando..." : "Enviar a revisión →"}
               </button>
             )}
           </div>

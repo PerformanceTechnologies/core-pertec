@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
-import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
+import { esEditable, puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { guardarGastos, obtenerRendicion } from "@/lib/rendidor/datos";
 import type { GastoRendicion } from "@/lib/rendidor/tipos";
 
@@ -20,12 +20,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Rendición no encontrada." }, { status: 404 });
   }
   // Cada quien edita lo suyo; un admin puede corregir cualquiera.
-  if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)) {
+  if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol, rendicion.rindeCorreo, acceso.usuario.correo)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
-  if (rendicion.estado === "cargada_odoo") {
+  // Enviada, aprobada o pagada: los gastos quedan congelados mientras otro los revisa.
+  if (!esEditable(rendicion.estado)) {
     return NextResponse.json(
-      { error: "Esta rendición ya se cargó a Odoo: los gastos quedan congelados." },
+      { error: "Esta rendición ya se envió a revisión: los gastos quedan congelados. Retírala para corregir." },
       { status: 409 },
     );
   }

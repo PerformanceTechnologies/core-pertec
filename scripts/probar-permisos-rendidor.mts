@@ -21,6 +21,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
+  accionesPosibles,
+  esEditable,
+  problemasParaEnviar,
+  saldoRendicion,
   puedeAbrirRendicion,
   puedeVerRendicionesAjenas,
   ROLES_RENDIDOR,
@@ -96,8 +100,7 @@ function rutasDeApi(dir: string): string[] {
 const sinChequeo: string[] = [];
 for (const ruta of rutasDeApi(raiz)) {
   const codigo = readFileSync(ruta, "utf8");
-  // Solo las que LEEN una rendición concreta: las de catálogo (empleados,
-  // proveedores, fondos) no tienen dueño que comprobar.
+  // Solo las que LEEN una rendición concreta.
   if (!codigo.includes("obtenerRendicion(")) continue;
   if (!codigo.includes("puedeAbrirRendicion(")) sinChequeo.push(ruta.replace(raiz, ""));
 }
@@ -111,7 +114,6 @@ assert.deepEqual(
 // Y lo mismo del lado de las páginas y las acciones.
 for (const archivo of [
   "../app/(protegido)/rendir-gastos/[id]/page.tsx",
-  "../app/(protegido)/rendir-gastos/[id]/odoo/page.tsx",
   "../app/(protegido)/rendir-gastos/acciones.ts",
 ]) {
   const codigo = readFileSync(new URL(archivo, import.meta.url), "utf8");
@@ -139,7 +141,7 @@ assert.ok(
     "cuenta, que es como las dos interpretaciones se separan con el tiempo",
 );
 assert.ok(
-  /\.eq\("creado_por", quien\.usuarioId\)/.test(datos),
+  /consulta\.or\(`creado_por\.eq\.\$\{quien\.usuarioId\},rinde_correo\.eq\.\$\{correo\}`\)/.test(datos),
   "el filtro sigue yendo en la CONSULTA y no sobre el resultado: filtrar después trae las " +
     "rendiciones de toda la empresa a memoria para descartarlas",
 );
@@ -168,6 +170,31 @@ assert.ok(
   /app\.slug === "rendir-gastos"/.test(formulario) && /ROLES_RENDIDOR/.test(formulario),
   "sin el selector en Usuarios el rol existe pero nadie puede asignarlo",
 );
+
+// ── El ciclo sin Odoo: quién puede hacer qué en cada estado ───────────────
+
+assert.deepEqual(accionesPosibles({ estado: "borrador", esMia: true }, false, false), ["enviar"]);
+assert.deepEqual(accionesPosibles({ estado: "rechazada", esMia: true }, false, false), ["enviar"]);
+assert.deepEqual(accionesPosibles({ estado: "enviada", esMia: true }, false, false), ["retirar"]);
+assert.deepEqual(accionesPosibles({ estado: "enviada", esMia: false }, true, false), ["aprobar", "rechazar"]);
+// Un administrador de gastos no se aprueba a sí mismo; el admin del Core sí puede.
+assert.deepEqual(accionesPosibles({ estado: "enviada", esMia: true }, true, false), ["retirar"]);
+assert.deepEqual(accionesPosibles({ estado: "enviada", esMia: true }, true, true), ["retirar", "aprobar", "rechazar"]);
+assert.deepEqual(accionesPosibles({ estado: "aprobada", esMia: false }, true, false), ["pagar", "reabrir"]);
+assert.deepEqual(accionesPosibles({ estado: "aprobada", esMia: true }, false, false), []);
+assert.deepEqual(accionesPosibles({ estado: "pagada", esMia: false }, true, true), []);
+assert.deepEqual(accionesPosibles({ estado: "cargada_odoo", esMia: true }, true, true), [], "las históricas de Odoo no se mueven");
+assert.ok(esEditable("borrador") && esEditable("rechazada"));
+assert.ok(!esEditable("enviada") && !esEditable("aprobada") && !esEditable("pagada") && !esEditable("cargada_odoo"));
+
+const g = (x: Partial<{ total: number; pendientes: string[]; proveedor: string }>) => ({ total: 1000, pendientes: [], proveedor: "Copec", ...x });
+assert.deepEqual(problemasParaEnviar([g({})]), []);
+assert.equal(problemasParaEnviar([]).length, 1);
+assert.match(problemasParaEnviar([g({ pendientes: ["fecha"] })]).join(" "), /por confirmar/);
+assert.match(problemasParaEnviar([g({ total: 0 })]).join(" "), /total/);
+assert.match(problemasParaEnviar([g({ proveedor: " " })]).join(" "), /proveedor/);
+assert.equal(saldoRendicion(120000, 100000), 20000, "gastó más: se le reembolsa");
+assert.equal(saldoRendicion(80000, 100000), -20000, "sobró: lo reintegra");
 
 console.log(
   "Permisos de Rendir Gastos: la regla en un solo lugar, el rol por omisión sin ampliar nada, " +

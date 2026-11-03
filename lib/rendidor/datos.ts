@@ -5,100 +5,125 @@ import type { EstadoRendicion, GastoRendicion, Rendicion, ResumenRendicion } fro
 // Capa de datos de las rendiciones. Los gastos van como jsonb embebido porque
 // se editan siempre en bloque desde la tabla de revision (el rendidor corrige
 // varias filas y guarda), nunca de a uno.
+//
+// Todo el ciclo vive acá: crear, enviar a revisión, aprobar o rechazar, y pagar.
+// Ya no se carga nada a Odoo.
 
 interface FilaRendicion {
   id: string;
   nombre_quien_rinde: string;
+  rinde_correo: string | null;
   monto_asignado: number | string;
   titulo_rendicion: string;
   estado: EstadoRendicion;
   empresa_company_id: number;
-  odoo_employee_id: number | null;
   gastos: GastoRendicion[];
   creado_por: string | null;
   creado_en: string;
+  enviada_en: string | null;
+  revisada_por: string | null;
+  revisada_en: string | null;
+  motivo_rechazo: string | null;
+  pagada_por: string | null;
+  pagada_en: string | null;
+  nota_pago: string | null;
 }
 
 interface FilaResumen {
   id: string;
   creado_por: string | null;
+  rinde_correo: string | null;
   nombre_quien_rinde: string;
   monto_asignado: number | string;
   titulo_rendicion: string;
   estado: EstadoRendicion;
   cantidad_gastos: number | string;
   total_gastos: number | string;
-  odoo_expense_ids: number[] | null;
+  enviada_en: string | null;
+  revisada_en: string | null;
+  motivo_rechazo: string | null;
+  pagada_en: string | null;
   creado_en: string;
 }
 
 const COLUMNAS = `
-  id, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
-  empresa_company_id, odoo_employee_id, gastos, creado_por, creado_en
+  id, nombre_quien_rinde, rinde_correo, monto_asignado, titulo_rendicion, estado,
+  empresa_company_id, gastos, creado_por, creado_en, enviada_en, revisada_por,
+  revisada_en, motivo_rechazo, pagada_por, pagada_en, nota_pago
 `;
 
 function filaARendicion(fila: FilaRendicion): Rendicion {
   return {
     id: fila.id,
     nombreQuienRinde: fila.nombre_quien_rinde,
+    rindeCorreo: fila.rinde_correo,
     montoAsignado: Number(fila.monto_asignado),
     tituloRendicion: fila.titulo_rendicion,
     estado: fila.estado,
     empresaCompanyId: fila.empresa_company_id,
-    odooEmployeeId: fila.odoo_employee_id,
     gastos: fila.gastos ?? [],
     creadoPor: fila.creado_por,
     creadoEn: fila.creado_en,
+    enviadaEn: fila.enviada_en,
+    revisadaPor: fila.revisada_por,
+    revisadaEn: fila.revisada_en,
+    motivoRechazo: fila.motivo_rechazo,
+    pagadaPor: fila.pagada_por,
+    pagadaEn: fila.pagada_en,
+    notaPago: fila.nota_pago,
   };
 }
 
 /**
  * Rendiciones para la pantalla de lista, mas recientes primero.
  *
- * Cada quien ve las suyas y un ADMIN ve todas. No es una comodidad: quien
- * administra tiene que poder revisar lo que rindio otra persona antes de que se
- * cargue a Odoo, y hasta ahora la unica forma era abrir la fila por su URL —el
- * detalle ya dejaba entrar a un admin (ver [id]/page.tsx), la lista no—.
+ * Cada quien ve las suyas —las que creó y las que rinde— y quien administra gastos
+ * ve todas, porque es quien las revisa y aprueba.
  *
  * Lee de la vista `rendiciones_resumen`, que calcula la cantidad de gastos y el
- * total en Postgres. La lista solo muestra esos dos numeros, y traer el jsonb
+ * total en Postgres: la lista solo muestra esos dos numeros, y traer el jsonb
  * `gastos` completo para calcularlos en JS movia cientos de KB por carga.
  */
 export async function listarRendiciones(quien: {
   usuarioId: string;
+  correo: string;
   /** Si ve las de toda la empresa. Lo decide puedeVerRendicionesAjenas, no este archivo. */
   verTodas: boolean;
 }): Promise<ResumenRendicion[]> {
   const consulta = supabaseAdmin
     .from("rendiciones_resumen")
     .select(
-      `id, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
-       cantidad_gastos, total_gastos, odoo_expense_ids, creado_por, creado_en`,
+      `id, creado_por, rinde_correo, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
+       cantidad_gastos, total_gastos, enviada_en, revisada_en, motivo_rechazo, pagada_en, creado_en`,
     )
     .order("creado_en", { ascending: false });
 
   // El filtro va en la CONSULTA y no en el resultado: filtrar despues significa
   // traer las rendiciones de toda la empresa a la memoria del servidor para
-  // descartarlas, y el dia que alguien lea `data` antes del filtro, se filtran.
+  // descartarlas.
+  const correo = quien.correo.toLowerCase();
   const { data, error } = await (quien.verTodas
     ? consulta
-    : consulta.eq("creado_por", quien.usuarioId));
+    : consulta.or(`creado_por.eq.${quien.usuarioId},rinde_correo.eq.${correo}`));
 
   // Se propaga el error en vez de devolver [] en silencio: una lista vacia por
-  // fallo de red es indistinguible de "no tienes rendiciones", y eso hace que
-  // alguien empiece una rendicion de cero sobre una que ya existia.
+  // fallo de red es indistinguible de "no tienes rendiciones".
   if (error) throw new Error(`No pudimos cargar las rendiciones: ${error.message}`);
 
   return ((data ?? []) as unknown as FilaResumen[]).map((f) => ({
     id: f.id,
     nombreQuienRinde: f.nombre_quien_rinde,
+    rindeCorreo: f.rinde_correo,
     montoAsignado: Number(f.monto_asignado),
     tituloRendicion: f.titulo_rendicion,
     estado: f.estado,
     cantidadGastos: Number(f.cantidad_gastos),
     totalGastos: Number(f.total_gastos),
-    odooExpenseIds: f.odoo_expense_ids ?? [],
-    esMia: f.creado_por === quien.usuarioId,
+    esMia: f.creado_por === quien.usuarioId || f.rinde_correo?.toLowerCase() === correo,
+    enviadaEn: f.enviada_en,
+    revisadaEn: f.revisada_en,
+    motivoRechazo: f.motivo_rechazo,
+    pagadaEn: f.pagada_en,
     creadoEn: f.creado_en,
   }));
 }
@@ -116,27 +141,22 @@ export async function obtenerRendicion(id: string): Promise<Rendicion | null> {
 
 export interface DatosNuevaRendicion {
   nombreQuienRinde: string;
+  rindeCorreo: string;
   montoAsignado: number;
   tituloRendicion: string;
   empresaCompanyId: number;
-  // El empleado de Odoo se elige desde el inicio, asi que la carga a Odoo ya no
-  // depende de que el nombre escrito a mano coincida con el de la ficha.
-  odooEmployeeId: number;
 }
 
-/** PASO 0 de la skill: los 3 datos iniciales, antes de analizar nada. */
-export async function crearRendicion(
-  datos: DatosNuevaRendicion,
-  usuarioId: string,
-): Promise<Rendicion> {
+/** Los datos iniciales, antes de subir ningún comprobante. */
+export async function crearRendicion(datos: DatosNuevaRendicion, usuarioId: string): Promise<Rendicion> {
   const { data, error } = await supabaseAdmin
     .from("rendiciones")
     .insert({
       nombre_quien_rinde: datos.nombreQuienRinde.trim(),
+      rinde_correo: datos.rindeCorreo.toLowerCase(),
       monto_asignado: datos.montoAsignado,
       titulo_rendicion: datos.tituloRendicion.trim(),
       empresa_company_id: datos.empresaCompanyId,
-      odoo_employee_id: datos.odooEmployeeId,
       creado_por: usuarioId,
       gastos: [],
     })
@@ -157,29 +177,73 @@ export async function guardarGastos(id: string, gastos: GastoRendicion[]): Promi
   if (error) throw new Error(`No pudimos guardar los gastos: ${error.message}`);
 }
 
-/**
- * Marca la rendición como cargada y deja la trazabilidad: el empleado de Odoo y
- * los ids de hr.expense y res.partner de cada gasto.
- */
-export async function marcarCargadaOdoo(
-  id: string,
-  odooEmployeeId: number,
-  gastos: GastoRendicion[],
-): Promise<void> {
+/** Cambia los datos de cabecera (título y fondo) mientras se puede editar. */
+export async function actualizarCabecera(id: string, d: { tituloRendicion: string; montoAsignado: number }): Promise<void> {
   const { error } = await supabaseAdmin
     .from("rendiciones")
-    .update({
-      estado: "cargada_odoo",
-      odoo_employee_id: odooEmployeeId,
-      gastos,
-      actualizado_en: new Date().toISOString(),
-    })
+    .update({ titulo_rendicion: d.tituloRendicion.trim(), monto_asignado: d.montoAsignado, actualizado_en: new Date().toISOString() })
     .eq("id", id);
+  if (error) throw new Error(`No pudimos guardar la rendición: ${error.message}`);
+}
 
-  if (error) throw new Error(`No pudimos marcar la rendición como cargada: ${error.message}`);
+/**
+ * Pasa una rendición de un estado a otro, solo si sigue en el estado `desde`.
+ *
+ * La condición va en el UPDATE: si dos personas aprietan a la vez (quien rinde la retira
+ * y quien revisa la aprueba), gana la primera y la segunda no pisa nada. Devuelve false
+ * si ya no estaba en `desde`.
+ */
+export async function cambiarEstado(
+  id: string,
+  desde: EstadoRendicion[],
+  hacia: EstadoRendicion,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("rendiciones")
+    .update({ estado: hacia, ...extra, actualizado_en: new Date().toISOString() })
+    .eq("id", id)
+    .in("estado", desde)
+    .select("id");
+  if (error) throw new Error(`No pudimos actualizar la rendición: ${error.message}`);
+  return (data?.length ?? 0) > 0;
 }
 
 export async function eliminarRendicion(id: string): Promise<void> {
   const { error } = await supabaseAdmin.from("rendiciones").delete().eq("id", id);
   if (error) throw new Error(`No pudimos eliminar la rendición: ${error.message}`);
+}
+
+/** Las personas activas del Core, para elegir quién rinde. */
+export async function listarPersonas(): Promise<{ correo: string; nombre: string }[]> {
+  const { data, error } = await supabaseAdmin.from("usuarios").select("correo, nombre").eq("activo", true);
+  if (error) throw new Error(`No pudimos leer los usuarios: ${error.message}`);
+  return (data ?? [])
+    .map((u) => ({ correo: (u.correo as string).toLowerCase(), nombre: (u.nombre as string | null) || (u.correo as string).split("@")[0] }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * Los correos de quienes revisan rendiciones: el admin del Core y quien tenga el rol
+ * «Administrador de gastos» en la app. A ellos les llega el aviso de una enviada.
+ */
+export async function correosRevisores(): Promise<string[]> {
+  const [{ data: admins }, { data: app }] = await Promise.all([
+    supabaseAdmin.from("usuarios").select("correo").eq("activo", true).eq("rol", "admin"),
+    supabaseAdmin.from("aplicaciones").select("id").eq("slug", "rendir-gastos").maybeSingle(),
+  ]);
+  const correos = new Set((admins ?? []).map((u) => (u.correo as string).toLowerCase()));
+  if (app) {
+    const { data: conRol } = await supabaseAdmin
+      .from("usuario_aplicaciones")
+      .select("usuario_id")
+      .eq("aplicacion_id", app.id)
+      .eq("rol_extra", "admin");
+    const ids = (conRol ?? []).map((f) => f.usuario_id as string);
+    if (ids.length > 0) {
+      const { data: usuarios } = await supabaseAdmin.from("usuarios").select("correo").eq("activo", true).in("id", ids);
+      for (const u of usuarios ?? []) correos.add((u.correo as string).toLowerCase());
+    }
+  }
+  return [...correos];
 }

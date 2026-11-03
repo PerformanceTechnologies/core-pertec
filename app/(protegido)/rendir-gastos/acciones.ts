@@ -3,45 +3,84 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
-import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
-import { crearRendicion, eliminarRendicion, obtenerRendicion } from "@/lib/rendidor/datos";
-import { obtenerEmpleado } from "@/lib/rendidor/odoo";
+import {
+  accionesPosibles,
+  esEditable,
+  problemasParaEnviar,
+  puedeAbrirRendicion,
+  puedeVerRendicionesAjenas,
+  type AccionRendicion,
+} from "@/lib/permisos-rendidor";
+import {
+  actualizarCabecera,
+  cambiarEstado,
+  correosRevisores,
+  crearRendicion,
+  eliminarRendicion,
+  listarPersonas,
+  obtenerRendicion,
+} from "@/lib/rendidor/datos";
 import { borrarRespaldosDeRendicion } from "@/lib/rendidor/almacenamiento";
+import { crearNotificacion } from "@/lib/buzon";
+import type { Rendicion } from "@/lib/rendidor/tipos";
 
+export type Resultado = { ok: true } | { ok: false; error: string };
 
-// PASO 0 de la skill: los 3 datos iniciales (quién rinde, monto asignado,
-// título), antes de analizar ningún comprobante.
+const fallo = (e: unknown): { ok: false; error: string } => ({
+  ok: false,
+  error: e instanceof Error ? e.message : "Ocurrió un error inesperado.",
+});
+
+const money = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
+const totalDe = (r: Rendicion) => r.gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
+
+/** Si la rendición es de esta persona: la creó o es quien rinde. */
+const esMia = (r: Rendicion, usuario: { id: string; correo: string }) =>
+  r.creadoPor === usuario.id || r.rindeCorreo?.toLowerCase() === usuario.correo.toLowerCase();
+
+/** Avisos personales a la campana. Si el buzón falla, la acción igual quedó hecha. */
+async function avisar(para: string[], actor: string, r: Rendicion, tipo: string, titulo: string, cuerpo?: string, severidad: "info" | "alerta" = "info") {
+  const marca = Date.now();
+  await Promise.all(
+    [...new Set(para.map((c) => c.toLowerCase()))]
+      .filter((c) => c && c !== actor.toLowerCase())
+      .map((destinatario) =>
+        crearNotificacion({
+          modulo: "rendir-gastos",
+          tipo,
+          titulo,
+          cuerpo,
+          enlace: `/rendir-gastos/${r.id}`,
+          severidad,
+          clave: `rendicion:${r.id}:${tipo}:${destinatario}:${marca}`,
+          destinatario,
+        }).catch(() => false),
+      ),
+  );
+}
+
+// ---------- Crear y editar -----------------------------------------------------
+
 export async function crearRendicionAction(form: FormData) {
-  const { usuario } = await exigirAccesoRendidor();
+  const { usuario, rol } = await exigirAccesoRendidor();
 
-  const tituloRendicion = String(form.get("tituloRendicion") ?? "").trim();
-  const montoAsignado = Number(form.get("montoAsignado") ?? 0) || 0;
-  const empresaCompanyId = Number(form.get("empresaCompanyId") ?? 1) || 1;
-  const odooEmployeeId = Number(form.get("odooEmployeeId") ?? 0) || 0;
+  const tituloRendicion = String(form.get("tituloRendicion") ?? "").trim().slice(0, 200);
+  const montoAsignado = Math.max(0, Math.round(Number(form.get("montoAsignado") ?? 0) || 0));
+  const empresaCompanyId = Number(form.get("empresaCompanyId") ?? 1) === 2 ? 2 : 1;
+  if (!tituloRendicion) throw new Error("El título de la rendición es obligatorio.");
 
-  if (!tituloRendicion) {
-    throw new Error("El título de la rendición es obligatorio.");
-  }
-  if (!odooEmployeeId) {
-    throw new Error("Hay que elegir a quién rinde, de la ficha de empleados de Odoo.");
-  }
-
-  // El NOMBRE se lee de Odoo por id, no se toma del formulario. Así el nombre
-  // guardado es siempre el de la ficha del empleado — que es el que se usa en la
-  // planilla y en el gasto — y además valida que el id exista de verdad.
-  const empleado = await obtenerEmpleado(odooEmployeeId);
-  if (!empleado) {
-    throw new Error(`El empleado ${odooEmployeeId} no existe en Odoo.`);
+  // Quien rinde: uno mismo, o —si administra gastos— otra persona del Core.
+  let rinde = { correo: usuario.correo.toLowerCase(), nombre: usuario.nombre || usuario.correo.split("@")[0] };
+  const pedido = String(form.get("rindeCorreo") ?? "").trim().toLowerCase();
+  if (pedido && pedido !== rinde.correo) {
+    if (!puedeVerRendicionesAjenas(usuario.rol, rol)) throw new Error("Solo quien administra gastos puede crear una rendición a nombre de otra persona.");
+    const persona = (await listarPersonas()).find((p) => p.correo === pedido);
+    if (!persona) throw new Error("Esa persona no es un usuario activo del Core.");
+    rinde = persona;
   }
 
   const rendicion = await crearRendicion(
-    {
-      nombreQuienRinde: empleado.name,
-      tituloRendicion,
-      montoAsignado,
-      empresaCompanyId,
-      odooEmployeeId,
-    },
+    { nombreQuienRinde: rinde.nombre, rindeCorreo: rinde.correo, tituloRendicion, montoAsignado, empresaCompanyId },
     usuario.id,
   );
 
@@ -49,48 +88,114 @@ export async function crearRendicionAction(form: FormData) {
   redirect(`/rendir-gastos/${rendicion.id}`);
 }
 
-export type ResultadoBorrado = { ok: true } | { ok: false; error: string };
+export async function actualizarCabeceraAction(id: string, datos: { tituloRendicion: string; montoAsignado: number }): Promise<Resultado> {
+  try {
+    const { usuario, rol } = await exigirAccesoRendidor();
+    const r = await obtenerRendicion(id);
+    if (!r || !puedeAbrirRendicion(r.creadoPor, usuario.id, usuario.rol, rol, r.rindeCorreo, usuario.correo)) return { ok: false, error: "No encontramos esa rendición." };
+    if (!esEditable(r.estado)) return { ok: false, error: "La rendición ya no se puede editar." };
+    const titulo = datos.tituloRendicion.trim().slice(0, 200);
+    if (!titulo) return { ok: false, error: "El título no puede quedar vacío." };
+    await actualizarCabecera(id, { tituloRendicion: titulo, montoAsignado: Math.max(0, Math.round(Number(datos.montoAsignado) || 0)) });
+    revalidatePath(`/rendir-gastos/${id}`);
+    revalidatePath("/rendir-gastos");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- El ciclo: enviar, retirar, aprobar, rechazar, pagar, reabrir --------
 
 /**
- * Borra una rendición, en cualquier estado.
- *
- * Una rendición cargada TAMBIÉN se puede borrar, pero conviene tener claro qué
- * pasa y qué no: los hr.expense que se crearon en Odoo NO se borran — el wrapper
- * de Odoo del core es create-only — y con la rendición se va la única traza local
- * de cuáles fueron. Por eso la confirmación en la UI muestra los ids antes de
- * borrar, para poder anotarlos y limpiarlos a mano en Odoo si hace falta.
- *
- * Devuelve el resultado en vez de lanzar: una excepción en una Server Action
- * llega al cliente como un digest opaco, y acá el motivo del rechazo es
- * justamente lo que hay que mostrarle a quien rinde.
+ * Una sola puerta para los cambios de estado: valida que la acción esté permitida
+ * para esta persona en el estado actual (accionesPosibles) y deja el rastro.
  */
-export async function eliminarRendicionAction(id: string): Promise<ResultadoBorrado> {
-  const { usuario, rol } = await exigirAccesoRendidor();
+export async function moverRendicionAction(id: string, accion: AccionRendicion, nota?: string): Promise<Resultado> {
+  try {
+    const { usuario, rol } = await exigirAccesoRendidor();
+    const r = await obtenerRendicion(id);
+    const mia = r ? esMia(r, usuario) : false;
+    const revisa = puedeVerRendicionesAjenas(usuario.rol, rol);
+    if (!r || (!mia && !revisa)) return { ok: false, error: "No encontramos esa rendición." };
+    if (!accionesPosibles({ estado: r.estado, esMia: mia }, revisa, usuario.rol === "admin").includes(accion)) {
+      return { ok: false, error: "Esa acción no corresponde en el estado actual de la rendición." };
+    }
 
-  const rendicion = await obtenerRendicion(id);
-  // Ya no existe: se trata como éxito para que un doble clic no muestre un
-  // error sobre algo que efectivamente está borrado.
-  if (!rendicion) return { ok: true };
+    const ahora = new Date().toISOString();
+    const yo = usuario.correo.toLowerCase();
+    const quien = usuario.nombre ?? usuario.correo;
+    const total = money(totalDe(r));
+    const dueno = r.rindeCorreo ? [r.rindeCorreo] : [];
+    let hecho = false;
 
-  if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol)) {
-    return { ok: false, error: "No puedes borrar una rendición de otra persona." };
+    switch (accion) {
+      case "enviar": {
+        const problemas = problemasParaEnviar(r.gastos);
+        if (problemas.length) return { ok: false, error: problemas.join(" ") };
+        hecho = await cambiarEstado(id, ["borrador", "rechazada"], "enviada", { enviada_en: ahora, motivo_rechazo: null, revisada_por: null, revisada_en: null });
+        if (hecho) await avisar(await correosRevisores(), yo, r, "enviada", `Rendición por revisar: ${r.tituloRendicion}`, `${r.nombreQuienRinde} · ${total}`, "alerta");
+        break;
+      }
+      case "retirar":
+        hecho = await cambiarEstado(id, ["enviada"], "borrador", { enviada_en: null });
+        break;
+      case "aprobar":
+        hecho = await cambiarEstado(id, ["enviada"], "aprobada", { revisada_por: yo, revisada_en: ahora, motivo_rechazo: null });
+        if (hecho) await avisar(dueno, yo, r, "aprobada", `Aprobaron tu rendición: ${r.tituloRendicion}`, `Por ${quien} · ${total}`);
+        break;
+      case "rechazar": {
+        const motivo = (nota ?? "").trim().slice(0, 1000);
+        if (!motivo) return { ok: false, error: "Escribe el motivo del rechazo: es lo que quien rinde tiene que corregir." };
+        hecho = await cambiarEstado(id, ["enviada"], "rechazada", { revisada_por: yo, revisada_en: ahora, motivo_rechazo: motivo });
+        if (hecho) await avisar(dueno, yo, r, "rechazada", `Rechazaron tu rendición: ${r.tituloRendicion}`, motivo, "alerta");
+        break;
+      }
+      case "pagar":
+        hecho = await cambiarEstado(id, ["aprobada"], "pagada", { pagada_por: yo, pagada_en: ahora, nota_pago: (nota ?? "").trim().slice(0, 500) || null });
+        if (hecho) await avisar(dueno, yo, r, "pagada", `Se pagó tu rendición: ${r.tituloRendicion}`, nota?.trim() || undefined);
+        break;
+      case "reabrir":
+        hecho = await cambiarEstado(id, ["aprobada"], "enviada", { revisada_por: null, revisada_en: null });
+        break;
+    }
+
+    if (!hecho) return { ok: false, error: "La rendición cambió mientras tanto. Recarga la página." };
+    revalidatePath(`/rendir-gastos/${id}`);
+    revalidatePath("/rendir-gastos");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
   }
+}
 
-  // Queda en el log del servidor: es lo unico que sobrevive al borrado y sirve
-  // para rastrear gastos huerfanos en Odoo despues.
-  const idsOdoo = rendicion.gastos.map((g) => g.odooExpenseId).filter(Boolean);
-  if (idsOdoo.length > 0) {
-    console.warn(
-      `[rendidor] Se borra la rendición "${rendicion.tituloRendicion}" (${id}), ya cargada. ` +
-        `Los hr.expense ${idsOdoo.join(", ")} siguen en Odoo.`,
-    );
+// ---------- Borrar ---------------------------------------------------------------
+
+/**
+ * Borra una rendición con sus comprobantes.
+ *
+ * Quien rinde borra la suya mientras está en sus manos (borrador o rechazada); una ya
+ * enviada, aprobada o pagada solo la borra quien administra gastos, porque ya es parte
+ * de la contabilidad. Las históricas de Odoo, lo mismo.
+ */
+export async function eliminarRendicionAction(id: string): Promise<Resultado> {
+  try {
+    const { usuario, rol } = await exigirAccesoRendidor();
+    const r = await obtenerRendicion(id);
+    // Ya no existe: éxito, para que un doble clic no muestre un error.
+    if (!r) return { ok: true };
+    const revisa = puedeVerRendicionesAjenas(usuario.rol, rol);
+    const mia = esMia(r, usuario);
+    if (!mia && !revisa) return { ok: false, error: "No puedes borrar una rendición de otra persona." };
+    if (!revisa && !esEditable(r.estado)) {
+      return { ok: false, error: "Ya se envió a revisión: retírala primero, o pide a quien administra gastos que la borre." };
+    }
+    // Los respaldos primero: si se borrara la fila antes, los archivos quedarían huérfanos.
+    await borrarRespaldosDeRendicion(id);
+    await eliminarRendicion(id);
+    revalidatePath("/rendir-gastos");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
   }
-
-  // Los respaldos primero: si se borrara la fila antes, los archivos quedarian
-  // huerfanos en el bucket sin nada que los referencie.
-  await borrarRespaldosDeRendicion(id);
-
-  await eliminarRendicion(id);
-  revalidatePath("/rendir-gastos");
-  return { ok: true };
 }

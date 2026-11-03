@@ -3,7 +3,6 @@ import { verificarAccesoRendidorApi } from "@/lib/rendidor/permisos";
 import { puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { construirLibroRendicion, nombreArchivoRendicion, type RespaldoParaExcel } from "@/lib/rendidor/excel";
-import { adjuntarArchivoAGasto } from "@/lib/rendidor/odoo";
 import { descargarRespaldo } from "@/lib/rendidor/almacenamiento";
 import { miniaturaParaExcel } from "@/lib/rendidor/miniatura";
 import { paginasComoImagen } from "@/lib/rendidor/pdf-a-imagen";
@@ -20,10 +19,7 @@ export const maxDuration = 60;
 // el tope de ~4,5 MB del body de Vercel— y solo funcionaba si los archivos
 // seguían en memoria de esa pestaña. Ahora una rendición recuperada más tarde
 // exporta la planilla igual.
-//
-// Dos modos:
-//   sin `expenseId`  → devuelve el .xlsx para descargar
-//   con `expenseId`  → lo adjunta a ese hr.expense en Odoo y devuelve JSON
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const acceso = await verificarAccesoRendidorApi();
   if (!acceso.usuario) {
@@ -40,9 +36,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Esta comprobación FALTABA, y sus tres rutas hermanas (gastos, cargar,
     // analizar) siempre la tuvieron. Sin ella, cualquiera con la app podía pedir
     // el id de otra persona y bajarse su planilla COMPLETA, con las boletas y
-    // facturas embebidas; y pasando `expenseId`, adjuntarla a un hr.expense
-    // arbitrario de Odoo.
-    if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol)) {
+    // facturas embebidas.
+    if (!puedeAbrirRendicion(rendicion.creadoPor, acceso.usuario.id, acceso.usuario.rol, acceso.rol, rendicion.rindeCorreo, acceso.usuario.correo)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
     if (rendicion.gastos.length === 0) {
@@ -51,8 +46,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { status: 400 },
       );
     }
-
-    const cuerpo = (await request.json().catch(() => ({}))) as { expenseId?: number };
 
     // Los respaldos se bajan y comprimen en paralelo: son N descargas del bucket
     // más N conversiones con sharp, y en serie una rendición de 16 comprobantes
@@ -94,22 +87,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const libro = await construirLibroRendicion(rendicion, respaldos);
     const nombre = nombreArchivoRendicion(rendicion);
-
-    const expenseId = Number(cuerpo.expenseId);
-    if (expenseId) {
-      const attachmentId = await adjuntarArchivoAGasto(
-        expenseId,
-        nombre,
-        libro,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      );
-      return NextResponse.json({
-        attachmentId,
-        nombre,
-        // Cuántos gastos quedaron sin imagen: se informa, no se oculta.
-        sinRespaldo: rendicion.gastos.length - respaldos.length,
-      });
-    }
 
     return new NextResponse(new Uint8Array(libro), {
       headers: {

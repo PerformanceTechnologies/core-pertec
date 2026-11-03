@@ -94,10 +94,17 @@ const rendicion: Rendicion = {
   tituloRendicion: "Operación Antofagasta — prueba",
   estado: "borrador",
   empresaCompanyId: 1,
-  odooEmployeeId: null,
+  rindeCorreo: null,
   gastos,
   creadoPor: null,
   creadoEn: new Date().toISOString(),
+  enviadaEn: null,
+  revisadaPor: null,
+  revisadaEn: null,
+  motivoRechazo: null,
+  pagadaPor: null,
+  pagadaEn: null,
+  notaPago: null,
 };
 
 // El tercer gasto queda deliberadamente SIN imagen, para verificar que la ficha

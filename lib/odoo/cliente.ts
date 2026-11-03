@@ -123,7 +123,7 @@ export async function odooSearchRead<T = Record<string, unknown>>(
  * esta en la lista que expone el MCP— y armar un create adivinando nombres de campo es
  * exactamente como se rompen las integraciones: falla en produccion, con un traceback de
  * Python, y recien ahi se descubre que el campo se llamaba de otra forma. Con esto se
- * pregunta primero y se manda solo lo que existe (ver lib/rendidor/fondos.ts).
+ * pregunta primero y se manda solo lo que existe.
  */
 export async function odooCampos(
   model: string,
