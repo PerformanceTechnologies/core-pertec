@@ -29,6 +29,7 @@ export default function VentanaModal({
   descripcion,
   ancho = "max-w-2xl",
   variante = "estandar",
+  icono,
   children,
 }: {
   abierta: boolean;
@@ -42,6 +43,8 @@ export default function VentanaModal({
    * es la de siempre: el resto del Core no cambia.
    */
   variante?: "estandar" | "hoja";
+  /** Un ícono a la izquierda del título (solo en la variante «hoja»). */
+  icono?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const cerrar = useRef<HTMLButtonElement>(null);
@@ -85,7 +88,8 @@ export default function VentanaModal({
     >
       <div className={`my-auto w-full ${ancho} bg-superficie ${hoja ? "rounded-[28px] border border-borde/60 shadow-[0_24px_64px_-12px_rgba(23,20,17,0.35)]" : "rounded-2xl shadow-2xl"}`}>
         <div className={`flex items-start gap-3 ${hoja ? "px-5 pb-1 pt-4" : "border-b border-borde px-5 py-4"}`}>
-          <div className="min-w-0 flex-1">
+          {hoja && icono}
+          <div className={`min-w-0 flex-1 ${hoja && icono ? "self-center" : ""}`}>
             <h2 className={hoja ? "text-[17px] font-bold tracking-tight text-tinta" : "titular text-base text-azul"}>{titulo}</h2>
             {descripcion && <p className="mt-0.5 text-xs text-gris">{descripcion}</p>}
           </div>

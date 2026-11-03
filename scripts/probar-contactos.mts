@@ -8,6 +8,7 @@ import {
   contactosDesdeOdoo,
   faltantesParaFacturar,
   correoMinuscula,
+  empresaRapida,
   iniciales,
   listoParaFacturar,
   nombrePropio,
@@ -82,6 +83,24 @@ assert.ok(coincideBusqueda(c, "las condes"));
 assert.ok(!coincideBusqueda(c, "antofagasta"));
 assert.ok(pasaFiltro(c, "clientes") && !pasaFiltro(c, "proveedores") && !pasaFiltro(c, "por_completar"));
 assert.ok(pasaFiltro({ ...c, activo: false }, "archivados") && !pasaFiltro({ ...c, activo: false }, "todos"));
+
+// ---------- Empresa rápida (al agregar una persona) ---------------------------------
+
+const rapida = empresaRapida("MINERA LOS ROBLES SPA", "76.086.428-5", { esCliente: false, esProveedor: true });
+assert.ok(typeof rapida !== "string");
+if (typeof rapida !== "string") {
+  assert.equal(rapida.razonSocial, "Minera Los Robles SpA");
+  assert.equal(rapida.rut, "76086428-5");
+  assert.equal(rapida.tipoPersona, "empresa");
+  assert.ok(rapida.esProveedor && !rapida.esCliente, "hereda la relación de la persona");
+  assert.equal(rapida.giro, null, "el resto se completa después");
+  assert.ok(!listoParaFacturar(rapida), "queda por completar");
+}
+const sinRelacion = empresaRapida("Los Robles", "", { esCliente: false, esProveedor: false });
+assert.ok(typeof sinRelacion !== "string" && sinRelacion.esCliente && sinRelacion.rut === null, "sin RUT vale; sin relación es cliente");
+assert.match(String(empresaRapida("   ", "", { esCliente: true, esProveedor: false })), /razón social/);
+assert.match(String(empresaRapida("Los Robles", "76.086.428-4", { esCliente: true, esProveedor: false })), /RUT no es válido/);
+assert.match(String(empresaRapida("x".repeat(101), "", { esCliente: true, esProveedor: false })), /100/);
 
 // ---------- Nombre Propio ---------------------------------------------------------
 

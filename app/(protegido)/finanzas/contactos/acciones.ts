@@ -18,6 +18,7 @@ import {
   LARGO,
   comunaOficial,
   correoValido,
+  empresaRapida,
   esTipoContribuyente,
   nombrePropio,
   rutUsable,
@@ -29,6 +30,9 @@ import { normalizarRut } from "@/lib/contratos/rut";
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
 function fallo(e: unknown): { ok: false; error: string } {
+  // Una redirección (la sesión venció: exigirAccesoContactos manda al login) no es un error que
+  // mostrar: se deja pasar para que Next lleve a la persona a /ingresar.
+  if (typeof e === "object" && e !== null && String((e as { digest?: unknown }).digest ?? "").startsWith("NEXT_REDIRECT")) throw e;
   const error = e instanceof Error ? e.message.replace(/^\[contactos\]\s*/, "") : "Ocurrió un error inesperado.";
   return { ok: false, error };
 }
@@ -133,6 +137,31 @@ export async function crearContactoAction(fd: FormData): Promise<Resultado> {
     const id = await crearContacto(d, u.correo);
     refrescar(id);
     return { ok: true, id };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/**
+ * Deja una empresa en la libreta al vuelo, desde el formulario de una persona: solo razón social y,
+ * si se sabe, RUT. Devuelve la empresa para que el formulario la elija enseguida. El resto de sus
+ * datos se completa después en su ficha.
+ */
+export async function crearEmpresaRapidaAction(
+  razonSocial: string,
+  rut: string,
+  esCliente: boolean,
+  esProveedor: boolean,
+): Promise<{ ok: true; empresa: { id: string; razonSocial: string; rut: string | null } } | { ok: false; error: string }> {
+  try {
+    const u = await exigirAccesoContactos();
+    const d = empresaRapida(String(razonSocial ?? ""), String(rut ?? ""), { esCliente: Boolean(esCliente), esProveedor: Boolean(esProveedor) });
+    if (typeof d === "string") return { ok: false, error: d };
+    const duplicado = await rutLibre(d.rut);
+    if (duplicado) return { ok: false, error: duplicado };
+    const id = await crearContacto(d, u.correo);
+    refrescar(id);
+    return { ok: true, empresa: { id, razonSocial: d.razonSocial, rut: d.rut } };
   } catch (e) {
     return fallo(e);
   }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { IconChevronRight, IconSearch, IconUsers } from "@tabler/icons-react";
 import FormularioContacto from "@/components/contactos/FormularioContacto";
-import { Avatar, CAMPO_C, ChipsRol, EstadoFactura, HOJA, Rut } from "@/components/contactos/Visual";
+import { Avatar, CAMPO_C, ChipsRol, EstadoFactura, HOJA, ICONO, IconoTile, Rut, type TonoIcono } from "@/components/contactos/Visual";
 import {
   ETIQUETA_FILTRO,
   coincideBusqueda,
@@ -41,29 +41,31 @@ export default function ListaContactos({
   const empresas = activos.filter((c) => c.tipoPersona === "empresa").map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut }));
   // Solo cuántos hay: cada cifra lleva al filtro correspondiente.
   const cifras = [
-    { etiqueta: "Contactos", emoji: "👥", valor: activos.length, f: "todos" as const, fondo: "bg-sky-500/10" },
-    { etiqueta: "Clientes", emoji: "🤝", valor: activos.filter((c) => c.esCliente).length, f: "clientes" as const, fondo: "bg-emerald-500/10" },
-    { etiqueta: "Proveedores", emoji: "🚚", valor: activos.filter((c) => c.esProveedor).length, f: "proveedores" as const, fondo: "bg-amber-500/12" },
+    { etiqueta: "Contactos", detalle: "en la libreta", Icono: ICONO.contactos, tono: "azul" as TonoIcono, valor: activos.length, f: "todos" as const },
+    { etiqueta: "Clientes", detalle: "les facturamos", Icono: ICONO.clientes, tono: "verde" as TonoIcono, valor: activos.filter((c) => c.esCliente).length, f: "clientes" as const },
+    { etiqueta: "Proveedores", detalle: "nos facturan", Icono: ICONO.proveedores, tono: "ambar" as TonoIcono, valor: activos.filter((c) => c.esProveedor).length, f: "proveedores" as const },
   ];
 
   return (
     <div className="space-y-3">
-      {/* ── Resumen: una tarjeta clara y compacta ── */}
-      <section className={`${HOJA} grid max-w-2xl grid-cols-3 gap-1.5 p-1.5`} aria-label="Resumen de la libreta">
+      {/* ── Resumen: una tarjeta clara que ocupa todo el ancho y se apila bien en el celular ── */}
+      <section className={`${HOJA} grid w-full grid-cols-3 gap-1.5 p-1.5`} aria-label="Resumen de la libreta">
         {cifras.map((m) => (
           <Link
             key={m.etiqueta}
             href={url(m.f)}
-            className={`group flex flex-col items-start gap-1.5 rounded-2xl px-3 py-2.5 transition hover:bg-tinta/[0.04] sm:flex-row sm:items-center sm:gap-3 ${filtro === m.f ? "bg-tinta/[0.04]" : ""}`}
+            aria-current={filtro === m.f ? "true" : undefined}
+            className={`group flex min-w-0 flex-col items-start gap-2 rounded-[18px] px-3 py-3 transition hover:bg-tinta/[0.04] active:scale-[0.99] sm:flex-row sm:items-center sm:gap-3.5 sm:px-5 ${filtro === m.f ? "bg-tinta/[0.05]" : ""}`}
           >
-            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-lg leading-none ${m.fondo}`} aria-hidden>
-              {m.emoji}
-            </span>
+            <IconoTile Icono={m.Icono} tono={m.tono} tamano="grande" />
             <span className="min-w-0">
-              <span className="block font-condensed text-2xl font-bold leading-none tabular-nums text-tinta transition group-hover:text-naranjo">
+              <span className="block font-condensed text-[28px] font-bold leading-none tabular-nums text-tinta transition group-hover:text-naranjo sm:text-4xl">
                 {m.valor.toLocaleString("es-CL")}
               </span>
-              <span className="mt-1 block truncate text-[11px] font-semibold text-gris">{m.etiqueta}</span>
+              <span className="mt-1 block truncate text-xs font-semibold text-gris">
+                {m.etiqueta}
+                <span className="hidden font-normal text-gris-suave lg:inline"> · {m.detalle}</span>
+              </span>
             </span>
           </Link>
         ))}
