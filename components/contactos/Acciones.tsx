@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconArchive, IconArchiveOff, IconCloudDownload, IconPencil, IconStar, IconStarFilled, IconTrash, IconUserPlus } from "@tabler/icons-react";
+import { IconArchive, IconArchiveOff, IconAt, IconBriefcase, IconCloudDownload, IconPencil, IconPhone, IconStar, IconStarFilled, IconTrash, IconUser, IconUserEdit, IconUserPlus } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import RuedaCarga from "@/components/RuedaCarga";
-import { BOTON_C, BOTON_SUAVE_C, CAMPO_C } from "@/components/contactos/Visual";
+import { BOTON_C, BOTON_SUAVE_C, CAMPO_I, ConIcono, IconoTile } from "@/components/contactos/Visual";
 import { LARGO, nombrePropio, type Persona } from "@/lib/contactos-modelo";
 import {
   archivarContactoAction,
@@ -84,36 +84,46 @@ export function FormularioPersona({ contactoId, persona }: { contactoId: string;
         titulo={persona ? "Editar persona" : "Nueva persona"}
         descripcion="Quien recibe la factura en la empresa. La principal sale como «Atención A:»."
         variante="hoja"
+        icono={<IconoTile Icono={persona ? IconUserEdit : IconUserPlus} tono="marca" />}
         ancho="max-w-md"
       >
         <form action={enviar} className="space-y-3">
           <Campo etiqueta="Nombre *">
-            <input
-              name="nombre"
-              required
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              onBlur={() => setNombre(nombrePropio(nombre))}
-              maxLength={LARGO.persona}
-              className={CAMPO_C}
-              placeholder="Ej: María González"
-              autoFocus
-            />
+            <ConIcono Icono={IconUser}>
+              <input
+                name="nombre"
+                required
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                onBlur={() => setNombre(nombrePropio(nombre))}
+                maxLength={LARGO.persona}
+                className={CAMPO_I}
+                placeholder="Ej: María González"
+                autoFocus
+              />
+            </ConIcono>
           </Campo>
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo etiqueta="Cargo">
-              <input name="cargo" defaultValue={persona?.cargo ?? ""} maxLength={80} className={CAMPO_C} placeholder="Ej: Jefa de compras" />
+              <ConIcono Icono={IconBriefcase}>
+                <input name="cargo" defaultValue={persona?.cargo ?? ""} maxLength={80} className={CAMPO_I} placeholder="Ej: Jefa de compras" />
+              </ConIcono>
             </Campo>
             <Campo etiqueta="Teléfono">
-              <input name="telefono" type="tel" defaultValue={persona?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO_C} placeholder="+56 9 1234 5678" />
+              <ConIcono Icono={IconPhone}>
+                <input name="telefono" type="tel" defaultValue={persona?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO_I} placeholder="+56 9 1234 5678" />
+              </ConIcono>
             </Campo>
           </div>
           <Campo etiqueta="Correo">
-            <input name="correo" type="email" defaultValue={persona?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO_C} placeholder="nombre@empresa.cl" />
+            <ConIcono Icono={IconAt}>
+              <input name="correo" type="email" defaultValue={persona?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO_I} placeholder="nombre@empresa.cl" />
+            </ConIcono>
           </Campo>
-          <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-tinta/[0.05] px-3 py-2 text-[13px] font-semibold text-tinta">
-            <input type="checkbox" name="principal" defaultChecked={persona?.principal ?? false} className="h-4 w-4 accent-[var(--color-cian)]" />
-            <span aria-hidden>⭐</span> Contacto principal
+          <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-tinta/[0.05] px-3 py-2.5 text-[13px] font-semibold text-gris transition has-[:checked]:bg-amber-500/15 has-[:checked]:text-tinta has-[:checked]:[&>svg]:text-amber-500 has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-cian/15">
+            <input type="checkbox" name="principal" defaultChecked={persona?.principal ?? false} className="sr-only" />
+            <IconStar size={16} stroke={1.75} aria-hidden /> Contacto principal
+            <span className="ml-auto text-[11px] font-normal text-gris-suave">sale como «Atención A:»</span>
           </label>
           {error && <p className="tono-alerta fondo-tono rounded-xl px-3 py-2 text-sm font-semibold">{error}</p>}
           <div className="flex justify-end gap-2 border-t border-borde/60 pt-3">

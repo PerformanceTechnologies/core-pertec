@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconBuilding, IconCircleCheck, IconUser } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBuilding, IconCircleCheck, IconTruckDelivery, IconUser, IconUserDollar, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { formatearRut } from "@/lib/contratos/rut";
 import { bloqueReceptor, iniciales, type DatosContacto, type DatosPersona, type Faltante } from "@/lib/contactos-modelo";
 
@@ -11,9 +11,61 @@ import { bloqueReceptor, iniciales, type DatosContacto, type DatosPersona, type 
 /** La tarjeta de Contactos: esquinas grandes, borde de un pelo y una sombra suave y alta. */
 export const HOJA = "rounded-[22px] border border-borde/60 bg-superficie shadow-[0_1px_2px_rgba(23,20,17,0.04),0_14px_36px_-18px_rgba(23,20,17,0.18)]";
 
+/**
+ * Los íconos de Contactos: un solo set (Tabler, el del resto del Core), de línea y con el mismo
+ * trazo, en vez de emojis. Se usan igual en el resumen, en los botones Cliente/Proveedor y en la ficha.
+ */
+export const ICONO = { contactos: IconUsersGroup, clientes: IconUserDollar, proveedores: IconTruckDelivery } as const;
+
+/** Degradados de los azulejos de ícono. Todos dejan el glifo blanco a 3:1 o más, también en oscuro. */
+const DEGRADADO = {
+  azul: "from-sky-500 to-blue-600",
+  verde: "from-emerald-500 to-teal-600",
+  ambar: "from-amber-500 to-orange-600",
+  marca: "from-naranjo to-naranjo-suave",
+} as const;
+export type TonoIcono = keyof typeof DEGRADADO;
+
+const TAMANOS = {
+  chico: { caja: "h-7 w-7 rounded-lg", glifo: 15 },
+  medio: { caja: "h-9 w-9 rounded-xl", glifo: 18 },
+  grande: { caja: "h-11 w-11 rounded-[14px]", glifo: 22 },
+} as const;
+
+/** Un ícono dentro de un azulejo con degradado, al estilo de los íconos de app de Apple. */
+export function IconoTile({ Icono, tono, tamano = "medio" }: { Icono: Icon; tono: TonoIcono; tamano?: keyof typeof TAMANOS }) {
+  const t = TAMANOS[tamano];
+  return (
+    <span
+      className={`grid shrink-0 place-items-center bg-linear-to-br text-white shadow-[0_4px_10px_-3px_rgba(23,20,17,0.4)] ${DEGRADADO[tono]} ${t.caja}`}
+      aria-hidden
+    >
+      <Icono size={t.glifo} stroke={1.75} />
+    </span>
+  );
+}
+
+/** Pone un ícono chico a la izquierda de un campo (usar con CAMPO_I). `arriba`: para un textarea. */
+export function ConIcono({ Icono, arriba = false, children }: { Icono: Icon; arriba?: boolean; children: React.ReactNode }) {
+  return (
+    <span className="relative block">
+      <Icono
+        size={16}
+        stroke={1.75}
+        aria-hidden
+        className={`pointer-events-none absolute left-3 text-gris-suave ${arriba ? "top-3" : "top-1/2 -translate-y-1/2"}`}
+      />
+      {children}
+    </span>
+  );
+}
+
 /** El campo: relleno suave, sin borde hasta que se enfoca. 40 px de alto. */
 export const CAMPO_C =
   "min-h-10 w-full rounded-xl border border-transparent bg-tinta/[0.05] px-3 py-2 text-sm text-tinta placeholder:text-gris-suave transition focus:border-cian/60 focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-cian/15 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** El mismo campo con lugar para un ícono a la izquierda (ver ConIcono). */
+export const CAMPO_I = `${CAMPO_C} pl-9`;
 
 const FOCO = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo";
 

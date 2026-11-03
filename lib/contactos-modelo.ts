@@ -264,6 +264,45 @@ export function comunaOficial(texto: string | null | undefined): string | null {
 
 export { regionDeComuna };
 
+/**
+ * Lo mínimo para dejar una empresa en la libreta desde otro formulario (al agregar una persona que
+ * trabaja en una empresa que todavía no existe). Solo pide la razón social; el RUT, si se escribe,
+ * tiene que ser válido. Lo demás (giro, dirección, comuna…) se completa después en su ficha, donde
+ * queda «Por completar». Devuelve los datos listos para guardar, o el mensaje de lo que falta.
+ */
+export function empresaRapida(
+  razonCruda: string,
+  rutCrudo: string,
+  relacion: { esCliente: boolean; esProveedor: boolean },
+): DatosContacto | string {
+  const razonSocial = nombrePropio(razonCruda);
+  if (!razonSocial) return "Escribe la razón social de la empresa.";
+  if (razonSocial.length > LARGO.razonSocial) return `La razón social no puede pasar de ${LARGO.razonSocial} caracteres (límite del SII).`;
+  const rutTexto = rutCrudo.trim();
+  const rut = rutTexto ? normalizarRut(rutTexto) : null;
+  if (rut && !rutUsable(rut)) return "El RUT no es válido: revisa el dígito verificador.";
+  return {
+    rut,
+    tipoPersona: "empresa",
+    razonSocial,
+    giro: null,
+    direccion: null,
+    comuna: null,
+    ciudad: null,
+    pais: "Chile",
+    tipoContribuyente: "primera_categoria",
+    correoDte: null,
+    correo: null,
+    telefono: null,
+    // Hereda la relación de la persona; si no marcó ninguna, es cliente (lo mismo que un contacto nuevo).
+    esCliente: relacion.esCliente || !relacion.esProveedor,
+    esProveedor: relacion.esProveedor,
+    plazoPagoDias: null,
+    notas: null,
+    empresaId: null,
+  };
+}
+
 /** Las iniciales para el avatar: «Minera Carola SpA» → «MC». */
 export function iniciales(nombre: string): string {
   const palabras = nombre
