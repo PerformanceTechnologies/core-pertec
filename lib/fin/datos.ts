@@ -837,3 +837,8 @@ export async function cuentasContables(empresaId: string): Promise<Map<string, s
   const { data } = await supabaseAdmin.from("fin_cuentas_contables").select("codigo, nombre").eq("empresa_id", empresaId);
   return new Map((data ?? []).map((c) => [c.codigo as string, c.nombre as string]));
 }
+
+export async function rutinasHechas(empresaId: string): Promise<Map<string, { por: string | null; en: string }>> {
+  const { data } = await supabaseAdmin.from("fin_rutinas").select("tarea, periodo, hecha_por, hecha_en").eq("empresa_id", empresaId).order("hecha_en", { ascending: false }).limit(500);
+  return new Map((data ?? []).map((r) => [`${r.tarea}|${r.periodo}`, { por: r.hecha_por as string | null, en: r.hecha_en as string }]));
+}

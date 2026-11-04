@@ -72,7 +72,9 @@ export async function guardarCuentaAction(id: string | null, fd: FormData): Prom
     };
     if (id) {
       await exigirDeEmpresa("fin_cuentas", id, ctx.empresa.id);
-      const { error } = await supabaseAdmin.from("fin_cuentas").update(fila).eq("id", id);
+      const cambios: Partial<typeof fila> = { ...fila };
+      if (!numero) delete cambios.numero_enmascarado; // número en blanco al editar = se mantiene el guardado
+      const { error } = await supabaseAdmin.from("fin_cuentas").update(cambios).eq("id", id);
       revienta("guardar la cuenta", error);
     } else {
       const { error } = await supabaseAdmin.from("fin_cuentas").insert(fila);
