@@ -309,8 +309,11 @@ function aParametros(r: any): Parametros & { flags: Record<string, unknown> } {
  * Todo el módulo de una empresa, ya calculado. Son pocas filas por empresa (cientos), así que se
  * lee de una vez y cada pantalla toma lo suyo; React cache evita leerlo dos veces en un pedido.
  */
-export const cargarVista = cache(async (): Promise<VistaFin> => {
-  const { empresa, hoy } = await contextoFin();
+export const cargarVista = cache(async (): Promise<VistaFin> => cargarVistaDe(await contextoFin()));
+
+/** La misma vista para un contexto ya resuelto (route handlers). */
+export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
+  const { empresa, hoy } = ctx;
   const e = empresa.id;
 
   const [
@@ -573,7 +576,7 @@ export const cargarVista = cache(async (): Promise<VistaFin> => {
     operaciones, cesiones, movimientos, partidas, cajaBancos, deudaTarjeta, flujo, dashboard,
     ultimaImportacion: (importacionesR as any[])[0]?.creado_en ?? null,
   };
-});
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ---------- Escritura: auditoría, eventos y numeración --------------------------
@@ -650,4 +653,50 @@ export function montoDe(v: FormDataEntryValue | null): number | null {
   if (!t) return null;
   const x = Number(t);
   return Number.isFinite(x) ? Math.round(x) : null;
+}
+
+/** Liga un movimiento bancario a un cobro/pago: queda «Conciliado con documento». */
+export async function conciliarConMovimiento(empresaId: string, movimientoId: string, tipo: "cobro" | "pago" | "factoring" | "traspaso" | "otro", entidadId: string | null, monto: number, categoriaId: string | null): Promise<void> {
+  const { data: m } = await supabaseAdmin.from("fin_movimientos").select("id, categoria_id").eq("id", movimientoId).eq("empresa_id", empresaId).maybeSingle();
+  if (!m) throw new Error("[fin] Ese movimiento no existe o es de otra empresa.");
+  await supabaseAdmin.from("fin_conciliaciones").insert({ empresa_id: empresaId, movimiento_id: movimientoId, entidad_tipo: tipo, entidad_id: entidadId, monto });
+  await supabaseAdmin
+    .from("fin_movimientos")
+    .update({ tiene_respaldo: true, categoria_id: m.categoria_id ?? categoriaId, actualizado_en: new Date().toISOString() })
+    .eq("id", movimientoId);
+}
+
+/** Lo que el motor contable necesita de la vista (lib/fin/contabilidad.ts). */
+export function entradaContable(v: VistaFin): import("./contabilidad").EntradaContable {
+  const generales = new Set(v.proyectos.filter((p) => p.esGeneral).map((p) => p.id));
+  const tarjetas = new Set(v.cuentas.filter((c) => c.tipo === "tarjeta").map((c) => c.id));
+  const cuentaDeCategoria = new Map(v.categorias.map((c) => [c.id, c.cuentaContable]));
+  return {
+    documentos: v.documentos.map((d) => {
+      const hito = v.hitos.find((h) => d.hitoIds.includes(h.id));
+      const compra = v.compras.find((c) => d.compraIds.includes(c.id));
+      const proyectoId = hito?.proyectoId ?? compra?.proyectoId ?? null;
+      return { ...d, tipoVenta: hito?.tipo ?? null, proyectoId, esGeneral: proyectoId ? generales.has(proyectoId) : true };
+    }),
+    cobros: v.cobros,
+    pagos: v.pagos,
+    operaciones: v.operaciones.map((o) => {
+      const cs = v.cesiones.filter((c) => c.operacionId === o.id);
+      return { ...o, anticipo: cs.reduce((s, c) => s + c.anticipo, 0), costo: o.costoTotal, nominal: cs.reduce((s, c) => s + c.nominal, 0) };
+    }),
+    // Lo conciliado CON documento ya entra por su cobro/pago: acá solo lo que no tiene documento.
+    movimientos: v.movimientos
+      .filter((m) => m.estado === "Conciliado" && m.categoriaId)
+      .map((m) => ({ id: m.id, fecha: m.fecha, glosa: m.glosa, monto: m.monto, cuentaContable: cuentaDeCategoria.get(m.categoriaId!) ?? null, esTarjeta: tarjetas.has(m.cuentaId), proyectoId: m.proyectoId, estado: m.estado })),
+  };
+}
+
+/** Como contextoFin, pero para route handlers: devuelve null en vez de redirigir. */
+export async function contextoFinApi(): Promise<ContextoFin | null> {
+  const { verificarAccesoAppApi } = await import("../autorizacion");
+  const acceso = await verificarAccesoAppApi(SLUG_APP_FIN);
+  if (!acceso.usuario) return null;
+  const { activa } = await contextoDeEmpresa(acceso.usuario.id, acceso.usuario.rol);
+  if (!activa || !EMPRESAS_CON_FINANZAS.includes(activa.slug)) return null;
+  return { usuario: acceso.usuario, empresa: activa, hoy: hoyEnSantiago().iso };
 }
