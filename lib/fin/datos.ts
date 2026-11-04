@@ -700,3 +700,110 @@ export async function contextoFinApi(): Promise<ContextoFin | null> {
   if (!activa || !EMPRESAS_CON_FINANZAS.includes(activa.slug)) return null;
   return { usuario: acceso.usuario, empresa: activa, hoy: hoyEnSantiago().iso };
 }
+
+// ---------- Comercial (oportunidades y cotizaciones) ---------------------------------
+
+export interface Oportunidad {
+  id: string;
+  codigo: string;
+  nombre: string;
+  clienteId: string | null;
+  proyectoId: string | null;
+  tipo: string;
+  etapa: string;
+  montoEstimado: number;
+  probabilidad: number;
+  fechaCierre: Iso | null;
+  responsable: string | null;
+  origen: string | null;
+  motivoPerdida: string | null;
+  descripcion: string | null;
+  actualizadoEn: string;
+  ultimaActividad: string | null;
+}
+
+export interface Cotizacion {
+  id: string;
+  numero: string;
+  version: number;
+  oportunidadId: string | null;
+  clienteId: string | null;
+  proyectoId: string | null;
+  titulo: string;
+  fecha: Iso;
+  validezDias: number;
+  tipo: string;
+  condicionPagoDias: number | null;
+  requiereOc: boolean;
+  requiereEdp: boolean;
+  requiereHes: boolean;
+  estado: string;
+  fechaEnvio: Iso | null;
+  fechaAceptacion: Iso | null;
+  ocClienteNumero: string | null;
+  motivo: string | null;
+  neto: number;
+  iva: number;
+  total: number;
+  notas: string | null;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export const cargarComercial = cache(async () => {
+  const { empresa } = await contextoFin();
+  const [ops, cots, acts] = await Promise.all([
+    tabla("fin_oportunidades", empresa.id, "orden"),
+    tabla("fin_cotizaciones", empresa.id, "fecha"),
+    supabaseAdmin.from("fin_actividades").select("entidad_id, creado_en").eq("empresa_id", empresa.id).eq("entidad_tipo", "oportunidad").order("creado_en", { ascending: false }).limit(5000).then((r) => r.data ?? []),
+  ]);
+  const ultima = new Map<string, string>();
+  for (const a of acts as any[]) if (!ultima.has(a.entidad_id)) ultima.set(a.entidad_id, a.creado_en);
+  const oportunidades: Oportunidad[] = ops.map((r: any) => ({
+    id: r.id, codigo: r.codigo, nombre: r.nombre, clienteId: r.cliente_id, proyectoId: r.proyecto_id, tipo: r.tipo, etapa: r.etapa, montoEstimado: n(r.monto_estimado),
+    probabilidad: r.probabilidad, fechaCierre: r.fecha_cierre, responsable: r.responsable, origen: r.origen, motivoPerdida: r.motivo_perdida, descripcion: r.descripcion,
+    actualizadoEn: r.actualizado_en, ultimaActividad: ultima.get(r.id) ?? null,
+  }));
+  const cotizaciones: Cotizacion[] = cots
+    .map((r: any) => ({
+      id: r.id, numero: r.numero, version: r.version, oportunidadId: r.oportunidad_id, clienteId: r.cliente_id, proyectoId: r.proyecto_id, titulo: r.titulo, fecha: r.fecha,
+      validezDias: r.validez_dias, tipo: r.tipo, condicionPagoDias: nOrNull(r.condicion_pago_dias), requiereOc: r.requiere_oc, requiereEdp: r.requiere_edp, requiereHes: r.requiere_hes,
+      estado: r.estado, fechaEnvio: r.fecha_envio, fechaAceptacion: r.fecha_aceptacion, ocClienteNumero: r.oc_cliente_numero, motivo: r.motivo, neto: n(r.neto), iva: n(r.iva),
+      total: n(r.total), notas: r.notas,
+    }))
+    .reverse();
+  return { oportunidades, cotizaciones };
+});
+
+export async function lineasDeCotizacion(cotizacionId: string): Promise<import("./modelo").LineaCotizacion[]> {
+  const { data, error } = await supabaseAdmin.from("fin_cotizacion_lineas").select("*").eq("cotizacion_id", cotizacionId).order("orden");
+  revienta("leer las líneas", error);
+  return (data ?? []).map((l: any) => ({
+    productoId: l.producto_id, descripcion: l.descripcion, cantidad: n(l.cantidad), unidad: l.unidad, precioUnitario: n(l.precio_unitario),
+    descuentoPct: n(l.descuento_pct), exento: l.exento, meses: nOrNull(l.meses),
+  }));
+}
+
+export interface Actividad {
+  id: string;
+  tipo: string;
+  texto: string;
+  fecha: Iso;
+  vencimiento: Iso | null;
+  hecha: boolean;
+  creadoPor: string | null;
+  creadoEn: string;
+}
+
+export async function actividadesDe(entidadTipo: string, entidadId: string): Promise<Actividad[]> {
+  const { empresa } = await contextoFin();
+  const { data, error } = await supabaseAdmin.from("fin_actividades").select("*").eq("empresa_id", empresa.id).eq("entidad_tipo", entidadTipo).eq("entidad_id", entidadId).order("creado_en", { ascending: false }).limit(200);
+  revienta("leer actividades", error);
+  return (data ?? []).map((a: any) => ({ id: a.id, tipo: a.tipo, texto: a.texto, fecha: a.fecha, vencimiento: a.vencimiento, hecha: a.hecha, creadoPor: a.creado_por, creadoEn: a.creado_en }));
+}
+
+export async function adjuntosDe(entidadTipo: string, entidadId: string): Promise<{ id: string; nombre: string; tipo: string; creadoEn: string }[]> {
+  const { empresa } = await contextoFin();
+  const { data } = await supabaseAdmin.from("fin_adjuntos").select("id, nombre, tipo, creado_en").eq("empresa_id", empresa.id).eq("entidad_tipo", entidadTipo).eq("entidad_id", entidadId).order("creado_en", { ascending: false });
+  return (data ?? []).map((a: any) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, creadoEn: a.creado_en }));
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
