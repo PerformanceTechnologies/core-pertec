@@ -59,6 +59,13 @@ export const contextoFin = cache(async (): Promise<ContextoFin> => {
   return { usuario, empresa: activa, hoy: hoyEnSantiago().iso };
 });
 
+/** Para la cartilla del módulo Finanzas: el mismo contexto, sin redirigir (null si la empresa no aplica). */
+export async function contextoFinDeUsuario(usuario: UsuarioConAcceso): Promise<ContextoFin | null> {
+  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  if (!activa || !EMPRESAS_CON_FINANZAS.includes(activa.slug)) return null;
+  return { usuario, empresa: activa, hoy: hoyEnSantiago().iso };
+}
+
 export function revienta(que: string, error: { message: string } | null): void {
   if (error) throw new Error(`[fin] No se pudo ${que}: ${error.message}`);
 }

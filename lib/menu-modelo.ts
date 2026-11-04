@@ -95,8 +95,10 @@ const PLAN: Plan[] = [
   {
     slug: "finanzas",
     titulo: "Finanzas",
-    descripcion: "Contactos para facturar, facturas del SII, rendición de gastos y facturas históricas.",
-    items: [{ subpanel: "contactos" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
+    descripcion: "Contactos para facturar, gestión financiera (ventas, compras, banco y flujo), facturas del SII, rendición de gastos y facturas históricas.",
+    // «Gestión financiera» va justo después de Contactos (que sigue encabezando: es la base de la
+    // facturación). Es su propia aplicación, con su propio permiso.
+    items: [{ subpanel: "contactos" }, { ruta: "/gestion-financiera", nombre: "Gestión financiera" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
   },
   {
     slug: "crm",

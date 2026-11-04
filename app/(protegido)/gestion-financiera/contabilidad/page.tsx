@@ -30,6 +30,9 @@ export default async function ContabilidadPage({ searchParams }: { searchParams:
   const libro = (dir: "emitido" | "recibido") => v.documentos.filter((d) => d.direccion === dir && d.estado === "vigente" && d.tipoDte !== 52 && d.fechaEmision >= desde && d.fechaEmision <= hasta);
   const signo = (d: { tipoDte: number }) => (d.tipoDte === 61 ? -1 : 1);
   const iva = (dir: "emitido" | "recibido") => libro(dir).reduce((s, d) => s + signo(d) * d.iva, 0);
+  // Un documento que no cuadra (total ≠ neto + exento + IVA) no propone asiento: se avisa aquí en vez de omitirlo en silencio.
+  const conAsiento = new Set(propuestos.map((a) => a.origenId));
+  const descuadrados = [...libro("emitido"), ...libro("recibido")].filter((d) => !conAsiento.has(d.id));
   const url = (k: string) => `${RUTA_FIN}/contabilidad?ver=${k}&mes=${desde.slice(0, 7)}`;
   const nombre = (c: string) => nombres.get(c) ?? c;
 
@@ -57,6 +60,13 @@ export default async function ContabilidadPage({ searchParams }: { searchParams:
           <BotonAccion accion={(m) => cerrarPeriodoAction(anio, mes, false, m)} motivo="¿Por qué se reabre el período?"><IconLockOpen size={14} /> Reabrir</BotonAccion>
         )}
       </div>
+
+      {descuadrados.length > 0 && (
+        <div className="rounded-xl border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-800">
+          <p className="font-semibold">{descuadrados.length === 1 ? "Un documento no genera asiento" : `${descuadrados.length} documentos no generan asiento`}: su total no es neto + exento + IVA. Corrígelo antes de contabilizar.</p>
+          <p className="mt-1">{descuadrados.map((d) => `${DTE_CORTO[d.tipoDte] ?? d.tipoDte} ${d.folio} · ${d.razonSocial ?? "—"} (total ${clp(d.total)}, neto + exento + IVA ${clp(d.neto + d.exento + d.iva)})`).join(" · ")}</p>
+        </div>
+      )}
 
       {ver === "diario" && (
         <Seccion titulo={guardados.length ? `Asientos contabilizados (${guardados.length})` : `Asientos propuestos (${propuestos.length})`}>

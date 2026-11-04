@@ -95,6 +95,16 @@ assert.deepEqual(armarMenu([], []), []);
   assert.deepEqual(nombres(g[0]), ["Flota"]);
 }
 
+// Gestión financiera (aplicación propia) va en Finanzas, justo después de Contactos.
+{
+  const g = armarMenu([...todas, app("/gestion-financiera", "Gestión financiera")], ["contactos", "sii"]);
+  assert.deepEqual(nombres(g[0]), ["Contactos", "Gestión financiera", "Facturas compra y venta", "Rendir Gastos"]);
+  const sinPermiso = armarMenu(todas, ["contactos"]);
+  assert.ok(!nombres(sinPermiso[0]).includes("Gestión financiera"));
+  const grupos = agruparCatalogo([...todas, app("/gestion-financiera", "Gestión financiera")]);
+  assert.ok(grupos.find((x) => x.slug === "finanzas")?.apps.some((a) => a.url === "/gestion-financiera"));
+}
+
 // Proyectos está en pausa: se esconde de todos lados (menú, Inicio, buscador, su página y su API),
 // pero NO del catálogo de Administración, donde se reactiva y se sigue asignando.
 {

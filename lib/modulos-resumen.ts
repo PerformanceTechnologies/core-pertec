@@ -175,6 +175,36 @@ const flota: Cargador = async ({ hoy }) => {
   };
 };
 
+// ─── Gestión financiera ──────────────────────────────────────────────────────
+
+// Lee la misma VistaFin que su Resumen, de la empresa activa: lo que dice la cartilla es lo que
+// dice la pantalla. En una empresa sin el módulo (o sin nada cargado aún) no muestra cifras.
+const gestionFinanciera: Cargador = async ({ usuario }) => {
+  const [fin, { clpCorto }] = await Promise.all([import("./fin/datos"), import("./fin/reglas")]);
+  const ctx = await fin.contextoFinDeUsuario(usuario);
+  if (!ctx) return null;
+  const v = await fin.cargarVistaDe(ctx);
+  if (v.cuentas.length === 0 && v.hitos.length === 0 && v.compras.length === 0) return null;
+  const d = v.dashboard;
+  const R = "/gestion-financiera";
+  const falta = v.flujo.meses.find((m) => m.alerta === "FALTA CAJA");
+  const avisos: Aviso[] = [];
+  if (falta) avisos.push({ texto: `Falta caja en ${new Date(`${falta.mes}T12:00:00`).toLocaleDateString("es-CL", { month: "long", year: "numeric" })} (${clpCorto(falta.holgura)} bajo el mínimo)`, tono: "alerta", href: `${R}/tesoreria?ver=flujo` });
+  if (d.movimientosEscalar > 0) avisos.push({ texto: `${cuenta(d.movimientosEscalar, "movimiento del banco", "movimientos del banco")} sin aclarar hace mucho`, tono: "alerta", href: `${R}/tesoreria` });
+  if (d.terminadoSinFacturar > 0) avisos.push({ texto: `${clpCorto(d.terminadoSinFacturar)} de trabajo terminado sin facturar`, tono: "aviso", href: `${R}/ventas` });
+  if (d.facturasSinOc > 0) avisos.push({ texto: `${cuenta(d.facturasSinOc, "factura de compra sin OC", "facturas de compra sin OC")}`, tono: "aviso", href: `${R}/compras` });
+  return {
+    metricas: [
+      { etiqueta: "Caja en bancos", valor: clpCorto(d.cajaBancos), detalle: d.deudaTarjeta ? `Tarjeta: ${clpCorto(d.deudaTarjeta)}` : undefined, href: `${R}/tesoreria` },
+      { etiqueta: "Por cobrar", valor: clpCorto(d.porCobrar), detalle: d.porCobrarVencido ? `${clpCorto(d.porCobrarVencido)} vencido` : "Nada vencido", tono: d.porCobrarVencido > 0 ? "aviso" : "ok", href: `${R}/ventas` },
+      { etiqueta: "Por pagar", valor: clpCorto(d.porPagar), detalle: `${clpCorto(d.porPagar30)} en 30 días`, tono: d.porPagarVencido > 0 ? "aviso" : "neutro", href: `${R}/compras` },
+      { etiqueta: "Por aclarar", valor: n(d.movimientosPorAclarar), detalle: "Movimientos del banco", tono: d.movimientosPorAclarar > 0 ? "aviso" : "ok", href: `${R}/tesoreria` },
+    ],
+    avisos,
+    pie: `${ctx.empresa.nombre}${v.ultimaImportacion ? ` · última cartola ${haceCuanto(v.ultimaImportacion)}` : ""}`,
+  };
+};
+
 // ─── Tareas ──────────────────────────────────────────────────────────────────
 
 const tareas: Cargador = async ({ usuario, hoy }) => {
@@ -470,6 +500,7 @@ const CARGADORES: Record<string, Cargador> = {
   "/cotizador": cotizador,
   "/ofertas": ofertas,
   "/rendir-gastos": rendirGastos,
+  "/gestion-financiera": gestionFinanciera,
   "/finanzas/contactos": contactos,
   "/finanzas/sii": facturasSii,
   "/finanzas/facturas-historicas": facturasHistoricas,
