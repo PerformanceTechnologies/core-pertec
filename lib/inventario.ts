@@ -665,6 +665,21 @@ export async function crearCategoria(nombre: string): Promise<void> {
   revienta("crear categoría", error);
 }
 
+/** Cuántos productos (activos o no) usa cada categoría, para avisar antes de borrarla. */
+export async function productosPorCategoria(): Promise<Map<string, number>> {
+  const { data, error } = await supabaseAdmin.from(T.productos).select("categoria_id").not("categoria_id", "is", null);
+  revienta("contar productos por categoría", error);
+  const cuenta = new Map<string, number>();
+  for (const p of data ?? []) cuenta.set(p.categoria_id as string, (cuenta.get(p.categoria_id as string) ?? 0) + 1);
+  return cuenta;
+}
+
+/** Borra la categoría. Sus productos no se tocan: quedan «sin categoría» (on delete set null). */
+export async function eliminarCategoria(id: string): Promise<void> {
+  const { error } = await supabaseAdmin.from(T.categorias).delete().eq("id", id);
+  revienta("eliminar categoría", error);
+}
+
 export async function crearUnidad(nombre: string, abreviacion: string): Promise<void> {
   const { error } = await supabaseAdmin.from(T.unidades).insert({ nombre, abreviacion });
   revienta("crear unidad", error);

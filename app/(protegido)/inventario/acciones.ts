@@ -16,6 +16,7 @@ import {
   crearUbicacion,
   crearUnidad,
   desactivarProducto,
+  eliminarCategoria,
   eliminarRegla,
   guardarRegla,
   reservarTransferencia,
@@ -151,6 +152,18 @@ export async function crearCategoriaAction(fd: FormData): Promise<Resultado> {
     if (!nombre) return { ok: false, error: "El nombre es obligatorio." };
     await crearCategoria(nombre);
     refrescar("/inventario/configuracion", "/inventario/productos");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function eliminarCategoriaAction(id: string): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, error: "Categoría inválida." };
+    await eliminarCategoria(id);
+    refrescar("/inventario/configuracion", "/inventario/productos", "/inventario/valorizacion", "/inventario");
     return { ok: true };
   } catch (e) {
     return fallo(e);

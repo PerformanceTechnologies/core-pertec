@@ -2,14 +2,15 @@ import { IconSettings } from "@tabler/icons-react";
 import IntroSeccion from "@/components/inventario/IntroSeccion";
 import CreadorEntidad from "@/components/inventario/CreadorEntidad";
 import { crearCategoriaAction, crearUnidadAction } from "@/app/(protegido)/inventario/acciones";
-import { listarCategorias, listarTiposOperacion, listarUnidades } from "@/lib/inventario";
+import { listarCategorias, listarTiposOperacion, listarUnidades, productosPorCategoria } from "@/lib/inventario";
+import ChipCategoriaBorrable from "@/components/inventario/ChipCategoriaBorrable";
 import { ETIQUETA_CLASE } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConfiguracionInventarioPage() {
-  const [categorias, unidades, tipos] = await Promise.all([listarCategorias(), listarUnidades(), listarTiposOperacion()]);
+  const [categorias, unidades, tipos, enUso] = await Promise.all([listarCategorias(), listarUnidades(), listarTiposOperacion(), productosPorCategoria()]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -25,7 +26,7 @@ export default async function ConfiguracionInventarioPage() {
       <section className={`${TARJETA} p-5`}>
         <h2 className="mb-3 text-sm font-bold text-tinta">Categorías de producto</h2>
         <div className="mb-4 flex flex-wrap gap-2">
-          {categorias.map((c) => <span key={c.id} className="rounded-full bg-borde/60 px-3 py-1 text-sm text-tinta">{c.nombre}</span>)}
+          {categorias.map((c) => <ChipCategoriaBorrable key={c.id} id={c.id} nombre={c.nombre} productos={enUso.get(c.id) ?? 0} />)}
           {categorias.length === 0 && <span className="text-sm text-gris">Sin categorías.</span>}
         </div>
         <CreadorEntidad accion={crearCategoriaAction} campos={[{ name: "nombre", etiqueta: "Nueva categoría", requerido: true, placeholder: "EPP" }]} />

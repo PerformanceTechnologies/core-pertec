@@ -681,7 +681,7 @@ const cuerpos = acciones
   .map((trozo) => ({ nombre: trozo.slice(0, trozo.indexOf("(")), cuerpo: trozo }))
   .filter((a) => a.nombre !== "verificarAcceso");
 
-assert.ok(cuerpos.length === 17, `se esperaban las 17 acciones del módulo, se encontraron ${cuerpos.length}`);
+assert.ok(cuerpos.length === 18, `se esperaban las 18 acciones del módulo, se encontraron ${cuerpos.length}`);
 
 const sinGuard = cuerpos.filter((a) => !/exigirAccesoApp\(SLUG\)/.test(a.cuerpo)).map((a) => a.nombre);
 assert.deepEqual(
