@@ -49,13 +49,16 @@ export default function FiltrosUrl({
     iniciar(() => router.replace(s ? `${ruta}?${s}` : ruta, { scroll: false }));
   };
 
-  // Si la URL cambia por otro lado (un enlace, el botón atrás), el campo la sigue. Se ajusta al
-  // dibujar y no en un efecto, como recomienda React para estado que deriva de una prop.
+  // Si la URL cambia por otro lado (un atajo «Prueba con», el botón atrás), el campo la sigue.
+  // Pero NUNCA mientras la persona está escribiendo: la respuesta de una búsqueda llega con el
+  // texto que se buscó, que ya quedó viejo si siguió tecleando, y pisarlo le borraba letras.
+  // Se ajusta al dibujar y no en un efecto, como recomienda React para estado que deriva de una prop.
   const qUrl = params.get("q") ?? "";
   const [qUrlPrevio, setQUrlPrevio] = useState(qUrl);
+  const [escribiendo, setEscribiendo] = useState(false);
   if (qUrl !== qUrlPrevio) {
     setQUrlPrevio(qUrl);
-    if (q.trim() !== qUrl.trim()) setQ(qUrl);
+    if (!escribiendo && q.trim() !== qUrl.trim()) setQ(qUrl);
   }
   useEffect(() => () => {
     if (reloj.current) clearTimeout(reloj.current);
@@ -64,7 +67,10 @@ export default function FiltrosUrl({
   const escribir = (v: string) => {
     setQ(v);
     if (reloj.current) clearTimeout(reloj.current);
-    reloj.current = setTimeout(() => ir({ q: v.trim() || null }), 250);
+    // Se busca cuando la persona hace una pausa, no en cada tecla.
+    reloj.current = setTimeout(() => {
+      if (v.trim() !== qUrl.trim()) ir({ q: v.trim() || null });
+    }, 450);
   };
 
   const hayFiltros = q || filtros.some((f) => params.get(f.clave)) || extra?.some((e) => params.get(e.clave));
@@ -79,6 +85,8 @@ export default function FiltrosUrl({
           type="search"
           value={q}
           onChange={(e) => escribir(e.target.value)}
+          onFocus={() => setEscribiendo(true)}
+          onBlur={() => setEscribiendo(false)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               if (reloj.current) clearTimeout(reloj.current);
@@ -87,7 +95,7 @@ export default function FiltrosUrl({
           }}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className={`w-full rounded-xl border border-borde bg-superficie pr-9 text-tinta shadow-[0_1px_2px_rgba(23,20,17,0.04)] outline-none transition placeholder:text-gris-suave focus:border-naranjo/60 focus:ring-4 focus:ring-naranjo/10 ${
+          className={`w-full rounded-xl border border-borde bg-superficie pr-9 text-tinta [&::-webkit-search-cancel-button]:appearance-none shadow-[0_1px_2px_rgba(23,20,17,0.04)] outline-none transition placeholder:text-gris-suave focus:border-naranjo/60 focus:ring-4 focus:ring-naranjo/10 ${
             grande ? "py-3.5 pl-11 text-base" : "py-2.5 pl-10 text-sm"
           }`}
         />
