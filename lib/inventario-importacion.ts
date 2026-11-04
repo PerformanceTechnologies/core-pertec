@@ -285,6 +285,7 @@ export async function importar(
       if (unidadId) campos.unidad_id = unidadId;
       if (f.tipo) campos.tipo = f.tipo;
       if (f.seguimiento) campos.seguimiento = f.seguimiento;
+      if (f.estadoOperativo) campos.estado_operativo = f.estadoOperativo;
       if (f.costo !== null) campos.costo = f.costo;
       if (f.precio !== null) campos.precio = f.precio;
       if (f.descripcion) campos.descripcion = f.descripcion;
@@ -393,11 +394,13 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
   const enLinea = (valores: string[]) => `"${valores.join(",")}"`;
   const tipos = ["Almacenable", "Consumible", "Servicio"];
   const seguimientos = ["Ninguno", "Lote", "Serie"];
+  const estados = ["Operativo", "No operativo"];
   escribirLista(1, "Tipo", "LST_TIPOS", tipos);
   escribirLista(2, "Seguimiento", "LST_SEGUIMIENTO", seguimientos);
   const rBod = escribirLista(3, "Bodega / Ubicación", "LST_BODEGAS", datos.bodegas);
   const rCat = escribirLista(4, "Categorías existentes", "LST_CATEGORIAS", datos.categorias);
   const rUni = escribirLista(5, "Unidades existentes", "LST_UNIDADES", datos.unidades);
+  escribirLista(6, "Estado", "LST_ESTADOS", estados);
   listas.columns.forEach((c) => (c.width = 28));
 
   const validaciones: Partial<Record<ClaveColumna, ExcelJS.DataValidation>> = {
@@ -410,6 +413,11 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
       type: "list", allowBlank: true, formulae: [enLinea(seguimientos)], showErrorMessage: true, errorStyle: "stop",
       errorTitle: "Seguimiento", error: "Elige Ninguno, Lote o Serie.",
       showInputMessage: true, promptTitle: "Seguimiento", prompt: "Elige de la lista ▼ (vacío = Ninguno).",
+    },
+    estado: {
+      type: "list", allowBlank: true, formulae: [enLinea(estados)], showErrorMessage: true, errorStyle: "stop",
+      errorTitle: "Estado", error: "Elige Operativo o No operativo.",
+      showInputMessage: true, promptTitle: "Estado", prompt: "Elige de la lista ▼ (vacío = Operativo).",
     },
     categoria: {
       type: "list", allowBlank: true, formulae: [rCat], showErrorMessage: true, errorStyle: "warning",
@@ -450,7 +458,7 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
   for (const linea of [
     "Llena la hoja «Productos», una fila por producto (y por bodega/lote si cargas stock). Borra la fila de ejemplo.",
     "Obligatorias (*): Nombre, Categoría, Bodega y Cantidad (en un Servicio, bodega y cantidad no van). Las demás celdas vacías NO borran lo que el producto ya tenía.",
-    "Categoría, Unidad, Tipo, Seguimiento y Bodega tienen lista desplegable: haz clic en la celda y usa la flecha ▼. Las opciones están en la hoja «Listas».",
+    "Categoría, Unidad, Tipo, Seguimiento, Estado y Bodega tienen lista desplegable: haz clic en la celda y usa la flecha ▼. Las opciones están en la hoja «Listas».",
     "¿No ves las flechas? Si Excel muestra arriba «Vista protegida», presiona «Habilitar edición»: con el archivo recién descargado, Excel no deja usar las listas hasta eso.",
     "Si el SKU ya existe se actualiza ese producto; si no hay SKU, se busca por nombre exacto. Si no existe, se crea.",
     "«Cantidad» es el stock que hay HOY en esa bodega: el sistema hace un ajuste por la diferencia (no suma).",

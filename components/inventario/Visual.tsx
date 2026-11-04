@@ -5,7 +5,7 @@ import {
   IconPackageImport,
   type Icon,
 } from "@tabler/icons-react";
-import { ETIQUETA_CLASE, ETIQUETA_ESTADO, type ClaseOperacion, type EstadoTransferencia } from "@/lib/inventario-modelo";
+import { ETIQUETA_CLASE, ETIQUETA_ESTADO, ETIQUETA_ESTADO_OPERATIVO, type ClaseOperacion, type EstadoOperativo, type EstadoTransferencia } from "@/lib/inventario-modelo";
 
 // El vocabulario visual del Inventario: un ícono y un color por clase de operación, y el
 // chip de estado. Vive aparte para que el tablero, la lista y el detalle se vean igual.
@@ -38,6 +38,21 @@ export function ChipEstado({ estado }: { estado: EstadoTransferencia }) {
     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-borde bg-superficie px-2.5 py-1 text-[11px] font-semibold text-tinta">
       <span className={`h-1.5 w-1.5 rounded-full ${PUNTO_ESTADO[estado]}`} />
       {ETIQUETA_ESTADO[estado]}
+    </span>
+  );
+}
+
+export const ESTILO_ESTADO_OPERATIVO: Record<EstadoOperativo, string> = {
+  operativo: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+  no_operativo: "bg-rose-500/12 text-rose-700 dark:text-rose-300",
+};
+
+/** Operativo / No operativo, con su punto de color. */
+export function ChipEstadoOperativo({ estado }: { estado: EstadoOperativo }) {
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${ESTILO_ESTADO_OPERATIVO[estado]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${estado === "operativo" ? "bg-emerald-500" : "bg-rose-500"}`} />
+      {ETIQUETA_ESTADO_OPERATIVO[estado]}
     </span>
   );
 }

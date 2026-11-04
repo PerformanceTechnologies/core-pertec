@@ -12,6 +12,8 @@
 export type TipoProducto = "almacenable" | "consumible" | "servicio";
 export type MetodoCosto = "estandar" | "promedio";
 export type Seguimiento = "ninguno" | "lote" | "serie";
+/** Si el producto está en condiciones de usarse (una herramienta en reparación está «no operativo»). */
+export type EstadoOperativo = "operativo" | "no_operativo";
 export type TipoUbicacion = "interna" | "proveedor" | "cliente" | "ajuste" | "transito" | "vista";
 export type ClaseOperacion = "recepcion" | "entrega" | "interna" | "ajuste";
 export type EstadoTransferencia = "borrador" | "listo" | "hecho" | "cancelado";
@@ -51,6 +53,7 @@ export interface Producto {
   certificadoVence: string | null;
   /** Vencimiento del producto en sí (opcional). */
   fechaVencimiento: string | null;
+  estadoOperativo: EstadoOperativo;
 }
 
 export interface Almacen {
@@ -150,6 +153,15 @@ export const ETIQUETA_TIPO_PRODUCTO: Record<TipoProducto, string> = {
   consumible: "Consumible",
   servicio: "Servicio",
 };
+
+export const ETIQUETA_ESTADO_OPERATIVO: Record<EstadoOperativo, string> = {
+  operativo: "Operativo",
+  no_operativo: "No operativo",
+};
+
+export function esEstadoOperativo(v: unknown): v is EstadoOperativo {
+  return v === "operativo" || v === "no_operativo";
+}
 
 export const ETIQUETA_SEGUIMIENTO: Record<Seguimiento, string> = {
   ninguno: "Sin seguimiento",

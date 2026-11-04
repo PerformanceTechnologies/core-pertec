@@ -4,7 +4,7 @@
 // las columnas) y las pruebas. Acá no se toca la base: se recibe cada fila como texto y
 // los catálogos que ya existen, y se decide qué va a pasar con ella y qué está mal.
 
-import type { Seguimiento, TipoProducto } from "./inventario-modelo";
+import type { EstadoOperativo, Seguimiento, TipoProducto } from "./inventario-modelo";
 
 export interface ColumnaImportacion {
   clave: ClaveColumna;
@@ -17,7 +17,7 @@ export interface ColumnaImportacion {
 }
 
 export type ClaveColumna =
-  | "sku" | "nombre" | "categoria" | "unidad" | "tipo" | "seguimiento" | "costo" | "precio"
+  | "sku" | "nombre" | "categoria" | "unidad" | "tipo" | "seguimiento" | "estado" | "costo" | "precio"
   | "bodega" | "cantidad" | "lote" | "vencimiento" | "minimo" | "maximo" | "descripcion";
 
 export const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
@@ -27,6 +27,7 @@ export const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
   { clave: "unidad", titulo: "Unidad", ayuda: "Nombre o abreviación (un, kg, lt…). Si no existe, se crea.", ejemplo: "un", alias: ["unidad", "unidad de medida", "um", "u/m", "uom"] },
   { clave: "tipo", titulo: "Tipo", ayuda: "Almacenable, Consumible o Servicio. Vacío = Almacenable.", ejemplo: "Almacenable", alias: ["tipo", "tipo producto"] },
   { clave: "seguimiento", titulo: "Seguimiento", ayuda: "Ninguno, Lote o Serie. Vacío = Ninguno.", ejemplo: "Lote", alias: ["seguimiento", "trazabilidad", "control"] },
+  { clave: "estado", titulo: "Estado", ayuda: "Operativo o No operativo. Vacío = Operativo (o lo que ya tenía el producto).", ejemplo: "Operativo", alias: ["estado", "estado operativo", "operativo", "condicion", "condición"] },
   { clave: "costo", titulo: "Costo unitario", ayuda: "En pesos, sin puntos de miles ni signo $.", ejemplo: "12500", alias: ["costo", "costo unitario", "precio costo", "valor unitario", "costo unit"] },
   { clave: "precio", titulo: "Precio venta", ayuda: "En pesos.", ejemplo: "18900", alias: ["precio", "precio venta", "precio de venta", "pvp"] },
   { clave: "bodega", titulo: "Bodega / Ubicación", obligatoria: true, ayuda: "Nombre o código de una bodega o ubicación interna que ya exista (AMU, CAL, ENE…).", ejemplo: "AMU", alias: ["bodega", "ubicacion", "ubicación", "almacen", "almacén", "bodega ubicacion"] },
@@ -97,6 +98,11 @@ const SEGUIMIENTOS: Record<string, Seguimiento> = {
   serie: "serie", series: "serie", "numero de serie": "serie", "por numero de serie": "serie",
 };
 
+const ESTADOS: Record<string, EstadoOperativo> = {
+  operativo: "operativo", "en uso": "operativo", bueno: "operativo", ok: "operativo", si: "operativo",
+  "no operativo": "no_operativo", "fuera de servicio": "no_operativo", "en reparacion": "no_operativo", malo: "no_operativo", danado: "no_operativo", no: "no_operativo",
+};
+
 /** Lo que ya existe en la base, con claves normalizadas, para resolver cada fila. */
 export interface CatalogosImportacion {
   /** sku normalizado → id producto */
@@ -151,6 +157,8 @@ export interface FilaImportacion {
   unidad: string | null;
   tipo: TipoProducto | null;
   seguimiento: Seguimiento | null;
+  /** null: la celda vino vacía (al crear queda «operativo»; al actualizar no se toca). */
+  estadoOperativo: EstadoOperativo | null;
   costo: number | null;
   precio: number | null;
   descripcion: string | null;
@@ -212,6 +220,12 @@ export function validarFila(
     if (!seguimiento) errores.push(`Seguimiento «${v("seguimiento")}» no válido (Ninguno, Lote o Serie).`);
   }
 
+  let estadoOperativo: EstadoOperativo | null = null;
+  if (v("estado")) {
+    estadoOperativo = ESTADOS[normalizar(v("estado"))] ?? null;
+    if (!estadoOperativo) errores.push(`Estado «${v("estado")}» no válido (Operativo o No operativo).`);
+  }
+
   const numeroDe = (c: ClaveColumna, etiqueta: string): number | null => {
     const n = leerNumero(v(c));
     if (n === null) return null;
@@ -262,6 +276,7 @@ export function validarFila(
     unidad: v("unidad").slice(0, 40) || null,
     tipo,
     seguimiento,
+    estadoOperativo,
     costo,
     precio,
     descripcion: v("descripcion").slice(0, 2000) || null,

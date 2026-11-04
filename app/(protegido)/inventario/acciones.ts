@@ -23,6 +23,7 @@ import {
   validarTransferencia,
   type LineaNueva,
 } from "@/lib/inventario";
+import { esEstadoOperativo, type EstadoOperativo } from "@/lib/inventario-modelo";
 
 const SLUG = "inventario";
 
@@ -53,6 +54,7 @@ function camposExtra(fd: FormData) {
     // Sin certificación no se guarda una fecha de certificado que no corresponde.
     certificadoVence: requiereCertificacion ? fechaONull(fd.get("certificadoVence")) : null,
     fechaVencimiento: fechaONull(fd.get("fechaVencimiento")),
+    estadoOperativo: esEstadoOperativo(fd.get("estadoOperativo")) ? (fd.get("estadoOperativo") as EstadoOperativo) : "operativo",
   };
 }
 
@@ -97,7 +99,7 @@ export async function actualizarProductoAction(id: string, fd: FormData): Promis
         const c = camposExtra(fd);
         return {
           ubicacion_id: c.ubicacionId, requiere_certificacion: c.requiereCertificacion,
-          certificado_vence: c.certificadoVence, fecha_vencimiento: c.fechaVencimiento,
+          certificado_vence: c.certificadoVence, fecha_vencimiento: c.fechaVencimiento, estado_operativo: c.estadoOperativo,
         };
       })(),
       costo: Number(fd.get("costo") ?? 0) || 0,

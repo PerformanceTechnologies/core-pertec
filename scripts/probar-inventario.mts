@@ -983,12 +983,30 @@ console.log(
   const de = (col: string) => rangos.find((r) => r.sqref.startsWith(`${col}2:`));
   assert.equal(de("C")?.f, "LST_CATEGORIAS", "la Categoría tiene su lista");
   assert.equal(de("D")?.f, "LST_UNIDADES", "la Unidad tiene su lista");
-  assert.equal(de("I")?.f, "LST_BODEGAS");
+  assert.equal(de("J")?.f, "LST_BODEGAS");
+  assert.equal(de("G")?.f, "&quot;Operativo,No operativo&quot;", "el Estado tiene su lista");
   assert.equal(de("E")?.f, "&quot;Almacenable,Consumible,Servicio&quot;", "las listas cortas van escritas en la validación");
   assert.ok(de("C")!.sqref.endsWith(":C1001"), "la lista llega hasta la última fila permitida");
   for (const nombre of ["LST_BODEGAS", "LST_CATEGORIAS", "LST_UNIDADES"]) assert.ok(libro.includes(`name="${nombre}"`), `falta el nombre ${nombre}`);
   assert.ok(libro.includes(">Listas!$D$2:$D$3<"), "LST_CATEGORIAS apunta a las categorías de la hoja Listas");
   // La fila de ejemplo trae los números como número (sin el triangulito verde de Excel).
-  assert.ok(/<c r="G2"[^>]*><v>12500<\/v>/.test(hoja), "el costo de ejemplo va como número");
-  console.log("Plantilla verificada: listas desplegables de Categoría, Unidad, Tipo, Seguimiento y Bodega sin rangos que Excel borre.");
+  assert.ok(/<c r="H2"[^>]*><v>12500<\/v>/.test(hoja), "el costo de ejemplo va como número");
+  console.log("Plantilla verificada: listas desplegables de Categoría, Unidad, Tipo, Seguimiento, Estado y Bodega sin rangos que Excel borre.");
+}
+
+// ── Estado del producto en la carga masiva ──────────────────────────────────────
+{
+  const im = await import("../lib/inventario-importacion-modelo");
+  const cat = { categorias: new Set(["epp"]), unidades: new Set(["un"]), bodegas: new Map([["amu", "u1"]]), productosPorSku: new Map(), productosPorNombre: new Map() };
+  const fila = (estado: string) => im.validarFila(2, { nombre: "Taladro", categoria: "EPP", bodega: "AMU", cantidad: "1", estado }, cat as never);
+  assert.equal(fila("Operativo").estadoOperativo, "operativo");
+  assert.equal(fila("No operativo").estadoOperativo, "no_operativo");
+  assert.equal(fila("NO OPERATIVO").estadoOperativo, "no_operativo", "sin importar mayúsculas");
+  assert.equal(fila("Fuera de servicio").estadoOperativo, "no_operativo");
+  assert.equal(fila("").estadoOperativo, null, "vacío no cambia lo que había (al crear queda operativo)");
+  assert.deepEqual(fila("Roto a medias").errores, ["Estado «Roto a medias» no válido (Operativo o No operativo)."]);
+  assert.equal(im.mapearEncabezados(["Nombre", "Categoría", "Bodega", "Cantidad", "Estado operativo"]).mapa.get(4), "estado");
+  const sqlEstado = readFileSync("supabase/inventario/0005_estado_operativo.sql", "utf8");
+  assert.ok(sqlEstado.includes("estado_operativo in ('operativo', 'no_operativo')") && sqlEstado.includes("default 'operativo'"));
+  console.log("Estado del producto verificado: Operativo / No operativo en la carga masiva y en la migración.");
 }

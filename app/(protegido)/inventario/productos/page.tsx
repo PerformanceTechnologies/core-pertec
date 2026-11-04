@@ -2,7 +2,7 @@ import Link from "next/link";
 import { IconChevronRight, IconPackage, IconUpload } from "@tabler/icons-react";
 import IntroSeccion from "@/components/inventario/IntroSeccion";
 import FormularioProducto from "@/components/inventario/FormularioProducto";
-import { FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
+import { ChipEstadoOperativo, FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
 import { listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades } from "@/lib/inventario";
 import {
   ETIQUETA_CERTIFICADO,
@@ -58,6 +58,7 @@ export default async function ProductosPage() {
                   <th className="px-4 py-3">Producto</th>
                   <th className="px-4 py-3">Categoría</th>
                   <th className="px-4 py-3">Tipo</th>
+                  <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3 text-right">A mano</th>
                   <th className="px-4 py-3 text-right">Disponible</th>
                   <th className="px-4 py-3 text-right" title="A mano + lo que llega - lo que sale en operaciones pendientes">Pronosticado</th>
@@ -90,6 +91,7 @@ export default async function ProductosPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-gris">{ETIQUETA_TIPO_PRODUCTO[p.tipo]}</td>
+                    <td className="px-4 py-3"><ChipEstadoOperativo estado={p.estadoOperativo} /></td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-tinta">
                       {p.tipo === "servicio" ? "—" : `${formatearCantidad(p.aMano)} ${abrevUni.get(p.unidadId ?? "") ?? ""}`}
                     </td>

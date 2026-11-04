@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { IconCertificate, IconFileCheck, IconPencil, IconPlus, IconUpload, IconX } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
-import { FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
+import { ESTILO_ESTADO_OPERATIVO, FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
 import { CAMPO } from "@/lib/estilos";
 import { leerRespuesta } from "@/lib/subidas";
 import {
+  ETIQUETA_ESTADO_OPERATIVO,
   ETIQUETA_METODO_COSTO,
   ETIQUETA_SEGUIMIENTO,
   ETIQUETA_TIPO_PRODUCTO,
   TIPOS_CERTIFICADO,
   type Categoria,
+  type EstadoOperativo,
   type MetodoCosto,
   type Producto,
   type Seguimiento,
@@ -57,6 +59,7 @@ export default function FormularioProducto({
   const [sku, setSku] = useState(producto?.sku ?? "");
   const [categoriaId, setCategoriaId] = useState(producto?.categoriaId ?? "");
   const [tipo, setTipo] = useState<TipoProducto>(producto?.tipo ?? "almacenable");
+  const [estado, setEstado] = useState<EstadoOperativo>(producto?.estadoOperativo ?? "operativo");
   const router = useRouter();
   const bodegas = ubicaciones.filter((u) => u.tipo === "interna");
   const nombreCategoria = categorias.find((c) => c.id === categoriaId)?.nombre ?? null;
@@ -69,6 +72,7 @@ export default function FormularioProducto({
     setSku(producto?.sku ?? "");
     setCategoriaId(producto?.categoriaId ?? "");
     setTipo(producto?.tipo ?? "almacenable");
+    setEstado(producto?.estadoOperativo ?? "operativo");
     setError(null);
     setAbierta(true);
   }
@@ -158,6 +162,7 @@ export default function FormularioProducto({
               <div className="mt-4 flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-naranjo/20 px-2.5 py-1 text-[11px] font-semibold text-naranjo">{ETIQUETA_TIPO_PRODUCTO[tipo]}</span>
                 {nombreCategoria && <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tonoDeTexto(nombreCategoria)}`}>{nombreCategoria}</span>}
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${ESTILO_ESTADO_OPERATIVO[estado]}`}>{ETIQUETA_ESTADO_OPERATIVO[estado]}</span>
                 {requiere && <span className="rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-600">Certificado</span>}
               </div>
             </div>
@@ -200,6 +205,26 @@ export default function FormularioProducto({
                       <input type="radio" name="tipo" value={t} checked={tipo === t} onChange={() => setTipo(t)} className="sr-only" />
                       <span className="block text-sm font-bold text-tinta">{ETIQUETA_TIPO_PRODUCTO[t]}</span>
                       <span className="block text-[11px] leading-snug text-gris">{AYUDA_TIPO[t]}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="mb-1.5 block text-xs font-semibold text-gris">Estado</span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(Object.keys(ETIQUETA_ESTADO_OPERATIVO) as EstadoOperativo[]).map((e) => (
+                    <label
+                      key={e}
+                      className={`flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 transition ${
+                        estado === e ? (e === "operativo" ? "border-emerald-500 bg-emerald-500/[0.06] ring-2 ring-emerald-500/15" : "border-rose-500 bg-rose-500/[0.06] ring-2 ring-rose-500/15") : "border-borde hover:border-naranjo/40"
+                      }`}
+                    >
+                      <input type="radio" name="estadoOperativo" value={e} checked={estado === e} onChange={() => setEstado(e)} className="sr-only" />
+                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${e === "operativo" ? "bg-emerald-500" : "bg-rose-500"}`} />
+                      <span>
+                        <span className="block text-sm font-bold text-tinta">{ETIQUETA_ESTADO_OPERATIVO[e]}</span>
+                        <span className="block text-[11px] leading-snug text-gris">{e === "operativo" ? "En condiciones de usarse" : "En reparación, dañado o fuera de servicio"}</span>
+                      </span>
                     </label>
                   ))}
                 </div>

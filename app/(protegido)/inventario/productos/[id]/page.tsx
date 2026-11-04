@@ -5,6 +5,7 @@ import FormularioProducto from "@/components/inventario/FormularioProducto";
 import FormularioLote from "@/components/inventario/FormularioLote";
 import FormularioRegla from "@/components/inventario/FormularioRegla";
 import FormularioAjuste from "@/components/inventario/FormularioAjuste";
+import { ChipEstadoOperativo } from "@/components/inventario/Visual";
 import { listarCategorias, listarUbicaciones, listarUnidades, obtenerFichaProducto } from "@/lib/inventario";
 import {
   ETIQUETA_SEGUIMIENTO,
@@ -42,7 +43,9 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold tracking-tight text-tinta">{producto.nombre}</h2>
+          <h2 className="flex flex-wrap items-center gap-2 text-xl font-extrabold tracking-tight text-tinta">
+            {producto.nombre} <ChipEstadoOperativo estado={producto.estadoOperativo} />
+          </h2>
           <p className="mt-0.5 text-sm text-gris">
             {producto.sku ? <span className="font-mono">{producto.sku}</span> : "sin SKU"}
             {" · "}{ETIQUETA_TIPO_PRODUCTO[producto.tipo]}

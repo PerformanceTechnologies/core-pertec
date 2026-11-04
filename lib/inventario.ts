@@ -59,6 +59,7 @@ const aProducto = (r: any): Producto => ({
   ubicacionId: r.ubicacion_id ?? null, requiereCertificacion: Boolean(r.requiere_certificacion),
   certificadoNombre: r.certificado_nombre ?? null, tieneCertificado: Boolean(r.certificado_ruta),
   certificadoVence: r.certificado_vence ?? null, fechaVencimiento: r.fecha_vencimiento ?? null,
+  estadoOperativo: r.estado_operativo === "no_operativo" ? "no_operativo" : "operativo",
 });
 
 const aUbicacion = (r: any): Ubicacion => ({
@@ -637,6 +638,7 @@ export async function crearProducto(d: {
   nombre: string; sku?: string | null; descripcion?: string | null; categoriaId?: string | null;
   unidadId?: string | null; tipo?: string; seguimiento?: string; costo?: number; precio?: number; metodoCosto?: string;
   ubicacionId?: string | null; requiereCertificacion?: boolean; certificadoVence?: string | null; fechaVencimiento?: string | null;
+  estadoOperativo?: string;
 }): Promise<string> {
   const { data, error } = await supabaseAdmin.from(T.productos).insert({
     nombre: d.nombre, sku: d.sku || null, descripcion: d.descripcion || null, categoria_id: d.categoriaId || null,
@@ -644,6 +646,7 @@ export async function crearProducto(d: {
     costo: d.costo ?? 0, precio: d.precio ?? 0, metodo_costo: d.metodoCosto || "promedio",
     ubicacion_id: d.ubicacionId || null, requiere_certificacion: d.requiereCertificacion ?? false,
     certificado_vence: d.certificadoVence || null, fecha_vencimiento: d.fechaVencimiento || null,
+    estado_operativo: d.estadoOperativo || "operativo",
   }).select("id").single();
   revienta("crear producto", error);
   return data!.id;
