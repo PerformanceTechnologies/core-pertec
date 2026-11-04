@@ -28,6 +28,7 @@ import {
   TIPOS_ADJUNTO,
   esDeLaTarea,
   estaVencida,
+  etiquetaFechas,
   iniciales,
   ordenEntre,
   pesoLegible,
@@ -444,14 +445,15 @@ function Tarjeta({
             {prioridad.etiqueta}
           </span>
         )}
-        {t.fechaLimite && (
+        {(t.fechaLimite || t.fechaInicio) && (
           <span
+            title={t.fechaInicio ? "Rango de fechas de la tarea" : "Fecha límite"}
             className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
               vencida ? "bg-rose-500/10 text-rose-600" : "text-gris"
             }`}
           >
             <IconCalendarEvent size={13} />
-            {new Date(t.fechaLimite + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+            {etiquetaFechas(t)}
           </span>
         )}
         <span className="flex-1" />
@@ -491,6 +493,10 @@ function FormularioTarea({
   const [prioridad, setPrioridad] = useState(t?.prioridad ?? "media");
   const [elegidos, setElegidos] = useState<string[]>(t ? t.responsables : [yo]);
   const [visibleGeneral, setVisibleGeneral] = useState(t?.visibleGeneral ?? true);
+  // Con «Desde» la tarea pasa a ser un rango; sin él, la fecha límite es la única fecha.
+  const [conRango, setConRango] = useState(Boolean(t?.fechaInicio));
+  const [desde, setDesde] = useState(t?.fechaInicio ?? "");
+  const [hasta, setHasta] = useState(t?.fechaLimite ?? "");
   const [versionHistorial, setVersionHistorial] = useState(0);
   // La visibilidad solo la cambian responsables y quien asignó; al crear, quien crea.
   const puedeCambiarVisibilidad = !t || esDeLaTarea(t, yo);
@@ -626,8 +632,46 @@ function FormularioTarea({
             </div>
 
             <div>
-              <Etiqueta>Fecha límite</Etiqueta>
-              <input name="fechaLimite" type="date" defaultValue={t?.fechaLimite ?? ""} className={CAMPO} />
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-gris">{conRango ? "Rango de fechas" : "Fecha límite"}</span>
+                <div className="inline-flex rounded-lg border border-borde p-0.5 text-[11px] font-semibold">
+                  {([false, true] as const).map((rango) => (
+                    <button
+                      key={String(rango)}
+                      type="button"
+                      onClick={() => {
+                        setConRango(rango);
+                        if (!rango) setDesde("");
+                      }}
+                      className={`rounded-md px-2 py-1 transition ${conRango === rango ? "bg-naranjo text-white" : "text-gris hover:text-tinta"}`}
+                    >
+                      {rango ? "Rango" : "Un día"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {conRango ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-gris">Desde</span>
+                    <input
+                      name="fechaInicio"
+                      type="date"
+                      value={desde}
+                      max={hasta || undefined}
+                      onChange={(e) => setDesde(e.target.value)}
+                      className={CAMPO}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-gris">Hasta (fecha límite)</span>
+                    <input name="fechaLimite" type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={CAMPO} />
+                  </label>
+                </div>
+              ) : (
+                <input name="fechaLimite" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className={CAMPO} />
+              )}
+              {conRango && desde && hasta && desde > hasta && <p className="mt-1 text-[11px] text-rose-600">«Desde» no puede ser después de «Hasta».</p>}
             </div>
 
             <div className="h-px bg-borde" />

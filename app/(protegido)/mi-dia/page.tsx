@@ -10,8 +10,9 @@ import type { Dirigido } from "@/lib/graph-correo";
 import { SOMBRA_CALIDA } from "@/lib/estilos";
 import PrioridadDelDia from "@/components/mi-dia/PrioridadDelDia";
 import MisTareas from "@/components/mi-dia/MisTareas";
-import { tareasPendientesDe } from "@/lib/tareas";
-import { resumirMisTareas, SLUG_APP_TAREAS } from "@/lib/tareas-modelo";
+import TareasPedidas from "@/components/mi-dia/TareasPedidas";
+import { listarResponsables, tareasDeMiDia } from "@/lib/tareas";
+import { resumirMisTareas, resumirTareasPedidas, SLUG_APP_TAREAS } from "@/lib/tareas-modelo";
 
 const SLUG_APP = "mi-dia";
 
@@ -396,13 +397,23 @@ export default async function MiDiaPage() {
   );
 }
 
-/** Solo las tareas donde la persona es responsable, y solo si tiene la app Tareas. */
+/**
+ * Las tareas de la persona, solo si tiene la app Tareas: las que tiene asignadas («Mis tareas») y
+ * las que pidió a otros («Tareas que pediste»), para que las dos puntas vean cómo va cada una.
+ */
 async function SeccionTareas({ usuario, hoyIso }: { usuario: UsuarioConAcceso; hoyIso: string }) {
   if (!(await puedeVerApp(usuario, SLUG_APP_TAREAS))) return null;
   // Si Tareas falla (p. ej. falta la migración), Mi Día sigue funcionando sin la sección.
-  const tareas = await tareasPendientesDe(usuario.correo).catch(() => null);
+  const [tareas, personas] = await Promise.all([tareasDeMiDia(usuario.correo).catch(() => null), listarResponsables().catch(() => [])]);
   if (!tareas) return null;
-  return <MisTareas resumen={resumirMisTareas(tareas, usuario.correo, hoyIso)} />;
+  const nombres = Object.fromEntries(personas.map((p) => [p.correo.toLowerCase(), p.nombre]));
+  const pedidas = resumirTareasPedidas(tareas, usuario.correo, hoyIso);
+  return (
+    <>
+      <MisTareas resumen={resumirMisTareas(tareas, usuario.correo, hoyIso)} hoyIso={hoyIso} nombres={nombres} />
+      {(pedidas.total > 0 || pedidas.terminadas.length > 0) && <TareasPedidas resumen={pedidas} hoyIso={hoyIso} nombres={nombres} />}
+    </>
+  );
 }
 
 /** Las cuatro cifras del período, en la banda oscura. */

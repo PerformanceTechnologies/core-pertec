@@ -38,8 +38,8 @@ export async function listarResponsables(): Promise<Responsable[]> {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const aTarea = (r: any): Tarea => ({
   id: r.id, titulo: r.titulo, descripcion: r.descripcion, estado: r.estado, prioridad: r.prioridad,
-  responsables: r.responsables ?? [], asignadoPor: r.asignado_por ?? null, visibleGeneral: r.visible_general ?? true, fechaLimite: r.fecha_limite, orden: Number(r.orden),
-  creadoPor: r.creado_por, creadoEn: r.creado_en,
+  responsables: r.responsables ?? [], asignadoPor: r.asignado_por ?? null, visibleGeneral: r.visible_general ?? true, fechaInicio: r.fecha_inicio ?? null, fechaLimite: r.fecha_limite, orden: Number(r.orden),
+  creadoPor: r.creado_por, creadoEn: r.creado_en, actualizadoEn: r.actualizado_en ?? r.creado_en,
 });
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -61,6 +61,7 @@ export interface DatosTarea {
   responsables: string[];
   asignadoPor: string | null;
   visibleGeneral: boolean;
+  fechaInicio: string | null;
   fechaLimite: string | null;
 }
 
@@ -70,7 +71,7 @@ export async function crearTarea(estado: EstadoTarea, d: DatosTarea, creadoPor: 
     .from(TABLA).select("orden").eq("estado", estado).order("orden", { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await supabaseAdmin.from(TABLA).insert({
     titulo: d.titulo, descripcion: d.descripcion, prioridad: d.prioridad, responsables: d.responsables, asignado_por: d.asignadoPor, visible_general: d.visibleGeneral,
-    fecha_limite: d.fechaLimite, estado, orden: Number(ultima?.orden ?? 0) + 1000, creado_por: creadoPor,
+    fecha_inicio: d.fechaInicio, fecha_limite: d.fechaLimite, estado, orden: Number(ultima?.orden ?? 0) + 1000, creado_por: creadoPor,
   }).select("id").single();
   revienta("crear tarea", error);
   return data!.id as string;
@@ -79,7 +80,7 @@ export async function crearTarea(estado: EstadoTarea, d: DatosTarea, creadoPor: 
 export async function actualizarTarea(id: string, d: DatosTarea): Promise<void> {
   const { error } = await supabaseAdmin.from(TABLA).update({
     titulo: d.titulo, descripcion: d.descripcion, prioridad: d.prioridad, responsables: d.responsables, asignado_por: d.asignadoPor, visible_general: d.visibleGeneral,
-    fecha_limite: d.fechaLimite, actualizado_en: new Date().toISOString(),
+    fecha_inicio: d.fechaInicio, fecha_limite: d.fechaLimite, actualizado_en: new Date().toISOString(),
   }).eq("id", id);
   revienta("guardar tarea", error);
 }
@@ -209,6 +210,18 @@ export async function tareasPendientesDe(correo: string): Promise<Tarea[]> {
   revienta("leer tareas pendientes", error);
   const c = correo.toLowerCase();
   return (data ?? []).map(aTarea).filter((t) => t.responsables.some((r) => r.toLowerCase() === c));
+}
+
+/**
+ * Las tareas de Mi Día: donde `correo` es responsable o quien la pidió («asignado por»), sin
+ * importar la visibilidad (son suyas). Trae también las hechas, para avisarle a quien la pidió
+ * que se terminó.
+ */
+export async function tareasDeMiDia(correo: string): Promise<Tarea[]> {
+  const { data, error } = await supabaseAdmin.from(TABLA).select("*");
+  revienta("leer tareas de Mi Día", error);
+  const c = correo.toLowerCase();
+  return (data ?? []).map(aTarea).filter((t) => (t.asignadoPor ?? "").toLowerCase() === c || t.responsables.some((r) => r.toLowerCase() === c));
 }
 
 /**

@@ -26,6 +26,7 @@ import {
   esEstado,
   esPrioridad,
   puedeVerTarea,
+  revisarFechas,
   tituloDeColumna,
   type EventoHistorial,
   type Nota,
@@ -60,6 +61,10 @@ async function leerDatos(fd: FormData, yaEstaban: string[] = []): Promise<DatosT
   if (!titulo) return "El título es obligatorio.";
   const prioridad = String(fd.get("prioridad") ?? "media");
   const fecha = String(fd.get("fechaLimite") ?? "");
+  const inicio = String(fd.get("fechaInicio") ?? "");
+  const esFecha = (f: string) => /^\d{4}-\d{2}-\d{2}$/.test(f);
+  const errorFechas = revisarFechas(esFecha(inicio) ? inicio : null, esFecha(fecha) ? fecha : null);
+  if (errorFechas) return errorFechas;
   const validos = new Set([
     ...(await listarResponsables()).map((r) => r.correo.toLowerCase()),
     ...yaEstaban.map((c) => c.toLowerCase()),
@@ -77,7 +82,8 @@ async function leerDatos(fd: FormData, yaEstaban: string[] = []): Promise<DatosT
     responsables,
     asignadoPor: asignadoPor || null,
     visibleGeneral: fd.get("visibleGeneral") !== "no",
-    fechaLimite: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null,
+    fechaInicio: esFecha(inicio) ? inicio : null,
+    fechaLimite: esFecha(fecha) ? fecha : null,
   };
 }
 

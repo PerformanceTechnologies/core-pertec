@@ -30,10 +30,15 @@ export interface Tarea {
   asignadoPor: string | null;
   /** false: solo la ven sus responsables y quien la asignó. */
   visibleGeneral: boolean;
+  /** Desde cuándo se trabaja (opcional): con fecha límite forma un rango «del 3 al 7 nov». */
+  fechaInicio: string | null;
+  /** Hasta cuándo: la fecha límite (o el fin del rango). */
   fechaLimite: string | null;
   orden: number;
   creadoPor: string | null;
   creadoEn: string;
+  /** Último cambio (para saber cuándo se terminó una tarea hecha). */
+  actualizadoEn: string;
 }
 
 export function esEstado(v: unknown): v is EstadoTarea {
@@ -60,6 +65,43 @@ export function estaVencida(t: { fechaLimite: string | null; estado: EstadoTarea
   if (!t.fechaLimite || t.estado === "hecho") return false;
   const base = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
   return new Date(t.fechaLimite + "T00:00:00").getTime() < base.getTime();
+}
+
+// ---------- Fechas -----------------------------------------------------------
+
+const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+/**
+ * Las fechas de una tarea como se leen: «7 nov», «3 – 7 nov», «28 oct – 3 nov», «desde 3 nov».
+ * El año solo aparece si no es el de `hoyIso` (o si el rango cruza de año).
+ */
+export function etiquetaFechas(t: { fechaInicio: string | null; fechaLimite: string | null }, hoyIso?: string): string | null {
+  const anioActual = (hoyIso ?? new Date().toISOString()).slice(0, 4);
+  const partes = (iso: string) => ({ a: iso.slice(0, 4), m: MESES_CORTOS[Number(iso.slice(5, 7)) - 1], d: String(Number(iso.slice(8, 10))) });
+  const { fechaInicio: i, fechaLimite: f } = t;
+  if (!i && !f) return null;
+  if (!i || i === f) {
+    const x = partes(f!);
+    return `${x.d} ${x.m}${x.a !== anioActual ? ` ${x.a}` : ""}`;
+  }
+  const a = partes(i);
+  if (!f) return `desde ${a.d} ${a.m}${a.a !== anioActual ? ` ${a.a}` : ""}`;
+  const b = partes(f);
+  const anio = b.a !== anioActual || a.a !== b.a ? ` ${b.a}` : "";
+  if (a.a !== b.a) return `${a.d} ${a.m} ${a.a} – ${b.d} ${b.m}${anio}`;
+  if (a.m === b.m) return `${a.d} – ${b.d} ${b.m}${anio}`;
+  return `${a.d} ${a.m} – ${b.d} ${b.m}${anio}`;
+}
+
+/** Un rango al revés no se guarda. Devuelve el error para la persona, o null si está bien. */
+export function revisarFechas(fechaInicio: string | null, fechaLimite: string | null): string | null {
+  if (fechaInicio && fechaLimite && fechaInicio > fechaLimite) return "La fecha de inicio no puede ser después de la fecha límite.";
+  return null;
+}
+
+/** Si hoy cae dentro del rango de la tarea (ya empezó y todavía no vence). */
+export function enSuPeriodo(t: { fechaInicio: string | null; fechaLimite: string | null }, hoyIso: string): boolean {
+  return Boolean(t.fechaInicio && t.fechaInicio <= hoyIso && (!t.fechaLimite || hoyIso <= t.fechaLimite));
 }
 
 /** Iniciales para el avatar: "Alex Oliva" → "AO", "alex" → "AL". */
@@ -92,6 +134,7 @@ type Comparable = {
   prioridad: string;
   responsables: string[];
   asignadoPor: string | null;
+  fechaInicio?: string | null;
   fechaLimite: string | null;
 };
 
@@ -113,6 +156,9 @@ export function describirCambios(antes: Comparable, despues: Comparable, nombre:
   if ((antes.descripcion ?? "") !== (despues.descripcion ?? "")) cambios.push("la descripción");
   if (antes.prioridad !== despues.prioridad) {
     cambios.push(`prioridad de ${etiquetaPrioridad(antes.prioridad)} a ${etiquetaPrioridad(despues.prioridad)}`);
+  }
+  if ((antes.fechaInicio ?? null) !== (despues.fechaInicio ?? null)) {
+    cambios.push(despues.fechaInicio ? `fecha de inicio a ${fecha(despues.fechaInicio)}` : "quitó la fecha de inicio");
   }
   if (antes.fechaLimite !== despues.fechaLimite) cambios.push(`fecha límite a ${fecha(despues.fechaLimite)}`);
 
@@ -202,6 +248,8 @@ export interface ResumenMisTareas {
   hoy: Tarea[];
   /** Vencen en los próximos 3 días (sin contar hoy). */
   proximas: Tarea[];
+  /** Con rango de fechas que ya empezó y vence más adelante: se están trabajando ahora. */
+  enPeriodo: Tarea[];
   /** En curso, sin fecha cercana. */
   enCurso: Tarea[];
   /** Por hacer, sin fecha cercana. */
@@ -223,14 +271,48 @@ export function resumirMisTareas(tareas: Tarea[], correo: string, hoyIso: string
   en3.setUTCDate(en3.getUTCDate() + 3);
   const limiteProximas = en3.toISOString().slice(0, 10);
 
-  const r: ResumenMisTareas = { vencidas: [], hoy: [], proximas: [], enCurso: [], porHacer: [], total: mias.length };
+  const r: ResumenMisTareas = { vencidas: [], hoy: [], proximas: [], enPeriodo: [], enCurso: [], porHacer: [], total: mias.length };
   for (const t of mias) {
     const f = t.fechaLimite;
     if (f && f < hoyIso) r.vencidas.push(t);
     else if (f === hoyIso) r.hoy.push(t);
     else if (f && f <= limiteProximas) r.proximas.push(t);
+    else if (enSuPeriodo(t, hoyIso)) r.enPeriodo.push(t);
     else if (t.estado === "en_curso") r.enCurso.push(t);
     else r.porHacer.push(t);
   }
   return r;
+}
+
+export interface ResumenTareasPedidas {
+  /** Pendientes con la fecha límite ya pasada. */
+  vencidas: Tarea[];
+  /** Pendientes al día, de la que vence primero a la que no tiene fecha. */
+  pendientes: Tarea[];
+  /** Terminadas en los últimos 7 días: para que quien la pidió se entere. */
+  terminadas: Tarea[];
+  /** Todas las no hechas. */
+  total: number;
+}
+
+/**
+ * Lo que la persona PIDIÓ («asignado por» es ella) y tienen otros, para Mi Día. Las que se
+ * asignó a sí misma ya salen en «Mis tareas»: acá no se repiten.
+ */
+export function resumirTareasPedidas(tareas: Tarea[], correo: string, hoyIso: string): ResumenTareasPedidas {
+  const pedidas = tareas.filter((t) => igual(t.asignadoPor, correo) && !t.responsables.some((r) => igual(r, correo)));
+  const hace7 = new Date(`${hoyIso}T12:00:00Z`);
+  hace7.setUTCDate(hace7.getUTCDate() - 7);
+  const desde = hace7.toISOString().slice(0, 10);
+  const porFecha = (a: Tarea, b: Tarea) => (a.fechaLimite ?? "9999").localeCompare(b.fechaLimite ?? "9999") || a.orden - b.orden;
+
+  const abiertas = pedidas.filter((t) => t.estado !== "hecho").sort(porFecha);
+  return {
+    vencidas: abiertas.filter((t) => t.fechaLimite && t.fechaLimite < hoyIso),
+    pendientes: abiertas.filter((t) => !(t.fechaLimite && t.fechaLimite < hoyIso)),
+    terminadas: pedidas
+      .filter((t) => t.estado === "hecho" && t.actualizadoEn.slice(0, 10) >= desde)
+      .sort((a, b) => b.actualizadoEn.localeCompare(a.actualizadoEn)),
+    total: abiertas.length,
+  };
 }
