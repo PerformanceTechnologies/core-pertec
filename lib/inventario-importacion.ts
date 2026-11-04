@@ -2,6 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import { supabaseAdmin } from "./supabase-admin";
 import { sinComentarios } from "./excel-sin-comentarios";
+import { referenciasHistoricas } from "./valorizacion-historica";
 import { ajustarInventario, crearLote, guardarRegla, listarAlmacenes, listarUbicaciones } from "./inventario";
 import {
   COLUMNAS_IMPORTACION,
@@ -281,6 +282,7 @@ export async function importar(
       // Solo se escriben las celdas que vienen llenas: una columna vacía no borra lo que había.
       const campos: Record<string, unknown> = {};
       if (f.sku) campos.sku = f.sku;
+      if (f.marca) campos.marca = f.marca;
       if (categoriaId) campos.categoria_id = categoriaId;
       if (unidadId) campos.unidad_id = unidadId;
       if (f.tipo) campos.tipo = f.tipo;
@@ -340,13 +342,16 @@ export async function importar(
 
 /** La planilla para llenar: hoja Productos (con listas desplegables), Instrucciones y Listas. */
 export async function plantilla(): Promise<Buffer> {
-  const [ubicaciones, almacenes, { data: cats }, { data: unis }] = await Promise.all([
+  const [ubicaciones, almacenes, { data: cats }, { data: unis }, historico] = await Promise.all([
     listarUbicaciones(),
     listarAlmacenes(),
     supabaseAdmin.from("inv_categorias").select("nombre").order("nombre"),
     supabaseAdmin.from("inv_unidades").select("abreviacion").eq("activo", true).order("abreviacion"),
+    referenciasHistoricas(),
   ]);
   return armarPlantilla({
+    nombres: historico.nombres,
+    marcas: historico.marcas,
     bodegas: [...almacenes.map((a) => a.codigo), ...ubicaciones.filter((u) => u.tipo === "interna").map((u) => u.nombre)],
     categorias: (cats ?? []).map((c) => c.nombre as string),
     unidades: (unis ?? []).map((u) => u.abreviacion as string),
@@ -365,7 +370,7 @@ export async function plantilla(): Promise<Buffer> {
  *  - Bodega es estricta (tiene que existir). Categoría y Unidad solo advierten: una nueva se crea
  *    al importar, como dicen las instrucciones.
  */
-export async function armarPlantilla(datos: { bodegas: string[]; categorias: string[]; unidades: string[] }): Promise<Buffer> {
+export async function armarPlantilla(datos: { bodegas: string[]; categorias: string[]; unidades: string[]; nombres?: string[]; marcas?: string[] }): Promise<Buffer> {
   const libro = new ExcelJS.Workbook();
   libro.creator = "Core PERTEC";
 
@@ -401,6 +406,10 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
   const rCat = escribirLista(4, "Categorías existentes", "LST_CATEGORIAS", datos.categorias);
   const rUni = escribirLista(5, "Unidades existentes", "LST_UNIDADES", datos.unidades);
   escribirLista(6, "Estado", "LST_ESTADOS", estados);
+  // Del histórico de compras (Valorización histórica), en orden alfabético para recorrerlas.
+  const alfabetico = (xs: string[] = []) => [...xs].sort((a, b) => a.localeCompare(b, "es"));
+  const rNom = escribirLista(7, "Nombres (histórico de compras)", "LST_NOMBRES", alfabetico(datos.nombres));
+  const rMar = escribirLista(8, "Marcas (histórico de compras)", "LST_MARCAS", alfabetico(datos.marcas));
   listas.columns.forEach((c) => (c.width = 28));
 
   const validaciones: Partial<Record<ClaveColumna, ExcelJS.DataValidation>> = {
@@ -413,6 +422,16 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
       type: "list", allowBlank: true, formulae: [enLinea(seguimientos)], showErrorMessage: true, errorStyle: "stop",
       errorTitle: "Seguimiento", error: "Elige Ninguno, Lote o Serie.",
       showInputMessage: true, promptTitle: "Seguimiento", prompt: "Elige de la lista ▼ (vacío = Ninguno).",
+    },
+    nombre: {
+      type: "list", allowBlank: true, formulae: [rNom], showErrorMessage: true, errorStyle: "warning",
+      errorTitle: "Nombre nuevo", error: "Ese nombre no está en el histórico de compras. Si es un producto nuevo, déjalo así. ¿Seguir?",
+      showInputMessage: true, promptTitle: "Nombre", prompt: "La lista ▼ trae cómo están escritos en el histórico: úsala de referencia o escribe uno nuevo.",
+    },
+    marca: {
+      type: "list", allowBlank: true, formulae: [rMar], showErrorMessage: true, errorStyle: "warning",
+      errorTitle: "Marca nueva", error: "Esa marca no está en el histórico de compras. Si es nueva, déjala así. ¿Seguir?",
+      showInputMessage: true, promptTitle: "Marca", prompt: "Elige de la lista ▼ (marcas del histórico) o escribe una nueva.",
     },
     estado: {
       type: "list", allowBlank: true, formulae: [enLinea(estados)], showErrorMessage: true, errorStyle: "stop",
@@ -458,7 +477,8 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
   for (const linea of [
     "Llena la hoja «Productos», una fila por producto (y por bodega/lote si cargas stock). Borra la fila de ejemplo.",
     "Obligatorias (*): Nombre, Categoría, Bodega y Cantidad (en un Servicio, bodega y cantidad no van). Las demás celdas vacías NO borran lo que el producto ya tenía.",
-    "Categoría, Unidad, Tipo, Seguimiento, Estado y Bodega tienen lista desplegable: haz clic en la celda y usa la flecha ▼. Las opciones están en la hoja «Listas».",
+    "Nombre, Marca, Categoría, Unidad, Tipo, Seguimiento, Estado y Bodega tienen lista desplegable: haz clic en la celda y usa la flecha ▼. Las opciones están en la hoja «Listas».",
+    "Nombre y Marca traen lo que hay en el histórico de compras, como referencia del formato: si el producto o la marca son nuevos, se escriben igual (Excel avisa, pero deja).",
     "¿No ves las flechas? Si Excel muestra arriba «Vista protegida», presiona «Habilitar edición»: con el archivo recién descargado, Excel no deja usar las listas hasta eso.",
     "Si el SKU ya existe se actualiza ese producto; si no hay SKU, se busca por nombre exacto. Si no existe, se crea.",
     "«Cantidad» es el stock que hay HOY en esa bodega: el sistema hace un ajuste por la diferencia (no suma).",

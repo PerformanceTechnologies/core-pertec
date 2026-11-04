@@ -681,7 +681,7 @@ const cuerpos = acciones
   .map((trozo) => ({ nombre: trozo.slice(0, trozo.indexOf("(")), cuerpo: trozo }))
   .filter((a) => a.nombre !== "verificarAcceso");
 
-assert.ok(cuerpos.length === 18, `se esperaban las 18 acciones del módulo, se encontraron ${cuerpos.length}`);
+assert.ok(cuerpos.length === 19, `se esperaban las 19 acciones del módulo, se encontraron ${cuerpos.length}`);
 
 const sinGuard = cuerpos.filter((a) => !/exigirAccesoApp\(SLUG\)/.test(a.cuerpo)).map((a) => a.nombre);
 assert.deepEqual(
@@ -972,7 +972,7 @@ console.log(
 {
   const { armarPlantilla } = await import("../lib/inventario-importacion");
   const JSZip = (await import("jszip")).default;
-  const zip = await JSZip.loadAsync(await armarPlantilla({ bodegas: ["AMU", "CAL"], categorias: ["EPP", "Herramientas"], unidades: ["un", "kg"] }));
+  const zip = await JSZip.loadAsync(await armarPlantilla({ bodegas: ["AMU", "CAL"], categorias: ["EPP", "Herramientas"], unidades: ["un", "kg"], nombres: ["TALADRO MAKITA", "GUANTE EAGLE J321"], marcas: ["Makita", "3M"] }));
   const hoja = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
   const libro = await zip.file("xl/workbook.xml")!.async("string");
   const rangos = [...hoja.matchAll(/<dataValidation [^>]*sqref="([^"]+)"[^>]*><formula1>([^<]*)<\/formula1>/g)].map((m) => ({ sqref: m[1], f: m[2] }));
@@ -981,17 +981,21 @@ console.log(
   const columnas = rangos.map((r) => r.sqref.replace(/\d+/g, "").split(":")[0]);
   assert.equal(new Set(columnas).size, columnas.length, `validaciones repetidas en una columna: ${rangos.map((r) => r.sqref).join(" ")}`);
   const de = (col: string) => rangos.find((r) => r.sqref.startsWith(`${col}2:`));
-  assert.equal(de("C")?.f, "LST_CATEGORIAS", "la Categoría tiene su lista");
-  assert.equal(de("D")?.f, "LST_UNIDADES", "la Unidad tiene su lista");
-  assert.equal(de("J")?.f, "LST_BODEGAS");
-  assert.equal(de("G")?.f, "&quot;Operativo,No operativo&quot;", "el Estado tiene su lista");
-  assert.equal(de("E")?.f, "&quot;Almacenable,Consumible,Servicio&quot;", "las listas cortas van escritas en la validación");
-  assert.ok(de("C")!.sqref.endsWith(":C1001"), "la lista llega hasta la última fila permitida");
+  assert.equal(de("D")?.f, "LST_CATEGORIAS", "la Categoría tiene su lista");
+  assert.equal(de("B")?.f, "LST_NOMBRES", "el Nombre trae los del histórico");
+  assert.equal(de("C")?.f, "LST_MARCAS", "la Marca trae las del histórico");
+  assert.ok(/sqref="B2:B1001"/.test(hoja) && /errorStyle="warning"[^>]*sqref="B2:B1001"/.test(hoja), "un nombre nuevo se avisa pero se deja");
+  assert.equal(de("E")?.f, "LST_UNIDADES", "la Unidad tiene su lista");
+  assert.equal(de("K")?.f, "LST_BODEGAS");
+  assert.equal(de("H")?.f, "&quot;Operativo,No operativo&quot;", "el Estado tiene su lista");
+  assert.equal(de("F")?.f, "&quot;Almacenable,Consumible,Servicio&quot;", "las listas cortas van escritas en la validación");
+  assert.ok(de("D")!.sqref.endsWith(":D1001"), "la lista llega hasta la última fila permitida");
   for (const nombre of ["LST_BODEGAS", "LST_CATEGORIAS", "LST_UNIDADES"]) assert.ok(libro.includes(`name="${nombre}"`), `falta el nombre ${nombre}`);
   assert.ok(libro.includes(">Listas!$D$2:$D$3<"), "LST_CATEGORIAS apunta a las categorías de la hoja Listas");
+  assert.ok(libro.includes('name="LST_NOMBRES">Listas!$G$2:$G$3<') && libro.includes('name="LST_MARCAS">Listas!$H$2:$H$3<'), "nombres y marcas del histórico en la hoja Listas");
   // La fila de ejemplo trae los números como número (sin el triangulito verde de Excel).
-  assert.ok(/<c r="H2"[^>]*><v>12500<\/v>/.test(hoja), "el costo de ejemplo va como número");
-  console.log("Plantilla verificada: listas desplegables de Categoría, Unidad, Tipo, Seguimiento, Estado y Bodega sin rangos que Excel borre.");
+  assert.ok(/<c r="I2"[^>]*><v>12500<\/v>/.test(hoja), "el costo de ejemplo va como número");
+  console.log("Plantilla verificada: listas desplegables de Nombre, Marca, Categoría, Unidad, Tipo, Seguimiento, Estado y Bodega sin rangos que Excel borre.");
 }
 
 // ── Estado del producto en la carga masiva ──────────────────────────────────────
@@ -1006,6 +1010,8 @@ console.log(
   assert.equal(fila("").estadoOperativo, null, "vacío no cambia lo que había (al crear queda operativo)");
   assert.deepEqual(fila("Roto a medias").errores, ["Estado «Roto a medias» no válido (Operativo o No operativo)."]);
   assert.equal(im.mapearEncabezados(["Nombre", "Categoría", "Bodega", "Cantidad", "Estado operativo"]).mapa.get(4), "estado");
+  assert.equal(im.validarFila(2, { nombre: "Taladro", marca: "  Makita  ", categoria: "EPP", bodega: "AMU", cantidad: "1" }, cat as never).marca, "Makita", "la marca se guarda tal cual, sin espacios de más");
+  assert.equal(im.validarFila(2, { nombre: "Taladro", categoria: "EPP", bodega: "AMU", cantidad: "1" }, cat as never).marca, null);
   const sqlEstado = readFileSync("supabase/inventario/0005_estado_operativo.sql", "utf8");
   assert.ok(sqlEstado.includes("estado_operativo in ('operativo', 'no_operativo')") && sqlEstado.includes("default 'operativo'"));
   console.log("Estado del producto verificado: Operativo / No operativo en la carga masiva y en la migración.");

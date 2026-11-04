@@ -17,12 +17,13 @@ export interface ColumnaImportacion {
 }
 
 export type ClaveColumna =
-  | "sku" | "nombre" | "categoria" | "unidad" | "tipo" | "seguimiento" | "estado" | "costo" | "precio"
+  | "sku" | "nombre" | "marca" | "categoria" | "unidad" | "tipo" | "seguimiento" | "estado" | "costo" | "precio"
   | "bodega" | "cantidad" | "lote" | "vencimiento" | "minimo" | "maximo" | "descripcion";
 
 export const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
   { clave: "sku", titulo: "SKU / Código", ayuda: "Código interno. Si existe, se actualiza ese producto; si no, se busca por nombre.", ejemplo: "VUL-001", alias: ["sku", "codigo", "código", "cod", "referencia interna", "codigo interno"] },
-  { clave: "nombre", titulo: "Nombre", obligatoria: true, ayuda: "Nombre del producto.", ejemplo: "Parche radial 120x180", alias: ["nombre", "producto", "nombre producto", "descripcion corta"] },
+  { clave: "nombre", titulo: "Nombre", obligatoria: true, ayuda: "Nombre del producto. La lista trae cómo están escritos en el histórico de compras, como referencia; si es nuevo, se escribe igual.", ejemplo: "Parche radial 120x180", alias: ["nombre", "producto", "nombre producto", "descripcion corta"] },
+  { clave: "marca", titulo: "Marca", ayuda: "Texto libre. La lista trae las marcas del histórico de compras para usar el mismo formato; si es nueva, se escribe igual.", ejemplo: "3M", alias: ["marca", "fabricante", "brand"] },
   { clave: "categoria", titulo: "Categoría", obligatoria: true, ayuda: "Si no existe, se crea (o queda con error, según la opción).", ejemplo: "Insumos de vulcanización", alias: ["categoria", "familia", "grupo"] },
   { clave: "unidad", titulo: "Unidad", ayuda: "Nombre o abreviación (un, kg, lt…). Si no existe, se crea.", ejemplo: "un", alias: ["unidad", "unidad de medida", "um", "u/m", "uom"] },
   { clave: "tipo", titulo: "Tipo", ayuda: "Almacenable, Consumible o Servicio. Vacío = Almacenable.", ejemplo: "Almacenable", alias: ["tipo", "tipo producto"] },
@@ -153,6 +154,7 @@ export interface FilaImportacion {
   productoId: string | null;
   nombre: string;
   sku: string | null;
+  marca: string | null;
   categoria: string | null;
   unidad: string | null;
   tipo: TipoProducto | null;
@@ -272,6 +274,7 @@ export function validarFila(
     productoId: existente?.id ?? null,
     nombre,
     sku,
+    marca: v("marca").replace(/\s+/g, " ").slice(0, 80) || null,
     categoria: v("categoria").slice(0, 120) || null,
     unidad: v("unidad").slice(0, 40) || null,
     tipo,

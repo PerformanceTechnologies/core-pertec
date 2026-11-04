@@ -53,7 +53,7 @@ const aCategoria = (r: any): Categoria => ({ id: r.id, nombre: r.nombre });
 const aAlmacen = (r: any): Almacen => ({ id: r.id, nombre: r.nombre, codigo: r.codigo });
 
 const aProducto = (r: any): Producto => ({
-  id: r.id, sku: r.sku, nombre: r.nombre, descripcion: r.descripcion,
+  id: r.id, sku: r.sku, nombre: r.nombre, marca: r.marca ?? null, descripcion: r.descripcion,
   categoriaId: r.categoria_id, unidadId: r.unidad_id, tipo: r.tipo, seguimiento: r.seguimiento,
   costo: Number(r.costo), metodoCosto: r.metodo_costo ?? "estandar", precio: Number(r.precio), activo: r.activo,
   ubicacionId: r.ubicacion_id ?? null, requiereCertificacion: Boolean(r.requiere_certificacion),
@@ -635,13 +635,13 @@ export async function lineasDeValor(): Promise<LineaValor[]> {
 // =============================================================================
 
 export async function crearProducto(d: {
-  nombre: string; sku?: string | null; descripcion?: string | null; categoriaId?: string | null;
+  nombre: string; sku?: string | null; marca?: string | null; descripcion?: string | null; categoriaId?: string | null;
   unidadId?: string | null; tipo?: string; seguimiento?: string; costo?: number; precio?: number; metodoCosto?: string;
   ubicacionId?: string | null; requiereCertificacion?: boolean; certificadoVence?: string | null; fechaVencimiento?: string | null;
   estadoOperativo?: string;
 }): Promise<string> {
   const { data, error } = await supabaseAdmin.from(T.productos).insert({
-    nombre: d.nombre, sku: d.sku || null, descripcion: d.descripcion || null, categoria_id: d.categoriaId || null,
+    nombre: d.nombre, sku: d.sku || null, ...(d.marca ? { marca: d.marca } : {}), descripcion: d.descripcion || null, categoria_id: d.categoriaId || null,
     unidad_id: d.unidadId || null, tipo: d.tipo || "almacenable", seguimiento: d.seguimiento || "ninguno",
     costo: d.costo ?? 0, precio: d.precio ?? 0, metodo_costo: d.metodoCosto || "promedio",
     ubicacion_id: d.ubicacionId || null, requiere_certificacion: d.requiereCertificacion ?? false,

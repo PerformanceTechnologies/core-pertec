@@ -27,8 +27,11 @@ import {
   actualizarProductoAction,
   crearProductoAction,
   quitarCertificadoAction,
+  referenciasHistoricasAction,
   verCertificadoAction,
 } from "@/app/(protegido)/inventario/acciones";
+import { REFERENCIAS_VACIAS, type ReferenciasHistoricas } from "@/lib/valorizacion-historica-modelo";
+import CampoReferencia from "@/components/inventario/CampoReferencia";
 
 const AYUDA_TIPO: Record<TipoProducto, string> = {
   almacenable: "Lleva stock por bodega",
@@ -57,6 +60,10 @@ export default function FormularioProducto({
   const [tieneCert, setTieneCert] = useState(producto?.tieneCertificado ?? false);
   const [nombre, setNombre] = useState(producto?.nombre ?? "");
   const [sku, setSku] = useState(producto?.sku ?? "");
+  const [marca, setMarca] = useState(producto?.marca ?? "");
+  // Los nombres y marcas del histórico de compras: se piden una vez, al abrir el formulario.
+  const [referencias, setReferencias] = useState<ReferenciasHistoricas | null>(null);
+  const [cargandoReferencias, setCargandoReferencias] = useState(false);
   const [categoriaId, setCategoriaId] = useState(producto?.categoriaId ?? "");
   const [tipo, setTipo] = useState<TipoProducto>(producto?.tipo ?? "almacenable");
   const [estado, setEstado] = useState<EstadoOperativo>(producto?.estadoOperativo ?? "operativo");
@@ -70,6 +77,14 @@ export default function FormularioProducto({
     setTieneCert(producto?.tieneCertificado ?? false);
     setNombre(producto?.nombre ?? "");
     setSku(producto?.sku ?? "");
+    setMarca(producto?.marca ?? "");
+    if (!referencias && !cargandoReferencias) {
+      setCargandoReferencias(true);
+      referenciasHistoricasAction()
+        .then(setReferencias)
+        .catch(() => setReferencias(REFERENCIAS_VACIAS))
+        .finally(() => setCargandoReferencias(false));
+    }
     setCategoriaId(producto?.categoriaId ?? "");
     setTipo(producto?.tipo ?? "almacenable");
     setEstado(producto?.estadoOperativo ?? "operativo");
@@ -156,7 +171,7 @@ export default function FormularioProducto({
                 <FichaProducto nombre={nombre || "?"} categoria={nombreCategoria} />
                 <div className="min-w-0">
                   <p className="texto-banda truncate text-sm font-bold">{nombre || "Nombre del producto"}</p>
-                  <p className="texto-banda-65 truncate text-xs">{sku || "Sin código"}</p>
+                  <p className="texto-banda-65 truncate text-xs">{[marca.trim(), sku || "Sin código"].filter(Boolean).join(" · ")}</p>
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-1.5">
@@ -179,12 +194,35 @@ export default function FormularioProducto({
           <div className="space-y-6">
             <Seccion n={1} titulo="Datos básicos">
               <Campo etiqueta="Nombre" obligatorio>
-                <input name="nombre" required value={nombre} onChange={(e) => setNombre(e.target.value)} className={CAMPO} placeholder="Ej: Casco de seguridad" autoFocus />
+                <CampoReferencia
+                  name="nombre"
+                  valor={nombre}
+                  alCambiar={setNombre}
+                  referencias={referencias?.nombres ?? []}
+                  cargando={cargandoReferencias}
+                  placeholder="Ej: Casco de seguridad"
+                  required
+                  autoFocus
+                />
               </Campo>
               <div className="grid gap-4 sm:grid-cols-2">
+                <Campo etiqueta="Marca">
+                  {producto?.marca && <input type="hidden" name="marcaPrevia" value="si" />}
+                  <CampoReferencia
+                    name="marca"
+                    valor={marca}
+                    alCambiar={setMarca}
+                    referencias={referencias?.marcas ?? []}
+                    cargando={cargandoReferencias}
+                    placeholder="Ej: 3M, Makita"
+                    maximo={80}
+                  />
+                </Campo>
                 <Campo etiqueta="SKU / código" ayuda="Para buscarlo rápido">
                   <input name="sku" value={sku} onChange={(e) => setSku(e.target.value)} className={CAMPO} placeholder="EPP-001" />
                 </Campo>
+              </div>
+              <div>
                 <Campo etiqueta="Categoría">
                   <select name="categoriaId" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={CAMPO}>
                     <option value="">— Sin categoría —</option>

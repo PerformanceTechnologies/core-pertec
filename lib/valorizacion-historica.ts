@@ -6,6 +6,8 @@ import {
   armarCatalogo,
   claveDocumento,
   documentosConAlcance,
+  REFERENCIAS_VACIAS,
+  referenciasDe,
   proveedoresConCifras,
   resumirRegistro,
   textoDeLinea,
@@ -16,6 +18,7 @@ import {
   type ItemCatalogo,
   type LineaCompra,
   type ProveedorConCifras,
+  type ReferenciasHistoricas,
   type ResumenGeneral,
 } from "./valorizacion-historica-modelo";
 
@@ -218,6 +221,20 @@ export async function cargarVista(): Promise<VistaHistorica> {
     if (enMemoria?.vista === vista) enMemoria = null;
   });
   return vista;
+}
+
+/**
+ * Los nombres y marcas del histórico, para que Inventario los use de referencia de formato.
+ * Si el registro no está cargado (o falla), listas vacías: Inventario funciona igual sin ellas.
+ */
+export async function referenciasHistoricas(): Promise<ReferenciasHistoricas> {
+  try {
+    const v = await cargarVista();
+    return referenciasDe(v.catalogo, v.datos.lineas);
+  } catch (e) {
+    console.warn("[valorizacion-historica] Sin referencias para Inventario:", e instanceof Error ? e.message : e);
+    return REFERENCIAS_VACIAS;
+  }
 }
 
 // ---------- Importar ------------------------------------------------------------

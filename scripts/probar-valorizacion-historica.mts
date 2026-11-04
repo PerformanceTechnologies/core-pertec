@@ -9,6 +9,9 @@ import {
   documentosConAlcance,
   filtrarDocumentos,
   filtrarLineas,
+  formatoHistorico,
+  referenciasDe,
+  sugerenciasHistoricas,
   leerNumero,
   normalizar,
   proveedoresConCifras,
@@ -338,6 +341,28 @@ async function libroDePrueba(): Promise<Buffer> {
   const sinColumna = new ExcelJS.Workbook();
   sinColumna.addWorksheet("Detalle compras").addRow(["N°", "Fecha"]);
   await assert.rejects(leerRegistroMaestro(Buffer.from(await sinColumna.xlsx.writeBuffer())), /faltan las columnas: Tipo documento/);
+}
+
+// ---------- Referencias para Inventario (nombre y marca) ------------------------------
+
+{
+  const ls = [
+    linea({ clave: "TALADRO MAKITA", marca: "Makita" }),
+    linea({ clave: "TALADRO MAKITA", marca: "Makita" }),
+    linea({ clave: "GUANTE 3M", marca: "3M" }),
+    linea({ clave: "SIERRA", marca: "MAKITA" }),
+    linea({ clave: "SIN MARCA", marca: null }),
+  ];
+  const ref = referenciasDe(armarCatalogo(ls), ls);
+  assert.deepEqual(ref.marcas, ["Makita", "3M"], "una marca escrita de dos formas queda con la más usada, y por uso");
+  assert.equal(ref.nombres[0], "TALADRO MAKITA", "los nombres van del más comprado al menos");
+  assert.equal(formatoHistorico("makita", ref.marcas), "Makita", "mismo nombre, otro formato: se avisa cómo está en el histórico");
+  assert.equal(formatoHistorico("Makita", ref.marcas), null, "idéntico: nada que avisar");
+  assert.equal(formatoHistorico("Bosch", ref.marcas), null, "nueva: se deja");
+  assert.equal(formatoHistorico("  taladro   makita ", ref.nombres), "TALADRO MAKITA");
+  assert.deepEqual(sugerenciasHistoricas("tal", ref.nombres, 5), ["TALADRO MAKITA"]);
+  assert.deepEqual(sugerenciasHistoricas("t", ref.nombres, 5), [], "con una letra todavía no sugiere");
+  assert.deepEqual(sugerenciasHistoricas("TALADRO MAKITA", ref.nombres, 5), [], "no se sugiere lo mismo que ya está escrito");
 }
 
 console.log("Todas las verificaciones de la Valorización histórica pasaron.");

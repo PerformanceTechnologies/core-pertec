@@ -24,6 +24,8 @@ import {
   type LineaNueva,
 } from "@/lib/inventario";
 import { esEstadoOperativo, type EstadoOperativo } from "@/lib/inventario-modelo";
+import { referenciasHistoricas } from "@/lib/valorizacion-historica";
+import type { ReferenciasHistoricas } from "@/lib/valorizacion-historica-modelo";
 
 const SLUG = "inventario";
 
@@ -39,6 +41,15 @@ function refrescar(...rutas: string[]): void {
 }
 
 // -------- Productos ----------------------------------------------------------
+
+/**
+ * La marca, solo si hay algo que guardar: una escrita, o borrar la que el producto tenía. Así un
+ * producto sin marca se guarda sin tocar esa columna (y no depende de que exista todavía).
+ */
+function campoMarca(fd: FormData): { marca?: string | null } {
+  const marca = String(fd.get("marca") ?? "").replace(/\s+/g, " ").trim().slice(0, 80) || null;
+  return marca || fd.get("marcaPrevia") ? { marca } : {};
+}
 
 const fechaONull = (v: FormDataEntryValue | null) => {
   const t = String(v ?? "");
@@ -66,6 +77,7 @@ export async function crearProductoAction(fd: FormData): Promise<Resultado> {
     const id = await crearProducto({
       nombre,
       sku: String(fd.get("sku") ?? "").trim() || null,
+      ...campoMarca(fd),
       descripcion: String(fd.get("descripcion") ?? "").trim() || null,
       categoriaId: String(fd.get("categoriaId") ?? "") || null,
       unidadId: String(fd.get("unidadId") ?? "") || null,
@@ -89,6 +101,7 @@ export async function actualizarProductoAction(id: string, fd: FormData): Promis
     await actualizarProducto(id, {
       nombre: String(fd.get("nombre") ?? "").trim(),
       sku: String(fd.get("sku") ?? "").trim() || null,
+      ...campoMarca(fd),
       descripcion: String(fd.get("descripcion") ?? "").trim() || null,
       categoria_id: String(fd.get("categoriaId") ?? "") || null,
       unidad_id: String(fd.get("unidadId") ?? "") || null,
@@ -110,6 +123,15 @@ export async function actualizarProductoAction(id: string, fd: FormData): Promis
   } catch (e) {
     return fallo(e);
   }
+}
+
+/**
+ * Los nombres y marcas del histórico de compras, para mostrarlos en el formulario como
+ * referencia del formato. Solo textos: ni precios ni proveedores.
+ */
+export async function referenciasHistoricasAction(): Promise<ReferenciasHistoricas> {
+  await exigirAccesoApp(SLUG);
+  return referenciasHistoricas();
 }
 
 export async function desactivarProductoAction(id: string): Promise<Resultado> {

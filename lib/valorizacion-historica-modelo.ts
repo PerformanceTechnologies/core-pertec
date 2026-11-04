@@ -710,3 +710,71 @@ export function aCsv(encabezados: string[], filas: (string | number | null | und
   };
   return "﻿" + [encabezados, ...filas].map((f) => f.map(celda).join(";")).join("\r\n");
 }
+
+// -----------------------------------------------------------------------------
+//  Referencias para Inventario: cómo se escriben los nombres y las marcas en el histórico
+// -----------------------------------------------------------------------------
+//
+// El producto de Inventario no se elige de esta lista ni se autocompleta: la lista solo muestra
+// cómo quedó escrito lo mismo en el histórico, para que la persona use el mismo formato. Si lo
+// que necesita no está, escribe uno nuevo y listo.
+
+export interface ReferenciasHistoricas {
+  /** Los ítems del catálogo histórico, del más comprado al menos. */
+  nombres: string[];
+  /** Las marcas, de la más usada a la menos, una sola vez cada una. */
+  marcas: string[];
+}
+
+export const REFERENCIAS_VACIAS: ReferenciasHistoricas = { nombres: [], marcas: [] };
+
+/** «  makita » y «MAKITA» son lo mismo: para comparar formatos sin tildes, mayúsculas ni espacios de más. */
+export function clavePlana(s: string): string {
+  return normalizar(s).replace(/\s+/g, " ").trim();
+}
+
+export function referenciasDe(catalogo: ItemCatalogo[], lineas: LineaCompra[]): ReferenciasHistoricas {
+  const nombres = [...catalogo].sort((a, b) => b.compras - a.compras || a.clave.localeCompare(b.clave)).map((i) => i.clave);
+  // Una marca escrita de dos formas («Makita», «MAKITA») queda con la que más se usó.
+  const porClave = new Map<string, Map<string, number>>();
+  for (const l of lineas) {
+    if (!l.marca?.trim()) continue;
+    const k = clavePlana(l.marca);
+    const formas = porClave.get(k) ?? new Map<string, number>();
+    formas.set(l.marca.trim(), (formas.get(l.marca.trim()) ?? 0) + 1);
+    porClave.set(k, formas);
+  }
+  const marcas = [...porClave.values()]
+    .map((formas) => {
+      const [forma] = [...formas.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      return { forma: forma[0], usos: [...formas.values()].reduce((s, x) => s + x, 0) };
+    })
+    .sort((a, b) => b.usos - a.usos || a.forma.localeCompare(b.forma))
+    .map((m) => m.forma);
+  return { nombres: [...new Set(nombres)], marcas };
+}
+
+/**
+ * Si lo escrito es lo mismo que algo del histórico pero con otro formato («makita» y en el
+ * histórico «Makita»), devuelve cómo está escrito allá. Si es idéntico o no existe, null.
+ */
+export function formatoHistorico(valor: string, referencias: string[]): string | null {
+  const k = clavePlana(valor);
+  if (!k) return null;
+  const igual = referencias.find((r) => clavePlana(r) === k);
+  return igual && igual !== valor.trim() ? igual : null;
+}
+
+/** Las referencias que calzan con lo escrito (todas las palabras), sin la que ya es idéntica. */
+export function sugerenciasHistoricas(q: string, referencias: string[], cuantas: number): string[] {
+  if (clavePlana(q).length < 2) return [];
+  const coincide = compilarBusqueda(q);
+  const exacta = q.trim();
+  const r: string[] = [];
+  for (const ref of referencias) {
+    if (ref === exacta) continue;
+    if (coincide(normalizar(ref))) r.push(ref);
+    if (r.length >= cuantas) break;
+  }
+  return r;
+}

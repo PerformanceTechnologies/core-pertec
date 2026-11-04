@@ -48,6 +48,7 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
           </h2>
           <p className="mt-0.5 text-sm text-gris">
             {producto.sku ? <span className="font-mono">{producto.sku}</span> : "sin SKU"}
+            {producto.marca ? ` · ${producto.marca}` : ""}
             {" · "}{ETIQUETA_TIPO_PRODUCTO[producto.tipo]}
             {nombreCat ? ` · ${nombreCat}` : ""}
             {producto.seguimiento !== "ninguno" ? ` · ${ETIQUETA_SEGUIMIENTO[producto.seguimiento]}` : ""}

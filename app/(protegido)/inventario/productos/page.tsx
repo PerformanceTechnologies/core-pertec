@@ -76,6 +76,7 @@ export default async function ProductosPage() {
                         <span className="font-semibold text-tinta group-hover:text-naranjo">{p.nombre}</span>
                         <span className="block text-xs text-gris">
                           {p.sku ? <span className="font-mono">{p.sku}</span> : "sin SKU"}
+                          {p.marca ? ` · ${p.marca}` : ""}
                           {p.seguimiento !== "ninguno" ? ` · ${ETIQUETA_SEGUIMIENTO[p.seguimiento]}` : ""}
                           {p.ubicacionId && nombreUbi.get(p.ubicacionId) ? ` · ${nombreUbi.get(p.ubicacionId)}` : ""}
                         </span>

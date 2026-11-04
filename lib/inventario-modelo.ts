@@ -35,6 +35,7 @@ export interface Producto {
   id: string;
   sku: string | null;
   nombre: string;
+  marca: string | null;
   descripcion: string | null;
   categoriaId: string | null;
   unidadId: string | null;
