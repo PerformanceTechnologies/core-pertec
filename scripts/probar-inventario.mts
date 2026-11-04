@@ -967,3 +967,26 @@ console.log(
   assert.deepEqual(m.resumirValorizacion([]).porBodega, []);
   console.log("Valorización verificada: totales por bodega y categoría, clases ABC y productos sin costo.");
 }
+
+// ── Plantilla de carga masiva: listas desplegables que Excel no borre al abrirla ───────────────
+{
+  const { armarPlantilla } = await import("../lib/inventario-importacion");
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(await armarPlantilla({ bodegas: ["AMU", "CAL"], categorias: ["EPP", "Herramientas"], unidades: ["un", "kg"] }));
+  const hoja = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+  const libro = await zip.file("xl/workbook.xml")!.async("string");
+  const rangos = [...hoja.matchAll(/<dataValidation [^>]*sqref="([^"]+)"[^>]*><formula1>([^<]*)<\/formula1>/g)].map((m) => ({ sqref: m[1], f: m[2] }));
+  // Una sola validación por columna y sin rangos que se pisen: si se pisan, Excel «repara» el
+  // archivo al abrirlo y borra todas las listas (ExcelJS lo hacía al asignarlas celda por celda).
+  const columnas = rangos.map((r) => r.sqref.replace(/\d+/g, "").split(":")[0]);
+  assert.equal(new Set(columnas).size, columnas.length, `validaciones repetidas en una columna: ${rangos.map((r) => r.sqref).join(" ")}`);
+  const de = (col: string) => rangos.find((r) => r.sqref.startsWith(`${col}2:`));
+  assert.equal(de("C")?.f, "LST_CATEGORIAS", "la Categoría tiene su lista");
+  assert.equal(de("D")?.f, "LST_UNIDADES", "la Unidad tiene su lista");
+  assert.equal(de("I")?.f, "LST_BODEGAS");
+  assert.equal(de("E")?.f, "&quot;Almacenable,Consumible,Servicio&quot;", "las listas cortas van escritas en la validación");
+  assert.ok(de("C")!.sqref.endsWith(":C1001"), "la lista llega hasta la última fila permitida");
+  for (const nombre of ["LST_BODEGAS", "LST_CATEGORIAS", "LST_UNIDADES"]) assert.ok(libro.includes(`name="${nombre}"`), `falta el nombre ${nombre}`);
+  assert.ok(libro.includes(">Listas!$D$2:$D$3<"), "LST_CATEGORIAS apunta a las categorías de la hoja Listas");
+  console.log("Plantilla verificada: listas desplegables de Categoría, Unidad, Tipo, Seguimiento y Bodega sin rangos que Excel borre.");
+}

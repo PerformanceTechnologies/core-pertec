@@ -345,11 +345,29 @@ export async function plantilla(): Promise<Buffer> {
     supabaseAdmin.from("inv_categorias").select("nombre").order("nombre"),
     supabaseAdmin.from("inv_unidades").select("abreviacion").eq("activo", true).order("abreviacion"),
   ]);
-  const bodegas = [
-    ...almacenes.map((a) => a.codigo),
-    ...ubicaciones.filter((u) => u.tipo === "interna").map((u) => u.nombre),
-  ];
+  return armarPlantilla({
+    bodegas: [...almacenes.map((a) => a.codigo), ...ubicaciones.filter((u) => u.tipo === "interna").map((u) => u.nombre)],
+    categorias: (cats ?? []).map((c) => c.nombre as string),
+    unidades: (unis ?? []).map((u) => u.abreviacion as string),
+  });
+}
 
+/** Las columnas que traen lista desplegable: van con fondo de color para que se note. */
+const RELLENO_LISTA: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF4D6" } };
+
+/**
+ * Arma la planilla con las listas que se le pasen (sin tocar la base: así se prueba).
+ *
+ * Las listas desplegables:
+ *  - Tipo y Seguimiento son cortas y fijas: van escritas en la misma validación ("A,B,C"), que
+ *    funciona en cualquier programa (Excel, Google Sheets, LibreOffice).
+ *  - Bodega, Categoría y Unidad salen de la hoja «Listas» por un NOMBRE definido (LST_BODEGAS…),
+ *    no por una referencia directa a otra hoja: es lo que entienden todas las versiones de Excel y
+ *    lo que mejor sobrevive al abrir el archivo en otro programa.
+ *  - Bodega es estricta (tiene que existir). Categoría y Unidad solo advierten: una nueva se crea
+ *    al importar, como dicen las instrucciones.
+ */
+export async function armarPlantilla(datos: { bodegas: string[]; categorias: string[]; unidades: string[] }): Promise<Buffer> {
   const libro = new ExcelJS.Workbook();
   libro.creator = "Core PERTEC";
 
@@ -364,29 +382,67 @@ export async function plantilla(): Promise<Buffer> {
   hoja.getRow(2).font = { italic: true, color: { argb: "FF8C8578" } };
 
   const listas = libro.addWorksheet("Listas");
-  const escribirLista = (col: number, titulo: string, valores: string[]) => {
+  /** Escribe una lista en la hoja «Listas» y le pone nombre. Vacía, deja una fila en blanco para que el nombre exista igual. */
+  const escribirLista = (col: number, titulo: string, nombre: string, valores: string[]) => {
+    const letra = String.fromCharCode(64 + col);
     listas.getCell(1, col).value = titulo;
     listas.getCell(1, col).font = { bold: true };
     valores.forEach((v, i) => (listas.getCell(i + 2, col).value = v));
-    return `Listas!$${String.fromCharCode(64 + col)}$2:$${String.fromCharCode(64 + col)}$${Math.max(2, valores.length + 1)}`;
+    libro.definedNames.add(`Listas!$${letra}$2:$${letra}$${Math.max(2, valores.length + 1)}`, nombre);
+    return nombre;
   };
-  const rTipo = escribirLista(1, "Tipo", ["Almacenable", "Consumible", "Servicio"]);
-  const rSeg = escribirLista(2, "Seguimiento", ["Ninguno", "Lote", "Serie"]);
-  const rBod = escribirLista(3, "Bodega / Ubicación", bodegas);
-  escribirLista(4, "Categorías existentes", (cats ?? []).map((c) => c.nombre as string));
-  escribirLista(5, "Unidades existentes", (unis ?? []).map((u) => u.abreviacion as string));
+  const enLinea = (valores: string[]) => `"${valores.join(",")}"`;
+  const tipos = ["Almacenable", "Consumible", "Servicio"];
+  const seguimientos = ["Ninguno", "Lote", "Serie"];
+  escribirLista(1, "Tipo", "LST_TIPOS", tipos);
+  escribirLista(2, "Seguimiento", "LST_SEGUIMIENTO", seguimientos);
+  const rBod = escribirLista(3, "Bodega / Ubicación", "LST_BODEGAS", datos.bodegas);
+  const rCat = escribirLista(4, "Categorías existentes", "LST_CATEGORIAS", datos.categorias);
+  const rUni = escribirLista(5, "Unidades existentes", "LST_UNIDADES", datos.unidades);
   listas.columns.forEach((c) => (c.width = 28));
 
+  const validaciones: Partial<Record<ClaveColumna, ExcelJS.DataValidation>> = {
+    tipo: {
+      type: "list", allowBlank: true, formulae: [enLinea(tipos)], showErrorMessage: true, errorStyle: "stop",
+      errorTitle: "Tipo", error: "Elige Almacenable, Consumible o Servicio.",
+      showInputMessage: true, promptTitle: "Tipo", prompt: "Elige de la lista ▼ (vacío = Almacenable).",
+    },
+    seguimiento: {
+      type: "list", allowBlank: true, formulae: [enLinea(seguimientos)], showErrorMessage: true, errorStyle: "stop",
+      errorTitle: "Seguimiento", error: "Elige Ninguno, Lote o Serie.",
+      showInputMessage: true, promptTitle: "Seguimiento", prompt: "Elige de la lista ▼ (vacío = Ninguno).",
+    },
+    categoria: {
+      type: "list", allowBlank: true, formulae: [rCat], showErrorMessage: true, errorStyle: "warning",
+      errorTitle: "Categoría nueva", error: "Esa categoría no existe en el Core: se va a crear al importar. ¿La dejas así?",
+      showInputMessage: true, promptTitle: "Categoría", prompt: "Elige una de la lista ▼ o escribe una nueva.",
+    },
+    unidad: {
+      type: "list", allowBlank: true, formulae: [rUni], showErrorMessage: true, errorStyle: "warning",
+      errorTitle: "Unidad nueva", error: "Esa unidad no existe en el Core: se va a crear al importar. ¿La dejas así?",
+      showInputMessage: true, promptTitle: "Unidad", prompt: "Elige una de la lista ▼ o escribe una nueva.",
+    },
+  };
+  if (datos.bodegas.length) {
+    validaciones.bodega = {
+      type: "list", allowBlank: true, formulae: [rBod], showErrorMessage: true, errorStyle: "stop",
+      errorTitle: "Bodega", error: "Elige una bodega de la lista (créala antes en el Core si no está).",
+      showInputMessage: true, promptTitle: "Bodega", prompt: "Elige de la lista ▼.",
+    };
+  }
+
+  // Una sola validación por columna, sobre todo el rango (C2:C1001). Asignarla celda por celda
+  // (celda.dataValidation) hace que ExcelJS escriba rangos que se pisan —ordena las celdas como
+  // texto, «C10» antes que «C2», y deja C10:C1001 y C2:C1001—, Excel «repara» el archivo al
+  // abrirlo y borra TODAS las listas desplegables. Eso es lo que pasaba con la plantilla.
+  // (dataValidations existe en la hoja aunque los tipos de ExcelJS no lo declaren.)
+  const validacionesHoja = (hoja as unknown as { dataValidations: { add(rango: string, v: ExcelJS.DataValidation): void } }).dataValidations;
   const colDe = (clave: ClaveColumna) => COLUMNAS_IMPORTACION.findIndex((c) => c.clave === clave) + 1;
-  for (let fila = 2; fila <= MAX_FILAS_IMPORTACION + 1; fila++) {
-    hoja.getCell(fila, colDe("tipo")).dataValidation = { type: "list", allowBlank: true, formulae: [rTipo] };
-    hoja.getCell(fila, colDe("seguimiento")).dataValidation = { type: "list", allowBlank: true, formulae: [rSeg] };
-    if (bodegas.length) {
-      hoja.getCell(fila, colDe("bodega")).dataValidation = {
-        type: "list", allowBlank: true, formulae: [rBod], showErrorMessage: true,
-        errorTitle: "Bodega", error: "Elige una bodega de la lista (créala antes en el Core si no está).",
-      };
-    }
+  for (const [clave, validacion] of Object.entries(validaciones) as [ClaveColumna, ExcelJS.DataValidation][]) {
+    const col = colDe(clave);
+    const letra = hoja.getColumn(col).letter;
+    validacionesHoja.add(`${letra}2:${letra}${MAX_FILAS_IMPORTACION + 1}`, validacion);
+    for (let fila = 2; fila <= MAX_FILAS_IMPORTACION + 1; fila++) hoja.getCell(fila, col).fill = RELLENO_LISTA;
   }
 
   const inst = libro.addWorksheet("Instrucciones");
@@ -396,9 +452,11 @@ export async function plantilla(): Promise<Buffer> {
   for (const linea of [
     "Llena la hoja «Productos», una fila por producto (y por bodega/lote si cargas stock). Borra la fila de ejemplo.",
     "Obligatorias (*): Nombre, Categoría, Bodega y Cantidad (en un Servicio, bodega y cantidad no van). Las demás celdas vacías NO borran lo que el producto ya tenía.",
+    "Las columnas con fondo amarillo (Categoría, Unidad, Tipo, Seguimiento y Bodega) tienen lista desplegable: haz clic en la celda y usa la flecha ▼. Las opciones están en la hoja «Listas».",
+    "¿No ves las flechas? Si Excel muestra arriba «Vista protegida», presiona «Habilitar edición»: con el archivo recién descargado, Excel no deja usar las listas hasta eso.",
     "Si el SKU ya existe se actualiza ese producto; si no hay SKU, se busca por nombre exacto. Si no existe, se crea.",
     "«Cantidad» es el stock que hay HOY en esa bodega: el sistema hace un ajuste por la diferencia (no suma).",
-    "Las bodegas deben existir en el Core. Categorías y unidades nuevas se crean solas.",
+    "Las bodegas deben existir en el Core. Categorías y unidades nuevas se crean solas (el Excel avisa, pero deja escribirlas).",
     `Hasta ${MAX_FILAS_IMPORTACION} filas por archivo. También se acepta CSV con los mismos encabezados.`,
     "Antes de importar, el Core muestra una vista previa con lo que va a crear, actualizar y los errores por fila.",
   ]) inst.addRow(["•", linea]).alignment = { wrapText: true, vertical: "top" };
