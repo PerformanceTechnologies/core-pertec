@@ -6,8 +6,8 @@ import { IconFileInvoice } from "@tabler/icons-react";
 import { actualizarCampoHitoAction, registrarFacturaVentaAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { ACCION_ETAPA, clp, fechaCl, peso, type EtapaHito } from "@/lib/fin/reglas";
 import type { HitoVista } from "@/lib/fin/datos";
-import { Chip, Monto, TONO_ETAPA, TD, TH } from "./piezas";
-import { BOTON, CAMPO, Campo, CampoEnLinea, ConVentana, FormAccion } from "./ui";
+import { Chip, Deshabilitado, Monto, TONO_ETAPA, TD, TH } from "./piezas";
+import { BOTON, BOTON_SEC, CAMPO, Campo, CampoEnLinea, ConVentana, FormAccion } from "./ui";
 
 const TRABAJO = [
   { valor: "pendiente", texto: "Pendiente" },
@@ -36,6 +36,7 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
           {elegidos.some((h) => h.factura) && <span className="text-xs text-rose-600">Alguno ya está facturado.</span>}
           <span className="flex-1" />
           <button type="button" onClick={() => setMarcados([])} className="text-xs font-semibold text-gris hover:text-tinta">Quitar selección</button>
+          {facturables && <Deshabilitado motivo="Disponible al integrar facturación electrónica" clase={BOTON_SEC}>Emitir factura electrónica</Deshabilitado>}
           {facturables && (
             <ConVentana boton={<><IconFileInvoice size={15} /> Registrar factura</>} titulo="Registrar factura de venta" descripcion={`${elegidos[0].clienteNombre ?? "Cliente"} · ${elegidos.map((h) => h.codigo).join(", ")}`} className={BOTON}>
               {(cerrar) => (

@@ -5,7 +5,7 @@ import { CONCEPTOS_MANUALES, clp, clpCorto, fechaCl, finDeMes, mesLargo, type Me
 import { TARJETA } from "@/lib/estilos";
 import { actualizarSaldoAction, guardarPartidaAction } from "../acciones-config";
 import { actualizarCesionAction, crearMovimientoAction, crearOperacionFactoringAction } from "../acciones-tesoreria";
-import { Banda, Chip, Monto, Pestanas, Seccion, TD, TH, Vacio, tonoFactoring } from "@/components/fin/piezas";
+import { Banda, Chip, Deshabilitado, Monto, Pestanas, Seccion, TD, TH, Vacio, tonoFactoring } from "@/components/fin/piezas";
 import { BOTON_SEC, CAMPO, Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
 import BandejaBanco, { ImportarCartola } from "@/components/fin/BandejaBanco";
 
@@ -128,6 +128,7 @@ function Factoring({ v }: { v: V }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
         <p className="flex-1 text-sm text-gris">Una fila por factura cedida. La fecha real de pago del cliente es la clave para confirmar con el factor y no pagar mora que no corresponde.</p>
+        <Deshabilitado motivo="Disponible al integrar facturación electrónica" clase={BOTON_SEC}>Ceder electrónicamente</Deshabilitado>
         <ConVentana boton={<><IconPlus size={15} /> Nueva operación</>} titulo="Nueva operación de factoring" ancho="max-w-3xl">
           {(cerrar) =>
             v.factores.length === 0 ? (

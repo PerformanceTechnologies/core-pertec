@@ -4,7 +4,7 @@ import { RUTA_FIN, cargarVista } from "@/lib/fin/datos";
 import { ETAPAS_HITO, clp, clpCorto, fechaCl, type EtapaHito } from "@/lib/fin/reglas";
 import { DTE_CORTO, TIPOS_DTE } from "@/lib/fin/modelo";
 import { anularCobroAction, anularDocumentoAction, guardarHitoAction, registrarNotaAction } from "../acciones-ventas";
-import { Banda, Chip, Monto, Pestanas, TD, TH, TONO_ETAPA, Vacio } from "@/components/fin/piezas";
+import { Banda, Chip, Deshabilitado, Monto, Pestanas, TD, TH, TONO_ETAPA, Vacio } from "@/components/fin/piezas";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import TablaHitos from "@/components/fin/TablaHitos";
 import FormCobro from "@/components/fin/FormCobro";
@@ -180,7 +180,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
         )
       )}
       <p className="text-[11px] text-gris-suave">
-        <span className="font-semibold">Emitir factura electrónica</span> y <span className="font-semibold">ceder electrónicamente</span> estarán disponibles al integrar la facturación electrónica; mientras, se registra lo emitido en el SII. <span className={`${BOTON} pointer-events-none ml-1 opacity-40`} title="Disponible al integrar facturación electrónica">Emitir factura electrónica</span>
+        <span className="font-semibold">Emitir factura electrónica</span> y <span className="font-semibold">ceder electrónicamente</span> estarán disponibles al integrar la facturación electrónica; mientras, se registra lo emitido en el SII. <Deshabilitado motivo="Disponible al integrar facturación electrónica" clase={`${BOTON} ml-1`}>Emitir factura electrónica</Deshabilitado>
       </p>
     </div>
   );

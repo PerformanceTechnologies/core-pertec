@@ -40,6 +40,19 @@ export function tonoFactoring(e: EstadoFactoring): string {
   return "bg-amber-500/12 text-amber-700 dark:text-amber-300";
 }
 
+/**
+ * Un botón que existe pero todavía no funciona (facturación electrónica, formatos imprimibles):
+ * se ve atenuado y al pasar el mouse explica por qué. El envoltorio recibe el hover (el botón
+ * atenuado no), así el aviso sí aparece.
+ */
+export function Deshabilitado({ motivo, clase, children }: { motivo: string; clase: string; children: React.ReactNode }) {
+  return (
+    <span title={motivo} aria-disabled="true" tabIndex={0} className="inline-flex cursor-not-allowed">
+      <span className={`${clase} pointer-events-none opacity-40`}>{children}</span>
+    </span>
+  );
+}
+
 export function Chip({ texto, tono, titulo }: { texto: string; tono: string; titulo?: string }) {
   return (
     <span className={`inline-flex max-w-full items-center truncate rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${tono}`} title={titulo ?? texto}>

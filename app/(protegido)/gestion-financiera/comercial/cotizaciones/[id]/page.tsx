@@ -6,7 +6,7 @@ import { clp, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA, lineaNeta } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { aceptarCotizacionAction, cambiarEstadoCotizacionAction, nuevaVersionCotizacionAction } from "../../../acciones-ventas";
-import { Chip, Seccion } from "@/components/fin/piezas";
+import { Chip, Deshabilitado, Seccion } from "@/components/fin/piezas";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import EditorCotizacion from "@/components/fin/EditorCotizacion";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
@@ -74,7 +74,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
         {editable && <BotonAccion accion={(m) => cambiarEstadoCotizacionAction(id, "rechazada", m)} motivo="¿Por qué la rechazó el cliente?">Rechazada</BotonAccion>}
         {c.estado !== "aceptada" && c.estado !== "reemplazada" && <BotonAccion accion={() => nuevaVersionCotizacionAction(id)} confirmar="Se crea una nueva versión (V+1) y esta queda reemplazada.">Nueva versión</BotonAccion>}
         {editable && <BotonAccion accion={(m) => cambiarEstadoCotizacionAction(id, "anulada", m)} motivo="¿Por qué se anula?">Anular</BotonAccion>}
-        <span className={`${BOTON_SEC} pointer-events-none opacity-40`} title="Formato en diseño"><IconPrinter size={14} /> Imprimir</span>
+        <Deshabilitado motivo="Formato en diseño" clase={BOTON_SEC}><IconPrinter size={14} /> Imprimir</Deshabilitado>
         <span className="flex-1" />
         <SubirAdjunto entidadTipo="cotizacion" entidadId={id} tipo="cotizacion_cliente" texto="Adjuntar respaldo" />
       </div>
