@@ -33,6 +33,12 @@
   --color-cian-lavado: #e8f6f1;
   --color-cian-texto: #00785f;
   --color-fondo: #faf8f5;
+  /* Tonos de estado como tokens (text-alerta, hover:text-ok, border-aviso…): los mismos valores
+     medidos de .tono-*, pero con variantes de Tailwind. Los usa Gestión financiera. */
+  --color-alerta: #b4233a;
+  --color-aviso: #92520a;
+  --color-ok: #0a6f58;
+  --color-info: #0b5f8a;
 }
 
 /* Oscuro derivado de la misma paleta (no negro puro): naranjo/teal se
@@ -53,6 +59,10 @@
   --color-cian-lavado: #1f2c28;
   --color-cian-texto: #35b89b;
   --color-fondo: #1c1a17;
+  --color-alerta: #fb7185;
+  --color-aviso: #f5b455;
+  --color-ok: #35b89b;
+  --color-info: #6cc3f0;
   --color-marca-1: #e07a3d;
   --color-marca-2: #2fbf9f;
 }
@@ -131,6 +141,10 @@
   --color-cian-lavado: var(--color-cian-lavado);
   --color-cian-texto: var(--color-cian-texto);
   --color-fondo: var(--color-fondo);
+  --color-alerta: var(--color-alerta);
+  --color-aviso: var(--color-aviso);
+  --color-ok: var(--color-ok);
+  --color-info: var(--color-info);
   --font-sans: var(--font-barlow);
   --font-condensed: var(--font-barlow-condensed);
 }

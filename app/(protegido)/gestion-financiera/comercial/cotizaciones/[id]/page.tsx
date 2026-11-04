@@ -31,7 +31,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gris">{c.numero}{c.version > 1 ? ` · versión ${c.version}` : ""} · {ETIQUETA_TIPO_VENTA[c.tipo]}</p>
           <h2 className="text-lg font-extrabold text-tinta">{c.titulo}</h2>
           <p className="text-sm text-gris">{cliente ?? "Sin cliente"} · {fechaCl(c.fecha)} · válida {c.validezDias} días{c.fechaAceptacion ? ` · aceptada el ${fechaCl(c.fechaAceptacion)}` : ""}</p>
-          <div className="mt-2 flex flex-wrap gap-2"><Chip texto={ETIQUETA_ESTADO_COTIZACION[c.estado]} tono={c.estado === "aceptada" ? "bg-emerald-500/12 text-emerald-700" : "bg-slate-500/10 text-slate-600"} />{c.motivo && <span className="text-xs text-gris">Motivo: {c.motivo}</span>}</div>
+          <div className="mt-2 flex flex-wrap gap-2"><Chip texto={ETIQUETA_ESTADO_COTIZACION[c.estado]} tono={c.estado === "aceptada" ? "bg-emerald-500/12 text-ok" : "bg-slate-500/10 text-gris"} />{c.motivo && <span className="text-xs text-gris">Motivo: {c.motivo}</span>}</div>
         </div>
         <div className="text-right">
           <p className="font-condensed text-3xl font-bold tabular-nums text-tinta">{clp(c.total)}</p>

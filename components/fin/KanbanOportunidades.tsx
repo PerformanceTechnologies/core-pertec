@@ -91,12 +91,12 @@ export default function KanbanOportunidades({ oportunidades, clientes, hoy }: { 
                       </div>
                       <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-gris">
                         <span className="truncate">{o.responsable?.split("@")[0] ?? "—"}</span>
-                        {quieta && <span className="inline-flex items-center gap-0.5 text-amber-700"><IconAlertTriangle size={11} /> {diasEntre(ref, hoy)} d sin actividad</span>}
+                        {quieta && <span className="inline-flex items-center gap-0.5 text-aviso"><IconAlertTriangle size={11} /> {diasEntre(ref, hoy)} d sin actividad</span>}
                       </div>
                       {o.etapa === "cotizacion" && (
                         <Link href={`/gestion-financiera/comercial/cotizaciones/nueva?oportunidad=${o.id}`} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-naranjo hover:underline"><IconFileText size={12} /> Crear cotización</Link>
                       )}
-                      {o.etapa === "perdida" && o.motivoPerdida && <p className="mt-1 text-[10px] text-rose-600">{o.motivoPerdida}</p>}
+                      {o.etapa === "perdida" && o.motivoPerdida && <p className="mt-1 text-[10px] text-alerta">{o.motivoPerdida}</p>}
                     </article>
                   );
                 })}

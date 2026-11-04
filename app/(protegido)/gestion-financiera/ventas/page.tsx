@@ -141,7 +141,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
                       <td className={`${TD} max-w-[16rem] truncate`}>{d.razonSocial ?? "—"}</td>
                       <td className={`${TD} whitespace-nowrap text-xs text-gris`}>{fechaCl(d.fechaEmision)}{d.fechaVencimiento && <> · vence {fechaCl(d.fechaVencimiento)}</>}</td>
                       <td className={`${TD} text-right font-semibold`}><Monto valor={d.tipoDte === 61 ? -d.total : d.total} /></td>
-                      <td className={`${TD} text-right`}>{[61, 52].includes(d.tipoDte) ? "—" : <Monto valor={d.saldo} tono={d.saldo > 0 ? "font-semibold text-tinta" : "text-emerald-600"} />}</td>
+                      <td className={`${TD} text-right`}>{[61, 52].includes(d.tipoDte) ? "—" : <Monto valor={d.saldo} tono={d.saldo > 0 ? "font-semibold text-tinta" : "text-ok"} />}</td>
                       <td className={`${TD} text-xs text-gris`}>{v.hitos.filter((h) => d.hitoIds.includes(h.id)).map((h) => h.codigo).join(", ") || "—"}</td>
                       <td className={`${TD} whitespace-nowrap text-right`}>
                         <SubirAdjunto entidadTipo="documento" entidadId={d.id} tipo="factura_pdf" texto="PDF/XML" />{" "}

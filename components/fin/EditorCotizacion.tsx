@@ -126,7 +126,7 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
                 <td className="px-2 py-2"><input value={l.descuentoPct ? Math.round(l.descuentoPct * 1000) / 10 : ""} onChange={(e) => cambiarLinea(i, { descuentoPct: num(e.target.value) / 100 })} className={`${CAMPO} w-16 text-right`} placeholder="0" /></td>
                 <td className="px-2 py-2 text-center"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} /></td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums">{clp(lineaNeta(l))}</td>
-                <td className="px-2"><button type="button" onClick={() => setD({ ...d, lineas: d.lineas.filter((_, k) => k !== i) })} className="rounded p-1 text-gris hover:bg-rose-500/10 hover:text-rose-600" aria-label="Quitar línea"><IconTrash size={15} /></button></td>
+                <td className="px-2"><button type="button" onClick={() => setD({ ...d, lineas: d.lineas.filter((_, k) => k !== i) })} className="rounded p-1 text-gris hover:bg-rose-500/10 hover:text-alerta" aria-label="Quitar línea"><IconTrash size={15} /></button></td>
               </tr>
             ))}
           </tbody>
@@ -144,7 +144,7 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
 
       <Campo etiqueta="Notas y condiciones"><textarea value={d.notas ?? ""} onChange={(e) => setD({ ...d, notas: e.target.value })} rows={3} className={CAMPO} /></Campo>
 
-      {error && <p className="rounded-lg border-l-[3px] border-rose-500 bg-rose-500/[0.07] px-3 py-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="rounded-lg border-l-[3px] border-rose-500 bg-rose-500/[0.07] px-3 py-2 text-xs text-alerta">{error}</p>}
       <div className="flex justify-end gap-2">
         <button
           type="button"

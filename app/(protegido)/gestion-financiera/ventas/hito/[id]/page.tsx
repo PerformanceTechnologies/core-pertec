@@ -59,7 +59,7 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
             <ol className={`${TARJETA} divide-y divide-borde`}>
               {req.map((r) => (
                 <li key={r.texto} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                  {r.ok ? <IconCheck size={17} className="text-emerald-600" /> : <IconCircleDashed size={17} className="text-gris-suave" />}
+                  {r.ok ? <IconCheck size={17} className="text-ok" /> : <IconCircleDashed size={17} className="text-gris-suave" />}
                   <span className={`flex-1 ${r.ok ? "text-tinta" : "text-gris"}`}>{r.texto}</span>
                   <span className="text-xs text-gris">{r.detalle}</span>
                 </li>
@@ -67,7 +67,7 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
             </ol>
             {h.factura && (
               <div className={`${TARJETA} mt-3 space-y-1 p-4 text-sm`}>
-                <p>Vence el <strong>{fechaCl(h.vence)}</strong> ({h.condicion} días){h.diasVencida ? <span className="text-rose-600"> · {h.diasVencida} días vencida</span> : null}</p>
+                <p>Vence el <strong>{fechaCl(h.vence)}</strong> ({h.condicion} días){h.diasVencida ? <span className="text-alerta"> · {h.diasVencida} días vencida</span> : null}</p>
                 {cobros.map((c) => <p key={c.id} className="text-xs text-gris">Cobro {c.numero} · {fechaCl(c.fecha)} · {clp(c.aplicaciones.find((a) => a.documentoId === h.factura!.documentoId)?.monto ?? 0)}</p>)}
                 {cesion && <p className="text-xs text-violet-700">Cedida a {cesion.factorNombre} (op. {cesion.operacionNumero}) · {cesion.estado}</p>}
               </div>

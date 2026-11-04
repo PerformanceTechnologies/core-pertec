@@ -10,8 +10,8 @@ import KanbanOportunidades, { FormOportunidad } from "@/components/fin/KanbanOpo
 export const dynamic = "force-dynamic";
 
 const TONO_COT: Record<string, string> = {
-  borrador: "bg-slate-500/10 text-slate-600", enviada: "bg-sky-500/10 text-sky-700", aceptada: "bg-emerald-500/12 text-emerald-700",
-  rechazada: "bg-rose-500/12 text-rose-700", vencida: "bg-amber-500/12 text-amber-700", anulada: "bg-slate-500/10 text-slate-500", reemplazada: "bg-slate-500/10 text-slate-500",
+  borrador: "bg-slate-500/10 text-gris", enviada: "bg-sky-500/10 text-info", aceptada: "bg-emerald-500/12 text-ok",
+  rechazada: "bg-rose-500/12 text-alerta", vencida: "bg-amber-500/12 text-aviso", anulada: "bg-slate-500/10 text-slate-500", reemplazada: "bg-slate-500/10 text-slate-500",
 };
 
 export default async function ComercialPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {

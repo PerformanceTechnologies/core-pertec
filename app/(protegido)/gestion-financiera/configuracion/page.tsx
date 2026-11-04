@@ -100,7 +100,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
               {v.reglas.filter((r) => r.activa).map((r) => (
                 <li key={r.id} className="flex items-center gap-3 px-4 py-2 text-sm">
                   <span className="flex-1"><span className="font-mono text-xs">«{r.patron}»</span> → <span className="font-semibold">{v.categorias.find((c) => c.id === r.categoriaId)?.nombre}</span></span>
-                  <BotonAccion accion={() => eliminarReglaAction(r.id)} confirmar="¿Desactivar esta regla?" className="text-xs font-semibold text-gris hover:text-rose-600">Quitar</BotonAccion>
+                  <BotonAccion accion={() => eliminarReglaAction(r.id)} confirmar="¿Desactivar esta regla?" className="text-xs font-semibold text-gris hover:text-alerta">Quitar</BotonAccion>
                 </li>
               ))}
               {v.reglas.filter((r) => r.activa).length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin reglas. Créalas aquí o con «Guardar como regla» desde un movimiento del banco.</li>}

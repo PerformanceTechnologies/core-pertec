@@ -7,16 +7,16 @@ import { clp, clpCorto, type EtapaHito, type PasoCompra, type EstadoFactoring } 
 // semánticos fijos: los mismos en chips, tarjetas y gráficos.
 
 export const TONO_ETAPA: Record<EtapaHito, string> = {
-  "Cotización enviada": "bg-slate-500/10 text-slate-700 dark:text-slate-300",
-  "Por iniciar": "bg-slate-500/10 text-slate-700 dark:text-slate-300",
-  "En ejecución": "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  "Esperando aprobación EDP": "bg-amber-500/12 text-amber-700 dark:text-amber-300",
-  "Esperando OC": "bg-amber-500/12 text-amber-700 dark:text-amber-300",
-  "Esperando HES": "bg-amber-500/12 text-amber-700 dark:text-amber-300",
+  "Cotización enviada": "bg-slate-500/10 text-tinta dark:text-slate-300",
+  "Por iniciar": "bg-slate-500/10 text-tinta dark:text-slate-300",
+  "En ejecución": "bg-sky-500/10 text-info dark:text-sky-300",
+  "Esperando aprobación EDP": "bg-amber-500/12 text-aviso dark:text-amber-300",
+  "Esperando OC": "bg-amber-500/12 text-aviso dark:text-amber-300",
+  "Esperando HES": "bg-amber-500/12 text-aviso dark:text-amber-300",
   "Lista para facturar": "bg-naranjo/15 text-naranjo font-bold",
-  "Por cobrar": "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  Vencida: "bg-rose-500/12 text-rose-700 dark:text-rose-300",
-  Cobrada: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+  "Por cobrar": "bg-sky-500/10 text-info dark:text-sky-300",
+  Vencida: "bg-rose-500/12 text-alerta dark:text-rose-300",
+  Cobrada: "bg-emerald-500/12 text-ok dark:text-emerald-300",
 };
 
 export const COLOR_ETAPA: Record<EtapaHito, string> = {
@@ -25,19 +25,19 @@ export const COLOR_ETAPA: Record<EtapaHito, string> = {
 };
 
 export function tonoPaso(p: PasoCompra): string {
-  if (p === "Pagada") return "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300";
+  if (p === "Pagada") return "bg-emerald-500/12 text-ok dark:text-emerald-300";
   if (p === "Anulada") return "bg-slate-500/10 text-slate-500";
-  if (p.startsWith("Vencida") || p.startsWith("Factura sin OC") || p.startsWith("Revisar")) return "bg-rose-500/12 text-rose-700 dark:text-rose-300";
-  if (p.startsWith("Falta")) return "bg-amber-500/12 text-amber-700 dark:text-amber-300";
-  if (p === "Pago programado") return "bg-sky-500/10 text-sky-700 dark:text-sky-300";
+  if (p.startsWith("Vencida") || p.startsWith("Factura sin OC") || p.startsWith("Revisar")) return "bg-rose-500/12 text-alerta dark:text-rose-300";
+  if (p.startsWith("Falta")) return "bg-amber-500/12 text-aviso dark:text-amber-300";
+  if (p === "Pago programado") return "bg-sky-500/10 text-info dark:text-sky-300";
   return "bg-naranjo/12 text-naranjo";
 }
 
 export function tonoFactoring(e: EstadoFactoring): string {
-  if (e === "Liquidada") return "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300";
-  if (e === "En mora: cobrar al cliente") return "bg-rose-500/12 text-rose-700 dark:text-rose-300";
-  if (e === "Vigente") return "bg-sky-500/10 text-sky-700 dark:text-sky-300";
-  return "bg-amber-500/12 text-amber-700 dark:text-amber-300";
+  if (e === "Liquidada") return "bg-emerald-500/12 text-ok dark:text-emerald-300";
+  if (e === "En mora: cobrar al cliente") return "bg-rose-500/12 text-alerta dark:text-rose-300";
+  if (e === "Vigente") return "bg-sky-500/10 text-info dark:text-sky-300";
+  return "bg-amber-500/12 text-aviso dark:text-amber-300";
 }
 
 /**
@@ -64,7 +64,7 @@ export function Chip({ texto, tono, titulo }: { texto: string; tono: string; tit
 export function Monto({ valor, corto = false, tono = "" }: { valor: number | null | undefined; corto?: boolean; tono?: string }) {
   if (valor === null || valor === undefined) return <span className="text-gris-suave">—</span>;
   return (
-    <span className={`tabular-nums ${valor < 0 ? "text-rose-600" : tono}`} title={corto ? clp(valor) : undefined}>
+    <span className={`tabular-nums ${valor < 0 ? "text-alerta" : tono}`} title={corto ? clp(valor) : undefined}>
       {corto ? clpCorto(valor) : clp(valor)}
     </span>
   );

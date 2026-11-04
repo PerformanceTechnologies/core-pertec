@@ -108,13 +108,13 @@ export default async function ResumenFinanzasPage() {
       {/* ── Atención hoy ── */}
       <Seccion titulo="Atención hoy" icono={<IconAlertTriangle size={15} />}>
         {atencion.length === 0 ? (
-          <p className={`${TARJETA} px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300`}>Nada pendiente que pida acción hoy. ✓</p>
+          <p className={`${TARJETA} px-4 py-3 text-sm text-ok dark:text-emerald-300`}>Nada pendiente que pida acción hoy. ✓</p>
         ) : (
           <ul className={`${TARJETA} divide-y divide-borde`}>
             {atencion.map((a) => (
               <li key={a.texto}>
                 <Link href={a.href} className="group flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-tinta/[0.02]">
-                  <span className={`grid h-7 min-w-7 place-items-center rounded-lg px-1.5 font-condensed text-base font-bold tabular-nums ${a.tono === "rose" ? "bg-rose-500/12 text-rose-600" : a.tono === "amber" ? "bg-amber-500/15 text-amber-700" : a.tono === "naranjo" ? "bg-naranjo/15 text-naranjo" : "bg-slate-500/10 text-slate-600"}`}>{a.n}</span>
+                  <span className={`grid h-7 min-w-7 place-items-center rounded-lg px-1.5 font-condensed text-base font-bold tabular-nums ${a.tono === "rose" ? "bg-rose-500/12 text-alerta" : a.tono === "amber" ? "bg-amber-500/15 text-aviso" : a.tono === "naranjo" ? "bg-naranjo/15 text-naranjo" : "bg-slate-500/10 text-gris"}`}>{a.n}</span>
                   <span className="flex-1 text-tinta">{a.texto}</span>
                   <IconArrowRight size={15} className="text-gris-suave transition group-hover:translate-x-0.5 group-hover:text-naranjo" />
                 </Link>
@@ -138,7 +138,7 @@ export default async function ResumenFinanzasPage() {
                     <div className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-tinta/30" style={{ bottom: `${(m.minimo / maxFlujo) * 100}%` }} title={`Mínimo ${clp(m.minimo)}`} />
                   </div>
                   <p className="text-xs font-bold capitalize text-tinta">{mesLargo(m.mes)}</p>
-                  <p className={`text-[11px] font-semibold tabular-nums ${m.holgura < 0 ? "text-rose-600" : "text-emerald-600"}`}>{m.alerta === "OK" ? "Holgura" : "FALTA CAJA"} {clpCorto(m.holgura)}</p>
+                  <p className={`text-[11px] font-semibold tabular-nums ${m.holgura < 0 ? "text-alerta" : "text-ok"}`}>{m.alerta === "OK" ? "Holgura" : "FALTA CAJA"} {clpCorto(m.holgura)}</p>
                 </div>
               ))}
             </div>
@@ -205,7 +205,7 @@ export default async function ResumenFinanzasPage() {
                     <td className="max-w-[14rem] truncate px-4 py-2 font-semibold text-tinta">{nombre(m.clienteId)}</td>
                     <td className="px-3 py-2 text-right"><Monto valor={m.terminadoSinFacturar} corto /></td>
                     <td className="px-3 py-2 text-right"><Monto valor={m.porCobrar} corto /></td>
-                    <td className="px-4 py-2 text-right"><Monto valor={m.vencido} corto tono={m.vencido ? "text-rose-600 font-semibold" : ""} /></td>
+                    <td className="px-4 py-2 text-right"><Monto valor={m.vencido} corto tono={m.vencido ? "text-alerta font-semibold" : ""} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -223,7 +223,7 @@ export default async function ResumenFinanzasPage() {
                     <div className="flex items-baseline gap-2 text-sm">
                       <span className="min-w-0 flex-1 truncate font-semibold text-tinta">{p.nombre}</span>
                       <span className="text-xs tabular-nums text-gris">vendido {clpCorto(p.cifras.vendido)}</span>
-                      <span className={`w-14 text-right text-xs font-bold tabular-nums ${(p.cifras.margenPct ?? 0) < 0.2 ? "text-rose-600" : "text-emerald-600"}`}>{pct(p.cifras.margenPct)}</span>
+                      <span className={`w-14 text-right text-xs font-bold tabular-nums ${(p.cifras.margenPct ?? 0) < 0.2 ? "text-alerta" : "text-ok"}`}>{pct(p.cifras.margenPct)}</span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-tinta/[0.06]">
                       {uso === null ? <div className="h-full w-full bg-slate-300/40" title="Sin presupuesto" /> : <div className={`h-full rounded-full ${uso > 1 ? "bg-rose-500" : uso > 0.85 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, uso * 100)}%` }} title={`Presupuesto usado ${pct(uso)}`} />}

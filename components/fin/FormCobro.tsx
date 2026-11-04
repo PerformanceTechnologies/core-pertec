@@ -74,7 +74,7 @@ export default function FormCobro({ facturas, cuentas, hoy, alOk, movimiento }: 
             </li>
           ))}
         </ul>
-        {movimiento && total !== movimiento.monto && <p className="mt-1 text-[11px] text-amber-700">El abono del banco es {clp(movimiento.monto)} y estás aplicando {clp(total)}.</p>}
+        {movimiento && total !== movimiento.monto && <p className="mt-1 text-[11px] text-aviso">El abono del banco es {clp(movimiento.monto)} y estás aplicando {clp(total)}.</p>}
       </div>
       <Campo etiqueta="Referencia (opcional)"><input name="referencia" className={CAMPO} placeholder="N° transferencia, cheque…" /></Campo>
     </FormAccion>

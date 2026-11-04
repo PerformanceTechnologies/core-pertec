@@ -52,7 +52,7 @@ export function FormAccion({
       }}
     >
       {children}
-      {error && <p className="rounded-lg border-l-[3px] border-rose-500 bg-rose-500/[0.07] px-3 py-2 text-xs text-rose-700 dark:text-rose-300">{error}</p>}
+      {error && <p className="rounded-lg border-l-[3px] border-rose-500 bg-rose-500/[0.07] px-3 py-2 text-xs text-alerta dark:text-rose-300">{error}</p>}
       <div className="flex justify-end">
         <button type="submit" disabled={pendiente} className={BOTON}>
           {pendiente && <IconLoader2 size={14} className="animate-spin" />} {textoBoton}

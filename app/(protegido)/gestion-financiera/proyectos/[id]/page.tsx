@@ -40,8 +40,8 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
         <Kpi etiqueta="Por facturar" valor={clpCorto(c.porFacturar)} />
         <Kpi etiqueta="Por cobrar" valor={clpCorto(c.porCobrar)} />
         <Kpi etiqueta="Comprometido" valor={clpCorto(c.comprometido)} />
-        <Kpi etiqueta="Presupuesto disponible" valor={c.disponible === null ? "Sin presupuesto" : clpCorto(c.disponible)} tono={c.disponible !== null && c.disponible < 0 ? "text-rose-600" : "text-tinta"} />
-        <Kpi etiqueta="Margen" valor={pct(c.margenPct)} detalle={clp(c.margen)} tono={(c.margenPct ?? 1) < 0.2 ? "text-rose-600" : "text-emerald-600"} ayuda="Vendido − compras comprometidas (sin mano de obra propia aún)" />
+        <Kpi etiqueta="Presupuesto disponible" valor={c.disponible === null ? "Sin presupuesto" : clpCorto(c.disponible)} tono={c.disponible !== null && c.disponible < 0 ? "text-alerta" : "text-tinta"} />
+        <Kpi etiqueta="Margen" valor={pct(c.margenPct)} detalle={clp(c.margen)} tono={(c.margenPct ?? 1) < 0.2 ? "text-alerta" : "text-ok"} ayuda="Vendido − compras comprometidas (sin mano de obra propia aún)" />
       </div>
       <Seccion titulo={`Hitos (${hitos.length})`}>
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">

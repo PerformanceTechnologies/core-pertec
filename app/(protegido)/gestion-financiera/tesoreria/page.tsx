@@ -167,8 +167,8 @@ function Factoring({ v }: { v: V }) {
               <dl className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div><dt className="text-gris">Nominal vigente</dt><dd className="font-semibold tabular-nums">{clp(x.nominal)}</dd></div>
                 <div><dt className="text-gris">Anticipos vigentes</dt><dd className="font-semibold tabular-nums">{clp(x.anticipos)}</dd></div>
-                <div><dt className="text-gris">Mora estimada</dt><dd className={`font-semibold tabular-nums ${x.mora ? "text-rose-600" : ""}`}>{clp(x.mora)}</dd></div>
-                <div><dt className="text-gris">Excedentes por recibir</dt><dd className="font-semibold tabular-nums text-emerald-700">{clp(x.excedentes)}</dd></div>
+                <div><dt className="text-gris">Mora estimada</dt><dd className={`font-semibold tabular-nums ${x.mora ? "text-alerta" : ""}`}>{clp(x.mora)}</dd></div>
+                <div><dt className="text-gris">Excedentes por recibir</dt><dd className="font-semibold tabular-nums text-ok">{clp(x.excedentes)}</dd></div>
               </dl>
             </div>
           ))}
@@ -191,7 +191,7 @@ function Factoring({ v }: { v: V }) {
                   <td className={`${TD} text-xs text-gris`}>{fechaCl(c.vence)}<span className="block">est. {fechaCl(c.fechaEstimadaPago)}</span></td>
                   <td className={TD}><CampoEnLinea tipo="date" valor={c.fechaPagoReal} guardar={guardar(c.id, "fecha_pago_cliente")} ancho="w-32" /></td>
                   <td className={TD}><CampoEnLinea tipo="date" valor={c.factorConfirmaFecha} guardar={guardar(c.id, "factor_confirma_fecha")} ancho="w-32" /></td>
-                  <td className={`${TD} text-xs`}>{c.diasMora ? <span className="text-rose-600">{c.diasMora} d · {clp(c.moraEstimada)}</span> : "—"}<div className="mt-1"><CampoEnLinea valor={c.moraCobrada === null ? null : String(c.moraCobrada)} guardar={guardar(c.id, "mora_cobrada")} placeholder="cobrada" ancho="w-24" /></div></td>
+                  <td className={`${TD} text-xs`}>{c.diasMora ? <span className="text-alerta">{c.diasMora} d · {clp(c.moraEstimada)}</span> : "—"}<div className="mt-1"><CampoEnLinea valor={c.moraCobrada === null ? null : String(c.moraCobrada)} guardar={guardar(c.id, "mora_cobrada")} placeholder="cobrada" ancho="w-24" /></div></td>
                   <td className={`${TD} text-right`}><Monto valor={c.excedenteEsperado} /></td>
                   <td className={TD}><CampoEnLinea tipo="date" valor={c.excedenteRecibidoFecha} guardar={guardar(c.id, "excedente_fecha")} ancho="w-32" /></td>
                   <td className={TD}><Chip texto={c.estado} tono={tonoFactoring(c.estado)} /></td>
@@ -216,7 +216,7 @@ function FlujoCaja({ v }: { v: V }) {
   } as const;
   const fila = (etiqueta: string, clave: keyof MesFlujo, signo: "+" | "−" | "", calc?: keyof typeof detalle, manual?: string, fuerte = false) => (
     <tr className={fuerte ? "bg-tinta/[0.03] font-bold" : ""}>
-      <td className="px-4 py-2 text-sm text-tinta">{signo && <span className="mr-1 text-gris">{signo}</span>}{etiqueta}{manual && <span className="ml-1.5 rounded bg-amber-400/20 px-1 text-[10px] font-semibold text-amber-800">manual</span>}</td>
+      <td className="px-4 py-2 text-sm text-tinta">{signo && <span className="mr-1 text-gris">{signo}</span>}{etiqueta}{manual && <span className="ml-1.5 rounded bg-amber-400/20 px-1 text-[10px] font-semibold text-aviso">manual</span>}</td>
       {f.meses.map((m, i) => (
         <td key={m.mes} className={`px-3 py-2 text-right text-sm tabular-nums ${manual ? "bg-amber-300/[0.08]" : ""}`}>
           {calc && Number(m[clave]) ? (
@@ -229,7 +229,7 @@ function FlujoCaja({ v }: { v: V }) {
           ) : manual ? (
             <CampoManual mes={m.mes} concepto={manual} valor={Number(m[clave])} />
           ) : (
-            <span className={Number(m[clave]) < 0 ? "text-rose-600" : ""}>{typeof m[clave] === "number" ? clp(Number(m[clave])) : String(m[clave])}</span>
+            <span className={Number(m[clave]) < 0 ? "text-alerta" : ""}>{typeof m[clave] === "number" ? clp(Number(m[clave])) : String(m[clave])}</span>
           )}
         </td>
       ))}
@@ -259,7 +259,7 @@ function FlujoCaja({ v }: { v: V }) {
             {fila("Mínimo de caja (política)", "minimo", "")}
             <tr className="font-bold">
               <td className="px-4 py-2 text-sm">Holgura</td>
-              {f.meses.map((m) => <td key={m.mes} className={`px-3 py-2 text-right text-sm tabular-nums ${m.holgura < 0 ? "bg-rose-500/[0.08] text-rose-600" : "text-emerald-700"}`}>{clp(m.holgura)}<span className="block text-[10px]">{m.alerta}</span></td>)}
+              {f.meses.map((m) => <td key={m.mes} className={`px-3 py-2 text-right text-sm tabular-nums ${m.holgura < 0 ? "bg-rose-500/[0.08] text-alerta" : "text-ok"}`}>{clp(m.holgura)}<span className="block text-[10px]">{m.alerta}</span></td>)}
             </tr>
           </tbody>
         </table>

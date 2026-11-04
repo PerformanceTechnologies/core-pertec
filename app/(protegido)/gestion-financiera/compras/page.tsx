@@ -125,10 +125,10 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
                       <td className={TD}><span className="rounded bg-tinta/[0.06] px-1.5 py-0.5 text-[10px] font-bold">{DTE_CORTO[d.tipoDte] ?? d.tipoDte}</span> <span className="font-semibold text-tinta">{d.folio}</span></td>
                       <td className={`${TD} max-w-[16rem] truncate`}>{d.razonSocial}</td>
                       <td className={`${TD} whitespace-nowrap text-xs text-gris`}>{fechaCl(d.fechaEmision)} · vence {fechaCl(d.fechaVencimiento)}</td>
-                      <td className={`${TD} text-xs`}>{compra ? <>{compra.codigo} {sinOc && <Chip texto="Sin OC" tono="bg-rose-500/12 text-rose-700" />}</> : "—"}</td>
+                      <td className={`${TD} text-xs`}>{compra ? <>{compra.codigo} {sinOc && <Chip texto="Sin OC" tono="bg-rose-500/12 text-alerta" />}</> : "—"}</td>
                       <td className={`${TD} text-right font-semibold`}><Monto valor={d.total} /></td>
-                      <td className={`${TD} text-right`}><Monto valor={d.saldo} tono={d.saldo > 0 ? "font-semibold" : "text-emerald-600"} /></td>
-                      <td className={`${TD} text-xs`}>{sinOc && d.diasParaReclamo !== null ? (d.diasParaReclamo >= 0 ? <span className={d.diasParaReclamo <= 2 ? "font-bold text-rose-600" : "text-amber-700"}>{d.diasParaReclamo} día(s) para reclamar</span> : <span className="text-gris">Plazo vencido</span>) : "—"}</td>
+                      <td className={`${TD} text-right`}><Monto valor={d.saldo} tono={d.saldo > 0 ? "font-semibold" : "text-ok"} /></td>
+                      <td className={`${TD} text-xs`}>{sinOc && d.diasParaReclamo !== null ? (d.diasParaReclamo >= 0 ? <span className={d.diasParaReclamo <= 2 ? "font-bold text-alerta" : "text-aviso"}>{d.diasParaReclamo} día(s) para reclamar</span> : <span className="text-gris">Plazo vencido</span>) : "—"}</td>
                       <td className={`${TD} text-right`}><SubirAdjunto entidadTipo="documento" entidadId={d.id} tipo="factura_pdf" texto="PDF/XML" />{compra && <> <SubirAdjunto entidadTipo="compra" entidadId={compra.id} tipo="cotizacion_proveedor" texto="Cotización" /></>}</td>
                     </tr>
                   );
@@ -151,7 +151,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
                     <td className={`${TD} max-w-[14rem] truncate`}>{p.proveedorId ? v.nombreDe.get(p.proveedorId) : "—"}</td>
                     <td className={`${TD} text-xs`}>{p.aplicaciones.map((a) => `N° ${v.documentos.find((d) => d.id === a.documentoId)?.folio ?? "?"}`).join(", ")}</td>
                     <td className={`${TD} text-xs text-gris`}>{fechaCl(p.fechaProgramada)}</td>
-                    <td className={`${TD} text-xs`}>{p.estado === "pagado" ? <span className="text-emerald-700">{fechaCl(p.fechaPago)}</span> : <Chip texto={p.estado === "anulado" ? "Anulado" : "Programado"} tono={p.estado === "anulado" ? "bg-slate-500/10 text-slate-500" : "bg-sky-500/10 text-sky-700"} />}</td>
+                    <td className={`${TD} text-xs`}>{p.estado === "pagado" ? <span className="text-ok">{fechaCl(p.fechaPago)}</span> : <Chip texto={p.estado === "anulado" ? "Anulado" : "Programado"} tono={p.estado === "anulado" ? "bg-slate-500/10 text-slate-500" : "bg-sky-500/10 text-info"} />}</td>
                     <td className={`${TD} text-right font-semibold`}><Monto valor={p.monto} /></td>
                     <td className={`${TD} whitespace-nowrap text-right`}>
                       {p.estado === "programado" && (

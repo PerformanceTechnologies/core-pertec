@@ -82,7 +82,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   <td className={`${TD} max-w-[12rem] truncate`}>{c.proveedorNombre ?? "—"}</td>
                   <td className={`${TD} text-right`}><Monto valor={c.netoCotizado} /></td>
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.ocNumero ?? "—"}{c.recepcion && <span className="block text-[10px] text-gris">Recepción {c.recepcion === "si" ? "conforme" : c.recepcion}</span>}</td>
-                  <td className={`${TD} whitespace-nowrap text-xs`}>{c.facturaFolio ? <>N° {c.facturaFolio}<span className="block text-[10px] text-gris">{clp(c.facturaTotal ?? 0)} · vence {fechaCl(c.facturaVence)}</span>{c.diferenciaVsOc ? <span className={`block text-[10px] ${Math.abs(c.diferenciaVsOc) > 1000 && !c.diferenciaAprobada ? "font-semibold text-rose-600" : "text-gris"}`}>dif. OC {clp(c.diferenciaVsOc)}</span> : null}</> : "—"}</td>
+                  <td className={`${TD} whitespace-nowrap text-xs`}>{c.facturaFolio ? <>N° {c.facturaFolio}<span className="block text-[10px] text-gris">{clp(c.facturaTotal ?? 0)} · vence {fechaCl(c.facturaVence)}</span>{c.diferenciaVsOc ? <span className={`block text-[10px] ${Math.abs(c.diferenciaVsOc) > 1000 && !c.diferenciaAprobada ? "font-semibold text-alerta" : "text-gris"}`}>dif. OC {clp(c.diferenciaVsOc)}</span> : null}</> : "—"}</td>
                   <td className={`${TD} text-right`}>{c.montoFlujo ? <Monto valor={c.montoFlujo} /> : <span className="text-gris-suave">—</span>}{c.fechaFlujo && <span className="block text-[10px] text-gris">{fechaCl(c.fechaFlujo)}</span>}</td>
                   <td className={`${TD} whitespace-nowrap`}><AccionCompra c={c} cuentas={cuentas} hoy={hoy} /></td>
                 </tr>
@@ -104,7 +104,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   <p className="font-condensed text-xl font-bold tabular-nums text-tinta">{clp(c.netoCotizado ?? 0)}</p>
                 </div>
                 {h && (
-                  <div className={`mt-3 rounded-xl px-3 py-2 text-xs ${h.despues < 0 ? "bg-rose-500/[0.08] text-rose-700" : "bg-emerald-500/[0.08] text-emerald-800"}`}>
+                  <div className={`mt-3 rounded-xl px-3 py-2 text-xs ${h.despues < 0 ? "bg-rose-500/[0.08] text-alerta" : "bg-emerald-500/[0.08] text-ok"}`}>
                     Holgura de {h.mes}: {clp(h.antes)} → <strong>{clp(h.despues)}</strong> con esta compra {h.despues < 0 ? "· ¡falta caja!" : ""}
                   </div>
                 )}

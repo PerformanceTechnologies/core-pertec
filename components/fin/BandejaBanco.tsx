@@ -49,7 +49,7 @@ export function ImportarCartola({ cuentas }: { cuentas: Ref[] }) {
           }}
         />
       </label>
-      {estado && <span className={`text-xs ${estado.startsWith("⚠") ? "text-rose-600" : "text-emerald-700"}`}>{estado}</span>}
+      {estado && <span className={`text-xs ${estado.startsWith("⚠") ? "text-alerta" : "text-ok"}`}>{estado}</span>}
     </div>
   );
 }
@@ -97,13 +97,13 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
                   </span>
                 </span>
                 {sug && !m.categoriaId && <Chip texto={`Sugerido: ${sug.nombre}`} tono="bg-violet-500/10 text-violet-700" />}
-                {exactas.length > 0 && <Chip texto={`Calza con factura ${exactas[0].folio}`} tono="bg-emerald-500/10 text-emerald-700" />}
-                {pagosCalzan.length > 0 && <Chip texto={`Calza con pago ${pagosCalzan[0].numero}`} tono="bg-emerald-500/10 text-emerald-700" />}
+                {exactas.length > 0 && <Chip texto={`Calza con factura ${exactas[0].folio}`} tono="bg-emerald-500/10 text-ok" />}
+                {pagosCalzan.length > 0 && <Chip texto={`Calza con pago ${pagosCalzan[0].numero}`} tono="bg-emerald-500/10 text-ok" />}
                 <Chip
                   texto={m.escalar ? `Escalar · ${m.diasSinAclarar} días` : m.estado === "Por aclarar" ? `Por aclarar${m.diasSinAclarar ? ` · ${m.diasSinAclarar} d` : ""}` : m.estado}
-                  tono={m.escalar ? "bg-rose-500/12 text-rose-700" : m.estado === "Por aclarar" ? "bg-amber-500/12 text-amber-700" : "bg-emerald-500/12 text-emerald-700"}
+                  tono={m.escalar ? "bg-rose-500/12 text-alerta" : m.estado === "Por aclarar" ? "bg-amber-500/12 text-aviso" : "bg-emerald-500/12 text-ok"}
                 />
-                <span className={`w-28 text-right font-semibold tabular-nums ${m.monto < 0 ? "text-rose-600" : "text-emerald-700"}`}>{clp(m.monto)}</span>
+                <span className={`w-28 text-right font-semibold tabular-nums ${m.monto < 0 ? "text-alerta" : "text-ok"}`}>{clp(m.monto)}</span>
                 <IconChevronDown size={15} className={`text-gris transition ${abierto === m.id ? "rotate-180" : ""}`} />
               </button>
               {abierto === m.id && (

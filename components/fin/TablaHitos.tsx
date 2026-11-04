@@ -32,8 +32,8 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
       {elegidos.length > 0 && (
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-naranjo/40 bg-superficie px-4 py-2.5 shadow-lg">
           <span className="text-sm font-semibold text-tinta">{elegidos.length} hito(s) · neto {clp(neto)}</span>
-          {!unCliente && <span className="text-xs text-rose-600">Una factura es de un solo cliente.</span>}
-          {elegidos.some((h) => h.factura) && <span className="text-xs text-rose-600">Alguno ya está facturado.</span>}
+          {!unCliente && <span className="text-xs text-alerta">Una factura es de un solo cliente.</span>}
+          {elegidos.some((h) => h.factura) && <span className="text-xs text-alerta">Alguno ya está facturado.</span>}
           <span className="flex-1" />
           <button type="button" onClick={() => setMarcados([])} className="text-xs font-semibold text-gris hover:text-tinta">Quitar selección</button>
           {facturables && <Deshabilitado motivo="Disponible al integrar facturación electrónica" clase={BOTON_SEC}>Emitir factura electrónica</Deshabilitado>}
@@ -114,7 +114,7 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
                   )}
                 </td>
                 <td className={TD}><CampoEnLinea tipo="date" valor={h.fechaEstimadaPago} guardar={guardar(h.id, "fecha_estimada_pago")} ancho="w-32" /></td>
-                <td className={`${TD} text-right font-semibold`}>{h.saldo === null ? <span className="text-[11px] text-gris">{clp(h.totalConIva)} c/IVA</span> : <Monto valor={h.saldo} tono={h.etapa === "Vencida" ? "text-rose-600" : ""} />}</td>
+                <td className={`${TD} text-right font-semibold`}>{h.saldo === null ? <span className="text-[11px] text-gris">{clp(h.totalConIva)} c/IVA</span> : <Monto valor={h.saldo} tono={h.etapa === "Vencida" ? "text-alerta" : ""} />}</td>
               </tr>
             ))}
           </tbody>

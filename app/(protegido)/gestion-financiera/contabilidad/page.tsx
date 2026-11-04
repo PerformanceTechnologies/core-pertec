@@ -62,7 +62,7 @@ export default async function ContabilidadPage({ searchParams }: { searchParams:
       </div>
 
       {descuadrados.length > 0 && (
-        <div className="rounded-xl border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-800">
+        <div className="rounded-xl border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-4 py-3 text-xs text-aviso">
           <p className="font-semibold">{descuadrados.length === 1 ? "Un documento no genera asiento" : `${descuadrados.length} documentos no generan asiento`}: su total no es neto + exento + IVA. Corrígelo antes de contabilizar.</p>
           <p className="mt-1">{descuadrados.map((d) => `${DTE_CORTO[d.tipoDte] ?? d.tipoDte} ${d.folio} · ${d.razonSocial ?? "—"} (total ${clp(d.total)}, neto + exento + IVA ${clp(d.neto + d.exento + d.iva)})`).join(" · ")}</p>
         </div>
@@ -104,7 +104,7 @@ export default async function ContabilidadPage({ searchParams }: { searchParams:
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gris">Estado de resultados</p>
             <p className="flex justify-between"><span>Ingresos</span><span className="tabular-nums">{clp(er.ingresos)}</span></p>
             <p className="flex justify-between"><span>Costos y gastos</span><span className="tabular-nums">− {clp(er.gastos)}</span></p>
-            <p className="flex justify-between border-t border-borde pt-2 font-bold"><span>Resultado</span><span className={`tabular-nums ${er.resultado < 0 ? "text-rose-600" : "text-emerald-700"}`}>{clp(er.resultado)}</span></p>
+            <p className="flex justify-between border-t border-borde pt-2 font-bold"><span>Resultado</span><span className={`tabular-nums ${er.resultado < 0 ? "text-alerta" : "text-ok"}`}>{clp(er.resultado)}</span></p>
           </div>
         </div>
       )}
