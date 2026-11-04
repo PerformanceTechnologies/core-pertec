@@ -988,5 +988,7 @@ console.log(
   assert.ok(de("C")!.sqref.endsWith(":C1001"), "la lista llega hasta la última fila permitida");
   for (const nombre of ["LST_BODEGAS", "LST_CATEGORIAS", "LST_UNIDADES"]) assert.ok(libro.includes(`name="${nombre}"`), `falta el nombre ${nombre}`);
   assert.ok(libro.includes(">Listas!$D$2:$D$3<"), "LST_CATEGORIAS apunta a las categorías de la hoja Listas");
+  // La fila de ejemplo trae los números como número (sin el triangulito verde de Excel).
+  assert.ok(/<c r="G2"[^>]*><v>12500<\/v>/.test(hoja), "el costo de ejemplo va como número");
   console.log("Plantilla verificada: listas desplegables de Categoría, Unidad, Tipo, Seguimiento y Bodega sin rangos que Excel borre.");
 }

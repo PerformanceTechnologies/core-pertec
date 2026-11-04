@@ -378,7 +378,9 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
   enc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC85217" } };
   enc.height = 22;
   COLUMNAS_IMPORTACION.forEach((c, i) => (hoja.getCell(1, i + 1).note = c.ayuda));
-  hoja.addRow(Object.fromEntries(COLUMNAS_IMPORTACION.map((c) => [c.clave, c.ejemplo])));
+  // Los ejemplos numéricos van como número: escritos como texto, Excel les pone su triangulito verde.
+  const NUMERICAS: ClaveColumna[] = ["costo", "precio", "cantidad", "minimo", "maximo"];
+  hoja.addRow(Object.fromEntries(COLUMNAS_IMPORTACION.map((c) => [c.clave, NUMERICAS.includes(c.clave) ? Number(c.ejemplo) : c.ejemplo])));
   hoja.getRow(2).font = { italic: true, color: { argb: "FF8C8578" } };
 
   const listas = libro.addWorksheet("Listas");
