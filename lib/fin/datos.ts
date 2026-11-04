@@ -807,3 +807,13 @@ export async function adjuntosDe(entidadTipo: string, entidadId: string): Promis
   return (data ?? []).map((a: any) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, creadoEn: a.creado_en }));
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Productos del Inventario (catálogo compartido entre empresas), solo lectura, para líneas de cotización. */
+export async function productosInventario(): Promise<{ id: string; nombre: string; precio: number; unidad: string | null }[]> {
+  const [{ data: ps }, { data: us }] = await Promise.all([
+    supabaseAdmin.from("inv_productos").select("id, nombre, precio, unidad_id").eq("activo", true).order("nombre").limit(2000),
+    supabaseAdmin.from("inv_unidades").select("id, abreviacion"),
+  ]);
+  const abrev = new Map((us ?? []).map((u) => [u.id as string, u.abreviacion as string]));
+  return (ps ?? []).map((p) => ({ id: p.id as string, nombre: p.nombre as string, precio: Number(p.precio ?? 0), unidad: p.unidad_id ? abrev.get(p.unidad_id as string) ?? null : null }));
+}
