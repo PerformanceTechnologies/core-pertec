@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { RUTA_FIN, auditar, cargarVista, conciliarConMovimiento, contextoFin, exigirDeEmpresa, fechaValida, montoDe, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
+import { RUTA_FIN, auditar, cargarVista, conciliarConMovimiento, contextoFin, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { generarHitos, peso } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD, lineaNeta, type LineaCotizacion } from "@/lib/fin/modelo";
 
@@ -396,6 +396,8 @@ export async function registrarFacturaVentaAction(fd: FormData): Promise<Resulta
     const folio = texto(fd, "folio", 20);
     const fecha = fechaValida(fd.get("fechaEmision"));
     if (!folio || !fecha) return { ok: false, error: "Folio y fecha de emisión son obligatorios." };
+    const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     const netoHitos = hitos.reduce((s, h) => s + h.neto, 0);
     const neto = tipo === 34 ? 0 : montoDe(fd.get("neto")) ?? netoHitos;
     const exento = tipo === 34 ? montoDe(fd.get("exento")) ?? netoHitos : montoDe(fd.get("exento")) ?? 0;
@@ -437,6 +439,8 @@ export async function registrarNotaAction(fd: FormData): Promise<Resultado> {
     const folio = texto(fd, "folio", 20);
     const fecha = fechaValida(fd.get("fechaEmision"));
     if (!folio || !fecha) return { ok: false, error: "Folio y fecha son obligatorios." };
+    const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     const refId = uuid(fd.get("documentoReferenciadoId"));
     const ref = refId ? vista.documentos.find((d) => d.id === refId) : null;
     if ((tipo === 61 || tipo === 56) && !ref) return { ok: false, error: "La nota tiene que referenciar una factura." };
@@ -482,6 +486,8 @@ export async function anularDocumentoAction(id: string, motivo: string): Promise
     const ctx = await contextoFin();
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const doc = await exigirDeEmpresa("fin_documentos", id, ctx.empresa.id);
+    const cerrado = await periodoCerrado(ctx.empresa.id, String(doc.fecha_emision ?? ""));
+    if (cerrado) return { ok: false, error: cerrado };
     const { count } = await supabaseAdmin.from("fin_cobro_aplicaciones").select("cobro_id", { count: "exact", head: true }).eq("documento_id", id);
     const { count: pagos } = await supabaseAdmin.from("fin_pago_aplicaciones").select("pago_id", { count: "exact", head: true }).eq("documento_id", id);
     if ((count ?? 0) + (pagos ?? 0) > 0) return { ok: false, error: "Tiene cobros o pagos aplicados: anúlalos primero." };
@@ -505,6 +511,8 @@ export async function registrarCobroAction(fd: FormData): Promise<Resultado> {
     const vista = await cargarVista();
     const fecha = fechaValida(fd.get("fecha"));
     if (!fecha) return { ok: false, error: "Indica la fecha del cobro." };
+    const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     let aplicaciones: { documentoId: string; monto: number }[];
     try {
       aplicaciones = JSON.parse(String(fd.get("aplicaciones") ?? "[]"));
@@ -548,6 +556,8 @@ export async function anularCobroAction(id: string, motivo: string): Promise<Res
     const ctx = await contextoFin();
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const c = await exigirDeEmpresa("fin_cobros", id, ctx.empresa.id);
+    const cerrado = await periodoCerrado(ctx.empresa.id, String(c.fecha ?? ""));
+    if (cerrado) return { ok: false, error: cerrado };
     const { error } = await supabaseAdmin.from("fin_cobros").update({ estado: "anulado" }).eq("id", id);
     revienta("anular el cobro", error);
     await supabaseAdmin.from("fin_conciliaciones").delete().eq("entidad_tipo", "cobro").eq("entidad_id", id);

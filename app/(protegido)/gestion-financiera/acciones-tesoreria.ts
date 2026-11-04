@@ -12,6 +12,7 @@ import {
   exigirDeEmpresa,
   fechaValida,
   montoDe,
+  periodoCerrado,
   registrarEvento,
   revienta,
   siguienteNumero,
@@ -177,6 +178,8 @@ export async function crearOperacionFactoringAction(fd: FormData): Promise<Resul
     if (!factor) return { ok: false, error: "Elige el factor." };
     const fecha = fechaValida(fd.get("fechaCesion"));
     if (!fecha) return { ok: false, error: "Indica la fecha de cesión." };
+    const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     const docIds = fd.getAll("documentoIds").map(String).filter((x) => uuid(x));
     const docs = vista.documentos.filter((d) => docIds.includes(d.id) && d.direccion === "emitido" && d.estado === "vigente" && !d.cedido && d.saldo > 0);
     if (docs.length === 0) return { ok: false, error: "Elige facturas vigentes, no cedidas y con saldo." };

@@ -11,6 +11,7 @@ import {
   exigirDeEmpresa,
   fechaValida,
   montoDe,
+  periodoCerrado,
   proyectoGeneral,
   registrarEvento,
   revienta,
@@ -213,6 +214,8 @@ export async function registrarFacturaCompraAction(fd: FormData): Promise<Result
     const folio = texto(fd, "folio", 20);
     const fecha = fechaValida(fd.get("fechaEmision"));
     if (!folio || !fecha) return { ok: false, error: "Folio y fecha de emisión son obligatorios." };
+    const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     const tipo = [33, 34, 46].includes(Number(fd.get("tipoDte"))) ? Number(fd.get("tipoDte")) : 33;
     let compraId = uuid(fd.get("compraId"));
     const compra = compraId ? vista.compras.find((c) => c.id === compraId) : null;
@@ -303,6 +306,8 @@ export async function registrarPagoAction(pagoId: string, fd: FormData): Promise
     const p = await exigirDeEmpresa("fin_pagos", pagoId, ctx.empresa.id);
     if (p.estado !== "programado") return { ok: false, error: "Ese pago ya no está programado." };
     const fecha = fechaValida(fd.get("fecha")) ?? ctx.hoy;
+    const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     const movimientoId = uuid(fd.get("movimientoId"));
     const { error } = await supabaseAdmin
       .from("fin_pagos")
@@ -332,6 +337,8 @@ export async function pagarCompraAction(compraId: string, fd: FormData): Promise
     const docs = vista.documentos.filter((d) => c.documentoIds.includes(d.id) && d.tipoDte !== 61 && d.saldo > 0);
     if (docs.length === 0) return { ok: false, error: "No hay saldo por pagar." };
     const fecha = fechaValida(fd.get("fecha")) ?? ctx.hoy;
+    const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     for (const d of docs) {
       const numero = await siguienteNumero(ctx.empresa.id, "pago", "PAG");
       const { data, error } = await supabaseAdmin
@@ -358,6 +365,8 @@ export async function anularPagoAction(id: string, motivo: string): Promise<Resu
     const ctx = await contextoFin();
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const p = await exigirDeEmpresa("fin_pagos", id, ctx.empresa.id);
+    const cerrado = await periodoCerrado(ctx.empresa.id, p.estado === "pagado" ? String(p.fecha_pago ?? "") : null);
+    if (cerrado) return { ok: false, error: cerrado };
     const { error } = await supabaseAdmin.from("fin_pagos").update({ estado: "anulado" }).eq("id", id);
     revienta("anular el pago", error);
     await supabaseAdmin.from("fin_conciliaciones").delete().eq("entidad_tipo", "pago").eq("entidad_id", id);

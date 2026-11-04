@@ -835,6 +835,16 @@ export async function asientosGuardados(empresaId: string, desde: Iso, hasta: Is
   }));
 }
 
+/**
+ * Un período cerrado no admite documentos, cobros, pagos ni cesiones con fecha en ese mes (ni anularlos).
+ * Devuelve el error para mostrar, o null si el mes está abierto.
+ */
+export async function periodoCerrado(empresaId: string, fecha: string | null | undefined): Promise<string | null> {
+  if (!fecha || !/^\d{4}-\d{2}/.test(fecha)) return null;
+  const { estado } = await estadoPeriodo(empresaId, Number(fecha.slice(0, 4)), Number(fecha.slice(5, 7)));
+  return estado === "cerrado" ? `El período ${fecha.slice(5, 7)}/${fecha.slice(0, 4)} está cerrado: reábrelo en Contabilidad para registrar o anular con esa fecha.` : null;
+}
+
 export async function estadoPeriodo(empresaId: string, anio: number, mes: number): Promise<{ estado: string; cerradoPor: string | null }> {
   const { data } = await supabaseAdmin.from("fin_periodos").select("estado, cerrado_por").eq("empresa_id", empresaId).eq("anio", anio).eq("mes", mes).maybeSingle();
   return { estado: data?.estado ?? "abierto", cerradoPor: data?.cerrado_por ?? null };
