@@ -352,9 +352,6 @@ export async function plantilla(): Promise<Buffer> {
   });
 }
 
-/** Las columnas que traen lista desplegable: van con fondo de color para que se note. */
-const RELLENO_LISTA: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF4D6" } };
-
 /**
  * Arma la planilla con las listas que se le pasen (sin tocar la base: así se prueba).
  *
@@ -444,7 +441,6 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
     const col = colDe(clave);
     const letra = hoja.getColumn(col).letter;
     validacionesHoja.add(`${letra}2:${letra}${MAX_FILAS_IMPORTACION + 1}`, validacion);
-    for (let fila = 2; fila <= MAX_FILAS_IMPORTACION + 1; fila++) hoja.getCell(fila, col).fill = RELLENO_LISTA;
   }
 
   const inst = libro.addWorksheet("Instrucciones");
@@ -454,7 +450,7 @@ export async function armarPlantilla(datos: { bodegas: string[]; categorias: str
   for (const linea of [
     "Llena la hoja «Productos», una fila por producto (y por bodega/lote si cargas stock). Borra la fila de ejemplo.",
     "Obligatorias (*): Nombre, Categoría, Bodega y Cantidad (en un Servicio, bodega y cantidad no van). Las demás celdas vacías NO borran lo que el producto ya tenía.",
-    "Las columnas con fondo amarillo (Categoría, Unidad, Tipo, Seguimiento y Bodega) tienen lista desplegable: haz clic en la celda y usa la flecha ▼. Las opciones están en la hoja «Listas».",
+    "Categoría, Unidad, Tipo, Seguimiento y Bodega tienen lista desplegable: haz clic en la celda y usa la flecha ▼. Las opciones están en la hoja «Listas».",
     "¿No ves las flechas? Si Excel muestra arriba «Vista protegida», presiona «Habilitar edición»: con el archivo recién descargado, Excel no deja usar las listas hasta eso.",
     "Si el SKU ya existe se actualiza ese producto; si no hay SKU, se busca por nombre exacto. Si no existe, se crea.",
     "«Cantidad» es el stock que hay HOY en esa bodega: el sistema hace un ajuste por la diferencia (no suma).",
