@@ -817,3 +817,23 @@ export async function productosInventario(): Promise<{ id: string; nombre: strin
   const abrev = new Map((us ?? []).map((u) => [u.id as string, u.abreviacion as string]));
   return (ps ?? []).map((p) => ({ id: p.id as string, nombre: p.nombre as string, precio: Number(p.precio ?? 0), unidad: p.unidad_id ? abrev.get(p.unidad_id as string) ?? null : null }));
 }
+
+/** Asientos ya contabilizados de un rango (con sus líneas) y el estado del período. */
+export async function asientosGuardados(empresaId: string, desde: Iso, hasta: Iso): Promise<{ id: string; numero: string; fecha: Iso; glosa: string; origenTipo: string; origenId: string | null; lineas: { cuenta: string; debe: number; haber: number }[] }[]> {
+  const { data, error } = await supabaseAdmin.from("fin_asientos").select("id, numero, fecha, glosa, origen_tipo, origen_id, fin_asiento_lineas(cuenta_codigo, debe, haber)").eq("empresa_id", empresaId).neq("estado", "anulado").gte("fecha", desde).lte("fecha", hasta).order("fecha");
+  revienta("leer asientos", error);
+  return (data ?? []).map((a) => ({
+    id: a.id, numero: a.numero, fecha: a.fecha, glosa: a.glosa, origenTipo: a.origen_tipo, origenId: a.origen_id,
+    lineas: ((a.fin_asiento_lineas ?? []) as { cuenta_codigo: string; debe: number; haber: number }[]).map((l) => ({ cuenta: l.cuenta_codigo, debe: Number(l.debe), haber: Number(l.haber) })),
+  }));
+}
+
+export async function estadoPeriodo(empresaId: string, anio: number, mes: number): Promise<{ estado: string; cerradoPor: string | null }> {
+  const { data } = await supabaseAdmin.from("fin_periodos").select("estado, cerrado_por").eq("empresa_id", empresaId).eq("anio", anio).eq("mes", mes).maybeSingle();
+  return { estado: data?.estado ?? "abierto", cerradoPor: data?.cerrado_por ?? null };
+}
+
+export async function cuentasContables(empresaId: string): Promise<Map<string, string>> {
+  const { data } = await supabaseAdmin.from("fin_cuentas_contables").select("codigo, nombre").eq("empresa_id", empresaId);
+  return new Map((data ?? []).map((c) => [c.codigo as string, c.nombre as string]));
+}
