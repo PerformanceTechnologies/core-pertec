@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useRef, useState, useTransition } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 /** Cierra la ventana (ConVentana) que contiene al formulario: así una página de servidor no tiene que pasar funciones. */
 const CerrarVentana = createContext<(() => void) | null>(null);
@@ -202,6 +202,10 @@ export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar p
     setAbierto(false);
     alCambiar?.(o?.id ?? null);
   };
+  // Texto escrito sin elegir de la lista: no se guarda en silencio sin contacto.
+  useEffect(() => {
+    caja.current?.setCustomValidity(q.trim() && !id ? "Elige el contacto de la lista (o borra el texto)." : "");
+  }, [q, id]);
   return (
     <div className="relative">
       <input type="hidden" name={name} value={id ?? ""} />
@@ -216,7 +220,11 @@ export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar p
           alCambiar?.(null);
         }}
         onFocus={() => setAbierto(true)}
-        onBlur={() => setTimeout(() => setAbierto(false), 150)}
+        onBlur={() => {
+          // Si lo escrito calza con uno solo, se elige solo.
+          if (!id && q.trim() && lista.length === 1) elegir(lista[0]);
+          setTimeout(() => setAbierto(false), 150);
+        }}
         placeholder={placeholder}
         autoComplete="off"
         className={CAMPO}

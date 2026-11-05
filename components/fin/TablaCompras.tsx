@@ -106,7 +106,9 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                 </div>
                 {h && (
                   <div className={`mt-3 rounded-xl px-3 py-2 text-xs ${h.despues < 0 ? "bg-rose-500/[0.08] text-alerta" : "bg-emerald-500/[0.08] text-ok"}`}>
-                    Holgura de {h.mes}: {clp(h.antes)} → <strong>{clp(h.despues)}</strong> con esta compra {h.despues < 0 ? "· ¡falta caja!" : ""}
+                    {h.antes === h.despues
+                      ? <>Holgura de {h.mes}: <strong>{clp(h.antes)}</strong> · la factura ya está contada en el flujo</>
+                      : <>Holgura de {h.mes}: {clp(h.antes)} → <strong>{clp(h.despues)}</strong> con esta compra {h.despues < 0 ? "· ¡falta caja!" : ""}</>}
                   </div>
                 )}
                 <div className="mt-3 flex flex-wrap justify-end gap-2">

@@ -28,7 +28,9 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
     const fechaPago = sumarDias(v.hoy, v.p.plazoPagoProveedorDias);
     const i = v.flujo.meses.findIndex((m) => m.mes === inicioDeMes(fechaPago));
     const mes = v.flujo.meses[i >= 0 ? i : v.flujo.meses.length - 1];
-    if (mes) holguras[c.id] = { mes: mesLargo(mes.mes), antes: mes.holgura, despues: mes.holgura - conIva(c.netoCotizado ?? 0, v.p.tasaIva) };
+    // Una «Factura sin OC» ya está en el flujo como por pagar: visarla no saca caja de nuevo.
+    const yaEnFlujo = c.paso === "Factura sin OC: regularizar";
+    if (mes) holguras[c.id] = { mes: mesLargo(mes.mes), antes: mes.holgura, despues: yaEnFlujo ? mes.holgura : mes.holgura - conIva(c.netoCotizado ?? 0, v.p.tasaIva) };
   }
   const q = (sp.q ?? "").toLowerCase().trim();
   const lista = (ver === "aprobar" ? porAprobar : ver === "visar" ? porVisar : v.compras).filter(

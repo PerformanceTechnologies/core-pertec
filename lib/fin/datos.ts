@@ -404,7 +404,8 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
     const aplicado = aplicadoA.get(d.id) ?? 0;
     const total = n(d.total);
     // Las notas de crédito y las guías no tienen saldo propio: la NC rebaja a la factura que referencia.
-    const esCargo = ![61, 52].includes(d.tipo_dte);
+    // Igual la nota de débito que referencia una factura: sube el saldo de esa factura (si no, se cobraría dos veces).
+    const esCargo = ![61, 52].includes(d.tipo_dte) && !(d.tipo_dte === 56 && d.documento_referenciado_id);
     return {
       id: d.id, direccion: d.direccion, tipoDte: d.tipo_dte, folio: d.folio, fechaEmision: d.fecha_emision, fechaRecepcion: d.fecha_recepcion,
       contraparteId: d.contraparte_id, rutContraparte: d.rut_contraparte, razonSocial: d.razon_social ?? (d.contraparte_id ? nombreDe.get(d.contraparte_id) ?? null : null),
