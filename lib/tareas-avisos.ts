@@ -1,7 +1,10 @@
 import "server-only";
+import { after } from "next/server";
 import { crearNotificacion } from "./buzon";
 import { hoyEnSantiago } from "./graph-calendario";
-import { tareasPendientesDe } from "./tareas";
+import { enviarCorreoAUsuario } from "./notificaciones";
+import { listarResponsables, tareasPendientesDe } from "./tareas";
+import { armarCorreoTarea, asuntoCorreoTarea, type TareaParaCorreo } from "./tareas-correo";
 import { resumirMisTareas, tituloDeColumna, type Tarea } from "./tareas-modelo";
 
 // -----------------------------------------------------------------------------
@@ -45,18 +48,43 @@ async function avisar(
   );
 }
 
-/** A quienes quedaron como responsables y antes no lo eran. */
+/**
+ * A quienes quedaron como responsables y antes no lo eran: a la campana y por correo, con el
+ * detalle de la tarea. El correo sale DESPUÉS de responder (after), para que guardar no espere
+ * a Microsoft; si falla, la tarea y el aviso de la campana igual quedaron.
+ */
 export async function avisarAsignacion(
-  tarea: Pick<Tarea, "id" | "titulo">,
+  tarea: TareaParaCorreo,
   nuevos: string[],
   actor: { correo: string; nombre: string | null },
 ): Promise<void> {
-  await avisar(nuevos.map((c) => c.toLowerCase()), actor.correo, {
+  const yo = actor.correo.toLowerCase();
+  const para = [...new Set(nuevos.map((c) => c.toLowerCase()))].filter((c) => c && c !== yo);
+  if (para.length === 0) return;
+  await avisar(para, actor.correo, {
     tipo: "asignada",
     titulo: `Te asignaron: ${tarea.titulo}`,
     cuerpo: `Por ${actor.nombre ?? actor.correo}`,
     tareaId: tarea.id,
   });
+  after(() => mandarCorreosDeAsignacion(tarea, para, actor));
+}
+
+async function mandarCorreosDeAsignacion(
+  tarea: TareaParaCorreo,
+  para: string[],
+  actor: { correo: string; nombre: string | null },
+): Promise<void> {
+  const nombres = new Map((await listarResponsables().catch(() => [])).map((r) => [r.correo.toLowerCase(), r.nombre]));
+  const nombre = (c: string) => nombres.get(c.toLowerCase()) ?? c;
+  const hoy = hoyEnSantiago().iso;
+  await Promise.all(
+    para.map((destinatario) =>
+      enviarCorreoAUsuario(destinatario, asuntoCorreoTarea(tarea), armarCorreoTarea(tarea, destinatario, actor, nombre, hoy)).catch((e) =>
+        console.error(`[tareas] No se pudo mandar el correo de asignación a ${destinatario}:`, e instanceof Error ? e.message : e),
+      ),
+    ),
+  );
 }
 
 export async function avisarCambioDeEstado(

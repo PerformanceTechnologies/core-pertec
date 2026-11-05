@@ -99,7 +99,7 @@ export async function crearTareaAction(estado: string, fd: FormData): Promise<Re
     if (!datos.visibleGeneral && !esDeLaTarea(datos, usuario.correo)) return { ok: false, error: SIN_QUEDAR_FUERA };
     const id = await crearTarea(estado, datos, usuario.correo);
     await registrarEvento(id, "creada", `en «${tituloDeColumna(estado)}»`, usuario);
-    await avisarAsignacion({ id, titulo: datos.titulo }, datos.responsables, usuario);
+    await avisarAsignacion({ id, ...datos, estado }, datos.responsables, usuario);
     revalidatePath("/tareas");
     return { ok: true, id };
   } catch (e) {
@@ -127,7 +127,7 @@ export async function actualizarTareaAction(id: string, fd: FormData): Promise<R
     const cambios = describirCambios(actual, datos, (c) => nombres.get(c.toLowerCase()) ?? c);
     if (cambios.length) await registrarEvento(id, "editada", cambios.join(" · "), usuario);
     const antes = new Set(actual.responsables.map((c) => c.toLowerCase()));
-    await avisarAsignacion({ id, titulo: datos.titulo }, datos.responsables.filter((c) => !antes.has(c)), usuario);
+    await avisarAsignacion({ id, ...datos, estado: actual.estado }, datos.responsables.filter((c) => !antes.has(c)), usuario);
     revalidatePath("/tareas");
     return { ok: true };
   } catch (e) {

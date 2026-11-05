@@ -1,6 +1,7 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { ClientSecretCredential } from "@azure/identity";
+import { supabaseAdmin } from "./supabase-admin";
 
 const GRAPH_SCOPE = "https://graph.microsoft.com/.default";
 // soporte@pertec.cl es una lista de distribucion, no un buzon: no se puede
@@ -143,7 +144,7 @@ function formaDelSecreto(): string {
   return partes.join(", ");
 }
 
-async function enviar(destinatario: string, asunto: string, cuerpoTexto: string): Promise<void> {
+async function enviar(destinatario: string, asunto: string, cuerpo: string, formato: "Text" | "HTML" = "Text"): Promise<void> {
   let token;
   try {
     token = await obtenerCredencial().getToken(GRAPH_SCOPE);
@@ -169,7 +170,7 @@ async function enviar(destinatario: string, asunto: string, cuerpoTexto: string)
   await graph.api(`/users/${CORREO_REMITENTE}/sendMail`).post({
     message: {
       subject: asunto,
-      body: { contentType: "Text", content: cuerpoTexto },
+      body: { contentType: formato, content: cuerpo },
       toRecipients: [{ emailAddress: { address: destinatario } }],
     },
   });
@@ -182,4 +183,22 @@ export async function enviarCorreoSoporte(asunto: string, cuerpoTexto: string): 
 /** Para lo que tiene que mirar Finanzas, no Soporte: una factura reclamada, por ejemplo. */
 export async function enviarCorreoFinanzas(asunto: string, cuerpoTexto: string): Promise<void> {
   return enviar(CORREO_FINANZAS, asunto, cuerpoTexto);
+}
+
+/**
+ * Un aviso personal (p. ej. «te asignaron una tarea») a una persona del Core.
+ *
+ * Acá el destinatario sí es variable, así que no se confía en quien llama: tiene que ser
+ * un usuario ACTIVO de la tabla de usuarios. Un correo cualquiera —de un formulario, de una
+ * fila editada a mano— no recibe nada.
+ */
+export async function enviarCorreoAUsuario(destinatario: string, asunto: string, cuerpoHtml: string): Promise<void> {
+  const correo = destinatario.trim().toLowerCase();
+  // Se comparan en minúsculas acá y no con ilike: en ilike el «_» de un correo es un comodín.
+  const { data, error } = await supabaseAdmin.from("usuarios").select("correo").eq("activo", true);
+  if (error) throw new Error(`No se pudo revisar el destinatario: ${error.message}`);
+  if (!(data ?? []).some((u) => String(u.correo).toLowerCase() === correo)) {
+    throw new Error(`«${correo}» no es un usuario activo del Core: no se le manda correo.`);
+  }
+  return enviar(correo, asunto, cuerpoHtml, "HTML");
 }
