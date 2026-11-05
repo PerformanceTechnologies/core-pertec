@@ -669,11 +669,19 @@ select:-webkit-autofill {
 
 /* El botón «Muro» con mensajes sin leer: un halo naranjo que late (ver BarraSuperior). */
 @keyframes muro-nuevo {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 82, 23, 0.45); }
-  50% { box-shadow: 0 0 0 6px rgba(200, 82, 23, 0); }
+  0%, 100% {
+    background-color: rgba(200, 82, 23, 0.1);
+    color: #c85217;
+    box-shadow: 0 0 0 0 rgba(200, 82, 23, 0.55), 0 0 0 0 rgba(200, 82, 23, 0);
+  }
+  50% {
+    background-color: #c85217;
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(200, 82, 23, 0.25), 0 0 18px 4px rgba(200, 82, 23, 0.55);
+  }
 }
 .animar-muro-nuevo {
-  animation: muro-nuevo 1.6s ease-in-out infinite;
+  animation: muro-nuevo 1.4s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .animar-muro-nuevo { animation: none; }
