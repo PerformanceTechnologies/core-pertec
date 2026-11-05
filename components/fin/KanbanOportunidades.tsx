@@ -9,6 +9,7 @@ import { clpCorto, diaChile, diasEntre, fechaCl } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import type { Oportunidad } from "@/lib/fin/datos";
 import { CAMPO, Campo, ComboContacto, ConVentana, FormAccion, type OpcionContacto } from "./ui";
+import { avisar, pedirTexto } from "./dialogos";
 
 /** Pipeline tipo monday: columnas por etapa con Σ monto y Σ ponderado; se arrastra para avanzar. */
 export default function KanbanOportunidades({ oportunidades, clientes, hoy }: { oportunidades: Oportunidad[]; clientes: OpcionContacto[]; hoy: string }) {
@@ -24,12 +25,12 @@ export default function KanbanOportunidades({ oportunidades, clientes, hoy }: { 
   const [, iniciar] = useTransition();
   const nombre = (id: string | null) => clientes.find((c) => c.id === id)?.nombre ?? "Sin cliente";
 
-  const mover = (id: string, etapa: string) => {
+  const mover = async (id: string, etapa: string) => {
     const op = ops.find((o) => o.id === id);
     if (!op || op.etapa === etapa) return;
     let motivo: string | undefined;
     if (etapa === "perdida") {
-      const m = prompt("¿Por qué se perdió?");
+      const m = await pedirTexto({ titulo: "¿Por qué se perdió?", ayuda: "Sirve para ver después por qué se pierden negocios (precio, plazo, competencia…).", placeholder: "Precio, plazo, la ganó otro…", boton: "Marcar perdida" });
       if (!m?.trim()) return;
       motivo = m;
     }
@@ -38,7 +39,7 @@ export default function KanbanOportunidades({ oportunidades, clientes, hoy }: { 
     iniciar(async () => {
       const r = await moverOportunidadAction(id, etapa, motivo);
       if (!r.ok) {
-        alert(r.error);
+        avisar(r.error);
         setOps(antes);
       } else router.refresh();
     });

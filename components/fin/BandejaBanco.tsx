@@ -9,6 +9,7 @@ import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { MovimientoVista } from "@/lib/fin/datos";
 import { Chip } from "./piezas";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion, SubirAdjunto } from "./ui";
+import { avisar, pedirTexto } from "./dialogos";
 import FormCobro, { type FacturaAbierta } from "./FormCobro";
 
 interface Ref { id: string; nombre: string }
@@ -156,7 +157,7 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
                     {m.categoriaId && (
                       <BotonAccion
                         accion={async () => {
-                          const patron = prompt("¿Qué texto de la glosa reconoce este tipo de movimiento?", m.glosa.split(/\s+/).slice(0, 3).join(" "));
+                          const patron = await pedirTexto({ titulo: "¿Qué texto de la glosa reconoce este tipo de movimiento?", ayuda: "Los próximos movimientos que lo contengan se categorizarán solos.", inicial: m.glosa.split(/\s+/).slice(0, 3).join(" "), boton: "Guardar regla" });
                           if (!patron) return { ok: true };
                           return reglaDesdeMovimientoAction(m.id, patron);
                         }}
@@ -191,7 +192,7 @@ function ElegirYLigar({ texto, opciones, ligar }: { texto: string; opciones: { i
         setOcupado(true);
         const r = await ligar(e.target.value);
         setOcupado(false);
-        if (!r.ok) alert(r.error);
+        if (!r.ok) avisar(r.error ?? "No se pudo.");
         else router.refresh();
       }}
     >

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { DialogosFin } from "./dialogos";
 import {
   IconBuildingBank,
   IconCalculator,
@@ -32,6 +33,7 @@ export default function NavFin() {
   const ruta = usePathname();
   return (
     <nav className="mb-6 -mx-1 overflow-x-auto px-1 pb-1">
+      <DialogosFin />
       <div className="inline-flex min-w-full gap-1 rounded-2xl border border-borde bg-superficie p-1 shadow-[0_1px_2px_rgba(23,20,17,0.04)]">
         {PESTANAS.map(({ href, etiqueta, Icono, exacto, ayuda }) => {
           const on = exacto ? ruta === href : ruta === href || ruta.startsWith(href + "/");

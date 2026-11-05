@@ -104,3 +104,10 @@ export const CELDA_SIN_CORTE = "whitespace-nowrap";
 /** El campo de formulario (input/select) del core: 44 px, borde y foco en teal. */
 export const CAMPO =
   "min-h-11 w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta placeholder:text-gris-suave focus:border-cian focus:outline-none focus:ring-2 focus:ring-cian/30";
+
+/**
+ * El campo de Gestión financiera: «relleno» suave que se aclara al enfocarlo, como en Contactos.
+ * Más liviano que CAMPO en formularios largos (la factura o el cobro tienen 8–10 campos).
+ */
+export const CAMPO_FIN =
+  "min-h-11 w-full rounded-xl border border-transparent bg-tinta/[0.05] px-3 py-2 text-sm text-tinta placeholder:text-gris-suave transition hover:bg-tinta/[0.07] focus:border-cian/60 focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-cian/15 disabled:cursor-not-allowed disabled:opacity-50";

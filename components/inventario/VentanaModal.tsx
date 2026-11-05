@@ -78,7 +78,7 @@ export default function VentanaModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6 ${hoja ? "bg-tinta/35 backdrop-blur-sm" : "bg-tinta/60 sm:p-8"}`}
+      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6 ${hoja ? "animar-fondo-ventana bg-tinta/35 backdrop-blur-sm" : "bg-tinta/60 sm:p-8"}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) alCerrar();
       }}
@@ -86,7 +86,7 @@ export default function VentanaModal({
       aria-modal="true"
       aria-label={titulo}
     >
-      <div className={`my-auto w-full ${ancho} bg-superficie ${hoja ? "rounded-[28px] border border-borde/60 shadow-[0_24px_64px_-12px_rgba(23,20,17,0.35)]" : "rounded-2xl shadow-2xl"}`}>
+      <div className={`my-auto w-full ${ancho} bg-superficie ${hoja ? "animar-ventana rounded-[28px] border border-borde/60 shadow-[0_24px_64px_-12px_rgba(23,20,17,0.35)]" : "rounded-2xl shadow-2xl"}`}>
         <div className={`flex items-start gap-3 ${hoja ? "px-5 pb-1 pt-4" : "border-b border-borde px-5 py-4"}`}>
           {hoja && icono}
           <div className={`min-w-0 flex-1 ${hoja && icono ? "self-center" : ""}`}>

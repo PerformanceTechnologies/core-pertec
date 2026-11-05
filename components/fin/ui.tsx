@@ -5,9 +5,14 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useTra
 /** Cierra la ventana (ConVentana) que contiene al formulario: así una página de servidor no tiene que pasar funciones. */
 const CerrarVentana = createContext<(() => void) | null>(null);
 import { useRouter } from "next/navigation";
-import { IconLoader2 } from "@tabler/icons-react";
+import {
+  IconAlertTriangle, IconArrowsExchange, IconBuildingBank, IconCash, IconCheck, IconChecklist, IconCreditCard, IconFileInvoice, IconFilePlus,
+  IconFolder, IconForms, IconLoader2, IconPackage, IconPencil, IconPlus, IconReceipt2, IconSearch, IconTargetArrow, IconUserDollar, IconWand, type Icon,
+} from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
-import { CAMPO } from "@/lib/estilos";
+import { IconoTile, type TonoIcono } from "@/components/contactos/Visual";
+import { CAMPO_FIN as CAMPO } from "@/lib/estilos";
+import { avisar, BOTON_VENTANA, BOTON_VENTANA_SUAVE, confirmar as confirmarDialogo, pedirTexto } from "./dialogos";
 
 // Piezas interactivas de Gestión financiera: formularios que llaman a una Server Action, botones
 // que piden confirmación o motivo, ventanas y el buscador de contactos.
@@ -47,11 +52,11 @@ export function FormAccion({
       className={className}
       onSubmit={(e) => {
         e.preventDefault();
-        if (confirmar && !confirm(confirmar)) return;
         const formulario = e.currentTarget;
         const fd = new FormData(formulario);
         setError(null);
         iniciar(async () => {
+          if (confirmar && !(await confirmarDialogo({ titulo: confirmar }))) return;
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
           router.refresh();
@@ -62,12 +67,26 @@ export function FormAccion({
       }}
     >
       {children}
-      {error && <p className="rounded-lg border-l-[3px] border-rose-500 bg-rose-500/[0.07] px-3 py-2 text-xs text-alerta dark:text-rose-300">{error}</p>}
-      <div className="flex justify-end">
-        <button type="submit" disabled={pendiente} className={BOTON}>
-          {pendiente && <IconLoader2 size={14} className="animate-spin" />} {textoBoton}
-        </button>
-      </div>
+      {error && (
+        <p role="alert" className="flex items-start gap-2 rounded-xl bg-rose-500/[0.08] px-3 py-2.5 text-[13px] font-medium leading-snug text-alerta">
+          <IconAlertTriangle size={16} className="mt-px shrink-0" /> {error}
+        </p>
+      )}
+      {cerrarVentana ? (
+        // Dentro de una ventana: el pie queda pegado abajo, con «Cancelar» y la acción a la derecha.
+        <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-col-reverse gap-2 rounded-b-[28px] border-t border-borde/60 bg-superficie/95 px-5 py-3.5 backdrop-blur sm:flex-row sm:justify-end">
+          <button type="button" onClick={cerrarVentana} className={BOTON_VENTANA_SUAVE}>Cancelar</button>
+          <button type="submit" disabled={pendiente} className={BOTON_VENTANA}>
+            {pendiente ? <IconLoader2 size={16} className="animate-spin" /> : <IconCheck size={16} stroke={2.2} />} {pendiente ? "Guardando…" : textoBoton}
+          </button>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button type="submit" disabled={pendiente} className={BOTON}>
+            {pendiente && <IconLoader2 size={14} className="animate-spin" />} {textoBoton}
+          </button>
+        </div>
+      )}
     </form>
   );
 }
@@ -99,20 +118,20 @@ export function BotonAccion({
       title={titulo}
       disabled={pendiente}
       className={className}
-      onClick={(e) => {
+      onClick={async (e) => {
         e.stopPropagation();
         let m = "";
         if (motivo) {
-          const r = prompt(motivo);
+          const r = await pedirTexto({ titulo: motivo, ayuda: "Queda en el historial, para que se entienda después.", placeholder: "El motivo…", boton: "Confirmar" });
           if (r === null) return;
           m = r.trim();
-          if (!m) return alert("Hay que escribir el motivo.");
-        } else if (confirmar && !confirm(confirmar)) return;
+          if (!m) return;
+        } else if (confirmar && !(await confirmarDialogo({ titulo: confirmar }))) return;
         iniciar(async () => {
           const r = await accion(m);
-          if (!r.ok) alert(r.error);
+          if (!r.ok) avisar(r.error);
           else {
-            if (r.mensaje) alert(r.mensaje);
+            if (r.mensaje) avisar(r.mensaje, "info");
             if (irA && r.id) router.push(`${irA}${r.id}`);
             else router.refresh();
           }
@@ -144,24 +163,57 @@ export function ConVentana({
 }) {
   const [abierta, setAbierta] = useState(false);
   const cerrar = () => setAbierta(false);
+  const { Icono, tono } = iconoDe(titulo);
   return (
     <>
       <button type="button" className={className} onClick={(e) => (e.stopPropagation(), setAbierta(true))}>
         {boton}
       </button>
-      <VentanaModal abierta={abierta} alCerrar={() => setAbierta(false)} titulo={titulo} descripcion={descripcion} ancho={ancho}>
+      <VentanaModal abierta={abierta} alCerrar={() => setAbierta(false)} titulo={titulo} descripcion={descripcion} ancho={ancho} variante="hoja" icono={<IconoTile Icono={Icono} tono={tono} />}>
         {abierta && <CerrarVentana.Provider value={cerrar}>{typeof children === "function" ? children(cerrar) : children}</CerrarVentana.Provider>}
       </VentanaModal>
     </>
   );
 }
 
+/**
+ * El ícono de la ventana, según lo que hace (sale del título: así las 60 ventanas del módulo lo
+ * tienen sin tocar cada página). El orden importa: lo más específico primero.
+ */
+const ICONOS_VENTANA: [RegExp, Icon, TonoIcono][] = [
+  [/^editar|^saldo de|perfil/i, IconPencil, "azul"],
+  [/cobro/i, IconCash, "verde"],
+  [/pag(o|ar)/i, IconCreditCard, "verde"],
+  [/factoring/i, IconArrowsExchange, "azul"],
+  [/factura|nota o gu[ií]a/i, IconFileInvoice, "ambar"],
+  [/recepci[oó]n/i, IconPackage, "ambar"],
+  [/cotizaci[oó]n|aceptar/i, IconChecklist, "verde"],
+  [/oportunidad|^cot-|^op-/i, IconTargetArrow, "marca"],
+  [/hito/i, IconReceipt2, "marca"],
+  [/proyecto/i, IconFolder, "marca"],
+  [/movimiento|cuenta/i, IconBuildingBank, "azul"],
+  [/regla/i, IconWand, "azul"],
+  [/cliente|contacto/i, IconUserDollar, "verde"],
+  [/compra|solicitud/i, IconFilePlus, "marca"],
+  [/^nuev[oa]/i, IconPlus, "marca"],
+  [/buscar/i, IconSearch, "azul"],
+];
+function iconoDe(titulo: string): { Icono: Icon; tono: TonoIcono } {
+  const f = ICONOS_VENTANA.find(([re]) => re.test(titulo));
+  return f ? { Icono: f[1], tono: f[2] } : { Icono: IconForms, tono: "marca" };
+}
+
+/** Un campo con su etiqueta. Un « *» al final de la etiqueta marca que es obligatorio. */
 export function Campo({ etiqueta, ayuda, children, className = "" }: { etiqueta: string; ayuda?: string; children: React.ReactNode; className?: string }) {
+  const obligatorio = /\s\*$/.test(etiqueta);
   return (
-    <label className={`block ${className}`}>
-      <span className="mb-1 block text-xs font-semibold text-gris">{etiqueta}</span>
+    <label className={`block min-w-0 ${className}`}>
+      <span className="mb-1.5 block text-[12px] font-semibold text-tinta/75">
+        {obligatorio ? etiqueta.replace(/\s\*$/, "") : etiqueta}
+        {obligatorio && <span className="text-rose-500"> *</span>}
+      </span>
       {children}
-      {ayuda && <span className="mt-1 block text-[11px] text-gris-suave">{ayuda}</span>}
+      {ayuda && <span className="mt-1 block text-[11px] leading-snug text-gris-suave">{ayuda}</span>}
     </label>
   );
 }
@@ -209,6 +261,7 @@ export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar p
   return (
     <div className="relative">
       <input type="hidden" name={name} value={id ?? ""} />
+      <IconSearch size={16} stroke={1.75} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris-suave" />
       <input
         ref={caja}
         value={q}
@@ -227,13 +280,13 @@ export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar p
         }}
         placeholder={placeholder}
         autoComplete="off"
-        className={CAMPO}
+        className={`${CAMPO} pl-9`}
       />
       {abierto && lista.length > 0 && (
-        <ul className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-borde bg-superficie p-1 shadow-xl">
+        <ul className="absolute z-40 mt-1.5 max-h-64 w-full overflow-auto rounded-2xl border border-borde/60 bg-superficie p-1.5 shadow-[0_18px_40px_-14px_rgba(23,20,17,0.35)]">
           {lista.map((o) => (
             <li key={o.id}>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegir(o)} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-naranjo/[0.07] ${o.id === id ? "bg-naranjo/[0.07]" : ""}`}>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegir(o)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition hover:bg-naranjo/[0.08] ${o.id === id ? "bg-naranjo/[0.08]" : ""}`}>
                 <span className="truncate text-tinta">{o.nombre}</span>
                 {o.rut && <span className="shrink-0 font-mono text-[11px] text-gris">{o.rut}</span>}
               </button>
@@ -242,7 +295,7 @@ export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar p
         </ul>
       )}
       {abierto && lista.length === 0 && q.trim() && (
-        <p className="absolute z-40 mt-1 w-full rounded-xl border border-borde bg-superficie px-3 py-2 text-xs text-gris shadow-xl">
+        <p className="absolute z-40 mt-1.5 w-full rounded-2xl border border-borde/60 bg-superficie px-3.5 py-2.5 text-xs text-gris shadow-[0_18px_40px_-14px_rgba(23,20,17,0.35)]">
           No está. Créalo primero en <a href="/finanzas/contactos" target="_blank" className="font-semibold text-naranjo">Contactos</a>.
         </p>
       )}
@@ -274,8 +327,11 @@ export function SubirAdjunto({ entidadTipo, entidadId, tipo = "otro", texto = "A
           const r = await fetch("/api/gestion-financiera/adjunto", { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "No se pudo subir." }));
           setSubiendo(false);
           if (entrada.current) entrada.current.value = "";
-          if (r.error) alert(r.error);
-          else router.refresh();
+          if (r.error) avisar(r.error);
+          else {
+            avisar("Respaldo adjuntado.", "ok");
+            router.refresh();
+          }
         }}
       />
       <button type="button" className={BOTON_SEC} disabled={subiendo} onClick={(e) => (e.stopPropagation(), entrada.current?.click())}>
@@ -302,7 +358,7 @@ export function CampoEnLinea({ valor, tipo = "text", opciones, guardar, placehol
     iniciar(async () => {
       const r = await guardar(nuevo);
       if (!r.ok) {
-        alert(r.error);
+        avisar(r.error);
         setV(valor ?? "");
       } else router.refresh();
     });

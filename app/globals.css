@@ -568,3 +568,31 @@ select:-webkit-autofill {
 .fondo-tono {
   background-color: color-mix(in srgb, currentColor 10%, transparent);
 }
+
+/* Las ventanas «hoja» (Contactos, Gestión financiera) y los avisos: aparecen con un fundido
+   corto. Solo opacidad, por lo mismo que .animar-revelar: un transform que queda puesto vuelve
+   al contenedor el bloque de referencia de lo que va adentro (los desplegables del buscador). */
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animar-ventana {
+  animation: aparecer 0.18s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.animar-fondo-ventana {
+  animation: aparecer 0.14s ease-out both;
+}
+.animar-aviso {
+  animation: aparecer 0.2s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animar-ventana,
+  .animar-fondo-ventana,
+  .animar-aviso {
+    animation: none;
+  }
+}
