@@ -164,10 +164,8 @@ export async function bajarDeSharePoint(ref: string): Promise<ArchivoBajado> {
 export async function abrirDeSharePoint(ref: string): Promise<{ respuesta: Response; tipo: string; nombre: string; tamano: number }> {
   const graph = await cliente();
   const s = await sitio(graph);
-  const item = await graph
-    .api(`/sites/${s}/drive/items/${encodeURIComponent(idDeReferencia(ref))}`)
-    .select("id,name,size,file,@microsoft.graph.downloadUrl")
-    .get();
+  // Sin $select: con una lista de campos, Graph deja fuera el enlace de descarga.
+  const item = await graph.api(`/sites/${s}/drive/items/${encodeURIComponent(idDeReferencia(ref))}`).get();
   const url = item?.["@microsoft.graph.downloadUrl"] as string | undefined;
   if (!url) throw new Error("SharePoint no entregó el enlace de descarga.");
   const respuesta = await fetch(url, { cache: "no-store" });
@@ -205,14 +203,17 @@ export async function borrarCarpetaDeSharePoint(carpeta: string): Promise<void> 
 
 /** Para el diagnóstico: sube y borra un archivo de prueba. Devuelve null si anduvo, o el motivo. */
 export async function probarSharePoint(): Promise<string | null> {
+  let ref: string | null = null;
   try {
-    const ref = await subirASharePoint("_prueba", `prueba-${Date.now()}.txt`, Buffer.from("Prueba de escritura del Core"), "text/plain");
-    await bajarDeSharePoint(ref);
-    await borrarDeSharePoint([ref]);
+    ref = await subirASharePoint("_prueba", `prueba-${Date.now()}.txt`, Buffer.from("Prueba de escritura del Core"), "text/plain");
+    const leido = await bajarDeSharePoint(ref);
+    if (leido.contenido.toString() !== "Prueba de escritura del Core") return "El archivo de prueba volvió distinto.";
     return null;
   } catch (e) {
     const codigo = (e as { statusCode?: number })?.statusCode;
     const motivo = e instanceof Error ? e.message : String(e);
     return codigo ? `HTTP ${codigo}: ${motivo}` : motivo;
+  } finally {
+    if (ref) await borrarDeSharePoint([ref]).catch(() => {});
   }
 }
