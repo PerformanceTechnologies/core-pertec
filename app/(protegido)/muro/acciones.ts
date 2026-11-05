@@ -18,10 +18,11 @@ async function contexto() {
   return { usuario, empresa };
 }
 
-export async function publicarAction(texto: string): Promise<{ ok: true; mensaje: MensajeMuro } | Falla> {
+export async function publicarAction(texto: string, respuestaA: string | null = null): Promise<{ ok: true; mensaje: MensajeMuro } | Falla> {
   try {
     const { usuario, empresa } = await contexto();
-    return { ok: true, mensaje: await publicarMensaje(usuario, empresa, String(texto ?? "")) };
+    if (respuestaA !== null && !/^[0-9a-f-]{36}$/.test(String(respuestaA))) return { ok: false, error: "Publicación inválida." };
+    return { ok: true, mensaje: await publicarMensaje(usuario, empresa, String(texto ?? ""), respuestaA) };
   } catch (e) {
     return fallo(e);
   }
@@ -39,7 +40,7 @@ export async function nuevosAction(desde: string, visibles: string[]): Promise<{
   }
 }
 
-export async function anterioresAction(antesDe: string): Promise<{ ok: true; mensajes: MensajeMuro[]; hayMas: boolean } | Falla> {
+export async function anterioresAction(antesDe: string): Promise<{ ok: true; mensajes: MensajeMuro[]; respuestas: MensajeMuro[]; hayMas: boolean } | Falla> {
   try {
     const { empresa } = await contexto();
     if (Number.isNaN(Date.parse(antesDe))) return { ok: false, error: "Fecha inválida." };

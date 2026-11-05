@@ -146,6 +146,25 @@ const PAGINA_WEB: Plan = {
   ],
 };
 
+/**
+ * El Muro es de todos: no depende de una aplicación asignada, así que va primero en el menú de
+ * cada persona (ver lib/muro.ts: cada empresa tiene el suyo).
+ */
+const MURO: GrupoDelMenu = {
+  slug: "muro",
+  titulo: "Muro",
+  descripcion: "Novedades, avisos y conversaciones de la gente de tu empresa.",
+  items: [
+    {
+      tipo: "enlace",
+      href: "/muro",
+      nombre: "Muro de la empresa",
+      icono: "messages",
+      descripcion: "Publica, responde y etiqueta con @ a la gente de tu empresa.",
+    },
+  ],
+};
+
 /** Solo para el administrador del Core: va al final de todo. */
 const ADMINISTRACION: GrupoDelMenu = {
   slug: "administracion",
@@ -216,7 +235,7 @@ export function armarMenu(
       : null;
   }
 
-  const grupos: GrupoDelMenu[] = [];
+  const grupos: GrupoDelMenu[] = [MURO];
   for (const plan of PLAN) {
     const grupo = armarGrupo(plan);
     if (grupo) grupos.push(grupo);

@@ -12,6 +12,8 @@ export interface MensajeMuro {
   texto: string;
   menciones: string[];
   creadoEn: string;
+  /** La publicación a la que responde (null: es una publicación). */
+  respuestaA: string | null;
 }
 
 export const LARGO_MAXIMO_MURO = 4000;

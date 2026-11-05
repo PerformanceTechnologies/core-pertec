@@ -22,11 +22,13 @@ const aMensaje = (r: any): MensajeMuro => ({
   texto: r.texto,
   menciones: r.menciones ?? [],
   creadoEn: r.creado_en,
+  respuestaA: r.respuesta_a ?? null,
 });
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 function revienta(que: string, error: { message: string } | null): void {
   if (!error) return;
+  if (/respuesta_a/.test(error.message)) throw new Error("Faltan las respuestas del Muro en la base: corre el SQL de respuestas del muro.");
   if (/muro_mensajes/.test(error.message)) throw new Error("Falta crear el Muro en la base: corre el SQL del muro.");
   throw new Error(`No se pudo ${que}: ${error.message}`);
 }
@@ -53,14 +55,30 @@ export async function personasDeEmpresa(empresa: Empresa): Promise<PersonaMuro[]
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-/** Los últimos mensajes (o los de antes de `antesDe`), del más viejo al más nuevo. */
-export async function listarMensajes(empresaId: string, antesDe?: string): Promise<{ mensajes: MensajeMuro[]; hayMas: boolean }> {
-  let q = supabaseAdmin.from(TABLA).select("*").eq("empresa_id", empresaId).eq("eliminado", false).order("creado_en", { ascending: false }).limit(POR_PAGINA + 1);
+/**
+ * Las últimas publicaciones (o las de antes de `antesDe`), del más viejo al más nuevo, con todas
+ * sus respuestas aparte (también de la más vieja a la más nueva).
+ */
+export async function listarMensajes(
+  empresaId: string,
+  antesDe?: string,
+): Promise<{ mensajes: MensajeMuro[]; respuestas: MensajeMuro[]; hayMas: boolean }> {
+  let q = supabaseAdmin
+    .from(TABLA).select("*").eq("empresa_id", empresaId).eq("eliminado", false).is("respuesta_a", null)
+    .order("creado_en", { ascending: false }).limit(POR_PAGINA + 1);
   if (antesDe) q = q.lt("creado_en", antesDe);
   const { data, error } = await q;
   revienta("leer el muro", error);
   const filas = data ?? [];
-  return { mensajes: filas.slice(0, POR_PAGINA).map(aMensaje).reverse(), hayMas: filas.length > POR_PAGINA };
+  const mensajes = filas.slice(0, POR_PAGINA).map(aMensaje).reverse();
+  let respuestas: MensajeMuro[] = [];
+  if (mensajes.length) {
+    const r = await supabaseAdmin
+      .from(TABLA).select("*").eq("eliminado", false).in("respuesta_a", mensajes.map((m) => m.id)).order("creado_en");
+    revienta("leer las respuestas", r.error);
+    respuestas = (r.data ?? []).map(aMensaje);
+  }
+  return { mensajes, respuestas, hayMas: filas.length > POR_PAGINA };
 }
 
 /** Lo nuevo desde `desde`, y los ids borrados en ese rato (para sacarlos de la pantalla). */
@@ -79,7 +97,12 @@ export async function mensajesDesde(empresaId: string, desde: string, visibles: 
  * Publica un mensaje. Las menciones solo cuentan si son de personas de esa empresa; a cada una
  * le llega un aviso personal a la campana (menos a quien escribe).
  */
-export async function publicarMensaje(usuario: UsuarioConAcceso, empresa: Empresa, texto: string): Promise<MensajeMuro> {
+export async function publicarMensaje(
+  usuario: UsuarioConAcceso,
+  empresa: Empresa,
+  texto: string,
+  respuestaA: string | null = null,
+): Promise<MensajeMuro> {
   const limpio = texto.replace(/\r\n/g, "\n").trim();
   if (!limpio) throw new Error("Escribe algo antes de enviar.");
   if (limpio.length > LARGO_MAXIMO_MURO) throw new Error(`El mensaje es muy largo (máximo ${LARGO_MAXIMO_MURO} caracteres).`);
@@ -88,9 +111,31 @@ export async function publicarMensaje(usuario: UsuarioConAcceso, empresa: Empres
   const nombres = new Map(personas.map((p) => [p.correo, p.nombre]));
   const menciones = mencionesDe(limpio).filter((c) => nombres.has(c));
 
+  // Una respuesta cuelga de una publicación de ESTA empresa que siga viva. Si se responde a una
+  // respuesta, se cuelga de su publicación: hay un solo nivel.
+  let publicacion: { id: string; autor_correo: string } | null = null;
+  if (respuestaA) {
+    const { data: padre, error: e } = await supabaseAdmin
+      .from(TABLA).select("id, autor_correo, respuesta_a, eliminado").eq("id", respuestaA).eq("empresa_id", empresa.id).maybeSingle();
+    revienta("leer la publicación", e);
+    if (!padre || padre.eliminado) throw new Error("Esa publicación ya no existe.");
+    if (padre.respuesta_a) {
+      const { data: abuelo } = await supabaseAdmin.from(TABLA).select("id, autor_correo, eliminado").eq("id", padre.respuesta_a).maybeSingle();
+      if (!abuelo || abuelo.eliminado) throw new Error("Esa publicación ya no existe.");
+      publicacion = abuelo as { id: string; autor_correo: string };
+    } else publicacion = padre as { id: string; autor_correo: string };
+  }
+
   const { data, error } = await supabaseAdmin
     .from(TABLA)
-    .insert({ empresa_id: empresa.id, autor_correo: usuario.correo.toLowerCase(), autor_nombre: usuario.nombre, texto: limpio, menciones })
+    .insert({
+      empresa_id: empresa.id,
+      autor_correo: usuario.correo.toLowerCase(),
+      autor_nombre: usuario.nombre,
+      texto: limpio,
+      menciones,
+      ...(publicacion ? { respuesta_a: publicacion.id } : {}),
+    })
     .select("*")
     .single();
   revienta("publicar el mensaje", error);
@@ -98,6 +143,22 @@ export async function publicarMensaje(usuario: UsuarioConAcceso, empresa: Empres
 
   const yo = usuario.correo.toLowerCase();
   const plano = textoPlano(limpio, (c) => nombres.get(c) ?? c.split("@")[0]);
+  const resumen = plano.length > 160 ? `${plano.slice(0, 157)}…` : plano;
+  const enlace = `/muro#m-${publicacion?.id ?? mensaje.id}`;
+  // A quien escribió la publicación le avisa que le respondieron (si no se respondió a sí misma ni
+  // ya lo nombraron, que sería un aviso repetido).
+  const dueno = publicacion ? String(publicacion.autor_correo).toLowerCase() : null;
+  if (dueno && dueno !== yo && !menciones.includes(dueno)) {
+    await crearNotificacion({
+      modulo: null,
+      tipo: "respuesta",
+      titulo: `${usuario.nombre ?? usuario.correo} respondió tu publicación en el Muro de ${empresa.nombre}`,
+      cuerpo: resumen,
+      enlace,
+      clave: `muro:${mensaje.id}:respuesta:${dueno}`,
+      destinatario: dueno,
+    }).catch(() => false);
+  }
   await Promise.all(
     menciones
       .filter((c) => c !== yo)
@@ -106,8 +167,8 @@ export async function publicarMensaje(usuario: UsuarioConAcceso, empresa: Empres
           modulo: null,
           tipo: "mencion",
           titulo: `${usuario.nombre ?? usuario.correo} te mencionó en el Muro de ${empresa.nombre}`,
-          cuerpo: plano.length > 160 ? `${plano.slice(0, 157)}…` : plano,
-          enlace: `/muro#m-${mensaje.id}`,
+          cuerpo: resumen,
+          enlace,
           clave: `muro:${mensaje.id}:${destinatario}`,
           destinatario,
         }).catch(() => false),

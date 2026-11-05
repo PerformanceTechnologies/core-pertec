@@ -10,6 +10,7 @@ import {
   IconHeartHandshake,
   IconHome2,
   IconLayoutKanban,
+  IconMessages,
   IconReportMoney,
   IconShieldCog,
   IconWorld,
@@ -17,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 
 const ICONOS_DE_MODULO: Record<string, Icon> = {
+  muro: IconMessages,
   finanzas: IconReportMoney,
   crm: IconHeartHandshake,
   tareas: IconLayoutKanban,

@@ -23,6 +23,7 @@ import {
   IconAlertTriangle,
   IconDatabase,
   IconCloud,
+  IconMessages,
   type Icon,
 } from "@tabler/icons-react";
 
@@ -51,6 +52,7 @@ export const ICONOS_DISPONIBLES: { clave: string; etiqueta: string; Componente: 
   { clave: "database", etiqueta: "Datos", Componente: IconDatabase },
   { clave: "cloud", etiqueta: "Cloud / infraestructura", Componente: IconCloud },
   { clave: "music", etiqueta: "Eventos", Componente: IconMusic },
+  { clave: "messages", etiqueta: "Muro / conversaciones", Componente: IconMessages },
 ];
 
 const MAPA_ICONOS = new Map(ICONOS_DISPONIBLES.map((i) => [i.clave, i.Componente]));

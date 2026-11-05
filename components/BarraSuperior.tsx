@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconMessages, IconSunHigh } from "@tabler/icons-react";
+import { IconSunHigh } from "@tabler/icons-react";
 import BuzonNotificaciones from "@/components/BuzonNotificaciones";
 import SelectorEmpresa from "@/components/SelectorEmpresa";
 import type { Empresa } from "@/lib/empresas-modelo";
 
 /**
  * Arriba a la derecha de toda página, de izquierda a derecha: las notificaciones,
- * el Muro, Mi Día y el cambio de empresa.
+ * Mi Día y el cambio de empresa.
  *
  * Mi Día salió del menú de la izquierda para estar siempre a mano, y las
  * notificaciones —que vivían abajo en ese menú— se vinieron a su lado. La
@@ -29,21 +29,10 @@ export default function BarraSuperior({
 }) {
   const pathname = usePathname();
   const enMiDia = pathname === "/mi-dia" || pathname.startsWith("/mi-dia/");
-  const enMuro = pathname === "/muro";
 
   return (
     <div className="mb-4 flex items-center justify-end gap-2">
       {mostrarBuzon && <BuzonNotificaciones />}
-      {/* El Muro es de todos: no depende de una aplicación asignada. */}
-      <Link
-        href="/muro"
-        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
-          enMuro ? "border-naranjo/40 bg-naranjo/10 text-naranjo" : "border-borde bg-superficie text-tinta/75 hover:border-naranjo/40 hover:text-naranjo"
-        }`}
-      >
-        <IconMessages size={16} stroke={1.75} aria-hidden />
-        Muro
-      </Link>
       {veMiDia && (
         <Link
           href="/mi-dia"

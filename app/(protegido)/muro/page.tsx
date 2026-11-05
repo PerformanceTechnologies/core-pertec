@@ -12,7 +12,7 @@ export default async function MuroPage() {
   const empresa = await empresaDelMuro(usuario);
   if (!empresa) redirect("/");
 
-  let inicial: Awaited<ReturnType<typeof listarMensajes>> = { mensajes: [], hayMas: false };
+  let inicial: Awaited<ReturnType<typeof listarMensajes>> = { mensajes: [], respuestas: [], hayMas: false };
   let falta: string | null = null;
   try {
     inicial = await listarMensajes(empresa.id);
@@ -28,6 +28,7 @@ export default async function MuroPage() {
       yo={{ correo: usuario.correo.toLowerCase(), nombre: usuario.nombre ?? usuario.correo, admin: usuario.rol === "admin" }}
       personas={personas}
       inicial={inicial.mensajes}
+      respuestasIniciales={inicial.respuestas}
       hayMas={inicial.hayMas}
       aviso={falta}
     />
