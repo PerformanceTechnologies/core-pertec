@@ -90,7 +90,7 @@ export default function BuzonNotificaciones() {
       <button
         type="button"
         onClick={abrir}
-        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
+        className={`flex h-[34px] w-[34px] items-center justify-center rounded-lg border text-sm font-medium transition ${
           abierto
             ? "border-naranjo/40 bg-naranjo/10 text-naranjo"
             : "border-borde bg-superficie text-tinta/75 hover:border-naranjo/40 hover:text-naranjo"
@@ -108,7 +108,6 @@ export default function BuzonNotificaciones() {
             </span>
           )}
         </span>
-        <span className="hidden sm:inline">Notificaciones</span>
       </button>
 
       {/* Se abre hacia ABAJO (la barra está arriba de la página). En pantallas angostas el botón no
