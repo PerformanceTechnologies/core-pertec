@@ -17,6 +17,14 @@ const FLECHA =
  * él: las aplicaciones —los submódulos— se ven al entrar al módulo, en su propia página
  * (ver VistaDeModulo). Así el Inicio es la puerta de entrada y no repite todo el menú.
  */
+/** Un módulo «directo» (Tareas) abre su pantalla; los demás, su portada con submódulos. */
+function destinoDe(grupo: GrupoDelMenu): string {
+  const primero = grupo.items[0];
+  if (grupo.directo && primero?.tipo === "app") return primero.app.url;
+  if (grupo.directo && primero?.tipo === "enlace") return primero.href;
+  return rutaDeModulo(grupo.slug);
+}
+
 export default function GrillaDeModulos({ grupos }: { grupos: GrupoDelMenu[] }) {
   return (
     <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -26,7 +34,7 @@ export default function GrillaDeModulos({ grupos }: { grupos: GrupoDelMenu[] }) 
         const submodulos = grupo.items.filter((i) => i.tipo !== "pronto").length;
         return (
           <li key={grupo.slug}>
-            <Link href={rutaDeModulo(grupo.slug)} className={TARJETA}>
+            <Link href={destinoDe(grupo)} className={TARJETA}>
               <div className={FICHA}>
                 <Icono size={20} stroke={1.75} aria-hidden />
               </div>

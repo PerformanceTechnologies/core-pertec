@@ -562,8 +562,11 @@ function Modulo({
   separado: boolean;
 }) {
   const clave = `modulo:${grupo.slug}`;
-  const ruta = rutaDeModulo(grupo.slug);
-  const enPortada = pathname === ruta;
+  // Un módulo «directo» (Tareas) abre su única pantalla al tocarlo, sin portada ni submódulos.
+  const primero = grupo.items[0];
+  const destino = grupo.directo && primero ? (primero.tipo === "app" ? primero.app.url : primero.tipo === "enlace" ? primero.href : null) : null;
+  const ruta = destino ?? rutaDeModulo(grupo.slug);
+  const enPortada = destino ? esRutaActiva(destino, pathname) : pathname === ruta;
   // La página abierta cuelga de este módulo. Plegado, el módulo se marca igual: si no, no habría
   // cómo saber dónde está uno parado sin desplegar todo.
   const conActiva = grupo.items.some(
@@ -594,14 +597,17 @@ function Modulo({
           </span>
           {grupo.slug === "muro" && <span className="ml-auto pr-1"><InsigniaMuro /></span>}
         </Link>
-        <BotonDeDespliegue
-          abierto={abierto}
-          clave={clave}
-          etiqueta={grupo.titulo}
-          alAlternar={() => despliegue.alternar(clave, false)}
-        />
+        {!destino && (
+          <BotonDeDespliegue
+            abierto={abierto}
+            clave={clave}
+            etiqueta={grupo.titulo}
+            alAlternar={() => despliegue.alternar(clave, false)}
+          />
+        )}
       </div>
 
+      {!destino && (
       <Colapsable abierto={abierto} id={idDeRegion(clave)}>
         {/* La línea guía queda justo debajo del centro de la ficha del módulo: de ahí "cuelgan" los submódulos. */}
         <div className="ml-[19px] flex flex-col gap-0.5 border-l border-borde pb-1 pl-2 pt-1">
@@ -616,6 +622,7 @@ function Modulo({
           ))}
         </div>
       </Colapsable>
+      )}
     </div>
   );
 }

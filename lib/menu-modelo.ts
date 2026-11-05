@@ -28,6 +28,8 @@ export interface GrupoDelMenu {
   /** Una línea para el encabezado de su página. */
   descripcion: string;
   items: ItemDelMenu[];
+  /** Módulo de una sola pantalla: tocarlo la abre directo, sin desplegar submódulos. */
+  directo?: boolean;
 }
 
 /** La dirección de la página de un módulo, con sus submódulos como cartillas. */
@@ -85,13 +87,21 @@ const SUBPANELES_EN_MENU = [
   { slug: "facturas-historicas", href: "/finanzas/facturas-historicas", nombre: "Históricos facturas", icono: "folder" },
 ];
 
-type Plan = { slug: string; titulo: string; descripcion: string; items: Paso[] };
+type Plan = { slug: string; titulo: string; descripcion: string; items: Paso[]; directo?: boolean };
 type Paso =
   | { ruta: string; nombre?: string }
   | { subpanel: string }
   | { pronto: string; icono: string };
 
 const PLAN: Plan[] = [
+  // Tareas va primero y abre el tablero directo: es lo que más se usa en el día.
+  {
+    slug: "tareas",
+    titulo: "Tareas",
+    descripcion: "Tablero de tareas del equipo: por hacer, en curso y hecho.",
+    items: [{ ruta: "/tareas" }],
+    directo: true,
+  },
   {
     slug: "finanzas",
     titulo: "Finanzas",
@@ -106,13 +116,7 @@ const PLAN: Plan[] = [
     descripcion: "Cotizaciones y ofertas técnicas para tus clientes.",
     items: [{ ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }],
   },
-  {
-    slug: "tareas",
-    titulo: "Tareas",
-    descripcion: "Tablero de tareas del equipo: por hacer, en curso y hecho.",
-    items: [{ ruta: "/tareas" }],
-  },
-  // Tareas y Contratos son módulos de una sola aplicación: se ven y pliegan igual que los demás.
+  // Contratos es un módulo de una sola aplicación: se ve y pliega igual que los demás.
   {
     slug: "contratos",
     titulo: "Contratos",
@@ -212,7 +216,7 @@ export function armarMenu(
       }
     }
     return items.some((i) => i.tipo !== "pronto")
-      ? { slug: plan.slug, titulo: plan.titulo, descripcion: plan.descripcion, items }
+      ? { slug: plan.slug, titulo: plan.titulo, descripcion: plan.descripcion, items, ...(plan.directo ? { directo: true } : {}) }
       : null;
   }
 
