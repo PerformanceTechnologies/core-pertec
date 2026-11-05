@@ -270,7 +270,12 @@ export default function FormularioProducto({
                 <span className="mb-1 flex items-baseline gap-1.5 text-xs font-semibold text-gris">
                   Fotos
                   <span className="font-normal text-gris-suave">
-                    · Opcional{editar && producto!.cantidadFotos > 0 ? `, se suman a las ${producto!.cantidadFotos} que ya tiene` : `, hasta ${MAX_FOTOS_PRODUCTO}`}
+                    · Opcional
+                    {editar && producto!.cantidadFotos > 0
+                      ? producto!.cantidadFotos === 1
+                        ? ", se suman a la que ya tiene"
+                        : `, se suman a las ${producto!.cantidadFotos} que ya tiene`
+                      : `, hasta ${MAX_FOTOS_PRODUCTO}`}
                   </span>
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
