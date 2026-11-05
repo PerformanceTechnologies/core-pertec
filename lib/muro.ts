@@ -1,9 +1,8 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
-import { crearNotificacion } from "./buzon";
 import { contextoDeEmpresa, empresaIdsPorUsuario } from "./empresas";
 import { SLUG_POR_OMISION, type Empresa } from "./empresas-modelo";
-import { LARGO_MAXIMO_MURO, mencionesDe, textoPlano, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
+import { LARGO_MAXIMO_MURO, mencionesDe, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
 import type { UsuarioConAcceso } from "./tipos";
 
 // -----------------------------------------------------------------------------
@@ -94,8 +93,7 @@ export async function mensajesDesde(empresaId: string, desde: string, visibles: 
 }
 
 /**
- * Publica un mensaje. Las menciones solo cuentan si son de personas de esa empresa; a cada una
- * le llega un aviso personal a la campana (menos a quien escribe).
+ * Publica un mensaje. Las menciones solo cuentan si son de personas de esa empresa.
  */
 export async function publicarMensaje(
   usuario: UsuarioConAcceso,
@@ -141,39 +139,8 @@ export async function publicarMensaje(
   revienta("publicar el mensaje", error);
   const mensaje = aMensaje(data);
 
-  const yo = usuario.correo.toLowerCase();
-  const plano = textoPlano(limpio, (c) => nombres.get(c) ?? c.split("@")[0]);
-  const resumen = plano.length > 160 ? `${plano.slice(0, 157)}…` : plano;
-  const enlace = `/muro#m-${publicacion?.id ?? mensaje.id}`;
-  // A quien escribió la publicación le avisa que le respondieron (si no se respondió a sí misma ni
-  // ya lo nombraron, que sería un aviso repetido).
-  const dueno = publicacion ? String(publicacion.autor_correo).toLowerCase() : null;
-  if (dueno && dueno !== yo && !menciones.includes(dueno)) {
-    await crearNotificacion({
-      modulo: null,
-      tipo: "respuesta",
-      titulo: `${usuario.nombre ?? usuario.correo} respondió tu publicación en el Muro de ${empresa.nombre}`,
-      cuerpo: resumen,
-      enlace,
-      clave: `muro:${mensaje.id}:respuesta:${dueno}`,
-      destinatario: dueno,
-    }).catch(() => false);
-  }
-  await Promise.all(
-    menciones
-      .filter((c) => c !== yo)
-      .map((destinatario) =>
-        crearNotificacion({
-          modulo: null,
-          tipo: "mencion",
-          titulo: `${usuario.nombre ?? usuario.correo} te mencionó en el Muro de ${empresa.nombre}`,
-          cuerpo: resumen,
-          enlace,
-          clave: `muro:${mensaje.id}:${destinatario}`,
-          destinatario,
-        }).catch(() => false),
-      ),
-  );
+  // Sin avisos a la campana: lo del Muro se ve solo en el Muro (las menciones quedan marcadas
+  // en naranjo y el botón «Muro» de arriba cuenta lo nuevo).
   return mensaje;
 }
 
