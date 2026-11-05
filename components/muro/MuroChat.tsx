@@ -205,8 +205,9 @@ export default function MuroChat({
         <div className="mx-auto min-w-0 max-w-2xl space-y-4">
           {/* Escribir */}
           {/* La caja de escribir no es una publicación más: banda naranja arriba, título y fondo tibio. */}
-          <section className="overflow-hidden rounded-2xl border border-naranjo/30 bg-linear-to-b from-naranjo/[0.07] to-superficie shadow-[0_10px_30px_-18px_rgba(200,82,23,0.55)]">
-            <div className="h-1.5 bg-linear-to-r from-naranjo via-naranjo-suave to-amber-400" />
+          {/* Sin overflow-hidden: la lista de «Etiquetar a» tiene que poder salirse de la caja. */}
+          <section className="relative z-10 rounded-2xl border border-naranjo/30 bg-linear-to-b from-naranjo/[0.07] to-superficie shadow-[0_10px_30px_-18px_rgba(200,82,23,0.55)]">
+            <div className="h-1.5 rounded-t-2xl bg-linear-to-r from-naranjo via-naranjo-suave to-amber-400" />
             <div className="p-4 sm:p-5">
               <p className="mb-3 flex items-center gap-2 text-sm font-bold text-naranjo">
                 <IconPencil size={17} stroke={2} /> Nueva publicación
