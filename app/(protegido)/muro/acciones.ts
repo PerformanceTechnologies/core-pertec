@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { borrarMensaje, empresaDelMuro, listarMensajes, mensajesDesde, publicarMensaje } from "@/lib/muro";
+import { borrarMensaje, contarNuevos, empresaDelMuro, listarMensajes, mensajesDesde, publicarMensaje } from "@/lib/muro";
 import type { MensajeMuro } from "@/lib/muro-modelo";
 
 type Falla = { ok: false; error: string };
@@ -47,6 +47,25 @@ export async function anterioresAction(antesDe: string): Promise<{ ok: true; men
     return { ok: true, ...(await listarMensajes(empresa.id, antesDe)) };
   } catch (e) {
     return fallo(e);
+  }
+}
+
+/**
+ * Para el aviso del menú: cuántos mensajes nuevos de otros hay en el muro de la empresa activa
+ * desde la última visita (`vistos`: empresa → fecha, lo guarda el navegador). Sin visita previa
+ * en esa empresa no cuenta nada: la vara empieza ahora.
+ */
+export async function nuevosEnMuroAction(vistos: Record<string, string>): Promise<{ empresaId: string; cuantos: number } | null> {
+  try {
+    const usuario = await obtenerUsuarioActivo((await auth())?.user?.email);
+    if (!usuario) return null;
+    const empresa = await empresaDelMuro(usuario);
+    if (!empresa) return null;
+    const desde = vistos && typeof vistos[empresa.id] === "string" ? vistos[empresa.id] : null;
+    if (!desde || Number.isNaN(Date.parse(desde))) return { empresaId: empresa.id, cuantos: 0 };
+    return { empresaId: empresa.id, cuantos: await contarNuevos(empresa.id, desde, usuario.correo) };
+  } catch {
+    return null;
   }
 }
 

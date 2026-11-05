@@ -177,6 +177,19 @@ export async function publicarMensaje(
   return mensaje;
 }
 
+/** Cuántos mensajes de otros (publicaciones y respuestas) hay desde `desde`, hasta 99. */
+export async function contarNuevos(empresaId: string, desde: string, yo: string): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from(TABLA)
+    .select("id", { count: "exact", head: true })
+    .eq("empresa_id", empresaId)
+    .eq("eliminado", false)
+    .neq("autor_correo", yo.toLowerCase())
+    .gt("creado_en", desde);
+  if (error) return 0;
+  return Math.min(count ?? 0, 99);
+}
+
 /** Borra un mensaje propio (o cualquiera, si es admin). Queda marcado, no se pierde de la base. */
 export async function borrarMensaje(usuario: UsuarioConAcceso, empresaId: string, id: string): Promise<void> {
   const { data, error } = await supabaseAdmin.from(TABLA).select("autor_correo").eq("id", id).eq("empresa_id", empresaId).maybeSingle();

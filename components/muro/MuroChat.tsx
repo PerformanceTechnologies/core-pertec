@@ -7,6 +7,7 @@ import { trozosDe, type MensajeMuro, type PersonaMuro } from "@/lib/muro-modelo"
 import { anterioresAction, borrarAction, nuevosAction, publicarAction } from "@/app/(protegido)/muro/acciones";
 import { Avatar } from "./Avatar";
 import Compositor, { type ManejoCompositor } from "./Compositor";
+import { useMarcarMuroVisto } from "./aviso-muro";
 
 // El Muro como muro, no como chat: arriba se escribe, las publicaciones van como tarjetas de la
 // más nueva a la más vieja y cada una tiene sus respuestas debajo. Al costado, la gente de la
@@ -92,6 +93,8 @@ export default function MuroChat({
   const todas = useMemo(() => [...pendientes, ...posts, ...Object.values(respuestas).flat()], [pendientes, posts, respuestas]);
   const masNueva = useMemo(() => todas.reduce<string | undefined>((m, x) => (!m || x.creadoEn > m ? x.creadoEn : m), undefined), [todas]);
   const ids = useMemo(() => todas.map((m) => m.id), [todas]);
+  // Lo que está en pantalla ya está visto: el aviso del menú vuelve a cero.
+  useMarcarMuroVisto(empresa.id, masNueva);
   useEffect(() => {
     let vivo = true;
     const tic = async () => {

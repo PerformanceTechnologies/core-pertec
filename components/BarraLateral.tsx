@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { InsigniaMuro } from "@/components/muro/aviso-muro";
 import { usePathname } from "next/navigation";
 import {
   IconMenu2,
@@ -591,6 +592,7 @@ function Modulo({
           <span className={`${ROTULO_MODULO} ${enPortada || conActiva ? "text-naranjo" : "text-tinta/80"}`}>
             {grupo.titulo}
           </span>
+          {grupo.slug === "muro" && <span className="ml-auto pr-1"><InsigniaMuro /></span>}
         </Link>
         <BotonDeDespliegue
           abierto={abierto}
@@ -726,6 +728,7 @@ function Submodulo({
         titulo={item.descripcion ? `${item.nombre} — ${item.descripcion}` : item.nombre}
         icono={obtenerIcono(item.icono)}
         nombre={item.nombre}
+        extra={item.href === "/muro" ? <span className="pr-2"><InsigniaMuro /></span> : undefined}
       />
     );
   }
@@ -982,9 +985,10 @@ function NavegacionColapsada({ grupos, pathname }: { grupos: GrupoDelMenu[]; pat
                   title={item.nombre}
                   aria-label={item.nombre}
                   aria-current={activo ? "page" : undefined}
-                  className={clases(activo)}
+                  className={`relative ${clases(activo)}`}
                 >
                   <Icono size={17} stroke={1.75} aria-hidden />
+                  {item.href === "/muro" && <InsigniaMuro chica />}
                 </Link>
               );
             }
