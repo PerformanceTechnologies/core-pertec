@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconArrowUp, IconAt, IconLoader2, IconMessageCircle, IconSparkles, IconTrash, IconUsers } from "@tabler/icons-react";
+import { IconArrowUp, IconLoader2, IconMessageCircle, IconSparkles, IconTrash } from "@tabler/icons-react";
 import { trozosDe, type MensajeMuro, type PersonaMuro } from "@/lib/muro-modelo";
 import { anterioresAction, borrarAction, nuevosAction, publicarAction } from "@/app/(protegido)/muro/acciones";
 import { Avatar } from "./Avatar";
-import Compositor, { type ManejoCompositor } from "./Compositor";
+import Compositor from "./Compositor";
 import { useMarcarMuroVisto } from "./aviso-muro";
 
 // El Muro como muro, no como chat: arriba se escribe, las publicaciones van como tarjetas de la
 // más nueva a la más vieja y cada una tiene sus respuestas debajo. Al costado, la gente de la
-// empresa (tocar a alguien lo etiqueta en lo que se está escribiendo).
+// empresa se etiqueta escribiendo @ en la caja.
 
 const CADA_MS = 5000;
 
@@ -66,8 +66,6 @@ export default function MuroChat({
   const [cargandoAntes, setCargandoAntes] = useState(false);
   const [error, setError] = useState<string | null>(aviso);
   const [, setReloj] = useState(0);
-  const principal = useRef<ManejoCompositor>(null);
-  const respuesta = useRef<ManejoCompositor>(null);
 
   const nombres = useMemo(() => new Map(personas.map((p) => [p.correo, p.nombre])), [personas]);
   const nombreDe = useCallback((c: string) => nombres.get(c) ?? c.split("@")[0], [nombres]);
@@ -198,30 +196,18 @@ export default function MuroChat({
 
   return (
     <div className="space-y-5">
-      {/* Portada */}
-      <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-naranjo via-naranjo-suave to-amber-400 px-6 py-7 text-white shadow-[0_20px_50px_-20px_rgba(200,82,23,0.6)] sm:px-8">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute -bottom-20 right-24 h-40 w-40 rounded-full bg-white/10" />
-        <p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Muro</p>
-        <h1 className="relative mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">{empresa.nombre}</h1>
-        <p className="relative mt-1 max-w-xl text-sm text-white/85">Novedades, avisos y saludos de la gente de {empresa.nombre}. Responde las publicaciones y escribe @ para etiquetar a alguien.</p>
-        <div className="relative mt-4 flex items-center gap-3">
-          <div className="flex -space-x-2">
-            {personas.slice(0, 7).map((p) => (
-              <Avatar key={p.correo} correo={p.correo} nombre={p.nombre} tamano="h-8 w-8 text-[10px]" />
-            ))}
-          </div>
-          <span className="text-sm font-semibold text-white/90">{personas.length} {personas.length === 1 ? "persona" : "personas"}</span>
-        </div>
-      </section>
-
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="min-w-0 space-y-4">
+      <div>
+        <div className="mx-auto min-w-0 max-w-2xl space-y-4">
           {/* Escribir */}
           <section className="rounded-2xl border border-borde bg-superficie p-4 shadow-sm sm:p-5">
-            <Compositor ref={principal} yo={yo} personas={personas} placeholder={`¿Qué quieres compartir, ${primerNombre}?`} boton="Publicar" alPublicar={publicar} />
+            <Compositor yo={yo} personas={personas} placeholder={`¿Qué quieres compartir, ${primerNombre}?`} boton="Publicar" alPublicar={publicar} />
           </section>
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
+          {misMenciones > 0 && (
+            <p className="rounded-xl border border-naranjo/30 bg-naranjo/[0.06] px-4 py-2.5 text-sm font-semibold text-naranjo">
+              {misMenciones === 1 ? "Te mencionaron en 1 publicación" : `Te mencionaron en ${misMenciones} publicaciones`} · están marcadas en naranjo
+            </p>
+          )}
 
           {pendientes.length > 0 && (
             <div className="sticky top-3 z-10 text-center">
@@ -297,7 +283,6 @@ export default function MuroChat({
                       ))}
                       {respondiendo === m.id ? (
                         <Compositor
-                          ref={respuesta}
                           yo={yo}
                           personas={personas}
                           placeholder={`Responder a ${m.autorNombre.split(/\s+/)[0]}…`}
@@ -333,37 +318,6 @@ export default function MuroChat({
           )}
         </div>
 
-        {/* Costado: la gente */}
-        <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-          {misMenciones > 0 && (
-            <div className="rounded-2xl border border-naranjo/30 bg-naranjo/[0.06] p-4">
-              <p className="text-sm font-bold text-naranjo">{misMenciones === 1 ? "Te mencionaron en 1 publicación" : `Te mencionaron en ${misMenciones} publicaciones`}</p>
-              <p className="mt-0.5 text-xs text-gris">Están marcadas en naranjo.</p>
-            </div>
-          )}
-          <section className="rounded-2xl border border-borde bg-superficie p-4 shadow-sm">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-tinta">
-              <IconUsers size={17} className="text-naranjo" /> Gente de {empresa.nombre}
-            </h2>
-            <ul className="max-h-[26rem] space-y-0.5 overflow-y-auto">
-              {personas.map((p) => (
-                <li key={p.correo}>
-                  <button
-                    type="button"
-                    onClick={() => (respondiendo ? respuesta.current : principal.current)?.etiquetar(p)}
-                    title={`Etiquetar a ${p.nombre}`}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition hover:bg-naranjo/[0.07]"
-                  >
-                    <Avatar correo={p.correo} nombre={p.nombre} tamano="h-8 w-8 text-[10px]" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-tinta">{p.nombre}</span>
-                    <IconAt size={15} className="text-gris-suave" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-[11px] text-gris-suave">Toca a alguien para etiquetarlo en lo que estás escribiendo: le llega un aviso a su campana.</p>
-          </section>
-        </aside>
       </div>
     </div>
   );
