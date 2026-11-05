@@ -28,6 +28,8 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
   // Pagos y cobros que todavía no se ligan a un movimiento del banco: lo que el banco puede confirmar.
   const pagosProgramados = v.pagos
     .filter((p) => (p.estado === "programado" || p.estado === "pagado") && !p.movimientoId)
+    // Un programado cuya factura ya se pagó por otro lado no se ofrece (se pagaría dos veces).
+    .filter((p) => p.estado !== "programado" || p.aplicaciones.length === 0 || p.aplicaciones.some((a) => (v.documentos.find((d) => d.id === a.documentoId)?.saldo ?? 0) > 0))
     .map((p) => ({ id: p.id, numero: p.numero, monto: p.monto, proveedor: p.proveedorId ? v.nombreDe.get(p.proveedorId) ?? null : null, fecha: p.fechaPago ?? p.fechaProgramada, hecho: p.estado === "pagado" }));
   const cobrosSinBanco = v.cobros
     .filter((c) => c.estado !== "anulado" && !c.movimientoId)

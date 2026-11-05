@@ -154,6 +154,9 @@ export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pag
       const p = vista.pagos.find((x) => x.id === entidadId);
       if (!p) return { ok: false, error: "Ese pago no existe." };
       if (p.movimientoId) return { ok: false, error: `El pago ${p.numero} ya está ligado a otro movimiento del banco.` };
+      // Un programado cuya factura ya se pagó por otro lado: marcarlo pagado la pagaría dos veces.
+      if (p.estado === "programado" && p.aplicaciones.length > 0 && p.aplicaciones.every((a) => (vista.documentos.find((d) => d.id === a.documentoId)?.saldo ?? 0) <= 0))
+        return { ok: false, error: `La factura de ${p.numero} ya está pagada con otro pago: anula ${p.numero} y liga el cargo al pago que sí se hizo.` };
       if (p.estado === "programado") {
         const { error } = await supabaseAdmin.from("fin_pagos").update({ estado: "pagado", fecha_pago: m.fecha, cuenta_id: m.cuentaId, movimiento_id: id }).eq("id", p.id);
         revienta("marcar el pago", error);

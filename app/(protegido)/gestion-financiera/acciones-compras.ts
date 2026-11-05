@@ -305,6 +305,11 @@ export async function registrarPagoAction(pagoId: string, fd: FormData): Promise
     const ctx = await contextoFin();
     const p = await exigirDeEmpresa("fin_pagos", pagoId, ctx.empresa.id);
     if (p.estado !== "programado") return { ok: false, error: "Ese pago ya no está programado." };
+    // Si su factura ya se pagó por otro lado, marcarlo la pagaría dos veces.
+    const vistaAntes = await cargarVista();
+    const deEste = vistaAntes.pagos.find((x) => x.id === pagoId);
+    if (deEste && deEste.aplicaciones.length > 0 && deEste.aplicaciones.every((a) => (vistaAntes.documentos.find((d) => d.id === a.documentoId)?.saldo ?? 0) <= 0))
+      return { ok: false, error: `La factura de ${p.numero} ya está pagada con otro pago: anula ${p.numero}.` };
     const fecha = fechaValida(fd.get("fecha")) ?? ctx.hoy;
     const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
     if (cerrado) return { ok: false, error: cerrado };
@@ -340,6 +345,22 @@ export async function pagarCompraAction(compraId: string, fd: FormData): Promise
     const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
     if (cerrado) return { ok: false, error: cerrado };
     for (const d of docs) {
+      // Si la factura ya tenía un pago programado, ese es el que se paga (si no, quedarían dos pagos para la misma factura).
+      const programado = vista.pagos.find((x) => x.estado === "programado" && x.aplicaciones.length === 1 && x.aplicaciones[0].documentoId === d.id);
+      if (programado) {
+        const { error } = await supabaseAdmin
+          .from("fin_pagos")
+          .update({
+            estado: "pagado", fecha_pago: fecha, monto: d.saldo, cuenta_id: uuid(fd.get("cuentaId")) ?? programado.cuentaId,
+            medio: String(fd.get("medio") ?? "transferencia").slice(0, 30), referencia: texto(fd, "referencia", 200) ?? programado.referencia,
+          })
+          .eq("id", programado.id)
+          .eq("empresa_id", ctx.empresa.id);
+        revienta("registrar el pago", error);
+        await supabaseAdmin.from("fin_pago_aplicaciones").update({ monto: d.saldo }).eq("pago_id", programado.id).eq("documento_id", d.id);
+        await auditar(ctx, "fin_pagos", programado.id, "pagar", `Pago ${programado.numero} de la factura ${d.folio} hecho el ${fecha}`);
+        continue;
+      }
       const numero = await siguienteNumero(ctx.empresa.id, "pago", "PAG");
       const { data, error } = await supabaseAdmin
         .from("fin_pagos")
