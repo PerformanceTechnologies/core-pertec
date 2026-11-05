@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconMessages, IconSunHigh } from "@tabler/icons-react";
-import { InsigniaMuro } from "@/components/muro/aviso-muro";
+import { InsigniaMuro, useNuevosMuro } from "@/components/muro/aviso-muro";
 import BuzonNotificaciones from "@/components/BuzonNotificaciones";
 import SelectorEmpresa from "@/components/SelectorEmpresa";
 import type { Empresa } from "@/lib/empresas-modelo";
@@ -31,6 +31,8 @@ export default function BarraSuperior({
   const pathname = usePathname();
   const enMiDia = pathname === "/mi-dia" || pathname.startsWith("/mi-dia/");
   const enMuro = pathname === "/muro";
+  // Con mensajes sin leer, el botón late en naranjo hasta que se abre el Muro.
+  const muroConNuevos = useNuevosMuro() > 0 && !enMuro;
 
   return (
     <div className="mb-4 flex items-center justify-end gap-2">
@@ -52,7 +54,11 @@ export default function BarraSuperior({
       <Link
         href="/muro"
         className={`relative flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
-          enMuro ? "border-naranjo/40 bg-naranjo/10 text-naranjo" : "border-borde bg-superficie text-tinta/75 hover:border-naranjo/40 hover:text-naranjo"
+          enMuro
+            ? "border-naranjo/40 bg-naranjo/10 text-naranjo"
+            : muroConNuevos
+              ? "animar-muro-nuevo border-naranjo bg-naranjo/10 font-semibold text-naranjo"
+              : "border-borde bg-superficie text-tinta/75 hover:border-naranjo/40 hover:text-naranjo"
         }`}
       >
         <IconMessages size={16} stroke={1.75} aria-hidden />
