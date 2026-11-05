@@ -31,7 +31,9 @@ export default async function UsuariosPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const admin = await exigirAdmin();
-  const filtros = leerFiltrosDeUsuarios(await searchParams);
+  const parametros = await searchParams;
+  const filtros = leerFiltrosDeUsuarios(parametros);
+  const errorAlCrear = typeof parametros.error === "string" ? parametros.error : null;
   const [usuarios, apps, empresas, empresasPorUsuario] = await Promise.all([
     listarUsuarios(),
     listarAplicaciones(),
@@ -55,6 +57,13 @@ export default async function UsuariosPage({
         titulo="Usuarios"
         descripcion="Quién entra al Core, con qué rol, a qué aplicaciones y en qué empresas puede trabajar."
       />
+
+      {errorAlCrear && (
+        <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+          <p className="font-semibold">No se pudo crear el usuario completo.</p>
+          <p className="mt-0.5">{errorAlCrear}</p>
+        </div>
+      )}
 
       <PanelDeCreacion titulo="Nuevo usuario" ayuda="Dale acceso a una persona de @pertec.cl: su rol, sus aplicaciones y sus empresas.">
         <FormularioUsuario

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { exigirAdmin } from "@/lib/autorizacion";
 import { crearUsuario, actualizarUsuario, eliminarUsuario } from "@/lib/usuarios";
 import { reemplazarSubpanelesFinanzas } from "@/lib/finanzas-subpaneles-usuario";
@@ -37,8 +37,23 @@ function leerEmpresas(form: FormData): string[] {
   return form.getAll("empresas").map(String);
 }
 
+/** El motivo de la falla, para mostrarlo en el formulario en vez de la pantalla blanca de error. */
+function motivo(e: unknown): string {
+  unstable_rethrow(e); // un redirect no es una falla
+  return (e instanceof Error ? e.message : String(e)).replace(/^\[\w+\]\s*/, "").slice(0, 300);
+}
+
 export async function crearUsuarioAction(form: FormData) {
   await exigirAdmin();
+  try {
+    await crearUsuarioYAccesos(form);
+  } catch (e) {
+    redirect(`/usuarios?error=${encodeURIComponent(motivo(e))}`);
+  }
+  revalidatePath("/usuarios");
+}
+
+async function crearUsuarioYAccesos(form: FormData) {
   const usuario = await crearUsuario({
     correo: String(form.get("correo") ?? ""),
     nombre: String(form.get("nombre") ?? ""),
@@ -48,20 +63,24 @@ export async function crearUsuarioAction(form: FormData) {
   });
   await reemplazarSubpanelesFinanzas(usuario.id, leerSubpanelesFinanzas(form));
   await reemplazarEmpresas(usuario.id, leerEmpresas(form));
-  revalidatePath("/usuarios");
 }
 
 export async function actualizarUsuarioAction(id: string, form: FormData) {
   await exigirAdmin();
-  await actualizarUsuario(id, {
-    nombre: String(form.get("nombre") ?? ""),
-    rol: String(form.get("rol") ?? "usuario") as Rol,
-    activo: form.get("activo") === "on",
-    aplicacionIds: form.getAll("aplicaciones").map(String),
-    rolesExtra: leerRolesExtra(form),
-  });
-  await reemplazarSubpanelesFinanzas(id, leerSubpanelesFinanzas(form));
-  await reemplazarEmpresas(id, leerEmpresas(form));
+  try {
+    await actualizarUsuario(id, {
+      nombre: String(form.get("nombre") ?? ""),
+      rol: String(form.get("rol") ?? "usuario") as Rol,
+      activo: form.get("activo") === "on",
+      aplicacionIds: form.getAll("aplicaciones").map(String),
+      rolesExtra: leerRolesExtra(form),
+    });
+    await reemplazarSubpanelesFinanzas(id, leerSubpanelesFinanzas(form));
+    await reemplazarEmpresas(id, leerEmpresas(form));
+  } catch (e) {
+    // De vuelta al formulario, con el motivo a la vista. Lo que alcanzó a guardarse queda guardado.
+    redirect(`/usuarios/${id}?error=${encodeURIComponent(motivo(e))}`);
+  }
   revalidatePath("/usuarios");
   revalidatePath("/");
   redirect("/usuarios");

@@ -32,14 +32,22 @@ export async function usuarioPuedeVerSubpanelFinanzas(usuarioId: string, slug: s
 }
 
 // Reemplazo completo (borra todo y reinserta), igual que reemplazarModulosOdoo.
+/** Deja exactamente estos subpaneles: agrega los nuevos y después quita los que sobran (nunca pasa por «ninguno»). */
 export async function reemplazarSubpanelesFinanzas(usuarioId: string, slugs: string[]): Promise<void> {
-  await supabaseAdmin.from("usuario_finanzas_subpanel_acceso").delete().eq("usuario_id", usuarioId);
-
-  const slugsValidos = slugs.filter((s) => SUBPANELES_FINANZAS.some((sp) => sp.slug === s));
-  if (slugsValidos.length === 0) return;
-
-  const { error } = await supabaseAdmin
-    .from("usuario_finanzas_subpanel_acceso")
-    .insert(slugsValidos.map((subpanel_slug) => ({ usuario_id: usuarioId, subpanel_slug })));
-  if (error) throw new Error(error.message);
+  const deseados = [...new Set(slugs.filter((s) => SUBPANELES_FINANZAS.some((sp) => sp.slug === s)))];
+  const { data, error: eLeer } = await supabaseAdmin.from("usuario_finanzas_subpanel_acceso").select("subpanel_slug").eq("usuario_id", usuarioId);
+  if (eLeer) throw new Error(`No se pudieron leer sus subpaneles de Finanzas: ${eLeer.message}`);
+  const tenia = new Set((data ?? []).map((r) => String(r.subpanel_slug)));
+  const nuevos = deseados.filter((s) => !tenia.has(s));
+  if (nuevos.length) {
+    const { error } = await supabaseAdmin
+      .from("usuario_finanzas_subpanel_acceso")
+      .insert(nuevos.map((subpanel_slug) => ({ usuario_id: usuarioId, subpanel_slug })));
+    if (error) throw new Error(`No se pudieron guardar los subpaneles de Finanzas (${nuevos.join(", ")}): ${error.message}`);
+  }
+  const sobran = [...tenia].filter((s) => !deseados.includes(s));
+  if (sobran.length) {
+    const { error } = await supabaseAdmin.from("usuario_finanzas_subpanel_acceso").delete().eq("usuario_id", usuarioId).in("subpanel_slug", sobran);
+    if (error) throw new Error(`No se pudieron quitar subpaneles de Finanzas: ${error.message}`);
+  }
 }

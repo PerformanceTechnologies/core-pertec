@@ -59,12 +59,21 @@ export async function empresaIdsPorUsuario(): Promise<Map<string, string[]>> {
 
 /** Reemplaza las empresas de una persona. Mismo patrón que las aplicaciones. */
 export async function reemplazarEmpresas(usuarioId: string, empresaIds: string[]): Promise<void> {
-  await supabaseAdmin.from("usuario_empresas").delete().eq("usuario_id", usuarioId);
-  if (empresaIds.length === 0) return;
-  const { error } = await supabaseAdmin
-    .from("usuario_empresas")
-    .insert(empresaIds.map((empresa_id) => ({ usuario_id: usuarioId, empresa_id })));
-  if (error) throw new Error(`[empresas] guardar empresas del usuario: ${error.message}`);
+  // Agrega las nuevas y después quita las que sobran: nunca queda a medio camino sin empresas.
+  const deseadas = [...new Set(empresaIds.filter(Boolean))];
+  const { data, error: eLeer } = await supabaseAdmin.from("usuario_empresas").select("empresa_id").eq("usuario_id", usuarioId);
+  if (eLeer) throw new Error(`No se pudieron leer sus empresas: ${eLeer.message}`);
+  const tenia = new Set((data ?? []).map((r) => String(r.empresa_id)));
+  const nuevas = deseadas.filter((e) => !tenia.has(e));
+  if (nuevas.length) {
+    const { error } = await supabaseAdmin.from("usuario_empresas").insert(nuevas.map((empresa_id) => ({ usuario_id: usuarioId, empresa_id })));
+    if (error) throw new Error(`No se pudieron guardar sus empresas: ${error.message}`);
+  }
+  const sobran = [...tenia].filter((e) => !deseadas.includes(e));
+  if (sobran.length) {
+    const { error } = await supabaseAdmin.from("usuario_empresas").delete().eq("usuario_id", usuarioId).in("empresa_id", sobran);
+    if (error) throw new Error(`No se pudieron quitar empresas: ${error.message}`);
+  }
 }
 
 export interface ContextoDeEmpresa {

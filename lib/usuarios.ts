@@ -206,22 +206,39 @@ export async function eliminarUsuario(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Deja a la persona exactamente con estas aplicaciones, SIN pasar por «ninguna»: primero agrega
+ * las nuevas y ajusta el rol interno de las que ya tenía, y recién al final quita las que sobran.
+ * Antes se borraba todo y se volvía a insertar: si el insert fallaba, la persona quedaba sin
+ * ninguna aplicación.
+ */
 async function reemplazarAsignaciones(
   usuarioId: string,
   aplicacionIds: string[],
   rolesExtra: Record<string, string>,
 ): Promise<void> {
-  await supabaseAdmin.from("usuario_aplicaciones").delete().eq("usuario_id", usuarioId);
+  const deseadas = [...new Set(aplicacionIds.filter(Boolean))];
+  const { data: actuales, error: eLeer } = await supabaseAdmin
+    .from("usuario_aplicaciones").select("aplicacion_id, rol_extra").eq("usuario_id", usuarioId);
+  if (eLeer) throw new Error(`No se pudieron leer sus aplicaciones: ${eLeer.message}`);
+  const tenia = new Map((actuales ?? []).map((a) => [String(a.aplicacion_id), (a.rol_extra as string | null) ?? null]));
 
-  if (aplicacionIds.length === 0) return;
-
-  const { error } = await supabaseAdmin.from("usuario_aplicaciones").insert(
-    aplicacionIds.map((aplicacion_id) => ({
-      usuario_id: usuarioId,
-      aplicacion_id,
-      rol_extra: rolesExtra[aplicacion_id] || null,
-    })),
-  );
-
-  if (error) throw new Error(error.message);
+  const nuevas = deseadas.filter((id) => !tenia.has(id));
+  if (nuevas.length) {
+    const { error } = await supabaseAdmin
+      .from("usuario_aplicaciones")
+      .insert(nuevas.map((aplicacion_id) => ({ usuario_id: usuarioId, aplicacion_id, rol_extra: rolesExtra[aplicacion_id] || null })));
+    if (error) throw new Error(`No se pudieron agregar sus aplicaciones: ${error.message}`);
+  }
+  for (const id of deseadas.filter((x) => tenia.has(x))) {
+    const rol = rolesExtra[id] || null;
+    if (rol === tenia.get(id)) continue;
+    const { error } = await supabaseAdmin.from("usuario_aplicaciones").update({ rol_extra: rol }).eq("usuario_id", usuarioId).eq("aplicacion_id", id);
+    if (error) throw new Error(`No se pudo cambiar su rol en una aplicación: ${error.message}`);
+  }
+  const sobran = [...tenia.keys()].filter((id) => !deseadas.includes(id));
+  if (sobran.length) {
+    const { error } = await supabaseAdmin.from("usuario_aplicaciones").delete().eq("usuario_id", usuarioId).in("aplicacion_id", sobran);
+    if (error) throw new Error(`No se pudieron quitar aplicaciones: ${error.message}`);
+  }
 }

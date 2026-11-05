@@ -14,11 +14,14 @@ import { actualizarUsuarioAction } from "../acciones";
 
 export default async function EditarUsuarioPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   await exigirAdmin();
   const { id } = await params;
+  const { error } = await searchParams;
   const [usuario, apps, subpanelesFinanzasAsignados, empresas, empresasAsignadas] = await Promise.all([
     obtenerUsuarioPorId(id),
     listarAplicaciones(),
@@ -38,6 +41,13 @@ export default async function EditarUsuarioPage({
         rutaPadre={{ href: "/usuarios", nombre: "Usuarios" }}
         descripcion="Cambia el rol, las aplicaciones y las empresas de esta persona. Los cambios valen desde su próxima página."
       />
+
+      {error && (
+        <div role="alert" className="max-w-3xl rounded-xl border border-rose-500/30 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+          <p className="font-semibold">No se pudieron guardar todos los cambios.</p>
+          <p className="mt-0.5">{error}</p>
+        </div>
+      )}
 
       <div className={`${TARJETA} max-w-3xl p-6 sm:p-7`}>
         <div className="mb-7 flex flex-wrap items-center gap-4 border-b border-borde pb-6">
