@@ -22,7 +22,7 @@ export default async function LayoutFinanzas({ children }: { children: React.Rea
         </span>
       </header>
       <NavFin />
-      {children}
+      <div className="escalonar">{children}</div>
     </div>
   );
 }

@@ -21,7 +21,7 @@ function Anillo({ hechos, total }: { hechos: number; total: number }) {
     <span className="relative grid h-16 w-16 shrink-0 place-items-center">
       <svg viewBox="0 0 64 64" className="absolute inset-0 -rotate-90" aria-hidden>
         <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-tinta/[0.07]" />
-        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" className="stroke-naranjo transition-all" strokeDasharray={c} strokeDashoffset={c * (1 - hechos / total)} />
+        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" className="animar-anillo stroke-naranjo" strokeDasharray={c} strokeDashoffset={c * (1 - hechos / total)} style={{ "--vuelta": c } as React.CSSProperties} />
       </svg>
       <span className="font-condensed text-lg font-bold tabular-nums text-tinta">
         {hechos}<span className="text-gris">/{total}</span>
@@ -107,7 +107,7 @@ export function CajaHoy({ caja, deudaTarjeta, actualizado, meses, sinCuentas, ho
           </span>
           <p className="text-sm font-semibold text-tinta/80">Caja en bancos hoy</p>
         </div>
-        <p className="relative mt-4 font-condensed text-6xl font-bold leading-none tracking-tight tabular-nums text-tinta">{clp(caja)}</p>
+        <p className="animar-cifra relative mt-4 font-condensed text-6xl font-bold leading-none tracking-tight tabular-nums text-tinta">{clp(caja)}</p>
         <div className="relative mt-4 flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-tinta/[0.05] px-2.5 py-1 text-gris">
             Tarjeta <strong className="font-semibold text-tinta">{deudaTarjeta > 0 ? `−${clp(deudaTarjeta)}` : clp(0)}</strong>
@@ -134,13 +134,13 @@ export function CajaHoy({ caja, deudaTarjeta, actualizado, meses, sinCuentas, ho
           </div>
         ) : (
           <div className="mt-4 grid h-36 grid-cols-3 items-end gap-3">
-            {meses.map((m) => (
+            {meses.map((m, i) => (
               <div key={m.etiqueta} className="flex h-full flex-col justify-end gap-1.5">
                 <p className={`text-center text-xs font-bold tabular-nums ${m.cajaFinal < 0 ? "text-alerta" : "text-tinta"}`}>{clpCorto(m.cajaFinal)}</p>
                 <div className="flex flex-1 items-end justify-center">
                   <div
-                    className={`w-full max-w-16 rounded-xl ${m.falta ? "bg-linear-to-t from-rose-500/70 to-rose-400/50" : "bg-linear-to-t from-naranjo/80 to-naranjo-suave/60"}`}
-                    style={{ height: `${Math.max(6, (Math.abs(m.cajaFinal) / tope) * 100)}%` }}
+                    className={`animar-crecer w-full max-w-16 rounded-xl ${m.falta ? "bg-linear-to-t from-rose-500/70 to-rose-400/50" : "bg-linear-to-t from-naranjo/80 to-naranjo-suave/60"}`}
+                    style={{ height: `${Math.max(6, (Math.abs(m.cajaFinal) / tope) * 100)}%`, animationDelay: `${300 + i * 120}ms` }}
                     title={`Caja final ${clp(m.cajaFinal)} · holgura ${clp(m.holgura)}`}
                   />
                 </div>
@@ -170,16 +170,16 @@ const TONOS = {
 function Grupo({ titulo, Icono, tono, principal, nota, href, lineas }: { titulo: string; Icono: Icon; tono: keyof typeof TONOS; principal: string; nota: string; href: string; lineas: Linea[] }) {
   const t = TONOS[tono];
   return (
-    <div className={`${HOJA} flex flex-col p-5`}>
+    <div className={`${HOJA} flex flex-col p-5 transition duration-300 hover:-translate-y-1 hover:shadow-[0_1px_2px_rgba(23,20,17,0.04),0_22px_44px_-20px_rgba(23,20,17,0.28)]`}>
       <Link href={href} className="group">
         <div className="flex items-center gap-2.5">
-          <span className={`grid h-8 w-8 place-items-center rounded-[10px] bg-linear-to-br text-white ${t.tile}`} style={{ boxShadow: `0 4px 10px -3px ${t.sombra}` }}>
+          <span className={`grid h-8 w-8 place-items-center rounded-[10px] bg-linear-to-br text-white transition duration-300 group-hover:scale-110 group-hover:-rotate-6 ${t.tile}`} style={{ boxShadow: `0 4px 10px -3px ${t.sombra}` }}>
             <Icono size={17} stroke={2} />
           </span>
           <p className="flex-1 text-sm font-semibold text-tinta/80">{titulo}</p>
           <IconArrowRight size={15} className="text-gris-suave transition group-hover:translate-x-0.5 group-hover:text-naranjo" />
         </div>
-        <p className="mt-3 font-condensed text-4xl font-bold leading-none tracking-tight tabular-nums text-tinta">{principal}</p>
+        <p className="animar-cifra mt-3 font-condensed text-4xl font-bold leading-none tracking-tight tabular-nums text-tinta">{principal}</p>
         <p className="mt-1 text-xs text-gris">{nota}</p>
       </Link>
       <ul className="mt-4 space-y-1 border-t border-borde/60 pt-3">

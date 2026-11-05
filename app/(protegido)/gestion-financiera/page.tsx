@@ -108,9 +108,9 @@ export default async function ResumenFinanzasPage() {
               {v.flujo.meses.map((m) => (
                 <div key={m.mes} className="flex flex-col items-center gap-2">
                   <div className="relative flex h-44 w-full items-end justify-center gap-1.5">
-                    <div className="w-5 rounded-t bg-emerald-500/80" style={{ height: `${(m.totalEntradas / maxFlujo) * 100}%` }} title={`Entradas ${clp(m.totalEntradas)}`} />
-                    <div className="w-5 rounded-t bg-rose-500/70" style={{ height: `${(m.totalSalidas / maxFlujo) * 100}%` }} title={`Salidas ${clp(m.totalSalidas)}`} />
-                    <div className={`w-5 rounded-t ${m.cajaFinal < m.minimo ? "bg-rose-600" : "bg-naranjo"}`} style={{ height: `${(Math.max(0, m.cajaFinal) / maxFlujo) * 100}%` }} title={`Caja final ${clp(m.cajaFinal)}`} />
+                    <div className="animar-crecer w-5 rounded-t bg-emerald-500/80" style={{ height: `${(m.totalEntradas / maxFlujo) * 100}%` }} title={`Entradas ${clp(m.totalEntradas)}`} />
+                    <div className="animar-crecer w-5 rounded-t bg-rose-500/70" style={{ height: `${(m.totalSalidas / maxFlujo) * 100}%` }} title={`Salidas ${clp(m.totalSalidas)}`} />
+                    <div className={`animar-crecer w-5 rounded-t ${m.cajaFinal < m.minimo ? "bg-rose-600" : "bg-naranjo"}`} style={{ height: `${(Math.max(0, m.cajaFinal) / maxFlujo) * 100}%` }} title={`Caja final ${clp(m.cajaFinal)}`} />
                     <div className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-tinta/30" style={{ bottom: `${(m.minimo / maxFlujo) * 100}%` }} title={`Mínimo ${clp(m.minimo)}`} />
                   </div>
                   <p className="text-xs font-bold text-tinta first-letter:uppercase">{mesLargo(m.mes)}</p>
@@ -137,7 +137,7 @@ export default async function ResumenFinanzasPage() {
                   <span className="w-16 text-right font-semibold tabular-nums text-tinta">{clpCorto(e.monto)}</span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-tinta/[0.06]">
-                  <div className="h-full rounded-full" style={{ width: `${(e.monto / maxEtapa) * 100}%`, background: COLOR_ETAPA[e.etapa] }} />
+                  <div className="animar-llenar h-full rounded-full" style={{ width: `${(e.monto / maxEtapa) * 100}%`, background: COLOR_ETAPA[e.etapa] }} />
                 </div>
               </Link>
             ))}
@@ -152,7 +152,7 @@ export default async function ResumenFinanzasPage() {
           return (
             <Seccion key={t} titulo={t} icono={<IconClock size={15} />}>
               <div className={`${TARJETA} p-5`}>
-                <div className="flex h-4 overflow-hidden rounded-full bg-tinta/[0.06]">
+                <div className="animar-llenar flex h-4 overflow-hidden rounded-full bg-tinta/[0.06]">
                   {a.map((x, i) => (x > 0 ? <div key={i} style={{ width: `${(x / (total || 1)) * 100}%`, background: COLOR_TRAMO[i] }} title={`${TRAMOS[i]}: ${clp(x)}`} /> : null))}
                 </div>
                 <div className="mt-3 grid grid-cols-5 gap-2 text-center">

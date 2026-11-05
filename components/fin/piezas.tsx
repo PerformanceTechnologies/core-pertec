@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { IconChevronRight, IconInbox } from "@tabler/icons-react";
+import { IconBuildingBank, IconCalculator, IconChevronRight, IconFolders, IconInbox, IconLayoutDashboard, IconReceipt, IconShoppingCart, IconTargetArrow, type Icon } from "@tabler/icons-react";
+import { IconoTile, type TonoIcono } from "@/components/contactos/Visual";
 import { TARJETA } from "@/lib/estilos";
 import { clp, clpCorto, type EtapaHito, type PasoCompra, type EstadoFactoring } from "@/lib/fin/reglas";
 
@@ -89,36 +90,36 @@ export function Seccion({ titulo, icono, accion, children, id }: { titulo: strin
 export type PasoRecorrido = { titulo: string; ayuda?: string; n?: number; href?: string; alerta?: boolean };
 
 /**
- * El proceso de la pantalla, paso a paso, al pie de la banda oscura: se entiende de un vistazo por
- * dónde pasa cada cosa y en qué paso hay algo pendiente (el número naranjo).
+ * El proceso de la pantalla, paso a paso, al pie de la banda: se entiende de un vistazo por dónde
+ * pasa cada cosa y en qué paso hay algo pendiente (el número naranjo).
  */
 export function Recorrido({ pasos, titulo = "Cómo avanza" }: { pasos: PasoRecorrido[]; titulo?: string }) {
   return (
-    <div className="borde-banda mt-6 border-t pt-4">
-      <p className="texto-banda-45 mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em]">{titulo}</p>
+    <div className="mt-6 border-t border-borde/60 pt-4">
+      <p className="mb-2 px-2 text-xs font-semibold text-gris">{titulo}</p>
       <ol className="grid grid-cols-2 gap-y-1 sm:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col lg:grid-cols-none">
         {pasos.map((p, i) => {
           const pendiente = p.n !== undefined && p.n > 0;
           const cuerpo = (
             <>
-              <span className={`mt-px grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-bold tabular-nums ${p.alerta && pendiente ? "border-naranjo bg-naranjo text-white" : "border-naranjo/50 text-naranjo"}`}>{i + 1}</span>
+              <span className={`mt-px grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums transition ${p.alerta && pendiente ? "bg-naranjo text-white shadow-[0_4px_10px_-3px_rgba(200,82,23,0.55)]" : pendiente ? "bg-naranjo/12 text-naranjo" : "bg-tinta/[0.05] text-gris"}`}>{i + 1}</span>
               <span className="min-w-0">
-                <span className="texto-banda flex items-center gap-1.5 text-[13px] font-semibold leading-tight">
+                <span className="flex items-center gap-1.5 text-[13px] font-semibold leading-tight text-tinta">
                   {p.titulo}
                   {pendiente && <span className="rounded-full bg-naranjo px-1.5 text-[10px] font-bold leading-4 text-white tabular-nums">{p.n}</span>}
                 </span>
-                {p.ayuda && <span className="texto-banda-45 block text-[11px] leading-snug">{p.ayuda}</span>}
+                {p.ayuda && <span className="block text-[11px] leading-snug text-gris">{p.ayuda}</span>}
               </span>
             </>
           );
           return (
             <li key={p.titulo} className="flex min-w-0 items-center">
               {p.href ? (
-                <Link href={p.href} scroll={false} className="flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.07]">{cuerpo}</Link>
+                <Link href={p.href} scroll={false} className="flex min-w-0 flex-1 items-start gap-2 rounded-xl px-2 py-1.5 transition duration-200 hover:bg-tinta/[0.04]">{cuerpo}</Link>
               ) : (
                 <div className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5">{cuerpo}</div>
               )}
-              {i < pasos.length - 1 && <IconChevronRight size={14} className="texto-banda-45 mx-0.5 hidden shrink-0 lg:block" aria-hidden />}
+              {i < pasos.length - 1 && <IconChevronRight size={14} className="mx-0.5 hidden shrink-0 text-gris-suave lg:block" aria-hidden />}
             </li>
           );
         })}
@@ -127,31 +128,45 @@ export function Recorrido({ pasos, titulo = "Cómo avanza" }: { pasos: PasoRecor
   );
 }
 
-/** La banda oscura de arriba de cada pantalla: una cifra grande, las de apoyo y (opcional) el proceso paso a paso. */
+/** El ícono y el color de cada pantalla, según la etiqueta de su banda. */
+const ICONO_BANDA: [RegExp, Icon, TonoIcono][] = [
+  [/venta|cobr/i, IconReceipt, "verde"],
+  [/compra|pago/i, IconShoppingCart, "ambar"],
+  [/tesorer|caja|banco/i, IconBuildingBank, "azul"],
+  [/comercial|oportunidad/i, IconTargetArrow, "marca"],
+  [/proyecto/i, IconFolders, "marca"],
+  [/contab/i, IconCalculator, "azul"],
+];
+
+/** La banda de arriba de cada pantalla: una cifra grande, las de apoyo y (opcional) el proceso paso a paso. */
 export function Banda({ etiqueta, valor, bajada, cifras, pasos, children }: { etiqueta: string; valor: string; bajada?: React.ReactNode; cifras?: { etiqueta: string; valor: string; detalle?: string; alerta?: boolean }[]; pasos?: PasoRecorrido[]; children?: React.ReactNode }) {
+  const [, Icono, tono] = ICONO_BANDA.find(([re]) => re.test(etiqueta)) ?? [/./, IconLayoutDashboard, "marca" as TonoIcono];
   return (
-    <section className="banda-contraste overflow-hidden rounded-2xl px-6 py-6 sm:px-8">
-      <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+    <section className="relative overflow-hidden rounded-[22px] border border-borde/60 bg-superficie px-6 py-6 shadow-[0_1px_2px_rgba(23,20,17,0.04),0_14px_36px_-20px_rgba(23,20,17,0.18)] sm:px-7">
+      <span aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-naranjo/[0.07] blur-3xl" />
+      <span aria-hidden className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-cian/[0.06] blur-3xl" />
+      <div className="relative flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
         <div className="min-w-0">
-          <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
-            <span className="h-px w-6 bg-naranjo" /> {etiqueta}
-          </span>
-          <p className="texto-banda mt-3 font-condensed text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">{valor}</p>
-          {bajada && <p className="texto-banda-65 mt-2 max-w-2xl text-sm">{bajada}</p>}
+          <div className="flex items-center gap-2.5">
+            <IconoTile Icono={Icono} tono={tono} />
+            <p className="text-sm font-semibold text-tinta/80">{etiqueta}</p>
+          </div>
+          <p className="animar-cifra mt-4 font-condensed text-5xl font-bold leading-none tracking-tight tabular-nums text-tinta">{valor}</p>
+          {bajada && <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-gris">{bajada}</p>}
         </div>
         {cifras && cifras.length > 0 && (
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {cifras.map((c) => (
-              <div key={c.etiqueta} className={`min-w-[8.5rem] rounded-xl border px-4 py-3 ${c.alerta ? "border-naranjo/40 bg-naranjo/[0.12]" : "borde-banda bg-white/[0.03]"}`}>
-                <dt className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${c.alerta ? "text-naranjo" : "texto-banda-45"}`}>{c.etiqueta}</dt>
-                <dd className="texto-banda mt-1 font-condensed text-2xl font-bold tabular-nums">{c.valor}</dd>
-                {c.detalle && <dd className="texto-banda-45 truncate text-[11px]">{c.detalle}</dd>}
+              <div key={c.etiqueta} className={`min-w-[8.5rem] rounded-2xl px-4 py-3 transition duration-200 hover:-translate-y-0.5 ${c.alerta ? "bg-naranjo/[0.09] ring-1 ring-naranjo/25" : "bg-tinta/[0.035]"}`}>
+                <dt className={`text-xs font-semibold ${c.alerta ? "text-naranjo" : "text-gris"}`}>{c.etiqueta}</dt>
+                <dd className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">{c.valor}</dd>
+                {c.detalle && <dd className="truncate text-[11px] text-gris">{c.detalle}</dd>}
               </div>
             ))}
           </dl>
         )}
       </div>
-      {pasos && pasos.length > 0 && <Recorrido pasos={pasos} />}
+      {pasos && pasos.length > 0 && <div className="relative"><Recorrido pasos={pasos} /></div>}
       {children}
     </section>
   );
@@ -166,7 +181,7 @@ export function Kpi({ etiqueta, valor, detalle, href, tono = "text-tinta", ayuda
     </>
   );
   return href ? (
-    <Link href={href} className={`${TARJETA} block min-w-0 px-4 py-3 transition hover:-translate-y-0.5 hover:border-naranjo/40`} title={ayuda}>
+    <Link href={href} className={`${TARJETA} block min-w-0 px-4 py-3 transition duration-200 hover:-translate-y-0.5 hover:border-naranjo/40 hover:shadow-md`} title={ayuda}>
       {cuerpo}
     </Link>
   ) : (

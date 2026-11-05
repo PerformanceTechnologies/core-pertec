@@ -581,7 +581,14 @@ select:-webkit-autofill {
   }
 }
 .animar-ventana {
-  animation: aparecer 0.18s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  /* «backwards» y no «both»: al terminar no queda ningún transform puesto (ver .animar-revelar). */
+  animation: ventana-sube 0.26s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+@keyframes ventana-sube {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
 }
 .animar-fondo-ventana {
   animation: aparecer 0.14s ease-out both;
@@ -589,10 +596,73 @@ select:-webkit-autofill {
 .animar-aviso {
   animation: aparecer 0.2s ease-out both;
 }
+/* Gestión financiera: cada bloque de la pantalla entra subiendo un poco, uno tras otro, al cambiar
+   de pestaña (el layout queda, la página se monta de nuevo). Un router.refresh() no los repite:
+   React conserva los nodos. Todo con «backwards»: terminada la animación no queda transform. */
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.escalonar > * > * {
+  animation: subir 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+.escalonar > * > :nth-child(2) { animation-delay: 60ms; }
+.escalonar > * > :nth-child(3) { animation-delay: 120ms; }
+.escalonar > * > :nth-child(4) { animation-delay: 180ms; }
+.escalonar > * > :nth-child(5) { animation-delay: 230ms; }
+.escalonar > * > :nth-child(6) { animation-delay: 280ms; }
+.escalonar > * > :nth-child(n + 7) { animation-delay: 320ms; }
+
+/* Barras que crecen desde la base (columnas) o desde la izquierda (horizontales). */
+@keyframes crecer-alto {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes crecer-ancho {
+  from {
+    transform: scaleX(0);
+  }
+}
+.animar-crecer {
+  transform-origin: bottom;
+  animation: crecer-alto 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) 0.25s backwards;
+}
+.animar-llenar {
+  transform-origin: left;
+  animation: crecer-ancho 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) 0.3s backwards;
+}
+/* El anillo de avance se dibuja (la vuelta completa viene en --vuelta). */
+@keyframes dibujar-anillo {
+  from {
+    stroke-dashoffset: var(--vuelta);
+  }
+}
+.animar-anillo {
+  animation: dibujar-anillo 1s cubic-bezier(0.22, 0.61, 0.36, 1) 0.3s backwards;
+}
+/* Un número que aparece con un pequeño desenfoque, como si se enfocara. */
+@keyframes enfocar {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+}
+.animar-cifra {
+  animation: enfocar 0.6s ease-out 0.15s backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animar-ventana,
   .animar-fondo-ventana,
-  .animar-aviso {
+  .animar-aviso,
+  .escalonar > * > *,
+  .animar-crecer,
+  .animar-llenar,
+  .animar-anillo,
+  .animar-cifra {
     animation: none;
   }
 }
