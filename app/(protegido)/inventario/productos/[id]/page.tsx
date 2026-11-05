@@ -96,68 +96,70 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
         </div>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* ¿Dónde está? */}
-        {esFisico && (
-          <Bloque Icono={IconMapPin} tono="azul" titulo="¿Dónde está?" ayuda="Cuánto hay en cada bodega.">
-            {stock.length === 0 ? (
-              <p className="rounded-xl bg-tinta/[0.03] px-4 py-6 text-center text-sm text-gris">Todavía no hay nada guardado. Usa «Corregir la cantidad» para anotar lo que tienes.</p>
-            ) : (
-              <ul className="divide-y divide-borde rounded-xl border border-borde">
-                {stock.map((s) => (
-                  <li key={s.ubicacion.id} className="flex items-center gap-3 px-4 py-3 text-sm">
-                    <span className="flex-1 text-tinta">{s.ubicacion.nombre}</span>
-                    {s.reservado > 0 && <span className="text-xs tabular-nums text-gris">{formatearCantidad(s.reservado)} apartado</span>}
-                    <span className="font-bold tabular-nums text-tinta">{formatearCantidad(s.cantidad)} {abrevUni}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Bloque>
-        )}
-
-        {/* Corregir la cantidad */}
-        {esFisico && (
-          <Bloque Icono={IconAdjustmentsHorizontal} tono="marca" titulo="Corregir la cantidad" ayuda="¿Contaste y hay otra cantidad? Escríbela aquí y el sistema ajusta la diferencia.">
-            <FormularioAjuste producto={{ id: producto.id, nombre: producto.nombre }} ubicaciones={ubicaciones} lotes={lotes} />
-          </Bloque>
-        )}
-
-        {/* Avísame cuando quede poco */}
-        {esFisico && (
-          <Bloque Icono={IconBell} tono="ambar" titulo="Avísame cuando quede poco" ayuda="Pon un mínimo: si hay menos, aparece en «Reabastecimiento» para comprar más.">
-            <FormularioRegla productoId={producto.id} ubicaciones={ubicaciones} reglas={reglas} />
-          </Bloque>
-        )}
-
-        {/* Lotes o series */}
-        {esFisico && producto.seguimiento !== "ninguno" && (
-          <Bloque
-            Icono={IconListNumbers}
-            tono="verde"
-            titulo={producto.seguimiento === "serie" ? "Números de serie" : "Lotes"}
-            ayuda={producto.seguimiento === "serie" ? "Cada unidad con su número, para saber cuál es cuál." : "Cada lote con su vencimiento."}
-          >
-            {lotes.length > 0 && (
-              <ul className="mb-3 divide-y divide-borde rounded-xl border border-borde">
-                {lotes.map((l) => {
-                  const d = diasHasta(l.fechaVencimiento);
-                  return (
-                    <li key={l.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                      <span className="flex-1 font-mono text-tinta">{l.nombre}</span>
-                      {l.fechaVencimiento && (
-                        <span className={`text-xs ${porVencer(l.fechaVencimiento) ? "font-semibold text-amber-600" : "text-gris"}`}>
-                          vence {l.fechaVencimiento}{d !== null && d < 0 ? " (vencido)" : ""}
-                        </span>
-                      )}
+      {/* Dos columnas que crecen cada una a su ritmo: sin huecos cuando una sección es corta. */}
+      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+        <div className="space-y-5">
+          {/* ¿Dónde está? */}
+          {esFisico && (
+            <Bloque Icono={IconMapPin} tono="azul" titulo="¿Dónde está?" ayuda="Cuánto hay en cada bodega.">
+              {stock.length === 0 ? (
+                <p className="rounded-xl bg-tinta/[0.03] px-4 py-6 text-center text-sm text-gris">Todavía no hay nada guardado. Usa «Corregir la cantidad» para anotar lo que tienes.</p>
+              ) : (
+                <ul className="divide-y divide-borde rounded-xl border border-borde">
+                  {stock.map((s) => (
+                    <li key={s.ubicacion.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                      <span className="flex-1 text-tinta">{s.ubicacion.nombre}</span>
+                      {s.reservado > 0 && <span className="text-xs tabular-nums text-gris">{formatearCantidad(s.reservado)} apartado</span>}
+                      <span className="font-bold tabular-nums text-tinta">{formatearCantidad(s.cantidad)} {abrevUni}</span>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
-            <FormularioLote productoId={producto.id} seguimiento={producto.seguimiento} />
-          </Bloque>
-        )}
+                  ))}
+                </ul>
+              )}
+            </Bloque>
+          )}
+          {/* Avísame cuando quede poco */}
+          {esFisico && (
+            <Bloque Icono={IconBell} tono="ambar" titulo="Avísame cuando quede poco" ayuda="Pon un mínimo: si hay menos, aparece en «Reabastecimiento» para comprar más.">
+              <FormularioRegla productoId={producto.id} ubicaciones={ubicaciones} reglas={reglas} />
+            </Bloque>
+          )}
+        </div>
+        <div className="space-y-5">
+          {/* Corregir la cantidad */}
+          {esFisico && (
+            <Bloque Icono={IconAdjustmentsHorizontal} tono="marca" titulo="Corregir la cantidad" ayuda="¿Contaste y hay otra cantidad? Escríbela aquí y el sistema ajusta la diferencia.">
+              <FormularioAjuste producto={{ id: producto.id, nombre: producto.nombre }} ubicaciones={ubicaciones} lotes={lotes} />
+            </Bloque>
+          )}
+          {/* Lotes o series */}
+          {esFisico && producto.seguimiento !== "ninguno" && (
+            <Bloque
+              Icono={IconListNumbers}
+              tono="verde"
+              titulo={producto.seguimiento === "serie" ? "Números de serie" : "Lotes"}
+              ayuda={producto.seguimiento === "serie" ? "Cada unidad con su número, para saber cuál es cuál." : "Cada lote con su vencimiento."}
+            >
+              {lotes.length > 0 && (
+                <ul className="mb-3 divide-y divide-borde rounded-xl border border-borde">
+                  {lotes.map((l) => {
+                    const d = diasHasta(l.fechaVencimiento);
+                    return (
+                      <li key={l.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                        <span className="flex-1 font-mono text-tinta">{l.nombre}</span>
+                        {l.fechaVencimiento && (
+                          <span className={`text-xs ${porVencer(l.fechaVencimiento) ? "font-semibold text-amber-600" : "text-gris"}`}>
+                            vence {l.fechaVencimiento}{d !== null && d < 0 ? " (vencido)" : ""}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <FormularioLote productoId={producto.id} seguimiento={producto.seguimiento} />
+            </Bloque>
+          )}
+        </div>
       </div>
 
       {/* Historial */}
