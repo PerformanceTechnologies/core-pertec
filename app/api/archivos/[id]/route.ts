@@ -2,14 +2,15 @@ import { auth } from "@/auth";
 import { puedeVerApp } from "@/lib/autorizacion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { revisarEnlace, type ParametrosEnlace } from "@/lib/archivos/almacen";
-import { abrirDeSharePoint, esIdDeItem, PREFIJO_SP } from "@/lib/archivos/sharepoint-core";
+import { abrirDeSharePoint, esIdDeItem, PREFIJO_SP, SinCredencialesDeGraph } from "@/lib/archivos/sharepoint-core";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Entrega un archivo de SharePoint. Solo con un enlace firmado por el Core (ver
-// lib/archivos/almacen.ts): el temporal no pide sesión, como una URL firmada de Supabase;
-// el permanente pide sesión y acceso a la app con que se firmó.
+// lib/archivos/almacen.ts) y con sesión: se baja con la cuenta de quien lo abre, igual que
+// los documentos de Contratos. El temporal vence; el permanente exige además la app con que
+// se firmó. Si la cuenta todavía no dio acceso a SharePoint, se le pide y vuelve acá.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!esIdDeItem(id)) return new Response("No encontrado", { status: 404 });
@@ -24,11 +25,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   };
   const permiso = revisarEnlace(id, p);
   if (!permiso) return new Response("Este enlace no es válido o ya venció. Vuelve a abrirlo desde el Core.", { status: 403 });
-  if (permiso.tipo === "app") {
-    const session = await auth();
-    const usuario = await obtenerUsuarioActivo(session?.user?.email);
-    if (!usuario) return new Response("Inicia sesión en el Core para ver este archivo.", { status: 401 });
-    if (!(await puedeVerApp(usuario, permiso.app))) return new Response("No tienes acceso a este archivo.", { status: 403 });
+  const session = await auth();
+  const usuario = await obtenerUsuarioActivo(session?.user?.email);
+  if (!usuario) return new Response("Inicia sesión en el Core para ver este archivo.", { status: 401 });
+  if (permiso.tipo === "app" && !(await puedeVerApp(usuario, permiso.app))) {
+    return new Response("No tienes acceso a este archivo.", { status: 403 });
   }
 
   try {
@@ -46,6 +47,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (largo) cabeceras.set("Content-Length", largo);
     return new Response(respuesta.body, { status: 200, headers: cabeceras });
   } catch (e) {
+    if (e instanceof SinCredencialesDeGraph) {
+      const url = new URL(request.url);
+      return Response.redirect(new URL(`/api/archivos/conectar?volver=${encodeURIComponent(url.pathname + url.search)}`, url.origin), 303);
+    }
+    const codigo = (e as { statusCode?: number })?.statusCode;
+    if (codigo === 403 || codigo === 404) {
+      return new Response("Tu cuenta no tiene acceso a este archivo en SharePoint, o ya no existe.", { status: codigo });
+    }
     console.error(`[archivos] No se pudo entregar ${id}:`, e instanceof Error ? e.message : e);
     return new Response("No se pudo abrir el archivo desde SharePoint.", { status: 502 });
   }

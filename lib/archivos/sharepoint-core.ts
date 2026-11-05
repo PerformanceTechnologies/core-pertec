@@ -1,22 +1,24 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { ClientSecretCredential } from "@azure/identity";
+import { auth } from "@/auth";
+import { obtenerAccessToken, SinCredencialesDeGraph } from "@/lib/contratos/graph-credenciales";
 
 // -----------------------------------------------------------------------------
 //  Los documentos del Core viven en SharePoint (sitio COREPERTEC, carpeta «ARCHIVOS CORE»).
 //  Supabase guarda solo los datos y, en vez de una ruta de bucket, una referencia «sp:<id>».
 //
-//  Permiso de APLICACIÓN (AZURE_*), no la cuenta de quien sube: el archivo tiene que quedar
-//  en la biblioteca de la empresa aunque esa persona se vaya, y subir no puede depender de
-//  que cada uno haya conectado SharePoint. Esa app tiene Sites.Selected: un administrador
-//  le tiene que dar permiso de escritura sobre COREPERTEC (no lo hace este código).
+//  Se conecta IGUAL que Contratos: con la cuenta de Microsoft de quien está usando el Core
+//  (el refresh token que se guarda al iniciar sesión, canjeado por uno con permiso de
+//  archivos; ver lib/contratos/graph-credenciales.ts). Nada de una app aparte: lo que la
+//  persona sube queda a su nombre en SharePoint, y ve lo que el sitio le deja ver.
 //
 //  Se apunta a los archivos por su id de Graph y no por su ruta: si alguien los mueve o
 //  renombra dentro de SharePoint, el Core los sigue encontrando.
 // -----------------------------------------------------------------------------
 
-const GRAPH_SCOPE = "https://graph.microsoft.com/.default";
+export { SinCredencialesDeGraph };
+
 /** Arriba de esto se sube por sesión de carga: el PUT simple de Graph acepta hasta 4 MB. */
 const TOPE_PUT_SIMPLE = 3.5 * 1024 * 1024;
 
@@ -38,28 +40,24 @@ export function esIdDeItem(id: string): boolean {
   return ID_DE_ITEM.test(id);
 }
 
+/** El mismo sitio de Contratos (COREPERTEC), salvo que se configure otro. */
 function sitioConfigurado(): string {
-  return (process.env.SHAREPOINT_CORE_SITIO || "performancecl.sharepoint.com:/sites/COREPERTEC").trim();
+  return (process.env.SHAREPOINT_CORE_SITIO || process.env.SHAREPOINT_CONTRATOS_SITIO || "performancecl.sharepoint.com:/sites/COREPERTEC").trim();
 }
 
 function carpetaRaiz(): string {
   return (process.env.SHAREPOINT_CORE_CARPETA || "ARCHIVOS CORE").trim().replace(/^\/+|\/+$/g, "");
 }
 
-export function sharePointConfigurado(): boolean {
-  return Boolean(process.env.AZURE_TENANT_ID && process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET);
-}
-
-let credencial: ClientSecretCredential | null = null;
-
+/**
+ * Graph con el token de SharePoint de la persona que está usando el Core. Lanza
+ * SinCredencialesDeGraph si no hay sesión o si su cuenta todavía no dio acceso a SharePoint.
+ */
 async function cliente(): Promise<Client> {
-  if (!credencial) {
-    if (!sharePointConfigurado()) throw new Error("Faltan AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET.");
-    credencial = new ClientSecretCredential(process.env.AZURE_TENANT_ID!, process.env.AZURE_CLIENT_ID!, process.env.AZURE_CLIENT_SECRET!);
-  }
-  const token = await credencial.getToken(GRAPH_SCOPE);
-  if (!token) throw new Error("No fue posible autenticar contra Microsoft Graph.");
-  return Client.init({ authProvider: (done) => done(null, token.token) });
+  const correo = (await auth())?.user?.email;
+  if (!correo) throw new SinCredencialesDeGraph("Inicia sesión en el Core para usar los archivos de SharePoint.");
+  const token = await obtenerAccessToken(correo);
+  return Client.init({ authProvider: (done) => done(null, token) });
 }
 
 // El sitio se pide UNA vez por su ruta y después se usa su id compuesto: encadenar

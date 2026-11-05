@@ -18,9 +18,10 @@ import {
 //  Storage se sigue leyendo de su bucket: la ruta vieja no tiene el prefijo, así que cada
 //  función mira la referencia y va al lugar que corresponde. Nada se migra ni se borra solo.
 //
-//  Si SharePoint falla al subir (por ejemplo, la app todavía no tiene permiso sobre el
-//  sitio), el archivo se guarda en el bucket de antes para que el trabajo de la persona no
-//  se pierda, y queda en el log como error. /api/archivos/estado dice si SharePoint anda.
+//  Se sube con la cuenta de quien está usando el Core, igual que Contratos. Si SharePoint
+//  falla (su cuenta no dio acceso a SharePoint, o no tiene permiso en el sitio), el archivo
+//  se guarda en el bucket de antes para que su trabajo no se pierda, y queda en el log.
+//  /api/archivos/estado dice si SharePoint anda con la cuenta de quien lo abre.
 // -----------------------------------------------------------------------------
 
 export { esReferenciaSharePoint } from "./sharepoint-core";
@@ -147,8 +148,9 @@ export function revisarEnlace(id: string, p: ParametrosEnlace): { tipo: "tempora
 }
 
 /**
- * Un enlace temporal para ver o bajar el archivo, esté donde esté. Igual que una URL
- * firmada de Supabase: quien lo tenga lo abre hasta que vence, sin sesión.
+ * Un enlace temporal para ver o bajar el archivo, esté donde esté. Si está en SharePoint,
+ * además de no estar vencido pide sesión en el Core: el archivo se baja con la cuenta de
+ * quien lo abre.
  */
 export async function enlaceTemporal(
   bucket: string,
