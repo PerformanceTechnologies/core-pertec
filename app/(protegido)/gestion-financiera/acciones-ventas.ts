@@ -339,6 +339,11 @@ const CAMPOS_HITO: Record<string, (v: string) => unknown> = {
   comentario: (v) => v.trim().slice(0, 1000) || null,
 };
 
+const NOMBRE_CAMPO_HITO: Record<string, string> = {
+  estado_trabajo: "Trabajo", oc_cliente_numero: "N° OC del cliente", edp_fecha_aprobacion: "EDP aprobado el", hes_numero: "N° HES",
+  fecha_estimada_pago: "Fecha estimada de pago", guia_despacho: "Guía de despacho", comentario: "Comentario",
+};
+
 /** Edición en línea de un campo MANUAL de la fila; la etapa se recalcula sola al releer. */
 export async function actualizarCampoHitoAction(id: string, campo: string, valor: string): Promise<Resultado> {
   try {
@@ -349,7 +354,7 @@ export async function actualizarCampoHitoAction(id: string, campo: string, valor
     const nuevo = limpiar(valor);
     const { error } = await supabaseAdmin.from("fin_hitos").update({ [campo]: nuevo, actualizado_por: ctx.usuario.correo, actualizado_en: ahora() }).eq("id", id);
     revienta("guardar el cambio", error);
-    await auditar(ctx, "fin_hitos", id, "editar", `${campo}: ${String(antes[campo] ?? "—")} → ${String(nuevo ?? "—")}`);
+    await auditar(ctx, "fin_hitos", id, "editar", `${NOMBRE_CAMPO_HITO[campo] ?? campo}: ${String(antes[campo] ?? "—")} → ${String(nuevo ?? "—")}`);
     if (campo === "estado_trabajo" && nuevo === "terminado") await registrarEvento(ctx, "hito_terminado", "hito", id);
     refrescar();
     return { ok: true };

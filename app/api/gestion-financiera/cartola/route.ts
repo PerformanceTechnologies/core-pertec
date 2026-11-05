@@ -97,7 +97,11 @@ export async function POST(request: Request) {
   // Dentro del mismo archivo también puede repetirse una línea: se queda la primera.
   const unicas = [...new Map(nuevas.map((x) => [x.huella, x])).values()];
   const { data: insertadas, error } = await supabaseAdmin.from("fin_movimientos").upsert(unicas, { onConflict: "empresa_id,huella", ignoreDuplicates: true }).select("id");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Si no entró ningún movimiento, la importación no cuenta (si no, el resumen diría «banco actualizado»).
+    await supabaseAdmin.from("fin_importaciones").delete().eq("id", imp!.id).eq("empresa_id", ctx.empresa.id);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   const n = insertadas?.length ?? 0;
   await supabaseAdmin.from("fin_importaciones").update({ filas_nuevas: n, filas_duplicadas: leida.filas.length - n }).eq("id", imp!.id);
   await auditar(ctx, "fin_importaciones", imp!.id, "importar", `${cuenta.nombre}: ${n} nuevos de ${leida.filas.length} (${leida.omitidas} filas omitidas)`);

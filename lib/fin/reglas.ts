@@ -720,6 +720,11 @@ export function clpCorto(n: number): string {
   return clp(n);
 }
 
+/** Día en Chile de una marca de tiempo (timestamptz): a las 22:00 del 4 en Chile ya es el 5 en UTC. */
+export function diaChile(marca: string): Iso {
+  return new Date(marca).toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+}
+
 export function fechaCl(iso: Iso | null | undefined): string {
   if (!iso) return "—";
   const [a, m, d] = iso.slice(0, 10).split("-");

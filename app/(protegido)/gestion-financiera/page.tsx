@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { IconAlertTriangle, IconArrowRight, IconCalendarStats, IconCheck, IconChartBar, IconClock, IconFolders, IconTargetArrow, IconUsers } from "@tabler/icons-react";
 import { RUTA_FIN, cargarComercial, cargarVista } from "@/lib/fin/datos";
-import { clp, clpCorto, diasEntre, fechaCl, mesLargo, sumarDias } from "@/lib/fin/reglas";
+import { clp, clpCorto, diaChile, diasEntre, fechaCl, mesLargo, sumarDias } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { COLOR_ETAPA, Kpi, Monto, Seccion } from "@/components/fin/piezas";
@@ -116,7 +116,7 @@ export default async function ResumenFinanzasPage() {
             <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo"><span className="h-px w-6 bg-naranjo" /> Caja en bancos hoy</span>
             <p className="texto-banda mt-3 font-condensed text-5xl font-bold leading-none tabular-nums">{clp(d.cajaBancos)}</p>
             <p className="texto-banda-65 mt-2 text-sm">
-              Deuda tarjeta {clp(d.deudaTarjeta)} · {v.ultimaImportacion ? `banco actualizado el ${fechaCl(v.ultimaImportacion.slice(0, 10))}` : "aún no se importa ninguna cartola"}
+              Deuda tarjeta {clp(d.deudaTarjeta)} · {v.ultimaImportacion ? `banco actualizado el ${fechaCl(diaChile(v.ultimaImportacion))}` : "aún no se importa ninguna cartola"}
             </p>
           </div>
           <div className={`rounded-xl border px-5 py-3 ${peor && peor.holgura < 0 ? "border-rose-400/50 bg-rose-500/[0.15]" : "borde-banda bg-white/[0.03]"}`}>

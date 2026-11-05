@@ -72,7 +72,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
           </ConVentana>
         )}
         {editable && <BotonAccion accion={cambiarEstadoCotizacionAction.bind(null, id, "rechazada")} motivo="¿Por qué la rechazó el cliente?">Rechazada</BotonAccion>}
-        {c.estado !== "aceptada" && c.estado !== "reemplazada" && <BotonAccion accion={nuevaVersionCotizacionAction.bind(null, id)} confirmar="Se crea una nueva versión (V+1) y esta queda reemplazada.">Nueva versión</BotonAccion>}
+        {c.estado !== "aceptada" && c.estado !== "reemplazada" && <BotonAccion accion={nuevaVersionCotizacionAction.bind(null, id)} irA={`${RUTA_FIN}/comercial/cotizaciones/`} confirmar="Se crea una nueva versión (V+1) y esta queda reemplazada.">Nueva versión</BotonAccion>}
         {editable && <BotonAccion accion={cambiarEstadoCotizacionAction.bind(null, id, "anulada")} motivo="¿Por qué se anula?">Anular</BotonAccion>}
         <Deshabilitado motivo="Formato en diseño" clase={BOTON_SEC}><IconPrinter size={14} /> Imprimir</Deshabilitado>
         <span className="flex-1" />

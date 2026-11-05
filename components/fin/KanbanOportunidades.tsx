@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconAlertTriangle, IconCalendar, IconFileText } from "@tabler/icons-react";
 import { guardarOportunidadAction, moverOportunidadAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
-import { clpCorto, diasEntre, fechaCl } from "@/lib/fin/reglas";
+import { clpCorto, diaChile, diasEntre, fechaCl } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import type { Oportunidad } from "@/lib/fin/datos";
 import { CAMPO, Campo, ComboContacto, ConVentana, FormAccion, type OpcionContacto } from "./ui";
@@ -71,7 +71,7 @@ export default function KanbanOportunidades({ oportunidades, clientes, hoy }: { 
               </header>
               <div className="flex flex-1 flex-col gap-2">
                 {xs.map((o) => {
-                  const ref = o.ultimaActividad?.slice(0, 10) ?? o.actualizadoEn.slice(0, 10);
+                  const ref = diaChile(o.ultimaActividad ?? o.actualizadoEn);
                   const quieta = !["ganada", "perdida"].includes(o.etapa) && diasEntre(ref, hoy) > 7;
                   return (
                     <article

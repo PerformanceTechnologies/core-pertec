@@ -27,6 +27,7 @@ export function FormAccion({
   alOk,
   className = "space-y-4",
   confirmar,
+  limpiar = false,
 }: {
   accion: (fd: FormData) => Promise<Res>;
   children: React.ReactNode;
@@ -34,6 +35,8 @@ export function FormAccion({
   alOk?: (r: Res & { ok: true }) => void;
   className?: string;
   confirmar?: string;
+  /** Vacía el formulario al guardar bien (para los que se usan varias veces seguidas). */
+  limpiar?: boolean;
 }) {
   const router = useRouter();
   const cerrarVentana = useContext(CerrarVentana);
@@ -45,12 +48,14 @@ export function FormAccion({
       onSubmit={(e) => {
         e.preventDefault();
         if (confirmar && !confirm(confirmar)) return;
-        const fd = new FormData(e.currentTarget);
+        const formulario = e.currentTarget;
+        const fd = new FormData(formulario);
         setError(null);
         iniciar(async () => {
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
           router.refresh();
+          if (limpiar) formulario.reset();
           if (alOk) alOk(r);
           else cerrarVentana?.();
         });
@@ -75,6 +80,7 @@ export function BotonAccion({
   motivo,
   className = BOTON_SEC,
   titulo,
+  irA,
 }: {
   accion: (motivo: string) => Promise<Res>;
   children: React.ReactNode;
@@ -82,6 +88,8 @@ export function BotonAccion({
   motivo?: string;
   className?: string;
   titulo?: string;
+  /** Si la acción devuelve un id, abre `${irA}${id}` (p. ej. la versión nueva de una cotización). */
+  irA?: string;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -105,7 +113,8 @@ export function BotonAccion({
           if (!r.ok) alert(r.error);
           else {
             if (r.mensaje) alert(r.mensaje);
-            router.refresh();
+            if (irA && r.id) router.push(`${irA}${r.id}`);
+            else router.refresh();
           }
         });
       }}

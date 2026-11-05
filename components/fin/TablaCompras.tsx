@@ -65,7 +65,8 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                 <th className={TH}>OC / recepción</th>
                 <th className={TH}>Factura</th>
                 <th className={`${TH} text-right`}>Por pagar</th>
-                <th className={TH}>Acción</th>
+                {/* Fija al borde derecho: la acción siempre se ve aunque la tabla se desplace. */}
+                <th className={`${TH} sticky right-0 bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}>Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-borde">
@@ -84,7 +85,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.ocNumero ?? "—"}{c.recepcion && <span className="block text-[10px] text-gris">Recepción {c.recepcion === "si" ? "conforme" : c.recepcion}</span>}</td>
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.facturaFolio ? <>N° {c.facturaFolio}<span className="block text-[10px] text-gris">{clp(c.facturaTotal ?? 0)} · vence {fechaCl(c.facturaVence)}</span>{c.diferenciaVsOc ? <span className={`block text-[10px] ${Math.abs(c.diferenciaVsOc) > 1000 && !c.diferenciaAprobada ? "font-semibold text-alerta" : "text-gris"}`}>dif. OC {clp(c.diferenciaVsOc)}</span> : null}</> : "—"}</td>
                   <td className={`${TD} text-right`}>{c.montoFlujo ? <Monto valor={c.montoFlujo} /> : <span className="text-gris-suave">—</span>}{c.fechaFlujo && <span className="block text-[10px] text-gris">{fechaCl(c.fechaFlujo)}</span>}</td>
-                  <td className={`${TD} whitespace-nowrap`}><AccionCompra c={c} cuentas={cuentas} hoy={hoy} /></td>
+                  <td className={`${TD} sticky right-0 whitespace-nowrap bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}><AccionCompra c={c} cuentas={cuentas} hoy={hoy} /></td>
                 </tr>
               ))}
             </tbody>

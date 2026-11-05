@@ -76,7 +76,7 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
 
           <Seccion titulo="Gestión y comentarios" icono={<IconMessage2 size={15} />}>
             <div className={`${TARJETA} p-4`}>
-              <FormAccion accion={agregarActividadAction.bind(null, "hito", h.id)} textoBoton="Anotar">
+              <FormAccion accion={agregarActividadAction.bind(null, "hito", h.id)} textoBoton="Anotar" limpiar>
                 <div className="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <select name="tipo" className={CAMPO} defaultValue="llamada"><option value="llamada">Llamada</option><option value="correo">Correo</option><option value="reunion">Reunión</option><option value="nota">Nota</option></select>
                   <input name="texto" required placeholder="Con quién hablaste y qué dijo…" className={CAMPO} />
@@ -129,7 +129,7 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
           <Seccion titulo="Historial" icono={<IconHistory size={15} />}>
             <ul className={`${TARJETA} max-h-80 divide-y divide-borde overflow-auto text-xs`}>
               {historial.map((x) => (
-                <li key={x.id} className="px-4 py-2"><span className="font-semibold text-tinta">{x.detalle ?? x.accion}</span>{x.motivo && <span className="block text-gris">Motivo: {x.motivo}</span>}<span className="block text-gris-suave">{new Date(x.creadoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} · {x.usuario?.split("@")[0]}</span></li>
+                <li key={x.id} className="px-4 py-2"><span className="font-semibold text-tinta">{legible(x.detalle ?? x.accion)}</span>{x.motivo && <span className="block text-gris">Motivo: {x.motivo}</span>}<span className="block text-gris-suave">{new Date(x.creadoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} · {x.usuario?.split("@")[0]}</span></li>
               ))}
               {historial.length === 0 && <li className="px-4 py-3 text-gris">Sin cambios registrados.</li>}
             </ul>
@@ -138,4 +138,17 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
       </div>
     </div>
   );
+}
+
+// Historial anterior a los nombres en palabras: traduce el nombre de columna del principio.
+const CAMPOS: Record<string, string> = {
+  estado_trabajo: "Trabajo", oc_cliente_numero: "N° OC del cliente", edp_fecha_aprobacion: "EDP aprobado el", hes_numero: "N° HES",
+  fecha_estimada_pago: "Fecha estimada de pago", guia_despacho: "Guía de despacho", comentario: "Comentario",
+};
+const TRABAJO: Record<string, string> = { pendiente: "pendiente", en_curso: "en curso", terminado: "terminado" };
+function legible(texto: string): string {
+  const m = /^([a-z_]+): (.*)$/.exec(texto);
+  if (!m || !CAMPOS[m[1]]) return texto;
+  const valor = m[1] === "estado_trabajo" ? m[2].replace(/[a-z_]+/g, (x) => TRABAJO[x] ?? x) : m[2];
+  return `${CAMPOS[m[1]]}: ${valor}`;
 }

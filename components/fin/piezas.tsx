@@ -188,6 +188,15 @@ export function Vacio({ titulo, texto, icono, children }: { titulo: string; text
 
 /** Pestañas secundarias por parámetro de URL (?ver=…). */
 export function Pestanas({ base, actual, opciones }: { base: string; actual: string; opciones: { clave: string; etiqueta: string; n?: number }[] }) {
+  // La base puede traer otros parámetros (?mes=…): se conservan y solo cambia «ver».
+  const href = (clave: string, primera: boolean) => {
+    const [ruta, consulta = ""] = base.split("?");
+    const p = new URLSearchParams(consulta);
+    if (primera) p.delete("ver");
+    else p.set("ver", clave);
+    const q = p.toString();
+    return q ? `${ruta}?${q}` : ruta;
+  };
   return (
     <div className="inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-borde bg-superficie p-1">
       {opciones.map((o, i) => {
@@ -195,7 +204,7 @@ export function Pestanas({ base, actual, opciones }: { base: string; actual: str
         return (
           <Link
             key={o.clave}
-            href={i === 0 ? base : `${base}?ver=${o.clave}`}
+            href={href(o.clave, i === 0)}
             scroll={false}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${on ? "bg-tinta text-superficie" : "text-gris hover:text-tinta"}`}
           >
