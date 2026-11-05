@@ -3,7 +3,7 @@ import { IconChevronRight, IconPackage, IconUpload } from "@tabler/icons-react";
 import IntroSeccion from "@/components/inventario/IntroSeccion";
 import FormularioProducto from "@/components/inventario/FormularioProducto";
 import { ChipEstadoOperativo, FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
-import { listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades } from "@/lib/inventario";
+import { listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades, miniaturasDeProductos } from "@/lib/inventario";
 import {
   ETIQUETA_CERTIFICADO,
   ETIQUETA_SEGUIMIENTO,
@@ -18,11 +18,12 @@ import { TARJETA } from "@/lib/estilos";
 export const dynamic = "force-dynamic";
 
 export default async function ProductosPage() {
-  const [productos, categorias, unidades, ubicaciones] = await Promise.all([
+  const [productos, categorias, unidades, ubicaciones, miniaturas] = await Promise.all([
     listarProductosConStock(),
     listarCategorias(),
     listarUnidades(),
     listarUbicaciones(),
+    miniaturasDeProductos(),
   ]);
   const nombreUbi = new Map(ubicaciones.map((u) => [u.id, u.nombre]));
   const nombreCat = new Map(categorias.map((c) => [c.id, c.nombre]));
@@ -71,7 +72,7 @@ export default async function ProductosPage() {
                   <tr key={p.id} className="group transition hover:bg-tinta/[0.02]">
                     <td className="px-4 py-3">
                       <Link href={`/inventario/productos/${p.id}`} className="flex items-start gap-3">
-                        <FichaProducto nombre={p.nombre} categoria={p.categoriaId ? nombreCat.get(p.categoriaId) ?? null : null} />
+                        <FichaProducto nombre={p.nombre} categoria={p.categoriaId ? nombreCat.get(p.categoriaId) ?? null : null} foto={miniaturas.get(p.id)} />
                         <span className="min-w-0">
                         <span className="font-semibold text-tinta group-hover:text-naranjo">{p.nombre}</span>
                         <span className="block text-xs text-gris">

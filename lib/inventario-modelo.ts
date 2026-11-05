@@ -52,6 +52,8 @@ export interface Producto {
   /** Hay documento subido (la ruta no sale del servidor). */
   tieneCertificado: boolean;
   certificadoVence: string | null;
+  /** Cuántas fotos tiene (las rutas no salen del servidor). */
+  cantidadFotos: number;
   /** Vencimiento del producto en sí (opcional). */
   fechaVencimiento: string | null;
   estadoOperativo: EstadoOperativo;
@@ -461,3 +463,31 @@ export function resumirValorizacion(lineas: LineaValor[]): ResumenValorizacion {
     sinCosto: productos.filter((p) => p.costo <= 0).length,
   };
 }
+
+// ---------- Fotos del producto -------------------------------------------------
+
+/** Lo que se guarda en inv_productos.fotos (jsonb): las dos versiones en SharePoint. */
+export interface FotoGuardada {
+  /** Para mirarla: hasta 1600 px. */
+  ruta: string;
+  /** Para listas y fichas: 240 px. */
+  miniatura: string;
+  nombre: string;
+}
+
+/** Lo que llega a la pantalla: enlaces firmados, nunca las rutas. */
+export interface FotoProducto {
+  indice: number;
+  url: string;
+  miniatura: string;
+  nombre: string;
+}
+
+export const MAX_FOTOS_PRODUCTO = 8;
+export const TIPOS_FOTO_PRODUCTO: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};

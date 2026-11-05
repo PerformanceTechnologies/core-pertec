@@ -41,7 +41,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const cabeceras = new Headers({
       "Content-Type": peligroso ? "application/octet-stream" : tipo,
       "Content-Disposition": `${p.d === "1" || peligroso ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(nombreFinal)}`,
-      "Cache-Control": "private, max-age=300",
+      // Hasta que vence el enlace (como mucho una hora): las fotos no se vuelven a pedir en cada página.
+      "Cache-Control": `private, max-age=${p.e ? Math.max(0, Math.min(3600, Number(p.e) - Math.floor(Date.now() / 1000))) : 300}`,
       "X-Content-Type-Options": "nosniff",
     });
     const largo = respuesta.headers.get("content-length");

@@ -5,6 +5,7 @@
 //     Tareas/<título de la tarea> (<id>)/
 //     Flota/<patente>/
 //     Inventario/Certificados/<SKU nombre del producto> (<id>)/
+//     Inventario/Fotos/<SKU nombre del producto> (<id>)/
 //     Gestion financiera/<empresa>/<Movimientos|Documentos|…>/<id>/
 //     Rendiciones/<año>/<quién rinde> - <título> (<id>)/
 //     Ofertas/Emitidas/ · Ofertas/Imagenes/ · Ofertas/Logos/ · Ofertas/Maestros/
@@ -47,6 +48,9 @@ export const carpetaVehiculo = (v: { id: string; patente?: string | null }) => `
 
 export const carpetaCertificado = (p: { id: string; nombre?: string | null; sku?: string | null }) =>
   `Inventario/Certificados/${legible([p.sku, p.nombre].filter(Boolean).join(" "), "Producto")} (${corto(p.id)})`;
+
+export const carpetaFotosProducto = (p: { id: string; nombre?: string | null; sku?: string | null }) =>
+  `Inventario/Fotos/${legible([p.sku, p.nombre].filter(Boolean).join(" "), "Producto")} (${corto(p.id)})`;
 
 export const carpetaFinanzas = (empresa: string | null | undefined, entidadTipo: string, entidadId: string) =>
   `Gestion financiera/${legible(empresa, "Empresa")}/${ENTIDADES_FIN[entidadTipo] ?? legible(entidadTipo, "Otros")}/${corto(entidadId)}`;

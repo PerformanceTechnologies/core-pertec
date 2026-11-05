@@ -155,16 +155,19 @@ export function revisarEnlace(id: string, p: ParametrosEnlace): { tipo: "tempora
 export async function enlaceTemporal(
   bucket: string,
   ruta: string,
-  o: { segundos?: number; descarga?: string | true } = {},
+  o: { segundos?: number; descarga?: string | true; redondear?: boolean } = {},
   cliente: SupabaseClient = supabaseAdmin,
 ): Promise<string | null> {
   const segundos = o.segundos ?? 60;
   if (esReferenciaSharePoint(ruta)) {
     const id = idDeReferencia(ruta);
+    // `redondear`: el vencimiento cae en la hora en punto siguiente, así el enlace es el mismo
+    // en cada carga de la página durante esa hora y el navegador reusa la imagen guardada.
+    const vence = Math.floor(Date.now() / 1000) + segundos;
     return armarUrl(id, {
       n: typeof o.descarga === "string" ? o.descarga.slice(0, 200) : undefined,
       d: o.descarga ? "1" : undefined,
-      e: String(Math.floor(Date.now() / 1000) + segundos),
+      e: String(o.redondear ? Math.ceil(vence / 3600) * 3600 : vence),
     });
   }
   const { data, error } = await cliente.storage.from(bucket).createSignedUrl(ruta, segundos, o.descarga ? { download: o.descarga } : undefined);

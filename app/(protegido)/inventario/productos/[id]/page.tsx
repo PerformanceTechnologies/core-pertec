@@ -5,8 +5,9 @@ import FormularioProducto from "@/components/inventario/FormularioProducto";
 import FormularioLote from "@/components/inventario/FormularioLote";
 import FormularioRegla from "@/components/inventario/FormularioRegla";
 import FormularioAjuste from "@/components/inventario/FormularioAjuste";
+import FotosProducto from "@/components/inventario/FotosProducto";
 import { ChipEstadoOperativo } from "@/components/inventario/Visual";
-import { listarCategorias, listarUbicaciones, listarUnidades, obtenerFichaProducto } from "@/lib/inventario";
+import { fotosDeProducto, listarCategorias, listarUbicaciones, listarUnidades, obtenerFichaProducto } from "@/lib/inventario";
 import {
   ETIQUETA_SEGUIMIENTO,
   ETIQUETA_TIPO_PRODUCTO,
@@ -21,11 +22,12 @@ export const dynamic = "force-dynamic";
 
 export default async function FichaProductoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [ficha, categorias, unidades, ubicaciones] = await Promise.all([
+  const [ficha, categorias, unidades, ubicaciones, fotos] = await Promise.all([
     obtenerFichaProducto(id),
     listarCategorias(),
     listarUnidades(),
     listarUbicaciones(),
+    fotosDeProducto(id),
   ]);
   if (!ficha) notFound();
 
@@ -53,6 +55,7 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
             {nombreCat ? ` · ${nombreCat}` : ""}
             {producto.seguimiento !== "ninguno" ? ` · ${ETIQUETA_SEGUIMIENTO[producto.seguimiento]}` : ""}
           </p>
+          <FotosProducto productoId={producto.id} fotos={fotos} />
         </div>
         <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} producto={producto} />
       </div>

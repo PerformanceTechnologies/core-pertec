@@ -5,6 +5,7 @@ import { exigirAccesoApp } from "@/lib/autorizacion";
 import {
   actualizarProducto,
   enlaceCertificado,
+  quitarFotoProducto,
   quitarCertificado,
   ajustarInventario,
   cancelarTransferencia,
@@ -160,6 +161,18 @@ export async function quitarCertificadoAction(productoId: string): Promise<Resul
   try {
     await exigirAccesoApp(SLUG);
     await quitarCertificado(productoId);
+    refrescar("/inventario/productos", `/inventario/productos/${productoId}`);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function quitarFotoProductoAction(productoId: string, indice: number): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG);
+    if (!Number.isInteger(indice) || indice < 0) return { ok: false, error: "Foto inválida." };
+    await quitarFotoProducto(productoId, indice);
     refrescar("/inventario/productos", `/inventario/productos/${productoId}`);
     return { ok: true };
   } catch (e) {

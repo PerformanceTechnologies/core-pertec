@@ -75,7 +75,16 @@ export function tonoDeTexto(texto: string): string {
 }
 
 /** La «foto» de un producto: sus iniciales en el color de su categoría. */
-export function FichaProducto({ nombre, categoria }: { nombre: string; categoria: string | null }) {
+/** La casilla del producto en las listas: su foto (chica y apagada) o, sin foto, sus iniciales. */
+export function FichaProducto({ nombre, categoria, foto }: { nombre: string; categoria: string | null; foto?: string | null }) {
+  if (foto) {
+    return (
+      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-tinta/[0.04] ring-1 ring-borde">
+        {/* eslint-disable-next-line @next/next/no-img-element -- viene del Core firmada, sin optimizador */}
+        <img src={foto} alt="" loading="lazy" className="h-full w-full object-cover opacity-90 saturate-[.85]" />
+      </span>
+    );
+  }
   const iniciales = nombre
     .split(/\s+/)
     .filter((p) => /[a-záéíóúñ0-9]/i.test(p))

@@ -2,7 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
-import { carpetaCertificado } from "./archivos/carpetas";
+import { carpetaCertificado, carpetaFotosProducto } from "./archivos/carpetas";
 import {
   disponible,
   pronosticado,
@@ -10,7 +10,10 @@ import {
   siguienteReferencia,
   sugerenciaDeReposicion,
   valorizar,
+  MAX_FOTOS_PRODUCTO,
   type Almacen,
+  type FotoGuardada,
+  type FotoProducto,
   type Categoria,
   type ClaseOperacion,
   type LineaValor,
@@ -62,6 +65,7 @@ const aProducto = (r: any): Producto => ({
   ubicacionId: r.ubicacion_id ?? null, requiereCertificacion: Boolean(r.requiere_certificacion),
   certificadoNombre: r.certificado_nombre ?? null, tieneCertificado: Boolean(r.certificado_ruta),
   certificadoVence: r.certificado_vence ?? null, fechaVencimiento: r.fecha_vencimiento ?? null,
+  cantidadFotos: Array.isArray(r.fotos) ? r.fotos.length : 0,
   estadoOperativo: r.estado_operativo === "no_operativo" ? "no_operativo" : "operativo",
 });
 
@@ -762,4 +766,90 @@ export async function enlaceCertificado(productoId: string): Promise<string | nu
   const { data } = await supabaseAdmin.from(T.productos).select("certificado_ruta, certificado_nombre").eq("id", productoId).maybeSingle();
   if (!data?.certificado_ruta) return null;
   return enlaceTemporal(BUCKET_INV, data.certificado_ruta as string, { segundos: 60, descarga: (data.certificado_nombre as string) || true });
+}
+
+// =============================================================================
+//  FOTOS DEL PRODUCTO (en SharePoint, «Inventario/Fotos/<producto>/»)
+// =============================================================================
+
+async function leerFotos(productoId: string): Promise<{ fotos: FotoGuardada[]; nombre: string; sku: string | null } | null> {
+  const { data, error } = await supabaseAdmin.from(T.productos).select("nombre, sku, fotos").eq("id", productoId).maybeSingle();
+  if (error) throw new Error(/fotos/.test(error.message) ? "[inventario] Falta la columna de fotos en la base: corre el SQL de fotos de productos." : `[inventario] leer fotos: ${error.message}`);
+  if (!data) return null;
+  return { fotos: Array.isArray(data.fotos) ? (data.fotos as FotoGuardada[]) : [], nombre: data.nombre as string, sku: (data.sku as string | null) ?? null };
+}
+
+/** Las fotos de un producto con enlaces de una hora (redondeados, para que el navegador las guarde). */
+export async function fotosDeProducto(productoId: string): Promise<FotoProducto[]> {
+  const datos = await leerFotos(productoId).catch(() => null);
+  if (!datos) return [];
+  const fotos = await Promise.all(
+    datos.fotos.map(async (f, indice) => {
+      const [url, miniatura] = await Promise.all([
+        enlaceTemporal(BUCKET_INV, f.ruta, { segundos: 3600, redondear: true }),
+        enlaceTemporal(BUCKET_INV, f.miniatura, { segundos: 3600, redondear: true }),
+      ]);
+      return url && miniatura ? { indice, url, miniatura, nombre: f.nombre } : null;
+    }),
+  );
+  return fotos.filter((f): f is FotoProducto => f !== null);
+}
+
+/** La miniatura de la primera foto de cada producto que tenga, para la lista. */
+export async function miniaturasDeProductos(): Promise<Map<string, string>> {
+  const { data, error } = await supabaseAdmin.from(T.productos).select("id, fotos").neq("fotos", "[]");
+  if (error) return new Map(); // sin la columna todavía: la lista sale con iniciales
+  const pares = await Promise.all(
+    ((data ?? []) as { id: string; fotos: FotoGuardada[] | null }[])
+      .filter((f) => Array.isArray(f.fotos) && f.fotos[0]?.miniatura)
+      .map(async (f) => [f.id, await enlaceTemporal(BUCKET_INV, f.fotos![0].miniatura, { segundos: 3600, redondear: true })] as const),
+  );
+  return new Map(pares.filter((p): p is readonly [string, string] => Boolean(p[1])));
+}
+
+/** Agrega una foto ya normalizada (ver lib/inventario-fotos.ts). */
+export async function agregarFotoProducto(
+  productoId: string,
+  foto: { grande: Buffer; miniatura: Buffer; nombre: string },
+): Promise<void> {
+  const datos = await leerFotos(productoId);
+  if (!datos) throw new Error("[inventario] Ese producto ya no existe.");
+  if (datos.fotos.length >= MAX_FOTOS_PRODUCTO) throw new Error(`[inventario] Un producto puede tener hasta ${MAX_FOTOS_PRODUCTO} fotos.`);
+  const carpeta = carpetaFotosProducto({ id: productoId, nombre: datos.nombre, sku: datos.sku });
+  const base = foto.nombre.replace(/\.[^.]*$/, "").trim() || "foto";
+  const ruta = await guardarArchivo({
+    carpeta, nombre: nombreUnico(base, "jpg"), contenido: foto.grande, tipo: "image/jpeg",
+    respaldo: { bucket: BUCKET_INV, ruta: `fotos/${productoId}/${crypto.randomUUID()}.jpg` },
+  });
+  let miniatura: string;
+  try {
+    miniatura = await guardarArchivo({
+      carpeta: `${carpeta}/Miniaturas`, nombre: nombreUnico(base, "jpg"), contenido: foto.miniatura, tipo: "image/jpeg",
+      respaldo: { bucket: BUCKET_INV, ruta: `fotos/${productoId}/${crypto.randomUUID()}-min.jpg` },
+    });
+  } catch (e) {
+    await borrarArchivos(BUCKET_INV, [ruta]);
+    throw e;
+  }
+  // Se relee justo antes de guardar: dos fotos subidas a la vez no se pisan.
+  const ahora = (await leerFotos(productoId))?.fotos ?? [];
+  const { error } = await supabaseAdmin.from(T.productos)
+    .update({ fotos: [...ahora, { ruta, miniatura, nombre: foto.nombre.slice(0, 200) }], actualizado_en: new Date().toISOString() })
+    .eq("id", productoId);
+  if (error) {
+    await borrarArchivos(BUCKET_INV, [ruta, miniatura]);
+    revienta("guardar la foto", error);
+  }
+}
+
+/** Quita una foto (sus dos versiones van a la papelera del sitio). */
+export async function quitarFotoProducto(productoId: string, indice: number): Promise<void> {
+  const datos = await leerFotos(productoId);
+  const foto = datos?.fotos[indice];
+  if (!datos || !foto) return;
+  const { error } = await supabaseAdmin.from(T.productos)
+    .update({ fotos: datos.fotos.filter((_, i) => i !== indice), actualizado_en: new Date().toISOString() })
+    .eq("id", productoId);
+  revienta("quitar la foto", error);
+  await borrarArchivos(BUCKET_INV, [foto.ruta, foto.miniatura]);
 }
