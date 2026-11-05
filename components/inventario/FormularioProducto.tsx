@@ -186,7 +186,7 @@ export default function FormularioProducto({
         }
       >
         {editar ? <IconPencil size={16} /> : <IconPlus size={16} />}
-        {editar ? "Editar" : "Nuevo producto"}
+        {editar ? "Editar datos" : "Nuevo producto"}
       </button>
 
       <VentanaModal
@@ -278,11 +278,20 @@ export default function FormularioProducto({
                       : `, hasta ${MAX_FOTOS_PRODUCTO}`}
                   </span>
                 </span>
-                <div className="flex flex-wrap items-center gap-2">
+                <div
+                  className="flex flex-wrap items-center gap-2"
+                  onDragOver={(e) => {
+                    if (fotos.length < caben) e.preventDefault();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    elegirFotos(e.dataTransfer.files);
+                  }}
+                >
                   {vistas.map((u, i) => (
-                    <span key={u} className="group relative h-14 w-14 overflow-hidden rounded-lg bg-tinta/[0.04] ring-1 ring-borde">
+                    <span key={u} className="group relative h-16 w-16 overflow-hidden rounded-xl bg-tinta/[0.04] ring-1 ring-borde">
                       {/* eslint-disable-next-line @next/next/no-img-element -- vista previa local, todavía no subida */}
-                      <img src={u} alt={fotos[i]?.name ?? ""} className="h-full w-full object-cover opacity-90 saturate-[.85]" />
+                      <img src={u} alt={fotos[i]?.name ?? ""} className="h-full w-full object-cover" />
                       <button
                         type="button"
                         onClick={() => setFotos((xs) => xs.filter((_, j) => j !== i))}
@@ -293,16 +302,31 @@ export default function FormularioProducto({
                       </button>
                     </span>
                   ))}
-                  {fotos.length < caben && (
-                    <button
-                      type="button"
-                      onClick={() => entradaFotos.current?.click()}
-                      className="inline-flex h-14 items-center gap-1.5 rounded-lg border border-dashed border-borde px-3.5 text-xs font-semibold text-gris transition hover:border-gris-suave hover:text-tinta"
-                    >
-                      <IconCamera size={16} stroke={1.8} />
-                      {fotos.length ? "Agregar más" : "Agregar fotos"}
-                    </button>
-                  )}
+                  {fotos.length < caben &&
+                    (fotos.length ? (
+                      <button
+                        type="button"
+                        onClick={() => entradaFotos.current?.click()}
+                        aria-label="Agregar más fotos"
+                        className="grid h-16 w-16 place-items-center rounded-xl border-2 border-dashed border-naranjo/40 bg-naranjo/[0.05] text-naranjo transition hover:border-naranjo hover:bg-naranjo/10"
+                      >
+                        <IconPlus size={20} stroke={2.2} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => entradaFotos.current?.click()}
+                        className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-naranjo/35 bg-naranjo/[0.04] px-4 py-3 text-left transition hover:border-naranjo hover:bg-naranjo/[0.08]"
+                      >
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-naranjo/15 text-naranjo">
+                          <IconCamera size={20} stroke={1.8} />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-bold text-tinta">Agregar fotos</span>
+                          <span className="block text-xs text-gris">Toca aquí o arrastra las fotos · JPG, PNG o HEIC</span>
+                        </span>
+                      </button>
+                    ))}
                   {caben <= 0 && <span className="text-xs text-gris">Ya tiene {MAX_FOTOS_PRODUCTO} fotos, el máximo.</span>}
                   <input ref={entradaFotos} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple className="sr-only" onChange={(e) => elegirFotos(e.target.files)} />
                 </div>

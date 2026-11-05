@@ -2,16 +2,16 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconCamera, IconChevronLeft, IconChevronRight, IconLoader2, IconTrash } from "@tabler/icons-react";
+import { IconCamera, IconChevronLeft, IconChevronRight, IconLoader2, IconPlus, IconTrash } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import { leerRespuesta } from "@/lib/subidas";
 import { MAX_FOTOS_PRODUCTO, type FotoProducto } from "@/lib/inventario-modelo";
 import { quitarFotoProductoAction } from "@/app/(protegido)/inventario/acciones";
 
 /**
- * Las fotos de un producto, discretas: una fila de miniaturas chicas bajo el nombre y un
- * botón gris para sumar más. No compiten con los números de la ficha; al tocar una se abre
- * en grande. Se guardan en SharePoint (ver /api/inventario/fotos).
+ * Las fotos de un producto en su ficha: la primera en grande y las demás chicas al lado. Sin
+ * fotos, un recuadro claro para agregarlas (tocar o arrastrar). Al tocar una se abre en grande.
+ * Se guardan en SharePoint (ver /api/inventario/fotos).
  */
 export default function FotosProducto({ productoId, fotos }: { productoId: string; fotos: FotoProducto[] }) {
   const router = useRouter();
@@ -19,11 +19,12 @@ export default function FotosProducto({ productoId, fotos }: { productoId: strin
   const [subiendo, setSubiendo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [abierta, setAbierta] = useState<number | null>(null);
+  const [encima, setEncima] = useState(false);
   const [quitando, iniciarQuitar] = useTransition();
   const quedan = MAX_FOTOS_PRODUCTO - fotos.length;
 
-  async function subir(lista: FileList | null) {
-    const archivos = Array.from(lista ?? []).slice(0, quedan);
+  async function subir(lista: FileList | File[] | null) {
+    const archivos = Array.from(lista ?? []).filter((f) => f.type.startsWith("image/")).slice(0, quedan);
     if (entrada.current) entrada.current.value = "";
     if (archivos.length === 0) return;
     setError(null);
@@ -54,39 +55,85 @@ export default function FotosProducto({ productoId, fotos }: { productoId: strin
     });
   }
 
+  const soltar = {
+    onDragOver: (e: React.DragEvent) => {
+      if (quedan <= 0) return;
+      e.preventDefault();
+      setEncima(true);
+    },
+    onDragLeave: () => setEncima(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setEncima(false);
+      subir(e.dataTransfer.files);
+    },
+  };
+
   const actual = abierta === null ? null : fotos.find((f) => f.indice === abierta) ?? null;
   const posicion = actual ? fotos.indexOf(actual) : -1;
   const mover = (paso: number) => setAbierta(fotos[(posicion + paso + fotos.length) % fotos.length].indice);
+  const [principal, ...resto] = fotos;
 
   return (
-    <div className="mt-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {fotos.map((f) => (
-          <button
-            key={f.indice}
-            type="button"
-            onClick={() => setAbierta(f.indice)}
-            title={f.nombre}
-            className="h-11 w-11 overflow-hidden rounded-lg bg-tinta/[0.04] ring-1 ring-borde transition hover:ring-gris-suave focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- viene del Core firmada, sin optimizador */}
-            <img src={f.miniatura} alt={f.nombre} loading="lazy" className="h-full w-full object-cover opacity-90 saturate-[.85] transition hover:opacity-100 hover:saturate-100" />
-          </button>
-        ))}
-        {quedan > 0 && (
-          <button
-            type="button"
-            onClick={() => entrada.current?.click()}
-            disabled={subiendo !== null}
-            className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-borde px-3 text-xs font-semibold text-gris transition hover:border-gris-suave hover:text-tinta disabled:cursor-progress"
-          >
-            {subiendo ? <IconLoader2 size={15} className="animate-spin" /> : <IconCamera size={15} stroke={1.8} />}
-            {subiendo ?? (fotos.length ? "Agregar" : "Agregar foto")}
-          </button>
-        )}
-        <input ref={entrada} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple className="sr-only" onChange={(e) => subir(e.target.files)} />
-      </div>
+    <div className="w-full sm:w-36" {...soltar}>
+      {principal ? (
+        <button
+          type="button"
+          onClick={() => setAbierta(principal.indice)}
+          title="Ver en grande"
+          className={`block aspect-square w-full overflow-hidden rounded-2xl bg-tinta/[0.04] ring-1 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo ${encima ? "ring-2 ring-naranjo" : "ring-borde hover:ring-gris-suave"}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- viene del Core firmada, sin optimizador */}
+          <img src={principal.miniatura} alt={principal.nombre} className="h-full w-full object-cover" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => entrada.current?.click()}
+          disabled={subiendo !== null}
+          className={`flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-3 text-center transition disabled:cursor-progress ${
+            encima ? "border-naranjo bg-naranjo/10" : "border-naranjo/35 bg-naranjo/[0.04] hover:border-naranjo hover:bg-naranjo/[0.08]"
+          }`}
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-naranjo/15 text-naranjo">
+            {subiendo ? <IconLoader2 size={20} className="animate-spin" /> : <IconCamera size={20} stroke={1.8} />}
+          </span>
+          <span className="text-sm font-bold text-tinta">{subiendo ?? "Agregar fotos"}</span>
+          {!subiendo && <span className="text-[11px] leading-tight text-gris">Toca o arrastra aquí</span>}
+        </button>
+      )}
+
+      {principal && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {resto.map((f) => (
+            <button
+              key={f.indice}
+              type="button"
+              onClick={() => setAbierta(f.indice)}
+              title={f.nombre}
+              className="h-9 w-9 overflow-hidden rounded-lg bg-tinta/[0.04] ring-1 ring-borde transition hover:ring-gris-suave"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- viene del Core firmada, sin optimizador */}
+              <img src={f.miniatura} alt={f.nombre} loading="lazy" className="h-full w-full object-cover" />
+            </button>
+          ))}
+          {quedan > 0 && (
+            <button
+              type="button"
+              onClick={() => entrada.current?.click()}
+              disabled={subiendo !== null}
+              title="Agregar fotos"
+              aria-label="Agregar fotos"
+              className="grid h-9 w-9 place-items-center rounded-lg border-2 border-dashed border-naranjo/40 bg-naranjo/[0.05] text-naranjo transition hover:border-naranjo hover:bg-naranjo/10 disabled:cursor-progress"
+            >
+              {subiendo ? <IconLoader2 size={16} className="animate-spin" /> : <IconPlus size={16} stroke={2.2} />}
+            </button>
+          )}
+        </div>
+      )}
+      {subiendo && principal && <p className="mt-1 text-[11px] text-gris">{subiendo}</p>}
       {error && <p className="mt-1.5 text-xs text-rose-600">{error}</p>}
+      <input ref={entrada} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple className="sr-only" onChange={(e) => subir(e.target.files)} />
 
       <VentanaModal abierta={actual !== null} alCerrar={() => setAbierta(null)} titulo={actual?.nombre ?? "Foto"} ancho="max-w-3xl" variante="hoja">
         {actual && (

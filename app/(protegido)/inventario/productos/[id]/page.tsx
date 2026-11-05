@@ -1,17 +1,32 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconArrowLeft } from "@tabler/icons-react";
+import {
+  IconAdjustmentsHorizontal,
+  IconArrowLeft,
+  IconBell,
+  IconBuildingWarehouse,
+  IconCoins,
+  IconHistory,
+  IconListNumbers,
+  IconMapPin,
+  IconReceipt,
+  IconTag,
+  type Icon,
+} from "@tabler/icons-react";
 import FormularioProducto from "@/components/inventario/FormularioProducto";
 import FormularioLote from "@/components/inventario/FormularioLote";
 import FormularioRegla from "@/components/inventario/FormularioRegla";
 import FormularioAjuste from "@/components/inventario/FormularioAjuste";
 import FotosProducto from "@/components/inventario/FotosProducto";
-import { ChipEstadoOperativo } from "@/components/inventario/Visual";
+import { ChipEstadoOperativo, tonoDeTexto } from "@/components/inventario/Visual";
+import { IconoTile, type TonoIcono } from "@/components/contactos/Visual";
 import { fotosDeProducto, listarCategorias, listarUbicaciones, listarUnidades, obtenerFichaProducto } from "@/lib/inventario";
 import {
+  ETIQUETA_CERTIFICADO,
   ETIQUETA_SEGUIMIENTO,
   ETIQUETA_TIPO_PRODUCTO,
   diasHasta,
+  estadoCertificado,
   formatearCantidad,
   formatearMonto,
   porVencer,
@@ -37,72 +52,94 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
   const nombreUbi = new Map(ubicaciones.map((u) => [u.id, u.nombre]));
   const esFisico = producto.tipo !== "servicio";
 
+  const certificado = ETIQUETA_CERTIFICADO[estadoCertificado(producto)];
+
   return (
     <div className="space-y-5">
       <Link href="/inventario/productos" className="inline-flex items-center gap-1 text-sm font-semibold text-gris transition hover:text-tinta">
         <IconArrowLeft size={16} /> Volver a productos
       </Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="flex flex-wrap items-center gap-2 text-xl font-extrabold tracking-tight text-tinta">
-            {producto.nombre} <ChipEstadoOperativo estado={producto.estadoOperativo} />
-          </h2>
-          <p className="mt-0.5 text-sm text-gris">
-            {producto.sku ? <span className="font-mono">{producto.sku}</span> : "sin SKU"}
-            {producto.marca ? ` · ${producto.marca}` : ""}
-            {" · "}{ETIQUETA_TIPO_PRODUCTO[producto.tipo]}
-            {nombreCat ? ` · ${nombreCat}` : ""}
-            {producto.seguimiento !== "ninguno" ? ` · ${ETIQUETA_SEGUIMIENTO[producto.seguimiento]}` : ""}
-          </p>
+      {/* Cabecera: la foto, qué es y el botón para editarlo. Debajo, las cuatro cifras. */}
+      <section className={`${TARJETA} p-5`}>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
           <FotosProducto productoId={producto.id} fotos={fotos} />
-        </div>
-        <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} producto={producto} />
-      </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-2xl font-extrabold tracking-tight text-tinta">{producto.nombre}</h2>
+                <p className="mt-1 text-sm text-gris">
+                  {producto.sku ? <>Código <span className="font-mono text-tinta">{producto.sku}</span></> : "Sin código"}
+                  {producto.marca ? ` · Marca ${producto.marca}` : ""}
+                </p>
+              </div>
+              <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} producto={producto} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <ChipEstadoOperativo estado={producto.estadoOperativo} />
+              <span className="rounded-full bg-tinta/[0.06] px-2.5 py-0.5 text-[11px] font-semibold text-gris">{ETIQUETA_TIPO_PRODUCTO[producto.tipo]}</span>
+              {nombreCat && <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${tonoDeTexto(nombreCat)}`}>{nombreCat}</span>}
+              {producto.seguimiento !== "ninguno" && (
+                <span className="rounded-full bg-tinta/[0.06] px-2.5 py-0.5 text-[11px] font-semibold text-gris">{ETIQUETA_SEGUIMIENTO[producto.seguimiento]}</span>
+              )}
+              {certificado && <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${certificado.tono}`}>{certificado.texto}</span>}
+            </div>
+            {producto.descripcion && <p className="mt-3 max-w-2xl text-sm leading-relaxed text-gris">{producto.descripcion}</p>}
 
-      {/* Resumen de números */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Dato etiqueta="A mano" valor={esFisico ? `${formatearCantidad(aMano)} ${abrevUni}` : "—"} />
-        <Dato etiqueta="Costo unitario" valor={formatearMonto(producto.costo)} />
-        <Dato etiqueta="Precio de venta" valor={formatearMonto(producto.precio)} />
-        <Dato etiqueta="Valor en stock" valor={formatearMonto(aMano * producto.costo)} />
-      </div>
+            <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <Dato Icono={IconBuildingWarehouse} etiqueta="Hay en bodega" valor={esFisico ? `${formatearCantidad(aMano)} ${abrevUni}`.trim() : "—"} destacado />
+              <Dato Icono={IconReceipt} etiqueta="Nos cuesta (c/u)" valor={formatearMonto(producto.costo)} />
+              <Dato Icono={IconTag} etiqueta="Lo vendemos a (c/u)" valor={formatearMonto(producto.precio)} />
+              <Dato Icono={IconCoins} etiqueta="Vale todo lo que hay" valor={formatearMonto(aMano * producto.costo)} />
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Stock por ubicación */}
-        <section className={`${TARJETA} overflow-hidden`}>
-          <h3 className="border-b border-borde px-4 py-3 text-sm font-bold text-tinta">Stock por ubicación</h3>
-          {stock.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-gris">Sin existencias registradas.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <tbody className="divide-y divide-borde">
-                {stock.map((s) => (
-                  <tr key={s.ubicacion.id}>
-                    <td className="px-4 py-2.5 text-tinta">{s.ubicacion.nombre}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-tinta">{formatearCantidad(s.cantidad)} {abrevUni}</td>
-                    <td className="px-4 py-2.5 text-right text-xs tabular-nums text-gris">{s.reservado > 0 ? `${formatearCantidad(s.reservado)} reserv.` : ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-
-        {/* Ajuste rápido */}
+        {/* ¿Dónde está? */}
         {esFisico && (
-          <section className={`${TARJETA} p-4`}>
-            <h3 className="mb-3 text-sm font-bold text-tinta">Ajustar inventario</h3>
-            <FormularioAjuste producto={{ id: producto.id, nombre: producto.nombre }} ubicaciones={ubicaciones} lotes={lotes} />
-          </section>
+          <Bloque Icono={IconMapPin} tono="azul" titulo="¿Dónde está?" ayuda="Cuánto hay en cada bodega.">
+            {stock.length === 0 ? (
+              <p className="rounded-xl bg-tinta/[0.03] px-4 py-6 text-center text-sm text-gris">Todavía no hay nada guardado. Usa «Corregir la cantidad» para anotar lo que tienes.</p>
+            ) : (
+              <ul className="divide-y divide-borde rounded-xl border border-borde">
+                {stock.map((s) => (
+                  <li key={s.ubicacion.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                    <span className="flex-1 text-tinta">{s.ubicacion.nombre}</span>
+                    {s.reservado > 0 && <span className="text-xs tabular-nums text-gris">{formatearCantidad(s.reservado)} apartado</span>}
+                    <span className="font-bold tabular-nums text-tinta">{formatearCantidad(s.cantidad)} {abrevUni}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Bloque>
         )}
 
-        {/* Lotes/series */}
+        {/* Corregir la cantidad */}
+        {esFisico && (
+          <Bloque Icono={IconAdjustmentsHorizontal} tono="marca" titulo="Corregir la cantidad" ayuda="¿Contaste y hay otra cantidad? Escríbela aquí y el sistema ajusta la diferencia.">
+            <FormularioAjuste producto={{ id: producto.id, nombre: producto.nombre }} ubicaciones={ubicaciones} lotes={lotes} />
+          </Bloque>
+        )}
+
+        {/* Avísame cuando quede poco */}
+        {esFisico && (
+          <Bloque Icono={IconBell} tono="ambar" titulo="Avísame cuando quede poco" ayuda="Pon un mínimo: si hay menos, aparece en «Reabastecimiento» para comprar más.">
+            <FormularioRegla productoId={producto.id} ubicaciones={ubicaciones} reglas={reglas} />
+          </Bloque>
+        )}
+
+        {/* Lotes o series */}
         {esFisico && producto.seguimiento !== "ninguno" && (
-          <section className={`${TARJETA} p-4`}>
-            <h3 className="mb-3 text-sm font-bold text-tinta">{producto.seguimiento === "serie" ? "Números de serie" : "Lotes"}</h3>
+          <Bloque
+            Icono={IconListNumbers}
+            tono="verde"
+            titulo={producto.seguimiento === "serie" ? "Números de serie" : "Lotes"}
+            ayuda={producto.seguimiento === "serie" ? "Cada unidad con su número, para saber cuál es cuál." : "Cada lote con su vencimiento."}
+          >
             {lotes.length > 0 && (
-              <ul className="mb-3 divide-y divide-borde rounded-lg border border-borde">
+              <ul className="mb-3 divide-y divide-borde rounded-xl border border-borde">
                 {lotes.map((l) => {
                   const d = diasHasta(l.fechaVencimiento);
                   return (
@@ -119,31 +156,21 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
               </ul>
             )}
             <FormularioLote productoId={producto.id} seguimiento={producto.seguimiento} />
-          </section>
-        )}
-
-        {/* Reglas de reabastecimiento */}
-        {esFisico && (
-          <section className={`${TARJETA} p-4`}>
-            <h3 className="mb-1 text-sm font-bold text-tinta">Reabastecimiento</h3>
-            <p className="mb-3 text-xs text-gris">Cuando el disponible cae bajo el mínimo, aparece en el reporte de reabastecimiento.</p>
-            <FormularioRegla productoId={producto.id} ubicaciones={ubicaciones} reglas={reglas} />
-          </section>
+          </Bloque>
         )}
       </div>
 
-      {/* Movimientos */}
-      <section className={`${TARJETA} overflow-hidden`}>
-        <h3 className="border-b border-borde px-4 py-3 text-sm font-bold text-tinta">Movimientos recientes</h3>
+      {/* Historial */}
+      <Bloque Icono={IconHistory} tono="azul" titulo="Historial" ayuda="Cada vez que este producto entró, salió o se movió de bodega.">
         {movimientos.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-gris">Sin movimientos todavía.</p>
+          <p className="rounded-xl bg-tinta/[0.03] px-4 py-6 text-center text-sm text-gris">Todavía no se ha movido.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-xl border border-borde">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-borde text-left text-xs font-semibold uppercase tracking-wide text-gris">
+                <tr className="border-b border-borde text-left text-xs font-semibold text-gris">
                   <th className="px-4 py-2.5">Documento</th>
-                  <th className="px-4 py-2.5">Movimiento</th>
+                  <th className="px-4 py-2.5">Desde → hacia</th>
                   <th className="px-4 py-2.5 text-right">Cantidad</th>
                   <th className="px-4 py-2.5">Estado</th>
                 </tr>
@@ -165,16 +192,35 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
             </table>
           </div>
         )}
-      </section>
+      </Bloque>
     </div>
   );
 }
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+/** Una sección de la ficha: ícono, título en palabras simples y una línea que explica para qué sirve. */
+function Bloque({ Icono, tono, titulo, ayuda, children }: { Icono: Icon; tono: TonoIcono; titulo: string; ayuda: string; children: React.ReactNode }) {
   return (
-    <div className={`${TARJETA} p-3`}>
-      <p className="text-lg font-extrabold tabular-nums text-tinta">{valor}</p>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gris">{etiqueta}</p>
+    <section className={`${TARJETA} p-5`}>
+      <div className="mb-4 flex items-start gap-3">
+        <IconoTile Icono={Icono} tono={tono} />
+        <div>
+          <h3 className="text-base font-bold text-tinta">{titulo}</h3>
+          <p className="text-sm text-gris">{ayuda}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Dato({ Icono, etiqueta, valor, destacado = false }: { Icono: Icon; etiqueta: string; valor: string; destacado?: boolean }) {
+  return (
+    <div className={`rounded-xl px-3 py-2.5 ${destacado ? "bg-naranjo/[0.07]" : "bg-tinta/[0.03]"}`}>
+      <span className="flex items-center gap-1.5 text-xs text-gris">
+        <Icono size={14} stroke={1.8} className={destacado ? "text-naranjo" : "text-gris-suave"} />
+        {etiqueta}
+      </span>
+      <p className="mt-0.5 text-lg font-extrabold tabular-nums text-tinta">{valor}</p>
     </div>
   );
 }
