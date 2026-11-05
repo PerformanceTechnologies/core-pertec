@@ -74,10 +74,10 @@ export function Seccion({ titulo, icono, accion, children, id }: { titulo: strin
   return (
     <section id={id} className="scroll-mt-24">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h2 className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-tinta/60">
-          {icono} {titulo}
+        <h2 className="inline-flex items-center gap-2 text-[15px] font-bold tracking-tight text-tinta">
+          {icono && <span className="grid h-7 w-7 place-items-center rounded-lg bg-tinta/[0.05] text-gris">{icono}</span>} {titulo}
         </h2>
-        <span className="h-px min-w-8 flex-1 bg-borde" />
+        <span className="h-px min-w-8 flex-1 bg-borde/70" />
         {accion}
       </div>
       {children}
@@ -160,7 +160,7 @@ export function Banda({ etiqueta, valor, bajada, cifras, pasos, children }: { et
 export function Kpi({ etiqueta, valor, detalle, href, tono = "text-tinta", ayuda }: { etiqueta: string; valor: string; detalle?: React.ReactNode; href?: string; tono?: string; ayuda?: string }) {
   const cuerpo = (
     <>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gris" title={ayuda}>{etiqueta}</p>
+      <p className="text-xs font-semibold text-gris" title={ayuda}>{etiqueta}</p>
       <p className={`mt-1 truncate font-condensed text-2xl font-bold tabular-nums ${tono}`}>{valor}</p>
       {detalle && <div className="mt-0.5 truncate text-[11px] text-gris">{detalle}</div>}
     </>

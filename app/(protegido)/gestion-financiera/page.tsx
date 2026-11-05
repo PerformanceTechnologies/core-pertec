@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { IconAlertTriangle, IconArrowRight, IconCalendarStats, IconCheck, IconChartBar, IconClock, IconFolders, IconTargetArrow, IconUsers } from "@tabler/icons-react";
+import { IconCalendarStats, IconChartBar, IconClock, IconFolders, IconTargetArrow, IconUsers } from "@tabler/icons-react";
 import { RUTA_FIN, cargarComercial, cargarVista } from "@/lib/fin/datos";
 import { clp, clpCorto, diaChile, diasEntre, fechaCl, mesLargo, sumarDias } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
-import { COLOR_ETAPA, Kpi, Monto, Seccion } from "@/components/fin/piezas";
+import { COLOR_ETAPA, Monto, Seccion } from "@/components/fin/piezas";
+import { AtencionHoy, CajaHoy, Cifras, PrimerosPasos } from "@/components/fin/ResumenArriba";
 
 export const dynamic = "force-dynamic";
 
@@ -75,86 +76,29 @@ export default async function ResumenFinanzasPage() {
 
   return (
     <div className="space-y-7">
-      {listos < primerosPasos.length && (
-        <section className={`${TARJETA} border-naranjo/40 p-5`}>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-tinta">Primeros pasos en {v.empresa.nombre}</p>
-              <p className="text-sm text-gris">Tres cosas y el módulo queda andando. Cada una se marca sola cuando está hecha.</p>
-            </div>
-            <span className="text-xs font-semibold tabular-nums text-gris">{listos} de {primerosPasos.length}</span>
-            <span className="h-1.5 w-28 overflow-hidden rounded-full bg-tinta/[0.06]"><span className="block h-full rounded-full bg-naranjo transition-all" style={{ width: `${(listos / primerosPasos.length) * 100}%` }} /></span>
-          </div>
-          <ol className="grid gap-3 md:grid-cols-3">
-            {primerosPasos.map((x, i) => {
-              const actual = !x.listo && primerosPasos.slice(0, i).every((y) => y.listo);
-              return (
-                <li key={x.titulo} className={`flex gap-3 rounded-xl border p-4 ${actual ? "border-naranjo/50 bg-naranjo/[0.05]" : "border-borde"}`}>
-                  <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${x.listo ? "bg-emerald-500/15 text-ok" : actual ? "bg-naranjo text-white" : "bg-tinta/[0.06] text-gris"}`}>
-                    {x.listo ? <IconCheck size={15} stroke={2.5} /> : i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-bold ${x.listo ? "text-gris line-through decoration-1" : "text-tinta"}`}>{x.titulo}</p>
-                    <p className="mt-0.5 text-xs text-gris">{x.texto}</p>
-                    {!x.listo && (
-                      <Link href={x.href} className={`mt-2.5 inline-flex items-center gap-1 text-xs font-bold ${actual ? "text-naranjo" : "text-gris hover:text-tinta"}`}>
-                        {x.boton} <IconArrowRight size={13} />
-                      </Link>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      )}
+      {listos < primerosPasos.length && <PrimerosPasos empresa={v.empresa.nombre} pasos={primerosPasos} />}
 
-      {/* ── Fila 1: KPIs ── */}
-      <section className="banda-contraste overflow-hidden rounded-2xl px-6 py-6 sm:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo"><span className="h-px w-6 bg-naranjo" /> Caja en bancos hoy</span>
-            <p className="texto-banda mt-3 font-condensed text-5xl font-bold leading-none tabular-nums">{clp(d.cajaBancos)}</p>
-            <p className="texto-banda-65 mt-2 text-sm">
-              Deuda tarjeta {clp(d.deudaTarjeta)} · {v.ultimaImportacion ? `banco actualizado el ${fechaCl(diaChile(v.ultimaImportacion))}` : "aún no se importa ninguna cartola"}
-            </p>
-          </div>
-          <div className={`rounded-xl border px-5 py-3 ${peor && peor.holgura < 0 ? "border-rose-400/50 bg-rose-500/[0.15]" : "borde-banda bg-white/[0.03]"}`}>
-            <p className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${peor && peor.holgura < 0 ? "text-rose-300" : "texto-banda-45"}`}>Holgura mínima próximos {v.flujo.meses.length} meses</p>
-            <p className="texto-banda mt-1 font-condensed text-3xl font-bold tabular-nums">{peor ? clp(Math.min(...holguras)) : "—"}</p>
-            {!peor && <p className="texto-banda-45 text-[11px]">Crea tus cuentas en Configuración para proyectar la caja</p>}
-            {peor && <p className="texto-banda-45 text-[11px]">en {mesLargo(peor.mes)} · mínimo de caja {clpCorto(v.p.minimoCaja)}</p>}
-          </div>
-        </div>
-      </section>
+      <CajaHoy
+        caja={d.cajaBancos}
+        deudaTarjeta={d.deudaTarjeta}
+        actualizado={v.ultimaImportacion ? fechaCl(diaChile(v.ultimaImportacion)) : null}
+        meses={v.flujo.meses.map((m) => ({ etiqueta: mesLargo(m.mes).split(" ")[0], cajaFinal: m.cajaFinal, holgura: m.holgura, falta: m.alerta !== "OK" }))}
+        sinCuentas={sinCuentas}
+        holguraMinima={peor ? Math.min(...holguras) : null}
+        mesMinimo={peor ? mesLargo(peor.mes).split(" ")[0] : null}
+        minimoCaja={v.p.minimoCaja}
+      />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Kpi etiqueta="Por cobrar (con IVA)" valor={clpCorto(d.porCobrar)} detalle={<>vencido <Monto valor={d.porCobrarVencido} corto /> · cedido <Monto valor={d.porCobrarCedido} corto /></>} href={`${RUTA_FIN}/ventas?ver=facturas`} ayuda="Saldo de facturas emitidas no pagadas, con IVA" />
-        <Kpi etiqueta="Terminado sin facturar" valor={clpCorto(d.terminadoSinFacturar)} detalle={<>listo hoy <Monto valor={d.listoParaFacturar} corto /></>} href={`${RUTA_FIN}/ventas?etapa=Lista para facturar`} tono={d.listoParaFacturar > 0 ? "text-naranjo" : "text-tinta"} ayuda="Hitos terminados esperando EDP, OC, HES o listos para facturar (con IVA)" />
-        <Kpi etiqueta="Por pagar" valor={clpCorto(d.porPagar)} detalle={<>vencido <Monto valor={d.porPagarVencido} corto /> · 30 días <Monto valor={d.porPagar30} corto /></>} href={`${RUTA_FIN}/compras?ver=facturas`} ayuda="Facturas de proveedores recibidas y no pagadas" />
-        <Kpi etiqueta="Factoring vigente" valor={clpCorto(d.cedidasVigentes)} detalle={`anticipos ${clpCorto(d.anticiposVigentes)} · ${d.facturasEnMora} en mora`} href={`${RUTA_FIN}/tesoreria?ver=factoring`} ayuda="Nominal de facturas cedidas sin liquidar" />
-        <Kpi etiqueta="Ventas del mes (neto)" valor={clpCorto(ventasMes)} detalle={`mismo mes año anterior ${clpCorto(ventasAnioPasado)}`} href={`${RUTA_FIN}/ventas?ver=facturas`} ayuda="Facturado neto del mes en curso" />
-        <Kpi etiqueta="Margen proyectos activos" valor={pct(margenActivos)} detalle={`vendido ${clpCorto(vendidoActivos)}`} href={`${RUTA_FIN}/proyectos`} ayuda="(Vendido − compras comprometidas) / vendido, sin mano de obra propia" />
-      </div>
+      <Cifras
+        entra={{
+          porCobrar: d.porCobrar, vencido: d.porCobrarVencido, cedido: d.porCobrarCedido, terminado: d.terminadoSinFacturar, listo: d.listoParaFacturar, factoring: d.cedidasVigentes,
+          href: { cobrar: `${RUTA_FIN}/ventas?ver=facturas`, terminado: `${RUTA_FIN}/ventas?etapa=Lista para facturar`, factoring: `${RUTA_FIN}/tesoreria?ver=factoring` },
+        }}
+        sale={{ porPagar: d.porPagar, vencido: d.porPagarVencido, prox30: d.porPagar30, href: `${RUTA_FIN}/compras?ver=facturas` }}
+        mes={{ ventas: ventasMes, anioPasado: ventasAnioPasado, margen: pct(margenActivos), vendido: vendidoActivos, href: { ventas: `${RUTA_FIN}/ventas?ver=facturas`, proyectos: `${RUTA_FIN}/proyectos` } }}
+      />
 
-      {/* ── Atención hoy ── */}
-      <Seccion titulo="Atención hoy" icono={<IconAlertTriangle size={15} />}>
-        {atencion.length === 0 ? (
-          <p className={`${TARJETA} px-4 py-3 text-sm text-ok dark:text-emerald-300`}>Nada pendiente que pida acción hoy. ✓</p>
-        ) : (
-          <ul className={`${TARJETA} divide-y divide-borde`}>
-            {atencion.map((a) => (
-              <li key={a.texto}>
-                <Link href={a.href} className="group flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-tinta/[0.02]">
-                  <span className={`grid h-7 min-w-7 place-items-center rounded-lg px-1.5 font-condensed text-base font-bold tabular-nums ${a.tono === "rose" ? "bg-rose-500/12 text-alerta" : a.tono === "amber" ? "bg-amber-500/15 text-aviso" : a.tono === "naranjo" ? "bg-naranjo/15 text-naranjo" : "bg-slate-500/10 text-gris"}`}>{a.n}</span>
-                  <span className="flex-1 text-tinta">{a.texto}</span>
-                  <IconArrowRight size={15} className="text-gris-suave transition group-hover:translate-x-0.5 group-hover:text-naranjo" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Seccion>
+      <AtencionHoy items={atencion} rutinas={`${RUTA_FIN}/rutinas`} />
 
       {/* ── Proyección y embudo ── */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
