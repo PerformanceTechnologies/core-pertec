@@ -145,7 +145,8 @@ export default function Compositor({
           onChange={(e) => cambiarTexto(e.target.value, e.target.selectionStart)}
           onKeyDown={teclas}
           onClick={(e) => setSugerir(mencionEnCurso(texto, e.currentTarget.selectionStart))}
-          onBlur={() => setTimeout(() => setSugerir(null), 120)}
+          // Se cierra la lista solo si el foco de verdad se fue de la caja (no si volvió, p. ej. tras «Etiquetar»).
+          onBlur={() => setTimeout(() => document.activeElement !== caja.current && setSugerir(null), 150)}
           maxLength={LARGO_MAXIMO_MURO}
           placeholder={placeholder}
           className={`w-full resize-none rounded-xl bg-tinta/[0.03] text-tinta placeholder:text-gris-suave transition focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-naranjo/10 ${
@@ -178,7 +179,12 @@ export default function Compositor({
         )}
         {error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
         <div className={`flex items-center justify-between gap-2 ${compacto ? "mt-2" : "mt-3"}`}>
-          <button type="button" onClick={insertarArroba} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
+          <button
+            type="button"
+            // Sin robarle el foco a la caja: si no, la lista de personas se cierra apenas se abre.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={insertarArroba}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
             <IconAt size={compacto ? 16 : 18} /> Etiquetar
           </button>
           <div className="flex items-center gap-2">
