@@ -32,7 +32,7 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
           <p className="text-sm text-gris">{p.mandanteId ? v.nombreDe.get(p.mandanteId) : p.esGeneral ? "Interno" : "Sin mandante"}{p.jefeProyecto ? ` · JP ${p.jefeProyecto}` : ""}{p.fechaInicio ? ` · ${fechaCl(p.fechaInicio)} → ${fechaCl(p.fechaTermino)}` : ""}</p>
           {p.descripcion && <p className="mt-1 text-sm text-tinta">{p.descripcion}</p>}
         </div>
-        <ConVentana boton="Editar" titulo={`Editar ${p.nombre}`} className={BOTON_SEC}>{(cerrar) => <FormProyecto p={p} clientes={v.contrapartes.map((x) => ({ id: x.id, nombre: x.nombre, rut: x.rut }))} alOk={cerrar} />}</ConVentana>
+        <ConVentana boton="Editar" titulo={`Editar ${p.nombre}`} className={BOTON_SEC}>{<FormProyecto p={p} clientes={v.contrapartes.map((x) => ({ id: x.id, nombre: x.nombre, rut: x.rut }))} />}</ConVentana>
       </header>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <Kpi etiqueta="Vendido" valor={clpCorto(c.vendido)} />

@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { createContext, useContext, useMemo, useRef, useState, useTransition } from "react";
+
+/** Cierra la ventana (ConVentana) que contiene al formulario: así una página de servidor no tiene que pasar funciones. */
+const CerrarVentana = createContext<(() => void) | null>(null);
 import { useRouter } from "next/navigation";
 import { IconLoader2 } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
@@ -33,6 +36,7 @@ export function FormAccion({
   confirmar?: string;
 }) {
   const router = useRouter();
+  const cerrarVentana = useContext(CerrarVentana);
   const [pendiente, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return (
@@ -47,7 +51,8 @@ export function FormAccion({
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
           router.refresh();
-          alOk?.(r);
+          if (alOk) alOk(r);
+          else cerrarVentana?.();
         });
       }}
     >
@@ -124,17 +129,19 @@ export function ConVentana({
   titulo: string;
   descripcion?: string;
   ancho?: string;
-  children: (cerrar: () => void) => React.ReactNode;
+  /** Contenido de la ventana. Un FormAccion adentro la cierra solo al guardar bien. */
+  children: React.ReactNode | ((cerrar: () => void) => React.ReactNode);
   className?: string;
 }) {
   const [abierta, setAbierta] = useState(false);
+  const cerrar = () => setAbierta(false);
   return (
     <>
       <button type="button" className={className} onClick={(e) => (e.stopPropagation(), setAbierta(true))}>
         {boton}
       </button>
       <VentanaModal abierta={abierta} alCerrar={() => setAbierta(false)} titulo={titulo} descripcion={descripcion} ancho={ancho}>
-        {abierta && children(() => setAbierta(false))}
+        {abierta && <CerrarVentana.Provider value={cerrar}>{typeof children === "function" ? children(cerrar) : children}</CerrarVentana.Provider>}
       </VentanaModal>
     </>
   );

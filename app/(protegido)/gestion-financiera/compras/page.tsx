@@ -62,8 +62,8 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
         />
         <span className="flex-1" />
         <ConVentana boton={<><IconFileInvoice size={15} /> Factura sin OC</>} titulo="Registrar factura de proveedor sin OC" descripcion="Queda como «Factura sin OC: regularizar» para que pase por aprobación y visado (o se reclame en el SII dentro del plazo)." className={BOTON_SEC}>
-          {(cerrar) => (
-            <FormAccion accion={registrarFacturaCompraAction} textoBoton="Registrar" alOk={cerrar}>
+          {(
+            <FormAccion accion={registrarFacturaCompraAction} textoBoton="Registrar">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Campo etiqueta="Proveedor *"><ComboContacto name="proveedorId" opciones={proveedores} requerido /></Campo>
                 <Campo etiqueta="Proyecto"><select name="proyectoId" className={CAMPO}><option value="">General</option>{v.proyectos.filter((p) => !p.esGeneral && p.estado === "activo").map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></Campo>
@@ -79,8 +79,8 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
           )}
         </ConVentana>
         <ConVentana boton={<><IconPlus size={15} /> Nueva solicitud</>} titulo="Nueva solicitud de compra" descripcion="Pocos datos: queda esperando la aprobación del JP o gerente." className={BOTON}>
-          {(cerrar) => (
-            <FormAccion accion={crearCompraAction} textoBoton="Crear solicitud" alOk={cerrar}>
+          {(
+            <FormAccion accion={crearCompraAction} textoBoton="Crear solicitud">
               <Campo etiqueta="Qué se compra *"><input name="descripcion" required autoFocus className={CAMPO} placeholder="Repuestos para chancador" /></Campo>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Campo etiqueta="Proyecto"><select name="proyectoId" className={CAMPO}><option value="">General</option>{v.proyectos.filter((p) => !p.esGeneral && p.estado === "activo").map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></Campo>
@@ -156,8 +156,8 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
                     <td className={`${TD} whitespace-nowrap text-right`}>
                       {p.estado === "programado" && (
                         <ConVentana boton="Marcar pagado" titulo={`Pago ${p.numero}`} className={BOTON_SEC}>
-                          {(cerrar) => (
-                            <FormAccion accion={registrarPagoAction.bind(null, p.id)} textoBoton="Marcar pagado" alOk={cerrar}>
+                          {(
+                            <FormAccion accion={registrarPagoAction.bind(null, p.id)} textoBoton="Marcar pagado">
                               <Campo etiqueta="Fecha real del pago"><input name="fecha" type="date" defaultValue={v.hoy} className={CAMPO} /></Campo>
                               <Campo etiqueta="Referencia"><input name="referencia" className={CAMPO} /></Campo>
                             </FormAccion>

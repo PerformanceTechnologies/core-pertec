@@ -41,11 +41,11 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
 
       {/* Acciones (cadena del documento) */}
       <div className="flex flex-wrap items-center gap-2">
-        {c.estado === "borrador" && <BotonAccion accion={() => cambiarEstadoCotizacionAction(id, "enviada")} className={BOTON_SEC}>Marcar enviada</BotonAccion>}
+        {c.estado === "borrador" && <BotonAccion accion={cambiarEstadoCotizacionAction.bind(null, id, "enviada")} className={BOTON_SEC}>Marcar enviada</BotonAccion>}
         {editable && (
           <ConVentana boton={<><IconCheck size={15} /> Aceptar cotización</>} titulo={`Aceptar ${c.numero}`} descripcion="Crea el proyecto (si hace falta) y los hitos a facturar, en un solo paso." ancho="max-w-2xl" className={BOTON}>
-            {(cerrar) => (
-              <FormAccion accion={aceptarCotizacionAction.bind(null, id)} textoBoton="Aceptar y generar hitos" alOk={cerrar}>
+            {(
+              <FormAccion accion={aceptarCotizacionAction.bind(null, id)} textoBoton="Aceptar y generar hitos">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Campo etiqueta="Fecha de aceptación *"><input name="fechaAceptacion" type="date" required defaultValue={v.hoy} className={CAMPO} /></Campo>
                   <Campo etiqueta="N° OC del cliente" ayuda="Vacío = camino «sin OC»: llegará después y es requisito para facturar"><input name="ocCliente" className={CAMPO} /></Campo>
@@ -71,9 +71,9 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
             )}
           </ConVentana>
         )}
-        {editable && <BotonAccion accion={(m) => cambiarEstadoCotizacionAction(id, "rechazada", m)} motivo="¿Por qué la rechazó el cliente?">Rechazada</BotonAccion>}
-        {c.estado !== "aceptada" && c.estado !== "reemplazada" && <BotonAccion accion={() => nuevaVersionCotizacionAction(id)} confirmar="Se crea una nueva versión (V+1) y esta queda reemplazada.">Nueva versión</BotonAccion>}
-        {editable && <BotonAccion accion={(m) => cambiarEstadoCotizacionAction(id, "anulada", m)} motivo="¿Por qué se anula?">Anular</BotonAccion>}
+        {editable && <BotonAccion accion={cambiarEstadoCotizacionAction.bind(null, id, "rechazada")} motivo="¿Por qué la rechazó el cliente?">Rechazada</BotonAccion>}
+        {c.estado !== "aceptada" && c.estado !== "reemplazada" && <BotonAccion accion={nuevaVersionCotizacionAction.bind(null, id)} confirmar="Se crea una nueva versión (V+1) y esta queda reemplazada.">Nueva versión</BotonAccion>}
+        {editable && <BotonAccion accion={cambiarEstadoCotizacionAction.bind(null, id, "anulada")} motivo="¿Por qué se anula?">Anular</BotonAccion>}
         <Deshabilitado motivo="Formato en diseño" clase={BOTON_SEC}><IconPrinter size={14} /> Imprimir</Deshabilitado>
         <span className="flex-1" />
         <SubirAdjunto entidadTipo="cotizacion" entidadId={id} tipo="cotizacion_cliente" texto="Adjuntar respaldo" />

@@ -34,7 +34,7 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
         <Link href={`${RUTA_FIN}/proyectos`} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${sp.estado !== "cerrado" ? "border-tinta bg-tinta text-superficie" : "border-borde text-gris"}`}>Activos</Link>
         <Link href={`${RUTA_FIN}/proyectos?estado=cerrado`} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${sp.estado === "cerrado" ? "border-tinta bg-tinta text-superficie" : "border-borde text-gris"}`}>Cerrados</Link>
         <span className="flex-1" />
-        <ConVentana boton={<><IconPlus size={15} /> Nuevo proyecto</>} titulo="Nuevo proyecto" className={BOTON}>{(cerrar) => <FormProyecto clientes={clientes} alOk={cerrar} />}</ConVentana>
+        <ConVentana boton={<><IconPlus size={15} /> Nuevo proyecto</>} titulo="Nuevo proyecto" className={BOTON}>{<FormProyecto clientes={clientes} />}</ConVentana>
       </div>
       {lista.length === 0 ? (
         <Vacio titulo="Sin proyectos" texto="Se crean al aceptar una cotización o con «Nuevo proyecto»." />

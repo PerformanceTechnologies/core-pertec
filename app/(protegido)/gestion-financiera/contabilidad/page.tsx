@@ -53,11 +53,11 @@ export default async function ContabilidadPage({ searchParams }: { searchParams:
         <form className="flex items-center gap-2"><input type="hidden" name="ver" value={ver} /><select name="mes" defaultValue={desde.slice(0, 7)} className="rounded-lg border border-borde bg-superficie px-2.5 py-2 text-xs">{meses.map((m) => <option key={m} value={m.slice(0, 7)}>{mesLargo(m)}</option>)}</select><button className="rounded-lg border border-borde px-3 py-2 text-xs font-semibold">Ver</button></form>
         <Pestanas base={url("diario")} actual={ver} opciones={[{ clave: "diario", etiqueta: "Libro diario" }, { clave: "mayor", etiqueta: "Mayor" }, { clave: "balance", etiqueta: "Balance y EERR" }, { clave: "libros", etiqueta: "Libros compra/venta" }]} />
         <span className="flex-1" />
-        {periodo.estado !== "cerrado" && activa && <BotonAccion accion={() => contabilizarPeriodoAction(anio, mes)} className={BOTON} confirmar={`Contabilizar ${mesLargo(desde)}: se guardan los asientos propuestos que falten.`}>Contabilizar mes{pendientes > 0 ? ` (${pendientes})` : ""}</BotonAccion>}
+        {periodo.estado !== "cerrado" && activa && <BotonAccion accion={contabilizarPeriodoAction.bind(null, anio, mes)} className={BOTON} confirmar={`Contabilizar ${mesLargo(desde)}: se guardan los asientos propuestos que falten.`}>Contabilizar mes{pendientes > 0 ? ` (${pendientes})` : ""}</BotonAccion>}
         {periodo.estado !== "cerrado" ? (
-          <BotonAccion accion={() => cerrarPeriodoAction(anio, mes, true)} confirmar={`Cerrar ${mesLargo(desde)}: no se podrán registrar documentos con fecha en ese mes.`}><IconLock size={14} /> Cerrar período</BotonAccion>
+          <BotonAccion accion={cerrarPeriodoAction.bind(null, anio, mes, true)} confirmar={`Cerrar ${mesLargo(desde)}: no se podrán registrar documentos con fecha en ese mes.`}><IconLock size={14} /> Cerrar período</BotonAccion>
         ) : (
-          <BotonAccion accion={(m) => cerrarPeriodoAction(anio, mes, false, m)} motivo="¿Por qué se reabre el período?"><IconLockOpen size={14} /> Reabrir</BotonAccion>
+          <BotonAccion accion={cerrarPeriodoAction.bind(null, anio, mes, false)} motivo="¿Por qué se reabre el período?"><IconLockOpen size={14} /> Reabrir</BotonAccion>
         )}
       </div>
 

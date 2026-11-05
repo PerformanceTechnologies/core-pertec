@@ -48,8 +48,8 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
         <Pestanas base={`${RUTA_FIN}/ventas`} actual={ver} opciones={[{ clave: "hitos", etiqueta: "Hitos por facturar / cobrar", n: activos.length }, { clave: "facturas", etiqueta: "Facturas emitidas", n: emitidos.length }, { clave: "cobros", etiqueta: "Cobros", n: v.cobros.length }]} />
         <span className="flex-1" />
         <ConVentana boton={<><IconPlus size={15} /> Nuevo hito</>} titulo="Nuevo hito facturable" descripcion="Para un trabajo spot o un hito extra. Lo normal es que nazcan al aceptar una cotización." className={BOTON_SEC}>
-          {(cerrar) => (
-            <FormAccion accion={guardarHitoAction.bind(null, null)} textoBoton="Crear hito" alOk={cerrar}>
+          {(
+            <FormAccion accion={guardarHitoAction.bind(null, null)} textoBoton="Crear hito">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Campo etiqueta="Cliente"><ComboContacto name="clienteId" opciones={clientes} /></Campo>
                 <Campo etiqueta="Proyecto">
@@ -71,7 +71,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
           )}
         </ConVentana>
         <ConVentana boton={<><IconReceipt2 size={15} /> Registrar cobro</>} titulo="Registrar cobro" ancho="max-w-3xl">
-          {(cerrar) => <FormCobro facturas={abiertas} cuentas={v.cuentas.filter((c) => c.tipo === "banco")} hoy={v.hoy} alOk={cerrar} />}
+          {<FormCobro facturas={abiertas} cuentas={v.cuentas.filter((c) => c.tipo === "banco")} hoy={v.hoy} />}
         </ConVentana>
       </div>
 
@@ -103,8 +103,8 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
         <>
           <div className="flex flex-wrap gap-2">
             <ConVentana boton="Nota de crédito / débito / guía" titulo="Registrar nota o guía" className={BOTON_SEC}>
-              {(cerrar) => (
-                <FormAccion accion={registrarNotaAction} textoBoton="Registrar" alOk={cerrar}>
+              {(
+                <FormAccion accion={registrarNotaAction} textoBoton="Registrar">
                   <input type="hidden" name="direccion" value="emitido" />
                   <div className="grid gap-3 sm:grid-cols-3">
                     <Campo etiqueta="Tipo"><select name="tipoDte" className={CAMPO}><option value="61">61 · Nota de crédito</option><option value="56">56 · Nota de débito</option><option value="52">52 · Guía de despacho</option></select></Campo>

@@ -57,8 +57,8 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
                 <p className="mt-1 font-condensed text-2xl font-bold tabular-nums text-tinta">{clp(c.saldoBanco)}</p>
                 <p className="text-[11px] text-gris">según banco al {fechaCl(c.fechaSaldo)}{c.saldoCalculado !== c.saldoBanco && <> · calculado {clp(c.saldoCalculado)}</>}</p>
                 <ConVentana boton="Actualizar saldo" titulo={`Saldo de ${c.nombre}`} className="mt-2 text-[11px] font-semibold text-naranjo hover:underline">
-                  {(cerrar) => (
-                    <FormAccion accion={actualizarSaldoAction.bind(null, c.id)} textoBoton="Guardar" alOk={cerrar}>
+                  {(
+                    <FormAccion accion={actualizarSaldoAction.bind(null, c.id)} textoBoton="Guardar">
                       <Campo etiqueta={c.tipo === "tarjeta" ? "Saldo (negativo = deuda)" : "Saldo según el banco"}><input name="saldoBanco" defaultValue={c.saldoBanco} className={CAMPO} /></Campo>
                       <Campo etiqueta="Al día"><input name="fechaSaldo" type="date" defaultValue={v.hoy} className={CAMPO} /></Campo>
                     </FormAccion>
@@ -73,8 +73,8 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
             <ImportarCartola cuentas={cuentasActivas.map((c) => ({ id: c.id, nombre: c.nombre }))} />
             <span className="flex-1" />
             <ConVentana boton={<><IconPlus size={15} /> Movimiento a mano</>} titulo="Agregar movimiento" className={BOTON_SEC}>
-              {(cerrar) => (
-                <FormAccion accion={crearMovimientoAction} textoBoton="Agregar" alOk={cerrar}>
+              {(
+                <FormAccion accion={crearMovimientoAction} textoBoton="Agregar">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Campo etiqueta="Cuenta"><select name="cuentaId" className={CAMPO}>{cuentasActivas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></Campo>
                     <Campo etiqueta="Fecha"><input name="fecha" type="date" defaultValue={v.hoy} className={CAMPO} /></Campo>
@@ -130,11 +130,11 @@ function Factoring({ v }: { v: V }) {
         <p className="flex-1 text-sm text-gris">Una fila por factura cedida. La fecha real de pago del cliente es la clave para confirmar con el factor y no pagar mora que no corresponde.</p>
         <Deshabilitado motivo="Disponible al integrar facturación electrónica" clase={BOTON_SEC}>Ceder electrónicamente</Deshabilitado>
         <ConVentana boton={<><IconPlus size={15} /> Nueva operación</>} titulo="Nueva operación de factoring" ancho="max-w-3xl">
-          {(cerrar) =>
+          {
             v.factores.length === 0 ? (
               <p className="text-sm text-gris">Primero crea el factor en Configuración.</p>
             ) : (
-              <FormAccion accion={crearOperacionFactoringAction} textoBoton="Ceder facturas" alOk={cerrar}>
+              <FormAccion accion={crearOperacionFactoringAction} textoBoton="Ceder facturas">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Campo etiqueta="Factor"><select name="factorId" className={CAMPO}>{v.factores.filter((f) => f.activo).map((f) => <option key={f.id} value={f.id}>{f.nombre} · {Math.round(f.pctAnticipoDefault * 100)}%</option>)}</select></Campo>
                   <Campo etiqueta="N° operación (liquidación)"><input name="numero" className={CAMPO} placeholder="Vacío = correlativo" /></Campo>
@@ -240,7 +240,7 @@ function FlujoCaja({ v }: { v: V }) {
       <p className="text-sm text-gris">Parte con la caja real de hoy, suma lo que se espera cobrar y resta lo que se espera pagar. Mes 1 incluye lo atrasado. Toca una cifra calculada para ver de dónde sale; las filas ámbar se escriben.</p>
       <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
         <table className="w-full min-w-[46rem]">
-          <thead><tr className="border-b border-borde"><th className={TH}>Concepto</th>{f.meses.map((m, i) => <th key={m.mes} className={`${TH} text-right capitalize`}>{mesLargo(m.mes)}{i === 0 ? " (desde hoy)" : ""}</th>)}</tr></thead>
+          <thead><tr className="border-b border-borde"><th className={TH}>Concepto</th>{f.meses.map((m, i) => <th key={m.mes} className={`${TH} text-right first-letter:uppercase`}>{mesLargo(m.mes)}{i === 0 ? " (desde hoy)" : ""}</th>)}</tr></thead>
           <tbody className="divide-y divide-borde">
             {fila("Caja al inicio", "cajaInicio", "", undefined, undefined, true)}
             {fila("Cobros de facturas emitidas (no cedidas)", "cobrosFacturadas", "+", "cobrosFacturadas")}

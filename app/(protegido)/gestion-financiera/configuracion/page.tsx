@@ -43,25 +43,25 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
 
       {ver === "cuentas" && (
         <div className="grid gap-6 xl:grid-cols-2">
-          <Seccion titulo="Cuentas de banco, tarjeta y caja" accion={<ConVentana boton={<><IconPlus size={14} /> Cuenta</>} titulo="Nueva cuenta" className={BOTON_SEC}>{(cerrar) => <FormCuenta alOk={cerrar} hoy={v.hoy} />}</ConVentana>}>
+          <Seccion titulo="Cuentas de banco, tarjeta y caja" accion={<ConVentana boton={<><IconPlus size={14} /> Cuenta</>} titulo="Nueva cuenta" className={BOTON_SEC}>{<FormCuenta hoy={v.hoy} />}</ConVentana>}>
             <ul className={`${TARJETA} divide-y divide-borde`}>
               {v.cuentas.map((c) => (
                 <li key={c.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                   <span className="min-w-0 flex-1"><span className="font-semibold text-tinta">{c.nombre}</span> <span className="text-xs text-gris">{c.tipo} {c.banco ? `· ${c.banco}` : ""} {c.numeroEnmascarado ?? ""}{c.activa ? "" : " · inactiva"}</span></span>
                   <span className="text-xs tabular-nums text-gris">{clp(c.saldoBanco)} al {fechaCl(c.fechaSaldo)}</span>
-                  <ConVentana boton="Editar" titulo={c.nombre} className="text-xs font-semibold text-naranjo">{(cerrar) => <FormCuenta c={c} alOk={cerrar} hoy={v.hoy} />}</ConVentana>
+                  <ConVentana boton="Editar" titulo={c.nombre} className="text-xs font-semibold text-naranjo">{<FormCuenta c={c} hoy={v.hoy} />}</ConVentana>
                 </li>
               ))}
               {v.cuentas.length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin cuentas. Crea Banco Chile CC, Itaú CC y la tarjeta de crédito (con el saldo de hoy).</li>}
             </ul>
           </Seccion>
-          <Seccion titulo="Factores" accion={<ConVentana boton={<><IconPlus size={14} /> Factor</>} titulo="Nuevo factor" className={BOTON_SEC}>{(cerrar) => <FormFactor alOk={cerrar} />}</ConVentana>}>
+          <Seccion titulo="Factores" accion={<ConVentana boton={<><IconPlus size={14} /> Factor</>} titulo="Nuevo factor" className={BOTON_SEC}>{<FormFactor />}</ConVentana>}>
             <ul className={`${TARJETA} divide-y divide-borde`}>
               {v.factores.map((f) => (
                 <li key={f.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                   <span className="flex-1 font-semibold text-tinta">{f.nombre}</span>
                   <span className="text-xs text-gris">{f.recursoDefault === "con" ? "con" : "sin"} recurso · anticipo {Math.round(f.pctAnticipoDefault * 100)}% · mora {(f.tasaMoraMensual * 100).toLocaleString("es-CL")}%</span>
-                  <ConVentana boton="Editar" titulo={f.nombre} className="text-xs font-semibold text-naranjo">{(cerrar) => <FormFactor f={f} alOk={cerrar} />}</ConVentana>
+                  <ConVentana boton="Editar" titulo={f.nombre} className="text-xs font-semibold text-naranjo">{<FormFactor f={f} />}</ConVentana>
                 </li>
               ))}
               {v.factores.length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin factores (ej. Itaú Factoring, Banchile Factoring).</li>}
@@ -72,19 +72,19 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
 
       {ver === "categorias" && (
         <div className="grid gap-6 xl:grid-cols-2">
-          <Seccion titulo="Categorías de movimiento" accion={<ConVentana boton={<><IconPlus size={14} /> Categoría</>} titulo="Nueva categoría" className={BOTON_SEC}>{(cerrar) => <FormCategoria alOk={cerrar} />}</ConVentana>}>
+          <Seccion titulo="Categorías de movimiento" accion={<ConVentana boton={<><IconPlus size={14} /> Categoría</>} titulo="Nueva categoría" className={BOTON_SEC}>{<FormCategoria />}</ConVentana>}>
             <ul className={`${TARJETA} divide-y divide-borde`}>
               {v.categorias.map((c) => (
                 <li key={c.id} className={`flex items-center gap-3 px-4 py-2 text-sm ${c.activa ? "" : "opacity-50"}`}>
                   <span className="flex-1 font-semibold text-tinta">{c.nombre}</span>
                   <span className="text-xs text-gris">{c.sentido}{c.requiereProyecto ? " · pide proyecto" : ""}{c.cuentaContable ? ` · cta ${c.cuentaContable}` : ""}</span>
-                  <ConVentana boton="Editar" titulo={c.nombre} className="text-xs font-semibold text-naranjo">{(cerrar) => <FormCategoria c={c} alOk={cerrar} />}</ConVentana>
+                  <ConVentana boton="Editar" titulo={c.nombre} className="text-xs font-semibold text-naranjo">{<FormCategoria c={c} />}</ConVentana>
                 </li>
               ))}
             </ul>
           </Seccion>
-          <Seccion titulo="Reglas de categorización" accion={<ConVentana boton={<><IconPlus size={14} /> Regla</>} titulo="Nueva regla" className={BOTON_SEC}>{(cerrar) => (
-            <FormAccion accion={guardarReglaAction.bind(null, null)} textoBoton="Crear regla" alOk={cerrar}>
+          <Seccion titulo="Reglas de categorización" accion={<ConVentana boton={<><IconPlus size={14} /> Regla</>} titulo="Nueva regla" className={BOTON_SEC}>{(
+            <FormAccion accion={guardarReglaAction.bind(null, null)} textoBoton="Crear regla">
               <Campo etiqueta="Si la glosa contiene *"><input name="patron" required className={CAMPO} placeholder="COM MANTENCION" /></Campo>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Campo etiqueta="Asignar categoría *"><select name="categoriaId" className={CAMPO}>{v.categorias.filter((c) => c.activa).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></Campo>
@@ -100,7 +100,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
               {v.reglas.filter((r) => r.activa).map((r) => (
                 <li key={r.id} className="flex items-center gap-3 px-4 py-2 text-sm">
                   <span className="flex-1"><span className="font-mono text-xs">«{r.patron}»</span> → <span className="font-semibold">{v.categorias.find((c) => c.id === r.categoriaId)?.nombre}</span></span>
-                  <BotonAccion accion={() => eliminarReglaAction(r.id)} confirmar="¿Desactivar esta regla?" className="text-xs font-semibold text-gris hover:text-alerta">Quitar</BotonAccion>
+                  <BotonAccion accion={eliminarReglaAction.bind(null, r.id)} confirmar="¿Desactivar esta regla?" className="text-xs font-semibold text-gris hover:text-alerta">Quitar</BotonAccion>
                 </li>
               ))}
               {v.reglas.filter((r) => r.activa).length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin reglas. Créalas aquí o con «Guardar como regla» desde un movimiento del banco.</li>}
@@ -130,7 +130,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
                         <td className={`${TD} text-xs`}>{pf?.condicionCompraDias ?? <span className="text-gris-suave">{p.plazoPagoProveedorDias}</span>}</td>
                         <td className={`${TD} text-xs`}>{pf ? [pf.requiereOc && "OC", pf.requiereEdp && "EDP", pf.requiereHes && "HES"].filter(Boolean).join(" · ") || "Nada" : <span className="text-gris-suave">sin perfil</span>}</td>
                         <td className={`${TD} max-w-[12rem] truncate text-xs`}>{pf?.contactoCobranza ?? "—"}</td>
-                        <td className={`${TD} text-right`}><ConVentana boton={pf ? "Editar" : "Crear perfil"} titulo={`Perfil financiero · ${c.nombre}`} className="text-xs font-semibold text-naranjo">{(cerrar) => <FormPerfil contactoId={c.id} pf={pf} alOk={cerrar} />}</ConVentana></td>
+                        <td className={`${TD} text-right`}><ConVentana boton={pf ? "Editar" : "Crear perfil"} titulo={`Perfil financiero · ${c.nombre}`} className="text-xs font-semibold text-naranjo">{<FormPerfil contactoId={c.id} pf={pf} />}</ConVentana></td>
                       </tr>
                     );
                   })}
@@ -143,9 +143,9 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
   );
 }
 
-function FormCuenta({ c, alOk, hoy }: { c?: { id: string; nombre: string; tipo: string; banco: string | null; saldoBanco: number; fechaSaldo: string | null; activa: boolean }; alOk: () => void; hoy: string }) {
+function FormCuenta({ c, hoy }: { c?: { id: string; nombre: string; tipo: string; banco: string | null; saldoBanco: number; fechaSaldo: string | null; activa: boolean }; hoy: string }) {
   return (
-    <FormAccion accion={guardarCuentaAction.bind(null, c?.id ?? null)} alOk={alOk}>
+    <FormAccion accion={guardarCuentaAction.bind(null, c?.id ?? null)}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Campo etiqueta="Nombre *"><input name="nombre" required defaultValue={c?.nombre} className={CAMPO} placeholder="Banco Chile CC" /></Campo>
         <Campo etiqueta="Tipo"><select name="tipo" defaultValue={c?.tipo ?? "banco"} className={CAMPO}><option value="banco">Banco</option><option value="tarjeta">Tarjeta de crédito</option><option value="caja">Caja</option></select></Campo>
@@ -160,9 +160,9 @@ function FormCuenta({ c, alOk, hoy }: { c?: { id: string; nombre: string; tipo: 
   );
 }
 
-function FormFactor({ f, alOk }: { f?: { id: string; nombre: string; recursoDefault: string; pctAnticipoDefault: number; tasaMoraMensual: number }; alOk: () => void }) {
+function FormFactor({ f }: { f?: { id: string; nombre: string; recursoDefault: string; pctAnticipoDefault: number; tasaMoraMensual: number } }) {
   return (
-    <FormAccion accion={guardarFactorAction.bind(null, f?.id ?? null)} alOk={alOk}>
+    <FormAccion accion={guardarFactorAction.bind(null, f?.id ?? null)}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Campo etiqueta="Nombre *"><input name="nombre" required defaultValue={f?.nombre} className={CAMPO} placeholder="Itaú Factoring" /></Campo>
         <Campo etiqueta="Recurso"><select name="recurso" defaultValue={f?.recursoDefault ?? "con"} className={CAMPO}><option value="con">Con recurso</option><option value="sin">Sin recurso</option></select></Campo>
@@ -173,9 +173,9 @@ function FormFactor({ f, alOk }: { f?: { id: string; nombre: string; recursoDefa
   );
 }
 
-function FormCategoria({ c, alOk }: { c?: { id: string; nombre: string; sentido: string; requiereProyecto: boolean; cuentaContable: string | null; activa: boolean }; alOk: () => void }) {
+function FormCategoria({ c }: { c?: { id: string; nombre: string; sentido: string; requiereProyecto: boolean; cuentaContable: string | null; activa: boolean } }) {
   return (
-    <FormAccion accion={guardarCategoriaAction.bind(null, c?.id ?? null)} alOk={alOk}>
+    <FormAccion accion={guardarCategoriaAction.bind(null, c?.id ?? null)}>
       <div className="grid gap-3 sm:grid-cols-3">
         <Campo etiqueta="Nombre *"><input name="nombre" required defaultValue={c?.nombre} className={CAMPO} /></Campo>
         <Campo etiqueta="Sentido"><select name="sentido" defaultValue={c?.sentido ?? "ambos"} className={CAMPO}><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ambos">Ambos</option></select></Campo>
@@ -187,9 +187,9 @@ function FormCategoria({ c, alOk }: { c?: { id: string; nombre: string; sentido:
   );
 }
 
-function FormPerfil({ contactoId, pf, alOk }: { contactoId: string; pf?: Perfil; alOk: () => void }) {
+function FormPerfil({ contactoId, pf }: { contactoId: string; pf?: Perfil }) {
   return (
-    <FormAccion accion={guardarPerfilAction.bind(null, contactoId)} alOk={alOk}>
+    <FormAccion accion={guardarPerfilAction.bind(null, contactoId)}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Campo etiqueta="Condición de pago de venta (días)" ayuda="Lo que nos paga el cliente"><input name="condicionVentaDias" defaultValue={pf?.condicionVentaDias ?? ""} className={CAMPO} /></Campo>
         <Campo etiqueta="Condición de pago de compra (días)" ayuda="Lo que le pagamos al proveedor"><input name="condicionCompraDias" defaultValue={pf?.condicionCompraDias ?? ""} className={CAMPO} /></Campo>

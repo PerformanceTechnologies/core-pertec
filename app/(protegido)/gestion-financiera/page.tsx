@@ -27,7 +27,9 @@ export default async function ResumenFinanzasPage() {
   const [v, com] = await Promise.all([cargarVista(), cargarComercial()]);
   const d = v.dashboard;
   const holguras = v.flujo.meses.map((m) => m.holgura);
-  const peor = v.flujo.meses.reduce((a, b) => (b.holgura < a.holgura ? b : a), v.flujo.meses[0]);
+  // Sin cuentas no hay caja inicial: la proyección no es real y no debe alarmar.
+  const sinCuentas = v.cuentas.length === 0;
+  const peor = sinCuentas ? null : v.flujo.meses.reduce((a, b) => (b.holgura < a.holgura ? b : a), v.flujo.meses[0]);
   const mesActual = v.hoy.slice(0, 7);
   const ventasMes = v.documentos.filter((x) => x.direccion === "emitido" && x.estado === "vigente" && x.fechaEmision.startsWith(mesActual) && [33, 34].includes(x.tipoDte)).reduce((s, x) => s + x.neto + x.exento, 0);
   const anioPasado = `${Number(mesActual.slice(0, 4)) - 1}${mesActual.slice(4)}`;
@@ -60,7 +62,7 @@ export default async function ResumenFinanzasPage() {
     { n: sinGestion.length, texto: "facturas vencidas hace más de 7 días", href: `${RUTA_FIN}/ventas?etapa=Vencida`, tono: "rose" },
     { n: v.cesiones.filter((c) => c.estado === "Cliente pagó: confirmar con el factor").length, texto: "cesiones: cliente pagó, confirmar con el factor", href: `${RUTA_FIN}/tesoreria?ver=factoring`, tono: "amber" },
     { n: v.hitos.filter((h) => h.tipoFlujo === "Por facturar" && h.fechaAceptacion && !h.fechaFlujo && !h.anulado).length, texto: "trabajos por facturar sin fecha estimada de pago", href: `${RUTA_FIN}/ventas?sinFecha=1`, tono: "slate" },
-    { n: v.flujo.meses.filter((m) => m.alerta === "FALTA CAJA").length, texto: "meses con FALTA CAJA en la proyección", href: `${RUTA_FIN}/tesoreria?ver=flujo`, tono: "rose" },
+    { n: sinCuentas ? 0 : v.flujo.meses.filter((m) => m.alerta === "FALTA CAJA").length, texto: "meses con FALTA CAJA en la proyección", href: `${RUTA_FIN}/tesoreria?ver=flujo`, tono: "rose" },
   ].filter((x) => x.n > 0);
 
   const vacio = v.hitos.length === 0 && v.compras.length === 0 && v.movimientos.length === 0 && v.cuentas.length === 0;
@@ -91,6 +93,7 @@ export default async function ResumenFinanzasPage() {
           <div className={`rounded-xl border px-5 py-3 ${peor && peor.holgura < 0 ? "border-rose-400/50 bg-rose-500/[0.15]" : "borde-banda bg-white/[0.03]"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${peor && peor.holgura < 0 ? "text-rose-300" : "texto-banda-45"}`}>Holgura mínima próximos {v.flujo.meses.length} meses</p>
             <p className="texto-banda mt-1 font-condensed text-3xl font-bold tabular-nums">{peor ? clp(Math.min(...holguras)) : "—"}</p>
+            {!peor && <p className="texto-banda-45 text-[11px]">Crea tus cuentas en Configuración para proyectar la caja</p>}
             {peor && <p className="texto-banda-45 text-[11px]">en {mesLargo(peor.mes)} · mínimo de caja {clpCorto(v.p.minimoCaja)}</p>}
           </div>
         </div>
@@ -137,8 +140,8 @@ export default async function ResumenFinanzasPage() {
                     <div className={`w-5 rounded-t ${m.cajaFinal < m.minimo ? "bg-rose-600" : "bg-naranjo"}`} style={{ height: `${(Math.max(0, m.cajaFinal) / maxFlujo) * 100}%` }} title={`Caja final ${clp(m.cajaFinal)}`} />
                     <div className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-tinta/30" style={{ bottom: `${(m.minimo / maxFlujo) * 100}%` }} title={`Mínimo ${clp(m.minimo)}`} />
                   </div>
-                  <p className="text-xs font-bold capitalize text-tinta">{mesLargo(m.mes)}</p>
-                  <p className={`text-[11px] font-semibold tabular-nums ${m.holgura < 0 ? "text-alerta" : "text-ok"}`}>{m.alerta === "OK" ? "Holgura" : "FALTA CAJA"} {clpCorto(m.holgura)}</p>
+                  <p className="text-xs font-bold text-tinta first-letter:uppercase">{mesLargo(m.mes)}</p>
+                  {sinCuentas ? <p className="text-[11px] text-gris">Sin cuentas creadas</p> : <p className={`text-[11px] font-semibold tabular-nums ${m.holgura < 0 ? "text-alerta" : "text-ok"}`}>{m.alerta === "OK" ? "Holgura" : "FALTA CAJA"} {clpCorto(m.holgura)}</p>}
                 </div>
               ))}
             </div>

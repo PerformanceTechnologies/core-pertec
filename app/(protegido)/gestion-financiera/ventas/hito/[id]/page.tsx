@@ -102,8 +102,8 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
           </Seccion>
           <div className="flex flex-wrap gap-2">
             <ConVentana boton="Editar hito" titulo={`Editar ${h.codigo}`} className={BOTON_SEC}>
-              {(cerrar) => (
-                <FormAccion accion={guardarHitoAction.bind(null, h.id)} textoBoton="Guardar" alOk={cerrar}>
+              {(
+                <FormAccion accion={guardarHitoAction.bind(null, h.id)} textoBoton="Guardar">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Campo etiqueta="Cliente"><ComboContacto name="clienteId" opciones={clientes} inicial={h.clienteId} /></Campo>
                     <Campo etiqueta="Proyecto"><select name="proyectoId" defaultValue={h.proyectoId ?? ""} className={CAMPO}><option value="">—</option>{v.proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></Campo>

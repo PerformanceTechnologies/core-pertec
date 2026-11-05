@@ -45,7 +45,7 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
         <span className="flex-1" />
         <Link href={`${RUTA_FIN}/comercial/cotizaciones/nueva`} className={BOTON}><IconFilePlus size={15} /> Nueva cotización</Link>
         <ConVentana boton={<><IconPlus size={15} /> Nueva oportunidad</>} titulo="Nueva oportunidad">
-          {(cerrar) => <FormOportunidad clientes={clientes} alOk={cerrar} />}
+          {<FormOportunidad clientes={clientes} />}
         </ConVentana>
       </div>
 

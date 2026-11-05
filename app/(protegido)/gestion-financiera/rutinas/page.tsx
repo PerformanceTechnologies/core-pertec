@@ -34,7 +34,9 @@ export default async function RutinasPage() {
   const sinFecha = v.hitos.filter((h) => h.factura && !h.fechaEstimadaPago && h.saldo && h.saldo > 0);
   const confirmar = v.cesiones.filter((c) => c.estado === "Cliente pagó: confirmar con el factor");
   const visar = v.compras.filter((c) => c.paso === "Falta visado de Finanzas");
-  const faltaCaja = v.flujo.meses.filter((m) => m.alerta === "FALTA CAJA");
+  // Sin cuentas no hay caja inicial: la proyección no es real y no debe alarmar.
+  const sinCuentas = v.cuentas.length === 0;
+  const faltaCaja = sinCuentas ? [] : v.flujo.meses.filter((m) => m.alerta === "FALTA CAJA");
   const porAclararMesPasado = porAclarar.filter((m) => m.fecha <= finMesPasado);
 
   const grupos = [
@@ -51,8 +53,8 @@ export default async function RutinasPage() {
       titulo: "Semanal", periodo: semana(v.hoy), tareas: [
         { id: "cobranza", t: "Cobranza: vencidas y por vencer, registrar fecha prometida", c: `${vencidas.length} vencidas · ${porVencer7.length} vencen en 7 días · ${sinFecha.length} sin fecha estimada`, href: `${RUTA_FIN}/ventas?etapa=Vencida` },
         { id: "factoring", t: "Factoring: confirmar con los factores qué clientes pagaron", c: `${confirmar.length} por confirmar`, href: `${RUTA_FIN}/tesoreria?ver=factoring` },
-        { id: "visar-programar", t: "Visar compras y programar pagos según el flujo", c: `${visar.length} esperando visado · holgura del mes ${clpCorto(v.flujo.meses[0]?.holgura ?? 0)}`, href: `${RUTA_FIN}/compras?ver=visar` },
-        { id: "flujo", t: "Revisar el flujo de 3 meses y la holgura", c: faltaCaja.length ? `${faltaCaja.length} mes(es) con FALTA CAJA` : "Sin meses con falta de caja", href: `${RUTA_FIN}/tesoreria?ver=flujo` },
+        { id: "visar-programar", t: "Visar compras y programar pagos según el flujo", c: `${visar.length} esperando visado · ${sinCuentas ? "sin cuentas creadas" : `holgura del mes ${clpCorto(v.flujo.meses[0]?.holgura ?? 0)}`}`, href: `${RUTA_FIN}/compras?ver=visar` },
+        { id: "flujo", t: "Revisar el flujo de 3 meses y la holgura", c: faltaCaja.length ? `${faltaCaja.length} mes(es) con FALTA CAJA` : sinCuentas ? "Crea tus cuentas para proyectar la caja" : "Sin meses con falta de caja", href: `${RUTA_FIN}/tesoreria?ver=flujo` },
       ],
     },
     {

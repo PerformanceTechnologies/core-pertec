@@ -705,15 +705,18 @@ export function rutValido(rut: string): boolean {
   return Boolean(m && dvRut(Number(m[1])) === m[2]);
 }
 
+/** Pesos chilenos: el signo va antes del $ (-$20.000) y nunca se muestra «$-0». */
 export function clp(n: number): string {
-  return `$${Math.round(n).toLocaleString("es-CL")}`;
+  const r = Math.round(n);
+  return `${r < 0 ? "-" : ""}$${Math.abs(r).toLocaleString("es-CL")}`;
 }
 
 export function clpCorto(n: number): string {
   const a = Math.abs(n);
-  if (a >= 1_000_000_000) return `$${(n / 1_000_000_000).toLocaleString("es-CL", { maximumFractionDigits: 2 })} mil M`;
-  if (a >= 1_000_000) return `$${(n / 1_000_000).toLocaleString("es-CL", { maximumFractionDigits: 1 })} M`;
-  if (a >= 10_000) return `$${Math.round(n / 1000).toLocaleString("es-CL")} mil`;
+  const s = n < 0 ? "-" : "";
+  if (a >= 1_000_000_000) return `${s}$${(a / 1_000_000_000).toLocaleString("es-CL", { maximumFractionDigits: 2 })} mil M`;
+  if (a >= 1_000_000) return `${s}$${(a / 1_000_000).toLocaleString("es-CL", { maximumFractionDigits: 1 })} M`;
+  if (a >= 10_000) return `${s}$${Math.round(a / 1000).toLocaleString("es-CL")} mil`;
   return clp(n);
 }
 
