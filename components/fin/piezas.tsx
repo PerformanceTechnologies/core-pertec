@@ -96,7 +96,7 @@ export function Recorrido({ pasos, titulo = "Cómo avanza" }: { pasos: PasoRecor
   return (
     <div className="borde-banda mt-6 border-t pt-4">
       <p className="texto-banda-45 mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em]">{titulo}</p>
-      <ol className="flex flex-wrap items-center gap-y-1">
+      <ol className="grid grid-cols-2 gap-y-1 sm:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col lg:grid-cols-none">
         {pasos.map((p, i) => {
           const pendiente = p.n !== undefined && p.n > 0;
           const cuerpo = (
@@ -107,18 +107,18 @@ export function Recorrido({ pasos, titulo = "Cómo avanza" }: { pasos: PasoRecor
                   {p.titulo}
                   {pendiente && <span className="rounded-full bg-naranjo px-1.5 text-[10px] font-bold leading-4 text-white tabular-nums">{p.n}</span>}
                 </span>
-                {p.ayuda && <span className="texto-banda-45 block max-w-[13rem] text-[11px] leading-snug">{p.ayuda}</span>}
+                {p.ayuda && <span className="texto-banda-45 block text-[11px] leading-snug">{p.ayuda}</span>}
               </span>
             </>
           );
           return (
-            <li key={p.titulo} className="flex items-center">
+            <li key={p.titulo} className="flex min-w-0 items-center">
               {p.href ? (
-                <Link href={p.href} scroll={false} className="flex items-start gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.07]">{cuerpo}</Link>
+                <Link href={p.href} scroll={false} className="flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.07]">{cuerpo}</Link>
               ) : (
-                <div className="flex items-start gap-2 px-2 py-1.5">{cuerpo}</div>
+                <div className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5">{cuerpo}</div>
               )}
-              {i < pasos.length - 1 && <IconChevronRight size={14} className="texto-banda-45 mx-0.5 shrink-0" aria-hidden />}
+              {i < pasos.length - 1 && <IconChevronRight size={14} className="texto-banda-45 mx-0.5 hidden shrink-0 lg:block" aria-hidden />}
             </li>
           );
         })}
