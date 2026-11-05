@@ -51,6 +51,7 @@ export default function Compositor({
   // Nombre visible en la caja → correo, de las personas etiquetadas.
   const etiquetadas = useRef(new Map<string, string>());
   const caja = useRef<HTMLTextAreaElement>(null);
+  const contenedor = useRef<HTMLDivElement>(null);
 
   const candidatas = useMemo(() => {
     if (!sugerir) return [];
@@ -135,7 +136,7 @@ export default function Compositor({
   }, [texto, compacto]);
 
   return (
-    <div className="relative flex gap-3">
+    <div ref={contenedor} className="relative flex gap-3">
       <Avatar correo={yo.correo} nombre={yo.nombre} tamano={compacto ? "h-8 w-8 text-[10px]" : "h-11 w-11 text-sm"} />
       <div className="min-w-0 flex-1">
         <textarea
@@ -145,38 +146,17 @@ export default function Compositor({
           onChange={(e) => cambiarTexto(e.target.value, e.target.selectionStart)}
           onKeyDown={teclas}
           onClick={(e) => setSugerir(mencionEnCurso(texto, e.currentTarget.selectionStart))}
-          // Se cierra la lista solo si el foco de verdad se fue de la caja (no si volvió, p. ej. tras «Etiquetar»).
-          onBlur={() => setTimeout(() => document.activeElement !== caja.current && setSugerir(null), 150)}
+          // La lista se cierra solo si el foco se va FUERA de la caja de escribir (los botones de
+          // adentro no se lo quitan: ver onMouseDown). Sin temporizadores que la cierren a destiempo.
+          onBlur={(e) => {
+            if (!contenedor.current?.contains(e.relatedTarget as Node | null)) setSugerir(null);
+          }}
           maxLength={LARGO_MAXIMO_MURO}
           placeholder={placeholder}
           className={`w-full resize-none rounded-xl bg-tinta/[0.03] text-tinta placeholder:text-gris-suave transition focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-naranjo/10 ${
             compacto ? "px-3 py-2.5 text-sm" : "px-4 py-3 text-[15px] leading-relaxed"
           }`}
         />
-        {sugerir && candidatas.length > 0 && (
-          <ul className="absolute left-11 right-0 z-20 mt-1 overflow-hidden rounded-xl border border-borde bg-superficie py-1 shadow-[0_18px_40px_-14px_rgba(23,20,17,0.35)] sm:right-auto sm:w-80">
-            <li className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-gris-suave">Etiquetar a</li>
-            {candidatas.map((p, i) => (
-              <li key={p.correo}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    etiquetar(p);
-                  }}
-                  onMouseEnter={() => setElegida(i)}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left ${i === elegida ? "bg-naranjo/10" : ""}`}
-                >
-                  <Avatar correo={p.correo} nombre={p.nombre} tamano="h-7 w-7 text-[10px]" />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-tinta">{p.nombre}</span>
-                    <span className="block truncate text-[11px] text-gris">{p.correo}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
         {error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
         <div className={`flex items-center justify-between gap-2 ${compacto ? "mt-2" : "mt-3"}`}>
           <button
@@ -206,6 +186,30 @@ export default function Compositor({
             </button>
           </div>
         </div>
+        {sugerir && candidatas.length > 0 && (
+          <ul className="animar-aviso absolute left-11 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-borde bg-superficie py-1 shadow-[0_18px_40px_-14px_rgba(23,20,17,0.35)] sm:right-auto sm:w-80">
+            <li className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-gris-suave">Etiquetar a</li>
+            {candidatas.map((p, i) => (
+              <li key={p.correo}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    etiquetar(p);
+                  }}
+                  onMouseEnter={() => setElegida(i)}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left ${i === elegida ? "bg-naranjo/10" : ""}`}
+                >
+                  <Avatar correo={p.correo} nombre={p.nombre} tamano="h-7 w-7 text-[10px]" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-tinta">{p.nombre}</span>
+                    <span className="block truncate text-[11px] text-gris">{p.correo}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
