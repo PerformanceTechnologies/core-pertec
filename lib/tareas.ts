@@ -1,6 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "./supabase-admin";
+import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
+import { nombreUnico } from "./archivos/sharepoint-core";
 import {
   puedeVerTarea,
   type AccionHistorial,
@@ -154,28 +156,28 @@ export async function obtenerNota(id: string): Promise<(Nota & { tareaId: string
 }
 
 /**
- * Sube un adjunto al bucket privado y devuelve su ruta: `<tarea>/<uuid>.<ext>`. El nombre
- * real se guarda aparte en la nota; en el bucket va un uuid (los nombres traen tildes,
- * espacios y se repiten).
+ * Sube un adjunto a SharePoint («ARCHIVOS CORE/Tareas/<tarea>/») y devuelve su referencia.
+ * Si SharePoint falla, queda en el bucket privado de antes: `<tarea>/<uuid>.<ext>`.
  */
-export async function subirAdjunto(tareaId: string, contenido: Buffer, extension: string, tipo: string): Promise<string> {
-  const ruta = `${tareaId}/${randomUUID()}.${extension}`;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, { contentType: tipo, upsert: false });
-  revienta("subir archivo", error);
-  return ruta;
+export async function subirAdjunto(tareaId: string, contenido: Buffer, extension: string, tipo: string, nombre?: string): Promise<string> {
+  return guardarArchivo({
+    carpeta: `Tareas/${tareaId}`,
+    nombre: nombreUnico(nombre, extension),
+    contenido,
+    tipo,
+    respaldo: { bucket: BUCKET, ruta: `${tareaId}/${randomUUID()}.${extension}` },
+  });
 }
 
 export async function borrarAdjuntos(rutas: string[]): Promise<void> {
-  if (rutas.length === 0) return;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).remove(rutas);
-  if (error) console.warn(`[tareas] No se pudieron borrar ${rutas.length} archivo(s):`, error.message);
+  await borrarArchivos(BUCKET, rutas);
 }
 
 /** Enlace de descarga de un minuto, con el nombre original del archivo. */
 export async function enlaceAdjunto(ruta: string, nombre: string): Promise<string> {
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(ruta, 60, { download: nombre });
-  revienta("firmar enlace", error);
-  return data!.signedUrl;
+  const url = await enlaceTemporal(BUCKET, ruta, { segundos: 60, descarga: nombre });
+  if (!url) throw new Error("[tareas] No se pudo abrir el archivo.");
+  return url;
 }
 
 export async function crearNota(

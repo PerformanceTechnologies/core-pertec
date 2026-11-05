@@ -1,4 +1,6 @@
 import "server-only";
+import { enlacePermanente, esReferenciaSharePoint, guardarArchivo } from "./archivos/almacen";
+import { nombreUnico } from "./archivos/sharepoint-core";
 import { pertecWebSupabase } from "./pertec-web-supabase";
 import { obtenerAplicacionPorSlug } from "./aplicaciones";
 import type { RolPanel } from "./permisos-panel";
@@ -217,15 +219,21 @@ export const TIPOS_ARCHIVO_GASTO: Record<string, string> = {
 // `extension` ya viene validada por la ruta (validarSubidaPublica); el contentType
 // es archivo.type, que esa misma validación acotó a la lista blanca.
 export async function subirArchivoGasto(archivo: File, extension: string): Promise<ArchivoGasto> {
-  const nombreArchivo = `${crypto.randomUUID()}.${extension}`;
-  const { error } = await pertecWebSupabase.storage.from("gastos").upload(nombreArchivo, archivo, {
-    contentType: archivo.type,
+  // En SharePoint, con un enlace del Core que pide sesión (el bucket «gastos» de antes es
+  // público: cualquiera con el enlace veía la boleta). Si SharePoint falla, queda allá.
+  const ruta = await guardarArchivo({
+    carpeta: "Proyectos/Gastos",
+    nombre: nombreUnico(archivo.name, extension),
+    contenido: Buffer.from(await archivo.arrayBuffer()),
+    tipo: archivo.type,
+    respaldo: { bucket: "gastos", ruta: `${crypto.randomUUID()}.${extension}`, cliente: pertecWebSupabase },
   });
-  if (error) throw new Error(error.message);
-  const { data } = pertecWebSupabase.storage.from("gastos").getPublicUrl(nombreArchivo);
+  const url = esReferenciaSharePoint(ruta)
+    ? enlacePermanente(ruta, "proyectos", archivo.name)
+    : pertecWebSupabase.storage.from("gastos").getPublicUrl(ruta).data.publicUrl;
   return {
-    url: data.publicUrl,
-    path: nombreArchivo,
+    url,
+    path: ruta,
     nombre: archivo.name,
     tipo: archivo.type,
   };

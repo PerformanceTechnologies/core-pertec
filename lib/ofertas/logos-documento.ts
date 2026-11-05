@@ -1,5 +1,5 @@
 import "server-only";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { borrarArchivos, enlaceTemporal, leerArchivo } from "@/lib/archivos/almacen";
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import { logoSeguro, type LogosDocumento } from "./logo";
 
@@ -22,32 +22,27 @@ const BUCKET = "ofertas-logos";
  */
 export async function borrarLogo(ruta: string | null | undefined): Promise<void> {
   if (!ruta) return;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([ruta]);
   // No se propaga: si el archivo ya no está, la fila igual quedó limpia y eso es
-  // lo que importa. Queda anotado para poder revisarlo.
-  if (error) console.warn(`[ofertas] no se pudo borrar el logo ${ruta}: ${error.message}`);
+  // lo que importa. Queda anotado en el log para poder revisarlo.
+  await borrarArchivos(BUCKET, [ruta]);
 }
 
 /** Una URL firmada y corta, para mirarlo en pantalla. */
 export async function urlFirmadaLogo(ruta: string | null, segundos = 600): Promise<string | null> {
   if (!ruta) return null;
-  const { data } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(ruta, segundos);
-  return data?.signedUrl ?? null;
+  return enlaceTemporal(BUCKET, ruta, { segundos });
 }
 
 /** El PNG como data URI, que es la única forma de meterlo en el PDF. */
 async function comoDataUri(ruta: string | null): Promise<string | null> {
   if (!ruta) return null;
 
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(ruta);
-  if (error || !data) {
-    // Un logo que no se pudo bajar deja el encabezado en texto. Falta un logo, no
-    // falla la oferta: emitir es lo que la persona vino a hacer.
-    console.warn(`[ofertas] no se pudo bajar el logo ${ruta}: ${error?.message ?? "sin datos"}`);
-    return null;
-  }
+  // Un logo que no se pudo bajar deja el encabezado en texto. Falta un logo, no
+  // falla la oferta: emitir es lo que la persona vino a hacer.
+  const contenido = await leerArchivo(BUCKET, ruta);
+  if (!contenido) return null;
 
-  const base64 = Buffer.from(await data.arrayBuffer()).toString("base64");
+  const base64 = contenido.toString("base64");
   const uri = logoSeguro(`data:image/png;base64,${base64}`);
   if (!uri) console.warn(`[ofertas] el logo ${ruta} quedó fuera del control de tamaño y no se imprimió.`);
   return uri;

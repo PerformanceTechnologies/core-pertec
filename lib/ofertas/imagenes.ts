@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { borrarArchivos, enlaceTemporal, guardarArchivo, leerArchivo } from "@/lib/archivos/almacen";
+import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import type { ImagenDibujable } from "./logo";
 
 /**
@@ -59,16 +60,14 @@ export function proximoIndice(inventario: ImagenGuardada[]): number {
  * Una subida por error, en cambio, no es rastro de nada.
  */
 export async function borrarImagen(imagen: ImagenGuardada): Promise<void> {
-  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([imagen.ruta]);
-  if (error) console.warn(`[ofertas] quedó una imagen sin borrar: ${error.message}`);
+  await borrarArchivos(BUCKET, [imagen.ruta]);
 }
 
 /** Borra las imágenes de una oferta que se elimina. */
 export async function borrarImagenes(imagenes: ImagenGuardada[]): Promise<void> {
   const rutas = imagenes.map((i) => i.ruta).filter(Boolean);
   if (rutas.length === 0) return;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).remove(rutas);
-  if (error) console.warn(`[ofertas] quedaron imágenes sin borrar: ${error.message}`);
+  await borrarArchivos(BUCKET, rutas);
 }
 
 /**
@@ -98,14 +97,11 @@ export async function imagenesParaDocumento(
 
   await Promise.all(
     pedidas.map(async (imagen) => {
-      const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(imagen.ruta);
-      if (error || !data) {
-        // Una foto que no se pudo bajar no sale, y el documento sale igual.
-        console.warn(`[ofertas] no se pudo bajar la imagen ${imagen.ruta}: ${error?.message}`);
-        return;
-      }
-      const base64 = Buffer.from(await data.arrayBuffer()).toString("base64");
-      const tipo = imagen.ruta.endsWith(".png") ? "png" : "jpeg";
+      // Una foto que no se pudo bajar no sale, y el documento sale igual.
+      const contenido = await leerArchivo(BUCKET, imagen.ruta);
+      if (!contenido) return;
+      const base64 = contenido.toString("base64");
+      const tipo = esPng(contenido) ? "png" : "jpeg";
       resueltas[imagen.indice] = {
         uri: `data:image/${tipo};base64,${base64}`,
         // La forma de la foto, para que su caja la respete. Ver ImagenDibujable.
@@ -127,12 +123,7 @@ export async function imagenesParaDocumento(
  * copia el contenido, no la ruta.
  */
 export async function leerImagenDeOferta(imagen: ImagenGuardada): Promise<Buffer | null> {
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(imagen.ruta);
-  if (error || !data) {
-    console.warn(`[ofertas] no se pudo bajar la imagen ${imagen.ruta}: ${error?.message}`);
-    return null;
-  }
-  return Buffer.from(await data.arrayBuffer());
+  return leerArchivo(BUCKET, imagen.ruta);
 }
 
 /**
@@ -154,14 +145,23 @@ export async function duplicarImagenes(inventario: ImagenGuardada[]): Promise<Im
   const copiadas: ImagenGuardada[] = [];
 
   for (const imagen of inventario) {
-    const extension = imagen.ruta.split(".").pop() ?? "jpg";
-    const destino = `${randomUUID()}.${extension}`;
-    const { error } = await supabaseAdmin.storage.from(BUCKET).copy(imagen.ruta, destino);
-    if (error) {
-      console.warn(`[ofertas] no se pudo copiar la imagen ${imagen.ruta}: ${error.message}`);
-      continue;
+    // La copia se baja y se vuelve a subir: así queda en SharePoint aunque el original
+    // siga en el bucket de antes.
+    const contenido = await leerArchivo(BUCKET, imagen.ruta);
+    if (!contenido) continue;
+    const extension = esPng(contenido) ? "png" : "jpg";
+    try {
+      const ruta = await guardarArchivo({
+        carpeta: "Ofertas/Imagenes",
+        nombre: nombreUnico(imagen.nombre, extension),
+        contenido,
+        tipo: extension === "png" ? "image/png" : "image/jpeg",
+        respaldo: { bucket: BUCKET, ruta: `${randomUUID()}.${extension}` },
+      });
+      copiadas.push({ ...imagen, ruta });
+    } catch (error) {
+      console.warn(`[ofertas] no se pudo copiar la imagen ${imagen.ruta}: ${error instanceof Error ? error.message : error}`);
     }
-    copiadas.push({ ...imagen, ruta: destino });
   }
 
   return copiadas;
@@ -169,6 +169,10 @@ export async function duplicarImagenes(inventario: ImagenGuardada[]): Promise<Im
 
 /** Una URL firmada y corta, para mirarlas en la pantalla de la oferta. */
 export async function urlFirmadaImagen(ruta: string, segundos = 600): Promise<string | null> {
-  const { data } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(ruta, segundos);
-  return data?.signedUrl ?? null;
+  return enlaceTemporal(BUCKET, ruta, { segundos });
+}
+
+/** Un PNG empieza con 0x89 «PNG»: las referencias de SharePoint no traen extensión que mirar. */
+function esPng(contenido: Buffer): boolean {
+  return contenido.length > 4 && contenido[0] === 0x89 && contenido[1] === 0x50 && contenido[2] === 0x4e && contenido[3] === 0x47;
 }

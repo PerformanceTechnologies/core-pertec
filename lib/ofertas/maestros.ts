@@ -1,6 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { borrarArchivos, enlaceTemporal, guardarArchivo } from "@/lib/archivos/almacen";
+import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import { sanearEstilo, ESTILO_PERTEC, type EstiloMaestro } from "./estilo";
 import type { Empresa } from "@/lib/cotizador/empresas";
 
@@ -99,23 +101,23 @@ export async function estiloParaOferta(maestroId: string | null): Promise<Estilo
   return data ? filaAMaestro(data as unknown as Fila).estilo : ESTILO_PERTEC;
 }
 
-/** Guarda el archivo del maestro y devuelve su ruta en el bucket. */
+/** Guarda el archivo del maestro y devuelve su referencia. */
 export async function subirArchivoMaestro(contenido: Buffer, nombreArchivo: string): Promise<string> {
   const extension = nombreArchivo.toLowerCase().split(".").pop() || "bin";
-  // Nombre de uuid y no el original: los nombres reales traen espacios, tildes y
-  // paréntesis, y dos maestros distintos pueden llamarse igual.
-  const ruta = `${randomUUID()}.${extension}`;
-
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, { upsert: false });
-
-  if (error) throw new Error(`No se pudo guardar el archivo del maestro: ${error.message}`);
-  return ruta;
+  // En SharePoint va con su nombre original y un prefijo al azar (dos maestros pueden
+  // llamarse igual); en el bucket de respaldo, con un uuid.
+  return guardarArchivo({
+    carpeta: "Ofertas/Maestros",
+    nombre: nombreUnico(nombreArchivo, extension),
+    contenido,
+    tipo: "application/octet-stream",
+    respaldo: { bucket: BUCKET, ruta: `${randomUUID()}.${extension}` },
+  });
 }
 
 /** Una URL firmada y corta para mirar el archivo original. */
 export async function urlArchivoMaestro(ruta: string, segundos = 300): Promise<string | null> {
-  const { data } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(ruta, segundos);
-  return data?.signedUrl ?? null;
+  return enlaceTemporal(BUCKET, ruta, { segundos });
 }
 
 export async function crearMaestro(datos: {
@@ -183,7 +185,7 @@ export async function eliminarMaestro(id: string): Promise<void> {
   // El archivo primero: si se borra la fila y falla el archivo, queda un archivo
   // huérfano sin nada que lo nombre.
   if (maestro?.archivoRuta) {
-    await supabaseAdmin.storage.from(BUCKET).remove([maestro.archivoRuta]);
+    await borrarArchivos(BUCKET, [maestro.archivoRuta]);
   }
   await supabaseAdmin.from("ofertas_maestros").delete().eq("id", id);
 }

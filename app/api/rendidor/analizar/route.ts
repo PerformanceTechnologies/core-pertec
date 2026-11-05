@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     // El respaldo se guarda ANTES de analizar. Si el análisis falla, el archivo
     // ya está a salvo y el gasto se puede completar a mano sin volver a subirlo;
     // al revés se perdería justo en el caso en que hay que reintentar.
-    const archivoPath = await subirRespaldo(rendicionId, contenido, archivo.type);
+    const archivoPath = await subirRespaldo(rendicionId, contenido, archivo.type, archivo.name);
 
     const leido = await analizarComprobante(contenido, archivo.type, archivo.name);
     return NextResponse.json({ leido, archivoPath });

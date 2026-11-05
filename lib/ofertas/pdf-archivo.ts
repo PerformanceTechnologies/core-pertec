@@ -1,5 +1,5 @@
 import "server-only";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { borrarArchivos, guardarArchivo, leerArchivo } from "@/lib/archivos/almacen";
 
 /**
  * El PDF tal como se emitió, guardado.
@@ -35,31 +35,28 @@ function rutaDe(ofertaId: string): string {
  * emisión, así que no pasa en silencio.
  */
 export async function guardarPdfEmitido(ofertaId: string, pdf: Buffer): Promise<string | null> {
-  const ruta = rutaDe(ofertaId);
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, pdf, {
-    contentType: "application/pdf",
-    upsert: true,
-  });
-  if (error) {
-    console.warn(`[ofertas] no se pudo guardar el PDF emitido de ${ofertaId}: ${error.message}`);
+  try {
+    // Una sola copia por oferta: volver a emitir reemplaza la anterior (SharePoint guarda
+    // la versión vieja en su historial).
+    return await guardarArchivo({
+      carpeta: "Ofertas/Emitidas",
+      nombre: rutaDe(ofertaId),
+      contenido: pdf,
+      tipo: "application/pdf",
+      reemplazar: true,
+      respaldo: { bucket: BUCKET, ruta: rutaDe(ofertaId) },
+    });
+  } catch (error) {
+    console.warn(`[ofertas] no se pudo guardar el PDF emitido de ${ofertaId}: ${error instanceof Error ? error.message : error}`);
     return null;
   }
-  return ruta;
 }
 
-/** El PDF emitido, o null si no está guardado (una oferta emitida antes de esto). */
 export async function leerPdfEmitido(ruta: string): Promise<Buffer | null> {
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(ruta);
-  if (error || !data) {
-    console.warn(`[ofertas] no se pudo bajar el PDF emitido ${ruta}: ${error?.message}`);
-    return null;
-  }
-  return Buffer.from(await data.arrayBuffer());
+  return leerArchivo(BUCKET, ruta);
 }
 
-/** Borra el PDF de una oferta que se elimina. */
 export async function borrarPdfEmitido(ruta: string | null): Promise<void> {
   if (!ruta) return;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([ruta]);
-  if (error) console.warn(`[ofertas] quedó un PDF emitido sin borrar: ${error.message}`);
+  await borrarArchivos(BUCKET, [ruta]);
 }

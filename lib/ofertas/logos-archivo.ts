@@ -1,7 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { guardarArchivo } from "@/lib/archivos/almacen";
+import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import type { EmpresaIdentidad } from "@/lib/cotizador/empresas";
 import { CAJA_LOGO, logoSeguro, type LogosDocumento } from "./logo";
 
@@ -67,12 +68,11 @@ export async function normalizarLogo(contenido: Buffer): Promise<Buffer> {
 export async function subirLogo(png: Buffer): Promise<string> {
   // Nombre de uuid: dos empresas pueden subir "logo.png" y el nombre original no
   // aporta nada acá — se guarda aparte, en la fila, solo para mostrarlo.
-  const ruta = `${randomUUID()}.png`;
-
-  const { error } = await supabaseAdmin.storage
-    .from(BUCKET)
-    .upload(ruta, png, { contentType: "image/png", upsert: false });
-
-  if (error) throw new Error(`No se pudo guardar el logo: ${error.message}`);
-  return ruta;
+  return guardarArchivo({
+    carpeta: "Ofertas/Logos",
+    nombre: nombreUnico("logo", "png"),
+    contenido: png,
+    tipo: "image/png",
+    respaldo: { bucket: BUCKET, ruta: `${randomUUID()}.png` },
+  });
 }

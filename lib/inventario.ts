@@ -1,5 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
+import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
+import { nombreUnico } from "./archivos/sharepoint-core";
 import {
   disponible,
   pronosticado,
@@ -729,17 +731,21 @@ const BUCKET_INV = "inventario";
 /** Sube (o reemplaza) el certificado de un producto; el anterior se borra después de guardar. */
 export async function guardarCertificado(productoId: string, contenido: Buffer, extension: string, tipo: string, nombre: string): Promise<void> {
   const { data: antes } = await supabaseAdmin.from(T.productos).select("certificado_ruta").eq("id", productoId).maybeSingle();
-  const ruta = `certificados/${productoId}/${crypto.randomUUID()}.${extension}`;
-  const { error: errSubida } = await supabaseAdmin.storage.from(BUCKET_INV).upload(ruta, contenido, { contentType: tipo, upsert: false });
-  revienta("subir certificado", errSubida);
+  const ruta = await guardarArchivo({
+    carpeta: `Inventario/Certificados/${productoId}`,
+    nombre: nombreUnico(nombre, extension),
+    contenido,
+    tipo,
+    respaldo: { bucket: BUCKET_INV, ruta: `certificados/${productoId}/${crypto.randomUUID()}.${extension}` },
+  });
   const { error } = await supabaseAdmin.from(T.productos)
     .update({ certificado_ruta: ruta, certificado_nombre: nombre.slice(0, 200), actualizado_en: new Date().toISOString() })
     .eq("id", productoId);
   if (error) {
-    await supabaseAdmin.storage.from(BUCKET_INV).remove([ruta]);
+    await borrarArchivos(BUCKET_INV, [ruta]);
     revienta("guardar certificado", error);
   }
-  if (antes?.certificado_ruta) await supabaseAdmin.storage.from(BUCKET_INV).remove([antes.certificado_ruta as string]);
+  if (antes?.certificado_ruta) await borrarArchivos(BUCKET_INV, [antes.certificado_ruta as string]);
 }
 
 export async function quitarCertificado(productoId: string): Promise<void> {
@@ -747,15 +753,12 @@ export async function quitarCertificado(productoId: string): Promise<void> {
   const { error } = await supabaseAdmin.from(T.productos)
     .update({ certificado_ruta: null, certificado_nombre: null, actualizado_en: new Date().toISOString() }).eq("id", productoId);
   revienta("quitar certificado", error);
-  if (antes?.certificado_ruta) await supabaseAdmin.storage.from(BUCKET_INV).remove([antes.certificado_ruta as string]);
+  if (antes?.certificado_ruta) await borrarArchivos(BUCKET_INV, [antes.certificado_ruta as string]);
 }
 
 /** Enlace de un minuto para ver el certificado, con su nombre original. */
 export async function enlaceCertificado(productoId: string): Promise<string | null> {
   const { data } = await supabaseAdmin.from(T.productos).select("certificado_ruta, certificado_nombre").eq("id", productoId).maybeSingle();
   if (!data?.certificado_ruta) return null;
-  const { data: firmado, error } = await supabaseAdmin.storage
-    .from(BUCKET_INV).createSignedUrl(data.certificado_ruta as string, 60, { download: (data.certificado_nombre as string) || true });
-  revienta("firmar certificado", error);
-  return firmado!.signedUrl;
+  return enlaceTemporal(BUCKET_INV, data.certificado_ruta as string, { segundos: 60, descarga: (data.certificado_nombre as string) || true });
 }

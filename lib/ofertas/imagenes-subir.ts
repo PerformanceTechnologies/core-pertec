@@ -1,7 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { guardarArchivo } from "@/lib/archivos/almacen";
+import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import type { ImagenExtraida } from "@/lib/cotizador/obra/extraer-texto";
 import { BUCKET, proximoIndice, type ImagenGuardada } from "./imagenes";
 
@@ -61,12 +62,18 @@ async function normalizarYSubir(
     : await escalada.jpeg({ quality: 78, mozjpeg: true }).toBuffer();
 
   const extension = conAlfa ? "png" : "jpg";
-  const ruta = `${randomUUID()}.${extension}`;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, {
-    contentType: conAlfa ? "image/png" : "image/jpeg",
-    upsert: false,
-  });
-  if (error) throw new Error(`no se pudo guardar en el bucket: ${error.message}`);
+  let ruta: string;
+  try {
+    ruta = await guardarArchivo({
+      carpeta: "Ofertas/Imagenes",
+      nombre: nombreUnico(imagen.nombre, extension),
+      contenido,
+      tipo: conAlfa ? "image/png" : "image/jpeg",
+      respaldo: { bucket: BUCKET, ruta: `${randomUUID()}.${extension}` },
+    });
+  } catch (error) {
+    throw new Error(`no se pudo guardar la imagen: ${error instanceof Error ? error.message : error}`);
+  }
 
   const final = await sharp(contenido).metadata();
   return {

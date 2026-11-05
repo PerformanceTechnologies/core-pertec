@@ -1,4 +1,6 @@
 import "server-only";
+import { enlacePermanente, esReferenciaSharePoint, guardarArchivo } from "./archivos/almacen";
+import { nombreUnico } from "./archivos/sharepoint-core";
 import { pertecWebSupabase } from "./pertec-web-supabase";
 
 export interface ChecklistItem {
@@ -313,11 +315,17 @@ export const TIPOS_FOTO_EVIDENCIA: Record<string, string> = {
 };
 
 export async function subirFotoEvidencia(archivo: File, extension: string): Promise<FotoEvidencia> {
-  const nombreArchivo = `run-items/${crypto.randomUUID()}.${extension}`;
-  const { error } = await pertecWebSupabase.storage.from("equipos").upload(nombreArchivo, archivo, {
-    contentType: archivo.type,
+  // En SharePoint, con un enlace del Core que pide sesión. Si SharePoint falla, queda en el
+  // bucket público de antes (y su URL pública) para no perder la foto.
+  const ruta = await guardarArchivo({
+    carpeta: "Mantencion/Fotos",
+    nombre: nombreUnico(archivo.name, extension),
+    contenido: Buffer.from(await archivo.arrayBuffer()),
+    tipo: archivo.type,
+    respaldo: { bucket: "equipos", ruta: `run-items/${crypto.randomUUID()}.${extension}`, cliente: pertecWebSupabase },
   });
-  if (error) throw new Error(error.message);
-  const { data } = pertecWebSupabase.storage.from("equipos").getPublicUrl(nombreArchivo);
-  return { url: data.publicUrl, path: nombreArchivo, nombre: archivo.name };
+  const url = esReferenciaSharePoint(ruta)
+    ? enlacePermanente(ruta, "proyectos", archivo.name)
+    : pertecWebSupabase.storage.from("equipos").getPublicUrl(ruta).data.publicUrl;
+  return { url, path: ruta, nombre: archivo.name };
 }

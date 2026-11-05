@@ -1,5 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
+import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
+import { nombreUnico } from "./archivos/sharepoint-core";
 import type {
   Asignacion,
   Contrato,
@@ -335,24 +337,28 @@ export async function eliminarDocumento(id: string): Promise<void> {
   if (!doc) return;
   const { error } = await supabaseAdmin.from(T.documentos).delete().eq("id", id);
   revienta("eliminar el documento", error);
-  if (doc.archivoRuta) await supabaseAdmin.storage.from(BUCKET).remove([doc.archivoRuta]);
+  if (doc.archivoRuta) await borrarArchivos(BUCKET, [doc.archivoRuta]);
 }
 
 /** Sube (o reemplaza) el archivo de un documento; el anterior se borra después de guardar. */
 export async function guardarArchivoDocumento(id: string, contenido: Buffer, extension: string, tipo: string, nombre: string, porQuien: string): Promise<void> {
   const doc = await obtenerDocumento(id);
   if (!doc) throw new Error("[flota] Ese documento ya no existe.");
-  const ruta = `documentos/${doc.vehiculoId}/${crypto.randomUUID()}.${extension}`;
-  const { error: errSubida } = await supabaseAdmin.storage.from(BUCKET).upload(ruta, contenido, { contentType: tipo, upsert: false });
-  revienta("subir el archivo", errSubida);
+  const ruta = await guardarArchivo({
+    carpeta: `Flota/${doc.vehiculoId}`,
+    nombre: nombreUnico(nombre, extension),
+    contenido,
+    tipo,
+    respaldo: { bucket: BUCKET, ruta: `documentos/${doc.vehiculoId}/${crypto.randomUUID()}.${extension}` },
+  });
   const { error } = await supabaseAdmin.from(T.documentos)
     .update({ archivo_ruta: ruta, archivo_nombre: nombre.slice(0, 200), no_aplica: false, actualizado_por: porQuien, actualizado_en: new Date().toISOString() })
     .eq("id", id);
   if (error) {
-    await supabaseAdmin.storage.from(BUCKET).remove([ruta]);
+    await borrarArchivos(BUCKET, [ruta]);
     revienta("guardar el archivo", error);
   }
-  if (doc.archivoRuta) await supabaseAdmin.storage.from(BUCKET).remove([doc.archivoRuta]);
+  if (doc.archivoRuta) await borrarArchivos(BUCKET, [doc.archivoRuta]);
 }
 
 export async function quitarArchivoDocumento(id: string, porQuien: string): Promise<void> {
@@ -361,14 +367,12 @@ export async function quitarArchivoDocumento(id: string, porQuien: string): Prom
   const { error } = await supabaseAdmin.from(T.documentos)
     .update({ archivo_ruta: null, archivo_nombre: null, actualizado_por: porQuien, actualizado_en: new Date().toISOString() }).eq("id", id);
   revienta("quitar el archivo", error);
-  await supabaseAdmin.storage.from(BUCKET).remove([doc.archivoRuta]);
+  await borrarArchivos(BUCKET, [doc.archivoRuta]);
 }
 
 /** Enlace firmado de 60 s para ver el archivo (el bucket es privado). */
 export async function enlaceDocumento(id: string): Promise<string | null> {
   const doc = await obtenerDocumento(id);
   if (!doc?.archivoRuta) return null;
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(doc.archivoRuta, 60);
-  revienta("abrir el archivo", error);
-  return data?.signedUrl ?? null;
+  return enlaceTemporal(BUCKET, doc.archivoRuta, { segundos: 60 });
 }

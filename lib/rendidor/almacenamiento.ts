@@ -1,6 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "../supabase-admin";
+import { borrarCarpeta, enlaceTemporal, esReferenciaSharePoint, guardarArchivo } from "../archivos/almacen";
+import { bajarDeSharePoint, nombreUnico } from "../archivos/sharepoint-core";
 
 // Los respaldos de las rendiciones viven en Supabase Storage.
 //
@@ -29,16 +31,17 @@ export async function subirRespaldo(
   rendicionId: string,
   contenido: Buffer,
   mimeType: string,
+  nombreOriginal?: string,
 ): Promise<string> {
   const extension = mimeType === "application/pdf" ? "pdf" : mimeType.replace("image/", "");
-  const ruta = `${rendicionId}/${randomUUID()}.${extension}`;
-
-  const { error } = await supabaseAdmin.storage
-    .from(BUCKET)
-    .upload(ruta, contenido, { contentType: mimeType, upsert: false });
-
-  if (error) throw new Error(`No pudimos guardar el respaldo: ${error.message}`);
-  return ruta;
+  // En SharePoint: «ARCHIVOS CORE/Rendiciones/<rendición>/». Si falla, al bucket de siempre.
+  return guardarArchivo({
+    carpeta: `Rendiciones/${rendicionId}`,
+    nombre: nombreUnico(nombreOriginal ?? "respaldo", extension),
+    contenido,
+    tipo: mimeType,
+    respaldo: { bucket: BUCKET, ruta: `${rendicionId}/${randomUUID()}.${extension}` },
+  });
 }
 
 export interface RespaldoDescargado {
@@ -53,6 +56,15 @@ export interface RespaldoDescargado {
  * que hay que informar, no un motivo para tumbar toda la carga o la planilla.
  */
 export async function descargarRespaldo(ruta: string): Promise<RespaldoDescargado | null> {
+  if (esReferenciaSharePoint(ruta)) {
+    try {
+      const { contenido, tipo } = await bajarDeSharePoint(ruta);
+      return { contenido, mimeType: tipo };
+    } catch (e) {
+      console.error(`[rendidor] No se pudo bajar el respaldo ${ruta}:`, e instanceof Error ? e.message : e);
+      return null;
+    }
+  }
   const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(ruta);
   if (error || !data) {
     console.error(`[rendidor] No se pudo bajar el respaldo ${ruta}:`, error?.message);
@@ -84,15 +96,11 @@ export async function descargarRespaldo(ruta: string): Promise<RespaldoDescargad
  * puede voltear la página entera de revisión.
  */
 export async function urlFirmadaDeRespaldo(ruta: string, segundos = 1800): Promise<string | null> {
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(ruta, segundos);
-  if (error || !data?.signedUrl) {
-    console.error(`[rendidor] No se pudo firmar la URL de ${ruta}:`, error?.message);
-    return null;
-  }
-  return data.signedUrl;
+  return enlaceTemporal(BUCKET, ruta, { segundos });
 }
 
 export async function borrarRespaldosDeRendicion(rendicionId: string): Promise<void> {
+  await borrarCarpeta(`Rendiciones/${rendicionId}`);
   const { data, error } = await supabaseAdmin.storage.from(BUCKET).list(rendicionId);
   if (error) {
     console.error(`[rendidor] No se pudo listar los respaldos de ${rendicionId}:`, error.message);

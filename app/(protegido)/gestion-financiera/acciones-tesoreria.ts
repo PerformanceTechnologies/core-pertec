@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { enlaceTemporal } from "@/lib/archivos/almacen";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   RUTA_FIN,
@@ -313,9 +314,9 @@ export async function enlaceAdjuntoAction(id: string): Promise<{ ok: true; url: 
   try {
     const ctx = await contextoFin();
     const a = await exigirDeEmpresa("fin_adjuntos", id, ctx.empresa.id);
-    const { data, error } = await supabaseAdmin.storage.from("finanzas").createSignedUrl(String(a.ruta), 60, { download: String(a.nombre) });
-    revienta("firmar el enlace", error);
-    return { ok: true, url: data!.signedUrl };
+    const url = await enlaceTemporal("finanzas", String(a.ruta), { segundos: 60, descarga: String(a.nombre) });
+    if (!url) return { ok: false, error: "No se pudo abrir el archivo." };
+    return { ok: true, url };
   } catch (e) {
     const r = fallo(e);
     return { ok: false, error: r.ok ? "" : r.error };

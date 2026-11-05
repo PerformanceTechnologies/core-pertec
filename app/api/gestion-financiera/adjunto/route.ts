@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { guardarArchivo } from "@/lib/archivos/almacen";
+import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -33,9 +35,18 @@ export async function POST(request: Request) {
   const { data: dueño } = await supabaseAdmin.from(tabla).select("id").eq("id", entidadId).eq("empresa_id", ctx.empresa.id).maybeSingle();
   if (!dueño) return NextResponse.json({ error: "Ese registro no existe o es de otra empresa." }, { status: 404 });
 
-  const ruta = `${ctx.empresa.id}/${entidadTipo}/${entidadId}/${randomUUID()}.${TIPOS[archivo.type]}`;
-  const { error } = await supabaseAdmin.storage.from("finanzas").upload(ruta, Buffer.from(await archivo.arrayBuffer()), { contentType: archivo.type });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let ruta: string;
+  try {
+    ruta = await guardarArchivo({
+      carpeta: `Gestion financiera/${ctx.empresa.nombre}/${entidadTipo}/${entidadId}`,
+      nombre: nombreUnico(archivo.name, TIPOS[archivo.type]),
+      contenido: Buffer.from(await archivo.arrayBuffer()),
+      tipo: archivo.type,
+      respaldo: { bucket: "finanzas", ruta: `${ctx.empresa.id}/${entidadTipo}/${entidadId}/${randomUUID()}.${TIPOS[archivo.type]}` },
+    });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo guardar el archivo." }, { status: 500 });
+  }
   const { data, error: e2 } = await supabaseAdmin
     .from("fin_adjuntos")
     .insert({ empresa_id: ctx.empresa.id, entidad_tipo: entidadTipo, entidad_id: entidadId, tipo, ruta, nombre: archivo.name.slice(0, 200), mime: archivo.type, tamano: archivo.size, subido_por: ctx.usuario.correo })
