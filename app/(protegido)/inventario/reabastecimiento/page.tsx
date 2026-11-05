@@ -33,7 +33,7 @@ export default async function ReabastecimientoPage() {
     >
       <Pistas
         items={[
-          "Define mín/máx en la ficha del producto",
+          "Un mínimo general para todos en Configuración (o uno propio en la ficha)",
           "Aquí ves qué falta",
           "Al llegar, regístralo como recepción",
         ]}
@@ -53,8 +53,8 @@ export default async function ReabastecimientoPage() {
             Todo con stock suficiente
           </p>
           <p className="text-sm text-gris">
-            Ningún producto está bajo su mínimo. Define reglas mín/máx en cada
-            ficha de producto.
+            Ningún producto está bajo su mínimo. El mínimo general se define en
+            Configuración; un producto puede tener uno propio en su ficha.
           </p>
         </div>
       </div>
@@ -85,7 +85,7 @@ export default async function ReabastecimientoPage() {
             <tbody className="divide-y divide-borde">
               {filas.map((f) => (
                 <tr
-                  key={`${f.producto.id}-${f.ubicacion.id}`}
+                  key={`${f.producto.id}-${f.ubicacion?.id ?? "general"}`}
                   className="transition hover:bg-borde/30"
                 >
                   <td className="px-4 py-3">
@@ -96,7 +96,7 @@ export default async function ReabastecimientoPage() {
                       {f.producto.nombre}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-gris">{f.ubicacion.nombre}</td>
+                  <td className="px-4 py-3 text-gris">{f.ubicacion ? f.ubicacion.nombre : <span>Todas las bodegas <span className="text-xs text-gris-suave">· mínimo general</span></span>}</td>
                   <td className="px-4 py-3 text-right tabular-nums font-semibold text-amber-600">
                     {formatearCantidad(f.disponible)}
                   </td>

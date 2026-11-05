@@ -20,7 +20,7 @@ import FormularioAjuste from "@/components/inventario/FormularioAjuste";
 import FotosProducto from "@/components/inventario/FotosProducto";
 import { ChipEstadoOperativo, tonoDeTexto } from "@/components/inventario/Visual";
 import { IconoTile, type TonoIcono } from "@/components/contactos/Visual";
-import { fotosDeProducto, listarCategorias, listarUbicaciones, listarUnidades, obtenerFichaProducto } from "@/lib/inventario";
+import { fotosDeProducto, leerMinimoGeneral, listarCategorias, listarUbicaciones, listarUnidades, obtenerFichaProducto } from "@/lib/inventario";
 import {
   ETIQUETA_CERTIFICADO,
   ETIQUETA_SEGUIMIENTO,
@@ -37,12 +37,13 @@ export const dynamic = "force-dynamic";
 
 export default async function FichaProductoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [ficha, categorias, unidades, ubicaciones, fotos] = await Promise.all([
+  const [ficha, categorias, unidades, ubicaciones, fotos, general] = await Promise.all([
     obtenerFichaProducto(id),
     listarCategorias(),
     listarUnidades(),
     listarUbicaciones(),
     fotosDeProducto(id),
+    leerMinimoGeneral(),
   ]);
   if (!ficha) notFound();
 
@@ -119,7 +120,13 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
           )}
           {/* Avísame cuando quede poco */}
           {esFisico && (
-            <Bloque Icono={IconBell} tono="ambar" titulo="Avísame cuando quede poco" ayuda="Pon un mínimo: si hay menos, aparece en «Reabastecimiento» para comprar más.">
+            <Bloque Icono={IconBell} tono="ambar" titulo="Avísame cuando quede poco" ayuda={
+              reglas.length
+                ? "Este producto tiene su propio mínimo: si hay menos, aparece en «Reabastecimiento»."
+                : general.minimo > 0
+                  ? `Usa el aviso general: con menos de ${formatearCantidad(general.minimo)} aparece en «Reabastecimiento». Si este necesita otro número, ponlo aquí.`
+                  : "Todavía no hay un aviso general (se pone en Inventario › Configuración). Si quieres uno solo para este producto, ponlo aquí."
+            }>
               <FormularioRegla productoId={producto.id} ubicaciones={ubicaciones} reglas={reglas} />
             </Bloque>
           )}

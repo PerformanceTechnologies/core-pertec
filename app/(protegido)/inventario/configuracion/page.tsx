@@ -2,7 +2,8 @@ import { IconSettings } from "@tabler/icons-react";
 import IntroSeccion from "@/components/inventario/IntroSeccion";
 import CreadorEntidad from "@/components/inventario/CreadorEntidad";
 import { crearCategoriaAction, crearUnidadAction } from "@/app/(protegido)/inventario/acciones";
-import { listarCategorias, listarTiposOperacion, listarUnidades, productosPorCategoria } from "@/lib/inventario";
+import { leerMinimoGeneral, listarCategorias, listarTiposOperacion, listarUnidades, productosPorCategoria } from "@/lib/inventario";
+import MinimoGeneral from "@/components/inventario/MinimoGeneral";
 import ChipCategoriaBorrable from "@/components/inventario/ChipCategoriaBorrable";
 import { ETIQUETA_CLASE } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
@@ -10,7 +11,7 @@ import { TARJETA } from "@/lib/estilos";
 export const dynamic = "force-dynamic";
 
 export default async function ConfiguracionInventarioPage() {
-  const [categorias, unidades, tipos, enUso] = await Promise.all([listarCategorias(), listarUnidades(), listarTiposOperacion(), productosPorCategoria()]);
+  const [categorias, unidades, tipos, enUso, general] = await Promise.all([listarCategorias(), listarUnidades(), listarTiposOperacion(), productosPorCategoria(), leerMinimoGeneral()]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -22,6 +23,13 @@ export default async function ConfiguracionInventarioPage() {
           bajada="Las listas que usan los productos: categorías y unidades de medida. Los tipos de operación definen de dónde a dónde mueve cada documento."
         />
       </div>
+      {/* Aviso de stock bajo, para todos */}
+      <section className={`${TARJETA} p-5 lg:col-span-2`}>
+        <h2 className="mb-1 text-sm font-bold text-tinta">Avisar cuando quede poco (para todos los productos)</h2>
+        <p className="mb-4 text-xs text-gris">Si de un producto quedan menos de esto (sumando todas las bodegas), aparece en «Reabastecimiento» y en el tablero.</p>
+        <MinimoGeneral minimo={general.minimo} maximo={general.maximo} />
+      </section>
+
       {/* Categorías */}
       <section className={`${TARJETA} p-5`}>
         <h2 className="mb-3 text-sm font-bold text-tinta">Categorías de producto</h2>

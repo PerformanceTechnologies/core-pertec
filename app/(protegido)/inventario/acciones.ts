@@ -5,6 +5,7 @@ import { exigirAccesoApp } from "@/lib/autorizacion";
 import {
   actualizarProducto,
   enlaceCertificado,
+  guardarMinimoGeneral,
   quitarFotoProducto,
   quitarCertificado,
   ajustarInventario,
@@ -174,6 +175,21 @@ export async function quitarFotoProductoAction(productoId: string, indice: numbe
     if (!Number.isInteger(indice) || indice < 0) return { ok: false, error: "Foto inválida." };
     await quitarFotoProducto(productoId, indice);
     refrescar("/inventario/productos", `/inventario/productos/${productoId}`);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function guardarMinimoGeneralAction(fd: FormData): Promise<Resultado> {
+  try {
+    await exigirAccesoApp(SLUG);
+    const minimo = Number(fd.get("minimo") ?? 0);
+    const maximo = Number(fd.get("maximo") ?? 0);
+    if (!Number.isFinite(minimo) || !Number.isFinite(maximo) || minimo < 0 || maximo < 0) return { ok: false, error: "Escribe números de 0 para arriba." };
+    if (maximo > 0 && maximo < minimo) return { ok: false, error: "«Comprar hasta» no puede ser menos que «Avisar bajo»." };
+    await guardarMinimoGeneral({ minimo, maximo });
+    refrescar("/inventario", "/inventario/configuracion", "/inventario/reabastecimiento");
     return { ok: true };
   } catch (e) {
     return fallo(e);

@@ -544,20 +544,47 @@ async function conteoLineas(transferenciaIds: string[]): Promise<Map<string, num
 
 export interface FilaReabastecimiento {
   producto: Producto;
-  ubicacion: Ubicacion;
+  /** null: el mínimo general, que mira todas las bodegas juntas. */
+  ubicacion: Ubicacion | null;
   disponible: number;
   minimo: number;
   maximo: number;
   sugerido: number;
 }
 
-/** Productos cuyo disponible cayó bajo su mínimo, con cuánto reponer. */
+// ---------- Mínimo general (para todos los productos) -------------------------
+
+export interface MinimoGeneral {
+  minimo: number;
+  maximo: number;
+}
+
+/** El aviso de stock bajo que vale para todos los productos sin mínimo propio. Sin la tabla: 0 (no avisa). */
+export async function leerMinimoGeneral(): Promise<MinimoGeneral> {
+  const { data, error } = await supabaseAdmin.from("inv_configuracion").select("minimo_general, maximo_general").eq("id", 1).maybeSingle();
+  if (error || !data) return { minimo: 0, maximo: 0 };
+  return { minimo: Number(data.minimo_general) || 0, maximo: Number(data.maximo_general) || 0 };
+}
+
+export async function guardarMinimoGeneral(d: MinimoGeneral): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("inv_configuracion")
+    .upsert({ id: 1, minimo_general: d.minimo, maximo_general: d.maximo, actualizado_en: new Date().toISOString() });
+  if (error && /inv_configuracion/.test(error.message)) throw new Error("[inventario] Falta la tabla de configuración: corre el SQL del mínimo general.");
+  revienta("guardar el mínimo general", error);
+}
+
+/**
+ * Productos bajo su mínimo, con cuánto reponer. Los que tienen mínimo propio (en su ficha) se
+ * miran bodega por bodega; el resto usa el mínimo general, sumando todas las bodegas.
+ */
 export async function reporteReabastecimiento(): Promise<FilaReabastecimiento[]> {
-  const [reglas, productos, ubicaciones, quants] = await Promise.all([
+  const [reglas, productos, ubicaciones, quants, general] = await Promise.all([
     supabaseAdmin.from(T.reglas).select("*").eq("activo", true),
     supabaseAdmin.from(T.productos).select("*").eq("activo", true),
     listarUbicaciones(),
     supabaseAdmin.from(T.quants).select("producto_id, ubicacion_id, cantidad, reservado"),
+    leerMinimoGeneral(),
   ]);
 
   const prodPorId = new Map((productos.data ?? []).map((r) => [r.id, aProducto(r)]));
@@ -579,6 +606,23 @@ export async function reporteReabastecimiento(): Promise<FilaReabastecimiento[]>
     const sugerido = sugerenciaDeReposicion(disp, r);
     if (sugerido <= 0) continue;
     filas.push({ producto, ubicacion, disponible: disp, minimo: r.minimo, maximo: r.maximo, sugerido });
+  }
+
+  if (general.minimo > 0) {
+    const conReglaPropia = new Set((reglas.data ?? []).map((r) => String(r.producto_id)));
+    const internas = new Set(ubicaciones.filter((u) => u.tipo === "interna").map((u) => u.id));
+    const totalPorProducto = new Map<string, number>();
+    for (const [clave, disp] of dispPorClave) {
+      const [productoId, ubicacionId] = clave.split("|");
+      if (internas.has(ubicacionId)) totalPorProducto.set(productoId, (totalPorProducto.get(productoId) ?? 0) + disp);
+    }
+    for (const producto of prodPorId.values()) {
+      if (producto.tipo !== "almacenable" || conReglaPropia.has(producto.id)) continue;
+      const disp = totalPorProducto.get(producto.id) ?? 0;
+      const sugerido = sugerenciaDeReposicion(disp, general);
+      if (sugerido <= 0) continue;
+      filas.push({ producto, ubicacion: null, disponible: disp, minimo: general.minimo, maximo: Math.max(general.maximo, general.minimo), sugerido });
+    }
   }
   return filas.sort((a, b) => b.sugerido - a.sugerido);
 }

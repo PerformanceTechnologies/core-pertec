@@ -173,10 +173,10 @@ export default async function TableroInventarioPage() {
                   <GrupoAlerta titulo="Bajo el mínimo" cuenta={reab.length} tono="text-rose-600" href="/inventario/reabastecimiento">
                     {reab.slice(0, 5).map((f) => (
                       <FilaAlerta
-                        key={`${f.producto.id}-${f.ubicacion.id}`}
+                        key={`${f.producto.id}-${f.ubicacion?.id ?? "general"}`}
                         href={`/inventario/productos/${f.producto.id}`}
                         titulo={f.producto.nombre}
-                        detalle={`${f.ubicacion.nombre} · hay ${formatearCantidad(f.disponible)} de ${formatearCantidad(f.minimo)}`}
+                        detalle={`${f.ubicacion?.nombre ?? "Todas las bodegas"} · hay ${formatearCantidad(f.disponible)} de ${formatearCantidad(f.minimo)}`}
                         etiqueta={`Reponer ${formatearCantidad(f.sugerido)}`}
                         tono="bg-rose-500/10 text-rose-600"
                       />
