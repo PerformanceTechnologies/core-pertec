@@ -2,7 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
 import { contextoDeEmpresa, empresaIdsPorUsuario } from "./empresas";
 import { SLUG_POR_OMISION, type Empresa } from "./empresas-modelo";
-import { LARGO_MAXIMO_MURO, mencionesDe, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
+import { LARGO_MAXIMO_MURO, esReaccion, mencionesDe, type ReaccionesMuro, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
 import type { UsuarioConAcceso } from "./tipos";
 
 // -----------------------------------------------------------------------------
@@ -142,6 +142,38 @@ export async function publicarMensaje(
   // Sin avisos a la campana: lo del Muro se ve solo en el Muro (las menciones quedan marcadas
   // en naranjo y el botón «Muro» de arriba cuenta lo nuevo).
   return mensaje;
+}
+
+// ---------- Reacciones --------------------------------------------------------------
+
+/** Las reacciones de estos mensajes. Sin la tabla todavía: ninguna (el muro sigue andando). */
+export async function reaccionesDe(ids: string[]): Promise<ReaccionesMuro> {
+  const salida: ReaccionesMuro = {};
+  if (ids.length === 0) return salida;
+  const { data, error } = await supabaseAdmin.from("muro_reacciones").select("mensaje_id, correo, emoji").in("mensaje_id", ids.slice(0, 400));
+  if (error) return salida;
+  for (const r of data ?? []) {
+    if (!esReaccion(r.emoji)) continue;
+    const m = (salida[r.mensaje_id as string] ??= {});
+    (m[r.emoji] ??= []).push(String(r.correo));
+  }
+  return salida;
+}
+
+/** Pone o saca una reacción de esta persona a un mensaje de su empresa. Devuelve las del mensaje. */
+export async function alternarReaccion(usuario: UsuarioConAcceso, empresaId: string, mensajeId: string, emoji: string): Promise<ReaccionesMuro> {
+  if (!esReaccion(emoji)) throw new Error("Esa reacción no existe.");
+  const { data: m, error } = await supabaseAdmin.from(TABLA).select("id, eliminado").eq("id", mensajeId).eq("empresa_id", empresaId).maybeSingle();
+  revienta("leer el mensaje", error);
+  if (!m || m.eliminado) throw new Error("Ese mensaje ya no existe.");
+  const correo = usuario.correo.toLowerCase();
+  const { data: ya, error: e1 } = await supabaseAdmin.from("muro_reacciones").select("mensaje_id").eq("mensaje_id", mensajeId).eq("correo", correo).eq("emoji", emoji).maybeSingle();
+  if (e1) throw new Error(/muro_reacciones/.test(e1.message) ? "Faltan las reacciones en la base: corre el SQL de reacciones del muro." : e1.message);
+  const { error: e2 } = ya
+    ? await supabaseAdmin.from("muro_reacciones").delete().eq("mensaje_id", mensajeId).eq("correo", correo).eq("emoji", emoji)
+    : await supabaseAdmin.from("muro_reacciones").insert({ mensaje_id: mensajeId, correo, emoji });
+  if (e2) throw new Error(`No se pudo guardar la reacción: ${e2.message}`);
+  return reaccionesDe([mensajeId]);
 }
 
 /** Cuántos mensajes de otros (publicaciones y respuestas) hay desde `desde`, hasta 99. */

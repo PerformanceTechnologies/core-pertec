@@ -45,3 +45,15 @@ export function trozosDe(texto: string): Trozo[] {
 export function textoPlano(texto: string, nombre: (correo: string) => string): string {
   return trozosDe(texto).map((t) => (t.tipo === "texto" ? t.texto : `@${nombre(t.correo)}`)).join("");
 }
+
+/** Las reacciones del Muro, en el orden en que se muestran. */
+export const REACCIONES = ["👍", "❤️", "😂", "🎉", "😮"] as const;
+export type Reaccion = (typeof REACCIONES)[number];
+export const NOMBRE_REACCION: Record<Reaccion, string> = { "👍": "Me gusta", "❤️": "Me encanta", "😂": "Me divierte", "🎉": "Celebrar", "😮": "Me sorprende" };
+
+/** mensaje → emoji → correos de quienes reaccionaron. */
+export type ReaccionesMuro = Record<string, Partial<Record<Reaccion, string[]>>>;
+
+export function esReaccion(v: unknown): v is Reaccion {
+  return REACCIONES.includes(v as Reaccion);
+}

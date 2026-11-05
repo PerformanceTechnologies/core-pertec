@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { empresaDelMuro, listarMensajes, personasDeEmpresa } from "@/lib/muro";
+import { empresaDelMuro, listarMensajes, personasDeEmpresa, reaccionesDe } from "@/lib/muro";
 import MuroChat from "@/components/muro/MuroChat";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,10 @@ export default async function MuroPage() {
   } catch (e) {
     falta = e instanceof Error ? e.message : "No se pudo leer el muro.";
   }
-  const personas = await personasDeEmpresa(empresa);
+  const [personas, reacciones] = await Promise.all([
+    personasDeEmpresa(empresa),
+    reaccionesDe([...inicial.mensajes, ...inicial.respuestas].map((m) => m.id)),
+  ]);
 
   return (
     <MuroChat
@@ -29,6 +32,7 @@ export default async function MuroPage() {
       personas={personas}
       inicial={inicial.mensajes}
       respuestasIniciales={inicial.respuestas}
+      reaccionesIniciales={reacciones}
       hayMas={inicial.hayMas}
       aviso={falta}
     />

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconArrowUp, IconLoader2, IconMessageCircle, IconPencil, IconSparkles, IconTrash } from "@tabler/icons-react";
-import { trozosDe, type MensajeMuro, type PersonaMuro } from "@/lib/muro-modelo";
+import { trozosDe, type MensajeMuro, type PersonaMuro, type ReaccionesMuro } from "@/lib/muro-modelo";
 import { anterioresAction, borrarAction, nuevosAction, publicarAction } from "@/app/(protegido)/muro/acciones";
 import { Avatar } from "./Avatar";
 import Compositor from "./Compositor";
+import Reacciones from "./Reacciones";
 import { useMarcarMuroVisto } from "./aviso-muro";
 
 // El Muro como muro, no como chat: arriba se escribe, las publicaciones van como tarjetas de la
@@ -45,6 +46,7 @@ export default function MuroChat({
   personas,
   inicial,
   respuestasIniciales,
+  reaccionesIniciales,
   hayMas: hayMasInicial,
   aviso,
 }: {
@@ -53,6 +55,7 @@ export default function MuroChat({
   personas: PersonaMuro[];
   inicial: MensajeMuro[];
   respuestasIniciales: MensajeMuro[];
+  reaccionesIniciales: ReaccionesMuro;
   hayMas: boolean;
   aviso: string | null;
 }) {
@@ -60,6 +63,8 @@ export default function MuroChat({
   // Publicaciones, de la más nueva a la más vieja.
   const [posts, setPosts] = useState<MensajeMuro[]>(() => [...inicial].reverse());
   const [respuestas, setRespuestas] = useState<Record<string, MensajeMuro[]>>(() => agrupar({}, respuestasIniciales));
+  const [reacciones, setReacciones] = useState<ReaccionesMuro>(reaccionesIniciales);
+  const cambiarReacciones = useCallback((r: ReaccionesMuro) => setReacciones((xs) => ({ ...xs, ...r })), []);
   const [pendientes, setPendientes] = useState<MensajeMuro[]>([]);
   const [respondiendo, setRespondiendo] = useState<string | null>(null);
   const [hayMas, setHayMas] = useState(hayMasInicial);
@@ -100,6 +105,7 @@ export default function MuroChat({
       const r = await nuevosAction(masNueva ?? new Date(Date.now() - 60_000).toISOString(), ids).catch(() => null);
       if (!vivo || !r || !r.ok) return;
       if (r.empresaId !== empresa.id) return router.refresh();
+      setReacciones(r.reacciones); // las de los demás también llegan solas
       if (r.borrados.length) {
         setPosts((xs) => xs.filter((m) => !r.borrados.includes(m.id)));
         setRespuestas((rs) => Object.fromEntries(Object.entries(rs).map(([k, v]) => [k, v.filter((m) => !r.borrados.includes(m.id))])));
@@ -132,6 +138,7 @@ export default function MuroChat({
     if (!r.ok) return setError(r.error);
     setPosts((xs) => [...xs, ...[...r.mensajes].reverse()]);
     setRespuestas((rs) => agrupar(rs, r.respuestas));
+    setReacciones((xs) => ({ ...xs, ...r.reacciones }));
     setHayMas(r.hayMas);
   }
 
@@ -268,6 +275,9 @@ export default function MuroChat({
                       {lista.length > 0 && (
                         <span className="text-xs text-gris-suave">· {lista.length === 1 ? "1 respuesta" : `${lista.length} respuestas`}</span>
                       )}
+                      <div className="ml-auto">
+                        <Reacciones mensajeId={m.id} reacciones={reacciones[m.id] ?? {}} yo={yo.correo} nombreDe={nombreDe} alCambiar={cambiarReacciones} />
+                      </div>
                     </div>
                   </div>
 
@@ -283,6 +293,9 @@ export default function MuroChat({
                                 <span className="text-[11px] text-gris-suave">{cuando(r.creadoEn)}</span>
                               </p>
                               <Texto m={r} chico />
+                            </div>
+                            <div className="mt-1 pl-1">
+                              <Reacciones mensajeId={r.id} reacciones={reacciones[r.id] ?? {}} yo={yo.correo} nombreDe={nombreDe} alCambiar={cambiarReacciones} chico />
                             </div>
                           </div>
                           <BotonBorrar m={r} />
