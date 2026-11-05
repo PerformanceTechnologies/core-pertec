@@ -198,8 +198,6 @@ export default function MuroChat({
   }
 
   const primerNombre = yo.nombre.split(/\s+/)[0];
-  const meNombran = (m: MensajeMuro) => m.menciones.includes(yo.correo) && m.autorCorreo !== yo.correo;
-  const misMenciones = posts.filter((p) => meNombran(p) || (respuestas[p.id] ?? []).some(meNombran)).length;
 
   return (
     <div className="space-y-5">
@@ -217,11 +215,6 @@ export default function MuroChat({
             </div>
           </section>
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
-          {misMenciones > 0 && (
-            <p className="rounded-xl border border-naranjo/30 bg-naranjo/[0.06] px-4 py-2.5 text-sm font-semibold text-naranjo">
-              {misMenciones === 1 ? "Te mencionaron en 1 publicación" : `Te mencionaron en ${misMenciones} publicaciones`} · están marcadas en naranjo
-            </p>
-          )}
 
           {pendientes.length > 0 && (
             <div className="sticky top-3 z-10 text-center">
@@ -249,9 +242,8 @@ export default function MuroChat({
                 <li
                   key={m.id}
                   id={`m-${m.id}`}
-                  className={`animar-entrada relative rounded-2xl border bg-superficie shadow-sm transition hover:shadow-md ${meNombran(m) ? "border-naranjo/40" : "border-borde"}`}
+                  className="animar-entrada relative rounded-2xl border border-borde bg-superficie shadow-sm transition hover:shadow-md"
                 >
-                  {meNombran(m) && <span className="absolute -top-2.5 left-5 rounded-full bg-naranjo px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">Te mencionaron</span>}
                   <div className="group/item p-5 pb-3">
                     <header className="flex items-center gap-3">
                       <Avatar correo={m.autorCorreo} nombre={m.autorNombre} />
@@ -284,7 +276,7 @@ export default function MuroChat({
                   {(lista.length > 0 || respondiendo === m.id) && (
                     <div className="space-y-3 rounded-b-2xl border-t border-borde/70 bg-tinta/[0.02] px-5 py-4">
                       {lista.map((r) => (
-                        <div key={r.id} id={`m-${r.id}`} className={`group/item flex gap-2.5 rounded-xl ${meNombran(r) ? "bg-naranjo/[0.06] p-2 -m-2" : ""}`}>
+                        <div key={r.id} id={`m-${r.id}`} className="group/item flex gap-2.5 rounded-xl">
                           <Avatar correo={r.autorCorreo} nombre={r.autorNombre} tamano="h-8 w-8 text-[10px]" />
                           <div className="min-w-0 flex-1">
                             <div className="rounded-2xl rounded-tl-md bg-superficie px-3.5 py-2.5 shadow-[0_1px_2px_rgba(23,20,17,0.06)] ring-1 ring-borde/70">
