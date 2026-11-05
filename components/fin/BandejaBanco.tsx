@@ -59,12 +59,13 @@ export function ImportarCartola({ cuentas }: { cuentas: Ref[] }) {
  * La bandeja del banco diario: cada movimiento con su categoría sugerida (un clic), y al abrirlo,
  * categoría, proyecto, a quién preguntar, respaldo, «es un cobro / es un pago» y guardar regla.
  */
-export default function BandejaBanco({ movimientos, categorias, proyectos, facturas, pagos, cuentasBanco, hoy }: {
+export default function BandejaBanco({ movimientos, categorias, proyectos, facturas, pagos, cobros, cuentasBanco, hoy }: {
   movimientos: MovimientoVista[];
   categorias: (Ref & { requiereProyecto: boolean })[];
   proyectos: Ref[];
   facturas: FacturaAbierta[];
-  pagos: { id: string; numero: string; monto: number; proveedor: string | null; fecha: string | null }[];
+  pagos: { id: string; numero: string; monto: number; proveedor: string | null; fecha: string | null; hecho: boolean }[];
+  cobros: { id: string; numero: string; monto: number; cliente: string | null; fecha: string }[];
   cuentasBanco: Ref[];
   hoy: string;
 }) {
@@ -137,20 +138,19 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
                         {(cerrar) => <FormCobro facturas={facturas} cuentas={cuentasBanco} hoy={hoy} alOk={cerrar} movimiento={{ id: m.id, fecha: m.fecha, monto: m.monto, cuentaId: m.cuentaId }} />}
                       </ConVentana>
                     )}
+                    {m.monto > 0 && cobros.length > 0 && (
+                      <ElegirYLigar
+                        texto="Es un cobro ya registrado…"
+                        opciones={[...cobros].sort((a, b) => Number(b.monto === m.monto) - Number(a.monto === m.monto)).map((c) => ({ id: c.id, texto: `${c.numero} · ${c.cliente ?? "—"} · ${clp(c.monto)}${c.monto === m.monto ? " ✓ mismo monto" : ""}` }))}
+                        ligar={(id) => conciliarMovimientoAction(m.id, "cobro", id)}
+                      />
+                    )}
                     {m.monto < 0 && pagos.length > 0 && (
-                      <select
-                        className={CAMPO}
-                        defaultValue=""
-                        onChange={async (e) => {
-                          if (!e.target.value) return;
-                          const r = await conciliarMovimientoAction(m.id, "pago", e.target.value);
-                          if (!r.ok) alert(r.error);
-                          else window.location.reload();
-                        }}
-                      >
-                        <option value="">Es el pago programado…</option>
-                        {pagos.map((p) => <option key={p.id} value={p.id}>{p.numero} · {p.proveedor} · {clp(p.monto)}</option>)}
-                      </select>
+                      <ElegirYLigar
+                        texto="Es un pago programado o ya hecho…"
+                        opciones={[...pagos].sort((a, b) => Number(b.monto === -m.monto) - Number(a.monto === -m.monto)).map((p) => ({ id: p.id, texto: `${p.numero} · ${p.proveedor ?? "—"} · ${clp(p.monto)}${p.hecho ? " (ya pagado)" : ""}${p.monto === -m.monto ? " ✓ mismo monto" : ""}` }))}
+                        ligar={(id) => conciliarMovimientoAction(m.id, "pago", id)}
+                      />
                     )}
                     <SubirAdjunto entidadTipo="movimiento" entidadId={m.id} tipo="comprobante" texto="Adjuntar respaldo" />
                     {m.categoriaId && (
@@ -174,5 +174,29 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
         })}
       </ul>
     </div>
+  );
+}
+
+/** Lista para ligar el movimiento a un cobro o pago que ya existe; al elegir, concilia y recarga. */
+function ElegirYLigar({ texto, opciones, ligar }: { texto: string; opciones: { id: string; texto: string }[]; ligar: (id: string) => Promise<{ ok: boolean; error?: string }> }) {
+  const router = useRouter();
+  const [ocupado, setOcupado] = useState(false);
+  return (
+    <select
+      className={`${CAMPO} ${ocupado ? "opacity-50" : ""}`}
+      disabled={ocupado}
+      defaultValue=""
+      onChange={async (e) => {
+        if (!e.target.value) return;
+        setOcupado(true);
+        const r = await ligar(e.target.value);
+        setOcupado(false);
+        if (!r.ok) alert(r.error);
+        else router.refresh();
+      }}
+    >
+      <option value="">{texto}</option>
+      {opciones.map((o) => <option key={o.id} value={o.id}>{o.texto}</option>)}
+    </select>
   );
 }

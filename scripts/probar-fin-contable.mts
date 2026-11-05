@@ -66,11 +66,13 @@ const e: EntradaContable = {
     { id: "m2", fecha: "2026-11-04", glosa: "COPEC", monto: -45_000, cuentaContable: "5.1.01", esTarjeta: true, proyectoId: "p1", estado: "Conciliado" },
     { id: "m3", fecha: "2026-11-04", glosa: "¿?", monto: -1_000, cuentaContable: CUENTAS.gastosGenerales, esTarjeta: false, proyectoId: null, estado: "Por aclarar" },
     { id: "m4", fecha: "2026-11-04", glosa: "Sin cuenta", monto: -1_000, cuentaContable: null, esTarjeta: false, proyectoId: null, estado: "Conciliado" },
+    // Abono ligado a un cobro: el asiento es del cobro, no del movimiento.
+    { id: "m5", fecha: "2026-11-04", glosa: "TRANSF CLIENTE", monto: 2_000_000, cuentaContable: "1.1.03", esTarjeta: false, proyectoId: null, estado: "Conciliado con documento" },
   ],
 };
 const asientos = generarAsientos(e, "2026-11-01", "2026-11-30");
 const ids = asientos.map((a) => a.origenId).sort();
-assert.deepEqual(ids, ["c1", "fc1", "fv1", "m1", "m2", "nc1", "o1", "o2", "p1"], "anuladas, guías, fuera de período, por aclarar y sin cuenta no generan asiento");
+assert.deepEqual(ids, ["c1", "fc1", "fv1", "m1", "m2", "nc1", "o1", "o2", "p1"], "anuladas, guías, fuera de período, por aclarar, sin cuenta y ligados a un documento no generan asiento");
 for (const a of asientos) {
   const d = a.lineas.reduce((s, l) => s + l.debe, 0);
   const h = a.lineas.reduce((s, l) => s + l.haber, 0);

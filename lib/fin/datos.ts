@@ -199,6 +199,8 @@ export interface Cobro {
   cuentaId: string | null;
   referencia: string | null;
   estado: string;
+  /** Movimiento del banco con que se concilió (null = registrado a mano, aún sin ligar). */
+  movimientoId: string | null;
   aplicaciones: { documentoId: string; monto: number }[];
 }
 
@@ -213,6 +215,8 @@ export interface Pago {
   medio: string;
   referencia: string | null;
   estado: "programado" | "pagado" | "anulado";
+  /** Movimiento del banco con que se concilió (null = aún sin ligar). */
+  movimientoId: string | null;
   aplicaciones: { documentoId: string; monto: number }[];
 }
 
@@ -417,12 +421,12 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
 
   // ── Cobros y pagos ──
   const cobros: Cobro[] = cobrosR.map((c: any) => ({
-    id: c.id, numero: c.numero, clienteId: c.cliente_id, fecha: c.fecha, monto: n(c.monto), medio: c.medio, cuentaId: c.cuenta_id, referencia: c.referencia, estado: c.estado,
+    id: c.id, numero: c.numero, clienteId: c.cliente_id, fecha: c.fecha, monto: n(c.monto), medio: c.medio, cuentaId: c.cuenta_id, referencia: c.referencia, estado: c.estado, movimientoId: c.movimiento_id ?? null,
     aplicaciones: cobroAplic.filter((a: any) => a.cobro_id === c.id).map((a: any) => ({ documentoId: a.documento_id, monto: n(a.monto) })),
   }));
   const pagos: Pago[] = pagosR.map((x: any) => ({
     id: x.id, numero: x.numero, proveedorId: x.proveedor_id, fechaProgramada: x.fecha_programada, fechaPago: x.fecha_pago, monto: n(x.monto), cuentaId: x.cuenta_id,
-    medio: x.medio, referencia: x.referencia, estado: x.estado,
+    medio: x.medio, referencia: x.referencia, estado: x.estado, movimientoId: x.movimiento_id ?? null,
     aplicaciones: pagoAplic.filter((a: any) => a.pago_id === x.id).map((a: any) => ({ documentoId: a.documento_id, monto: n(a.monto) })),
   }));
   const ultimaFechaCobro = (docId: string) => cobros.filter((c) => c.estado !== "anulado" && c.aplicaciones.some((a) => a.documentoId === docId)).map((c) => c.fecha).sort().pop() ?? null;

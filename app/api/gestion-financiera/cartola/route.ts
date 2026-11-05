@@ -84,11 +84,14 @@ export async function POST(request: Request) {
 
   const nuevas = leida.filas.map((f) => {
     const regla = reglaQueCalza({ glosa: f.glosa, monto: f.monto, cuentaId: cuenta.id }, vista.reglas);
+    // Una regla de categoría que no pide respaldo (comisiones) deja el movimiento conciliado de una.
+    const directa = regla && !vista.categorias.find((c) => c.id === regla.categoriaId)?.requiereProyecto ? regla : null;
+    // Todas las filas con las mismas columnas: en un insert de varias filas, una columna que falta
+    // en alguna llega como null (no como su valor por omisión) y rompe las que son «not null».
     return {
       empresa_id: ctx.empresa.id, cuenta_id: cuenta.id, fecha: f.fecha, glosa: f.glosa, monto: f.monto, numero_documento: f.documento,
       huella: huellaMovimiento(cuenta.id, f.fecha, f.monto, f.glosa, f.documento), importacion_id: imp!.id, creado_por: ctx.usuario.correo,
-      // Una regla de categoría que no pide respaldo (comisiones) deja el movimiento conciliado de una.
-      ...(regla && !vista.categorias.find((c) => c.id === regla.categoriaId)?.requiereProyecto ? { categoria_id: regla.categoriaId, proyecto_id: regla.proyectoId, regla_id: regla.id, tiene_respaldo: true } : {}),
+      categoria_id: directa?.categoriaId ?? null, proyecto_id: directa?.proyectoId ?? null, regla_id: directa?.id ?? null, tiene_respaldo: Boolean(directa),
     };
   });
   // Dentro del mismo archivo también puede repetirse una línea: se queda la primera.

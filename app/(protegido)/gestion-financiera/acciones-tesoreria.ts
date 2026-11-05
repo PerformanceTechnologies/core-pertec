@@ -135,18 +135,32 @@ export async function reglaDesdeMovimientoAction(id: string, patron: string): Pr
 }
 
 /** Ligar un movimiento a un pago programado o a un traspaso entre cuentas propias. */
-export async function conciliarMovimientoAction(id: string, tipo: "pago" | "traspaso" | "otro", entidadId: string | null): Promise<Resultado> {
+export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pago" | "traspaso" | "otro", entidadId: string | null): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
     const vista = await cargarVista();
     const m = vista.movimientos.find((x) => x.id === id);
     if (!m) return { ok: false, error: "Ese movimiento no existe." };
-    if (tipo === "pago") {
+    if (tipo === "cobro") {
+      // Un cobro registrado a mano en Ventas y que después llega en la cartola: se liga, no se duplica.
+      const c = vista.cobros.find((x) => x.id === entidadId);
+      if (!c || c.estado === "anulado") return { ok: false, error: "Ese cobro no existe." };
+      if (c.movimientoId) return { ok: false, error: `El cobro ${c.numero} ya está ligado a otro movimiento del banco.` };
+      if (m.monto <= 0) return { ok: false, error: "Un cobro se liga a un abono, no a un cargo." };
+      const { error } = await supabaseAdmin.from("fin_cobros").update({ movimiento_id: id, cuenta_id: m.cuentaId }).eq("id", c.id).eq("empresa_id", ctx.empresa.id);
+      revienta("ligar el cobro", error);
+      await conciliarConMovimiento(ctx.empresa.id, id, "cobro", c.id, Math.abs(m.monto), vista.categorias.find((x) => x.nombre === "Cobro cliente")?.id ?? null);
+    } else if (tipo === "pago") {
       const p = vista.pagos.find((x) => x.id === entidadId);
       if (!p) return { ok: false, error: "Ese pago no existe." };
+      if (p.movimientoId) return { ok: false, error: `El pago ${p.numero} ya está ligado a otro movimiento del banco.` };
       if (p.estado === "programado") {
         const { error } = await supabaseAdmin.from("fin_pagos").update({ estado: "pagado", fecha_pago: m.fecha, cuenta_id: m.cuentaId, movimiento_id: id }).eq("id", p.id);
         revienta("marcar el pago", error);
+      } else {
+        // Pago ya registrado como hecho: solo se liga al cargo del banco.
+        const { error } = await supabaseAdmin.from("fin_pagos").update({ movimiento_id: id, cuenta_id: m.cuentaId }).eq("id", p.id).eq("empresa_id", ctx.empresa.id);
+        revienta("ligar el pago", error);
       }
       await conciliarConMovimiento(ctx.empresa.id, id, "pago", p.id, Math.abs(m.monto), vista.categorias.find((c) => c.nombre === "Pago proveedor")?.id ?? null);
     } else if (tipo === "traspaso") {

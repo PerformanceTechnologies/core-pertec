@@ -25,7 +25,13 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
   const facturasAbiertas = v.documentos
     .filter((d) => d.direccion === "emitido" && d.estado === "vigente" && [33, 34, 56].includes(d.tipoDte) && d.saldo > 0 && !d.cedido)
     .map((d) => ({ id: d.id, folio: d.folio, clienteId: d.contraparteId, clienteNombre: d.razonSocial, fechaEmision: d.fechaEmision, vence: d.fechaVencimiento, saldo: d.saldo }));
-  const pagosProgramados = v.pagos.filter((p) => p.estado === "programado").map((p) => ({ id: p.id, numero: p.numero, monto: p.monto, proveedor: p.proveedorId ? v.nombreDe.get(p.proveedorId) ?? null : null, fecha: p.fechaProgramada }));
+  // Pagos y cobros que todavía no se ligan a un movimiento del banco: lo que el banco puede confirmar.
+  const pagosProgramados = v.pagos
+    .filter((p) => (p.estado === "programado" || p.estado === "pagado") && !p.movimientoId)
+    .map((p) => ({ id: p.id, numero: p.numero, monto: p.monto, proveedor: p.proveedorId ? v.nombreDe.get(p.proveedorId) ?? null : null, fecha: p.fechaPago ?? p.fechaProgramada, hecho: p.estado === "pagado" }));
+  const cobrosSinBanco = v.cobros
+    .filter((c) => c.estado !== "anulado" && !c.movimientoId)
+    .map((c) => ({ id: c.id, numero: c.numero, monto: c.monto, cliente: c.clienteId ? v.nombreDe.get(c.clienteId) ?? null : null, fecha: c.fecha }));
   const cuentasActivas = v.cuentas.filter((c) => c.activa);
 
   return (
@@ -107,6 +113,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
               proyectos={v.proyectos.filter((p) => p.estado === "activo").map((p) => ({ id: p.id, nombre: p.nombre }))}
               facturas={facturasAbiertas}
               pagos={pagosProgramados}
+              cobros={cobrosSinBanco}
               cuentasBanco={cuentasActivas.filter((c) => c.tipo === "banco").map((c) => ({ id: c.id, nombre: c.nombre }))}
               hoy={v.hoy}
             />

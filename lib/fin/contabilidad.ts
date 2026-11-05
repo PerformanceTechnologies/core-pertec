@@ -126,7 +126,8 @@ export function generarAsientos(e: EntradaContable, desde: Iso, hasta: Iso): Asi
     });
   }
   for (const m of e.movimientos) {
-    if (m.estado === "Por aclarar" || !enPeriodo(m.fecha) || !m.cuentaContable) continue;
+    // Ligado a un cobro o pago: el asiento lo hace ese documento (si no, quedaría contado dos veces).
+    if (m.estado !== "Conciliado" || !enPeriodo(m.fecha) || !m.cuentaContable) continue;
     const contra = m.esTarjeta ? CUENTAS.tarjeta : CUENTAS.bancos;
     const monto = Math.abs(m.monto);
     agregar({
