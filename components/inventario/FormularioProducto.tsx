@@ -194,9 +194,9 @@ export default function FormularioProducto({
         alCerrar={() => setAbierta(false)}
         titulo={editar ? "Editar producto" : "Nuevo producto"}
         descripcion="Solo el nombre es obligatorio. El resto lo puedes completar después."
-        ancho="max-w-4xl"
+        ancho="max-w-7xl"
       >
-        <form action={enviar} className="grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+        <form action={enviar} className="grid gap-6 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
           {/* Vista previa: cómo se va a ver en la lista mientras se completa. */}
           <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
             <div className="banda-contraste rounded-2xl p-5">
@@ -215,17 +215,12 @@ export default function FormularioProducto({
                 {requiere && <span className="rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-600">Certificado</span>}
               </div>
             </div>
-            <ol className="hidden space-y-2 text-xs text-gris lg:block">
-              {["Datos básicos", "Dónde y cómo se guarda", "Costos", "Certificación"].map((t, i) => (
-                <li key={t} className="flex items-center gap-2">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-naranjo/12 text-[10px] font-bold text-naranjo">{i + 1}</span>
-                  {t}
-                </li>
-              ))}
-            </ol>
           </aside>
 
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
+            {/* Ancha y no larga: «Datos básicos» a la izquierda; dónde se guarda, costos y certificación a la derecha. */}
+            <div className="grid gap-x-8 gap-y-6 xl:grid-cols-2">
+            <div className="min-w-0 space-y-6">
             <Seccion n={1} titulo="Datos básicos">
               <Campo etiqueta="Nombre" obligatorio>
                 <CampoReferencia
@@ -367,7 +362,9 @@ export default function FormularioProducto({
                 </div>
               </div>
             </Seccion>
+            </div>
 
+            <div className="min-w-0 space-y-6">
             {/* Un servicio no ocupa bodega: se oculta, pero los campos se siguen enviando tal cual. */}
             <div className={tipo === "servicio" ? "hidden" : undefined}>
               <Seccion n={2} titulo="Dónde y cómo se guarda">
@@ -488,6 +485,8 @@ export default function FormularioProducto({
                 <textarea name="descripcion" rows={2} defaultValue={producto?.descripcion ?? ""} className={CAMPO} placeholder="Talla, marca, norma, observaciones…" />
               </Campo>
             </Seccion>
+            </div>
+            </div>
 
             {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
