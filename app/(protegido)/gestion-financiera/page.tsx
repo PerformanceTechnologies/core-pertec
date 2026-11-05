@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { IconAlertTriangle, IconArrowRight, IconBolt, IconCalendarStats, IconChartBar, IconClock, IconFolders, IconTargetArrow, IconUsers } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArrowRight, IconCalendarStats, IconCheck, IconChartBar, IconClock, IconFolders, IconTargetArrow, IconUsers } from "@tabler/icons-react";
 import { RUTA_FIN, cargarComercial, cargarVista } from "@/lib/fin/datos";
-import { ETAPAS_HITO, clp, clpCorto, diasEntre, fechaCl, mesLargo, sumarDias } from "@/lib/fin/reglas";
+import { clp, clpCorto, diasEntre, fechaCl, mesLargo, sumarDias } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { COLOR_ETAPA, Kpi, Monto, Seccion } from "@/components/fin/piezas";
@@ -65,19 +65,48 @@ export default async function ResumenFinanzasPage() {
     { n: sinCuentas ? 0 : v.flujo.meses.filter((m) => m.alerta === "FALTA CAJA").length, texto: "meses con FALTA CAJA en la proyección", href: `${RUTA_FIN}/tesoreria?ver=flujo`, tono: "rose" },
   ].filter((x) => x.n > 0);
 
-  const vacio = v.hitos.length === 0 && v.compras.length === 0 && v.movimientos.length === 0 && v.cuentas.length === 0;
+  // Primeros pasos: se muestran hasta que la empresa tenga cuentas, una cartola y algo registrado.
+  const primerosPasos = [
+    { titulo: "Crea tus cuentas", texto: "Banco, tarjeta y caja, con el saldo de hoy. La tarjeta va con su deuda en negativo.", listo: v.cuentas.length > 0, href: `${RUTA_FIN}/configuracion?ver=cuentas`, boton: "Crear cuentas" },
+    { titulo: "Importa la cartola", texto: "El CSV o Excel que bajas del banco. Si la vuelves a subir, no se duplica.", listo: Boolean(v.ultimaImportacion) || v.movimientos.length > 0, href: `${RUTA_FIN}/tesoreria`, boton: "Ir a Tesorería" },
+    { titulo: "Registra ventas y compras", texto: "Una oportunidad o cotización en Comercial, o una solicitud en Compras. El resumen se arma solo.", listo: v.hitos.length > 0 || v.compras.length > 0 || com.oportunidades.length > 0, href: `${RUTA_FIN}/comercial`, boton: "Ir a Comercial" },
+  ];
+  const listos = primerosPasos.filter((x) => x.listo).length;
 
   return (
     <div className="space-y-7">
-      {vacio && (
-        <div className={`${TARJETA} flex flex-wrap items-center gap-4 border-naranjo/40 p-5`}>
-          <IconBolt size={28} className="text-naranjo" />
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-tinta">Empecemos: el módulo parte vacío en {v.empresa.nombre}</p>
-            <p className="text-sm text-gris">1) Crea tus cuentas de banco y tarjeta en Configuración · 2) Importa la cartola en Tesorería · 3) Registra cotizaciones y compras. El resumen se arma solo.</p>
+      {listos < primerosPasos.length && (
+        <section className={`${TARJETA} border-naranjo/40 p-5`}>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-tinta">Primeros pasos en {v.empresa.nombre}</p>
+              <p className="text-sm text-gris">Tres cosas y el módulo queda andando. Cada una se marca sola cuando está hecha.</p>
+            </div>
+            <span className="text-xs font-semibold tabular-nums text-gris">{listos} de {primerosPasos.length}</span>
+            <span className="h-1.5 w-28 overflow-hidden rounded-full bg-tinta/[0.06]"><span className="block h-full rounded-full bg-naranjo transition-all" style={{ width: `${(listos / primerosPasos.length) * 100}%` }} /></span>
           </div>
-          <Link href={`${RUTA_FIN}/configuracion`} className="rounded-lg bg-naranjo px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">Ir a Configuración</Link>
-        </div>
+          <ol className="grid gap-3 md:grid-cols-3">
+            {primerosPasos.map((x, i) => {
+              const actual = !x.listo && primerosPasos.slice(0, i).every((y) => y.listo);
+              return (
+                <li key={x.titulo} className={`flex gap-3 rounded-xl border p-4 ${actual ? "border-naranjo/50 bg-naranjo/[0.05]" : "border-borde"}`}>
+                  <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${x.listo ? "bg-emerald-500/15 text-ok" : actual ? "bg-naranjo text-white" : "bg-tinta/[0.06] text-gris"}`}>
+                    {x.listo ? <IconCheck size={15} stroke={2.5} /> : i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-bold ${x.listo ? "text-gris line-through decoration-1" : "text-tinta"}`}>{x.titulo}</p>
+                    <p className="mt-0.5 text-xs text-gris">{x.texto}</p>
+                    {!x.listo && (
+                      <Link href={x.href} className={`mt-2.5 inline-flex items-center gap-1 text-xs font-bold ${actual ? "text-naranjo" : "text-gris hover:text-tinta"}`}>
+                        {x.boton} <IconArrowRight size={13} />
+                      </Link>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
       )}
 
       {/* ── Fila 1: KPIs ── */}
@@ -262,10 +291,6 @@ export default async function ResumenFinanzasPage() {
           </div>
         </div>
       </Seccion>
-
-      <p className="text-center text-[11px] text-gris-suave">
-        Etapas: {ETAPAS_HITO.join(" → ")}. Todo se calcula con las reglas del Excel «Finanzas PERTEC v2».
-      </p>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { IconPlus } from "@tabler/icons-react";
+import { IconBuildingBank, IconCalculator, IconCreditCard, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
 import { RUTA_FIN, cargarVista, type Perfil } from "@/lib/fin/datos";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
@@ -23,20 +23,34 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
 
       {ver === "parametros" && (
         <div className={`${TARJETA} max-w-3xl p-5`}>
-          <p className="mb-4 text-sm text-gris">Los parámetros del Excel («Listas y reglas»), solo para {v.empresa.nombre}.</p>
-          <FormAccion accion={guardarParametrosAction}>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Campo etiqueta="IVA %"><input name="tasaIva" defaultValue={p.tasaIva * 100} className={CAMPO} /></Campo>
-              <Campo etiqueta="Tolerancia factura vs OC ($)" ayuda="Diferencia que no detiene el pago"><input name="toleranciaFacturaOc" defaultValue={p.toleranciaFacturaOc} className={CAMPO} /></Campo>
-              <Campo etiqueta="Plazo de pago a proveedores (días)" ayuda="Para estimar el pago de una OC visada sin factura"><input name="plazoPagoProveedorDias" defaultValue={p.plazoPagoProveedorDias} className={CAMPO} /></Campo>
-              <Campo etiqueta="Plazo para aclarar movimientos (días)" ayuda="Pasado esto, se escala"><input name="plazoAclararDias" defaultValue={p.plazoAclararDias} className={CAMPO} /></Campo>
-              <Campo etiqueta="Mínimo de caja ($)" ayuda="Política de gerencia, no saldo"><input name="minimoCaja" defaultValue={p.minimoCaja} className={CAMPO} /></Campo>
-              <Campo etiqueta="Tasa de mora factoring (% mensual)"><input name="tasaMoraFactoring" defaultValue={(p.tasaMoraFactoring * 100).toLocaleString("es-CL")} className={CAMPO} /></Campo>
-              <Campo etiqueta="Plazo de reclamo de facturas (días)" ayuda="Ley 19.983 (validar con el contador)"><input name="plazoReclamoFacturaDias" defaultValue={p.plazoReclamoFacturaDias} className={CAMPO} /></Campo>
-              <Campo etiqueta="Horizonte del flujo (meses)"><input name="horizonteMeses" defaultValue={p.horizonteMeses} className={CAMPO} /></Campo>
-              <Campo etiqueta="Condición de pago por omisión (días)"><input name="condicionPagoDefault" defaultValue={p.condicionPagoDefault} className={CAMPO} /></Campo>
-            </div>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="contabilidadActiva" defaultChecked={Boolean(v.flags.contabilidad_activa)} /> Contabilidad integrada (si no, modo «contador externo»: libros y paquete para el contador)</label>
+          <p className="mb-5 text-sm text-gris">Las reglas con que se calcula todo en {v.empresa.nombre}. Vienen con valores razonables: cambia solo lo que tu empresa haga distinto.</p>
+          <FormAccion accion={guardarParametrosAction} className="space-y-6">
+            <GrupoParametros titulo="Ventas y cobros" icono={<IconReceipt2 size={15} />}>
+              <Campo etiqueta="IVA (%)"><input name="tasaIva" defaultValue={p.tasaIva * 100} inputMode="decimal" className={CAMPO} /></Campo>
+              <Campo etiqueta="Días para pagar (por omisión)" ayuda="Lo que se le da al cliente si su ficha no dice otra cosa"><input name="condicionPagoDefault" defaultValue={p.condicionPagoDefault} inputMode="numeric" className={CAMPO} /></Campo>
+            </GrupoParametros>
+            <GrupoParametros titulo="Compras y pagos" icono={<IconShoppingCart size={15} />}>
+              <Campo etiqueta="Diferencia aceptada factura vs OC ($)" ayuda="Si la factura difiere menos que esto, sigue sin revisión"><input name="toleranciaFacturaOc" defaultValue={p.toleranciaFacturaOc} inputMode="numeric" className={CAMPO} /></Campo>
+              <Campo etiqueta="Días para pagar a proveedores" ayuda="Para proyectar el pago de una OC que aún no trae factura"><input name="plazoPagoProveedorDias" defaultValue={p.plazoPagoProveedorDias} inputMode="numeric" className={CAMPO} /></Campo>
+              <Campo etiqueta="Días para reclamar una factura" ayuda="Ley 19.983; confírmalo con el contador"><input name="plazoReclamoFacturaDias" defaultValue={p.plazoReclamoFacturaDias} inputMode="numeric" className={CAMPO} /></Campo>
+            </GrupoParametros>
+            <GrupoParametros titulo="Caja y banco" icono={<IconBuildingBank size={15} />}>
+              <Campo etiqueta="Mínimo de caja ($)" ayuda="El piso que no quieres perforar: el flujo avisa si se proyecta bajo él"><input name="minimoCaja" defaultValue={p.minimoCaja} inputMode="numeric" className={CAMPO} /></Campo>
+              <Campo etiqueta="Meses a proyectar" ayuda="Cuántos meses muestra el flujo de caja"><input name="horizonteMeses" defaultValue={p.horizonteMeses} inputMode="numeric" className={CAMPO} /></Campo>
+              <Campo etiqueta="Días para aclarar un movimiento" ayuda="Pasado este plazo, el movimiento se marca para escalar"><input name="plazoAclararDias" defaultValue={p.plazoAclararDias} inputMode="numeric" className={CAMPO} /></Campo>
+            </GrupoParametros>
+            <GrupoParametros titulo="Factoring" icono={<IconCreditCard size={15} />}>
+              <Campo etiqueta="Mora del factor (% mensual)" ayuda="Se usa para estimar el costo si el cliente paga tarde"><input name="tasaMoraFactoring" defaultValue={(p.tasaMoraFactoring * 100).toLocaleString("es-CL")} inputMode="decimal" className={CAMPO} /></Campo>
+            </GrupoParametros>
+            <GrupoParametros titulo="Contabilidad" icono={<IconCalculator size={15} />}>
+              <label className="flex items-start gap-2.5 rounded-xl border border-borde p-3 text-sm sm:col-span-3">
+                <input type="checkbox" name="contabilidadActiva" defaultChecked={Boolean(v.flags.contabilidad_activa)} className="mt-0.5" />
+                <span>
+                  <span className="font-semibold text-tinta">Llevar la contabilidad aquí</span>
+                  <span className="block text-xs text-gris">Si lo dejas apagado (lo normal), el contador externo recibe los libros y los asientos propuestos. Actívalo solo cuando el contador haya validado el plan de cuentas.</span>
+                </span>
+              </label>
+            </GrupoParametros>
           </FormAccion>
         </div>
       )}
@@ -205,5 +219,17 @@ function FormPerfil({ contactoId, pf }: { contactoId: string; pf?: Perfil }) {
       </div>
       <Campo etiqueta="Notas"><input name="notas" defaultValue={pf?.notas ?? ""} className={CAMPO} /></Campo>
     </FormAccion>
+  );
+}
+
+/** Un bloque de parámetros con su título: ordena el formulario por tema. */
+function GrupoParametros({ titulo, icono, children }: { titulo: string; icono: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <fieldset>
+      <legend className="mb-2.5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-naranjo">
+        {icono} {titulo}
+      </legend>
+      <div className="grid gap-3 sm:grid-cols-3">{children}</div>
+    </fieldset>
   );
 }

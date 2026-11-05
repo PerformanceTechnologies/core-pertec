@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconInbox } from "@tabler/icons-react";
+import { IconChevronRight, IconInbox } from "@tabler/icons-react";
 import { TARJETA } from "@/lib/estilos";
 import { clp, clpCorto, type EtapaHito, type PasoCompra, type EstadoFactoring } from "@/lib/fin/reglas";
 
@@ -85,8 +85,50 @@ export function Seccion({ titulo, icono, accion, children, id }: { titulo: strin
   );
 }
 
-/** La banda oscura de arriba de cada pantalla: una cifra grande y las de apoyo. */
-export function Banda({ etiqueta, valor, bajada, cifras, children }: { etiqueta: string; valor: string; bajada?: React.ReactNode; cifras?: { etiqueta: string; valor: string; detalle?: string; alerta?: boolean }[]; children?: React.ReactNode }) {
+/** Un paso del proceso de una pantalla: qué es, cuántas cosas hay ahí y dónde verlas. */
+export type PasoRecorrido = { titulo: string; ayuda?: string; n?: number; href?: string; alerta?: boolean };
+
+/**
+ * El proceso de la pantalla, paso a paso, al pie de la banda oscura: se entiende de un vistazo por
+ * dónde pasa cada cosa y en qué paso hay algo pendiente (el número naranjo).
+ */
+export function Recorrido({ pasos, titulo = "Cómo avanza" }: { pasos: PasoRecorrido[]; titulo?: string }) {
+  return (
+    <div className="borde-banda mt-6 border-t pt-4">
+      <p className="texto-banda-45 mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em]">{titulo}</p>
+      <ol className="flex flex-wrap items-center gap-y-1">
+        {pasos.map((p, i) => {
+          const pendiente = p.n !== undefined && p.n > 0;
+          const cuerpo = (
+            <>
+              <span className={`mt-px grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-bold tabular-nums ${p.alerta && pendiente ? "border-naranjo bg-naranjo text-white" : "border-naranjo/50 text-naranjo"}`}>{i + 1}</span>
+              <span className="min-w-0">
+                <span className="texto-banda flex items-center gap-1.5 text-[13px] font-semibold leading-tight">
+                  {p.titulo}
+                  {pendiente && <span className="rounded-full bg-naranjo px-1.5 text-[10px] font-bold leading-4 text-white tabular-nums">{p.n}</span>}
+                </span>
+                {p.ayuda && <span className="texto-banda-45 block max-w-[13rem] text-[11px] leading-snug">{p.ayuda}</span>}
+              </span>
+            </>
+          );
+          return (
+            <li key={p.titulo} className="flex items-center">
+              {p.href ? (
+                <Link href={p.href} scroll={false} className="flex items-start gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.07]">{cuerpo}</Link>
+              ) : (
+                <div className="flex items-start gap-2 px-2 py-1.5">{cuerpo}</div>
+              )}
+              {i < pasos.length - 1 && <IconChevronRight size={14} className="texto-banda-45 mx-0.5 shrink-0" aria-hidden />}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/** La banda oscura de arriba de cada pantalla: una cifra grande, las de apoyo y (opcional) el proceso paso a paso. */
+export function Banda({ etiqueta, valor, bajada, cifras, pasos, children }: { etiqueta: string; valor: string; bajada?: React.ReactNode; cifras?: { etiqueta: string; valor: string; detalle?: string; alerta?: boolean }[]; pasos?: PasoRecorrido[]; children?: React.ReactNode }) {
   return (
     <section className="banda-contraste overflow-hidden rounded-2xl px-6 py-6 sm:px-8">
       <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
@@ -109,6 +151,7 @@ export function Banda({ etiqueta, valor, bajada, cifras, children }: { etiqueta:
           </dl>
         )}
       </div>
+      {pasos && pasos.length > 0 && <Recorrido pasos={pasos} />}
       {children}
     </section>
   );
@@ -131,13 +174,14 @@ export function Kpi({ etiqueta, valor, detalle, href, tono = "text-tinta", ayuda
   );
 }
 
-export function Vacio({ titulo, texto, children }: { titulo: string; texto?: string; children?: React.ReactNode }) {
+/** Estado vacío: qué va aquí y (en children) el botón del primer paso. */
+export function Vacio({ titulo, texto, icono, children }: { titulo: string; texto?: string; icono?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className={`${TARJETA} grid place-items-center gap-2 px-6 py-12 text-center`}>
-      <IconInbox size={34} stroke={1.4} className="text-gris-suave" />
+      <span className="mb-1 grid h-12 w-12 place-items-center rounded-2xl bg-naranjo/[0.08] text-naranjo">{icono ?? <IconInbox size={24} stroke={1.6} />}</span>
       <p className="text-sm font-semibold text-tinta">{titulo}</p>
       {texto && <p className="max-w-md text-xs text-gris">{texto}</p>}
-      {children}
+      {children && <div className="mt-2 flex flex-wrap justify-center gap-2">{children}</div>}
     </div>
   );
 }

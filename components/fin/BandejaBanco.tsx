@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconChevronDown, IconUpload, IconWand } from "@tabler/icons-react";
 import { aceptarSugerenciasAction, categorizarMovimientoAction, conciliarMovimientoAction, reglaDesdeMovimientoAction } from "@/app/(protegido)/gestion-financiera/acciones-tesoreria";
@@ -18,7 +19,7 @@ export function ImportarCartola({ cuentas }: { cuentas: Ref[] }) {
   const [cuenta, setCuenta] = useState(cuentas[0]?.id ?? "");
   const [estado, setEstado] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
-  if (cuentas.length === 0) return <p className="text-xs text-gris">Crea primero tus cuentas en Configuración.</p>;
+  if (cuentas.length === 0) return <p className="text-xs text-gris">Para importar cartolas, crea primero tus cuentas en <Link href="/gestion-financiera/configuracion?ver=cuentas" className="font-semibold text-naranjo hover:underline">Configuración → Cuentas</Link>.</p>;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select value={cuenta} onChange={(e) => setCuenta(e.target.value)} className="rounded-lg border border-borde bg-superficie px-2.5 py-2 text-xs">

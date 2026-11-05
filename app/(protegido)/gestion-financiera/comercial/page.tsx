@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconFilePlus, IconPlus } from "@tabler/icons-react";
+import { IconFilePlus, IconPlus, IconTargetArrow } from "@tabler/icons-react";
 import { RUTA_FIN, cargarComercial, cargarVista } from "@/lib/fin/datos";
 import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA } from "@/lib/fin/modelo";
@@ -32,7 +32,13 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
       <Banda
         etiqueta="Comercial"
         valor={clpCorto(abiertas.reduce((s, o) => s + o.montoEstimado, 0))}
-        bajada="Pipeline abierto (monto estimado). Al aceptar una cotización, la oportunidad pasa a Ganada y nacen los hitos a facturar."
+        bajada="Negocios abiertos, por su monto estimado."
+        pasos={[
+          { titulo: "Oportunidad", ayuda: "Un cliente interesado", n: abiertas.length, href: `${RUTA_FIN}/comercial` },
+          { titulo: "Cotización", ayuda: "Con líneas y versiones", n: enviadas.length, href: `${RUTA_FIN}/comercial?ver=cotizaciones` },
+          { titulo: "Aceptación", ayuda: "Nacen el proyecto y los hitos" },
+          { titulo: "Ventas y cobranza", ayuda: "Se factura y se cobra", href: `${RUTA_FIN}/ventas` },
+        ]}
         cifras={[
           { etiqueta: "Forecast ponderado", valor: clpCorto(ponderado) },
           { etiqueta: "Oportunidades abiertas", valor: String(abiertas.length) },
@@ -51,12 +57,12 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
 
       {ver === "oportunidades" ? (
         com.oportunidades.length === 0 ? (
-          <Vacio titulo="Todavía no hay oportunidades" texto="Crea la primera y arrástrala entre etapas a medida que avanza." />
+          <Vacio titulo="Todavía no hay oportunidades" texto="Una oportunidad es un cliente interesado. Créala con «Nueva oportunidad» (arriba a la derecha) y arrástrala entre etapas a medida que avanza." icono={<IconTargetArrow size={24} stroke={1.6} />} />
         ) : (
           <KanbanOportunidades oportunidades={com.oportunidades} clientes={clientes} hoy={v.hoy} />
         )
       ) : com.cotizaciones.length === 0 ? (
-        <Vacio titulo="Todavía no hay cotizaciones" texto="Crea una con «Nueva cotización». Al aceptarla se generan los hitos facturables." />
+        <Vacio titulo="Todavía no hay cotizaciones" texto="Crea una con «Nueva cotización». Al aceptarla nacen el proyecto y los hitos que se facturan." icono={<IconFilePlus size={24} stroke={1.6} />} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
           <table className="w-full min-w-[56rem] text-sm">

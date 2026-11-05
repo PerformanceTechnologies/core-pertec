@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { IconFileInvoice, IconPlus, IconReceipt2 } from "@tabler/icons-react";
+import { IconFileInvoice, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
 import { RUTA_FIN, cargarVista } from "@/lib/fin/datos";
-import { clp, clpCorto, conIva, fechaCl, inicioDeMes, mesLargo, sumarDias } from "@/lib/fin/reglas";
+import { clp, clpCorto, conIva, fechaCl, inicioDeMes, mesLargo, sumarDias, type PasoCompra } from "@/lib/fin/reglas";
 import { DTE_CORTO } from "@/lib/fin/modelo";
 import { anularPagoAction, crearCompraAction, registrarFacturaCompraAction, registrarPagoAction } from "../acciones-compras";
 import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
@@ -15,6 +15,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
   const v = await cargarVista();
   const ver = sp.ver ?? "todas";
   const vivas = v.compras.filter((c) => !c.anulada);
+  const enPaso = (p: PasoCompra) => vivas.filter((c) => c.paso === p).length;
   const porAprobar = vivas.filter((c) => c.paso === "Falta aprobación JP o gerente" || (c.paso === "Factura sin OC: regularizar" && !c.aprobadoPor));
   const porVisar = vivas.filter((c) => c.paso === "Falta visado de Finanzas" || (c.paso === "Factura sin OC: regularizar" && c.aprobadoPor));
   const recibidas = v.documentos.filter((d) => d.direccion === "recibido").sort((a, b) => b.fechaEmision.localeCompare(a.fechaEmision));
@@ -39,7 +40,15 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
       <Banda
         etiqueta="Compras y pagos"
         valor={clp(v.dashboard.porPagar)}
-        bajada="Por pagar (facturas recibidas). Solicitud → aprobación del JP o gerente → visado de Finanzas (nace la OC) → recepción → factura → pago."
+        bajada="Por pagar: facturas de proveedores recibidas que aún no se pagan."
+        pasos={[
+          { titulo: "Solicitud", ayuda: "Quien necesita la compra", n: undefined },
+          { titulo: "Aprobación", ayuda: "Jefe de proyecto o gerente", n: porAprobar.length, href: `${RUTA_FIN}/compras?ver=aprobar`, alerta: true },
+          { titulo: "Visado", ayuda: "Finanzas revisa la caja y emite la OC", n: porVisar.length, href: `${RUTA_FIN}/compras?ver=visar`, alerta: true },
+          { titulo: "Recepción", ayuda: "Llegó conforme", n: enPaso("Esperar recepción conforme") },
+          { titulo: "Factura", ayuda: "Se compara con la OC", n: enPaso("Esperar factura del proveedor") + enPaso("Revisar diferencia con la OC"), href: `${RUTA_FIN}/compras?ver=facturas` },
+          { titulo: "Pago", ayuda: "Se programa según el flujo", n: enPaso("Programar pago") + enPaso("Vencida: programar pago ya") + enPaso("Pago programado"), href: `${RUTA_FIN}/compras?ver=pagos`, alerta: enPaso("Vencida: programar pago ya") > 0 },
+        ]}
         cifras={[
           { etiqueta: "Por aprobar", valor: String(porAprobar.length), alerta: porAprobar.length > 0 },
           { etiqueta: "Por visar", valor: clpCorto(v.dashboard.comprasEsperandoVisado), detalle: `${porVisar.length} compra(s)`, alerta: porVisar.length > 0 },
@@ -99,7 +108,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
         <>
           {ver === "todas" && <form className="max-w-md"><input name="q" defaultValue={sp.q} placeholder="Buscar por código, proveedor, proyecto, OC o folio…" className={CAMPO} /></form>}
           {lista.length === 0 ? (
-            <Vacio titulo={ver === "todas" ? "Todavía no hay compras" : "Nada pendiente aquí"} texto={ver === "todas" ? "Crea la primera con «Nueva solicitud»." : "Todo al día. ✓"} />
+            <Vacio titulo={ver === "todas" ? "Todavía no hay compras" : "Nada pendiente aquí"} texto={ver === "todas" ? "Toda compra parte como solicitud: usa «Nueva solicitud» (arriba a la derecha). Después pasa por aprobación y visado." : "Todo al día. ✓"} icono={<IconShoppingCart size={24} stroke={1.6} />} />
           ) : (
             <TablaCompras compras={lista} cuentas={cuentas} hoy={v.hoy} holguras={holguras} modo={ver as "todas" | "aprobar" | "visar"} />
           )}
@@ -111,7 +120,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
 
       {ver === "facturas" && (
         recibidas.length === 0 ? (
-          <Vacio titulo="No hay facturas recibidas" texto="Se registran desde la compra («Registrar factura») o con «Factura sin OC»." />
+          <Vacio titulo="No hay facturas recibidas" texto="Se registran desde la compra («Registrar factura») o, si llegó sin OC, con «Factura sin OC»." icono={<IconFileInvoice size={24} stroke={1.6} />} />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
             <table className="w-full min-w-[64rem] text-sm">

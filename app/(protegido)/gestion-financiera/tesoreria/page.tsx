@@ -6,7 +6,7 @@ import { TARJETA } from "@/lib/estilos";
 import { actualizarSaldoAction, guardarPartidaAction } from "../acciones-config";
 import { actualizarCesionAction, crearMovimientoAction, crearOperacionFactoringAction } from "../acciones-tesoreria";
 import { Banda, Chip, Deshabilitado, Monto, Pestanas, Seccion, TD, TH, Vacio, tonoFactoring } from "@/components/fin/piezas";
-import { BOTON_SEC, CAMPO, Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
+import { BOTON, BOTON_SEC, CAMPO, Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
 import BandejaBanco, { ImportarCartola } from "@/components/fin/BandejaBanco";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,13 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       <Banda
         etiqueta="Tesorería"
         valor={clp(v.cajaBancos)}
-        bajada="Caja en bancos según el banco. La rutina diaria: cargar la cartola de ayer, categorizar y ligar, y asignar a quién preguntar lo que no se reconoce."
+        bajada="Caja en bancos según la última cartola. Cada día: carga la cartola de ayer y deja cada movimiento explicado."
+        pasos={[
+          { titulo: "Importar cartola", ayuda: "CSV o Excel del banco; no se duplica" },
+          { titulo: "Aceptar sugerencias", ayuda: "Las reglas proponen la categoría", n: v.movimientos.filter((m) => m.sugerencia && !m.categoriaId).length, href: `${RUTA_FIN}/tesoreria?ver=sugeridos`, alerta: true },
+          { titulo: "Categorizar y ligar", ayuda: "A un cobro, pago o traspaso", n: porAclarar.length, href: `${RUTA_FIN}/tesoreria` },
+          { titulo: "Aclarar lo desconocido", ayuda: "Asigna a quién preguntar", n: v.dashboard.movimientosEscalar, href: `${RUTA_FIN}/tesoreria?ver=escalar`, alerta: true },
+        ]}
         cifras={[
           { etiqueta: "Por aclarar", valor: String(porAclarar.length), detalle: clp(v.dashboard.montoPorAclarar), alerta: porAclarar.length > 0 },
           { etiqueta: "Para escalar", valor: String(v.dashboard.movimientosEscalar), alerta: v.dashboard.movimientosEscalar > 0 },
@@ -66,7 +72,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
                 </ConVentana>
               </div>
             ))}
-            {cuentasActivas.length === 0 && <Vacio titulo="Sin cuentas" texto="Crea tus cuentas de banco y tarjeta en Configuración." />}
+            {cuentasActivas.length === 0 && <Vacio titulo="Primero, tus cuentas" texto="Crea tus cuentas de banco y tarjeta con el saldo de hoy; después importas aquí sus cartolas." icono={<IconBuildingBank size={24} stroke={1.6} />}><Link href={`${RUTA_FIN}/configuracion?ver=cuentas`} className={BOTON}>Crear cuentas</Link></Vacio>}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -176,7 +182,7 @@ function Factoring({ v }: { v: V }) {
       )}
 
       {v.cesiones.length === 0 ? (
-        <Vacio titulo="Sin facturas cedidas" texto="Crea una operación eligiendo las facturas que cediste." />
+        <Vacio titulo="Sin facturas cedidas" texto="Cuando cedas facturas a un factor, crea aquí la operación eligiendo cuáles fueron. Antes, crea el factor en Configuración." icono={<IconCreditCard size={24} stroke={1.6} />} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
           <table className="w-full min-w-[86rem] text-sm">

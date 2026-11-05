@@ -18,6 +18,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
   const v = await cargarVista();
   const ver = sp.ver ?? "hitos";
   const activos = v.hitos.filter((h) => !h.anulado);
+  const enEtapa = (e: EtapaHito) => activos.filter((h) => h.etapa === e).length;
   const emitidos = v.documentos.filter((d) => d.direccion === "emitido").sort((a, b) => b.fechaEmision.localeCompare(a.fechaEmision));
   const clientes = v.contrapartes.filter((c) => c.esCliente || !c.esProveedor).map((c) => ({ id: c.id, nombre: c.nombre, rut: c.rut }));
   const abiertas = emitidos
@@ -35,7 +36,15 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
       <Banda
         etiqueta="Ventas y cobranza"
         valor={clp(v.dashboard.porCobrar)}
-        bajada="Por cobrar con IVA (facturas emitidas no pagadas). Cada fila es una cosa que se factura: un EDP, un hito, un mes de arriendo o un spot."
+        bajada="Por cobrar con IVA: facturas emitidas que el cliente aún no paga. Cada fila de abajo es algo que se factura: un EDP, un hito, un mes de arriendo o un spot."
+        pasos={[
+          { titulo: "Por iniciar", ayuda: "Cotización aceptada", n: enEtapa("Por iniciar"), href: `${RUTA_FIN}/ventas?etapa=Por iniciar` },
+          { titulo: "En ejecución", ayuda: "Se está haciendo el trabajo", n: enEtapa("En ejecución"), href: `${RUTA_FIN}/ventas?etapa=En ejecución` },
+          { titulo: "Requisitos", ayuda: "EDP, OC o HES del cliente", n: enEtapa("Esperando aprobación EDP") + enEtapa("Esperando OC") + enEtapa("Esperando HES") },
+          { titulo: "Lista para facturar", ayuda: "Registra la factura", n: enEtapa("Lista para facturar"), href: `${RUTA_FIN}/ventas?etapa=Lista para facturar`, alerta: true },
+          { titulo: "Por cobrar", ayuda: "Registra el cobro cuando llegue", n: enEtapa("Por cobrar") + enEtapa("Vencida"), href: `${RUTA_FIN}/ventas?etapa=Por cobrar`, alerta: enEtapa("Vencida") > 0 },
+          { titulo: "Cobrada", n: enEtapa("Cobrada"), href: `${RUTA_FIN}/ventas?etapa=Cobrada` },
+        ]}
         cifras={[
           { etiqueta: "Listo para facturar", valor: clpCorto(v.dashboard.listoParaFacturar), alerta: v.dashboard.listoParaFacturar > 0 },
           { etiqueta: "Terminado sin facturar", valor: clpCorto(v.dashboard.terminadoSinFacturar) },
@@ -92,7 +101,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
           </div>
           <form className="max-w-md"><input name="q" defaultValue={sp.q} placeholder="Buscar hito, cliente, proyecto o folio…" className={CAMPO} />{sp.etapa && <input type="hidden" name="etapa" value={sp.etapa} />}</form>
           {filtrados.length === 0 ? (
-            <Vacio titulo={activos.length ? "Ningún hito con ese filtro" : "Todavía no hay hitos"} texto="Los hitos nacen al aceptar una cotización en Comercial, o se crean a mano con «Nuevo hito»." />
+            <Vacio titulo={activos.length ? "Ningún hito con ese filtro" : "Todavía no hay hitos"} texto={activos.length ? "Prueba con otra etapa o borra la búsqueda." : "Los hitos nacen solos al aceptar una cotización en Comercial. Para un trabajo suelto, usa «Nuevo hito»."} icono={<IconReceipt2 size={24} stroke={1.6} />}>{activos.length ? <Link href={`${RUTA_FIN}/ventas`} className={BOTON_SEC}>Ver todos</Link> : <Link href={`${RUTA_FIN}/comercial`} className={BOTON}>Ir a Comercial</Link>}</Vacio>
           ) : (
             <TablaHitos hitos={filtrados} tasaIva={v.p.tasaIva} hoy={v.hoy} />
           )}
@@ -129,7 +138,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
             </ConVentana>
           </div>
           {emitidos.length === 0 ? (
-            <Vacio titulo="No hay documentos emitidos" texto="Se registran desde los hitos «Lista para facturar»: márcalos y «Registrar factura»." />
+            <Vacio titulo="No hay facturas emitidas" texto="Se registran desde los hitos «Lista para facturar»: márcalos y usa «Registrar factura»." icono={<IconReceipt2 size={24} stroke={1.6} />}><Link href={`${RUTA_FIN}/ventas?etapa=Lista para facturar`} className={BOTON_SEC}>Ver lo listo para facturar</Link></Vacio>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
               <table className="w-full min-w-[62rem] text-sm">
@@ -158,7 +167,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
 
       {ver === "cobros" && (
         v.cobros.length === 0 ? (
-          <Vacio titulo="Aún no hay cobros" texto="Regístralos con «Registrar cobro» o desde el Banco diario, cuando llega el abono." />
+          <Vacio titulo="Aún no hay cobros" texto="Cuando el cliente pague, regístralo con «Registrar cobro» o directo desde el abono en el Banco diario." icono={<IconReceipt2 size={24} stroke={1.6} />} />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
             <table className="w-full min-w-[50rem] text-sm">
