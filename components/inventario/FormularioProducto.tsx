@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconCertificate, IconFileCheck, IconPencil, IconPlus, IconUpload, IconX } from "@tabler/icons-react";
+import { IconCamera, IconCertificate, IconFileCheck, IconPencil, IconPlus, IconUpload, IconX } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
 import { ESTILO_ESTADO_OPERATIVO, FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
@@ -13,7 +13,9 @@ import {
   ETIQUETA_METODO_COSTO,
   ETIQUETA_SEGUIMIENTO,
   ETIQUETA_TIPO_PRODUCTO,
+  MAX_FOTOS_PRODUCTO,
   TIPOS_CERTIFICADO,
+  TIPOS_FOTO_PRODUCTO,
   type Categoria,
   type EstadoOperativo,
   type MetodoCosto,
@@ -58,6 +60,12 @@ export default function FormularioProducto({
   const [requiere, setRequiere] = useState(producto?.requiereCertificacion ?? false);
   const [certificado, setCertificado] = useState<File | null>(null);
   const [tieneCert, setTieneCert] = useState(producto?.tieneCertificado ?? false);
+  // Fotos elegidas en esta ventana: se suben a SharePoint al guardar (ver /api/inventario/fotos).
+  const [fotos, setFotos] = useState<File[]>([]);
+  const entradaFotos = useRef<HTMLInputElement>(null);
+  const caben = MAX_FOTOS_PRODUCTO - (producto?.cantidadFotos ?? 0);
+  const vistas = useMemo(() => fotos.map((f) => URL.createObjectURL(f)), [fotos]);
+  useEffect(() => () => vistas.forEach((u) => URL.revokeObjectURL(u)), [vistas]);
   const [nombre, setNombre] = useState(producto?.nombre ?? "");
   const [sku, setSku] = useState(producto?.sku ?? "");
   const [marca, setMarca] = useState(producto?.marca ?? "");
@@ -74,6 +82,7 @@ export default function FormularioProducto({
   function abrir() {
     setRequiere(producto?.requiereCertificacion ?? false);
     setCertificado(null);
+    setFotos([]);
     setTieneCert(producto?.tieneCertificado ?? false);
     setNombre(producto?.nombre ?? "");
     setSku(producto?.sku ?? "");
@@ -100,6 +109,15 @@ export default function FormularioProducto({
     setCertificado(f);
   }
 
+  function elegirFotos(lista: FileList | null) {
+    const nuevas = Array.from(lista ?? []);
+    if (entradaFotos.current) entradaFotos.current.value = "";
+    const malas = nuevas.filter((f) => !Object.hasOwn(TIPOS_FOTO_PRODUCTO, f.type) || f.size > 4 * 1024 * 1024);
+    if (malas.length) setError(`${malas.map((f) => `"${f.name}"`).join(", ")}: sube fotos JPG, PNG, WEBP o HEIC de hasta 4 MB.`);
+    else setError(null);
+    setFotos((antes) => [...antes, ...nuevas.filter((f) => !malas.includes(f))].slice(0, Math.max(0, caben)));
+  }
+
   function enviar(fd: FormData) {
     setError(null);
     fd.set("requiereCertificacion", requiere ? "si" : "no");
@@ -118,6 +136,22 @@ export default function FormularioProducto({
           router.refresh();
           return setError(`El producto se guardó, pero el certificado no se pudo subir: ${e instanceof Error ? e.message : "error"}`);
         }
+      }
+      // Las fotos, de a una (cada una puede pesar hasta 4 MB). Si alguna falla, el producto ya quedó.
+      const fallas: string[] = [];
+      for (const foto of id ? fotos : []) {
+        try {
+          const datos = new FormData();
+          datos.set("productoId", id!);
+          datos.set("archivo", foto);
+          await leerRespuesta(await fetch("/api/inventario/fotos", { method: "POST", body: datos }));
+        } catch (e) {
+          fallas.push(e instanceof Error ? e.message : `${foto.name}: no se pudo subir.`);
+        }
+      }
+      if (fallas.length) {
+        router.refresh();
+        return setError(`El producto se guardó, pero ${fallas.length === 1 ? "una foto no se pudo subir" : "algunas fotos no se pudieron subir"}: ${fallas.join(" ")}`);
       }
       setAbierta(false);
       router.refresh();
@@ -168,7 +202,7 @@ export default function FormularioProducto({
             <div className="banda-contraste rounded-2xl p-5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">Vista previa</span>
               <div className="mt-4 flex items-center gap-3">
-                <FichaProducto nombre={nombre || "?"} categoria={nombreCategoria} />
+                <FichaProducto nombre={nombre || "?"} categoria={nombreCategoria} foto={vistas[0]} />
                 <div className="min-w-0">
                   <p className="texto-banda truncate text-sm font-bold">{nombre || "Nombre del producto"}</p>
                   <p className="texto-banda-65 truncate text-xs">{[marca.trim(), sku || "Sin código"].filter(Boolean).join(" · ")}</p>
@@ -231,6 +265,42 @@ export default function FormularioProducto({
                     ))}
                   </select>
                 </Campo>
+              </div>
+              <div>
+                <span className="mb-1 flex items-baseline gap-1.5 text-xs font-semibold text-gris">
+                  Fotos
+                  <span className="font-normal text-gris-suave">
+                    · Opcional{editar && producto!.cantidadFotos > 0 ? `, se suman a las ${producto!.cantidadFotos} que ya tiene` : `, hasta ${MAX_FOTOS_PRODUCTO}`}
+                  </span>
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {vistas.map((u, i) => (
+                    <span key={u} className="group relative h-14 w-14 overflow-hidden rounded-lg bg-tinta/[0.04] ring-1 ring-borde">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- vista previa local, todavía no subida */}
+                      <img src={u} alt={fotos[i]?.name ?? ""} className="h-full w-full object-cover opacity-90 saturate-[.85]" />
+                      <button
+                        type="button"
+                        onClick={() => setFotos((xs) => xs.filter((_, j) => j !== i))}
+                        aria-label={`Quitar ${fotos[i]?.name ?? "foto"}`}
+                        className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-superficie/90 text-gris shadow-sm transition hover:text-rose-600"
+                      >
+                        <IconX size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  {fotos.length < caben && (
+                    <button
+                      type="button"
+                      onClick={() => entradaFotos.current?.click()}
+                      className="inline-flex h-14 items-center gap-1.5 rounded-lg border border-dashed border-borde px-3.5 text-xs font-semibold text-gris transition hover:border-gris-suave hover:text-tinta"
+                    >
+                      <IconCamera size={16} stroke={1.8} />
+                      {fotos.length ? "Agregar más" : "Agregar fotos"}
+                    </button>
+                  )}
+                  {caben <= 0 && <span className="text-xs text-gris">Ya tiene {MAX_FOTOS_PRODUCTO} fotos, el máximo.</span>}
+                  <input ref={entradaFotos} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple className="sr-only" onChange={(e) => elegirFotos(e.target.files)} />
+                </div>
               </div>
               <div>
                 <span className="mb-1.5 block text-xs font-semibold text-gris">¿Qué tipo de producto es?</span>
