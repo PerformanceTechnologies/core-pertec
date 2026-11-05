@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { MODULOS_TRASPASO } from "@/lib/archivos/traspaso";
+import { MODULOS_TRASPASO, sobrantesDeRendiciones } from "@/lib/archivos/traspaso";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +17,17 @@ async function admin() {
   return usuario?.rol === "admin" ? usuario : null;
 }
 
-export async function GET() {
+//   GET ?sobrantes=rendiciones[&limpiar=1] → copias sin anotar de tandas cortadas (a la papelera).
+export async function GET(request: Request) {
   if (!(await admin())) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const q = new URL(request.url).searchParams;
+  if (q.get("sobrantes") === "rendiciones") {
+    try {
+      return NextResponse.json(await sobrantesDeRendiciones(q.get("limpiar") === "1"));
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    }
+  }
   const modulos = await Promise.all(
     MODULOS_TRASPASO.map(async (m) => {
       try {

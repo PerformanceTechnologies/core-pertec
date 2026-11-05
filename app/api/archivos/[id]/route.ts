@@ -34,7 +34,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   try {
     const { respuesta, tipo, nombre } = await abrirDeSharePoint(`${PREFIJO_SP}${id}`);
-    const nombreFinal = (p.n || nombre).replace(/[\r\n"]/g, "_");
+    // Sin nombre en el enlace, el de SharePoint sin el prefijo al azar que evita choques.
+    const nombreFinal = (p.n || nombre.replace(/^[0-9a-f]{8} /, "")).replace(/[\r\n"]/g, "_");
     // Un HTML, SVG o XML no se muestra: se baja. Así no puede correr código con la sesión del Core.
     const peligroso = /html|svg|xml|javascript/i.test(tipo);
     const cabeceras = new Headers({

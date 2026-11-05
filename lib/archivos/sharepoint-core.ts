@@ -201,6 +201,33 @@ export async function borrarCarpetaDeSharePoint(carpeta: string): Promise<void> 
   }
 }
 
+/** Todos los archivos bajo una carpeta del Core (recorre subcarpetas), como referencias «sp:<id>». */
+export async function listarCarpetaDeSharePoint(carpeta: string): Promise<{ ref: string; nombre: string; ruta: string }[]> {
+  const graph = await cliente();
+  const s = await sitio(graph);
+  const salida: { ref: string; nombre: string; ruta: string }[] = [];
+  const pendientes: { api: string; ruta: string }[] = [{ api: `/sites/${s}/drive/root:/${codificarRuta(rutaCompleta(carpeta))}:/children`, ruta: carpeta }];
+  while (pendientes.length) {
+    const { api, ruta } = pendientes.shift()!;
+    let siguiente: string | undefined = api;
+    while (siguiente) {
+      let r;
+      try {
+        r = await graph.api(siguiente).top(200).get();
+      } catch (e) {
+        if ((e as { statusCode?: number })?.statusCode === 404) break;
+        throw e;
+      }
+      for (const it of r?.value ?? []) {
+        if (it.folder) pendientes.push({ api: `/sites/${s}/drive/items/${it.id}/children`, ruta: `${ruta}/${it.name}` });
+        else if (it.file) salida.push({ ref: `${PREFIJO_SP}${it.id}`, nombre: it.name, ruta: `${ruta}/${it.name}` });
+      }
+      siguiente = r?.["@odata.nextLink"];
+    }
+  }
+  return salida;
+}
+
 /** Para el diagnóstico: sube y borra un archivo de prueba. Devuelve null si anduvo, o el motivo. */
 export async function probarSharePoint(): Promise<string | null> {
   let ref: string | null = null;

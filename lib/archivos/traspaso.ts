@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { pertecWebSupabase } from "@/lib/pertec-web-supabase";
 import { enlacePermanente, esReferenciaSharePoint, leerArchivo } from "./almacen";
-import { nombreUnico, subirASharePoint } from "./sharepoint-core";
+import { borrarDeSharePoint, listarCarpetaDeSharePoint, nombreUnico, subirASharePoint } from "./sharepoint-core";
 import {
   CARPETA_MANTENCION,
   CARPETA_OFERTAS_EMITIDAS,
@@ -252,6 +252,9 @@ const rendiciones: Modulo = (() => {
         const carpeta = carpetaRendicion({ id: f.id, quien: f.nombre_quien_rinde, titulo: f.titulo_rendicion, creadoEn: f.creado_en });
         const cambios = new Map<string, string>();
         for (const g of f.gastos as any[]) {
+          // Pasado el tope, se guarda lo hecho y el resto queda para la vuelta siguiente: si
+          // Vercel cortara a mitad de fila, lo subido quedaría en SharePoint sin anotar.
+          if (Date.now() > hasta + 8_000) break;
           if (!viejo(g?.archivoPath) || cambios.has(g.archivoPath)) continue;
           try {
             cambios.set(g.archivoPath, await pasar({ buckets: ["rendiciones-respaldos"], ruta: g.archivoPath, carpeta, nombre: g.archivoNombre, tipo: g.archivoTipo }));
@@ -439,3 +442,18 @@ const gastosProyectos: Modulo = (() => {
 })();
 
 export const MODULOS_TRASPASO: Modulo[] = [tareas, flota, inventario, finanzas, rendiciones, ofertas, maestros, logosEmpresas, mantencion, gastosProyectos];
+
+/**
+ * Archivos en «Rendiciones» que ninguna rendición nombra: copias que quedaron de una tanda
+ * cortada a mitad de camino. Con `limpiar`, se mandan a la papelera del sitio (recuperables).
+ */
+export async function sobrantesDeRendiciones(limpiar: boolean): Promise<{ total: number; sobrantes: string[]; enviadosAPapelera: number }> {
+  const { data, error } = await supabaseAdmin.from("rendiciones").select("gastos");
+  if (error) throw new Error(`rendiciones: ${error.message}`);
+  const usados = new Set<string>();
+  for (const f of (data ?? []) as any[]) for (const g of (f.gastos ?? []) as any[]) if (esReferenciaSharePoint(g?.archivoPath)) usados.add(g.archivoPath);
+  const archivos = await listarCarpetaDeSharePoint("Rendiciones");
+  const sobra = archivos.filter((a) => !usados.has(a.ref));
+  if (limpiar && sobra.length) await borrarDeSharePoint(sobra.map((a) => a.ref));
+  return { total: archivos.length, sobrantes: sobra.map((a) => a.ruta), enviadosAPapelera: limpiar ? sobra.length : 0 };
+}
