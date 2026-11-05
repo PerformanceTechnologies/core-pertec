@@ -144,6 +144,22 @@ export function BotonAccion({
   );
 }
 
+/** Lo que muestra una ventana cuando todavía no hay con qué trabajar (p. ej. cobrar sin facturas). */
+export function VacioVentana({ titulo, texto, enlace }: { titulo: string; texto: string; enlace?: { href: string; texto: string } }) {
+  const cerrarVentana = useContext(CerrarVentana);
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-2xl bg-tinta/[0.035] px-6 py-7 text-center">
+      <span className="grid h-11 w-11 place-items-center rounded-full bg-superficie text-gris shadow-sm"><IconForms size={20} stroke={1.6} /></span>
+      <p className="text-sm font-semibold text-tinta">{titulo}</p>
+      <p className="max-w-sm text-[13px] leading-snug text-gris">{texto}</p>
+      <div className="mt-2 flex flex-wrap justify-center gap-2">
+        {cerrarVentana && <button type="button" onClick={cerrarVentana} className={BOTON_VENTANA_SUAVE}>Entendido</button>}
+        {enlace && <a href={enlace.href} className={BOTON_VENTANA}>{enlace.texto}</a>}
+      </div>
+    </div>
+  );
+}
+
 /** Botón que abre una ventana con contenido (normalmente un FormAccion). */
 export function ConVentana({
   boton,

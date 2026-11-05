@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { registrarCobroAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { clp, fechaCl } from "@/lib/fin/reglas";
-import { CAMPO, Campo, FormAccion } from "./ui";
+import { CAMPO, Campo, FormAccion, VacioVentana } from "./ui";
 
 export interface FacturaAbierta {
   id: string;
@@ -35,7 +35,14 @@ export default function FormCobro({ facturas, cuentas, hoy, alOk, movimiento }: 
   const aplicaciones = propias.map((f) => ({ documentoId: f.id, monto: Math.round(Number(String(montos[f.id] ?? "").replace(/\./g, "")) || 0) })).filter((a) => a.monto > 0);
   const total = aplicaciones.reduce((s, a) => s + a.monto, 0);
 
-  if (facturas.length === 0) return <p className="text-sm text-gris">No hay facturas emitidas con saldo por cobrar.</p>;
+  if (facturas.length === 0)
+    return (
+      <VacioVentana
+        titulo="No hay facturas por cobrar"
+        texto="Un cobro se aplica a facturas emitidas que tienen saldo. Primero registra la factura en Ventas, desde un hito «Lista para facturar»."
+        enlace={{ href: "/gestion-financiera/ventas?etapa=Lista%20para%20facturar", texto: "Ir a facturar" }}
+      />
+    );
   return (
     <FormAccion accion={registrarCobroAction} textoBoton={`Registrar cobro ${clp(total)}`} alOk={alOk}>
       <input type="hidden" name="aplicaciones" value={JSON.stringify(aplicaciones)} />
