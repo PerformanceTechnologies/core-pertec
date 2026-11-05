@@ -4,7 +4,8 @@ import { clp, fechaCl } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
 import { eliminarReglaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarReglaAction } from "../acciones-config";
 import { Pestanas, Seccion, TD, TH } from "@/components/fin/piezas";
-import { BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
+import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
+import { BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 
 export const dynamic = "force-dynamic";
 

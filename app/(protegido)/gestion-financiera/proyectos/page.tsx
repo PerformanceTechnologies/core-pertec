@@ -4,7 +4,8 @@ import { RUTA_FIN, cargarVista } from "@/lib/fin/datos";
 import { clpCorto } from "@/lib/fin/reglas";
 import { ETIQUETA_TIPO_PROYECTO } from "@/lib/fin/modelo";
 import { Banda, Monto, TD, TH, Vacio } from "@/components/fin/piezas";
-import { BOTON, BOTON_SEC, ConVentana } from "@/components/fin/ui";
+import { ConVentana } from "@/components/fin/ui";
+import { BOTON, BOTON_SEC } from "@/components/fin/estilos";
 import FormProyecto from "@/components/fin/FormProyecto";
 
 export const dynamic = "force-dynamic";

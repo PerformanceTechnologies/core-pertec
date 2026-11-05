@@ -7,7 +7,8 @@ import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA, lineaNeta } from "@/li
 import { TARJETA } from "@/lib/estilos";
 import { aceptarCotizacionAction, cambiarEstadoCotizacionAction, nuevaVersionCotizacionAction } from "../../../acciones-ventas";
 import { Chip, Deshabilitado, Seccion } from "@/components/fin/piezas";
-import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { BotonAccion, Campo, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import EditorCotizacion from "@/components/fin/EditorCotizacion";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
 

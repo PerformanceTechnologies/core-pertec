@@ -5,7 +5,8 @@ import { clp, clpCorto, conIva, fechaCl, inicioDeMes, mesLargo, sumarDias, type 
 import { DTE_CORTO } from "@/lib/fin/modelo";
 import { anularPagoAction, crearCompraAction, registrarFacturaCompraAction, registrarPagoAction } from "../acciones-compras";
 import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
-import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import TablaCompras, { type HolguraCompra } from "@/components/fin/TablaCompras";
 
 export const dynamic = "force-dynamic";

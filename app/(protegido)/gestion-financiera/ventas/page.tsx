@@ -5,7 +5,8 @@ import { ETAPAS_HITO, clp, clpCorto, fechaCl, type EtapaHito } from "@/lib/fin/r
 import { DTE_CORTO, TIPOS_DTE } from "@/lib/fin/modelo";
 import { anularCobroAction, anularDocumentoAction, guardarHitoAction, registrarNotaAction } from "../acciones-ventas";
 import { Banda, Chip, Deshabilitado, Monto, Pestanas, TD, TH, TONO_ETAPA, Vacio } from "@/components/fin/piezas";
-import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import TablaHitos from "@/components/fin/TablaHitos";
 import FormCobro from "@/components/fin/FormCobro";
 

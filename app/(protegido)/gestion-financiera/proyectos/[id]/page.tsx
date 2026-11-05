@@ -6,7 +6,8 @@ import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_TIPO_PROYECTO } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { Chip, Kpi, Monto, Seccion, TD, TH, TONO_ETAPA, tonoPaso } from "@/components/fin/piezas";
-import { BOTON_SEC, ConVentana } from "@/components/fin/ui";
+import { ConVentana } from "@/components/fin/ui";
+import { BOTON_SEC } from "@/components/fin/estilos";
 import FormProyecto from "@/components/fin/FormProyecto";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
         <Kpi etiqueta="Por facturar" valor={clpCorto(c.porFacturar)} />
         <Kpi etiqueta="Por cobrar" valor={clpCorto(c.porCobrar)} />
         <Kpi etiqueta="Comprometido" valor={clpCorto(c.comprometido)} />
-        <Kpi etiqueta="Presupuesto disponible" valor={c.disponible === null ? "Sin presupuesto" : clpCorto(c.disponible)} tono={c.disponible !== null && c.disponible < 0 ? "text-alerta" : "text-tinta"} />
+        <Kpi etiqueta="Presupuesto disponible" valor={c.disponible === null ? "—" : clpCorto(c.disponible)} detalle={c.disponible === null ? "sin presupuesto (Editar)" : undefined} tono={c.disponible !== null && c.disponible < 0 ? "text-alerta" : "text-tinta"} />
         <Kpi etiqueta="Margen" valor={pct(c.margenPct)} detalle={clp(c.margen)} tono={(c.margenPct ?? 1) < 0.2 ? "text-alerta" : "text-ok"} ayuda="Vendido − compras comprometidas (sin mano de obra propia aún)" />
       </div>
       <Seccion titulo={`Hitos (${hitos.length})`}>

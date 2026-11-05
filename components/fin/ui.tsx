@@ -11,7 +11,7 @@ import {
 } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import { IconoTile, type TonoIcono } from "@/components/contactos/Visual";
-import { CAMPO_FIN as CAMPO } from "@/lib/estilos";
+import { BOTON, BOTON_SEC, CAMPO } from "./estilos";
 import { avisar, BOTON_VENTANA, BOTON_VENTANA_SUAVE, confirmar as confirmarDialogo, pedirTexto } from "./dialogos";
 
 // Piezas interactivas de Gestión financiera: formularios que llaman a una Server Action, botones
@@ -19,10 +19,7 @@ import { avisar, BOTON_VENTANA, BOTON_VENTANA_SUAVE, confirmar as confirmarDialo
 
 type Res = { ok: true; id?: string; mensaje?: string } | { ok: false; error: string };
 
-export const BOTON =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg bg-naranjo px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave disabled:opacity-50";
-export const BOTON_SEC =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg border border-borde bg-superficie px-3 py-2 text-xs font-semibold text-tinta transition hover:border-naranjo/50 disabled:opacity-50";
+export { BOTON, BOTON_SEC };
 
 /** Formulario que envía a una acción y, si sale bien, refresca (y avisa con alOk). */
 export function FormAccion({
@@ -50,13 +47,13 @@ export function FormAccion({
   return (
     <form
       className={className}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         const formulario = e.currentTarget;
         const fd = new FormData(formulario);
         setError(null);
+        if (confirmar && !(await confirmarDialogo({ titulo: confirmar }))) return;
         iniciar(async () => {
-          if (confirmar && !(await confirmarDialogo({ titulo: confirmar }))) return;
           const r = await accion(fd);
           if (!r.ok) return setError(r.error);
           router.refresh();

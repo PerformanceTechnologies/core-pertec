@@ -88,15 +88,15 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
       <div className="overflow-x-auto rounded-2xl border border-borde bg-superficie">
         <table className="w-full min-w-[60rem] text-sm">
           <thead>
-            <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
+            <tr className="border-b border-borde text-left text-xs font-semibold text-gris">
               <th className="px-3 py-2.5">Descripción</th>
-              <th className="px-2 py-2.5 text-right">Cant.</th>
-              <th className="px-2 py-2.5">Unidad</th>
-              <th className="px-2 py-2.5 text-right">{arriendo ? "Tarifa mensual" : "Precio unit."}</th>
-              {arriendo && <th className="px-2 py-2.5 text-right">Meses</th>}
-              <th className="px-2 py-2.5 text-right">Desc. %</th>
-              <th className="px-2 py-2.5 text-center">Exento</th>
-              <th className="px-3 py-2.5 text-right">Neto</th>
+              <th className="w-24 px-2 py-2.5 text-right">Cant.</th>
+              <th className="w-24 px-2 py-2.5">Unidad</th>
+              <th className="w-36 px-2 py-2.5 text-right">{arriendo ? "Tarifa mensual" : "Precio unit."}</th>
+              {arriendo && <th className="w-20 px-2 py-2.5 text-right">Meses</th>}
+              <th className="w-20 px-2 py-2.5 text-right">Desc. %</th>
+              <th className="w-16 px-2 py-2.5 text-center">Exento</th>
+              <th className="w-32 px-3 py-2.5 text-right">Neto</th>
               <th className="w-8" />
             </tr>
           </thead>
@@ -119,11 +119,11 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
                     </select>
                   )}
                 </td>
-                <td className="px-2 py-2"><input value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: num(e.target.value) })} className={`${CAMPO} w-20 text-right`} /></td>
-                <td className="px-2 py-2"><input value={l.unidad ?? ""} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} className={`${CAMPO} w-20`} /></td>
-                <td className="px-2 py-2"><input value={l.precioUnitario} onChange={(e) => cambiarLinea(i, { precioUnitario: num(e.target.value) })} className={`${CAMPO} w-32 text-right`} /></td>
-                {arriendo && <td className="px-2 py-2"><input value={l.meses ?? ""} onChange={(e) => cambiarLinea(i, { meses: e.target.value ? num(e.target.value) : null })} className={`${CAMPO} w-16 text-right`} /></td>}
-                <td className="px-2 py-2"><input value={l.descuentoPct ? Math.round(l.descuentoPct * 1000) / 10 : ""} onChange={(e) => cambiarLinea(i, { descuentoPct: num(e.target.value) / 100 })} className={`${CAMPO} w-16 text-right`} placeholder="0" /></td>
+                <td className="px-2 py-2"><input value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: num(e.target.value) })} className={`${CAMPO} text-right`} /></td>
+                <td className="px-2 py-2"><input value={l.unidad ?? ""} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} className={CAMPO} /></td>
+                <td className="px-2 py-2"><input value={l.precioUnitario} onChange={(e) => cambiarLinea(i, { precioUnitario: num(e.target.value) })} className={`${CAMPO} text-right`} /></td>
+                {arriendo && <td className="px-2 py-2"><input value={l.meses ?? ""} onChange={(e) => cambiarLinea(i, { meses: e.target.value ? num(e.target.value) : null })} className={`${CAMPO} text-right`} /></td>}
+                <td className="px-2 py-2"><input value={l.descuentoPct ? Math.round(l.descuentoPct * 1000) / 10 : ""} onChange={(e) => cambiarLinea(i, { descuentoPct: num(e.target.value) / 100 })} className={`${CAMPO} text-right`} placeholder="0" /></td>
                 <td className="px-2 py-2 text-center"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} /></td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums">{clp(lineaNeta(l))}</td>
                 <td className="px-2"><button type="button" onClick={() => setD({ ...d, lineas: d.lineas.filter((_, k) => k !== i) })} className="rounded p-1 text-gris hover:bg-rose-500/10 hover:text-alerta" aria-label="Quitar línea"><IconTrash size={15} /></button></td>

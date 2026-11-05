@@ -6,7 +6,8 @@ import { TARJETA } from "@/lib/estilos";
 import { actualizarSaldoAction, guardarPartidaAction } from "../acciones-config";
 import { actualizarCesionAction, crearMovimientoAction, crearOperacionFactoringAction } from "../acciones-tesoreria";
 import { Banda, Chip, Deshabilitado, Monto, Pestanas, Seccion, TD, TH, Vacio, tonoFactoring } from "@/components/fin/piezas";
-import { BOTON, BOTON_SEC, CAMPO, Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
+import { Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
+import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import BandejaBanco, { ImportarCartola } from "@/components/fin/BandejaBanco";
 
 export const dynamic = "force-dynamic";

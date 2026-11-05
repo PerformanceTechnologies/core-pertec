@@ -22,16 +22,25 @@ let ponerPedido: ((p: Pedido | null) => void) | null = null;
 let ponerAvisos: ((f: (a: Aviso[]) => Aviso[]) => void) | null = null;
 let siguienteId = 1;
 
+/**
+ * Abre el diálogo FUERA de la transición de quien lo pide. Si se pide desde adentro de una acción
+ * (startTransition async), React guarda la actualización hasta que la acción termine; y la acción
+ * espera la respuesta del diálogo: quedaba pegada y el diálogo nunca aparecía. El setTimeout la saca.
+ */
+function abrir(p: Pedido) {
+  setTimeout(() => ponerPedido?.(p), 0);
+}
+
 /** Pide un texto (un motivo, un patrón). Devuelve null si se cancela. */
 export function pedirTexto(o: { titulo: string; ayuda?: string; inicial?: string; placeholder?: string; boton?: string }): Promise<string | null> {
   if (!ponerPedido) return Promise.resolve(window.prompt(o.titulo, o.inicial ?? ""));
-  return new Promise((resolver) => ponerPedido!({ tipo: "texto", ...o, resolver }));
+  return new Promise((resolver) => abrir({ tipo: "texto", ...o, resolver }));
 }
 
 /** Pide confirmar una acción. */
 export function confirmar(o: { titulo: string; ayuda?: string; boton?: string; peligro?: boolean }): Promise<boolean> {
   if (!ponerPedido) return Promise.resolve(window.confirm(o.titulo));
-  return new Promise((resolver) => ponerPedido!({ tipo: "confirmar", ...o, resolver }));
+  return new Promise((resolver) => abrir({ tipo: "confirmar", ...o, resolver }));
 }
 
 /** Un aviso que aparece abajo y se va solo (los errores duran más). */

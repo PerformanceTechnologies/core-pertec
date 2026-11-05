@@ -538,7 +538,10 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
     proyectoId: r.proyecto_id, prioridad: r.prioridad, activa: r.activa,
   }));
   const conciliados = new Map<string, number>();
-  for (const c of conciliacionesR) conciliados.set(c.movimiento_id, (conciliados.get(c.movimiento_id) ?? 0) + 1);
+  // «Conciliar sin documento» (entidad «otro») no liga a nada: no cuenta como documento. Si contara,
+  // el movimiento quedaría «con documento» y Contabilidad no le haría su asiento (la comisión no
+  // llegaba a los libros).
+  for (const c of conciliacionesR) if (c.entidad_tipo !== "otro") conciliados.set(c.movimiento_id, (conciliados.get(c.movimiento_id) ?? 0) + 1);
   const cuentaNombre = new Map<string, string>(cuentasR.map((c: any) => [c.id, c.nombre]));
   const catNombre = new Map(categorias.map((c) => [c.id, c.nombre]));
   const movimientos: MovimientoVista[] = movimientosR

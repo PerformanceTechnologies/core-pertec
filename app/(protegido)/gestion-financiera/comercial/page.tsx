@@ -4,7 +4,8 @@ import { RUTA_FIN, cargarComercial, cargarVista } from "@/lib/fin/datos";
 import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA } from "@/lib/fin/modelo";
 import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
-import { BOTON, ConVentana } from "@/components/fin/ui";
+import { ConVentana } from "@/components/fin/ui";
+import { BOTON } from "@/components/fin/estilos";
 import KanbanOportunidades, { FormOportunidad } from "@/components/fin/KanbanOportunidades";
 
 export const dynamic = "force-dynamic";

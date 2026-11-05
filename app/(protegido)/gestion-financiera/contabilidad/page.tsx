@@ -7,7 +7,8 @@ import { DTE_CORTO } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { cerrarPeriodoAction, contabilizarPeriodoAction } from "../acciones-tesoreria";
 import { Banda, Pestanas, Seccion, TD, TH } from "@/components/fin/piezas";
-import { BOTON, BotonAccion } from "@/components/fin/ui";
+import { BotonAccion } from "@/components/fin/ui";
+import { BOTON } from "@/components/fin/estilos";
 
 export const dynamic = "force-dynamic";
 

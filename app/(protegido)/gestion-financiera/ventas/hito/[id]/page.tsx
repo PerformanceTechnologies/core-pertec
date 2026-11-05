@@ -8,7 +8,8 @@ import { TARJETA } from "@/lib/estilos";
 import { agregarActividadAction } from "../../../acciones-config";
 import { anularHitoAction, guardarHitoAction } from "../../../acciones-ventas";
 import { Chip, Monto, Seccion, TONO_ETAPA } from "@/components/fin/piezas";
-import { BotonAccion, CAMPO, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto, BOTON_SEC } from "@/components/fin/ui";
+import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { CAMPO, BOTON_SEC } from "@/components/fin/estilos";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
 
 export const dynamic = "force-dynamic";
