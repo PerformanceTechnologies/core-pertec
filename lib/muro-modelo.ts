@@ -1,0 +1,45 @@
+// Muro: el vocabulario que comparten el servidor y el chat (sin "server-only").
+
+export interface PersonaMuro {
+  correo: string;
+  nombre: string;
+}
+
+export interface MensajeMuro {
+  id: string;
+  autorCorreo: string;
+  autorNombre: string;
+  texto: string;
+  menciones: string[];
+  creadoEn: string;
+}
+
+export const LARGO_MAXIMO_MURO = 4000;
+
+/** Una mención dentro del texto guardado: @{correo}. */
+const MENCION = /@\{([^\s{}@]+@[^\s{}]+)\}/g;
+
+/** Los correos mencionados en un texto, sin repetir y en minúsculas. */
+export function mencionesDe(texto: string): string[] {
+  return [...new Set([...texto.matchAll(MENCION)].map((m) => m[1].toLowerCase()))];
+}
+
+export type Trozo = { tipo: "texto"; texto: string } | { tipo: "mencion"; correo: string };
+
+/** El texto en trozos, para dibujar cada mención como una etiqueta. */
+export function trozosDe(texto: string): Trozo[] {
+  const trozos: Trozo[] = [];
+  let desde = 0;
+  for (const m of texto.matchAll(MENCION)) {
+    if (m.index! > desde) trozos.push({ tipo: "texto", texto: texto.slice(desde, m.index) });
+    trozos.push({ tipo: "mencion", correo: m[1].toLowerCase() });
+    desde = m.index! + m[0].length;
+  }
+  if (desde < texto.length) trozos.push({ tipo: "texto", texto: texto.slice(desde) });
+  return trozos;
+}
+
+/** El texto plano, con cada mención como @Nombre (para avisos y vistas previas). */
+export function textoPlano(texto: string, nombre: (correo: string) => string): string {
+  return trozosDe(texto).map((t) => (t.tipo === "texto" ? t.texto : `@${nombre(t.correo)}`)).join("");
+}
