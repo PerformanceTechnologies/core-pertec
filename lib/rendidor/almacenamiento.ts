@@ -1,8 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "../supabase-admin";
-import { borrarCarpeta, enlaceTemporal, esReferenciaSharePoint, guardarArchivo } from "../archivos/almacen";
+import { borrarArchivos, enlaceTemporal, esReferenciaSharePoint, guardarArchivo } from "../archivos/almacen";
 import { bajarDeSharePoint, nombreUnico } from "../archivos/sharepoint-core";
+import { carpetaRendicion } from "../archivos/carpetas";
 
 // Los respaldos de las rendiciones viven en Supabase Storage.
 //
@@ -34,9 +35,11 @@ export async function subirRespaldo(
   nombreOriginal?: string,
 ): Promise<string> {
   const extension = mimeType === "application/pdf" ? "pdf" : mimeType.replace("image/", "");
-  // En SharePoint: «ARCHIVOS CORE/Rendiciones/<rendición>/». Si falla, al bucket de siempre.
+  // En SharePoint: «ARCHIVOS CORE/Rendiciones/<año>/<quién> - <título> (<id>)/». Si falla, al
+  // bucket de siempre.
+  const { data: r } = await supabaseAdmin.from("rendiciones").select("nombre_quien_rinde, titulo_rendicion, creado_en").eq("id", rendicionId).maybeSingle();
   return guardarArchivo({
-    carpeta: `Rendiciones/${rendicionId}`,
+    carpeta: carpetaRendicion({ id: rendicionId, quien: r?.nombre_quien_rinde, titulo: r?.titulo_rendicion, creadoEn: r?.creado_en }),
     nombre: nombreUnico(nombreOriginal ?? "respaldo", extension),
     contenido,
     tipo: mimeType,
@@ -100,7 +103,12 @@ export async function urlFirmadaDeRespaldo(ruta: string, segundos = 1800): Promi
 }
 
 export async function borrarRespaldosDeRendicion(rendicionId: string): Promise<void> {
-  await borrarCarpeta(`Rendiciones/${rendicionId}`);
+  // Los de SharePoint, por su referencia en los gastos (la carpeta lleva el título, que cambia).
+  const { data: fila } = await supabaseAdmin.from("rendiciones").select("gastos").eq("id", rendicionId).maybeSingle();
+  const enSharePoint = ((fila?.gastos ?? []) as { archivoPath?: string | null }[])
+    .map((g) => g?.archivoPath)
+    .filter((r): r is string => esReferenciaSharePoint(r));
+  await borrarArchivos(BUCKET, enSharePoint);
   const { data, error } = await supabaseAdmin.storage.from(BUCKET).list(rendicionId);
   if (error) {
     console.error(`[rendidor] No se pudo listar los respaldos de ${rendicionId}:`, error.message);

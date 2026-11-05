@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "./supabase-admin";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
+import { carpetaTarea } from "./archivos/carpetas";
 import {
   puedeVerTarea,
   type AccionHistorial,
@@ -156,12 +157,12 @@ export async function obtenerNota(id: string): Promise<(Nota & { tareaId: string
 }
 
 /**
- * Sube un adjunto a SharePoint («ARCHIVOS CORE/Tareas/<tarea>/») y devuelve su referencia.
+ * Sube un adjunto a SharePoint («ARCHIVOS CORE/Tareas/<título> (<id>)/») y devuelve su referencia.
  * Si SharePoint falla, queda en el bucket privado de antes: `<tarea>/<uuid>.<ext>`.
  */
-export async function subirAdjunto(tareaId: string, contenido: Buffer, extension: string, tipo: string, nombre?: string): Promise<string> {
+export async function subirAdjunto(tareaId: string, contenido: Buffer, extension: string, tipo: string, nombre?: string, tituloTarea?: string): Promise<string> {
   return guardarArchivo({
-    carpeta: `Tareas/${tareaId}`,
+    carpeta: carpetaTarea({ id: tareaId, titulo: tituloTarea }),
     nombre: nombreUnico(nombre, extension),
     contenido,
     tipo,

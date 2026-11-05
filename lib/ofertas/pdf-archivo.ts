@@ -1,5 +1,6 @@
 import "server-only";
 import { borrarArchivos, guardarArchivo, leerArchivo } from "@/lib/archivos/almacen";
+import { CARPETA_OFERTAS_EMITIDAS, nombrePdfEmitido } from "@/lib/archivos/carpetas";
 
 /**
  * El PDF tal como se emitió, guardado.
@@ -34,13 +35,17 @@ function rutaDe(ofertaId: string): string {
  * menor que dejar la emisión a medias. Queda en el log y en los problemas de la
  * emisión, así que no pasa en silencio.
  */
-export async function guardarPdfEmitido(ofertaId: string, pdf: Buffer): Promise<string | null> {
+export async function guardarPdfEmitido(
+  ofertaId: string,
+  pdf: Buffer,
+  oferta?: { numero?: string | null; cliente?: string | null },
+): Promise<string | null> {
   try {
     // Una sola copia por oferta: volver a emitir reemplaza la anterior (SharePoint guarda
     // la versión vieja en su historial).
     return await guardarArchivo({
-      carpeta: "Ofertas/Emitidas",
-      nombre: rutaDe(ofertaId),
+      carpeta: CARPETA_OFERTAS_EMITIDAS,
+      nombre: nombrePdfEmitido({ id: ofertaId, ...oferta }),
       contenido: pdf,
       tipo: "application/pdf",
       reemplazar: true,

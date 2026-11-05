@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
+import { carpetaVehiculo } from "./archivos/carpetas";
 import type {
   Asignacion,
   Contrato,
@@ -344,8 +345,9 @@ export async function eliminarDocumento(id: string): Promise<void> {
 export async function guardarArchivoDocumento(id: string, contenido: Buffer, extension: string, tipo: string, nombre: string, porQuien: string): Promise<void> {
   const doc = await obtenerDocumento(id);
   if (!doc) throw new Error("[flota] Ese documento ya no existe.");
+  const { data: vehiculo } = await supabaseAdmin.from(T.vehiculos).select("patente").eq("id", doc.vehiculoId).maybeSingle();
   const ruta = await guardarArchivo({
-    carpeta: `Flota/${doc.vehiculoId}`,
+    carpeta: carpetaVehiculo({ id: doc.vehiculoId, patente: vehiculo?.patente as string | undefined }),
     nombre: nombreUnico(nombre, extension),
     contenido,
     tipo,

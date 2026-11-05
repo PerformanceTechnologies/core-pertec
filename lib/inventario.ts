@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
+import { carpetaCertificado } from "./archivos/carpetas";
 import {
   disponible,
   pronosticado,
@@ -730,9 +731,9 @@ const BUCKET_INV = "inventario";
 
 /** Sube (o reemplaza) el certificado de un producto; el anterior se borra después de guardar. */
 export async function guardarCertificado(productoId: string, contenido: Buffer, extension: string, tipo: string, nombre: string): Promise<void> {
-  const { data: antes } = await supabaseAdmin.from(T.productos).select("certificado_ruta").eq("id", productoId).maybeSingle();
+  const { data: antes } = await supabaseAdmin.from(T.productos).select("certificado_ruta, nombre, sku").eq("id", productoId).maybeSingle();
   const ruta = await guardarArchivo({
-    carpeta: `Inventario/Certificados/${productoId}`,
+    carpeta: carpetaCertificado({ id: productoId, nombre: antes?.nombre as string | undefined, sku: antes?.sku as string | undefined }),
     nombre: nombreUnico(nombre, extension),
     contenido,
     tipo,

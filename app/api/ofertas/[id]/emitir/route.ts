@@ -76,7 +76,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // subir al workspace y a adjuntar al correo, así que guardar este es lo que hace
   // que las tres copias sean la misma, y que descargarla en un año devuelva lo que
   // el cliente recibió y no una reimpresión con el maestro de entonces.
-  const pdfRuta = await guardarPdfEmitido(id, pdf);
+  const pdfRuta = await guardarPdfEmitido(id, pdf, { numero: oferta.numeroOferta, cliente: oferta.cliente });
   if (!pdfRuta) {
     problemas.push(
       "No se pudo guardar la copia del PDF emitido: la descarga va a volver a imprimirlo desde el contenido.",

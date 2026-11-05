@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   const subidos: ArchivoNota[] = [];
   try {
     for (const a of archivos) {
-      const ruta = await subirAdjunto(tareaId, Buffer.from(await a.arrayBuffer()), TIPOS_ADJUNTO[a.type], a.type, a.name);
+      const ruta = await subirAdjunto(tareaId, Buffer.from(await a.arrayBuffer()), TIPOS_ADJUNTO[a.type], a.type, a.name, tarea.titulo);
       subidos.push({ nombre: a.name.slice(0, 200), ruta, tipo: a.type, tamano: a.size });
     }
     const id = await crearNota(tareaId, texto, subidos, usuario);

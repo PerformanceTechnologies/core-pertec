@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardarArchivo } from "@/lib/archivos/almacen";
 import { nombreUnico } from "@/lib/archivos/sharepoint-core";
+import { carpetaFinanzas } from "@/lib/archivos/carpetas";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   let ruta: string;
   try {
     ruta = await guardarArchivo({
-      carpeta: `Gestion financiera/${ctx.empresa.nombre}/${entidadTipo}/${entidadId}`,
+      carpeta: carpetaFinanzas(ctx.empresa.nombre, entidadTipo, entidadId),
       nombre: nombreUnico(archivo.name, TIPOS[archivo.type]),
       contenido: Buffer.from(await archivo.arrayBuffer()),
       tipo: archivo.type,
