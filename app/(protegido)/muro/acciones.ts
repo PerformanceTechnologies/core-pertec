@@ -18,11 +18,11 @@ async function contexto() {
   return { usuario, empresa };
 }
 
-export async function publicarAction(texto: string, respuestaA: string | null = null, avisarATodos = false): Promise<{ ok: true; mensaje: MensajeMuro } | Falla> {
+export async function publicarAction(texto: string, respuestaA: string | null = null): Promise<{ ok: true; mensaje: MensajeMuro } | Falla> {
   try {
     const { usuario, empresa } = await contexto();
     if (respuestaA !== null && !/^[0-9a-f-]{36}$/.test(String(respuestaA))) return { ok: false, error: "Publicación inválida." };
-    return { ok: true, mensaje: await publicarMensaje(usuario, empresa, String(texto ?? ""), respuestaA, avisarATodos === true) };
+    return { ok: true, mensaje: await publicarMensaje(usuario, empresa, String(texto ?? ""), respuestaA) };
   } catch (e) {
     return fallo(e);
   }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { IconAt, IconLoader2, IconSend2, IconSpeakerphone } from "@tabler/icons-react";
-import { LARGO_MAXIMO_MURO, type PersonaMuro } from "@/lib/muro-modelo";
+import { IconAt, IconLoader2, IconSend2, IconUsersGroup } from "@tabler/icons-react";
+import { LARGO_MAXIMO_MURO, TODOS, type PersonaMuro } from "@/lib/muro-modelo";
 import { Avatar } from "./Avatar";
 
 // La caja para escribir del Muro, para publicaciones y para respuestas: crece con el texto,
@@ -29,7 +29,6 @@ export default function Compositor({
   boton,
   compacto = false,
   autoFocus = false,
-  puedeAvisar = false,
   alPublicar,
   alCancelar,
 }: {
@@ -40,10 +39,8 @@ export default function Compositor({
   boton: string;
   compacto?: boolean;
   autoFocus?: boolean;
-  /** Muestra «Notificar a todos» (manda un correo a toda la empresa). */
-  puedeAvisar?: boolean;
   /** Publica el texto (con las menciones ya como @{correo}). Devuelve el error, o null si salió bien. */
-  alPublicar: (texto: string, avisarATodos: boolean) => Promise<string | null>;
+  alPublicar: (texto: string) => Promise<string | null>;
   alCancelar?: () => void;
 }) {
   const [texto, setTexto] = useState("");
@@ -51,7 +48,6 @@ export default function Compositor({
   const [error, setError] = useState<string | null>(null);
   const [sugerir, setSugerir] = useState<{ desde: number; busca: string } | null>(null);
   const [elegida, setElegida] = useState(0);
-  const [avisar, setAvisar] = useState(false);
   // Nombre visible en la caja → correo, de las personas etiquetadas.
   const etiquetadas = useRef(new Map<string, string>());
   const caja = useRef<HTMLTextAreaElement>(null);
@@ -60,7 +56,9 @@ export default function Compositor({
   const candidatas = useMemo(() => {
     if (!sugerir) return [];
     const b = sinTildes(sugerir.busca);
-    return personas.filter((p) => !b || sinTildes(p.nombre).split(/\s+/).some((x) => x.startsWith(b)) || sinTildes(p.correo).startsWith(b)).slice(0, 6);
+    // «Todos» va primero: menciona a toda la empresa.
+    const todos: PersonaMuro[] = !b || TODOS.startsWith(b) ? [{ correo: TODOS, nombre: "todos" }] : [];
+    return [...todos, ...personas.filter((p) => !b || sinTildes(p.nombre).split(/\s+/).some((x) => x.startsWith(b)) || sinTildes(p.correo).startsWith(b))].slice(0, 7);
   }, [sugerir, personas]);
 
   function ponerCursor(pos: number) {
@@ -109,14 +107,14 @@ export default function Compositor({
     for (const [nombre, correo] of [...etiquetadas.current.entries()].sort((a, b) => b[0].length - a[0].length)) {
       salida = salida.split(`@${nombre}`).join(`@{${correo}}`);
     }
-    if (avisar && !confirm("Se le mandará un correo con esta publicación a todas las personas de la empresa. ¿Seguir?")) return;
+    // «@todos» escrito a mano también cuenta, sin tener que elegirlo de la lista.
+    salida = salida.replace(/(^|\s)@todos(?![\p{L}\p{N}_])/giu, `$1@{${TODOS}}`);
     setEnviando(true);
     setError(null);
-    const fallo = await alPublicar(salida, avisar);
+    const fallo = await alPublicar(salida);
     setEnviando(false);
     if (fallo) return setError(fallo);
     setTexto("");
-    setAvisar(false);
     etiquetadas.current.clear();
   }
 
@@ -165,7 +163,6 @@ export default function Compositor({
         />
         {error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
         <div className={`flex items-center justify-between gap-2 ${compacto ? "mt-2" : "mt-3"}`}>
-          <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             // Sin robarle el foco a la caja: si no, la lista de personas se cierra apenas se abre.
@@ -174,21 +171,6 @@ export default function Compositor({
             className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
             <IconAt size={compacto ? 16 : 18} /> Etiquetar
           </button>
-          {puedeAvisar && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setAvisar((a) => !a)}
-              aria-pressed={avisar}
-              title="Manda un correo con esta publicación a todas las personas de la empresa"
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold transition ${
-                avisar ? "bg-naranjo text-white shadow-sm" : "text-gris hover:bg-naranjo/10 hover:text-naranjo"
-              }`}
-            >
-              <IconSpeakerphone size={18} /> Notificar a todos
-            </button>
-          )}
-          </div>
           <div className="flex items-center gap-2">
             {!compacto && <span className="hidden text-[11px] text-gris-suave sm:inline">Ctrl + Enter para publicar</span>}
             {alCancelar && (
@@ -222,10 +204,14 @@ export default function Compositor({
                   onMouseEnter={() => setElegida(i)}
                   className={`flex w-full items-center gap-2.5 px-3 py-2 text-left ${i === elegida ? "bg-naranjo/10" : ""}`}
                 >
-                  <Avatar correo={p.correo} nombre={p.nombre} tamano="h-7 w-7 text-[10px]" />
+                  {p.correo === TODOS ? (
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-naranjo text-white"><IconUsersGroup size={15} /></span>
+                  ) : (
+                    <Avatar correo={p.correo} nombre={p.nombre} tamano="h-7 w-7 text-[10px]" />
+                  )}
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-tinta">{p.nombre}</span>
-                    <span className="block truncate text-[11px] text-gris">{p.correo}</span>
+                    <span className="block truncate text-sm font-semibold text-tinta">{p.correo === TODOS ? "@todos" : p.nombre}</span>
+                    <span className="block truncate text-[11px] text-gris">{p.correo === TODOS ? "Menciona a toda la empresa" : p.correo}</span>
                   </span>
                 </button>
               </li>

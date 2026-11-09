@@ -18,8 +18,11 @@ export interface MensajeMuro {
 
 export const LARGO_MAXIMO_MURO = 4000;
 
-/** Una mención dentro del texto guardado: @{correo}. */
-const MENCION = /@\{([^\s{}@]+@[^\s{}]+)\}/g;
+/** Una mención dentro del texto guardado: @{correo}, o @{todos} para toda la empresa. */
+const MENCION = /@\{(todos|[^\s{}@]+@[^\s{}]+)\}/g;
+
+/** La «persona» especial que menciona a toda la empresa. */
+export const TODOS = "todos";
 
 /** Los correos mencionados en un texto, sin repetir y en minúsculas. */
 export function mencionesDe(texto: string): string[] {

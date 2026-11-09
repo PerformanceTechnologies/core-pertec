@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconArrowUp, IconLoader2, IconMessageCircle, IconPencil, IconSparkles, IconTrash } from "@tabler/icons-react";
-import { combinarReacciones, trozosDe, type MensajeMuro, type PermisoBorrar, type PersonaMuro, type ReaccionesMuro } from "@/lib/muro-modelo";
+import { TODOS, combinarReacciones, trozosDe, type MensajeMuro, type PermisoBorrar, type PersonaMuro, type ReaccionesMuro } from "@/lib/muro-modelo";
 import { anterioresAction, borrarAction, nuevosAction, publicarAction } from "@/app/(protegido)/muro/acciones";
 import { Avatar } from "./Avatar";
 import Compositor from "./Compositor";
@@ -145,8 +145,8 @@ export default function MuroChat({
     setHayMas(r.hayMas);
   }
 
-  async function publicar(texto: string, avisarATodos = false): Promise<string | null> {
-    const r = await publicarAction(texto, null, avisarATodos);
+  async function publicar(texto: string): Promise<string | null> {
+    const r = await publicarAction(texto);
     if (!r.ok) return r.error;
     setPosts((xs) => [r.mensaje, ...pendientes.filter((p) => !xs.some((x) => x.id === p.id)), ...xs.filter((x) => x.id !== r.mensaje.id)]);
     setPendientes([]);
@@ -176,8 +176,8 @@ export default function MuroChat({
           t.tipo === "texto" ? (
             <span key={j}>{t.texto}</span>
           ) : (
-            <span key={j} className={`rounded-md px-1.5 py-0.5 font-semibold ${t.correo === yo.correo ? "bg-naranjo/15 text-naranjo" : "bg-sky-500/10 text-sky-700 dark:text-sky-300"}`}>
-              @{nombreDe(t.correo)}
+            <span key={j} className={`rounded-md px-1.5 py-0.5 font-semibold ${t.correo === yo.correo || t.correo === TODOS ? "bg-naranjo/15 text-naranjo" : "bg-sky-500/10 text-sky-700 dark:text-sky-300"}`}>
+              @{t.correo === TODOS ? "todos" : nombreDe(t.correo)}
             </span>
           ),
         )}
@@ -215,7 +215,7 @@ export default function MuroChat({
               <p className="mb-3 flex items-center gap-2 text-sm font-bold text-naranjo">
                 <IconPencil size={17} stroke={2} /> Nueva publicación
               </p>
-              <Compositor yo={yo} personas={personas} placeholder={`¿Qué quieres compartir, ${primerNombre}?`} boton="Publicar" alPublicar={publicar} puedeAvisar={yo.borrar === "todo"} />
+              <Compositor yo={yo} personas={personas} placeholder={`¿Qué quieres compartir, ${primerNombre}?`} boton="Publicar" alPublicar={publicar} />
             </div>
           </section>
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
