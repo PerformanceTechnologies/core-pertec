@@ -453,7 +453,7 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
     const base = calcularHito(
       {
         id: r.id, codigo: r.codigo, clienteId: r.cliente_id, proyectoId: r.proyecto_id, descripcion: r.descripcion, tipo: r.tipo, periodo: r.periodo,
-        cotizacionNumero: null, fechaAceptacion: r.fecha_aceptacion, neto: n(r.neto), ocClienteNumero: r.oc_cliente_numero, estadoTrabajo: r.estado_trabajo,
+        cotizacionNumero: null, fechaAceptacion: r.fecha_aceptacion, neto: n(r.neto), exento: n(r.exento ?? 0), ocClienteNumero: r.oc_cliente_numero, estadoTrabajo: r.estado_trabajo,
         guiaDespacho: r.guia_despacho, requiereEdp: r.requiere_edp, edpFechaAprobacion: r.edp_fecha_aprobacion, requiereHes: r.requiere_hes, hesNumero: r.hes_numero,
         fechaEstimadaPago: r.fecha_estimada_pago, condicionPagoDias: nOrNull(r.condicion_pago_dias), comentario: r.comentario, anulado: r.anulado,
       },

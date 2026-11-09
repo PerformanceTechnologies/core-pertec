@@ -22,7 +22,9 @@ const pct = (fd: FormData, k: string) => {
   const t = String(fd.get(k) ?? "").replace(",", ".").replace("%", "").trim();
   if (!t) return null;
   const x = Number(t);
-  return Number.isFinite(x) ? (x > 1 ? x / 100 : x) : null;
+  // Los campos se muestran en % (19, 1,2, 90), así que lo escrito siempre es un porcentaje:
+  // antes «0,8» se leía como 80 %.
+  return Number.isFinite(x) && x >= 0 && x <= 100 ? x / 100 : null;
 };
 
 // ---------- Parámetros ------------------------------------------------------------

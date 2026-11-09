@@ -128,7 +128,7 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
       fecha: fechaValida(d.fecha) ?? ctx.hoy, validez_dias: Math.max(1, Math.min(365, Math.round(Number(d.validezDias) || 30))),
       condicion_pago_dias: d.condicionPagoDias === null || d.condicionPagoDias === undefined ? null : Math.round(Number(d.condicionPagoDias)),
       requiere_oc: Boolean(d.requiereOc), requiere_edp: Boolean(d.requiereEdp), requiere_hes: Boolean(d.requiereHes), notas: d.notas?.slice(0, 4000) ?? null,
-      neto, iva, total: neto + iva, actualizado_en: ahora(),
+      neto, exento: neto - afecto, iva, total: neto + iva, actualizado_en: ahora(),
     };
     let cotId = id;
     if (id) {
@@ -228,6 +228,8 @@ export async function aceptarCotizacionAction(id: string, fd: FormData): Promise
     if (!fecha) return { ok: false, error: "Indica la fecha de aceptación." };
     const oc = texto(fd, "ocCliente", 60);
     const neto = Number(c.neto);
+    // La parte exenta se reparte entre los hitos en proporción a su neto (el último se lleva el redondeo).
+    const exentoCot = Math.max(0, Math.min(neto, Number(c.exento ?? 0)));
 
     let proyectoId = uuid(fd.get("proyectoId")) ?? (c.proyecto_id as string | null);
     if (!proyectoId) {
@@ -260,11 +262,14 @@ export async function aceptarCotizacionAction(id: string, fd: FormData): Promise
     if (generados.length === 0) return { ok: false, error: "El rango de meses no genera ningún hito." };
 
     const filas = [];
+    let exentoRepartido = 0;
     for (const [i, g] of generados.entries()) {
+      const exento = i === generados.length - 1 ? exentoCot - exentoRepartido : neto > 0 ? peso((g.neto * exentoCot) / neto) : 0;
+      exentoRepartido += exento;
       filas.push({
         empresa_id: ctx.empresa.id, codigo: await siguienteNumero(ctx.empresa.id, "hito", "V", 4), cotizacion_id: id, cliente_id: c.cliente_id, proyecto_id: proyectoId,
         descripcion: String(c.titulo), tipo: c.tipo, periodo: g.periodo, periodo_desde: g.periodoDesde, periodo_hasta: g.periodoHasta, fecha_aceptacion: fecha,
-        neto: g.neto, oc_cliente_numero: oc, oc_cliente_fecha: oc ? fecha : null, estado_trabajo: i === 0 && modo === "mensual" && g.periodoDesde && g.periodoDesde <= ctx.hoy ? "en_curso" : "pendiente",
+        neto: g.neto, exento: Math.max(0, Math.min(g.neto, exento)), oc_cliente_numero: oc, oc_cliente_fecha: oc ? fecha : null, estado_trabajo: i === 0 && modo === "mensual" && g.periodoDesde && g.periodoDesde <= ctx.hoy ? "en_curso" : "pendiente",
         requiere_edp: c.requiere_edp, requiere_hes: c.requiere_hes, condicion_pago_dias: c.condicion_pago_dias, orden: i, creado_por: ctx.usuario.correo,
       });
     }
@@ -404,8 +409,10 @@ export async function registrarFacturaVentaAction(fd: FormData): Promise<Resulta
     const cerrado = await periodoCerrado(ctx.empresa.id, fecha);
     if (cerrado) return { ok: false, error: cerrado };
     const netoHitos = hitos.reduce((s, h) => s + h.neto, 0);
-    const neto = tipo === 34 ? 0 : montoDe(fd.get("neto")) ?? netoHitos;
-    const exento = tipo === 34 ? montoDe(fd.get("exento")) ?? netoHitos : montoDe(fd.get("exento")) ?? 0;
+    // La parte exenta de los hitos no lleva IVA.
+    const exentoHitos = hitos.reduce((s, h) => s + (h.exento ?? 0), 0);
+    const neto = tipo === 34 ? 0 : montoDe(fd.get("neto")) ?? netoHitos - exentoHitos;
+    const exento = tipo === 34 ? montoDe(fd.get("exento")) ?? netoHitos : montoDe(fd.get("exento")) ?? exentoHitos;
     const iva = tipo === 34 ? 0 : montoDe(fd.get("iva")) ?? peso(neto * vista.p.tasaIva);
     const total = neto + exento + iva;
     const clienteId = hitos[0].clienteId;
@@ -493,8 +500,13 @@ export async function anularDocumentoAction(id: string, motivo: string): Promise
     const doc = await exigirDeEmpresa("fin_documentos", id, ctx.empresa.id);
     const cerrado = await periodoCerrado(ctx.empresa.id, String(doc.fecha_emision ?? ""));
     if (cerrado) return { ok: false, error: cerrado };
-    const { count } = await supabaseAdmin.from("fin_cobro_aplicaciones").select("cobro_id", { count: "exact", head: true }).eq("documento_id", id);
-    const { count: pagos } = await supabaseAdmin.from("fin_pago_aplicaciones").select("pago_id", { count: "exact", head: true }).eq("documento_id", id);
+    // Solo cuentan los cobros y pagos vigentes: uno anulado deja sus filas de aplicación, pero ya no bloquea.
+    const [{ count, error: e1 }, { count: pagos, error: e2 }] = await Promise.all([
+      supabaseAdmin.from("fin_cobro_aplicaciones").select("cobro_id, fin_cobros!inner(estado)", { count: "exact", head: true }).eq("documento_id", id).neq("fin_cobros.estado", "anulado"),
+      supabaseAdmin.from("fin_pago_aplicaciones").select("pago_id, fin_pagos!inner(estado)", { count: "exact", head: true }).eq("documento_id", id).neq("fin_pagos.estado", "anulado"),
+    ]);
+    revienta("revisar los cobros del documento", e1);
+    revienta("revisar los pagos del documento", e2);
     if ((count ?? 0) + (pagos ?? 0) > 0) return { ok: false, error: "Tiene cobros o pagos aplicados: anúlalos primero." };
     const { error } = await supabaseAdmin.from("fin_documentos").update({ estado: "anulado", motivo_anulacion: motivo.slice(0, 300) }).eq("id", id);
     revienta("anular el documento", error);

@@ -108,6 +108,8 @@ export interface HitoBase {
   cotizacionNumero: string | null;
   fechaAceptacion: Iso | null;
   neto: number;
+  /** La parte del neto que es exenta (no lleva IVA). */
+  exento?: number;
   ocClienteNumero: string | null;
   estadoTrabajo: EstadoTrabajo | null;
   guiaDespacho: string | null;
@@ -176,7 +178,8 @@ export function etapaHito(h: {
 }
 
 export function calcularHito(b: HitoBase, factura: FacturaDeHito | null, condicionCliente: number | null, p: Parametros, hoy: Iso): Hito {
-  const totalConIva = conIva(b.neto, p.tasaIva);
+  const exento = Math.min(b.neto, b.exento ?? 0);
+  const totalConIva = conIva(b.neto - exento, p.tasaIva) + exento;
   const condicion = b.condicionPagoDias ?? condicionCliente ?? p.condicionPagoDefault;
   const vence = factura ? sumarDias(factura.fechaEmision, condicion) : null;
   const saldo = factura ? factura.total - factura.pagado : null;

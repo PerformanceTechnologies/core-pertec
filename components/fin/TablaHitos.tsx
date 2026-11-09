@@ -25,6 +25,7 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
   const unCliente = new Set(elegidos.map((h) => h.clienteId)).size <= 1;
   const facturables = elegidos.length > 0 && unCliente && elegidos.every((h) => !h.factura && h.fechaAceptacion);
   const neto = elegidos.reduce((s, h) => s + h.neto, 0);
+  const exentoElegidos = elegidos.reduce((s, h) => s + (h.exento ?? 0), 0);
   const guardar = (id: string, campo: string) => (v: string) => actualizarCampoHitoAction(id, campo, v);
 
   return (
@@ -50,9 +51,9 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
                     <Campo etiqueta="Fecha de emisión *"><input name="fechaEmision" type="date" required defaultValue={hoy} className={CAMPO} /></Campo>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <Campo etiqueta="Neto" ayuda="Precargado desde los hitos"><input name="neto" defaultValue={neto} className={CAMPO} /></Campo>
-                    <Campo etiqueta="IVA"><input name="iva" defaultValue={peso(neto * tasaIva)} className={CAMPO} /></Campo>
-                    <Campo etiqueta="Exento"><input name="exento" defaultValue={0} className={CAMPO} /></Campo>
+                    <Campo etiqueta="Neto" ayuda="Precargado desde los hitos"><input name="neto" defaultValue={neto - exentoElegidos} className={CAMPO} /></Campo>
+                    <Campo etiqueta="IVA"><input name="iva" defaultValue={peso((neto - exentoElegidos) * tasaIva)} className={CAMPO} /></Campo>
+                    <Campo etiqueta="Exento"><input name="exento" defaultValue={exentoElegidos} className={CAMPO} /></Campo>
                   </div>
                   <Campo etiqueta="Referencias" ayuda="OC, HES, DEM u otra que exija el cliente">
                     <input name="referencias" defaultValue={[...new Set(elegidos.map((h) => [h.ocClienteNumero && `OC ${h.ocClienteNumero}`, h.hesNumero && `HES ${h.hesNumero}`].filter(Boolean).join(" · ")))].filter(Boolean).join(" · ")} className={CAMPO} />
