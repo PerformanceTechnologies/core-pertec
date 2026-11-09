@@ -7,6 +7,7 @@ import BarraSuperior from "@/components/BarraSuperior";
 import { HUECO_DE_BARRA } from "@/lib/estilos";
 import BotonSubir from "@/components/BotonSubir";
 import NavInferior from "@/components/NavInferior";
+import PanelIndicadores from "@/components/finanzas/PanelIndicadores";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { tieneDatosCargados } from "@/lib/empresas-modelo";
@@ -71,7 +72,11 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           empresaActiva={empresa.activa}
           empresasPermitidas={empresa.permitidas}
         />
-        {children}
+        {/* En Finanzas y sus submódulos, los indicadores van a la derecha (arriba en el celular). */}
+        <div className="flex flex-col xl:flex-row xl:items-start xl:gap-6">
+          <div className="min-w-0 flex-1">{children}</div>
+          <PanelIndicadores />
+        </div>
       </main>
       <BotonSubir />
       <NavInferior veMiDia={apps.some((app) => app.url === "/mi-dia")} />
