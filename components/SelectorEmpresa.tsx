@@ -69,7 +69,7 @@ export default function SelectorEmpresa({
         aria-haspopup="listbox"
         aria-expanded={abierto}
         title="Cambiar de empresa"
-        className="flex items-center gap-2 rounded-lg border border-borde bg-superficie px-2.5 py-1.5 text-sm text-tinta/75 transition hover:border-naranjo/40 disabled:opacity-50"
+        className="flex h-[34px] items-center gap-1.5 rounded-lg border border-borde bg-superficie px-2 text-sm lg:gap-2 lg:px-2.5 text-tinta/75 transition hover:border-naranjo/40 disabled:opacity-50"
       >
         <Distintivo empresa={activa} />
         <span className="hidden max-w-[14rem] truncate text-left font-medium sm:inline">{activa.nombre}</span>

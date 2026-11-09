@@ -241,11 +241,12 @@ export default function TableroTareas({
                 if (arrastrada && destino) soltar(arrastrada, destino.estado, destino.antesDe);
                 terminarArrastre();
               }}
-              className={`${columnaMovil === col.estado ? "flex" : "hidden"} min-h-[12rem] flex-col rounded-2xl p-2.5 transition-colors duration-200 lg:flex lg:min-h-[22rem] ${
-                activa ? "bg-naranjo/[0.07] ring-2 ring-naranjo/30" : "bg-tinta/[0.03]"
+              className={`${columnaMovil === col.estado ? "flex" : "hidden"} flex-col rounded-2xl transition-colors duration-200 lg:flex lg:min-h-[22rem] lg:p-2.5 ${
+                activa ? "bg-naranjo/[0.07] ring-2 ring-naranjo/30" : "lg:bg-tinta/[0.03]"
               }`}
             >
-              <header className="flex items-center justify-between px-2 pb-3 pt-1.5">
+              {/* En el celular las pestañas de arriba ya dicen la columna: este encabezado sobra. */}
+              <header className="hidden items-center justify-between px-2 pb-3 pt-1.5 lg:flex">
                 <div className="flex items-center gap-2.5">
                   <span className={`h-2 w-2 rounded-full ${col.punto}`} />
                   <h2 className="text-[13px] font-bold uppercase tracking-[0.08em] text-tinta">{col.titulo}</h2>

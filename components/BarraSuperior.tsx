@@ -35,25 +35,26 @@ export default function BarraSuperior({
   const muroConNuevos = useNuevosMuro() > 0 && !enMuro;
 
   return (
-    <div className="mb-4 flex items-center justify-end gap-2">
+    // En el celular se monta en la barra fija de arriba (al lado del menú) y queda solo con íconos.
+    <div className="z-40 flex items-center justify-end gap-1.5 max-lg:fixed max-lg:right-[3.75rem] max-lg:top-[0.5625rem] lg:mb-4 lg:gap-2">
       {mostrarBuzon && <BuzonNotificaciones />}
       {veMiDia && (
         <Link
           href="/mi-dia"
-          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-lg border h-[34px] px-2.5 text-sm font-medium transition max-lg:w-[34px] max-lg:justify-center max-lg:px-0 ${
             enMiDia
               ? "border-naranjo/40 bg-naranjo/10 text-naranjo"
               : "border-borde bg-superficie text-tinta/75 hover:border-naranjo/40 hover:text-naranjo"
           }`}
         >
           <IconSunHigh size={16} stroke={1.75} aria-hidden />
-          Mi Día
+          <span className="max-lg:sr-only">Mi Día</span>
         </Link>
       )}
       {/* El Muro es de todos (no depende de una aplicación asignada), con sus mensajes nuevos encima. */}
       <Link
         href="/muro"
-        className={`relative flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
+        className={`relative flex items-center gap-1.5 rounded-lg border h-[34px] px-2.5 text-sm font-medium transition max-lg:w-[34px] max-lg:justify-center max-lg:px-0 ${
           enMuro
             ? "border-naranjo/40 bg-naranjo/10 text-naranjo"
             : muroConNuevos
@@ -62,7 +63,7 @@ export default function BarraSuperior({
         }`}
       >
         <IconMessages size={16} stroke={1.75} aria-hidden />
-        Muro
+        <span className="max-lg:sr-only">Muro</span>
         <InsigniaMuro chica />
       </Link>
       <SelectorEmpresa activa={empresaActiva} permitidas={empresasPermitidas} />

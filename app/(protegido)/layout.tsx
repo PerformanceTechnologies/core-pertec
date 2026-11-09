@@ -63,7 +63,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           del Gantt de Proyectos, con muchas columnas de día de ancho fijo), sin
           esto no scrollea internamente y empuja el layout más ancho que el
           viewport. */}
-      <main className={`min-w-0 py-8 ${HUECO_DE_BARRA}`}>
+      <main className={`min-w-0 pb-8 pt-5 lg:py-8 ${HUECO_DE_BARRA}`}>
         <BarraSuperior
           veMiDia={apps.some((app) => app.url === "/mi-dia")}
           mostrarBuzon={conDatos}

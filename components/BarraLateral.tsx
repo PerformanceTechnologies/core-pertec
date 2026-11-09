@@ -386,22 +386,24 @@ export function BarraLateralVista({
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-borde bg-crema/95 px-4 py-3 backdrop-blur-sm lg:hidden">
-        {pathname === "/" ? (
-          <div className="flex h-8 items-center [&_img]:!h-7">
+      {/* Celular: UNA barra fija arriba. A la izquierda volver (fuera del inicio) y el logo; a la
+          derecha van los botones de BarraSuperior (se acomodan encima, fijos) y el menú. */}
+      <div className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-borde bg-crema/95 px-3 backdrop-blur-md lg:hidden">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {pathname !== "/" && (
+            <Link href="/" aria-label="Volver al Core" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-tinta/70 transition hover:bg-tinta/[0.05] hover:text-tinta">
+              <IconArrowLeft size={19} stroke={2} />
+            </Link>
+          )}
+          <Link href="/" aria-label="Inicio" className="flex h-8 min-w-0 items-center overflow-hidden [&_img]:!h-6 [&_img]:max-w-[7.5rem] [&_img]:object-contain [&_img]:object-left">
             <LogoDeEmpresa empresa={empresaActiva} colapsado={false} tema={tema} />
-          </div>
-        ) : (
-          <Link href="/" className="flex items-center gap-1.5 text-sm font-semibold text-tinta">
-            <IconArrowLeft size={18} stroke={2} />
-            Volver al Core
           </Link>
-        )}
+        </div>
         <button
           type="button"
           onClick={abrirMenu}
           aria-label="Abrir menú"
-          className="rounded-lg border border-borde p-2 text-tinta/70"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-borde bg-superficie text-tinta/70"
         >
           <IconMenu2 size={18} stroke={1.75} />
         </button>
