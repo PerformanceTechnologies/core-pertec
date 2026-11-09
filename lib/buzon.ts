@@ -56,6 +56,15 @@ export async function crearNotificacion(datos: NuevaNotificacion): Promise<boole
   return (data?.length ?? 0) > 0;
 }
 
+/**
+ * Prefijo de la `clave` de lo que el Muro dejó en el buzón (`muro:<mensaje>:<persona>`), cuando
+ * todavía avisaba por la campana con menciones y respuestas. Hoy ya no crea ninguna, pero las que
+ * quedaron guardadas seguían apareciendo hasta que cada persona las abriera: lo del Muro se ve solo
+ * en el Muro. Se descartan al leer (no se borran) y por el prefijo, no por el `tipo`, para que
+ * cualquier aviso futuro del Muro quede fuera también.
+ */
+const PREFIJO_CLAVE_MURO = "muro:";
+
 /** Los slugs de módulo cuyas notificaciones ve esta persona (null = admin, ve todo). */
 async function modulosVisibles(usuario: UsuarioConAcceso): Promise<string[] | null> {
   if (usuario.rol === "admin") return null;
@@ -81,6 +90,9 @@ export async function listarNotificaciones(
     .from("notificaciones")
     .select("id, modulo, tipo, titulo, cuerpo, enlace, severidad, creado_en")
     .or(`destinatario.is.null,destinatario.eq."${correo}"`)
+    // Con `or` y no con un `not like` suelto: una clave vacía no es del Muro, y un NOT LIKE sobre
+    // NULL descartaría la fila.
+    .or(`clave.is.null,clave.not.like.${PREFIJO_CLAVE_MURO}*`)
     .order("creado_en", { ascending: false })
     // Con soloPendientes se piden más: las ya vistas se descartan después.
     .limit(soloPendientes ? limite * 4 : limite);
