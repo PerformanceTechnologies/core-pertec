@@ -80,7 +80,7 @@ async function mandarCorreosDeAsignacion(
   const hoy = hoyEnSantiago().iso;
   await Promise.all(
     para.map((destinatario) =>
-      enviarCorreoAUsuario(destinatario, asuntoCorreoTarea(tarea), armarCorreoTarea(tarea, destinatario, actor, nombre, hoy), actor.correo).catch((e) =>
+      enviarCorreoAUsuario(destinatario, asuntoCorreoTarea(tarea), armarCorreoTarea(tarea, destinatario, actor, nombre, hoy)).catch((e) =>
         console.error(`[tareas] No se pudo mandar el correo de asignación a ${destinatario}:`, e instanceof Error ? e.message : e),
       ),
     ),

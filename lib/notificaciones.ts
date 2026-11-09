@@ -9,6 +9,8 @@ const GRAPH_SCOPE = "https://graph.microsoft.com/.default";
 // hace desde el buzon de Hugo.
 const CORREO_REMITENTE = "hugo.antivil@pertec.cl";
 const CORREO_SOPORTE = "soporte@pertec.cl";
+/** La casilla genérica de los avisos personales del Core (p. ej. «te asignaron una tarea»). */
+const CORREO_AVISOS = "notificaciones@pertec.cl";
 /**
  * Exportada solo para poder DECIR a quien se le mando, no para elegirlo: sigue siendo una
  * constante de este archivo. Ver el comentario de enviar().
@@ -179,8 +181,8 @@ async function enviar(
       body: { contentType: formato, content: cuerpo },
       toRecipients: [{ emailAddress: { address: destinatario } }],
     },
-    // Si sale a nombre de otra persona, que no le llene sus «Enviados» con avisos automáticos.
-    saveToSentItems: remitente === CORREO_REMITENTE,
+    // Los avisos desde la casilla genérica no se guardan en «Enviados».
+    saveToSentItems: remitente !== CORREO_AVISOS,
   });
 }
 
@@ -200,23 +202,20 @@ export async function enviarCorreoFinanzas(asunto: string, cuerpoTexto: string):
  * un usuario ACTIVO de la tabla de usuarios. Un correo cualquiera —de un formulario, de una
  * fila editada a mano— no recibe nada.
  */
-export async function enviarCorreoAUsuario(destinatario: string, asunto: string, cuerpoHtml: string, deParteDe?: string): Promise<void> {
+export async function enviarCorreoAUsuario(destinatario: string, asunto: string, cuerpoHtml: string): Promise<void> {
   const correo = destinatario.trim().toLowerCase();
-  const remitente = deParteDe?.trim().toLowerCase();
   // Se comparan en minúsculas acá y no con ilike: en ilike el «_» de un correo es un comodín.
   const { data, error } = await supabaseAdmin.from("usuarios").select("correo").eq("activo", true);
   if (error) throw new Error(`No se pudo revisar el destinatario: ${error.message}`);
   if (!(data ?? []).some((u) => String(u.correo).toLowerCase() === correo)) {
     throw new Error(`«${correo}» no es un usuario activo del Core: no se le manda correo.`);
   }
-  // Sale a nombre de quien hizo la acción (p. ej. quien asignó la tarea), si es un usuario activo
-  // con buzón. Si Microsoft no lo deja (sin buzón, permiso restringido), sale del buzón de siempre.
-  if (remitente && remitente !== CORREO_REMITENTE && (data ?? []).some((u) => String(u.correo).toLowerCase() === remitente)) {
-    try {
-      return await enviar(correo, asunto, cuerpoHtml, "HTML", remitente);
-    } catch (e) {
-      console.error(`[correo] No se pudo enviar a nombre de ${remitente}; sale del buzón de siempre:`, e instanceof Error ? e.message : e);
-    }
+  // Sale de la casilla genérica de avisos. Si Microsoft no la deja (no existe o sin permiso),
+  // sale del buzón de siempre, para que el aviso no se pierda.
+  try {
+    return await enviar(correo, asunto, cuerpoHtml, "HTML", CORREO_AVISOS);
+  } catch (e) {
+    console.error(`[correo] No se pudo enviar desde ${CORREO_AVISOS}; sale del buzón de siempre:`, e instanceof Error ? e.message : e);
   }
   return enviar(correo, asunto, cuerpoHtml, "HTML");
 }
