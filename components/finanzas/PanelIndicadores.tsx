@@ -101,18 +101,21 @@ export default function PanelIndicadores() {
               ))}
             </ul>
 
-            {/* Convertidor rápido, solo en escritorio (en el celular ocuparía demasiado). */}
+            {/* Convertidor rápido. En el celular va compacto: la cantidad a la izquierda y los dos
+                resultados a la derecha. */}
             {uf && dolar && (
-              <div className="mt-3 hidden rounded-xl border border-borde bg-superficie p-3.5 xl:block">
-                <p className="text-[11px] font-semibold text-gris">Convertir a pesos</p>
-                <input
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
-                  inputMode="decimal"
-                  aria-label="Cantidad a convertir"
-                  className="mt-1.5 h-9 w-full rounded-lg border border-borde bg-crema/40 px-3 text-sm tabular-nums text-tinta focus:border-naranjo/50 focus:outline-none"
-                />
-                <dl className="mt-2 space-y-1 text-xs">
+              <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-borde bg-superficie p-3 xl:mt-3 xl:block xl:p-3.5">
+                <div className="w-24 shrink-0 xl:w-auto">
+                  <p className="text-[11px] font-semibold text-gris">Convertir</p>
+                  <input
+                    value={monto}
+                    onChange={(e) => setMonto(e.target.value)}
+                    inputMode="decimal"
+                    aria-label="Cantidad a convertir"
+                    className="mt-1 h-10 w-full rounded-lg border border-borde bg-crema/40 px-3 text-base tabular-nums text-tinta focus:border-naranjo/50 focus:outline-none xl:mt-1.5 xl:h-9 xl:text-sm"
+                  />
+                </div>
+                <dl className="min-w-0 flex-1 space-y-1 text-xs xl:mt-2">
                   <div className="flex justify-between gap-2"><dt className="text-gris">{cantidad.toLocaleString("es-CL")} UF</dt><dd className="font-semibold tabular-nums text-tinta">{pesos(cantidad * uf, 0)}</dd></div>
                   <div className="flex justify-between gap-2"><dt className="text-gris">US$ {cantidad.toLocaleString("es-CL")}</dt><dd className="font-semibold tabular-nums text-tinta">{pesos(cantidad * dolar, 0)}</dd></div>
                 </dl>
