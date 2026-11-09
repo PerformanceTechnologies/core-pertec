@@ -213,11 +213,11 @@ export default function TableroTareas({
               role="tab"
               aria-selected={on}
               onClick={() => setColumnaMovil(col.estado)}
-              className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-[12px] font-bold uppercase tracking-wide transition ${
+              className={`flex items-center justify-center gap-1.5 rounded-xl px-1.5 py-2.5 text-[13px] font-bold transition ${
                 on ? "bg-naranjo text-white shadow-sm" : "text-gris"
               }`}
             >
-              <span className="truncate">{col.titulo}</span>
+              <span className="whitespace-nowrap">{col.titulo}</span>
               <span className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/25" : "bg-tinta/[0.06]"}`}>{deColumna(visibles, col.estado).length}</span>
             </button>
           );
@@ -612,17 +612,17 @@ function FormularioTarea({
           })}
         </div>
       )}
-      <div className="flex flex-col gap-6 px-1 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
+      <div className="flex flex-col gap-5 px-1 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
         {/* ── Columna principal: qué es, la conversación y lo que pasó ── */}
         <div className="min-w-0 space-y-6 max-lg:contents">
           <div className="max-lg:order-1">
             {t && (
-              <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-tinta/[0.05] px-2.5 py-1 text-[11px] font-semibold text-gris">
-                <span className={`h-2 w-2 rounded-full ${COLUMNAS.find((c) => c.estado === t.estado)?.punto}`} />
-                {COLUMNAS.find((c) => c.estado === t.estado)?.titulo}
+              <span className={`mb-3 items-center gap-2 rounded-full bg-tinta/[0.05] px-2.5 py-1 text-[11px] font-semibold text-gris ${visibleGeneral ? "hidden lg:inline-flex" : "inline-flex"}`}>
+                <span className={`h-2 w-2 rounded-full max-lg:hidden ${COLUMNAS.find((c) => c.estado === t.estado)?.punto}`} />
+                <span className="max-lg:hidden">{COLUMNAS.find((c) => c.estado === t.estado)?.titulo}</span>
                 {!visibleGeneral && (
                   <>
-                    <span className="text-gris-suave">·</span> <IconLock size={12} /> Privada
+                    <span className="text-gris-suave max-lg:hidden">·</span> <IconLock size={12} /> Privada
                   </>
                 )}
               </span>
