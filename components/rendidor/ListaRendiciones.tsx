@@ -115,7 +115,7 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
     <li className={`group relative transition hover:bg-tinta/[0.02] ${pendiente ? "opacity-50" : ""}`}>
       <span className="absolute inset-y-0 left-0 w-1" style={{ background: ESTILO_ESTADO_RENDICION[r.estado].barra }} />
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3.5 pl-5 pr-3">
-        <Link href={`/rendir-gastos/${r.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+        <Link href={`/rendir-gastos/${r.id}`} className="flex min-w-0 flex-1 basis-full items-center gap-3 sm:basis-0">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-naranjo/10 text-naranjo">
             <IconReceipt2 size={20} stroke={1.75} />
           </span>
@@ -143,7 +143,7 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
           <ChipEstadoRendicion estado={r.estado} />
           <div className="flex w-16 items-center justify-end gap-1">
             {puedeBorrar && (
-              <button type="button" onClick={eliminar} disabled={pendiente} title="Borrar" className="grid h-8 w-8 place-items-center rounded-lg text-gris-suave opacity-0 transition hover:bg-rose-500/10 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100">
+              <button type="button" onClick={eliminar} disabled={pendiente} title="Borrar" className="grid h-8 w-8 place-items-center rounded-lg text-gris-suave opacity-0 transition max-lg:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100">
                 <IconTrash size={16} />
               </button>
             )}

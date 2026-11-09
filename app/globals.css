@@ -714,3 +714,12 @@ main .grid > * {
 fieldset {
   min-width: 0;
 }
+
+/* En pantallas táctiles no existe «pasar el mouse»: lo que solo aparece con hover (botones de
+   borrar, editar…) se muestra siempre. */
+@media (hover: none) {
+  .group-hover\:opacity-100,
+  .group-hover\/item\:opacity-100 {
+    opacity: 1;
+  }
+}
