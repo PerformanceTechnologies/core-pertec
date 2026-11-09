@@ -14,7 +14,8 @@ import { useMarcarMuroVisto } from "./aviso-muro";
 // más nueva a la más vieja y cada una tiene sus respuestas debajo. Al costado, la gente de la
 // empresa se etiqueta escribiendo @ en la caja.
 
-const CADA_MS = 5000;
+// Cada 10 s (antes 5): la mitad de llamadas al servidor y sigue viéndose casi al tiro.
+const CADA_MS = 10000;
 
 /** «hace 5 min», «hace 3 h», «ayer 14:20», «3 nov 09:15». */
 function cuando(iso: string): string {

@@ -31,15 +31,17 @@ export default async function LayoutProtegido({ children }: { children: React.Re
   const todasLasApps = await promesaApps;
   const apps = filtrarAppsDelUsuario(todasLasApps, usuario);
 
-  // Los contratos cuelgan de «Contratos» en el menú: se piden solo si la persona ve esa app.
-  // La empresa activa se resuelve en paralelo: la necesita el menú en toda página.
-  const promesaEmpresa = contextoDeEmpresa(usuario.id, usuario.rol);
-  const empresa = await promesaEmpresa;
-  // Los subpaneles de Finanzas cuelgan del módulo «Finanzas» del menú: misma regla que su portada.
-  const subpanelesFinanzas = await subpanelesFinanzasDelMenu(usuario, apps);
-  // Los contratos y el buzón son de PERTEC: parado en otra empresa no se listan.
+  // Empresa, subpaneles de Finanzas y contratos del menú se piden a la vez (antes iban uno tras
+  // otro). Los contratos son de PERTEC: se piden si la persona ve la app y se descartan si la
+  // empresa activa no tiene datos cargados.
+  const veContratos = apps.some((app) => app.slug === "contratos");
+  const [empresa, subpanelesFinanzas, contratosDelMenu] = await Promise.all([
+    contextoDeEmpresa(usuario.id, usuario.rol),
+    subpanelesFinanzasDelMenu(usuario, apps),
+    veContratos ? listarContratosDelMenu() : Promise.resolve([]),
+  ]);
   const conDatos = tieneDatosCargados(empresa.activa);
-  const contratos = conDatos && apps.some((app) => app.slug === "contratos") ? await listarContratosDelMenu() : [];
+  const contratos = conDatos ? contratosDelMenu : [];
 
   return (
     <div className="min-h-screen" data-empresa={empresa.activa?.slug ?? "pertec"}>

@@ -204,8 +204,10 @@ export async function enviarCorreoFinanzas(asunto: string, cuerpoTexto: string):
  */
 export async function enviarCorreoAUsuario(destinatario: string, asunto: string, cuerpoHtml: string): Promise<void> {
   const correo = destinatario.trim().toLowerCase();
-  // Se comparan en minúsculas acá y no con ilike: en ilike el «_» de un correo es un comodín.
-  const { data, error } = await supabaseAdmin.from("usuarios").select("correo").eq("activo", true);
+  // Se busca solo a esa persona (antes se leían todos los activos). ilike para no depender de las
+  // mayúsculas guardadas, con «_» y «%» escapados para que no sean comodines.
+  const patron = correo.replace(/[\\%_]/g, "\\$&");
+  const { data, error } = await supabaseAdmin.from("usuarios").select("correo").eq("activo", true).ilike("correo", patron).limit(5);
   if (error) throw new Error(`No se pudo revisar el destinatario: ${error.message}`);
   if (!(data ?? []).some((u) => String(u.correo).toLowerCase() === correo)) {
     throw new Error(`«${correo}» no es un usuario activo del Core: no se le manda correo.`);

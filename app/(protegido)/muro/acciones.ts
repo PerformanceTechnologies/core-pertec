@@ -37,10 +37,12 @@ export async function nuevosAction(
     const { empresa } = await contexto();
     if (Number.isNaN(Date.parse(desde))) return { ok: false, error: "Fecha inválida." };
     const ids = (Array.isArray(visibles) ? visibles : []).filter((v) => /^[0-9a-f-]{36}$/.test(v));
-    const nuevo = await mensajesDesde(empresa.id, desde, ids);
-    // Las reacciones de lo que está en pantalla (y de lo que llegó): así se ven las de los demás.
-    // `null` = no se pudieron leer: la pantalla se queda con las que ya tiene.
-    const reacciones = await reaccionesDe([...ids, ...nuevo.nuevos.map((m) => m.id)]);
+    // Lo nuevo y las reacciones de lo que ya está en pantalla, a la vez. Las de lo que llegó recién
+    // se piden después, solo si llegó algo. `null` = no se pudieron leer: la pantalla se queda con
+    // las que ya tiene.
+    const [nuevo, deVisibles] = await Promise.all([mensajesDesde(empresa.id, desde, ids), reaccionesDe(ids)]);
+    const deNuevos = nuevo.nuevos.length ? await reaccionesDe(nuevo.nuevos.map((m) => m.id)) : {};
+    const reacciones = deVisibles && deNuevos ? { ...deVisibles, ...deNuevos } : null;
     return { ok: true, ...nuevo, reacciones, empresaId: empresa.id };
   } catch (e) {
     return fallo(e);

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase-admin";
 import {
@@ -88,7 +89,8 @@ export interface ContextoDeEmpresa {
  * cookie es solo una preferencia: resolverEmpresaActiva la contrasta contra las
  * permitidas y descarta lo que no corresponda.
  */
-export async function contextoDeEmpresa(
+// Con cache(): el layout, el Muro y otras páginas la piden en la misma carga; así se consulta una vez.
+export const contextoDeEmpresa = cache(async function contextoDeEmpresa(
   usuarioId: string,
   rolDelCore: string,
 ): Promise<ContextoDeEmpresa> {
@@ -101,4 +103,4 @@ export async function contextoDeEmpresa(
   const permitidas = empresasPermitidas(todas, asignadas, rolDelCore);
   const activa = resolverEmpresaActiva(galletas.get(COOKIE_EMPRESA)?.value, permitidas);
   return { activa, permitidas };
-}
+});
