@@ -114,7 +114,7 @@ export default function BuzonNotificaciones() {
           queda en el borde derecho, así que el panel se ancla a la ventana y no al botón: anclado al
           botón se saldría por la izquierda. */}
       {abierto && (
-        <div className="fixed inset-x-3 top-32 z-50 overflow-hidden rounded-xl border border-borde bg-superficie shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
+        <div className="fixed inset-x-3 top-[3.75rem] z-50 max-h-[calc(100dvh-9rem)] overflow-y-auto rounded-xl border border-borde bg-superficie shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
           <div className="flex items-center justify-between gap-2 border-b border-borde px-4 py-2.5">
             <span className="text-sm font-semibold text-tinta">Notificaciones</span>
             {notis && notis.length > 0 && (
