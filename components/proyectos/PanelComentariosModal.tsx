@@ -13,7 +13,9 @@ export default function PanelComentariosModal({
   rolPanel: RolPanel;
   onClose: () => void;
 }) {
-  const [comentarios, setComentarios] = useState<ObjetivoComentario[] | null>(null);
+  // Los comentarios y quién mira (para mostrar la × solo en los que puede borrar), en un solo estado.
+  const [datos, setDatos] = useState<{ lista: ObjetivoComentario[]; yo: string; borraTodos: boolean } | null>(null);
+  const comentarios = datos?.lista ?? null;
   const [borrador, setBorrador] = useState("");
   const [enviando, setEnviando] = useState(false);
   const puedeEscribir = puedeEnPanel(rolPanel, "comentar");
@@ -21,7 +23,7 @@ export default function PanelComentariosModal({
   const cargar = useCallback(async () => {
     const respuesta = await fetch(`/api/objetivos/${objetivo.id}/comentarios`, { cache: "no-store" });
     const cuerpo = await respuesta.json();
-    if (respuesta.ok) setComentarios(cuerpo.comentarios);
+    if (respuesta.ok) setDatos({ lista: cuerpo.comentarios, yo: String(cuerpo.yo ?? ""), borraTodos: cuerpo.borraTodos === true });
   }, [objetivo.id]);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function PanelComentariosModal({
     if (!window.confirm("¿Eliminar comentario?")) return;
     const respuesta = await fetch(`/api/comentarios/${id}`, { method: "DELETE" });
     if (respuesta.ok) cargar();
+    else alert((await respuesta.json().catch(() => null))?.error ?? "No se pudo eliminar el comentario.");
   };
 
   const fmt = (iso: string) =>
@@ -84,7 +87,7 @@ export default function PanelComentariosModal({
                     <span className="text-xs font-semibold text-tinta/70">{c.user_email ?? "Anónimo"}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-tinta/40">{fmt(c.created_at)}</span>
-                      {puedeEscribir && (
+                      {puedeEscribir && datos && (datos.borraTodos || (c.user_email ?? "").toLowerCase() === datos.yo) && (
                         <button
                           onClick={() => eliminar(c.id)}
                           className="text-tinta/35 hover:text-red-600"

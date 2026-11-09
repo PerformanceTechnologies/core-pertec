@@ -17,7 +17,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   const { id } = await params;
   try {
-    await eliminarComentario(id);
+    // Solo el propio, salvo que sea admin del panel.
+    if (!(await eliminarComentario(id, acceso.usuario, rol === "admin"))) {
+      return NextResponse.json({ error: "Solo puedes eliminar tus propios comentarios." }, { status: 403 });
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[comentarios] Error al eliminar:", error);

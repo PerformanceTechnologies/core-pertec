@@ -342,7 +342,17 @@ export async function crearComentario(objetivoId: string, email: string, conteni
   if (error) throw new Error(error.message);
 }
 
-export async function eliminarComentario(id: string): Promise<void> {
+/**
+ * Borra un comentario: el propio, o cualquiera si quien borra es admin del panel.
+ * Devuelve false si no existe o no es suyo (no se borra nada).
+ */
+export async function eliminarComentario(id: string, usuario: { correo: string }, esAdmin: boolean): Promise<boolean> {
+  const { data, error: e1 } = await pertecWebSupabase.from("objetivo_comentarios").select("id, user_email").eq("id", id).maybeSingle();
+  if (e1) throw new Error(e1.message);
+  if (!data) return false;
+  const propio = String(data.user_email ?? "").toLowerCase() === usuario.correo.toLowerCase();
+  if (!propio && !esAdmin) return false;
   const { error } = await pertecWebSupabase.from("objetivo_comentarios").delete().eq("id", id);
   if (error) throw new Error(error.message);
+  return true;
 }

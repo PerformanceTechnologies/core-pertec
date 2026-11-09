@@ -13,8 +13,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   try {
-    const comentarios = await listarComentarios(id);
-    return NextResponse.json({ comentarios });
+    const [comentarios, rol] = await Promise.all([listarComentarios(id), resolverRolPanel(acceso.usuario)]);
+    // Para que la pantalla muestre la × solo en los que esta persona puede borrar.
+    return NextResponse.json({ comentarios, yo: acceso.usuario.correo.toLowerCase(), borraTodos: rol === "admin" });
   } catch (error) {
     console.error("[comentarios] Error al listar:", error);
     return NextResponse.json({ error: "No pudimos cargar los comentarios." }, { status: 500 });
