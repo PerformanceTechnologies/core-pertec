@@ -16,7 +16,9 @@ export default function ColaDeFotos({ ocupado, alAnalizar }: { ocupado: boolean;
   useEffect(() => () => vistas.forEach((u) => u && URL.revokeObjectURL(u)), [vistas]);
 
   const agregar = (lista: FileList | null) => {
-    if (lista?.length) setCola((c) => [...c, ...Array.from(lista)]);
+    // Se copian YA: al limpiar el input (para poder elegir la misma foto otra vez) la FileList se vacía.
+    const nuevos = lista ? Array.from(lista) : [];
+    if (nuevos.length) setCola((c) => [...c, ...nuevos]);
   };
 
   const analizar = () => {
