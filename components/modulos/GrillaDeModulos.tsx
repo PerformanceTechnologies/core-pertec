@@ -27,14 +27,24 @@ function destinoDe(grupo: GrupoDelMenu): string {
 
 export default function GrillaDeModulos({ grupos }: { grupos: GrupoDelMenu[] }) {
   return (
-    <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    // Celular: 2 por fila, como íconos de app (ícono grande y nombre). Desde sm, la tarjeta con detalle.
+    <ul className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-3">
       {grupos.map((grupo) => {
         const Icono = iconoDeModulo(grupo.slug);
         // Los «próximamente» no cuentan: todavía no se pueden abrir.
         const submodulos = grupo.items.filter((i) => i.tipo !== "pronto").length;
         return (
           <li key={grupo.slug}>
-            <Link href={destinoDe(grupo)} className={TARJETA}>
+            <Link
+              href={destinoDe(grupo)}
+              className="flex h-full flex-col items-center justify-center gap-2.5 rounded-2xl border border-borde bg-superficie px-2 py-5 text-center shadow-[0_1px_2px_rgba(23,20,17,0.04),0_10px_28px_-14px_rgba(23,20,17,0.12)] transition active:scale-[0.98] sm:hidden"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-naranjo/10 text-naranjo">
+                <Icono size={24} stroke={1.75} aria-hidden />
+              </div>
+              <span className="font-condensed text-[15px] font-bold uppercase leading-tight tracking-wide text-tinta">{grupo.titulo}</span>
+            </Link>
+            <Link href={destinoDe(grupo)} className={`${TARJETA} max-sm:!hidden`}>
               <div className={FICHA}>
                 <Icono size={20} stroke={1.75} aria-hidden />
               </div>
