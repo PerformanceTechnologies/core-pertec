@@ -222,7 +222,7 @@ export default function MuroChat({
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
           {pendientes.length > 0 && (
-            <div className="sticky top-3 z-10 text-center">
+            <div className="sticky top-16 z-10 text-center lg:top-3">
               <button type="button" onClick={verNuevas} className="inline-flex items-center gap-1.5 rounded-full bg-naranjo px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-naranjo-suave">
                 <IconArrowUp size={16} /> {pendientes.length === 1 ? "1 publicación nueva" : `${pendientes.length} publicaciones nuevas`}
               </button>
@@ -249,7 +249,7 @@ export default function MuroChat({
                   id={`m-${m.id}`}
                   className="animar-entrada relative rounded-2xl border border-borde bg-superficie shadow-sm transition hover:shadow-md"
                 >
-                  <div className="group/item p-5 pb-3">
+                  <div className="group/item p-4 pb-2.5 sm:p-5 sm:pb-3">
                     <header className="flex items-center gap-3">
                       <Avatar correo={m.autorCorreo} nombre={m.autorNombre} />
                       <div className="min-w-0 flex-1">
@@ -261,7 +261,7 @@ export default function MuroChat({
                       <BotonBorrar m={m} />
                     </header>
                     <Texto m={m} />
-                    <div className="mt-3 flex items-center gap-1 border-t border-borde/70 pt-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-borde/70 pt-2">
                       <button
                         type="button"
                         onClick={() => setRespondiendo(respondiendo === m.id ? null : m.id)}
@@ -279,7 +279,7 @@ export default function MuroChat({
                   </div>
 
                   {(lista.length > 0 || respondiendo === m.id) && (
-                    <div className="space-y-3 rounded-b-2xl border-t border-borde/70 bg-tinta/[0.02] px-5 py-4">
+                    <div className="space-y-3 rounded-b-2xl border-t border-borde/70 bg-tinta/[0.02] px-3.5 py-3.5 sm:px-5 sm:py-4">
                       {lista.map((r) => (
                         <div key={r.id} id={`m-${r.id}`} className="group/item flex gap-2.5 rounded-xl">
                           <Avatar correo={r.autorCorreo} nombre={r.autorNombre} tamano="h-8 w-8 text-[10px]" />

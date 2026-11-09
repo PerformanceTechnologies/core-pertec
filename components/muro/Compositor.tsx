@@ -169,7 +169,7 @@ export default function Compositor({
             onMouseDown={(e) => e.preventDefault()}
             onClick={insertarArroba}
             className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
-            <IconAt size={compacto ? 16 : 18} /> Etiquetar
+            <IconAt size={compacto ? 16 : 18} /> <span className={compacto ? "max-sm:sr-only" : ""}>Etiquetar</span>
           </button>
           <div className="flex items-center gap-2">
             {!compacto && <span className="hidden text-[11px] text-gris-suave sm:inline">Ctrl + Enter para publicar</span>}

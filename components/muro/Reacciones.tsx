@@ -65,7 +65,7 @@ export default function Reacciones({
             onClick={() => alternar(e)}
             title={`${NOMBRE_REACCION[e]}: ${quienes.map((c) => (c === yo ? "tú" : nombreDe(c))).join(", ")}`}
             className={`inline-flex items-center gap-1 rounded-full border font-semibold tabular-nums transition active:scale-95 ${
-              chico ? "h-6 px-1.5 text-[11px]" : "h-7 px-2 text-xs"
+              chico ? "h-7 px-2 text-[11px] lg:h-6 lg:px-1.5" : "h-8 px-2.5 text-xs lg:h-7 lg:px-2"
             } ${mia ? "border-naranjo/50 bg-naranjo/10 text-naranjo" : "border-borde bg-superficie text-gris hover:border-naranjo/40"}`}
           >
             <span className={chico ? "text-[13px]" : "text-[15px]"}>{e}</span>
@@ -78,7 +78,7 @@ export default function Reacciones({
         onClick={() => setAbierta((a) => !a)}
         aria-label="Reaccionar"
         title="Reaccionar"
-        className={`grid place-items-center rounded-full text-gris-suave transition hover:bg-naranjo/10 hover:text-naranjo ${chico ? "h-6 w-6" : "h-7 w-7"} ${abierta ? "bg-naranjo/10 text-naranjo" : ""}`}
+        className={`grid place-items-center rounded-full text-gris-suave transition hover:bg-naranjo/10 hover:text-naranjo ${chico ? "h-7 w-7 lg:h-6 lg:w-6" : "h-8 w-8 lg:h-7 lg:w-7"} ${abierta ? "bg-naranjo/10 text-naranjo" : ""}`}
       >
         <IconMoodSmile size={chico ? 15 : 17} stroke={1.8} />
       </button>
@@ -91,7 +91,7 @@ export default function Reacciones({
               onClick={() => alternar(e)}
               title={NOMBRE_REACCION[e]}
               aria-label={NOMBRE_REACCION[e]}
-              className={`grid h-9 w-9 place-items-center rounded-full text-xl transition hover:scale-125 hover:bg-naranjo/10 ${reacciones[e]?.includes(yo) ? "bg-naranjo/10" : ""}`}
+              className={`grid h-10 w-10 place-items-center rounded-full text-[22px] transition hover:scale-125 active:scale-110 lg:h-9 lg:w-9 lg:text-xl hover:bg-naranjo/10 ${reacciones[e]?.includes(yo) ? "bg-naranjo/10" : ""}`}
             >
               {e}
             </button>
