@@ -708,3 +708,9 @@ main .grid > * {
     display: none;
   }
 }
+
+/* Un <fieldset> por defecto no se encoge más que su contenido (min-width: min-content) y en el
+   celular se sale de la pantalla. */
+fieldset {
+  min-width: 0;
+}
