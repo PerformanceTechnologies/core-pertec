@@ -144,7 +144,13 @@ function formaDelSecreto(): string {
   return partes.join(", ");
 }
 
-async function enviar(destinatario: string, asunto: string, cuerpo: string, formato: "Text" | "HTML" = "Text"): Promise<void> {
+async function enviar(
+  destinatario: string,
+  asunto: string,
+  cuerpo: string,
+  formato: "Text" | "HTML" = "Text",
+  remitente: string = CORREO_REMITENTE,
+): Promise<void> {
   let token;
   try {
     token = await obtenerCredencial().getToken(GRAPH_SCOPE);
@@ -167,12 +173,14 @@ async function enviar(destinatario: string, asunto: string, cuerpo: string, form
   if (!token) throw new Error("No fue posible autenticar contra Microsoft Graph para enviar el correo.");
 
   const graph = Client.init({ authProvider: (done) => done(null, token.token) });
-  await graph.api(`/users/${CORREO_REMITENTE}/sendMail`).post({
+  await graph.api(`/users/${encodeURIComponent(remitente)}/sendMail`).post({
     message: {
       subject: asunto,
       body: { contentType: formato, content: cuerpo },
       toRecipients: [{ emailAddress: { address: destinatario } }],
     },
+    // Si sale a nombre de otra persona, que no le llene sus «Enviados» con avisos automáticos.
+    saveToSentItems: remitente === CORREO_REMITENTE,
   });
 }
 
@@ -192,13 +200,23 @@ export async function enviarCorreoFinanzas(asunto: string, cuerpoTexto: string):
  * un usuario ACTIVO de la tabla de usuarios. Un correo cualquiera —de un formulario, de una
  * fila editada a mano— no recibe nada.
  */
-export async function enviarCorreoAUsuario(destinatario: string, asunto: string, cuerpoHtml: string): Promise<void> {
+export async function enviarCorreoAUsuario(destinatario: string, asunto: string, cuerpoHtml: string, deParteDe?: string): Promise<void> {
   const correo = destinatario.trim().toLowerCase();
+  const remitente = deParteDe?.trim().toLowerCase();
   // Se comparan en minúsculas acá y no con ilike: en ilike el «_» de un correo es un comodín.
   const { data, error } = await supabaseAdmin.from("usuarios").select("correo").eq("activo", true);
   if (error) throw new Error(`No se pudo revisar el destinatario: ${error.message}`);
   if (!(data ?? []).some((u) => String(u.correo).toLowerCase() === correo)) {
     throw new Error(`«${correo}» no es un usuario activo del Core: no se le manda correo.`);
+  }
+  // Sale a nombre de quien hizo la acción (p. ej. quien asignó la tarea), si es un usuario activo
+  // con buzón. Si Microsoft no lo deja (sin buzón, permiso restringido), sale del buzón de siempre.
+  if (remitente && remitente !== CORREO_REMITENTE && (data ?? []).some((u) => String(u.correo).toLowerCase() === remitente)) {
+    try {
+      return await enviar(correo, asunto, cuerpoHtml, "HTML", remitente);
+    } catch (e) {
+      console.error(`[correo] No se pudo enviar a nombre de ${remitente}; sale del buzón de siempre:`, e instanceof Error ? e.message : e);
+    }
   }
   return enviar(correo, asunto, cuerpoHtml, "HTML");
 }
