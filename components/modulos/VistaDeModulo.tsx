@@ -161,7 +161,7 @@ export default function VistaDeModulo({
   const ancho = cartillas.length === 1 ? "completo" : "mitad";
 
   return (
-    <div className="animar-entrada space-y-7">
+    <div className="animar-entrada space-y-4">
       <nav aria-label="Ruta" className="flex items-center gap-1.5 text-xs text-tinta/60">
         <Link href="/" className="transition hover:text-naranjo">
           Inicio
@@ -220,7 +220,7 @@ export default function VistaDeModulo({
       {/* ── Un panel por submódulo ── */}
       <section aria-labelledby="submodulos">
         <Encabezado id="submodulos" titulo="Submódulos" />
-        <ul className={`grid grid-cols-1 gap-5 ${ancho === "mitad" ? "lg:grid-cols-2" : ""}`}>
+        <ul className={`grid grid-cols-1 gap-4 ${ancho === "mitad" ? "lg:grid-cols-2" : ""}`}>
           {cartillas.map((c) => (
             <li key={c.clave}>
               <PanelDeSubmodulo
