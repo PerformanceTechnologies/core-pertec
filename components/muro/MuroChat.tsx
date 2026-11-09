@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconArrowUp, IconLoader2, IconMessageCircle, IconPencil, IconSparkles, IconTrash } from "@tabler/icons-react";
-import { combinarReacciones, trozosDe, type MensajeMuro, type PermisoBorrar, type PersonaMuro, type ReaccionesMuro, type RolMuro } from "@/lib/muro-modelo";
+import { combinarReacciones, trozosDe, type MensajeMuro, type PermisoBorrar, type PersonaMuro, type ReaccionesMuro } from "@/lib/muro-modelo";
 import { anterioresAction, borrarAction, nuevosAction, publicarAction } from "@/app/(protegido)/muro/acciones";
 import { Avatar } from "./Avatar";
 import Compositor from "./Compositor";
 import Reacciones from "./Reacciones";
-import RolesMuro from "./RolesMuro";
 import { useMarcarMuroVisto } from "./aviso-muro";
 
 // El Muro como muro, no como chat: arriba se escribe, las publicaciones van como tarjetas de la
@@ -44,7 +43,6 @@ function agrupar(base: Record<string, MensajeMuro[]>, nuevas: MensajeMuro[]): Re
 export default function MuroChat({
   empresa,
   yo,
-  roles,
   personas,
   inicial,
   respuestasIniciales,
@@ -54,8 +52,6 @@ export default function MuroChat({
 }: {
   empresa: { id: string; nombre: string };
   yo: { correo: string; nombre: string; admin: boolean; borrar: PermisoBorrar };
-  /** Solo para admin: los roles del muro, para poder cambiarlos. */
-  roles: Record<string, RolMuro> | null;
   personas: PersonaMuro[];
   inicial: MensajeMuro[];
   respuestasIniciales: MensajeMuro[];
@@ -222,7 +218,6 @@ export default function MuroChat({
               <Compositor yo={yo} personas={personas} placeholder={`¿Qué quieres compartir, ${primerNombre}?`} boton="Publicar" alPublicar={publicar} />
             </div>
           </section>
-          {roles && <RolesMuro personas={personas} roles={roles} yo={yo.correo} />}
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
           {pendientes.length > 0 && (

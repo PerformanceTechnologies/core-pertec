@@ -154,7 +154,7 @@ const PAGINA_WEB: Plan = {
 const ADMINISTRACION: GrupoDelMenu = {
   slug: "administracion",
   titulo: "Administración",
-  descripcion: "Usuarios y catálogo de aplicaciones del Core.",
+  descripcion: "Usuarios, catálogo de aplicaciones y roles del Muro.",
   items: [
     {
       tipo: "enlace",
@@ -169,6 +169,13 @@ const ADMINISTRACION: GrupoDelMenu = {
       nombre: "Aplicaciones",
       icono: "settings",
       descripcion: "El catálogo de aplicaciones del Core: nombre, ícono, estado y orden.",
+    },
+    {
+      tipo: "enlace",
+      href: "/roles-muro",
+      nombre: "Roles del Muro",
+      icono: "messages",
+      descripcion: "Quién puede borrar mensajes en el Muro de cada empresa.",
     },
   ],
 };

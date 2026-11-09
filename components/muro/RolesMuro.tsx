@@ -7,10 +7,10 @@ import { asignarRolAction } from "@/app/(protegido)/muro/acciones";
 import { Avatar } from "./Avatar";
 
 // Solo para administradores: quién puede borrar mensajes en el muro de esta empresa.
-// Cerrado por defecto para no estorbar; se abre con un clic.
+// Vive en Administración > Roles del Muro.
 
 export default function RolesMuro({ personas, roles: iniciales, yo }: { personas: PersonaMuro[]; roles: Record<string, RolMuro>; yo: string }) {
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(true);
   const [roles, setRoles] = useState(iniciales);
   const [guardando, setGuardando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
