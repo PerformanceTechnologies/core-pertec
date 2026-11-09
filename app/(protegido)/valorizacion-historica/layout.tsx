@@ -14,7 +14,7 @@ export default async function LayoutValorizacionHistorica({ children }: { childr
         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-naranjo text-white shadow-sm">
           <IconReportSearch size={23} stroke={1.75} />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[13rem] flex-1">
           <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Valorización histórica</h1>
           <p className="text-sm text-gris">Todo lo comprado en materiales, herramientas y EPP según los DTE del SII</p>
         </div>

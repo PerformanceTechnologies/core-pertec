@@ -61,7 +61,7 @@ export function TarjetaAccion({
       </span>
       <span className="min-w-0">
         <span className="block text-sm font-bold text-tinta">{titulo}</span>
-        <span className="block truncate text-[11px] text-gris">{detalle}</span>
+        <span className="line-clamp-2 block text-[11px] leading-snug text-gris">{detalle}</span>
       </span>
     </button>
   );

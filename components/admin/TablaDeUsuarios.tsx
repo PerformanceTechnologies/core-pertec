@@ -38,7 +38,39 @@ export default function TablaDeUsuarios({
   eliminar: (form: FormData) => void;
 }) {
   return (
-    <div className={`${TARJETA} overflow-x-auto`}>
+    <>
+    {/* Celular: una tarjeta por persona; tocarla abre su ficha para editarla. */}
+    <ul className="space-y-2 lg:hidden">
+      {usuarios.map((usuario) => {
+        const esAdmin = usuario.rol === "admin";
+        const asignadas = appsAsignadasVigentes(usuario, idsDelCatalogo);
+        const nombreMostrado = usuario.nombre || usuario.correo;
+        return (
+          <li key={usuario.id}>
+            <Link
+              href={`/usuarios/${usuario.id}`}
+              className={`${TARJETA} flex items-center gap-3 p-3.5 transition hover:border-naranjo/40 ${usuario.activo ? "" : "opacity-70"}`}
+            >
+              <Avatar nombre={usuario.nombre} correo={usuario.correo} admin={esAdmin} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold text-tinta">
+                  {nombreMostrado}
+                  {usuario.id === usuarioActualId && <span className="ml-1.5 rounded-full bg-tinta/10 px-1.5 py-0.5 text-[10px] font-semibold text-tinta/70">Tú</span>}
+                </span>
+                {usuario.nombre && <span className="block truncate text-xs text-tinta/60">{usuario.correo}</span>}
+                <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className={`rounded-full px-2 py-0.5 font-semibold ${esAdmin ? "bg-naranjo/10 text-naranjo" : "bg-teal/10 text-teal"}`}>{esAdmin ? "Administrador" : "Usuario"}</span>
+                  {!esAdmin && <span className="text-tinta/60">{asignadas} de {totalDeApps} apps</span>}
+                  {!usuario.activo && <span className="font-semibold text-tinta/60">· Inactivo</span>}
+                </span>
+              </span>
+              <IconPencil size={16} className="shrink-0 text-tinta/40" aria-hidden />
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+    <div className={`${TARJETA} hidden overflow-x-auto lg:block`}>
       <table className="w-full min-w-[900px] table-fixed text-left text-sm">
         <caption className="sr-only">Usuarios del Core</caption>
         <colgroup>
@@ -173,5 +205,6 @@ export default function TablaDeUsuarios({
         </tbody>
       </table>
     </div>
+    </>
   );
 }

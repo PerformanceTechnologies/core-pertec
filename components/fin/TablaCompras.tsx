@@ -52,7 +52,35 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
         </div>
       )}
 
-      <div className={modo === "todas" ? "overflow-x-auto rounded-xl border border-borde bg-superficie" : "grid gap-3 md:grid-cols-2 xl:grid-cols-3"}>
+      {/* Celular, vista «Todas»: una tarjeta por compra con su paso y su acción. */}
+      {modo === "todas" && (
+        <ul className="space-y-2.5 lg:hidden">
+          {compras.map((c) => (
+            <li key={c.id} className={`rounded-xl border bg-superficie p-3.5 ${marcados.includes(c.id) ? "border-naranjo/50 bg-naranjo/[0.04]" : "border-borde"} ${c.anulada ? "opacity-50" : ""}`}>
+              <div className="flex items-start gap-3">
+                {!c.anulada && c.paso !== "Pagada" && <input type="checkbox" checked={marcados.includes(c.id)} onChange={(e) => setMarcados((m) => (e.target.checked ? [...m, c.id] : m.filter((x) => x !== c.id)))} className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-naranjo)]" aria-label={`Elegir ${c.codigo}`} />}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 font-semibold text-tinta">{c.codigo} · {c.descripcion}</p>
+                    <span className="shrink-0 text-sm font-bold tabular-nums text-tinta"><Monto valor={c.netoCotizado} /></span>
+                  </div>
+                  <p className="truncate text-[11px] text-gris">{c.proveedorNombre ?? "Sin proveedor"} · {c.proyectoNombre ?? "General"}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Chip texto={c.estadoOverride ? (c.estadoOverride === "rechazada" ? "Rechazada" : "Anulada") : c.paso} tono={tonoPaso(c.paso)} />
+                    {c.facturaFolio && <span className="text-[11px] text-gris">Factura N° {c.facturaFolio} · vence {fechaCl(c.facturaVence)}</span>}
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-borde pt-2.5 text-xs">
+                    <span className="text-gris">{c.montoFlujo ? <>Por pagar <strong className="text-tinta">{clp(c.montoFlujo)}</strong></> : "Nada por pagar"}</span>
+                    <AccionCompra c={c} cuentas={cuentas} hoy={hoy} />
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className={modo === "todas" ? "hidden overflow-x-auto rounded-xl border border-borde bg-superficie lg:block" : "grid gap-3 md:grid-cols-2 xl:grid-cols-3"}>
         {modo === "todas" ? (
           <table className="w-full min-w-[72rem] text-sm">
             <thead>

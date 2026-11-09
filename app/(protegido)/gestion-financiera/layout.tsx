@@ -12,7 +12,7 @@ export default async function LayoutFinanzas({ children }: { children: React.Rea
         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-naranjo text-white shadow-sm">
           <IconCash size={23} stroke={1.75} />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[13rem] flex-1">
           <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Gestión financiera</h1>
           <p className="text-sm text-gris">De la oportunidad al cobro y de la compra al pago, con la caja a la vista</p>
         </div>

@@ -102,6 +102,8 @@ export default function TableroTareas({
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [soloMias, setSoloMias] = useState(false);
+  // En el celular se ve una columna a la vez (pestañas arriba); en pantallas grandes, las tres.
+  const [columnaMovil, setColumnaMovil] = useState<string>(COLUMNAS[0].estado);
   const router = useRouter();
 
   const nombreDe = useMemo(() => new Map(responsables.map((r) => [r.correo.toLowerCase(), r.nombre])), [responsables]);
@@ -197,6 +199,28 @@ export default function TableroTareas({
         </p>
       )}
 
+      {/* Celular: pestañas por estado, con cuántas tareas tiene cada una. */}
+      <div className="sticky top-2 z-10 grid grid-cols-3 gap-1 rounded-2xl border border-borde bg-superficie p-1 shadow-sm lg:hidden" role="tablist">
+        {COLUMNAS.map((col) => {
+          const on = columnaMovil === col.estado;
+          return (
+            <button
+              key={col.estado}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setColumnaMovil(col.estado)}
+              className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-[12px] font-bold uppercase tracking-wide transition ${
+                on ? "bg-naranjo text-white shadow-sm" : "text-gris"
+              }`}
+            >
+              <span className="truncate">{col.titulo}</span>
+              <span className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/25" : "bg-tinta/[0.06]"}`}>{deColumna(visibles, col.estado).length}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid items-start gap-4 lg:grid-cols-3">
         {COLUMNAS.map((col) => {
           const lista = deColumna(visibles, col.estado);
@@ -217,7 +241,7 @@ export default function TableroTareas({
                 if (arrastrada && destino) soltar(arrastrada, destino.estado, destino.antesDe);
                 terminarArrastre();
               }}
-              className={`flex min-h-[22rem] flex-col rounded-2xl p-2.5 transition-colors duration-200 ${
+              className={`${columnaMovil === col.estado ? "flex" : "hidden"} min-h-[12rem] flex-col rounded-2xl p-2.5 transition-colors duration-200 lg:flex lg:min-h-[22rem] ${
                 activa ? "bg-naranjo/[0.07] ring-2 ring-naranjo/30" : "bg-tinta/[0.03]"
               }`}
             >

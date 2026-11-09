@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { usePestanaALaVista } from "@/components/pestanas-a-la-vista";
 import {
   IconBuildingStore,
   IconCalculator,
@@ -29,11 +30,12 @@ const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean;
 /** Las pestañas del submódulo, como las del Inventario. El ítem y el proveedor cuentan como su lista. */
 export default function NavHistorica({ esAdmin }: { esAdmin: boolean }) {
   const ruta = usePathname();
+  const fila = usePestanaALaVista<HTMLElement>(ruta);
   const activa = (href: string, exacto?: boolean) =>
     exacto ? ruta === href : ruta === href || ruta.startsWith(href + "/") || (href.endsWith("/catalogo") && ruta.startsWith(`${RUTA_VH}/item`));
 
   return (
-    <nav className="mb-6 -mx-1 overflow-x-auto px-1 pb-1">
+    <nav ref={fila} className="desliza mb-6 -mx-1 overflow-x-auto px-1 pb-1">
       <div className="inline-flex min-w-full gap-1 rounded-2xl border border-borde bg-superficie p-1 shadow-[0_1px_2px_rgba(23,20,17,0.04)]">
         {PESTANAS.filter((p) => !p.soloAdmin || esAdmin).map(({ href, etiqueta, Icono, exacto, soloAdmin }) => {
           const on = activa(href, exacto);

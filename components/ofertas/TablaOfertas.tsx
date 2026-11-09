@@ -100,7 +100,7 @@ export default function TablaOfertas({
           />
           <span className="text-xs font-medium">Con algo por revisar</span>
         </label>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <label className="text-xs text-tinta/50">Modificada</label>
           <input
             type="date"

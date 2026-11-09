@@ -41,7 +41,8 @@ export default function PanelCotizador({
     <div className="animar-entrada max-w-[1500px]">
       <Link
         href="/"
-        className="text-xs font-medium text-tinta/50 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+        // En el celular ya está «Volver al Core» arriba: este solo en pantallas grandes.
+        className="hidden text-xs font-medium text-tinta/50 transition-colors hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo lg:inline"
       >
         ← Volver al inicio
       </Link>

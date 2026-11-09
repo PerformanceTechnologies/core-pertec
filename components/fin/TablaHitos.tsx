@@ -66,7 +66,38 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
+      {/* Celular: una tarjeta por hito con lo esencial; el detalle completo se abre tocándolo. */}
+      <ul className="space-y-2.5 lg:hidden">
+        {hitos.map((h) => (
+          <li key={h.id} className={`rounded-xl border bg-superficie p-3.5 ${marcados.includes(h.id) ? "border-naranjo/50 bg-naranjo/[0.04]" : "border-borde"} ${h.anulado ? "opacity-50" : ""}`}>
+            <div className="flex items-start gap-3">
+              {!h.factura && !h.anulado && (
+                <input type="checkbox" checked={marcados.includes(h.id)} onChange={(e) => setMarcados((m) => (e.target.checked ? [...m, h.id] : m.filter((x) => x !== h.id)))} aria-label={`Elegir ${h.codigo}`} className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-naranjo)]" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/gestion-financiera/ventas/hito/${h.id}`} className="min-w-0 font-semibold text-tinta hover:text-naranjo">{h.codigo} · {h.periodo ?? h.descripcion}</Link>
+                  <span className="shrink-0 text-right text-sm font-bold tabular-nums text-tinta"><Monto valor={h.neto} /></span>
+                </div>
+                <span className="block truncate text-[11px] text-gris">{h.clienteNombre ?? "Sin cliente"} · {h.proyectoNombre ?? "Sin proyecto"}</span>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Chip texto={h.anulado ? "Anulado" : h.etapa} tono={TONO_ETAPA[h.etapa as EtapaHito]} />
+                  {!h.anulado && h.etapa !== "Cobrada" && <span className="text-[11px] text-gris">{ACCION_ETAPA[h.etapa]}{h.diasVencida ? ` · ${h.diasVencida} días` : ""}</span>}
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-borde pt-2.5 text-xs">
+                  <CampoEnLinea tipo="select" valor={h.estadoTrabajo} opciones={TRABAJO} guardar={guardar(h.id, "estado_trabajo")} ancho="w-32" />
+                  <span className="text-right">
+                    {h.factura ? <span className="font-semibold text-tinta">Factura N° {h.factura.folio}</span> : <span className="text-gris-suave">Sin factura</span>}
+                    <span className="block text-[11px] text-gris">{h.saldo === null ? `${clp(h.totalConIva)} c/IVA` : `Saldo ${clp(h.saldo)}`}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-borde bg-superficie lg:block">
         <table className="w-full min-w-[78rem] text-sm">
           <thead>
             <tr className="border-b border-borde">

@@ -123,7 +123,7 @@ export default function TablaCotizaciones({
           <option value="adjudicada">Adjudicada</option>
           <option value="perdida">Perdida</option>
         </select>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <label className="text-xs text-tinta/50">Actualizado</label>
           <input
             type="date"

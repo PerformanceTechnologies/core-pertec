@@ -335,6 +335,9 @@ html {
      (sidebar incluido) — el clásico salto al pasar entre vistas de distinto
      alto. */
   scrollbar-gutter: stable;
+  /* En el celular, nada abre la página hacia el lado (ni un tooltip escondido). «clip» y no
+     «hidden»: hidden igual deja correr la vista de lado al enfocar algo, y descuadraba el menú. */
+  overflow-x: clip;
 }
 
 body {
@@ -343,7 +346,7 @@ body {
      abra el documento completo hacia los lados. Cada contenedor que
      necesita scroll horizontal propio (ej. el Gantt de Proyectos) ya usa
      overflow-x-auto en su propia caja. */
-  overflow-x: hidden;
+  overflow-x: clip;
   font-family: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
   background-color: var(--color-crema);
   background-image: url("/patron-topografico.svg");
@@ -685,4 +688,23 @@ select:-webkit-autofill {
 }
 @media (prefers-reduced-motion: reduce) {
   .animar-muro-nuevo { animation: none; }
+}
+
+/* Un hijo de grilla parte con min-width:auto y su contenido ancho (una tabla, un texto largo)
+   revienta la columna hacia el lado. Con 0 se encoge y lo ancho scrollea dentro de su caja. */
+main .grid > * {
+  min-width: 0;
+}
+
+/* Pestañas que se deslizan de lado: en pantallas chicas se desvanecen en el borde derecho, para
+   que se note que hay más. */
+@media (max-width: 1023px) {
+  .desliza {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    scrollbar-width: none;
+  }
+  .desliza::-webkit-scrollbar {
+    display: none;
+  }
 }
