@@ -28,6 +28,7 @@
     "probar-visor": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-visor-pdf.mts",
     "probar-empresas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-empresas.mts",
     "probar-inventario": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-inventario.mts",
+    "probar-archivado": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-archivado.mts",
     "probar-menu": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-menu.mts",
     "probar-modulos": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-modulos.mts",
     "probar-pagina-web": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-pagina-web.mts",

@@ -7,6 +7,7 @@ import { CAMPO } from "@/lib/estilos";
 import BotonEnviar from "@/components/BotonEnviar";
 import SelectorDeAcceso, { type GrupoDeSelector, type RolInterno } from "@/components/admin/SelectorDeAcceso";
 import { ROLES_RENDIDOR } from "@/lib/permisos-rendidor";
+import { ROLES_INVENTARIO } from "@/lib/permisos-inventario";
 
 const ETIQUETA = "block text-xs font-semibold text-tinta/80";
 const AYUDA = "mt-1 text-xs leading-snug text-tinta/60";
@@ -42,6 +43,12 @@ const ROLES_INTERNOS: Record<string, RolInterno> = {
     porOmision: "usuario",
     ayuda: "Usuario: ve y rinde lo suyo. Administrador de gastos: ve las rendiciones de todos, para revisarlas antes de cargarlas a Odoo.",
     opciones: ROLES_RENDIDOR.map((r) => ({ valor: r.valor, etiqueta: r.etiqueta.replace(/^Rendir Gastos: /, "") })),
+  },
+  inventario: {
+    titulo: "Rol en Inventario",
+    porOmision: "usuario",
+    ayuda: "Usuario: opera el inventario (productos, operaciones, ajustes). Administrador de inventario: además archiva y restaura productos.",
+    opciones: ROLES_INVENTARIO.map((r) => ({ valor: r.valor, etiqueta: r.etiqueta.replace(/^Inventario: /, "") })),
   },
   cotizador: {
     titulo: "Rol en el Cotizador",

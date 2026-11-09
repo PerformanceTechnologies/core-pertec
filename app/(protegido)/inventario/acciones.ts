@@ -17,7 +17,6 @@ import {
   crearTransferencia,
   crearUbicacion,
   crearUnidad,
-  desactivarProducto,
   eliminarCategoria,
   eliminarRegla,
   guardarRegla,
@@ -25,6 +24,7 @@ import {
   validarTransferencia,
   type LineaNueva,
 } from "@/lib/inventario";
+import { archivarProductoComo, restaurarProductoComo } from "@/lib/inventario-archivado";
 import { esEstadoOperativo, type EstadoOperativo } from "@/lib/inventario-modelo";
 import { referenciasHistoricas } from "@/lib/valorizacion-historica";
 import type { ReferenciasHistoricas } from "@/lib/valorizacion-historica-modelo";
@@ -136,11 +136,32 @@ export async function referenciasHistoricasAction(): Promise<ReferenciasHistoric
   return referenciasHistoricas();
 }
 
-export async function desactivarProductoAction(id: string): Promise<Resultado> {
+/**
+ * Archiva un producto (no lo borra): sale del catálogo y de los selectores, conserva su historial.
+ *
+ * Solo el administrador del Core o quien tenga el rol «Administrador de inventario». Esa comprobación
+ * está DENTRO de archivarProductoComo y corre antes de tocar la base: ocultar el botón no alcanza,
+ * porque una Server Action se invoca directo por HTTP. La persona sale de la sesión, no del formulario.
+ */
+export async function archivarProductoAction(id: string): Promise<Resultado> {
   try {
-    await exigirAccesoApp(SLUG);
-    await desactivarProducto(id);
-    refrescar("/inventario", "/inventario/productos");
+    const usuario = await exigirAccesoApp(SLUG);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, error: "Producto inválido." };
+    await archivarProductoComo(usuario, id);
+    refrescar("/inventario", "/inventario/productos", "/inventario/productos/archivados", `/inventario/productos/${id}`, "/inventario/valorizacion", "/inventario/reabastecimiento");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Devuelve un producto archivado al catálogo. Mismo permiso que para archivarlo. */
+export async function restaurarProductoAction(id: string): Promise<Resultado> {
+  try {
+    const usuario = await exigirAccesoApp(SLUG);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, error: "Producto inválido." };
+    await restaurarProductoComo(usuario, id);
+    refrescar("/inventario", "/inventario/productos", "/inventario/productos/archivados", `/inventario/productos/${id}`, "/inventario/valorizacion", "/inventario/reabastecimiento");
     return { ok: true };
   } catch (e) {
     return fallo(e);

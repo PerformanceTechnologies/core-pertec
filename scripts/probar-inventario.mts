@@ -681,7 +681,7 @@ const cuerpos = acciones
   .map((trozo) => ({ nombre: trozo.slice(0, trozo.indexOf("(")), cuerpo: trozo }))
   .filter((a) => a.nombre !== "verificarAcceso");
 
-assert.ok(cuerpos.length === 19, `se esperaban las 19 acciones del módulo, se encontraron ${cuerpos.length}`);
+assert.ok(cuerpos.length === 22, `se esperaban las 22 acciones del módulo, se encontraron ${cuerpos.length}`);
 
 const sinGuard = cuerpos.filter((a) => !/exigirAccesoApp\(SLUG\)/.test(a.cuerpo)).map((a) => a.nombre);
 assert.deepEqual(
@@ -694,7 +694,7 @@ assert.deepEqual(
 // Y el guard va ANTES de tocar la base, no después.
 for (const a of cuerpos) {
   const posGuard = a.cuerpo.indexOf("exigirAccesoApp(SLUG)");
-  const posEscritura = a.cuerpo.search(/\bawait (crear|actualizar|desactivar|eliminar|guardar|reservar|validar|cancelar|ajustar)/);
+  const posEscritura = a.cuerpo.search(/\bawait (crear|actualizar|archivar|restaurar|eliminar|guardar|reservar|validar|cancelar|ajustar)/);
   if (posEscritura === -1) continue;
   assert.ok(
     posGuard < posEscritura,

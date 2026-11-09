@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   IconAdjustmentsHorizontal,
+  IconArchive,
   IconArrowLeft,
   IconBell,
   IconBuildingWarehouse,
@@ -18,8 +19,11 @@ import FormularioLote from "@/components/inventario/FormularioLote";
 import FormularioRegla from "@/components/inventario/FormularioRegla";
 import FormularioAjuste from "@/components/inventario/FormularioAjuste";
 import FotosProducto from "@/components/inventario/FotosProducto";
+import { BotonArchivar, BotonRestaurar } from "@/components/inventario/BotonesArchivado";
 import { ChipEstadoOperativo, tonoDeTexto } from "@/components/inventario/Visual";
 import { IconoTile, type TonoIcono } from "@/components/contactos/Visual";
+import { exigirAccesoApp } from "@/lib/autorizacion";
+import { puedeArchivar } from "@/lib/inventario-archivado";
 import { fotosDeProducto, leerMinimoGeneral, listarCategorias, listarUbicaciones, listarUnidades, obtenerFichaProducto } from "@/lib/inventario";
 import {
   ETIQUETA_CERTIFICADO,
@@ -37,13 +41,15 @@ export const dynamic = "force-dynamic";
 
 export default async function FichaProductoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [ficha, categorias, unidades, ubicaciones, fotos, general] = await Promise.all([
+  const usuario = await exigirAccesoApp("inventario");
+  const [ficha, categorias, unidades, ubicaciones, fotos, general, puedeAdministrar] = await Promise.all([
     obtenerFichaProducto(id),
     listarCategorias(),
     listarUnidades(),
     listarUbicaciones(),
     fotosDeProducto(id),
     leerMinimoGeneral(),
+    puedeArchivar(usuario),
   ]);
   if (!ficha) notFound();
 
@@ -52,6 +58,8 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
   const nombreCat = categorias.find((c) => c.id === producto.categoriaId)?.nombre;
   const nombreUbi = new Map(ubicaciones.map((u) => [u.id, u.nombre]));
   const esFisico = producto.tipo !== "servicio";
+  // Un archivado se ve completo (ficha, stock, historial) pero no se edita ni se mueve: para eso, primero se restaura.
+  const archivado = !producto.activo;
 
   const certificado = ETIQUETA_CERTIFICADO[estadoCertificado(producto)];
 
@@ -60,6 +68,19 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
       <Link href="/inventario/productos" className="inline-flex items-center gap-1 text-sm font-semibold text-gris transition hover:text-tinta">
         <IconArrowLeft size={16} /> Volver a productos
       </Link>
+
+      {archivado && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          <IconArchive size={20} className="shrink-0" />
+          <p className="min-w-0 flex-1">
+            <span className="font-bold">Este producto está archivado</span>
+            {producto.archivadoEn ? ` desde el ${new Date(producto.archivadoEn).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}` : ""}
+            {producto.archivadoPor ? ` (por ${producto.archivadoPor})` : ""}. No aparece en el catálogo ni se puede usar en operaciones nuevas, pero conserva su historial.
+            {!puedeAdministrar && " Solo un administrador puede restaurarlo."}
+          </p>
+          {puedeAdministrar && <BotonRestaurar productoId={producto.id} nombre={producto.nombre} />}
+        </div>
+      )}
 
       {/* Cabecera: la foto, qué es y el botón para editarlo. Debajo, las cuatro cifras. */}
       <section className={`${TARJETA} p-5`}>
@@ -74,7 +95,12 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
                   {producto.marca ? ` · Marca ${producto.marca}` : ""}
                 </p>
               </div>
-              <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} producto={producto} />
+              {!archivado && (
+                <div className="flex flex-wrap items-start gap-2">
+                  <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} producto={producto} />
+                  {puedeAdministrar && <BotonArchivar productoId={producto.id} nombre={producto.nombre} />}
+                </div>
+              )}
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <ChipEstadoOperativo estado={producto.estadoOperativo} />
@@ -119,7 +145,7 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
             </Bloque>
           )}
           {/* Avísame cuando quede poco */}
-          {esFisico && (
+          {esFisico && !archivado && (
             <Bloque Icono={IconBell} tono="ambar" titulo="Avísame cuando quede poco" ayuda={
               reglas.length
                 ? "Este producto tiene su propio mínimo: si hay menos, aparece en «Reabastecimiento»."
@@ -133,7 +159,7 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
         </div>
         <div className="space-y-5">
           {/* Corregir la cantidad */}
-          {esFisico && (
+          {esFisico && !archivado && (
             <Bloque Icono={IconAdjustmentsHorizontal} tono="marca" titulo="Corregir la cantidad" ayuda="¿Contaste y hay otra cantidad? Escríbela aquí y el sistema ajusta la diferencia.">
               <FormularioAjuste producto={{ id: producto.id, nombre: producto.nombre }} ubicaciones={ubicaciones} lotes={lotes} />
             </Bloque>
@@ -163,7 +189,7 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
                   })}
                 </ul>
               )}
-              <FormularioLote productoId={producto.id} seguimiento={producto.seguimiento} />
+              {!archivado && <FormularioLote productoId={producto.id} seguimiento={producto.seguimiento} />}
             </Bloque>
           )}
         </div>

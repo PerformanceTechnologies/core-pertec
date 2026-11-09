@@ -84,8 +84,9 @@ async function leerFilas(contenido: Buffer, nombreArchivo: string): Promise<stri
 // ---------- Catálogos --------------------------------------------------------
 
 async function cargarCatalogos(): Promise<CatalogosImportacion> {
-  const [{ data: productos }, ubicaciones, almacenes, { data: cats }, { data: unis }] = await Promise.all([
+  const [{ data: productos }, { data: archivados }, ubicaciones, almacenes, { data: cats }, { data: unis }] = await Promise.all([
     supabaseAdmin.from("inv_productos").select("id, sku, nombre, seguimiento").eq("activo", true),
+    supabaseAdmin.from("inv_productos").select("sku, nombre").eq("activo", false),
     listarUbicaciones(),
     listarAlmacenes(),
     supabaseAdmin.from("inv_categorias").select("nombre"),
@@ -115,7 +116,12 @@ async function cargarCatalogos(): Promise<CatalogosImportacion> {
     bodegas.set(normalizar(u.nombre), u.id);
     if (u.codigo) bodegas.set(normalizar(u.codigo), u.id);
   }
-  return { productosPorSku, productosPorNombre, bodegas, categorias, unidades };
+  const archivadosCat = { porSku: new Set<string>(), porNombre: new Set<string>() };
+  for (const p of archivados ?? []) {
+    if (p.sku) archivadosCat.porSku.add(normalizar(p.sku as string));
+    archivadosCat.porNombre.add(normalizar(p.nombre as string));
+  }
+  return { productosPorSku, productosPorNombre, archivados: archivadosCat, bodegas, categorias, unidades };
 }
 
 // ---------- Vista previa -----------------------------------------------------
