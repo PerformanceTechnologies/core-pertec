@@ -69,13 +69,13 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
       </Link>
 
       {/* ── Cabecera ── */}
-      <header className="banda-contraste overflow-hidden rounded-2xl px-6 py-6 sm:px-8">
+      <header className="banda-contraste overflow-hidden rounded-2xl px-5 py-5 sm:px-8 sm:py-6">
         <div className="flex flex-wrap items-start gap-4">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-naranjo/20 text-naranjo">
             <IconReceipt2 size={24} stroke={1.75} />
           </span>
-          <div className="min-w-0 flex-1">
-            <h1 className="texto-banda font-condensed text-3xl font-bold uppercase leading-tight tracking-tight">{rendicion.tituloRendicion}</h1>
+          <div className="min-w-[12rem] flex-1">
+            <h1 className="texto-banda font-condensed text-2xl font-bold uppercase leading-tight tracking-tight sm:text-3xl">{rendicion.tituloRendicion}</h1>
             <p className="texto-banda-65 mt-1 text-sm">
               {rendicion.nombreQuienRinde} · {rendicion.empresaCompanyId === 2 ? "Performance Service SpA" : "Performance Technologies SpA"}
             </p>
