@@ -327,6 +327,7 @@ export default function TableroTareas({
           edicion?.tipo === "nueva" ? `Se agrega en «${COLUMNAS.find((c) => c.estado === edicion.estado)?.titulo}».` : undefined
         }
         ancho="max-w-5xl"
+        completaEnMovil
       >
         {edicion && (
           <FormularioTarea
@@ -783,7 +784,7 @@ function FormularioTarea({
       {error && <p className="mx-1 mt-5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
       {/* En el celular, Guardar queda siempre a la vista abajo. */}
-      <div className="mx-1 mt-6 flex items-center justify-between gap-2 border-t border-borde pt-4 max-lg:sticky max-lg:-bottom-3 max-lg:-mx-5 max-lg:bg-superficie max-lg:px-5 max-lg:pb-3">
+      <div className="mx-1 mt-6 flex items-center justify-between gap-2 border-t border-borde pt-4 max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-4 max-lg:-mb-5 max-lg:bg-superficie max-lg:px-4 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] max-lg:shadow-[0_-8px_20px_-12px_rgba(23,20,17,0.25)]">
         {t ? (
           <button
             type="button"

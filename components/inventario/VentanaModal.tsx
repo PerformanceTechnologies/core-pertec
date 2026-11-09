@@ -30,6 +30,7 @@ export default function VentanaModal({
   ancho = "max-w-2xl",
   variante = "estandar",
   icono,
+  completaEnMovil = false,
   children,
 }: {
   abierta: boolean;
@@ -45,6 +46,8 @@ export default function VentanaModal({
   variante?: "estandar" | "hoja";
   /** Un ícono a la izquierda del título (solo en la variante «hoja»). */
   icono?: React.ReactNode;
+  /** En el celular ocupa toda la pantalla (como una app), con el título fijo arriba. */
+  completaEnMovil?: boolean;
   children: React.ReactNode;
 }) {
   const cerrar = useRef<HTMLButtonElement>(null);
@@ -78,7 +81,7 @@ export default function VentanaModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6 ${hoja ? "animar-fondo-ventana bg-tinta/35 backdrop-blur-sm" : "bg-tinta/60 sm:p-8"}`}
+      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6 ${completaEnMovil ? "max-lg:!p-0" : ""} ${hoja ? "animar-fondo-ventana bg-tinta/35 backdrop-blur-sm" : "bg-tinta/60 sm:p-8"}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) alCerrar();
       }}
@@ -86,8 +89,8 @@ export default function VentanaModal({
       aria-modal="true"
       aria-label={titulo}
     >
-      <div className={`my-auto w-full ${ancho} bg-superficie ${hoja ? "animar-ventana rounded-[28px] border border-borde/60 shadow-[0_24px_64px_-12px_rgba(23,20,17,0.35)]" : "rounded-2xl shadow-2xl"}`}>
-        <div className={`flex items-start gap-3 ${hoja ? "px-5 pb-1 pt-4" : "border-b border-borde px-5 py-4"}`}>
+      <div className={`my-auto w-full ${ancho} bg-superficie ${completaEnMovil ? "max-lg:!my-0 max-lg:min-h-full max-lg:!max-w-none max-lg:!rounded-none" : ""} ${hoja ? "animar-ventana rounded-[28px] border border-borde/60 shadow-[0_24px_64px_-12px_rgba(23,20,17,0.35)]" : "rounded-2xl shadow-2xl"}`}>
+        <div className={`flex items-start gap-3 ${hoja ? "px-5 pb-1 pt-4" : "border-b border-borde px-5 py-4"} ${completaEnMovil ? "max-lg:sticky max-lg:top-0 max-lg:z-20 max-lg:bg-superficie" : ""}`}>
           {hoja && icono}
           <div className={`min-w-0 flex-1 ${hoja && icono ? "self-center" : ""}`}>
             <h2 className={hoja ? "text-[17px] font-bold tracking-tight text-tinta" : "titular text-base text-azul"}>{titulo}</h2>
