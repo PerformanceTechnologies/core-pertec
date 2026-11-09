@@ -64,11 +64,11 @@ jobs:
         # Ubuntu es el 16, así que se instala el 17 desde el repositorio oficial de PostgreSQL.
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           . /etc/os-release
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17 age jq
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y -qq postgresql-client-17 age jq
           pg_dump --version
           age --version
 
