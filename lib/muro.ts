@@ -2,7 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-admin";
 import { contextoDeEmpresa, empresaIdsPorUsuario } from "./empresas";
 import { SLUG_POR_OMISION, type Empresa } from "./empresas-modelo";
-import { LARGO_MAXIMO_MURO, esReaccion, mencionesDe, type ReaccionesMuro, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
+import { LARGO_MAXIMO_MURO, esReaccion, esRolMuro, permisoDeRol, type PermisoBorrar, type RolMuro, mencionesDe, type ReaccionesMuro, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
 import type { UsuarioConAcceso } from "./tipos";
 
 // -----------------------------------------------------------------------------
@@ -232,14 +232,48 @@ export async function contarNuevos(empresaId: string, desde: string, yo: string)
   return Math.min(count ?? 0, 99);
 }
 
-/** Borra un mensaje propio (o cualquiera, si es admin). Queda marcado, no se pierde de la base. */
+// ---------- Roles -------------------------------------------------------------------
+
+/** Los roles asignados en el muro de una empresa (correo → rol). Sin la tabla todavía: ninguno. */
+export async function rolesDelMuro(empresaId: string): Promise<Record<string, RolMuro>> {
+  const { data, error } = await supabaseAdmin.from("muro_roles").select("correo, rol").eq("empresa_id", empresaId);
+  const salida: Record<string, RolMuro> = {};
+  if (error) return salida;
+  for (const r of data ?? []) if (esRolMuro(r.rol)) salida[String(r.correo).toLowerCase()] = r.rol;
+  return salida;
+}
+
+/** Qué puede borrar esta persona en el muro de esa empresa. Los admin del Core, todo. */
+export async function permisoDeBorrar(usuario: UsuarioConAcceso, empresaId: string): Promise<PermisoBorrar> {
+  if (usuario.rol === "admin") return "todo";
+  const { data, error } = await supabaseAdmin
+    .from("muro_roles").select("rol").eq("empresa_id", empresaId).eq("correo", usuario.correo.toLowerCase()).maybeSingle();
+  if (error || !data || !esRolMuro(data.rol)) return "propios";
+  return permisoDeRol(data.rol);
+}
+
+/** Asigna un rol (solo admin del Core). «Miembro» es lo normal, así que se guarda borrando la fila. */
+export async function asignarRol(usuario: UsuarioConAcceso, empresa: Empresa, correo: string, rol: string): Promise<void> {
+  if (usuario.rol !== "admin") throw new Error("Solo un administrador puede cambiar los roles del Muro.");
+  if (!esRolMuro(rol)) throw new Error("Ese rol no existe.");
+  const c = correo.toLowerCase();
+  if (!(await personasDeEmpresa(empresa)).some((p) => p.correo === c)) throw new Error("Esa persona no es de esta empresa.");
+  const q = supabaseAdmin.from("muro_roles");
+  const { error } = rol === "miembro"
+    ? await q.delete().eq("empresa_id", empresa.id).eq("correo", c)
+    : await q.upsert({ empresa_id: empresa.id, correo: c, rol, actualizado_en: new Date().toISOString() });
+  if (error) throw new Error(/muro_roles/.test(error.message) ? "Faltan los roles en la base: corre el SQL de roles del muro." : `No se pudo guardar el rol: ${error.message}`);
+}
+
+/** Borra un mensaje según el rol de la persona en el muro. Queda marcado, no se pierde de la base. */
 export async function borrarMensaje(usuario: UsuarioConAcceso, empresaId: string, id: string): Promise<void> {
   const { data, error } = await supabaseAdmin.from(TABLA).select("autor_correo").eq("id", id).eq("empresa_id", empresaId).maybeSingle();
   revienta("leer el mensaje", error);
   if (!data) return;
-  if (String(data.autor_correo).toLowerCase() !== usuario.correo.toLowerCase() && usuario.rol !== "admin") {
-    throw new Error("Solo puedes borrar tus propios mensajes.");
-  }
+  const permiso = await permisoDeBorrar(usuario, empresaId);
+  const propio = String(data.autor_correo).toLowerCase() === usuario.correo.toLowerCase();
+  if (permiso === "nada") throw new Error("Tu rol en el Muro no permite borrar mensajes.");
+  if (permiso === "propios" && !propio) throw new Error("Solo puedes borrar tus propios mensajes.");
   const { error: e2 } = await supabaseAdmin.from(TABLA).update({ eliminado: true }).eq("id", id);
   revienta("borrar el mensaje", e2);
 }

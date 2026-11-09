@@ -68,3 +68,20 @@ export function combinarReacciones(actual: ReaccionesMuro, consultados: string[]
   for (const id of consultados) delete salida[id];
   return { ...salida, ...delServidor };
 }
+
+// ---------- Roles ---------------------------------------------------------------
+
+export const ROLES_MURO = ["moderador", "miembro", "sin_borrar"] as const;
+export type RolMuro = (typeof ROLES_MURO)[number];
+export const NOMBRE_ROL_MURO: Record<RolMuro, string> = { moderador: "Moderador", miembro: "Miembro", sin_borrar: "Sin borrar" };
+export const DETALLE_ROL_MURO: Record<RolMuro, string> = {
+  moderador: "Borra cualquier mensaje",
+  miembro: "Borra solo sus mensajes",
+  sin_borrar: "No puede borrar mensajes",
+};
+export function esRolMuro(v: unknown): v is RolMuro {
+  return typeof v === "string" && (ROLES_MURO as readonly string[]).includes(v);
+}
+/** Qué puede borrar alguien: todo, solo lo propio o nada. */
+export type PermisoBorrar = "todo" | "propios" | "nada";
+export const permisoDeRol = (rol: RolMuro): PermisoBorrar => (rol === "moderador" ? "todo" : rol === "miembro" ? "propios" : "nada");

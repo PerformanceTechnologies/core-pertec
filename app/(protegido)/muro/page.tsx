@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { empresaDelMuro, listarMensajes, personasDeEmpresa, reaccionesDe } from "@/lib/muro";
+import { empresaDelMuro, listarMensajes, permisoDeBorrar, personasDeEmpresa, reaccionesDe, rolesDelMuro } from "@/lib/muro";
 import MuroChat from "@/components/muro/MuroChat";
 
 export const dynamic = "force-dynamic";
@@ -19,16 +19,20 @@ export default async function MuroPage() {
   } catch (e) {
     falta = e instanceof Error ? e.message : "No se pudo leer el muro.";
   }
-  const [personas, reacciones] = await Promise.all([
+  const admin = usuario.rol === "admin";
+  const [personas, reacciones, borrar, roles] = await Promise.all([
     personasDeEmpresa(empresa),
     reaccionesDe([...inicial.mensajes, ...inicial.respuestas].map((m) => m.id)),
+    permisoDeBorrar(usuario, empresa.id),
+    admin ? rolesDelMuro(empresa.id) : Promise.resolve(null),
   ]);
 
   return (
     <MuroChat
       key={empresa.id}
       empresa={{ id: empresa.id, nombre: empresa.nombre }}
-      yo={{ correo: usuario.correo.toLowerCase(), nombre: usuario.nombre ?? usuario.correo, admin: usuario.rol === "admin" }}
+      yo={{ correo: usuario.correo.toLowerCase(), nombre: usuario.nombre ?? usuario.correo, admin, borrar }}
+      roles={roles}
       personas={personas}
       inicial={inicial.mensajes}
       respuestasIniciales={inicial.respuestas}

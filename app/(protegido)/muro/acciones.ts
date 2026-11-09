@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { alternarReaccion, borrarMensaje, contarNuevos, empresaDelMuro, listarMensajes, mensajesDesde, publicarMensaje, reaccionesDe } from "@/lib/muro";
+import { alternarReaccion, asignarRol, borrarMensaje, contarNuevos, empresaDelMuro, listarMensajes, mensajesDesde, publicarMensaje, reaccionesDe } from "@/lib/muro";
 import type { MensajeMuro, ReaccionesMuro } from "@/lib/muro-modelo";
 
 type Falla = { ok: false; error: string };
@@ -95,6 +95,16 @@ export async function borrarAction(id: string): Promise<{ ok: true } | Falla> {
     const { usuario, empresa } = await contexto();
     if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, error: "Mensaje inválido." };
     await borrarMensaje(usuario, empresa.id, id);
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+export async function asignarRolAction(correo: string, rol: string): Promise<{ ok: true } | Falla> {
+  try {
+    const { usuario, empresa } = await contexto();
+    await asignarRol(usuario, empresa, String(correo ?? ""), String(rol ?? ""));
     return { ok: true };
   } catch (e) {
     return fallo(e);
