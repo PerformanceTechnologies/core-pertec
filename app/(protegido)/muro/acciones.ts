@@ -32,13 +32,14 @@ export async function publicarAction(texto: string, respuestaA: string | null = 
 export async function nuevosAction(
   desde: string,
   visibles: string[],
-): Promise<{ ok: true; nuevos: MensajeMuro[]; borrados: string[]; reacciones: ReaccionesMuro; empresaId: string } | Falla> {
+): Promise<{ ok: true; nuevos: MensajeMuro[]; borrados: string[]; reacciones: ReaccionesMuro | null; empresaId: string } | Falla> {
   try {
     const { empresa } = await contexto();
     if (Number.isNaN(Date.parse(desde))) return { ok: false, error: "Fecha inválida." };
     const ids = (Array.isArray(visibles) ? visibles : []).filter((v) => /^[0-9a-f-]{36}$/.test(v));
     const nuevo = await mensajesDesde(empresa.id, desde, ids);
     // Las reacciones de lo que está en pantalla (y de lo que llegó): así se ven las de los demás.
+    // `null` = no se pudieron leer: la pantalla se queda con las que ya tiene.
     const reacciones = await reaccionesDe([...ids, ...nuevo.nuevos.map((m) => m.id)]);
     return { ok: true, ...nuevo, reacciones, empresaId: empresa.id };
   } catch (e) {
@@ -53,7 +54,8 @@ export async function anterioresAction(
     const { empresa } = await contexto();
     if (Number.isNaN(Date.parse(antesDe))) return { ok: false, error: "Fecha inválida." };
     const r = await listarMensajes(empresa.id, antesDe);
-    return { ok: true, ...r, reacciones: await reaccionesDe([...r.mensajes, ...r.respuestas].map((m) => m.id)) };
+    // Se suman a lo que ya hay (no lo reemplazan): si no se pueden leer, `{}` no borra nada.
+    return { ok: true, ...r, reacciones: (await reaccionesDe([...r.mensajes, ...r.respuestas].map((m) => m.id))) ?? {} };
   } catch (e) {
     return fallo(e);
   }
@@ -78,7 +80,7 @@ export async function nuevosEnMuroAction(vistos: Record<string, string>): Promis
   }
 }
 
-export async function reaccionarAction(mensajeId: string, emoji: string): Promise<{ ok: true; reacciones: ReaccionesMuro } | Falla> {
+export async function reaccionarAction(mensajeId: string, emoji: string): Promise<{ ok: true; reacciones: ReaccionesMuro | null } | Falla> {
   try {
     const { usuario, empresa } = await contexto();
     if (!/^[0-9a-f-]{36}$/.test(mensajeId)) return { ok: false, error: "Mensaje inválido." };

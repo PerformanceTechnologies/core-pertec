@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconArrowUp, IconLoader2, IconMessageCircle, IconPencil, IconSparkles, IconTrash } from "@tabler/icons-react";
-import { trozosDe, type MensajeMuro, type PersonaMuro, type ReaccionesMuro } from "@/lib/muro-modelo";
+import { combinarReacciones, trozosDe, type MensajeMuro, type PersonaMuro, type ReaccionesMuro } from "@/lib/muro-modelo";
 import { anterioresAction, borrarAction, nuevosAction, publicarAction } from "@/app/(protegido)/muro/acciones";
 import { Avatar } from "./Avatar";
 import Compositor from "./Compositor";
@@ -105,7 +105,10 @@ export default function MuroChat({
       const r = await nuevosAction(masNueva ?? new Date(Date.now() - 60_000).toISOString(), ids).catch(() => null);
       if (!vivo || !r || !r.ok) return;
       if (r.empresaId !== empresa.id) return router.refresh();
-      setReacciones(r.reacciones); // las de los demás también llegan solas
+      // Las reacciones de los demás también llegan solas. Si el servidor no pudo leerlas (null) se
+      // queda lo que ya hay en pantalla: «no pude leer» no es «ya no hay».
+      const delServidor = r.reacciones;
+      if (delServidor) setReacciones((xs) => combinarReacciones(xs, ids, delServidor));
       if (r.borrados.length) {
         setPosts((xs) => xs.filter((m) => !r.borrados.includes(m.id)));
         setRespuestas((rs) => Object.fromEntries(Object.entries(rs).map(([k, v]) => [k, v.filter((m) => !r.borrados.includes(m.id))])));

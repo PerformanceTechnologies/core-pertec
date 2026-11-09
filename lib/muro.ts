@@ -146,22 +146,65 @@ export async function publicarMensaje(
 
 // ---------- Reacciones --------------------------------------------------------------
 
-/** Las reacciones de estos mensajes. Sin la tabla todavía: ninguna (el muro sigue andando). */
-export async function reaccionesDe(ids: string[]): Promise<ReaccionesMuro> {
+// Los ids de los mensajes viajan en la URL de cada consulta (`in.(…)`): en tramos cortos para no
+// pasarse del largo que aceptan Supabase y los proxys (400 UUID son unos 15 KB).
+const IDS_POR_CONSULTA = 100;
+// Máximo de filas que entrega Supabase por respuesta; si hay más, se piden por tramos.
+const FILAS_POR_RESPUESTA = 1000;
+
+type FilaReaccion = { mensaje_id: string; correo: string; emoji: string };
+
+/** Todas las reacciones de estos mensajes (los pocos que caben en una consulta), o null si falla. */
+async function filasDeReacciones(ids: string[]): Promise<FilaReaccion[] | null> {
+  const filas: FilaReaccion[] = [];
+  let total = Infinity;
+  while (filas.length < total) {
+    const { data, error, count } = await supabaseAdmin
+      .from("muro_reacciones")
+      .select("mensaje_id, correo, emoji", { count: "exact" })
+      .in("mensaje_id", ids)
+      // Con un orden fijo, los tramos no se pisan ni se saltan filas.
+      .order("mensaje_id")
+      .order("correo")
+      .order("emoji")
+      .range(filas.length, filas.length + FILAS_POR_RESPUESTA - 1);
+    if (error) {
+      console.error(`[muro] no se pudieron leer las reacciones: ${error.message}`);
+      return null;
+    }
+    const tramo = (data ?? []) as FilaReaccion[];
+    if (tramo.length === 0) break;
+    filas.push(...tramo);
+    total = count ?? filas.length;
+  }
+  return filas;
+}
+
+/**
+ * Las reacciones de estos mensajes. Si no se pudieron leer (la tabla todavía no existe, falla la
+ * red…) devuelve `null`, NO `{}`: «ninguna» y «no sé» son cosas distintas, y quien la usa tiene que
+ * dejar en pantalla lo que ya tenía en vez de vaciarlo. Es todo o nada: un resultado a medias
+ * también borraría reacciones.
+ */
+export async function reaccionesDe(ids: string[]): Promise<ReaccionesMuro | null> {
+  const unicos = [...new Set(ids)];
+  const tramos: string[][] = [];
+  for (let i = 0; i < unicos.length; i += IDS_POR_CONSULTA) tramos.push(unicos.slice(i, i + IDS_POR_CONSULTA));
+  const respuestas = await Promise.all(tramos.map(filasDeReacciones));
   const salida: ReaccionesMuro = {};
-  if (ids.length === 0) return salida;
-  const { data, error } = await supabaseAdmin.from("muro_reacciones").select("mensaje_id, correo, emoji").in("mensaje_id", ids.slice(0, 400));
-  if (error) return salida;
-  for (const r of data ?? []) {
-    if (!esReaccion(r.emoji)) continue;
-    const m = (salida[r.mensaje_id as string] ??= {});
-    (m[r.emoji] ??= []).push(String(r.correo));
+  for (const filas of respuestas) {
+    if (!filas) return null;
+    for (const r of filas) {
+      if (!esReaccion(r.emoji)) continue;
+      const m = (salida[r.mensaje_id] ??= {});
+      (m[r.emoji] ??= []).push(String(r.correo));
+    }
   }
   return salida;
 }
 
-/** Pone o saca una reacción de esta persona a un mensaje de su empresa. Devuelve las del mensaje. */
-export async function alternarReaccion(usuario: UsuarioConAcceso, empresaId: string, mensajeId: string, emoji: string): Promise<ReaccionesMuro> {
+/** Pone o saca una reacción de esta persona a un mensaje de su empresa. Devuelve las del mensaje (null si no se pudieron leer de vuelta). */
+export async function alternarReaccion(usuario: UsuarioConAcceso, empresaId: string, mensajeId: string, emoji: string): Promise<ReaccionesMuro | null> {
   if (!esReaccion(emoji)) throw new Error("Esa reacción no existe.");
   const { data: m, error } = await supabaseAdmin.from(TABLA).select("id, eliminado").eq("id", mensajeId).eq("empresa_id", empresaId).maybeSingle();
   revienta("leer el mensaje", error);

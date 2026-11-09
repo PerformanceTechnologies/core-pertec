@@ -32,7 +32,7 @@ export default async function MuroPage() {
       personas={personas}
       inicial={inicial.mensajes}
       respuestasIniciales={inicial.respuestas}
-      reaccionesIniciales={reacciones}
+      reaccionesIniciales={reacciones ?? {}}
       hayMas={inicial.hayMas}
       aviso={falta}
     />

@@ -57,3 +57,14 @@ export type ReaccionesMuro = Record<string, Partial<Record<Reaccion, string[]>>>
 export function esReaccion(v: unknown): v is Reaccion {
   return REACCIONES.includes(v as Reaccion);
 }
+
+/**
+ * Mezcla lo que respondió el servidor con lo que ya está en pantalla. De los mensajes que se
+ * consultaron manda el servidor (si de uno no vino nada, es que ya no tiene reacciones); el resto
+ * queda como estaba, así una consulta parcial nunca borra lo que no preguntó.
+ */
+export function combinarReacciones(actual: ReaccionesMuro, consultados: string[], delServidor: ReaccionesMuro): ReaccionesMuro {
+  const salida = { ...actual };
+  for (const id of consultados) delete salida[id];
+  return { ...salida, ...delServidor };
+}

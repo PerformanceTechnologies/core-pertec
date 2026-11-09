@@ -42,8 +42,10 @@ export default function Reacciones({
     const puse = quienes.includes(yo);
     alCambiar({ [mensajeId]: { ...reacciones, [emoji]: puse ? quienes.filter((c) => c !== yo) : [...quienes, yo] } });
     const r = await reaccionarAction(mensajeId, emoji);
-    if (r.ok) alCambiar({ [mensajeId]: r.reacciones[mensajeId] ?? {} });
-    else {
+    if (r.ok) {
+      // Si el servidor no pudo leerlas de vuelta (null), vale lo que ya se ve en pantalla.
+      if (r.reacciones) alCambiar({ [mensajeId]: r.reacciones[mensajeId] ?? {} });
+    } else {
       alCambiar({ [mensajeId]: reacciones });
       alert(r.error);
     }
