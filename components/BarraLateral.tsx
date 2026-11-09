@@ -395,8 +395,9 @@ export function BarraLateralVista({
               <IconArrowLeft size={19} stroke={2} />
             </Link>
           )}
-          <Link href="/" aria-label="Inicio" className="flex h-8 min-w-0 items-center overflow-hidden [&_img]:!h-6 [&_img]:max-w-[7.5rem] [&_img]:object-contain [&_img]:object-left">
-            <LogoDeEmpresa empresa={empresaActiva} colapsado={false} tema={tema} />
+          {/* Solo el isotipo: el logo completo no cabe junto a los botones de la derecha. */}
+          <Link href="/" aria-label="Inicio" className="flex h-8 min-w-0 items-center overflow-hidden [&_img]:!h-7">
+            <LogoDeEmpresa empresa={empresaActiva} colapsado tema={tema} />
           </Link>
         </div>
         <button
