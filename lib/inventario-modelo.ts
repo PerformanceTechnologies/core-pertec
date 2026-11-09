@@ -44,7 +44,11 @@ export interface Producto {
   costo: number;
   metodoCosto: MetodoCosto;
   precio: number;
+  /** false = archivado: no sale en listados ni selectores y no admite movimientos nuevos. */
   activo: boolean;
+  /** Cuándo y quién lo archivó (vacíos si está activo o se desactivó antes de registrarlo). */
+  archivadoEn: string | null;
+  archivadoPor: string | null;
   /** Bodega (ubicación interna) por omisión. */
   ubicacionId: string | null;
   requiereCertificacion: boolean;

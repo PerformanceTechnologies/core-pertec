@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { IconChevronRight, IconPackage, IconUpload } from "@tabler/icons-react";
+import { IconArchive, IconChevronRight, IconPackage, IconUpload } from "@tabler/icons-react";
 import IntroSeccion from "@/components/inventario/IntroSeccion";
 import FormularioProducto from "@/components/inventario/FormularioProducto";
 import { ChipEstadoOperativo, FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
-import { listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades, miniaturasDeProductos } from "@/lib/inventario";
+import { contarProductosArchivados, listarCategorias, listarProductosConStock, listarUbicaciones, listarUnidades, miniaturasDeProductos } from "@/lib/inventario";
 import {
   ETIQUETA_CERTIFICADO,
   ETIQUETA_SEGUIMIENTO,
@@ -18,12 +18,13 @@ import { TARJETA } from "@/lib/estilos";
 export const dynamic = "force-dynamic";
 
 export default async function ProductosPage() {
-  const [productos, categorias, unidades, ubicaciones, miniaturas] = await Promise.all([
+  const [productos, categorias, unidades, ubicaciones, miniaturas, archivados] = await Promise.all([
     listarProductosConStock(),
     listarCategorias(),
     listarUnidades(),
     listarUbicaciones(),
     miniaturasDeProductos(),
+    contarProductosArchivados(),
   ]);
   const nombreUbi = new Map(ubicaciones.map((u) => [u.id, u.nombre]));
   const nombreCat = new Map(categorias.map((c) => [c.id, c.nombre]));
@@ -41,6 +42,9 @@ export default async function ProductosPage() {
           <FormularioProducto categorias={categorias} unidades={unidades} ubicaciones={ubicaciones} />
           <Link href="/inventario/importar" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-borde px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50">
             <IconUpload size={16} /> Carga masiva
+          </Link>
+          <Link href="/inventario/productos/archivados" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-borde px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50">
+            <IconArchive size={16} /> Archivados{archivados > 0 ? ` (${archivados})` : ""}
           </Link>
           <span className="text-sm text-gris">{productos.length} {productos.length === 1 ? "producto" : "productos"}</span>
         </div>

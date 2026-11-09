@@ -65,7 +65,7 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 | Cotizador | `/cotizador` | Motor de costos y remuneraciones, modo obra, ECO-1 en PDF, importación de propuestas |
 | Ofertas técnicas | `/ofertas` | Convierte un borrador en oferta editable y la emite en PDF |
 | Contratos | `/contratos/[contrato]/…` | Acreditación de personas y vehículos, logística, gastos de arranque, dashboard y reportes |
-| Inventario | `/inventario` | Stock de doble entrada con movimientos entre ubicaciones (en el menú se llama «Stock y bodegas») |
+| Inventario | `/inventario` | Stock de doble entrada con movimientos entre ubicaciones (en el menú se llama «Stock y bodegas»). Los productos no se eliminan: se **archivan** (`activo = false`) y se restauran desde Productos › Archivados; solo el admin del Core o quien tenga el rol «Administrador de inventario» (`rol_extra = admin` de la app) puede, y se verifica en la Server Action |
 | Flota | `/flota` | Vehículos, conductores, servicios, contratos y documentos; en el menú cuelga del módulo Inventario |
 | Proyectos / Mantención | `/proyectos` | Gantt, objetivos, gastos; checklists de equipos. **En pausa**: oculto de todo el Core (`lib/apps-pausadas.ts`) |
 | Reclutamiento | `/reclutamiento` | Postulaciones recibidas desde el formulario público |

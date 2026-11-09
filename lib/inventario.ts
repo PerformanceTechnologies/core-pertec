@@ -61,7 +61,8 @@ const aAlmacen = (r: any): Almacen => ({ id: r.id, nombre: r.nombre, codigo: r.c
 const aProducto = (r: any): Producto => ({
   id: r.id, sku: r.sku, nombre: r.nombre, marca: r.marca ?? null, descripcion: r.descripcion,
   categoriaId: r.categoria_id, unidadId: r.unidad_id, tipo: r.tipo, seguimiento: r.seguimiento,
-  costo: Number(r.costo), metodoCosto: r.metodo_costo ?? "estandar", precio: Number(r.precio), activo: r.activo,
+  costo: Number(r.costo), metodoCosto: r.metodo_costo ?? "estandar", precio: Number(r.precio), activo: r.activo !== false,
+  archivadoEn: r.archivado_en ?? null, archivadoPor: r.archivado_por ?? null,
   ubicacionId: r.ubicacion_id ?? null, requiereCertificacion: Boolean(r.requiere_certificacion),
   certificadoNombre: r.certificado_nombre ?? null, tieneCertificado: Boolean(r.certificado_ruta),
   certificadoVence: r.certificado_vence ?? null, fechaVencimiento: r.fecha_vencimiento ?? null,
@@ -371,6 +372,8 @@ export async function crearTransferencia(datos: {
   const destino = datos.ubicacionDestinoId ?? tipo.ubicacionDestinoId;
   if (!origen || !destino) throw new Error("[inventario] falta ubicación de origen o destino");
   if (datos.lineas.length === 0) throw new Error("[inventario] la transferencia necesita al menos una línea");
+  // Antes de numerar: una operación rechazada no debe gastar un número de documento.
+  await exigirProductosActivos(datos.lineas.map((l) => l.productoId));
 
   // Numeración: subimos el correlativo del tipo y usamos el nuevo número.
   const referencia = siguienteReferencia(tipo.prefijo, tipo.correlativo);
@@ -453,6 +456,7 @@ export async function ajustarInventario(datos: {
   cantidadContada: number;
   creadoPor?: string | null;
 }): Promise<{ referencia: string; diferencia: number } | null> {
+  await exigirProductosActivos([datos.productoId]);
   let consultaQuant = supabaseAdmin
     .from(T.quants).select("cantidad")
     .eq("producto_id", datos.productoId).eq("ubicacion_id", datos.ubicacionId);
@@ -709,9 +713,129 @@ export async function actualizarProducto(id: string, d: Record<string, unknown>)
   revienta("actualizar producto", error);
 }
 
-export async function desactivarProducto(id: string): Promise<void> {
-  const { error } = await supabaseAdmin.from(T.productos).update({ activo: false }).eq("id", id);
-  revienta("desactivar producto", error);
+// ---------- Archivar productos ------------------------------------------------
+//
+// «Archivado» es `activo = false`: todas las consultas del módulo ya filtran por activo = true, así
+// que un archivado sale solo de listados, selectores, valorización y reabastecimiento. Su ficha, su
+// historial y sus fotos siguen donde estaban. Quién puede archivar se decide ARRIBA (ver
+// lib/inventario-archivado.ts): esta capa solo valida que archivar no deje el inventario torcido.
+
+const MIGRACION_ARCHIVADO = "supabase/inventario/0009_archivar_productos.sql";
+
+/** Los nombres de los productos, activos o no: el historial tiene que seguir mostrando los archivados. */
+export async function nombresDeProductos(ids: string[]): Promise<Map<string, string>> {
+  const unicos = [...new Set(ids)];
+  if (unicos.length === 0) return new Map();
+  const { data, error } = await supabaseAdmin.from(T.productos).select("id, nombre").in("id", unicos);
+  revienta("leer nombres de productos", error);
+  return new Map((data ?? []).map((p) => [p.id as string, p.nombre as string]));
+}
+
+/**
+ * Corta si alguno de esos productos está archivado. Se llama antes de crear un movimiento o un
+ * ajuste: los selectores ya no los ofrecen, pero una Server Action se puede invocar directo.
+ */
+export async function exigirProductosActivos(ids: string[]): Promise<void> {
+  const unicos = [...new Set(ids.filter(Boolean))];
+  if (unicos.length === 0) return;
+  const { data, error } = await supabaseAdmin.from(T.productos).select("id, nombre, activo").in("id", unicos);
+  revienta("revisar los productos", error);
+  const archivados = (data ?? []).filter((p) => p.activo === false).map((p) => `«${p.nombre}»`);
+  if (archivados.length === 0) return;
+  throw new Error(
+    archivados.length === 1
+      ? `[inventario] El producto ${archivados[0]} está archivado: no se puede usar en operaciones nuevas. Restáuralo desde Productos › Archivados.`
+      : `[inventario] Estos productos están archivados y no se pueden usar en operaciones nuevas: ${archivados.slice(0, 4).join(", ")}${archivados.length > 4 ? "…" : ""}. Restáuralos desde Productos › Archivados.`,
+  );
+}
+
+/** Productos archivados, los más recientes primero. Los que no tienen fecha (desactivados antes) van al final. */
+export async function listarProductosArchivados(): Promise<Producto[]> {
+  const { data, error } = await supabaseAdmin.from(T.productos).select("*").eq("activo", false).order("nombre");
+  revienta("listar productos archivados", error);
+  return (data ?? [])
+    .map(aProducto)
+    .sort((a, b) => (b.archivadoEn ?? "").localeCompare(a.archivadoEn ?? "") || a.nombre.localeCompare(b.nombre, "es"));
+}
+
+export async function contarProductosArchivados(): Promise<number> {
+  const { count, error } = await supabaseAdmin.from(T.productos).select("id", { count: "exact", head: true }).eq("activo", false);
+  return error ? 0 : count ?? 0;
+}
+
+/**
+ * Archiva un producto. No borra nada. Se rechaza si dejaría algo torcido:
+ *  · tiene operaciones sin terminar (borrador o listas): al validarse moverían stock de un producto
+ *    que ya no está en el catálogo;
+ *  · todavía hay stock en bodega: desaparecería de la valorización sin haber salido de la bodega.
+ *    Para darlo de baja se hace un ajuste a 0, que queda en el historial como cualquier otro.
+ */
+export async function archivarProducto(id: string, porCorreo: string): Promise<void> {
+  const { data: producto, error: errLeer } = await supabaseAdmin.from(T.productos).select("id, nombre, activo").eq("id", id).maybeSingle();
+  revienta("leer producto", errLeer);
+  if (!producto) throw new Error("[inventario] Ese producto ya no existe.");
+  if (producto.activo === false) throw new Error(`[inventario] «${producto.nombre}» ya está archivado.`);
+
+  const [pendientes, quants, internas] = await Promise.all([
+    supabaseAdmin
+      .from(T.movimientos)
+      .select("inv_transferencias!inner(referencia, estado)")
+      .eq("producto_id", id)
+      .eq("estado", "borrador")
+      .in("inv_transferencias.estado", ["borrador", "listo"])
+      .limit(6),
+    supabaseAdmin.from(T.quants).select("ubicacion_id, cantidad, reservado").eq("producto_id", id),
+    idsInternos(),
+  ]);
+  revienta("revisar las operaciones del producto", pendientes.error);
+  revienta("revisar el stock del producto", quants.error);
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const referencias = [...new Set((pendientes.data ?? []).map((m: any) => m.inv_transferencias?.referencia as string | undefined).filter(Boolean))];
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  if (referencias.length > 0) {
+    throw new Error(`[inventario] «${producto.nombre}» tiene operaciones sin terminar (${referencias.join(", ")}). Valídalas o cancélalas antes de archivarlo.`);
+  }
+
+  const enBodega = redondear((quants.data ?? []).filter((q) => internas.has(q.ubicacion_id)).reduce((t, q) => t + Number(q.cantidad), 0));
+  const apartado = redondear((quants.data ?? []).filter((q) => internas.has(q.ubicacion_id)).reduce((t, q) => t + Number(q.reservado), 0));
+  if (enBodega !== 0 || apartado !== 0) {
+    throw new Error(
+      `[inventario] «${producto.nombre}» todavía tiene ${enBodega !== 0 ? `${enBodega} en bodega` : `${apartado} apartado`}. ` +
+        "Corrige la cantidad a 0 (Ajustes) antes de archivarlo, para que la valorización no pierda stock que sigue existiendo.",
+    );
+  }
+
+  const ahora = new Date().toISOString();
+  const { data: archivado, error } = await supabaseAdmin
+    .from(T.productos)
+    .update({ activo: false, archivado_en: ahora, archivado_por: porCorreo, actualizado_en: ahora })
+    .eq("id", id)
+    .eq("activo", true) // si otra persona lo archivó justo antes, no se pisa su fecha ni su autor
+    .select("id");
+  if (error && /archivado_(en|por)/.test(error.message)) {
+    throw new Error(`[inventario] Falta la columna de archivado en la base: corre ${MIGRACION_ARCHIVADO}.`);
+  }
+  revienta("archivar producto", error);
+  if ((archivado ?? []).length === 0) throw new Error(`[inventario] «${producto.nombre}» ya está archivado.`);
+}
+
+/** Devuelve un producto archivado al catálogo, con todo lo que tenía. */
+export async function desarchivarProducto(id: string): Promise<void> {
+  const ahora = new Date().toISOString();
+  let { data, error } = await supabaseAdmin
+    .from(T.productos)
+    .update({ activo: true, archivado_en: null, archivado_por: null, actualizado_en: ahora })
+    .eq("id", id)
+    .eq("activo", false)
+    .select("id");
+  if (error && /archivado_(en|por)/.test(error.message)) {
+    // Sin la migración también se puede restaurar (un producto que se desactivó antes de que existiera).
+    ({ data, error } = await supabaseAdmin
+      .from(T.productos).update({ activo: true, actualizado_en: ahora }).eq("id", id).eq("activo", false).select("id"));
+  }
+  revienta("restaurar producto", error);
+  if ((data ?? []).length === 0) throw new Error("[inventario] Ese producto no está archivado.");
 }
 
 export async function crearCategoria(nombre: string): Promise<void> {

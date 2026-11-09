@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { IconArrowLeft } from "@tabler/icons-react";
 import AccionesTransferencia from "@/components/inventario/AccionesTransferencia";
 import { ChipEstado } from "@/components/inventario/Visual";
-import { listarProductosConStock, listarUbicaciones, obtenerTransferencia } from "@/lib/inventario";
+import { listarUbicaciones, nombresDeProductos, obtenerTransferencia } from "@/lib/inventario";
 import { ETIQUETA_CLASE, formatearCantidad } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
 
@@ -11,14 +11,12 @@ export const dynamic = "force-dynamic";
 
 export default async function DetalleOperacionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [detalle, productos, ubicaciones] = await Promise.all([
-    obtenerTransferencia(id),
-    listarProductosConStock(),
-    listarUbicaciones(),
-  ]);
+  const [detalle, ubicaciones] = await Promise.all([obtenerTransferencia(id), listarUbicaciones()]);
   if (!detalle) notFound();
   const { transferencia: t, movimientos } = detalle;
-  const nombreProd = new Map(productos.map((p) => [p.id, p.nombre]));
+  // Los nombres se piden por id y no desde el catálogo: un producto archivado ya no está en él, y su
+  // historial tiene que seguir diciendo cuál era.
+  const nombreProd = await nombresDeProductos(movimientos.map((m) => m.productoId));
   const nombreUbi = new Map(ubicaciones.map((u) => [u.id, u.nombre]));
 
   return (

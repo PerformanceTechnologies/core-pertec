@@ -110,6 +110,11 @@ export interface CatalogosImportacion {
   productosPorSku: Map<string, { id: string; seguimiento: Seguimiento }>;
   /** nombre normalizado → id producto */
   productosPorNombre: Map<string, { id: string; seguimiento: Seguimiento }>;
+  /**
+   * SKUs y nombres normalizados de los productos ARCHIVADOS. Una fila que coincide con uno no se
+   * puede cargar: no es «nuevo» (el SKU es único y chocaría) ni es «actualizar» (no está en el catálogo).
+   */
+  archivados?: { porSku: Set<string>; porNombre: Set<string> };
   /** nombre o código normalizado → id de ubicación INTERNA donde queda el stock */
   bodegas: Map<string, string>;
   /** Nombres normalizados de las categorías que ya existen. */
@@ -210,6 +215,10 @@ export function validarFila(
   if (!esServicio && !v("cantidad")) errores.push("Falta la cantidad (puede ser 0).");
 
   const existente = (sku && cat.productosPorSku.get(normalizar(sku))) || (nombre ? cat.productosPorNombre.get(normalizar(nombre)) : undefined) || null;
+
+  if (!existente && ((sku && cat.archivados?.porSku.has(normalizar(sku))) || (nombre && cat.archivados?.porNombre.has(normalizar(nombre))))) {
+    errores.push(`«${nombre || sku}» es un producto archivado: restáuralo desde Productos › Archivados antes de cargarlo.`);
+  }
 
   let tipo: TipoProducto | null = null;
   if (v("tipo")) {
