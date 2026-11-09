@@ -3,9 +3,12 @@ import { auth } from "@/auth";
 import { obtenerIndicadores } from "@/lib/indicadores";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-/** UF, dólar, UTM, IPC y TPM para el panel de Finanzas. Solo con sesión; Vercel lo guarda 15 min. */
+/**
+ * Dólar, UF, UTM, IPC y TPM para la cartilla de Finanzas. Solo con sesión.
+ * El servidor guarda lo que lee de la fuente por 30 minutos (ver lib/indicadores.ts); el
+ * navegador, 10.
+ */
 export async function GET() {
   if (!(await auth())?.user?.email) return NextResponse.json({ error: "Sin sesión" }, { status: 401 });
   try {

@@ -72,11 +72,9 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           empresaActiva={empresa.activa}
           empresasPermitidas={empresa.permitidas}
         />
-        {/* En Finanzas y sus submódulos, los indicadores van a la derecha (arriba en el celular). */}
-        <div className="flex flex-col xl:flex-row xl:items-start xl:gap-6">
-          <div className="min-w-0 flex-1">{children}</div>
-          <PanelIndicadores />
-        </div>
+        {/* Solo en Finanzas y sus submódulos: la cartilla de indicadores, bajo la barra superior. */}
+        <PanelIndicadores />
+        {children}
       </main>
       <BotonSubir />
       <NavInferior veMiDia={apps.some((app) => app.url === "/mi-dia")} />
