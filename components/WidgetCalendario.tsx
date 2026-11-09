@@ -15,7 +15,7 @@ export default async function WidgetCalendario() {
   }
 
   return (
-    <div className="max-w-sm rounded-xl border border-borde bg-white p-4">
+    <div className="w-full rounded-xl border border-borde bg-white p-4 lg:max-w-sm">
       <div className="flex items-center gap-2 text-tinta/70">
         <IconCalendarEvent size={16} stroke={1.75} />
         <span className="text-xs font-semibold uppercase tracking-wide">Tu calendario</span>

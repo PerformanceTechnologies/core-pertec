@@ -36,12 +36,12 @@ export default function BarraSuperior({
 
   return (
     // En el celular se monta en la barra fija de arriba (al lado del menú) y queda solo con íconos.
-    <div className="z-40 flex items-center justify-end gap-1.5 max-lg:fixed max-lg:right-[3.75rem] max-lg:top-[0.5625rem] lg:mb-4 lg:gap-2">
+    <div className="z-40 flex items-center justify-end gap-1.5 max-lg:fixed max-lg:right-3 max-lg:top-[0.6875rem] lg:mb-4 lg:gap-2">
       {mostrarBuzon && <BuzonNotificaciones />}
       {veMiDia && (
         <Link
           href="/mi-dia"
-          className={`flex items-center gap-1.5 rounded-lg border h-[34px] px-2.5 text-sm font-medium transition max-lg:w-[34px] max-lg:justify-center max-lg:px-0 ${
+          className={`flex items-center gap-1.5 rounded-lg border h-[34px] px-2.5 text-sm font-medium transition max-lg:hidden ${
             enMiDia
               ? "border-naranjo/40 bg-naranjo/10 text-naranjo"
               : "border-borde bg-superficie text-tinta/75 hover:border-naranjo/40 hover:text-naranjo"
@@ -54,7 +54,7 @@ export default function BarraSuperior({
       {/* El Muro es de todos (no depende de una aplicación asignada), con sus mensajes nuevos encima. */}
       <Link
         href="/muro"
-        className={`relative flex items-center gap-1.5 rounded-lg border h-[34px] px-2.5 text-sm font-medium transition max-lg:w-[34px] max-lg:justify-center max-lg:px-0 ${
+        className={`relative flex items-center gap-1.5 rounded-lg border h-[34px] px-2.5 text-sm font-medium transition max-lg:hidden ${
           enMuro
             ? "border-naranjo/40 bg-naranjo/10 text-naranjo"
             : muroConNuevos
@@ -66,7 +66,10 @@ export default function BarraSuperior({
         <span className="max-lg:sr-only">Muro</span>
         <InsigniaMuro chica />
       </Link>
-      <SelectorEmpresa activa={empresaActiva} permitidas={empresasPermitidas} />
+      {/* En el celular la empresa va a la izquierda de la barra (hace de logo y de selector). */}
+      <div className={`lg:static max-lg:fixed max-lg:top-[0.6875rem] ${pathname === "/" ? "max-lg:left-3" : "max-lg:left-[3.25rem]"}`}>
+        <SelectorEmpresa activa={empresaActiva} permitidas={empresasPermitidas} />
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import BarraLateral from "@/components/BarraLateral";
 import BarraSuperior from "@/components/BarraSuperior";
 import { HUECO_DE_BARRA } from "@/lib/estilos";
 import BotonSubir from "@/components/BotonSubir";
+import NavInferior from "@/components/NavInferior";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { tieneDatosCargados } from "@/lib/empresas-modelo";
@@ -63,7 +64,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           del Gantt de Proyectos, con muchas columnas de día de ancho fijo), sin
           esto no scrollea internamente y empuja el layout más ancho que el
           viewport. */}
-      <main className={`min-w-0 pb-8 pt-5 lg:py-8 ${HUECO_DE_BARRA}`}>
+      <main className={`min-w-0 pb-24 pt-5 lg:py-8 ${HUECO_DE_BARRA}`}>
         <BarraSuperior
           veMiDia={apps.some((app) => app.url === "/mi-dia")}
           mostrarBuzon={conDatos}
@@ -73,6 +74,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         {children}
       </main>
       <BotonSubir />
+      <NavInferior veMiDia={apps.some((app) => app.url === "/mi-dia")} />
     </div>
   );
 }

@@ -6,7 +6,6 @@ import Link from "next/link";
 import { InsigniaMuro } from "@/components/muro/aviso-muro";
 import { usePathname } from "next/navigation";
 import {
-  IconMenu2,
   IconX,
   IconArrowLeft,
   IconChevronLeft,
@@ -31,7 +30,7 @@ import { logoCompletoDe, logoDe, type Empresa } from "@/lib/empresas-modelo";
 import { CLAVE_TEMA, EVENTO_TEMA } from "@/lib/tema";
 import { cerrarSesionAction } from "@/app/(protegido)/cerrar-sesion";
 import BuscadorGlobal from "@/components/BuscadorGlobal";
-import { BARRA_FIJA } from "@/lib/estilos";
+import { BARRA_FIJA, EVENTO_ABRIR_MENU } from "@/lib/estilos";
 import type { Aplicacion, Rol } from "@/lib/tipos";
 import type { ContratoDelMenu } from "@/lib/contratos/contratos";
 
@@ -165,12 +164,15 @@ export function BarraLateralVista({
   const abierta = abiertaDesde === pathname;
   const buscadorAbierto = buscadorAbiertoDesde === pathname;
 
-  function abrirMenu() {
-    setAbiertaDesde(pathname);
-  }
   function cerrarMenu() {
     setAbiertaDesde(null);
   }
+  // La barra de abajo del celular (NavInferior) pide abrir el menú con este evento.
+  useEffect(() => {
+    const abrir = () => setAbiertaDesde(pathname);
+    window.addEventListener(EVENTO_ABRIR_MENU, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR_MENU, abrir);
+  }, [pathname]);
   // useCallback (no una función plana) porque el atajo Ctrl+K la usa dentro
   // de un efecto: así su referencia solo cambia junto con "pathname" y ese
   // efecto no tiene que re-registrar el listener en cada render.
@@ -386,28 +388,14 @@ export function BarraLateralVista({
 
   return (
     <>
-      {/* Celular: UNA barra fija arriba. A la izquierda volver (fuera del inicio) y el logo; a la
-          derecha van los botones de BarraSuperior (se acomodan encima, fijos) y el menú. */}
-      <div className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-borde bg-crema/95 px-3 backdrop-blur-md lg:hidden">
-        <div className="flex min-w-0 items-center gap-1.5">
-          {pathname !== "/" && (
-            <Link href="/" aria-label="Volver al Core" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-tinta/70 transition hover:bg-tinta/[0.05] hover:text-tinta">
-              <IconArrowLeft size={19} stroke={2} />
-            </Link>
-          )}
-          {/* Solo el isotipo: el logo completo no cabe junto a los botones de la derecha. */}
-          <Link href="/" aria-label="Inicio" className="flex h-8 min-w-0 items-center overflow-hidden [&_img]:!h-7">
-            <LogoDeEmpresa empresa={empresaActiva} colapsado tema={tema} />
+      {/* Celular: UNA barra fija arriba. A la izquierda volver (fuera del inicio); la empresa y la
+          campana las acomoda BarraSuperior encima (fijas). El menú vive en la barra de abajo. */}
+      <div className="sticky top-0 z-40 flex h-14 items-center border-b border-borde bg-crema/95 px-3 backdrop-blur-md lg:hidden">
+        {pathname !== "/" && (
+          <Link href="/" aria-label="Volver al inicio" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-tinta/70 transition hover:bg-tinta/[0.05] hover:text-tinta">
+            <IconArrowLeft size={19} stroke={2} />
           </Link>
-        </div>
-        <button
-          type="button"
-          onClick={abrirMenu}
-          aria-label="Abrir menú"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-borde bg-superficie text-tinta/70"
-        >
-          <IconMenu2 size={18} stroke={1.75} />
-        </button>
+        )}
       </div>
 
       {abierta && <div className="fixed inset-0 z-50 bg-black/40 lg:hidden" onClick={cerrarMenu} />}

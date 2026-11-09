@@ -40,7 +40,9 @@ export default async function DashboardPage() {
   const veResumen = tieneDatosCargados(activa) && (await puedeVerResumenDelDia(usuario));
 
   return (
-    <div>
+    // En el celular el orden es: saludo, resumen, módulos y al final el calendario (max-lg:contents
+    // deja que el resumen y el calendario se ordenen sueltos dentro de esta columna).
+    <div className="flex flex-col">
       <span className="etiqueta-seccion">{fechaDeHoy()}</span>
       <h1 className="mt-2 font-condensed text-4xl font-bold uppercase leading-none text-tinta sm:text-5xl">
         Hola{primerNombre ? `, ${primerNombre}` : ""}
@@ -59,9 +61,9 @@ export default async function DashboardPage() {
           items-start para que el calendario no se estire a la altura del
           resumen: es una tarjeta de alto fijo, estirada quedaba con un vacío
           abajo. */}
-      <div className="mt-6 lg:flex lg:items-start lg:gap-6">
+      <div className="mt-6 max-lg:contents lg:flex lg:items-start lg:gap-6">
         {veResumen && (
-          <div className="min-w-0 lg:flex-1">
+          <div className="min-w-0 max-lg:mt-5 lg:flex-1">
             <AvanceDelDia usuario={usuario} />
           </div>
         )}
@@ -79,13 +81,13 @@ export default async function DashboardPage() {
             en su ancho y a la izquierda. Las clases se eligen enteras y no se
             apilan dos anchos lg: cuál gana depende del orden en el CSS
             generado, no del orden en que se escriben acá. */}
-        <div className={veResumen ? "mt-8 lg:mt-0 lg:w-[264px] lg:shrink-0" : "mt-8 lg:mt-0 lg:w-[264px]"}>
+        <div className={`${veResumen ? "mt-8 lg:mt-0 lg:w-[264px] lg:shrink-0" : "mt-8 lg:mt-0 lg:w-[264px]"} max-lg:order-last`}>
           <h2 className="sr-only">Tu calendario</h2>
           <WidgetCalendario />
         </div>
       </div>
 
-      <div className="mt-10">
+      <div className="mt-8 lg:mt-10">
         <span className="etiqueta-seccion">Accesos</span>
         <h2 className="mt-2 font-condensed text-lg font-bold uppercase text-tinta">Tus módulos</h2>
 

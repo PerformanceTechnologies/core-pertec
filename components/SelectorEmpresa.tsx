@@ -72,14 +72,14 @@ export default function SelectorEmpresa({
         className="flex h-[34px] items-center gap-1.5 rounded-lg border border-borde bg-superficie px-2 text-sm lg:gap-2 lg:px-2.5 text-tinta/75 transition hover:border-naranjo/40 disabled:opacity-50"
       >
         <Distintivo empresa={activa} />
-        <span className="hidden max-w-[14rem] truncate text-left font-medium sm:inline">{activa.nombre}</span>
+        <span className="max-w-[9rem] truncate text-left font-medium lg:max-w-[14rem]">{activa.nombre}</span>
         <IconSelector size={15} stroke={1.75} className="shrink-0 text-tinta/35" aria-hidden />
       </button>
 
       {abierto && (
         <div
           role="listbox"
-          className="absolute right-0 z-50 mt-1 w-64 overflow-hidden rounded-xl border border-borde bg-fondo shadow-lg"
+          className="absolute left-0 z-50 mt-1 w-64 lg:left-auto lg:right-0 overflow-hidden rounded-xl border border-borde bg-fondo shadow-lg"
         >
           <p className="border-b border-borde px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-tinta/40">
             Empresa

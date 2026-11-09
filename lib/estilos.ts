@@ -111,3 +111,6 @@ export const CAMPO =
  */
 export const CAMPO_FIN =
   "min-h-11 w-full rounded-xl border border-transparent bg-tinta/[0.05] px-3 py-2 text-sm text-tinta placeholder:text-gris-suave transition hover:bg-tinta/[0.07] focus:border-cian/60 focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-cian/15 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Evento para abrir el menú lateral desde otro componente (la barra de abajo del celular). */
+export const EVENTO_ABRIR_MENU = "core:abrir-menu";

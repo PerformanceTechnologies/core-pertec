@@ -60,7 +60,7 @@ export default async function AvanceDelDia({ usuario }: { usuario: UsuarioConAcc
 
           {r ? (
             <>
-              <p className="mt-3 max-w-[70ch] text-[15px] leading-relaxed text-pretty text-tinta">
+              <p className="mt-3 line-clamp-3 max-w-[70ch] text-[15px] leading-relaxed text-pretty text-tinta lg:line-clamp-none">
                 {/* El panorama tal cual está guardado. Reescribirlo más corto para
                     el Dashboard significaría una segunda llamada al modelo para
                     decir casi lo mismo. */}
