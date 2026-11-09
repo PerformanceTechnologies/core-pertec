@@ -2,10 +2,32 @@ import { NextResponse } from "next/server";
 import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { resolverRolPanel, puedeEditarGastos, actualizarGastosProyecto } from "@/lib/proyectos";
 import type { ArchivoGasto } from "@/lib/proyectos";
+import { revisarEnlace } from "@/lib/archivos/almacen";
 
 export const runtime = "nodejs";
 
 const SLUG_APP = "proyectos";
+
+/**
+ * Solo se aceptan enlaces que armó el propio Core: un enlace firmado de /api/archivos para la app
+ * Proyectos, o uno del bucket «gastos» antiguo. Así nadie puede colar un enlace externo (phishing)
+ * como si fuera una boleta.
+ */
+function esEnlaceDelCore(url: string): boolean {
+  if (url.startsWith("/api/archivos/")) {
+    try {
+      const u = new URL(url, "https://core.local");
+      const id = decodeURIComponent(u.pathname.slice("/api/archivos/".length));
+      const p = Object.fromEntries(u.searchParams.entries());
+      const r = id && !id.includes("/") ? revisarEnlace(id, p) : null;
+      return r?.tipo === "app" && r.app === SLUG_APP;
+    } catch {
+      return false;
+    }
+  }
+  const base = process.env.PERTEC_WEB_SUPABASE_URL?.replace(/\/+$/, "");
+  return !!base && url.startsWith(`${base}/storage/v1/object/public/gastos/`) && !url.includes("..");
+}
 
 function leerArchivos(valor: unknown): ArchivoGasto[] {
   if (!Array.isArray(valor)) return [];
@@ -33,6 +55,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await request.json();
+  // Un adjunto con un enlace que no armó el Core se rechaza (no se descarta en silencio: así
+  // ningún adjunto se pierde sin aviso).
+  const ajenos = (Array.isArray(body.gastos) ? body.gastos : []).flatMap((g: { archivos?: unknown }) => leerArchivos(g?.archivos)).filter((a: ArchivoGasto) => !esEnlaceDelCore(a.url));
+  if (ajenos.length) {
+    console.warn(`[gastos] Adjuntos con enlaces que no son del Core en el proyecto ${id}:`, ajenos.map((a: ArchivoGasto) => a.url.slice(0, 120)));
+    return NextResponse.json({ error: "Hay un adjunto con un enlace que no es del Core. Vuelve a subir ese archivo." }, { status: 400 });
+  }
   const presupuesto = Number(body.presupuesto_inicial) || 0;
   const saldoGlobalAsignado = Number(body.saldo_global_asignado) || 0;
   const gastos = Array.isArray(body.gastos)
