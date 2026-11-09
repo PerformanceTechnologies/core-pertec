@@ -145,8 +145,8 @@ export default function MuroChat({
     setHayMas(r.hayMas);
   }
 
-  async function publicar(texto: string): Promise<string | null> {
-    const r = await publicarAction(texto);
+  async function publicar(texto: string, avisarATodos = false): Promise<string | null> {
+    const r = await publicarAction(texto, null, avisarATodos);
     if (!r.ok) return r.error;
     setPosts((xs) => [r.mensaje, ...pendientes.filter((p) => !xs.some((x) => x.id === p.id)), ...xs.filter((x) => x.id !== r.mensaje.id)]);
     setPendientes([]);
@@ -215,7 +215,7 @@ export default function MuroChat({
               <p className="mb-3 flex items-center gap-2 text-sm font-bold text-naranjo">
                 <IconPencil size={17} stroke={2} /> Nueva publicación
               </p>
-              <Compositor yo={yo} personas={personas} placeholder={`¿Qué quieres compartir, ${primerNombre}?`} boton="Publicar" alPublicar={publicar} />
+              <Compositor yo={yo} personas={personas} placeholder={`¿Qué quieres compartir, ${primerNombre}?`} boton="Publicar" alPublicar={publicar} puedeAvisar={yo.borrar === "todo"} />
             </div>
           </section>
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}

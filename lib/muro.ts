@@ -1,8 +1,11 @@
 import "server-only";
+import { after } from "next/server";
+import { enviarCorreoAUsuario } from "./notificaciones";
+import { armarCorreoMuro, asuntoCorreoMuro } from "./muro-correo";
 import { supabaseAdmin } from "./supabase-admin";
 import { contextoDeEmpresa, empresaIdsPorUsuario } from "./empresas";
 import { SLUG_POR_OMISION, type Empresa } from "./empresas-modelo";
-import { LARGO_MAXIMO_MURO, esReaccion, esRolMuro, permisoDeRol, type PermisoBorrar, type RolMuro, mencionesDe, type ReaccionesMuro, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
+import { LARGO_MAXIMO_MURO, esReaccion, textoPlano, esRolMuro, permisoDeRol, type PermisoBorrar, type RolMuro, mencionesDe, type ReaccionesMuro, type MensajeMuro, type PersonaMuro } from "./muro-modelo";
 import type { UsuarioConAcceso } from "./tipos";
 
 // -----------------------------------------------------------------------------
@@ -100,11 +103,16 @@ export async function publicarMensaje(
   empresa: Empresa,
   texto: string,
   respuestaA: string | null = null,
+  avisarATodos = false,
 ): Promise<MensajeMuro> {
   const limpio = texto.replace(/\r\n/g, "\n").trim();
   if (!limpio) throw new Error("Escribe algo antes de enviar.");
   if (limpio.length > LARGO_MAXIMO_MURO) throw new Error(`El mensaje es muy largo (máximo ${LARGO_MAXIMO_MURO} caracteres).`);
 
+  // «Notificar a todos» solo en publicaciones (no respuestas) y solo para admin y moderadores.
+  if (avisarATodos && (respuestaA || (await permisoDeBorrar(usuario, empresa.id)) !== "todo")) {
+    throw new Error("Solo administradores y moderadores del Muro pueden notificar a todos.");
+  }
   const personas = await personasDeEmpresa(empresa);
   const nombres = new Map(personas.map((p) => [p.correo, p.nombre]));
   const menciones = mencionesDe(limpio).filter((c) => nombres.has(c));
@@ -139,8 +147,25 @@ export async function publicarMensaje(
   revienta("publicar el mensaje", error);
   const mensaje = aMensaje(data);
 
-  // Sin avisos a la campana: lo del Muro se ve solo en el Muro (las menciones quedan marcadas
-  // en naranjo y el botón «Muro» de arriba cuenta lo nuevo).
+  // Sin avisos a la campana: lo del Muro se ve solo en el Muro. La excepción es «Notificar a
+  // todos», que manda un correo a cada persona de la empresa DESPUÉS de responder (after).
+  if (avisarATodos) {
+    const autor = usuario.nombre ?? usuario.correo;
+    const plano = textoPlano(limpio, (c) => nombres.get(c) ?? c.split("@")[0]);
+    const asunto = asuntoCorreoMuro(autor, plano);
+    const html = armarCorreoMuro(autor, empresa.nombre, plano);
+    const yo = usuario.correo.toLowerCase();
+    after(async () => {
+      for (const p of personas) {
+        if (p.correo === yo) continue;
+        try {
+          await enviarCorreoAUsuario(p.correo, asunto, html);
+        } catch (e) {
+          console.error(`Muro: no se pudo avisar a ${p.correo}:`, e);
+        }
+      }
+    });
+  }
   return mensaje;
 }
 

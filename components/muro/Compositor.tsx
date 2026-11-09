@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { IconAt, IconLoader2, IconSend2 } from "@tabler/icons-react";
+import { IconAt, IconLoader2, IconSend2, IconSpeakerphone } from "@tabler/icons-react";
 import { LARGO_MAXIMO_MURO, type PersonaMuro } from "@/lib/muro-modelo";
 import { Avatar } from "./Avatar";
 
@@ -29,6 +29,7 @@ export default function Compositor({
   boton,
   compacto = false,
   autoFocus = false,
+  puedeAvisar = false,
   alPublicar,
   alCancelar,
 }: {
@@ -39,8 +40,10 @@ export default function Compositor({
   boton: string;
   compacto?: boolean;
   autoFocus?: boolean;
+  /** Muestra «Notificar a todos» (manda un correo a toda la empresa). */
+  puedeAvisar?: boolean;
   /** Publica el texto (con las menciones ya como @{correo}). Devuelve el error, o null si salió bien. */
-  alPublicar: (texto: string) => Promise<string | null>;
+  alPublicar: (texto: string, avisarATodos: boolean) => Promise<string | null>;
   alCancelar?: () => void;
 }) {
   const [texto, setTexto] = useState("");
@@ -48,6 +51,7 @@ export default function Compositor({
   const [error, setError] = useState<string | null>(null);
   const [sugerir, setSugerir] = useState<{ desde: number; busca: string } | null>(null);
   const [elegida, setElegida] = useState(0);
+  const [avisar, setAvisar] = useState(false);
   // Nombre visible en la caja → correo, de las personas etiquetadas.
   const etiquetadas = useRef(new Map<string, string>());
   const caja = useRef<HTMLTextAreaElement>(null);
@@ -105,12 +109,14 @@ export default function Compositor({
     for (const [nombre, correo] of [...etiquetadas.current.entries()].sort((a, b) => b[0].length - a[0].length)) {
       salida = salida.split(`@${nombre}`).join(`@{${correo}}`);
     }
+    if (avisar && !confirm("Se le mandará un correo con esta publicación a todas las personas de la empresa. ¿Seguir?")) return;
     setEnviando(true);
     setError(null);
-    const fallo = await alPublicar(salida);
+    const fallo = await alPublicar(salida, avisar);
     setEnviando(false);
     if (fallo) return setError(fallo);
     setTexto("");
+    setAvisar(false);
     etiquetadas.current.clear();
   }
 
@@ -159,6 +165,7 @@ export default function Compositor({
         />
         {error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
         <div className={`flex items-center justify-between gap-2 ${compacto ? "mt-2" : "mt-3"}`}>
+          <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             // Sin robarle el foco a la caja: si no, la lista de personas se cierra apenas se abre.
@@ -167,6 +174,21 @@ export default function Compositor({
             className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
             <IconAt size={compacto ? 16 : 18} /> Etiquetar
           </button>
+          {puedeAvisar && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setAvisar((a) => !a)}
+              aria-pressed={avisar}
+              title="Manda un correo con esta publicación a todas las personas de la empresa"
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold transition ${
+                avisar ? "bg-naranjo text-white shadow-sm" : "text-gris hover:bg-naranjo/10 hover:text-naranjo"
+              }`}
+            >
+              <IconSpeakerphone size={18} /> Notificar a todos
+            </button>
+          )}
+          </div>
           <div className="flex items-center gap-2">
             {!compacto && <span className="hidden text-[11px] text-gris-suave sm:inline">Ctrl + Enter para publicar</span>}
             {alCancelar && (
