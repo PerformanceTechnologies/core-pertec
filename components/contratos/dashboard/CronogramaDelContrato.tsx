@@ -28,7 +28,7 @@ function textoDeDias(dias: number): string {
 }
 
 /**
- * La línea de tiempo desde hoy hasta el último hito.
+ * La línea de tiempo del plazo más antiguo al hito más lejano, con hoy marcado.
  *
  * Cada fecha límite está en su posición REAL: dos módulos con fechas a una semana de distancia
  * se ven separados y dos con la misma fecha se ven juntos, que es lo que un calendario no deja
@@ -61,14 +61,6 @@ function LineaDeTiempo({
         }}
       />
 
-      {/* Hoy */}
-      <div className="absolute left-0 top-0" style={{ transform: "translateX(-6px)" }}>
-        <span className="relative flex h-7 w-3 items-center justify-center">
-          <span className="absolute h-3 w-3 animate-ping rounded-full bg-cian opacity-40 motion-reduce:animate-none" />
-          <span className="relative h-3 w-3 rounded-full bg-cian ring-[3px] ring-[var(--color-superficie)]" />
-        </span>
-      </div>
-
       {marcas.map((m) => {
         const alinear = alineacion(m.alineacion);
         const arriba = 30 + m.carril * ALTO_DE_CARRIL;
@@ -80,7 +72,12 @@ function LineaDeTiempo({
               style={{ left: `${m.posicion}%`, top: 17, height: arriba - 17 }}
               aria-hidden
             />
-            {m.tipo === "inicio" ? (
+            {m.tipo === "hoy" ? (
+              <span className="absolute flex h-3.5 w-3.5 items-center justify-center" style={{ left: `calc(${m.posicion}% - 7px)`, top: 7 }} aria-hidden>
+                <span className="absolute h-3.5 w-3.5 animate-ping rounded-full bg-cian opacity-40 motion-reduce:animate-none" />
+                <span className="relative h-3.5 w-3.5 rounded-full bg-cian ring-[3px] ring-[var(--color-superficie)]" />
+              </span>
+            ) : m.tipo === "inicio" ? (
               <span
                 className="absolute h-3.5 w-3.5 rotate-45 rounded-[3px] bg-azul ring-[3px] ring-[var(--color-superficie)]"
                 style={{ left: `calc(${m.posicion}% - 7px)`, top: 7 }}
@@ -105,7 +102,7 @@ function LineaDeTiempo({
                 {m.etiquetas.join(" · ")}
               </span>
               <span className="block truncate text-[10px] font-semibold" style={{ color: "var(--tono-texto)" }}>
-                {fechaCorta(m.fecha).slice(0, 5)} · {textoDeDias(m.dias)}
+                {m.tipo === "hoy" ? fechaCorta(m.fecha).slice(0, 5) : `${fechaCorta(m.fecha).slice(0, 5)} · ${textoDeDias(m.dias)}`}
               </span>
             </div>
           </div>
@@ -135,7 +132,7 @@ function LineaDeTiempo({
             className="shrink-0 text-[11px] font-semibold tabular-nums"
             style={{ color: "var(--tono-texto)" }}
           >
-            {fechaCorta(m.fecha).slice(0, 5)} · {textoDeDias(m.dias)}
+            {m.tipo === "hoy" ? fechaCorta(m.fecha).slice(0, 5) : `${fechaCorta(m.fecha).slice(0, 5)} · ${textoDeDias(m.dias)}`}
           </span>
         </li>
       ))}

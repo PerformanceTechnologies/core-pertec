@@ -924,7 +924,7 @@ export function armarCronograma(modulos: ModuloDelTablero[]): FilaDeCronograma[]
 /** Una marca sobre la línea de tiempo: hoy, la fecha límite de un módulo, o el inicio del contrato. */
 export interface MarcaDeTiempo {
   clave: string;
-  tipo: "plazo" | "inicio";
+  tipo: "plazo" | "inicio" | "hoy";
   /** Más de una si varios módulos comparten fecha: se dibujan juntos, en una sola marca. */
   etiquetas: string[];
   fecha: string;
@@ -947,8 +947,8 @@ const BORDE_DERECHO = 85;
  * La línea de tiempo de HOY hasta el último hito: las fechas límite de los módulos y el inicio
  * del contrato, en su posición real.
  *
- * El eje empieza hoy. Un plazo que ya venció se pega al principio (no hay espacio «antes de
- * hoy» que mostrar) con el tono crítico. Las marcas que caen muy cerca una de otra se reparten
+ * El eje cubre desde el plazo más antiguo hasta el hito más lejano, y hoy es una marca más:
+ * un plazo vencido queda a la izquierda de hoy, en su fecha real, con el tono crítico. Las marcas que caen muy cerca una de otra se reparten
  * en carriles para que sus etiquetas no se encimen, que es lo normal: dos módulos suelen
  * compartir fecha.
  */
@@ -1003,12 +1003,18 @@ export function armarLineaDeTiempo(
   }
   const agrupadas = [...porFecha.values()];
 
-  // El eje llega hasta el último hito, con un colchón para que no quede pegado al borde.
-  const ultimo = Math.max(1, ...agrupadas.map((c) => c.dias));
-  const totalDias = Math.ceil(ultimo * 1.06);
+  // El eje va de la fecha más antigua a la más lejana, con HOY como una marca más: si los plazos
+  // ya vencieron quedan a la izquierda de hoy, cada uno en su lugar, y no todos apilados al inicio.
+  agrupadas.push({ clave: "hoy", tipo: "hoy", etiquetas: ["Hoy"], fecha: hoy, dias: 0, tono: "curso" });
+  const primero = Math.min(0, ...agrupadas.map((c) => c.dias));
+  const ultimo = Math.max(0, ...agrupadas.map((c) => c.dias));
+  const tramo = Math.max(1, ultimo - primero);
+  const colchon = tramo * 0.04;
+  const desde = primero - colchon;
+  const totalDias = Math.ceil(tramo + colchon * 2);
 
   const conPosicion = agrupadas
-    .map((c) => ({ ...c, posicion: Math.max(0, Math.min(100, (c.dias / totalDias) * 100)) }))
+    .map((c) => ({ ...c, posicion: Math.max(0, Math.min(100, ((c.dias - desde) / (tramo + colchon * 2)) * 100)) }))
     .sort((x, y) => x.posicion - y.posicion);
 
   // Asignación de carriles: cada marca va en el primer renglón donde su etiqueta no pise a la
