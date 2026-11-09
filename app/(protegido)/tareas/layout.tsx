@@ -17,7 +17,7 @@ export default async function LayoutTareas({ children }: { children: React.React
         <div>
           <h1 className="text-xl font-extrabold tracking-tight text-tinta">Tareas</h1>
           <p className="text-sm text-gris">
-            <span className="lg:hidden">Toca una tarea para verla o cambiarla de estado.</span>
+            <span className="lg:hidden">Toca una tarea para abrirla; avánzala con su botón.</span>
             <span className="hidden lg:inline">Arrastra las tarjetas entre columnas para cambiar su estado.</span>
           </p>
         </div>

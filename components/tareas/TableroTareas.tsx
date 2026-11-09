@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import {
   IconAlertCircle,
   IconCalendarEvent,
+  IconCheck,
+  IconPlayerPlay,
+  IconRotateClockwise,
   IconFile,
   IconHistory,
   IconLock,
@@ -156,7 +159,7 @@ export default function TableroTareas({
         <Dato valor={tareas.length} etiqueta="tareas" />
         <Dato valor={tareas.filter((t) => t.estado === "en_curso").length} etiqueta="en curso" />
         <Dato valor={vencidas} etiqueta={vencidas === 1 ? "vencida" : "vencidas"} alerta={vencidas > 0} />
-        <div className="min-w-40 flex-1">
+        <div className="min-w-40 flex-1 max-lg:hidden">
           <div className="mb-1 flex justify-between text-xs text-gris">
             <span>Avance</span>
             <span className="font-semibold tabular-nums text-tinta">{avance}%</span>
@@ -221,6 +224,14 @@ export default function TableroTareas({
         })}
       </div>
 
+      <button
+        type="button"
+        onClick={() => setEdicion({ tipo: "nueva", estado: columnaMovil as EstadoTarea })}
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-naranjo text-sm font-bold text-white shadow-sm active:scale-[0.99] lg:hidden"
+      >
+        <IconPlus size={19} /> Nueva tarea en «{COLUMNAS.find((c) => c.estado === columnaMovil)?.titulo}»
+      </button>
+
       <div className="grid items-start gap-4 lg:grid-cols-3">
         {COLUMNAS.map((col) => {
           const lista = deColumna(visibles, col.estado);
@@ -280,6 +291,7 @@ export default function TableroTareas({
                       }}
                       alTerminar={terminarArrastre}
                       alAbrir={() => setEdicion({ tipo: "editar", tarea: t })}
+                      alAvanzar={(estado) => soltar(t.id, estado, null)}
                     />
                   </div>
                 ))}
@@ -297,7 +309,7 @@ export default function TableroTareas({
 
                 <button
                   onClick={() => setEdicion({ tipo: "nueva", estado: col.estado })}
-                  className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-gris transition hover:bg-superficie hover:text-tinta"
+                  className="mt-1 hidden items-center gap-2 rounded-xl px-3 py-2.5 lg:flex text-sm font-medium text-gris transition hover:bg-superficie hover:text-tinta"
                 >
                   <IconPlus size={15} /> Agregar tarea
                 </button>
@@ -421,6 +433,7 @@ function Tarjeta({
   alPasarEncima,
   alTerminar,
   alAbrir,
+  alAvanzar,
 }: {
   tarea: Tarea;
   personas: Responsable[];
@@ -430,8 +443,16 @@ function Tarjeta({
   alPasarEncima: () => void;
   alTerminar: () => void;
   alAbrir: () => void;
+  alAvanzar: (estado: EstadoTarea) => void;
 }) {
   const prioridad = PRIORIDADES.find((p) => p.valor === t.prioridad);
+  // El paso natural siguiente, para hacerlo de un toque en el celular.
+  const paso =
+    t.estado === "por_hacer"
+      ? { a: "en_curso" as EstadoTarea, texto: "Empezar", Icono: IconPlayerPlay, tono: "bg-amber-500/10 text-amber-700" }
+      : t.estado === "en_curso"
+        ? { a: "hecho" as EstadoTarea, texto: "Terminar", Icono: IconCheck, tono: "bg-emerald-500/10 text-emerald-700" }
+        : { a: "por_hacer" as EstadoTarea, texto: "Reabrir", Icono: IconRotateClockwise, tono: "bg-tinta/[0.05] text-gris" };
   const vencida = estaVencida(t);
   const hecha = t.estado === "hecho";
   return (
@@ -495,6 +516,17 @@ function Tarjeta({
           </span>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          alAvanzar(paso.a);
+        }}
+        className={`mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[13px] font-bold transition active:scale-[0.98] lg:hidden ${paso.tono}`}
+      >
+        <paso.Icono size={16} /> {paso.texto}
+      </button>
     </article>
   );
 }
@@ -559,10 +591,31 @@ function FormularioTarea({
 
   return (
     <form action={enviar} className="-mx-1">
-      <div className="grid gap-8 px-1 lg:grid-cols-[minmax(0,1fr)_300px]">
+      {/* Celular: el estado va primero, grande, porque es lo que más se cambia. */}
+      {t && (
+        <div className="mb-5 grid grid-cols-3 gap-1.5 px-1 lg:hidden">
+          {COLUMNAS.map((c) => {
+            const actual = c.estado === t.estado;
+            return (
+              <button
+                key={c.estado}
+                type="button"
+                onClick={() => !actual && alMover(c.estado)}
+                className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-[13px] font-bold transition ${
+                  actual ? "border-naranjo bg-naranjo text-white shadow-sm" : "border-borde bg-superficie text-gris"
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${actual ? "bg-white" : c.punto}`} />
+                {c.titulo}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex flex-col gap-6 px-1 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
         {/* ── Columna principal: qué es, la conversación y lo que pasó ── */}
-        <div className="min-w-0 space-y-6">
-          <div>
+        <div className="min-w-0 space-y-6 max-lg:contents">
+          <div className="max-lg:order-1">
             {t && (
               <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-tinta/[0.05] px-2.5 py-1 text-[11px] font-semibold text-gris">
                 <span className={`h-2 w-2 rounded-full ${COLUMNAS.find((c) => c.estado === t.estado)?.punto}`} />
@@ -574,18 +627,21 @@ function FormularioTarea({
                 )}
               </span>
             )}
-            <input
+            <textarea
               name="titulo"
               required
               autoFocus={!t}
               maxLength={200}
+              rows={1}
               defaultValue={t?.titulo ?? ""}
               placeholder="¿Qué hay que hacer?"
-              className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1.5 -mx-2 text-2xl font-extrabold tracking-tight text-tinta placeholder:font-bold placeholder:text-gris-suave hover:border-borde focus:border-cian focus:outline-none focus:ring-2 focus:ring-cian/30"
+              // El título se ve completo (crece con el texto); Enter no agrega saltos de línea.
+              onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+              className="[field-sizing:content] w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1.5 -mx-2 text-2xl font-extrabold tracking-tight text-tinta placeholder:font-bold placeholder:text-gris-suave hover:border-borde focus:border-cian focus:outline-none focus:ring-2 focus:ring-cian/30"
             />
           </div>
 
-          <div>
+          <div className="max-lg:order-2">
             <Etiqueta>Descripción</Etiqueta>
             <textarea
               name="descripcion"
@@ -597,24 +653,24 @@ function FormularioTarea({
           </div>
 
           {t ? (
-            <>
+            <div className="max-lg:order-4">
               <Actividad
                 notas={<Notas tareaId={t.id} yo={yo} alCambiar={() => setVersionHistorial((v) => v + 1)} />}
                 historial={<Historial tareaId={t.id} version={versionHistorial} />}
               />
-            </>
+            </div>
           ) : (
-            <p className="rounded-xl border border-dashed border-borde px-4 py-5 text-center text-xs text-gris">
+            <p className="rounded-xl max-lg:order-4 border border-dashed border-borde px-4 py-5 text-center text-xs text-gris">
               Las notas, los archivos y el historial aparecen cuando la tarea ya está creada.
             </p>
           )}
         </div>
 
         {/* ── Barra lateral: los datos de la tarea ── */}
-        <aside className="space-y-5 lg:sticky lg:top-0 lg:self-start">
+        <aside className="space-y-5 max-lg:order-3 lg:sticky lg:top-0 lg:self-start">
           <div className="space-y-5 rounded-2xl border border-borde bg-tinta/[0.02] p-4">
             {t && (
-              <div>
+              <div className="max-lg:hidden">
                 <Etiqueta>Estado</Etiqueta>
                 <div className="grid grid-cols-3 gap-1 rounded-lg bg-tinta/[0.05] p-1">
                   {COLUMNAS.map((c) => {
@@ -726,7 +782,8 @@ function FormularioTarea({
 
       {error && <p className="mx-1 mt-5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
-      <div className="mx-1 mt-6 flex items-center justify-between gap-2 border-t border-borde pt-4">
+      {/* En el celular, Guardar queda siempre a la vista abajo. */}
+      <div className="mx-1 mt-6 flex items-center justify-between gap-2 border-t border-borde pt-4 max-lg:sticky max-lg:-bottom-3 max-lg:-mx-5 max-lg:bg-superficie max-lg:px-5 max-lg:pb-3">
         {t ? (
           <button
             type="button"
