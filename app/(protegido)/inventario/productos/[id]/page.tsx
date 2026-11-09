@@ -70,10 +70,10 @@ export default async function FichaProductoPage({ params }: { params: Promise<{ 
       </Link>
 
       {archivado && (
-        <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-          <IconArchive size={20} className="shrink-0" />
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-tinta">
+          <IconArchive size={20} className="shrink-0 text-amber-600" />
           <p className="min-w-0 flex-1">
-            <span className="font-bold">Este producto está archivado</span>
+            <span className="font-bold text-amber-700">Este producto está archivado</span>
             {producto.archivadoEn ? ` desde el ${new Date(producto.archivadoEn).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}` : ""}
             {producto.archivadoPor ? ` (por ${producto.archivadoPor})` : ""}. No aparece en el catálogo ni se puede usar en operaciones nuevas, pero conserva su historial.
             {!puedeAdministrar && " Solo un administrador puede restaurarlo."}
