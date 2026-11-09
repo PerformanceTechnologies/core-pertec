@@ -15,6 +15,7 @@ import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { leerRespuesta, mapaConTope } from "@/lib/rendidor/red";
 import { TextInput, NumInput, SelectInput } from "@/components/cotizador/campos/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
+import ColaDeFotos from "./ColaDeFotos";
 import {
   IconAlertCircle,
   IconBed,
@@ -450,7 +451,7 @@ export default function PanelRendicion({
   // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
   // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
   // boletas de a una eran más de cinco minutos de espera.
-  const subirYAnalizar = async (lista: FileList) => {
+  const subirYAnalizar = async (lista: FileList | File[]) => {
     const nuevos = Array.from(lista);
     setAnalizando({ actual: 0, total: nuevos.length });
 
@@ -755,6 +756,8 @@ export default function PanelRendicion({
     // se estiran a 1900px en un monitor grande.
     <div>
       {/* PASO 1 — subir comprobantes: una zona grande para soltar o elegir archivos */}
+      {/* Celular: juntar varias fotos antes de analizar (mientras analiza, se muestra el avance de abajo). */}
+      {!yaCargada && !analizando && <ColaDeFotos ocupado={analizando !== null} alAnalizar={(fs) => subirYAnalizar(fs)} />}
       {!yaCargada && (
         <label
           onDragOver={(e) => { e.preventDefault(); if (!analizando) setArrastrando(true); }}
@@ -764,7 +767,7 @@ export default function PanelRendicion({
             setArrastrando(false);
             if (!analizando && e.dataTransfer.files.length) subirYAnalizar(e.dataTransfer.files);
           }}
-          className={`group relative flex cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed px-6 py-9 text-center transition ${
+          className={`group relative cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed px-6 py-9 text-center transition ${analizando ? "flex" : "hidden lg:flex"} ${
             arrastrando ? "border-naranjo bg-naranjo/[0.07]" : "border-borde bg-superficie hover:border-naranjo/60 hover:bg-naranjo/[0.03]"
           } ${analizando ? "pointer-events-none" : ""}`}
         >
