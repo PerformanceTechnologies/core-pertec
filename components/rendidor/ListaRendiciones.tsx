@@ -100,7 +100,7 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
   const saldo = saldoRendicion(r.totalGastos, r.montoAsignado);
   const puedeBorrar = revisa || (r.esMia && esEditable(r.estado));
   const fecha = r.pagadaEn ?? r.revisadaEn ?? r.enviadaEn ?? r.creadoEn;
-  const queFecha = r.pagadaEn ? "Pagada" : r.revisadaEn ? "Revisada" : r.enviadaEn ? "Enviada" : "Creada";
+  const queFecha = r.pagadaEn ? (r.fondoId ? "Cerrada" : "Pagada") : r.revisadaEn ? "Revisada" : r.enviadaEn ? "Enviada" : "Creada";
 
   function eliminar() {
     if (!confirm(`¿Borrar «${r.tituloRendicion}» con sus ${r.cantidadGastos} comprobantes? No se puede deshacer.`)) return;
@@ -134,7 +134,7 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
         <div className="flex items-center gap-5 pl-[3.25rem] sm:pl-0">
           <div className="text-right">
             <p className="font-condensed text-lg font-bold tabular-nums text-tinta">{money(r.totalGastos)}</p>
-            {r.montoAsignado > 0 && (
+            {r.montoAsignado > 0 && !r.fondoId && (
               <p className={`text-[11px] tabular-nums ${saldo > 0 ? "text-emerald-600" : saldo < 0 ? "text-amber-700" : "text-gris"}`}>
                 {saldo > 0 ? `Reembolsar ${money(saldo)}` : saldo < 0 ? `Reintegrar ${money(-saldo)}` : "Cuadra con el fondo"}
               </p>
