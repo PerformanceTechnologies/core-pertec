@@ -64,7 +64,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
           <FormAccion accion={guardarPerfilEmpresaAction} className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <Campo etiqueta="Razón social"><input value={perfilEmpresa.nombre} readOnly className={`${CAMPO} opacity-70`} /></Campo>
-              <Campo etiqueta="RUT"><input value={perfilEmpresa.rut ?? "Sin RUT cargado"} readOnly className={`${CAMPO} opacity-70`} /></Campo>
+              <Campo etiqueta="RUT" ayuda="Sale en el PDF de la cotización"><input name="rut" defaultValue={perfilEmpresa.rut ?? ""} className={CAMPO} placeholder="76.123.456-7" autoComplete="off" /></Campo>
               <Campo etiqueta="Giro"><input name="giro" defaultValue={perfilEmpresa.giro ?? ""} className={CAMPO} placeholder="Servicios de ingeniería y mantención industrial" /></Campo>
               <Campo etiqueta="Dirección"><input name="direccion" defaultValue={perfilEmpresa.direccion ?? ""} className={CAMPO} placeholder="Calle 123, comuna, ciudad" /></Campo>
               <Campo etiqueta="Teléfono"><input name="telefono" defaultValue={perfilEmpresa.telefono ?? ""} className={CAMPO} placeholder="+56 2 2345 6789" /></Campo>
