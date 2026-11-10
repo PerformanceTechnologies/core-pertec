@@ -18,7 +18,7 @@ export default async function NuevaCotizacionPage({ searchParams }: { searchPara
         inicial={{
           id: null, titulo: op?.nombre ?? "", clienteId: op?.clienteId ?? null, oportunidadId: op?.id ?? null, proyectoId: op?.proyectoId ?? null, tipo: op?.tipo ?? "servicio",
           fecha: v.hoy, validezDias: 30, condicionPagoDias: perfil?.condicionVentaDias ?? null, requiereOc: perfil?.requiereOc ?? true, requiereEdp: perfil?.requiereEdp ?? false,
-          requiereHes: perfil?.requiereHes ?? false, notas: null, atencion: op?.contactoNombre ?? null, correoAtencion: op?.contactoCorreo ?? null, plazoEntrega: null, formaPago: null,
+          requiereHes: perfil?.requiereHes ?? false, notas: null, atencion: op?.contactoNombre ?? null, correoAtencion: op?.contactoCorreo ?? null, plazoEntrega: null, formaPago: null, descuentoGeneralTipo: null, descuentoGeneralValor: 0, incluirDatosPago: false,
           lineas: [{ productoId: null, descripcion: op?.nombre ?? "", cantidad: 1, unidad: "un", precioUnitario: op?.montoEstimado ?? 0, descuentoPct: 0, exento: false, meses: op?.tipo === "arriendo" ? 1 : null }],
         }}
         clientes={v.contrapartes.map((c) => ({ id: c.id, nombre: c.nombre, rut: c.rut }))}

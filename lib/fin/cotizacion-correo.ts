@@ -10,7 +10,7 @@ export function asuntoDeCotizacion(d: Pick<DatosDocumento, "numero" | "version" 
 }
 
 export function mensajeDeCotizacion(d: DatosDocumento): string {
-  const t = totalesCotizacion(d.lineas, d.tasaIva);
+  const t = totalesCotizacion(d.lineas, d.tasaIva, d.descuentoGeneral);
   const saludo = d.atencion?.trim() ? `Estimado/a ${d.atencion.trim()}:` : d.cliente ? `Estimados de ${d.cliente.nombre}:` : "Estimados:";
   const items = d.lineas.slice(0, 5).map((l) => `  • ${l.descripcion.replace(/\s+/g, " ").trim().slice(0, 110)}`);
   const resto = d.lineas.length > 5 ? [`  • … y ${d.lineas.length - 5} más (el detalle va en el PDF)`] : [];
@@ -23,6 +23,7 @@ export function mensajeDeCotizacion(d: DatosDocumento): string {
     ...items,
     ...resto,
     "",
+    ...(t.descuento > 0 ? [`Descuento aplicado: ${clp(t.descuento)}.`] : []),
     `Valor total: ${clp(t.total)} (IVA incluido; neto ${clp(t.neto + t.exento)}).`,
     `Vigencia: hasta el ${fechaCl(vigenteHasta(d.fecha, d.validezDias))}.`,
     ...(pago ? [`Condición de pago: ${pago}.`] : []),

@@ -6,7 +6,7 @@
  */
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { condicionesDelDocumento, esc, htmlDeCotizacion, pieDeCotizacion, vigenteHasta, type DatosDocumento } from "../lib/fin/cotizacion-documento";
 import { asuntoDeCotizacion, mensajeDeCotizacion } from "../lib/fin/cotizacion-correo";
 import { totalesCotizacion } from "../lib/fin/modelo";
@@ -23,7 +23,7 @@ function datos(e: (typeof EMPRESAS)[number], extra: Partial<DatosDocumento> = {}
     logo: null,
     numero: `${e.prefijo}-000123`, version: 1, titulo: "Mantención mensual de chancadores <planta Norte>", fecha: "2026-11-10", validezDias: 30, tipo: "servicio", estado: "borrador",
     cliente: { nombre: "Minera Los Andes S.A.", rut: "96.555.444-3", giro: "Minería", direccion: "Camino Real 55, Calama", telefono: "+56 55 2111222", correo: "compras@mla.cl" },
-    atencion: "María Pérez", tasaIva: 0.19, condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.",
+    atencion: "María Pérez", tasaIva: 0.19, descuentoGeneral: null, incluirDatosPago: true, condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.",
     lineas: [
       { productoId: null, descripcion: "Mantención preventiva mensual <b>chancador</b>", cantidad: 2, unidad: "un", precioUnitario: 1_500_000, descuentoPct: 0.1, exento: false, meses: null },
       { productoId: null, descripcion: "Informe técnico", cantidad: 1, unidad: "un", precioUnitario: 250_000, descuentoPct: 0, exento: true, meses: null },
@@ -44,12 +44,36 @@ for (const e of EMPRESAS) {
   assert.ok(html.includes("&lt;planta Norte&gt;"));
   // Totales: 2 × 1.500.000 con 10 % = 2.700.000 afecto + 250.000 exento; IVA 19 % = 513.000.
   const t = totalesCotizacion(d.lineas, d.tasaIva);
-  assert.deepEqual(t, { neto: 2_700_000, exento: 250_000, iva: 513_000, total: 3_463_000 });
+  assert.deepEqual(t, { bruto: 2_950_000, descuento: 0, neto: 2_700_000, exento: 250_000, iva: 513_000, total: 3_463_000 });
   assert.ok(html.includes("$3.463.000") && html.includes("$513.000") && html.includes("Exento"));
   assert.ok(html.includes("Desc."), "con descuento aparece su columna");
   assert.ok(html.includes("Datos para el pago") && html.includes("Banco de Chile"));
   assert.ok(html.includes("10-11-2026") && html.includes("10-12-2026"), "fecha de emisión y de vigencia en dd-mm-aaaa");
 }
+
+// Descuento general: se reparte entre lo afecto y lo exento, y el IVA sale solo de lo afecto.
+{
+  const base = datos(EMPRESAS[0]);
+  const pct = totalesCotizacion(base.lineas, 0.19, { tipo: "pct", valor: 10 });
+  assert.deepEqual(pct, { bruto: 2_950_000, descuento: 295_000, neto: 2_430_000, exento: 225_000, iva: 461_700, total: 3_116_700 });
+  assert.equal(pct.neto + pct.exento + pct.iva, pct.total);
+  const monto = totalesCotizacion(base.lineas, 0.19, { tipo: "monto", valor: 100_000 });
+  assert.equal(monto.descuento, 100_000);
+  assert.equal(monto.neto + monto.exento, 2_850_000);
+  // Nunca pasa del 100 % ni deja un neto negativo.
+  assert.equal(totalesCotizacion(base.lineas, 0.19, { tipo: "pct", valor: 500 }).total, 0);
+  assert.equal(totalesCotizacion(base.lineas, 0.19, { tipo: "monto", valor: 9_999_999_999 }).total, 0);
+  assert.deepEqual(totalesCotizacion(base.lineas, 0.19, { tipo: "pct", valor: 0 }), totalesCotizacion(base.lineas, 0.19));
+  const h = htmlDeCotizacion({ ...base, descuentoGeneral: { tipo: "pct", valor: 10 } });
+  assert.ok(h.includes("Subtotal") && h.includes("Descuento (10%)") && h.includes("−$295.000") && h.includes("$3.116.700"), "el PDF muestra el descuento y el total rebajado");
+  assert.ok(!htmlDeCotizacion(base).includes("Descuento (") && !htmlDeCotizacion(base).includes("Subtotal"), "sin descuento general no aparece su línea");
+  assert.ok(mensajeDeCotizacion({ ...base, descuentoGeneral: { tipo: "pct", valor: 10 } }).includes("Descuento aplicado: $295.000.") && mensajeDeCotizacion({ ...base, descuentoGeneral: { tipo: "pct", valor: 10 } }).includes("$3.116.700"));
+}
+
+// Los datos de pago salen solo si se pidió (apagado por omisión), y «Atención» no lleva «Preparada por».
+assert.ok(!htmlDeCotizacion(datos(EMPRESAS[0], { incluirDatosPago: false })).includes("Datos para el pago"));
+assert.ok(htmlDeCotizacion(datos(EMPRESAS[0], { incluirDatosPago: true })).includes("Datos para el pago"));
+assert.ok(!htmlDeCotizacion(datos(EMPRESAS[0])).includes("Preparada por"));
 
 // Sin descuentos ni exentos ni datos bancarios, esas partes no salen.
 const simple = htmlDeCotizacion(datos(EMPRESAS[0], { lineas: [{ productoId: null, descripcion: "Servicio", cantidad: 1, unidad: "un", precioUnitario: 100_000, descuentoPct: 0, exento: false, meses: null }], notas: null, empresa: { ...datos(EMPRESAS[0]).empresa, datosBancarios: null, pie: null } }));
@@ -91,14 +115,22 @@ console.log("✓ PDF y correo de la cotización: 3 empresas, escapes, totales, c
 
 if (process.env.PDF_SALIDA) {
   const { chromium } = await import("playwright");
+  const { imprimirCotizacion, LIMITE_PX } = await import("../lib/fin/cotizacion-impresion");
   const nav = await chromium.launch({ headless: true, executablePath: process.env.CHROME_RUTA || undefined });
+  const lineas = (n: number, largas = false) => Array.from({ length: n }, (_, i) => ({ productoId: null, descripcion: largas ? `Servicio de mantención preventiva del equipo ${i + 1}, incluye inspección, lubricación y ajuste de componentes` : `Mantención preventiva del equipo ${i + 1}`, cantidad: 1 + (i % 3), unidad: "un", precioUnitario: 150_000 + i * 10_000, descuentoPct: i % 4 === 0 ? 0.05 : 0, exento: false, meses: null }));
   for (const e of EMPRESAS) {
-    const d = datos(e);
     const logo = readFileSync(new URL(`../public/empresas/${e.slug}-completo.png`, import.meta.url)).toString("base64");
-    const page = await nav.newPage();
-    await page.setContent(htmlDeCotizacion({ ...d, logo: `data:image/png;base64,${logo}` }), { waitUntil: "networkidle" });
-    await page.emulateMedia({ media: "print" });
-    await page.pdf({ path: `${process.env.PDF_SALIDA}/${e.slug}.pdf`, format: "A4", printBackground: true, displayHeaderFooter: true, headerTemplate: "<span></span>", footerTemplate: pieDeCotizacion(d), margin: { top: "8mm", bottom: "16mm", left: "0", right: "0" } });
+    for (const [n, esperado, largas] of [[2, 1, false], [5, 1, false], [10, 1, false], [13, "libre", false], [4, 1, true], [16, "libre", false], [40, "varias", false]] as const) {
+      const d = { ...datos(e, { lineas: lineas(n, largas), descuentoGeneral: { tipo: "pct", valor: 10 }, incluirDatosPago: n !== 5 }), logo: `data:image/png;base64,${logo}` };
+      const page = await nav.newPage();
+      const r = await imprimirCotizacion(page, d);
+      if (process.env.DIAGNOSTICO) console.log("   filas:", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("table.lineas tbody tr")].slice(0, 2).map((tr) => [Math.round(tr.getBoundingClientRect().height), [...tr.children].map((c) => [Math.round(c.getBoundingClientRect().width), Math.round(c.getBoundingClientRect().height), c.textContent!.trim().slice(0, 25)])]))));
+      await page.close();
+      writeFileSync(`${process.env.PDF_SALIDA}/${e.slug}-${n}-lineas${largas ? "-largas" : ""}.pdf`, r.pdf);
+      console.log(`${e.slug} · ${n} líneas${largas ? " largas" : ""} → ${r.paginas} hoja(s), modo ${r.modo} (alto ${r.altos.normal}px, compacto ${r.altos.compacto ?? "—"}px, límite ${LIMITE_PX}px)`);
+      if (esperado === 1) assert.equal(r.paginas, 1, `${e.slug} con ${n} líneas debe caber en una hoja`);
+      if (esperado === "varias") assert.ok(r.paginas >= 2 && r.modo === "varias-hojas", `${e.slug} con ${n} líneas sigue en una segunda hoja`);
+    }
   }
   await nav.close();
   console.log(`PDF de ejemplo en ${process.env.PDF_SALIDA}`);

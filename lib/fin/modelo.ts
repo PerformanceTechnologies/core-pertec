@@ -48,10 +48,39 @@ export function lineaNeta(l: Pick<LineaCotizacion, "cantidad" | "precioUnitario"
   return peso(Number(l.cantidad) * Number(l.precioUnitario) * (l.meses ? Number(l.meses) : 1) * (1 - Math.max(0, Math.min(1, Number(l.descuentoPct) || 0))));
 }
 
-export function totalesCotizacion(lineas: LineaCotizacion[], tasaIva: number): { neto: number; exento: number; iva: number; total: number } {
+/** Descuento sobre todo el documento: un porcentaje (0–100) o un monto fijo en pesos. */
+export interface DescuentoGeneral {
+  tipo: "pct" | "monto";
+  valor: number;
+}
+
+export interface TotalesCotizacion {
+  /** Suma de las líneas (ya con su descuento por línea), antes del descuento general. */
+  bruto: number;
+  /** Descuento general en pesos (0 si no hay). */
+  descuento: number;
+  /** Afecto a IVA, ya con el descuento general repartido. */
+  neto: number;
+  /** Exento, ya con el descuento general repartido. */
+  exento: number;
+  iva: number;
+  total: number;
+}
+
+/**
+ * Totales de una cotización. El descuento general se reparte en proporción entre la parte afecta y la
+ * exenta, así el IVA se calcula solo sobre lo que de verdad paga IVA y nunca queda un neto negativo.
+ * Sin descuento general, el resultado es el de siempre (neto, exento, iva, total).
+ */
+export function totalesCotizacion(lineas: LineaCotizacion[], tasaIva: number, general?: DescuentoGeneral | null): TotalesCotizacion {
   const netos = lineas.map((l) => ({ l, n: lineaNeta(l) }));
-  const neto = netos.filter((x) => !x.l.exento).reduce((s, x) => s + x.n, 0);
-  const exento = netos.filter((x) => x.l.exento).reduce((s, x) => s + x.n, 0);
+  const afecto = netos.filter((x) => !x.l.exento).reduce((s, x) => s + x.n, 0);
+  const exentoBruto = netos.filter((x) => x.l.exento).reduce((s, x) => s + x.n, 0);
+  const bruto = afecto + exentoBruto;
+  const pedido = general ? (general.tipo === "pct" ? bruto * (Math.max(0, Math.min(100, Number(general.valor) || 0)) / 100) : Math.max(0, Number(general.valor) || 0)) : 0;
+  const descuento = bruto > 0 ? Math.min(bruto, peso(pedido)) : 0;
+  const exento = bruto > 0 ? peso(exentoBruto - (descuento * exentoBruto) / bruto) : 0;
+  const neto = bruto - descuento - exento;
   const iva = peso(neto * tasaIva);
-  return { neto, exento, iva, total: neto + exento + iva };
+  return { bruto, descuento, neto, exento, iva, total: neto + exento + iva };
 }

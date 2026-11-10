@@ -7,7 +7,7 @@
 // manda a un cliente y no puede ser un vector de nada.
 
 import { clp, fechaCl, sumarDias } from "./reglas";
-import { ETIQUETA_TIPO_VENTA, lineaNeta, totalesCotizacion, type LineaCotizacion } from "./modelo";
+import { ETIQUETA_TIPO_VENTA, lineaNeta, totalesCotizacion, type DescuentoGeneral, type LineaCotizacion } from "./modelo";
 
 export interface EmpresaDocumento {
   nombre: string;
@@ -46,6 +46,10 @@ export interface DatosDocumento {
   atencion: string | null;
   lineas: LineaCotizacion[];
   tasaIva: number;
+  /** Descuento sobre todo el documento (además del de cada línea); null si no hay. */
+  descuentoGeneral: DescuentoGeneral | null;
+  /** Si el PDF lleva los datos bancarios de la empresa (apagado por omisión). */
+  incluirDatosPago: boolean;
   condicionPagoDias: number | null;
   formaPago: string | null;
   plazoEntrega: string | null;
@@ -89,68 +93,108 @@ export function condicionesDelDocumento(d: DatosDocumento): { etiqueta: string; 
   if (d.plazoEntrega?.trim()) c.push({ etiqueta: "Plazo de entrega", texto: d.plazoEntrega.trim() });
   const r = requisitos(d);
   if (r) c.push({ etiqueta: "Facturación", texto: r });
-  c.push({ etiqueta: "Valores", texto: "Expresados en pesos chilenos (CLP). El IVA se detalla en el total." });
   return c;
 }
 
 const CSS = `
-  @page { size: A4; }
+  /* La primera hoja arranca sin margen superior (la barra de color va pegada arriba); las siguientes llevan aire. */
+  @page { size: A4; margin: 12mm 0 13mm 0; }
+  @page :first { margin-top: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body { font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: #1b1814; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .pagina { padding: 0 16mm; }
   .barra { height: 5px; background: #c85217; }
-  .cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 12mm; padding: 7mm 0 5mm; }
-  .marca img { max-height: 17mm; max-width: 62mm; display: block; }
-  .marca .nombre { font-size: 17pt; font-weight: 800; letter-spacing: -0.01em; color: #1b1814; }
-  .emisora { text-align: right; font-size: 8.5pt; color: #5a5249; line-height: 1.5; }
-  .emisora b { color: #1b1814; font-size: 9.5pt; }
-  .titulo { display: flex; justify-content: space-between; align-items: flex-end; gap: 10mm; border-top: 1px solid #e3ddd3; border-bottom: 1px solid #e3ddd3; padding: 5mm 0; margin-bottom: 6mm; }
-  .titulo h1 { margin: 0; font-size: 21pt; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; color: #c85217; line-height: 1.05; }
-  .titulo .sub { margin: 1.5mm 0 0; font-size: 11pt; font-weight: 600; color: #1b1814; }
-  .meta { display: grid; grid-template-columns: auto auto; gap: 1mm 6mm; font-size: 8.5pt; text-align: left; }
-  .meta dt { color: #7a7167; text-transform: uppercase; letter-spacing: 0.06em; font-size: 7.5pt; align-self: center; }
-  .meta dd { margin: 0; font-weight: 700; text-align: right; }
-  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin-bottom: 7mm; }
-  .caja { border: 1px solid #e3ddd3; border-radius: 3mm; padding: 4mm 5mm; background: #fbf9f5; }
+  .pagina { padding: 0 16mm; }
+  /* Una sola hoja: los cuatro grupos se reparten el alto, así no queda un hueco al final ni todo apretado arriba. */
+  body.una-hoja .pagina { min-height: 279mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .g { display: block; }
+
+  .cabecera { display: flex; justify-content: space-between; align-items: center; gap: 12mm; padding: 6mm 0 4mm; }
+  .marca img { max-height: 15mm; max-width: 58mm; display: block; }
+  .marca .nombre { font-size: 17pt; font-weight: 800; letter-spacing: -0.01em; }
+  .emisora { text-align: right; font-size: 8pt; color: #5a5249; line-height: 1.4; }
+  .emisora b { color: #1b1814; font-size: 9pt; }
+
+  .titulo { display: grid; grid-template-columns: 1fr auto; gap: 10mm; align-items: center; border-top: 1px solid #e3ddd3; border-bottom: 1px solid #e3ddd3; padding: 3.5mm 0; margin-bottom: 4.5mm; }
+  .titulo .izq { min-width: 0; }
+  .titulo h1 { margin: 0; font-size: 20pt; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; color: #c85217; line-height: 1.05; }
+  .titulo .sub { margin: 1.5mm 0 0; font-size: 11pt; font-weight: 600; color: #1b1814; overflow-wrap: anywhere; }
+  /* Los cuatro datos en 2 × 2: cada etiqueta sobre su valor, todo alineado a la izquierda y a la misma altura que el título. */
+  .meta { display: grid; grid-template-columns: repeat(2, auto); gap: 2.5mm 9mm; }
+  .meta .et { display: block; color: #7a7167; text-transform: uppercase; letter-spacing: 0.07em; font-size: 7pt; }
+  .meta b { display: block; font-size: 9.5pt; white-space: nowrap; }
+
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .caja { border: 1px solid #e3ddd3; border-radius: 3mm; padding: 3.5mm 5mm; background: #fbf9f5; }
   .caja h2 { margin: 0 0 2mm; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: #c85217; }
-  .caja p { margin: 0.5mm 0; font-size: 9pt; }
-  .caja .grande { font-size: 11pt; font-weight: 700; }
+  .caja p { margin: 0.5mm 0; font-size: 9pt; overflow-wrap: anywhere; }
+  .caja .grande { font-size: 10.5pt; font-weight: 700; }
   .caja .tenue { color: #6b6258; }
-  table.lineas { width: 100%; border-collapse: collapse; margin-bottom: 4mm; }
+
+  /* Columnas fijas: con «overflow-wrap» el ancho mínimo de la descripción es casi cero y el navegador la angostaba. */
+  table.lineas { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.lineas thead { display: table-header-group; }
   table.lineas thead th { background: #1b1814; color: #fff; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.07em; padding: 2.4mm 2.5mm; text-align: left; }
   table.lineas thead th.n, table.lineas td.n { text-align: right; white-space: nowrap; }
-  table.lineas tbody td { padding: 2.6mm 2.5mm; border-bottom: 1px solid #ece6dc; vertical-align: top; font-size: 9pt; }
+  table.lineas tbody td { padding: 1.9mm 2.5mm; border-bottom: 1px solid #ece6dc; vertical-align: top; font-size: 9pt; overflow-wrap: anywhere; }
   table.lineas tbody tr:nth-child(even) td { background: #faf8f4; }
-  table.lineas tbody tr { page-break-inside: avoid; }
-  table.lineas .num { color: #9a9086; width: 7mm; }
+  table.lineas tr { break-inside: avoid; page-break-inside: avoid; }
+  table.lineas .num { color: #9a9086; white-space: nowrap; }
   table.lineas .sub { display: block; font-size: 7.5pt; color: #8a8176; margin-top: 0.6mm; }
-  .totales { display: flex; justify-content: flex-end; margin-bottom: 7mm; page-break-inside: avoid; }
-  .totales table { width: 78mm; border-collapse: collapse; }
-  .totales td { padding: 1.6mm 3mm; font-size: 9.5pt; }
-  .totales td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-  .totales tr.total td { background: #c85217; color: #fff; font-weight: 800; font-size: 12pt; padding: 3mm; }
-  .bloque { margin-bottom: 6mm; page-break-inside: avoid; }
+  .resumen { display: grid; grid-template-columns: 1fr 80mm; gap: 8mm; align-items: start; break-inside: avoid; page-break-inside: avoid; }
+  .resumen.solo { grid-template-columns: 1fr; }
+  .totales table { width: 100%; border-collapse: collapse; }
+  .totales td { padding: 1.2mm 3mm; font-size: 9.5pt; }
+  .totales td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .totales tr.desc td { color: #b3261e; }
+  .totales tr.sep td { border-top: 1px solid #e3ddd3; }
+  .totales tr.total td { background: #c85217; color: #fff; font-weight: 800; font-size: 12pt; padding: 2.4mm 3mm; }
+
+  .bloque { margin-bottom: 4mm; break-inside: avoid; page-break-inside: avoid; }
   .bloque h2 { margin: 0 0 2mm; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: #c85217; border-bottom: 1px solid #e3ddd3; padding-bottom: 1.2mm; }
   .bloque ul { margin: 0; padding: 0; list-style: none; }
-  .bloque li { margin: 0 0 1.4mm; font-size: 9pt; display: flex; gap: 3mm; }
+  .bloque li { margin: 0 0 1mm; font-size: 9pt; display: flex; gap: 3mm; }
   .bloque li b { flex: 0 0 34mm; color: #3d362f; }
   .bloque p { margin: 0; font-size: 9pt; }
   .banco { white-space: pre-line; background: #fbf9f5; border: 1px dashed #d8cfc2; border-radius: 2mm; padding: 3mm 4mm; font-size: 9pt; }
-  .firma { margin-top: 9mm; font-size: 9pt; page-break-inside: avoid; }
+  .cierre { break-inside: avoid; page-break-inside: avoid; padding-bottom: 2mm; }
+  .cierre .fila { display: grid; grid-template-columns: 1fr 70mm; gap: 8mm; align-items: end; }
+  .cierre .fila.solo { grid-template-columns: 1fr; justify-items: end; }
+  .cierre .bloque { margin-bottom: 0; }
+  .agradece { margin: 0 0 4mm; font-size: 9pt; color: #5a5249; }
+  .firma { font-size: 9pt; }
   .firma .raya { width: 60mm; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; }
   .firma b { font-size: 10pt; }
-  .agradece { margin-top: 6mm; font-size: 9pt; color: #5a5249; }
+  .g + .g { margin-top: 5mm; }
+  body.una-hoja .g + .g { margin-top: 0; }
+
+  /* Compacto: para que entre en una hoja cuando por poco no entra. */
+  body.compacto { font-size: 9pt; }
+  .compacto .cabecera { padding: 5mm 0 3mm; }
+  .compacto .titulo { padding: 2.5mm 0; margin-bottom: 3mm; }
+  .compacto .titulo h1 { font-size: 19pt; }
+  .compacto .caja { padding: 2.5mm 4mm; }
+  .compacto table.lineas tbody td { padding: 1.2mm 2.2mm; font-size: 8.5pt; }
+  .compacto table.lineas thead th { padding: 1.8mm 2.2mm; }
+  .compacto .totales td { padding: 0.8mm 3mm; }
+  .compacto .totales tr.total td { padding: 2mm 3mm; }
+  .compacto .bloque { margin-bottom: 3mm; }
+  .compacto .bloque li { margin-bottom: 0.8mm; }
+  .compacto .agradece { margin-bottom: 4mm; }
+  .compacto .g + .g { margin-top: 3mm; }
 `;
 
 export function htmlDeCotizacion(d: DatosDocumento): string {
-  const t = totalesCotizacion(d.lineas, d.tasaIva);
+  const t = totalesCotizacion(d.lineas, d.tasaIva, d.descuentoGeneral);
   const arriendo = d.tipo === "arriendo";
   const logo = logoSeguro(d.logo);
   const e = d.empresa;
-  const filasEmisora = [e.giro, e.direccion, [e.telefono, e.correo].filter(Boolean).join(" · "), e.web].filter((x): x is string => Boolean(x && x.trim()));
+  // Tres líneas como mucho: giro, dirección, y contacto (teléfono · correo · web).
+  const filasEmisora = [e.giro, e.direccion, [e.telefono, e.correo, e.web].filter(Boolean).join(" · ")].filter((x): x is string => Boolean(x && x.trim()));
   const hayDescuento = d.lineas.some((l) => Number(l.descuentoPct) > 0);
   const condiciones = condicionesDelDocumento(d);
+  const pago = d.incluirDatosPago && e.datosBancarios?.trim() ? e.datosBancarios.trim() : null;
+  const etiquetaDescuento = d.descuentoGeneral?.tipo === "pct" ? `Descuento (${Math.round(Number(d.descuentoGeneral.valor) * 100) / 100}%)` : "Descuento";
 
   const filas = d.lineas
     .map(
@@ -167,66 +211,81 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
     .join("");
 
   const c = d.cliente;
+  const atencionSecundaria = [c?.correo, c?.telefono].filter((x): x is string => Boolean(x));
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(d.numero)} ${esc(d.titulo)}</title><style>${CSS}</style></head>
 <body>
   <div class="barra"></div>
   <div class="pagina">
-    <header class="cabecera">
-      <div class="marca">${logo ? `<img src="${logo}" alt="${esc(e.nombre)}">` : `<div class="nombre">${esc(e.nombre)}</div>`}</div>
-      <div class="emisora"><b>${esc(e.nombre)}</b>${e.rut ? `<br>RUT ${esc(e.rut)}` : ""}${filasEmisora.map((f) => `<br>${esc(f)}`).join("")}</div>
-    </header>
+    <div class="g">
+      <header class="cabecera">
+        <div class="marca">${logo ? `<img src="${logo}" alt="${esc(e.nombre)}">` : `<div class="nombre">${esc(e.nombre)}</div>`}</div>
+        <div class="emisora"><b>${esc(e.nombre)}${e.rut ? ` · RUT ${esc(e.rut)}` : ""}</b>${filasEmisora.map((f) => `<br>${esc(f)}`).join("")}</div>
+      </header>
 
-    <section class="titulo">
-      <div>
-        <h1>Cotización</h1>
-        <p class="sub">${esc(d.titulo)}</p>
+      <section class="titulo">
+        <div class="izq">
+          <h1>Cotización</h1>
+          <p class="sub">${esc(d.titulo)}</p>
+        </div>
+        <div class="meta">
+          <div><span class="et">N°</span><b>${esc(d.numero)}${d.version > 1 ? ` · V${d.version}` : ""}</b></div>
+          <div><span class="et">Fecha</span><b>${fechaCl(d.fecha)}</b></div>
+          <div><span class="et">Tipo</span><b>${esc(ETIQUETA_TIPO_VENTA[d.tipo] ?? d.tipo)}</b></div>
+          <div><span class="et">Válida hasta</span><b>${fechaCl(vigenteHasta(d.fecha, d.validezDias))}</b></div>
+        </div>
+      </section>
+
+      <section class="dos">
+        <div class="caja">
+          <h2>Cliente</h2>
+          ${c ? `<p class="grande">${esc(c.nombre)}</p>${[c.rut ? `RUT ${esc(c.rut)}` : "", c.giro ? esc(c.giro) : ""].filter(Boolean).length ? `<p>${[c.rut ? `RUT ${esc(c.rut)}` : "", c.giro ? esc(c.giro) : ""].filter(Boolean).join(" · ")}</p>` : ""}${c.direccion ? `<p class="tenue">${esc(c.direccion)}</p>` : ""}` : '<p class="tenue">Sin cliente asignado</p>'}
+        </div>
+        <div class="caja">
+          <h2>Atención</h2>
+          <p class="grande">${esc(d.atencion?.trim() || "—")}</p>
+          ${atencionSecundaria.map((x) => `<p class="tenue">${esc(x)}</p>`).join("")}
+        </div>
+      </section>
+    </div>
+
+    <div class="g">
+      <table class="lineas">
+        <colgroup><col style="width:11mm"><col><col style="width:25mm"><col style="width:29mm">${hayDescuento ? '<col style="width:15mm">' : ""}<col style="width:30mm"></colgroup>
+        <thead><tr>
+          <th>#</th><th>Descripción</th><th class="n">Cantidad</th><th class="n">${arriendo ? "Tarifa" : "Precio unit."}</th>${hayDescuento ? '<th class="n">Desc.</th>' : ""}<th class="n">Total</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+
+    </div>
+
+    <div class="g">
+      <div class="resumen">
+        <div>
+          <section class="bloque">
+            <h2>Condiciones comerciales</h2>
+            <ul>${condiciones.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul>
+          </section>
+          ${d.notas?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.notas.trim())}</p></section>` : ""}
+        </div>
+        <div class="totales"><table>
+          ${t.descuento > 0 ? `<tr><td>Subtotal</td><td>${clp(t.bruto)}</td></tr><tr class="desc"><td>${esc(etiquetaDescuento)}</td><td>−${clp(t.descuento)}</td></tr>` : ""}
+          <tr${t.descuento > 0 ? ' class="sep"' : ""}><td>${t.exento > 0 ? "Neto afecto" : "Neto"}</td><td>${clp(t.neto)}</td></tr>
+          ${t.exento > 0 ? `<tr><td>Exento</td><td>${clp(t.exento)}</td></tr>` : ""}
+          <tr><td>IVA ${Math.round(d.tasaIva * 1000) / 10}%</td><td>${clp(t.iva)}</td></tr>
+          <tr class="total"><td>TOTAL</td><td>${clp(t.total)}</td></tr>
+        </table></div>
       </div>
-      <dl class="meta">
-        <dt>N°</dt><dd>${esc(d.numero)}${d.version > 1 ? ` · V${d.version}` : ""}</dd>
-        <dt>Fecha</dt><dd>${fechaCl(d.fecha)}</dd>
-        <dt>Válida hasta</dt><dd>${fechaCl(vigenteHasta(d.fecha, d.validezDias))}</dd>
-        <dt>Tipo</dt><dd>${esc(ETIQUETA_TIPO_VENTA[d.tipo] ?? d.tipo)}</dd>
-      </dl>
-    </section>
+    </div>
 
-    <section class="dos">
-      <div class="caja">
-        <h2>Cliente</h2>
-        ${c ? `<p class="grande">${esc(c.nombre)}</p>${c.rut ? `<p>RUT ${esc(c.rut)}</p>` : ""}${c.giro ? `<p class="tenue">${esc(c.giro)}</p>` : ""}${c.direccion ? `<p class="tenue">${esc(c.direccion)}</p>` : ""}` : '<p class="tenue">Sin cliente asignado</p>'}
+    <div class="g cierre">
+      <p class="agradece">Quedamos atentos a sus comentarios. Gracias por considerarnos.</p>
+      <div class="fila${pago ? "" : " solo"}">
+        ${pago ? `<section class="bloque"><h2>Datos para el pago</h2><div class="banco">${esc(pago)}</div></section>` : ""}
+        <div class="firma"><div class="raya"></div><b>${esc(d.emisor.nombre)}</b><br>${esc(e.nombre)}<br>${esc(d.emisor.correo)}</div>
       </div>
-      <div class="caja">
-        <h2>Atención</h2>
-        <p class="grande">${esc(d.atencion?.trim() || "—")}</p>
-        ${c?.correo ? `<p class="tenue">${esc(c.correo)}</p>` : ""}${c?.telefono ? `<p class="tenue">${esc(c.telefono)}</p>` : ""}
-        <p class="tenue" style="margin-top:2mm">Preparada por ${esc(d.emisor.nombre)}</p>
-      </div>
-    </section>
-
-    <table class="lineas">
-      <thead><tr>
-        <th>#</th><th>Descripción</th><th class="n">Cantidad</th><th class="n">${arriendo ? "Tarifa" : "Precio unit."}</th>${hayDescuento ? '<th class="n">Desc.</th>' : ""}<th class="n">Total</th>
-      </tr></thead>
-      <tbody>${filas}</tbody>
-    </table>
-
-    <div class="totales"><table>
-      <tr><td>${t.exento > 0 ? "Neto afecto" : "Neto"}</td><td>${clp(t.neto)}</td></tr>
-      ${t.exento > 0 ? `<tr><td>Exento</td><td>${clp(t.exento)}</td></tr>` : ""}
-      <tr><td>IVA ${Math.round(d.tasaIva * 1000) / 10}%</td><td>${clp(t.iva)}</td></tr>
-      <tr class="total"><td>TOTAL</td><td>${clp(t.total)}</td></tr>
-    </table></div>
-
-    <section class="bloque">
-      <h2>Condiciones comerciales</h2>
-      <ul>${condiciones.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul>
-    </section>
-
-    ${d.notas?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.notas.trim())}</p></section>` : ""}
-    ${e.datosBancarios?.trim() ? `<section class="bloque"><h2>Datos para el pago</h2><div class="banco">${esc(e.datosBancarios.trim())}</div></section>` : ""}
-
-    <p class="agradece">Quedamos atentos a sus comentarios. Gracias por considerarnos.</p>
-    <div class="firma"><div class="raya"></div><b>${esc(d.emisor.nombre)}</b><br>${esc(e.nombre)}<br>${esc(d.emisor.correo)}</div>
+    </div>
   </div>
 </body></html>`;
 }

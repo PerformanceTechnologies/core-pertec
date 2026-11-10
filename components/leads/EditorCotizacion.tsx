@@ -27,6 +27,9 @@ export interface DatosEditor {
   correoAtencion: string | null;
   plazoEntrega: string | null;
   formaPago: string | null;
+  descuentoGeneralTipo: "pct" | "monto" | null;
+  descuentoGeneralValor: number;
+  incluirDatosPago: boolean;
   lineas: LineaCotizacion[];
 }
 
@@ -101,7 +104,7 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
   const [guardadaId, setGuardadaId] = useState<string | null>(null);
-  const t = totalesCotizacion(d.lineas, tasaIva);
+  const t = totalesCotizacion(d.lineas, tasaIva, d.descuentoGeneralTipo && d.descuentoGeneralValor > 0 ? { tipo: d.descuentoGeneralTipo, valor: d.descuentoGeneralValor } : null);
   const cambiarLinea = (i: number, cambio: Partial<LineaCotizacion>) => setD((x) => ({ ...x, lineas: x.lineas.map((l, k) => (k === i ? { ...l, ...cambio } : l)) }));
   const arriendo = d.tipo === "arriendo";
   const hayDescuento = d.lineas.some((l) => l.descuentoPct > 0);
@@ -202,8 +205,25 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
           ))}
         </ul>
         <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
-          <button type="button" onClick={() => setD({ ...d, lineas: [...d.lineas, { ...NUEVA, meses: arriendo ? 1 : null }] })} className={BOTON_SEC}><IconPlus size={14} /> Agregar línea</button>
-          <dl className="grid min-w-[15rem] grid-cols-[1fr_auto] gap-x-6 gap-y-0.5 rounded-xl bg-tinta/[0.03] px-4 py-3 text-sm">
+          <div className="space-y-3">
+            <button type="button" onClick={() => setD({ ...d, lineas: [...d.lineas, { ...NUEVA, meses: arriendo ? 1 : null }] })} className={BOTON_SEC}><IconPlus size={14} /> Agregar línea</button>
+            <div className="rounded-xl border border-borde p-3">
+              <p className="text-[12px] font-semibold text-tinta/75">Descuento general</p>
+              <p className="mb-2 text-[11px] text-gris">Sobre toda la cotización, además del descuento de cada línea.</p>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-xl border border-borde bg-tinta/[0.03] p-1" role="group" aria-label="Tipo de descuento general">
+                  {([["pct", "%"], ["monto", "$"]] as const).map(([k, et]) => (
+                    <button key={k} type="button" aria-pressed={(d.descuentoGeneralTipo ?? "pct") === k} onClick={() => setD({ ...d, descuentoGeneralTipo: k })}
+                      className={`w-9 rounded-lg py-1.5 text-xs font-bold transition ${(d.descuentoGeneralTipo ?? "pct") === k ? "bg-naranjo text-white" : "text-gris hover:text-tinta"}`}>{et}</button>
+                  ))}
+                </div>
+                <div className="w-36"><Numero etiqueta="Descuento general" valor={d.descuentoGeneralValor} vacioSiCero placeholder="Sin descuento" alCambiar={(n) => setD({ ...d, descuentoGeneralTipo: d.descuentoGeneralTipo ?? "pct", descuentoGeneralValor: n })} /></div>
+              </div>
+            </div>
+          </div>
+          <dl className="grid min-w-[16rem] grid-cols-[1fr_auto] gap-x-6 gap-y-0.5 rounded-xl bg-tinta/[0.03] px-4 py-3 text-sm">
+            {t.descuento > 0 && <><dt className="text-gris">Subtotal</dt><dd className="text-right tabular-nums">{clp(t.bruto)}</dd>
+              <dt className="text-gris">Descuento general{d.descuentoGeneralTipo === "pct" ? ` (${d.descuentoGeneralValor.toLocaleString("es-CL", { maximumFractionDigits: 2 })}%)` : ""}</dt><dd className="text-right tabular-nums text-alerta">−{clp(t.descuento)}</dd></>}
             <dt className="text-gris">{t.exento > 0 ? "Neto afecto" : "Neto"}</dt><dd className="text-right tabular-nums">{clp(t.neto)}</dd>
             {t.exento > 0 && <><dt className="text-gris">Exento</dt><dd className="text-right tabular-nums">{clp(t.exento)}</dd></>}
             <dt className="text-gris">IVA {Math.round(tasaIva * 100)}%</dt><dd className="text-right tabular-nums">{clp(t.iva)}</dd>
@@ -229,6 +249,13 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
               ))}
             </div>
           </div>
+          <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 lg:col-span-2 ${d.incluirDatosPago ? "border-naranjo bg-naranjo/[0.06]" : "border-borde"}`}>
+            <input type="checkbox" className="mt-0.5" checked={d.incluirDatosPago} onChange={(e) => setD({ ...d, incluirDatosPago: e.target.checked })} />
+            <span>
+              <span className="block text-sm font-semibold text-tinta">Incluir los datos de pago en el PDF</span>
+              <span className="block text-xs text-gris">Banco y cuenta de la empresa, para que el cliente sepa dónde pagar. Viene desmarcado: actívalo solo si quieres que salgan.</span>
+            </span>
+          </label>
           <Campo etiqueta="Observaciones" className="lg:col-span-2"><textarea value={d.notas ?? ""} onChange={(e) => setD({ ...d, notas: e.target.value })} rows={3} className={CAMPO} placeholder="Alcances, exclusiones, supuestos…" /></Campo>
         </div>
       </Paso>

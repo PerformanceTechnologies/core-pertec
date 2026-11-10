@@ -49,6 +49,8 @@ export async function cotizacionParaDocumento(ctx: ContextoFin, id: string): Pro
       logo: await logoComoDataUri(perfil.slug),
       numero: c.numero, version: c.version, titulo: c.titulo, fecha: c.fecha, validezDias: c.validez_dias, tipo: c.tipo, estado: c.estado,
       cliente, atencion: c.atencion ?? null, lineas, tasaIva: vista.p.tasaIva,
+      descuentoGeneral: (c.descuento_general_tipo === "pct" || c.descuento_general_tipo === "monto") && Number(c.descuento_general_valor) > 0 ? { tipo: c.descuento_general_tipo, valor: Number(c.descuento_general_valor) } : null,
+      incluirDatosPago: Boolean(c.incluir_datos_pago),
       condicionPagoDias: c.condicion_pago_dias === null || c.condicion_pago_dias === undefined ? null : Number(c.condicion_pago_dias),
       formaPago: c.forma_pago ?? null, plazoEntrega: c.plazo_entrega ?? null,
       requiereOc: Boolean(c.requiere_oc), requiereEdp: Boolean(c.requiere_edp), requiereHes: Boolean(c.requiere_hes), notas: c.notas ?? null,

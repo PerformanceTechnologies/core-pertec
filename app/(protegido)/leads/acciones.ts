@@ -66,7 +66,7 @@ export async function prepararEnvioCotizacionAction(id: string): Promise<{ ok: t
     const ctx = await contextoLeads();
     const d = await cotizacionParaDocumento(ctx, id);
     if (!["borrador", "enviada"].includes(d.estado)) return { ok: false, error: "Solo se envía una cotización en borrador o ya enviada. Crea una nueva versión." };
-    const t = totalesCotizacion(d.documento.lineas, d.documento.tasaIva);
+    const t = totalesCotizacion(d.documento.lineas, d.documento.tasaIva, d.documento.descuentoGeneral);
     return {
       ok: true,
       envio: {
