@@ -35,6 +35,9 @@ export async function guardarPerfilEmpresaAction(fd: FormData): Promise<Resultad
     const ctx = await contextoFin();
     const correo = texto(fd, "correo", 120);
     if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return { ok: false, error: "El correo comercial no es válido." };
+    // Razón social: obligatoria. El slug (la identidad estable de la empresa) no cambia nunca.
+    const nombre = texto(fd, "nombre", 120);
+    if (!nombre) return { ok: false, error: "La razón social no puede quedar vacía." };
     // RUT de la empresa: opcional, pero si se escribe tiene que ser válido (sale en el PDF de la cotización).
     const rutEscrito = texto(fd, "rut", 20);
     if (rutEscrito && !rutEsValido(rutEscrito)) return { ok: false, error: "El RUT no es válido. Revisa el dígito verificador (ej.: 76.123.456-7)." };
@@ -42,6 +45,7 @@ export async function guardarPerfilEmpresaAction(fd: FormData): Promise<Resultad
     if (!/^[A-Z0-9]{2,6}$/.test(prefijo)) return { ok: false, error: "El prefijo de las cotizaciones son 2 a 6 letras o números." };
     const largo = (k: string, max: number) => String(fd.get(k) ?? "").replace(/\r/g, "").trim().slice(0, max) || null;
     const fila = {
+      nombre,
       rut: rutEscrito ? formatearRut(normalizarRut(rutEscrito)) : null,
       direccion: texto(fd, "direccion", 200), giro: texto(fd, "giro", 200), telefono: texto(fd, "telefono", 60), correo_comercial: correo, web: texto(fd, "web", 120),
       datos_bancarios: largo("datosBancarios", 600), pie_cotizacion: largo("pie", 600), prefijo_cotizacion: prefijo,

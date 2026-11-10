@@ -63,7 +63,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
           <p className="mb-5 text-sm text-gris">Lo que sale en el encabezado y el pie del PDF de las cotizaciones de {v.empresa.nombre}. Cada empresa del grupo tiene los suyos: cambia de empresa en el menú para completarlos.</p>
           <FormAccion accion={guardarPerfilEmpresaAction} className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Campo etiqueta="Razón social"><input value={perfilEmpresa.nombre} readOnly className={`${CAMPO} opacity-70`} /></Campo>
+              <Campo etiqueta="Razón social *" ayuda="Es el nombre que se ve en el menú y en el PDF"><input name="nombre" required defaultValue={perfilEmpresa.nombre} className={CAMPO} maxLength={120} /></Campo>
               <Campo etiqueta="RUT" ayuda="Sale en el PDF de la cotización"><input name="rut" defaultValue={perfilEmpresa.rut ?? ""} className={CAMPO} placeholder="76.123.456-7" autoComplete="off" /></Campo>
               <Campo etiqueta="Giro"><input name="giro" defaultValue={perfilEmpresa.giro ?? ""} className={CAMPO} placeholder="Servicios de ingeniería y mantención industrial" /></Campo>
               <Campo etiqueta="Dirección"><input name="direccion" defaultValue={perfilEmpresa.direccion ?? ""} className={CAMPO} placeholder="Calle 123, comuna, ciudad" /></Campo>
