@@ -8,6 +8,8 @@ import { asuntoDeCotizacion, mensajeDeCotizacion } from "@/lib/fin/cotizacion-co
 import { faltantesDelPerfil } from "@/lib/fin/empresa-perfil";
 import { totalesCotizacion } from "@/lib/fin/modelo";
 import { clp } from "@/lib/fin/reglas";
+import { limpiarDatosParaObservaciones } from "@/lib/fin/cotizacion-ia-datos";
+import { generarObservacionesDeArriendo } from "@/lib/fin/cotizacion-ia";
 
 type Fallo = { ok: false; error: string };
 const fallo = (e: unknown): Fallo => ({ ok: false, error: e instanceof Error ? e.message.replace(/^\[fin\]\s*/, "") : "Ocurrió un error inesperado." });
@@ -74,6 +76,28 @@ export async function prepararEnvioCotizacionAction(id: string): Promise<{ ok: t
         yaEnviadaA: d.enviadaA, faltantes: faltantesDelPerfil(d.perfil), remitente: ctx.usuario.correo,
       },
     };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/**
+ * Redacta con IA las observaciones de una cotización de ARRIENDO, solo con lo que hay en la cotización
+ * (equipos, periodo, plazo, pago, vigencia y requisitos). No se envían el cliente ni los montos.
+ */
+export async function generarObservacionesArriendoAction(json: string): Promise<{ ok: true; texto: string } | Fallo> {
+  try {
+    await contextoLeads();
+    if (json.length > 60_000) return { ok: false, error: "La cotización es demasiado larga para generar las observaciones." };
+    let crudo: unknown;
+    try {
+      crudo = JSON.parse(json);
+    } catch {
+      return { ok: false, error: "No se pudo leer la cotización." };
+    }
+    const datos = limpiarDatosParaObservaciones(crudo);
+    if (typeof datos === "string") return { ok: false, error: datos };
+    return { ok: true, texto: await generarObservacionesDeArriendo(datos) };
   } catch (e) {
     return fallo(e);
   }

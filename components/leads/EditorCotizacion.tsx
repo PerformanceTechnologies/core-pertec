@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconCheck, IconLoader2, IconNotes, IconPlus, IconSend, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash } from "@tabler/icons-react";
 import { guardarCotizacionAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { clp } from "@/lib/fin/reglas";
 import { lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
 import { BOTON, BOTON_SEC, ComboContacto, type OpcionContacto } from "@/components/fin/ui";
 import EnviarCotizacion from "./EnviarCotizacion";
+import { generarObservacionesArriendoAction } from "@/app/(protegido)/leads/acciones";
+import { avisar, confirmar } from "@/components/fin/dialogos";
 
 export interface DatosEditor {
   id: string | null;
@@ -30,6 +32,8 @@ export interface DatosEditor {
   descuentoGeneralTipo: "pct" | "monto" | null;
   descuentoGeneralValor: number;
   incluirDatosPago: boolean;
+  /** Arriendo cobrado por mes o por día (la cantidad de cada línea está en esa unidad). */
+  arriendoUnidad: "mes" | "dia";
   lineas: LineaCotizacion[];
 }
 
@@ -125,6 +129,17 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
   const t = totalesCotizacion(d.lineas, tasaIva, general);
   const cambiarLinea = (i: number, cambio: Partial<LineaCotizacion>) => setD((x) => ({ ...x, lineas: x.lineas.map((l, k) => (k === i ? { ...l, ...cambio } : l)) }));
   const arriendo = d.tipo === "arriendo";
+  const porDia = d.arriendoUnidad === "dia";
+  const [generando, setGenerando] = useState(false);
+  const generarObservaciones = async () => {
+    if (d.notas?.trim() && !(await confirmar({ titulo: "Ya hay observaciones", ayuda: "La IA las reemplazará por un texto nuevo, armado con los productos y las condiciones de esta cotización.", boton: "Reemplazar" }))) return;
+    setGenerando(true);
+    const r = await generarObservacionesArriendoAction(JSON.stringify({ ...d, hayDescuento: d.lineas.some((l) => l.descuentoPct > 0) || (d.descuentoGeneralValor > 0 && d.descuentoGeneralTipo !== null) }));
+    setGenerando(false);
+    if (!r.ok) return avisar(r.error);
+    setD((x) => ({ ...x, notas: r.texto }));
+    avisar("Observaciones listas. Revísalas y ajusta lo que necesites antes de enviar.", "ok");
+  };
   const quitarLinea = (i: number) => {
     setD((x) => ({ ...x, lineas: x.lineas.filter((_, k) => k !== i) }));
     setNotasAbiertas((a) => a.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k)));
@@ -198,7 +213,7 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
       <Seccion
         n={2}
         titulo="¿Qué se cotiza?"
-        ayuda={arriendo ? "En arriendo, la tarifa es mensual y se multiplica por los meses." : "Una fila por servicio o producto."}
+        ayuda={arriendo ? `En arriendo, la tarifa es ${porDia ? "diaria y se multiplica por los días" : "mensual y se multiplica por los meses"}.` : "Una fila por servicio o producto."}
         derecha={productos.length > 0 ? (
           <select aria-label="Agregar un producto del Inventario" value="" className={`${CAMPO_C} max-w-[13rem] text-xs`}
             onChange={(e) => {
@@ -210,9 +225,20 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
           </select>
         ) : undefined}
       >
+        {arriendo && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-tinta/70">Cobro del arriendo</span>
+            <div className="inline-flex rounded-lg border border-borde bg-tinta/[0.03] p-0.5" role="group" aria-label="Cobro del arriendo">
+              {([["mes", "Por mes"], ["dia", "Por día"]] as const).map(([k, et]) => (
+                <button key={k} type="button" aria-pressed={d.arriendoUnidad === k} onClick={() => setD((x) => ({ ...x, arriendoUnidad: k }))}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition ${d.arriendoUnidad === k ? "bg-naranjo text-white shadow-sm" : "text-gris hover:text-tinta"}`}>{et}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Encabezado de columnas: solo en pantalla ancha; en el celular cada campo lleva su rótulo. */}
         <div className={`mb-1 hidden gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-wide text-gris lg:grid ${columnas}`}>
-          <span /><span>Descripción</span><span className="text-right">Cant.</span><span>Unidad</span><span className="text-right">{arriendo ? "Tarifa/mes" : "Precio unit."}</span>{arriendo && <span className="text-right">Meses</span>}<span className="text-right">Desc. %</span><span className="text-center">Exento</span><span className="text-right">Total</span><span />
+          <span /><span>Descripción</span><span className="text-right">Cant.</span><span>Unidad</span><span className="text-right">{arriendo ? (porDia ? "Tarifa/día" : "Tarifa/mes") : "Precio unit."}</span>{arriendo && <span className="text-right">{porDia ? "Días" : "Meses"}</span>}<span className="text-right">Desc. %</span><span className="text-center">Exento</span><span className="text-right">Total</span><span />
         </div>
         <ul className="space-y-1.5">
           {d.lineas.map((l, i) => (
@@ -227,8 +253,8 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
               </div>
               <label className="block"><span className={lbl}>Cantidad</span><Numero etiqueta="Cantidad" valor={l.cantidad} alCambiar={(n) => cambiarLinea(i, { cantidad: n })} /></label>
               <label className="block"><span className={lbl}>Unidad</span><input aria-label="Unidad" value={l.unidad ?? ""} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} className={CAMPO_C} /></label>
-              <label className="block"><span className={lbl}>{arriendo ? "Tarifa mensual" : "Precio unitario"}</span><Numero etiqueta="Precio" valor={l.precioUnitario} alCambiar={(n) => cambiarLinea(i, { precioUnitario: n })} /></label>
-              {arriendo && <label className="block"><span className={lbl}>Meses</span><Numero etiqueta="Meses" valor={l.meses} alCambiar={(n) => cambiarLinea(i, { meses: n || null })} /></label>}
+              <label className="block"><span className={lbl}>{arriendo ? (porDia ? "Tarifa por día" : "Tarifa mensual") : "Precio unitario"}</span><Numero etiqueta="Precio" valor={l.precioUnitario} alCambiar={(n) => cambiarLinea(i, { precioUnitario: n })} /></label>
+              {arriendo && <label className="block"><span className={lbl}>{porDia ? "Días" : "Meses"}</span><Numero etiqueta={porDia ? "Días de arriendo" : "Meses de arriendo"} valor={l.meses} alCambiar={(n) => cambiarLinea(i, { meses: n || null })} /></label>}
               <label className="block"><span className={lbl}>Descuento %</span><Numero etiqueta="Descuento de la línea" valor={l.descuentoPct ? Math.round(l.descuentoPct * 1000) / 10 : null} vacioSiCero placeholder="0" alCambiar={(n) => cambiarLinea(i, { descuentoPct: Math.max(0, Math.min(100, n)) / 100 })} /></label>
               <label className="flex items-center gap-1.5 text-xs text-gris lg:justify-center"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} aria-label="Exento de IVA" /> <span className="lg:hidden">Exento de IVA</span></label>
               <span className="col-span-2 text-right font-condensed text-base font-bold tabular-nums text-tinta lg:col-span-1">{clp(lineaNeta(l))}</span>
@@ -291,7 +317,19 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
               <span className="block text-[11px] text-gris">Banco y cuenta de la empresa. Viene desmarcado.</span>
             </span>
           </label>
-          <Et t="Observaciones" className="sm:col-span-2 lg:col-span-12"><textarea value={d.notas ?? ""} onChange={(e) => setD({ ...d, notas: e.target.value })} rows={2} className={`${CAMPO_C} resize-y`} placeholder="Alcances, exclusiones, supuestos…" /></Et>
+          <div className="sm:col-span-2 lg:col-span-12">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-tinta/70">Observaciones</span>
+              {arriendo && (
+                <button type="button" onClick={generarObservaciones} disabled={generando} title="Redacta las observaciones solo con los productos arrendados y las condiciones de esta cotización"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-naranjo/40 bg-naranjo/[0.07] px-2.5 py-1 text-xs font-semibold text-naranjo transition hover:bg-naranjo/[0.12] disabled:opacity-60">
+                  {generando ? <IconLoader2 size={14} className="animate-spin" /> : <IconSparkles size={14} />} {generando ? "Redactando…" : "Generar con IA"}
+                </button>
+              )}
+            </div>
+            <textarea value={d.notas ?? ""} onChange={(e) => setD({ ...d, notas: e.target.value })} rows={2} className={`${CAMPO_C} resize-y`} placeholder={arriendo ? "Escríbelas o genéralas con IA: equipos arrendados, periodo, plazo y condiciones." : "Alcances, exclusiones, supuestos…"} />
+            {arriendo && <p className="mt-1 text-[11px] text-gris">La IA usa solo los productos, el periodo y las condiciones de esta cotización (no envía el cliente ni los montos). Revisa el texto antes de enviar.</p>}
+          </div>
         </div>
       </Seccion>
 
