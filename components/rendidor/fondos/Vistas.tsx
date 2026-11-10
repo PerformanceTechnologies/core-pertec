@@ -10,7 +10,8 @@ export function ChipFondo({ estado }: { estado: Fondo["estado"] }) {
 
 /** Cuánto del fondo se usó, con el aviso cuando se acerca o pasa el límite. */
 export function BarraUso({ f, umbral }: { f: Fondo; umbral: number }) {
-  const base = f.transferido || f.montoAutorizado || 0;
+  // Un fondo fijo se mide contra su monto fijo (las reposiciones no suben la base).
+  const base = (f.esFijo ? f.montoFijo : null) || f.transferido || f.montoAutorizado || 0;
   if (!base) return null;
   const usado = base - f.saldo;
   const pct = Math.max(0, Math.round((usado / base) * 100));
