@@ -856,7 +856,7 @@ export async function lineasDeCotizacion(cotizacionId: string): Promise<import("
   revienta("leer las líneas", error);
   return (data ?? []).map((l: any) => ({
     productoId: l.producto_id, descripcion: l.descripcion, cantidad: n(l.cantidad), unidad: l.unidad, precioUnitario: n(l.precio_unitario),
-    descuentoPct: n(l.descuento_pct), exento: l.exento, meses: nOrNull(l.meses),
+    descuentoPct: n(l.descuento_pct), exento: l.exento, meses: nOrNull(l.meses), nota: l.nota ?? null,
   }));
 }
 

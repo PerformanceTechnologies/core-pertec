@@ -24,7 +24,7 @@ function datos(e: (typeof EMPRESAS)[number], extra: Partial<DatosDocumento> = {}
     logo: null,
     numero: `${e.prefijo}-000123`, version: 1, titulo: "Mantención mensual de chancadores <planta Norte>", fecha: "2026-11-10", validezDias: 30, tipo: "servicio", estado: "borrador",
     cliente: { nombre: "Minera Los Andes S.A.", rut: "96.555.444-3", giro: "Minería", direccion: "Camino Real 55, Calama", telefono: "+56 55 2111222", correo: "compras@mla.cl" },
-    atencion: "María Pérez", tasaIva: 0.19, descuentoGeneral: null, incluirDatosPago: true, condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.",
+    atencion: "María Pérez", correoAtencion: "maria.perez@mla.cl", tasaIva: 0.19, descuentoGeneral: null, incluirDatosPago: true, condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.",
     lineas: [
       { productoId: null, descripcion: "Mantención preventiva mensual <b>chancador</b>", cantidad: 2, unidad: "un", precioUnitario: 1_500_000, descuentoPct: 0.1, exento: false, meses: null },
       { productoId: null, descripcion: "Informe técnico", cantidad: 1, unidad: "un", precioUnitario: 250_000, descuentoPct: 0, exento: true, meses: null },
@@ -75,6 +75,26 @@ for (const e of EMPRESAS) {
 assert.ok(!htmlDeCotizacion(datos(EMPRESAS[0], { incluirDatosPago: false })).includes("Datos para el pago"));
 assert.ok(htmlDeCotizacion(datos(EMPRESAS[0], { incluirDatosPago: true })).includes("Datos para el pago"));
 assert.ok(!htmlDeCotizacion(datos(EMPRESAS[0])).includes("Preparada por"));
+
+// Atención lleva el correo de ESA persona (si no hay, el del cliente); las notas de línea salen bajo la descripción.
+{
+  const base = datos(EMPRESAS[0]);
+  const h = htmlDeCotizacion(base);
+  assert.ok(h.includes("maria.perez@mla.cl"), "el correo de la persona de atención sale en su tarjeta");
+  assert.ok(!htmlDeCotizacion({ ...base, correoAtencion: null }).includes("maria.perez@mla.cl") && htmlDeCotizacion({ ...base, correoAtencion: null }).includes("compras@mla.cl"), "sin correo propio, el del cliente");
+  const conNota = htmlDeCotizacion({ ...base, lineas: [{ ...base.lineas[0], nota: "Incluye cable <b>Cat6</b>\nGarantía 12 meses" }] });
+  assert.ok(conNota.includes('class="nota"') && conNota.includes("Incluye cable &lt;b&gt;Cat6&lt;/b&gt;<br>Garantía 12 meses"), "la nota se escapa y respeta los saltos");
+  assert.ok(!h.includes('class="nota"'), "sin nota no hay bloque de nota");
+  // El orden del documento: cartillas → tabla → valores → condiciones y firma al pie.
+  const orden = ['class="dos"', '<table class="lineas">', '<div class="totales">', "Condiciones comerciales", 'class="firma"'].map((x) => h.indexOf(x));
+  assert.ok(orden.every((x, i) => x > 0 && (i === 0 || x > orden[i - 1])), "orden: cartillas, tabla, valores, condiciones, firma");
+  // Abajo: observaciones y condiciones a la izquierda (las condiciones al final); datos de pago y firma a la derecha.
+  const abajo = h.slice(h.indexOf('class="g cierre"'));
+  assert.ok(abajo.indexOf("Observaciones") < abajo.indexOf("Condiciones comerciales") && abajo.indexOf("Condiciones comerciales") < abajo.indexOf("Datos para el pago") && abajo.indexOf("Datos para el pago") < abajo.indexOf('class="firma"'));
+  // Sin observaciones ni datos de pago, las condiciones quedan solas abajo a la izquierda, frente a la firma.
+  const sola = htmlDeCotizacion({ ...base, notas: null, incluirDatosPago: false }).slice(htmlDeCotizacion({ ...base, notas: null, incluirDatosPago: false }).indexOf('class="g cierre"'));
+  assert.ok(!sola.includes("Observaciones") && !sola.includes("Datos para el pago") && sola.indexOf("Condiciones comerciales") < sola.indexOf('class="firma"'));
+}
 
 // Sin descuentos ni exentos ni datos bancarios, esas partes no salen.
 const simple = htmlDeCotizacion(datos(EMPRESAS[0], { lineas: [{ productoId: null, descripcion: "Servicio", cantidad: 1, unidad: "un", precioUnitario: 100_000, descuentoPct: 0, exento: false, meses: null }], notas: null, empresa: { ...datos(EMPRESAS[0]).empresa, datosBancarios: null, pie: null } }));
@@ -129,10 +149,10 @@ if (process.env.PDF_SALIDA) {
   const { chromium } = await import("playwright");
   const { imprimirCotizacion, ZOOM_MIN } = await import("../lib/fin/cotizacion-impresion");
   const nav = await chromium.launch({ headless: true, executablePath: process.env.CHROME_RUTA || undefined });
-  const lineas = (n: number, largas = false) => Array.from({ length: n }, (_, i) => ({ productoId: null, descripcion: largas ? `Servicio de mantención preventiva del equipo ${i + 1}, incluye inspección, lubricación y ajuste de componentes` : `Mantención preventiva del equipo ${i + 1}`, cantidad: 1 + (i % 3), unidad: "un", precioUnitario: 150_000 + i * 10_000, descuentoPct: i % 4 === 0 ? 0.05 : 0, exento: false, meses: null }));
+  const lineas = (n: number, largas = false) => Array.from({ length: n }, (_, i) => ({ productoId: null, descripcion: largas ? `Servicio de mantención preventiva del equipo ${i + 1}, incluye inspección, lubricación y ajuste de componentes` : `Mantención preventiva del equipo ${i + 1}`, cantidad: 1 + (i % 3), unidad: "un", precioUnitario: 150_000 + i * 10_000, descuentoPct: i % 4 === 0 ? 0.05 : 0, exento: false, meses: null, nota: i === 0 && n >= 3 && n <= 8 ? "Incluye cable de datos Cat6 de 305 m, conectores RJ45 y certificación punto a punto.\nGarantía de 12 meses por defectos de fabricación." : null }));
   for (const e of EMPRESAS) {
     const logo = readFileSync(new URL(`../public/empresas/${e.slug}-completo.png`, import.meta.url)).toString("base64");
-    for (const [n, esperado, largas] of [[1, 1, false], [2, 1, false], [5, 1, false], [8, 1, false], [11, 1, false], [14, "libre", false], [18, "libre", false], [4, 1, true], [8, "libre", true], [60, "varias", false]] as const) {
+    for (const [n, esperado, largas] of [[1, 1, false], [2, 1, false], [3, 1, false], [5, 1, false], [8, 1, false], [11, 1, false], [14, "libre", false], [18, "libre", false], [4, 1, true], [8, "libre", true], [60, "varias", false]] as const) {
       const d = { ...datos(e, { lineas: lineas(n, largas), descuentoGeneral: { tipo: "pct", valor: 10 }, incluirDatosPago: n !== 5 }), logo: `data:image/png;base64,${logo}` };
       const page = await nav.newPage();
       const r = await imprimirCotizacion(page, d);

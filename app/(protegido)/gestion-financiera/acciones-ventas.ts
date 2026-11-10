@@ -178,6 +178,8 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
         cotizacion_id: cotId, orden: l.orden, producto_id: uuid(l.productoId), descripcion: String(l.descripcion).trim().slice(0, 500), cantidad: Number(l.cantidad),
         unidad: l.unidad?.slice(0, 20) ?? null, precio_unitario: Number(l.precioUnitario), descuento_pct: Math.max(0, Math.min(1, Number(l.descuentoPct) || 0)),
         exento: Boolean(l.exento), meses: l.meses ? Math.round(Number(l.meses)) : null, neto_linea: l.netoLinea,
+        // La nota va solo si hay: así una cotización sin notas se guarda aunque la columna aún no exista.
+        ...(String(l.nota ?? "").trim() ? { nota: String(l.nota).replace(/\r/g, "").trim().slice(0, 2000) } : {}),
       })),
     );
     revienta("guardar las líneas", e2);
