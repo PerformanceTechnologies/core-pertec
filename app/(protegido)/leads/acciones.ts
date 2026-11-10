@@ -146,10 +146,22 @@ export async function eliminarOportunidadAction(id: string, motivo: string): Pro
 }
 
 /**
- * Elimina una cotización con sus líneas, notas y respaldos. No se puede si ya generó hitos de venta (son registros
- * financieros: ahí se usa «Anular») ni si tiene versiones posteriores. Queda en la auditoría con una copia.
+ * Elimina una cotización con sus líneas, notas y respaldos. Si ya fue aceptada y generó hitos de venta, hay que
+ * pedir explícitamente eliminarla CON sus hitos (eliminarCotizacionConHitosAction). Queda en la auditoría con una copia.
  */
-export async function eliminarCotizacionAction(id: string, motivo: string): Promise<{ ok: true } | Fallo> {
+export async function eliminarCotizacionAction(id: string, motivo: string): Promise<{ ok: true; mensaje?: string } | Fallo> {
+  return eliminarCotizacion(id, motivo, false);
+}
+
+/**
+ * Elimina una cotización ACEPTADA junto con los hitos de venta que generó (por ejemplo, una de prueba). Solo si
+ * ninguno de esos hitos tiene factura u otro documento: lo facturado no se borra, se corrige con notas de crédito.
+ */
+export async function eliminarCotizacionConHitosAction(id: string, motivo: string): Promise<{ ok: true; mensaje?: string } | Fallo> {
+  return eliminarCotizacion(id, motivo, true);
+}
+
+async function eliminarCotizacion(id: string, motivo: string, conHitos: boolean): Promise<{ ok: true; mensaje?: string } | Fallo> {
   try {
     if (!uuid(id)) return { ok: false, error: "Cotización inválida." };
     const ctx = await contextoLeads();
@@ -159,24 +171,39 @@ export async function eliminarCotizacionAction(id: string, motivo: string): Prom
     if (!razon) return { ok: false, error: "Escribe el motivo de la eliminación." };
     const c = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
     const [{ data: hitos, error: e1 }, { data: hijas, error: e2 }] = await Promise.all([
-      supabaseAdmin.from("fin_hitos").select("codigo").eq("cotizacion_id", id).limit(4),
+      supabaseAdmin.from("fin_hitos").select("id, codigo, neto, proyecto_id").eq("empresa_id", ctx.empresa.id).eq("cotizacion_id", id),
       supabaseAdmin.from("fin_cotizaciones").select("numero, version").eq("empresa_id", ctx.empresa.id).eq("padre_id", id).limit(1),
     ]);
     revienta("revisar sus hitos", e1);
     revienta("revisar sus versiones", e2);
-    if (hitos && hitos.length > 0) return { ok: false, error: `Esta cotización ya generó hitos de venta (${hitos.map((h) => h.codigo).join(", ")}${hitos.length > 3 ? "…" : ""}): son registros financieros y no se eliminan. Si el trato se cayó, usa «Anular».` };
     if (hijas && hijas.length > 0) return { ok: false, error: `Tiene una versión posterior (${hijas[0].numero} V${hijas[0].version}). Elimina primero las versiones más nuevas.` };
+    const lista = (hitos ?? []).map((h) => h.codigo as string);
+    if (lista.length > 0 && !conHitos) {
+      return { ok: false, error: `Esta cotización ya fue aceptada y generó ${lista.length} hito(s) de venta (${lista.slice(0, 3).join(", ")}${lista.length > 3 ? "…" : ""}). Para borrarla junto con sus hitos usa «Eliminar cotización y sus hitos». Si el trato es real, en Ventas y cobranza abre el hito y usa «Anular hito».` };
+    }
+    if (lista.length > 0) {
+      // Un hito con factura (o cualquier documento) es un registro financiero real: no se borra.
+      const { data: docs, error: e3 } = await supabaseAdmin.from("fin_documento_hitos").select("hito_id").in("hito_id", (hitos ?? []).map((h) => h.id as string)).limit(1);
+      revienta("revisar las facturas de sus hitos", e3);
+      if (docs && docs.length > 0) return { ok: false, error: "Alguno de sus hitos ya tiene factura u otro documento. Lo facturado no se elimina: corrígelo con una nota de crédito." };
+    }
 
-    // Los respaldos (por ejemplo, el PDF que se envió) se van con la cotización.
-    const { data: adjuntos } = await supabaseAdmin.from("fin_adjuntos").select("ruta").eq("empresa_id", ctx.empresa.id).eq("entidad_tipo", "cotizacion").eq("entidad_id", id);
+    // Los respaldos (por ejemplo, el PDF que se envió) se van con la cotización, y los de sus hitos con ellos.
+    const ids = [id, ...(hitos ?? []).map((h) => h.id as string)];
+    const { data: adjuntos } = await supabaseAdmin.from("fin_adjuntos").select("ruta").eq("empresa_id", ctx.empresa.id).in("entidad_id", ids).in("entidad_tipo", ["cotizacion", "hito"]);
     await borrarArchivos("finanzas", (adjuntos ?? []).map((a) => a.ruta as string));
-    await supabaseAdmin.from("fin_adjuntos").delete().eq("empresa_id", ctx.empresa.id).eq("entidad_tipo", "cotizacion").eq("entidad_id", id);
-    await supabaseAdmin.from("fin_actividades").delete().eq("empresa_id", ctx.empresa.id).eq("entidad_tipo", "cotizacion").eq("entidad_id", id);
+    await supabaseAdmin.from("fin_adjuntos").delete().eq("empresa_id", ctx.empresa.id).in("entidad_id", ids).in("entidad_tipo", ["cotizacion", "hito"]);
+    await supabaseAdmin.from("fin_actividades").delete().eq("empresa_id", ctx.empresa.id).in("entidad_id", ids).in("entidad_tipo", ["cotizacion", "hito"]);
+    if (lista.length > 0) {
+      const { error: eh } = await supabaseAdmin.from("fin_hitos").delete().eq("empresa_id", ctx.empresa.id).eq("cotizacion_id", id);
+      revienta("eliminar sus hitos", eh);
+    }
     const { error } = await supabaseAdmin.from("fin_cotizaciones").delete().eq("id", id).eq("empresa_id", ctx.empresa.id);
     revienta("eliminar la cotización", error);
-    await auditar(ctx, "fin_cotizaciones", id, "eliminar", `Cotización ${c.numero}${Number(c.version) > 1 ? ` V${c.version}` : ""} «${c.titulo}» eliminada`, { antes: c, motivo: razon });
+    await auditar(ctx, "fin_cotizaciones", id, "eliminar", `Cotización ${c.numero}${Number(c.version) > 1 ? ` V${c.version}` : ""} «${c.titulo}» eliminada${lista.length ? ` con sus hitos ${lista.join(", ")}` : ""}`, { antes: { cotizacion: c, hitos }, motivo: razon });
     refrescar();
-    return { ok: true };
+    const proyecto = (hitos ?? []).find((h) => h.proyecto_id)?.proyecto_id ?? c.proyecto_id;
+    return { ok: true, mensaje: proyecto ? "Cotización eliminada. Su proyecto sigue creado: si también era de prueba, elimínalo desde la ficha del proyecto (Gestión financiera › Proyectos)." : undefined };
   } catch (e) {
     return fallo(e);
   }

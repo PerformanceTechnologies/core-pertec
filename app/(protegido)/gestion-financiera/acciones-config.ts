@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { borrarArchivos } from "@/lib/archivos/almacen";
 import { RUTA_FIN, auditar, contextoFin, exigirDeEmpresa, fechaValida, montoDe, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES } from "@/lib/fin/reglas";
 import { formatearRut, normalizarRut, rutEsValido } from "@/lib/contratos/rut";
@@ -27,6 +28,50 @@ const pct = (fd: FormData, k: string) => {
   // antes «0,8» se leía como 80 %.
   return Number.isFinite(x) && x >= 0 && x <= 100 ? x / 100 : null;
 };
+
+// ---------- Eliminar un proyecto (solo el administrador del sistema) --------------------
+
+/**
+ * Elimina un proyecto que quedó vacío (por ejemplo, uno de prueba). No se puede si tiene hitos, compras, movimientos
+ * del banco o cotizaciones: eso es historia financiera. Los leads que lo mencionan solo se desvinculan.
+ */
+export async function eliminarProyectoAction(id: string, motivo: string): Promise<Resultado & { mensaje?: string }> {
+  try {
+    if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, error: "Proyecto inválido." };
+    const ctx = await contextoFin();
+    // Solo el rol «admin» del Core, y se exige acá: ocultar el botón no protege nada.
+    if (ctx.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del sistema puede eliminar." };
+    const razon = motivo.replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!razon) return { ok: false, error: "Escribe el motivo de la eliminación." };
+    const p = await exigirDeEmpresa("fin_proyectos", id, ctx.empresa.id);
+    if (p.es_general) return { ok: false, error: "«General» es el proyecto de los gastos sin proyecto: no se elimina." };
+    const cuenta = async (tabla: string) => {
+      const { count, error } = await supabaseAdmin.from(tabla).select("id", { count: "exact", head: true }).eq("empresa_id", ctx.empresa.id).eq("proyecto_id", id);
+      revienta("revisar el proyecto", error);
+      return count ?? 0;
+    };
+    const [hitos, compras, movimientos, cotizaciones] = await Promise.all([cuenta("fin_hitos"), cuenta("fin_compras"), cuenta("fin_movimientos"), cuenta("fin_cotizaciones")]);
+    const usos = [hitos && `${hitos} hito(s)`, compras && `${compras} compra(s)`, movimientos && `${movimientos} movimiento(s) del banco`, cotizaciones && `${cotizaciones} cotización(es)`].filter(Boolean);
+    if (usos.length > 0) {
+      return { ok: false, error: `El proyecto no está vacío: tiene ${usos.join(", ")}. ${hitos || cotizaciones ? "Si son de prueba, elimina primero la cotización con sus hitos desde Leads. " : ""}Lo que ya tiene compras o movimientos del banco no se elimina.` };
+    }
+    // Referencias sueltas: los leads solo se desvinculan, y las reglas de categorización dejan de apuntar al proyecto.
+    await supabaseAdmin.from("fin_oportunidades").update({ proyecto_id: null }).eq("empresa_id", ctx.empresa.id).eq("proyecto_id", id);
+    await supabaseAdmin.from("fin_reglas").update({ proyecto_id: null }).eq("empresa_id", ctx.empresa.id).eq("proyecto_id", id);
+    const { data: adjuntos } = await supabaseAdmin.from("fin_adjuntos").select("ruta").eq("empresa_id", ctx.empresa.id).eq("entidad_tipo", "proyecto").eq("entidad_id", id);
+    await borrarArchivos("finanzas", (adjuntos ?? []).map((a) => a.ruta as string));
+    await supabaseAdmin.from("fin_adjuntos").delete().eq("empresa_id", ctx.empresa.id).eq("entidad_tipo", "proyecto").eq("entidad_id", id);
+    await supabaseAdmin.from("fin_actividades").delete().eq("empresa_id", ctx.empresa.id).eq("entidad_tipo", "proyecto").eq("entidad_id", id);
+    const { error } = await supabaseAdmin.from("fin_proyectos").delete().eq("id", id).eq("empresa_id", ctx.empresa.id);
+    revienta("eliminar el proyecto", error);
+    await auditar(ctx, "fin_proyectos", id, "eliminar", `Proyecto ${p.codigo} «${p.nombre}» eliminado`, { antes: p, motivo: razon });
+    refrescar();
+    revalidatePath("/leads", "layout");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
 
 // ---------- Datos de la empresa (encabezado y pie del PDF de cotización) ----------------
 

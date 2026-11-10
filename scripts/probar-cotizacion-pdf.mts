@@ -170,7 +170,19 @@ assert.ok(arr.includes("6 meses de arriendo") && arr.includes("$4.800.000") && a
 // Eliminar leads y cotizaciones: solo el administrador, y la acción lo exige en el servidor ANTES de borrar nada.
 {
   const fuente = readFileSync(new URL("../app/(protegido)/leads/acciones.ts", import.meta.url), "utf8");
-  for (const nombre of ["eliminarOportunidadAction", "eliminarCotizacionAction"]) {
+  // La cotización con hitos y el proyecto: mismas reglas (administrador primero) y nada de borrar facturado.
+  const comun = fuente.slice(fuente.indexOf("async function eliminarCotizacion("));
+  const cuerpoComun = comun.slice(0, comun.indexOf("\n}\n"));
+  assert.ok(cuerpoComun.includes("soloAdmin(ctx)") && cuerpoComun.indexOf("soloAdmin(ctx)") < cuerpoComun.indexOf(".delete()"), "eliminarCotizacion exige administrador antes de borrar");
+  assert.ok(cuerpoComun.includes("fin_documento_hitos") && cuerpoComun.indexOf("fin_documento_hitos") < cuerpoComun.indexOf('.from("fin_hitos").delete()'), "no se borran hitos con factura");
+  assert.ok(fuente.includes("export async function eliminarCotizacionConHitosAction") && fuente.includes("eliminarCotizacion(id, motivo, true)"));
+  const cfg = readFileSync(new URL("../app/(protegido)/gestion-financiera/acciones-config.ts", import.meta.url), "utf8");
+  const proy = cfg.slice(cfg.indexOf("export async function eliminarProyectoAction"));
+  const cuerpoProy = proy.slice(0, proy.indexOf("\n}\n"));
+  assert.ok(cuerpoProy.includes('rol !== "admin"') && cuerpoProy.indexOf('rol !== "admin"') < cuerpoProy.indexOf(".delete()"), "eliminarProyecto exige administrador antes de borrar");
+  assert.ok(["fin_hitos", "fin_compras", "fin_movimientos", "fin_cotizaciones"].every((t) => cuerpoProy.includes(`cuenta("${t}")`)) && cuerpoProy.includes("es_general"), "el proyecto con historia (o «General») no se elimina");
+  assert.ok(fuente.includes("eliminarCotizacion(id, motivo, false)"), "eliminarCotizacionAction delega en la misma lógica (con la revisión de administrador)");
+  for (const nombre of ["eliminarOportunidadAction"]) {
     const cuerpo = fuente.slice(fuente.indexOf(`export async function ${nombre}`));
     const hasta = cuerpo.indexOf("\n}\n");
     const fn = cuerpo.slice(0, hasta);
