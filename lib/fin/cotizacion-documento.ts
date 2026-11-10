@@ -104,9 +104,10 @@ const CSS = `
   html, body { margin: 0; padding: 0; }
   body { font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: #1b1814; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .barra { height: 5px; background: #c85217; }
-  .pagina { padding: 0 16mm; }
-  /* Una sola hoja: los cuatro grupos se reparten el alto, así no queda un hueco al final ni todo apretado arriba. */
-  body.una-hoja .pagina { min-height: 279mm; display: flex; flex-direction: column; justify-content: space-between; }
+  /* El margen lateral vive en .hoja (fijo); lo que se achica o agranda al ajustar a la hoja es .pagina, con «zoom». */
+  .hoja { padding: 0 16mm; }
+  .pagina.una-hoja { display: flex; flex-direction: column; }
+  .pagina.una-hoja .cierre { margin-top: auto; }
   .g { display: block; }
 
   .cabecera { display: flex; justify-content: space-between; align-items: center; gap: 12mm; padding: 6mm 0 4mm; }
@@ -166,22 +167,6 @@ const CSS = `
   .firma .raya { width: 60mm; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; }
   .firma b { font-size: 10pt; }
   .g + .g { margin-top: 5mm; }
-  body.una-hoja .g + .g { margin-top: 0; }
-
-  /* Compacto: para que entre en una hoja cuando por poco no entra. */
-  body.compacto { font-size: 9pt; }
-  .compacto .cabecera { padding: 5mm 0 3mm; }
-  .compacto .titulo { padding: 2.5mm 0; margin-bottom: 3mm; }
-  .compacto .titulo h1 { font-size: 19pt; }
-  .compacto .caja { padding: 2.5mm 4mm; }
-  .compacto table.lineas tbody td { padding: 1.2mm 2.2mm; font-size: 8.5pt; }
-  .compacto table.lineas thead th { padding: 1.8mm 2.2mm; }
-  .compacto .totales td { padding: 0.8mm 3mm; }
-  .compacto .totales tr.total td { padding: 2mm 3mm; }
-  .compacto .bloque { margin-bottom: 3mm; }
-  .compacto .bloque li { margin-bottom: 0.8mm; }
-  .compacto .agradece { margin-bottom: 4mm; }
-  .compacto .g + .g { margin-top: 3mm; }
 `;
 
 export function htmlDeCotizacion(d: DatosDocumento): string {
@@ -216,7 +201,7 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
 <html lang="es"><head><meta charset="utf-8"><title>${esc(d.numero)} ${esc(d.titulo)}</title><style>${CSS}</style></head>
 <body>
   <div class="barra"></div>
-  <div class="pagina">
+  <div class="hoja"><div class="pagina">
     <div class="g">
       <header class="cabecera">
         <div class="marca">${logo ? `<img src="${logo}" alt="${esc(e.nombre)}">` : `<div class="nombre">${esc(e.nombre)}</div>`}</div>
@@ -286,7 +271,7 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
         <div class="firma"><div class="raya"></div><b>${esc(d.emisor.nombre)}</b><br>${esc(e.nombre)}<br>${esc(d.emisor.correo)}</div>
       </div>
     </div>
-  </div>
+  </div></div>
 </body></html>`;
 }
 

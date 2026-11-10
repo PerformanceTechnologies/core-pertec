@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { condicionesDelDocumento, esc, htmlDeCotizacion, pieDeCotizacion, vigenteHasta, type DatosDocumento } from "../lib/fin/cotizacion-documento";
 import { asuntoDeCotizacion, mensajeDeCotizacion } from "../lib/fin/cotizacion-correo";
 import { totalesCotizacion } from "../lib/fin/modelo";
+import { cuerpoHtml } from "../lib/ofertas/correo-html";
 
 const EMPRESAS = [
   { slug: "pertec", nombre: "Performance Technologies SpA", rut: "76.123.456-7", prefijo: "COT" },
@@ -103,6 +104,17 @@ assert.equal(asuntoDeCotizacion(datos(EMPRESAS[0], { version: 2 })), "Cotizació
 assert.ok(mensajeDeCotizacion(datos(EMPRESAS[0], { atencion: null })).startsWith("Estimados de Minera Los Andes S.A.:"));
 assert.ok(mensajeDeCotizacion(datos(EMPRESAS[0], { lineas: Array.from({ length: 8 }, (_, i) => ({ productoId: null, descripcion: `Ítem ${i + 1}`, cantidad: 1, unidad: "un", precioUnitario: 1000, descuentoPct: 0, exento: false, meses: null })) })).includes("y 3 más"));
 
+// El correo se arma con párrafos y <br> (no con pre-wrap, que Outlook ignora) y no deja pasar HTML.
+{
+  const h = cuerpoHtml(mensajeDeCotizacion(datos(EMPRESAS[0])));
+  assert.ok(!h.includes("pre-wrap"));
+  assert.ok((h.match(/<p /g) ?? []).length >= 6, "un párrafo por bloque del mensaje");
+  assert.ok(h.includes("<br>&nbsp;&nbsp;• Mantención preventiva") || h.includes("&nbsp;&nbsp;•"), "las viñetas conservan su sangría");
+  assert.ok(h.includes("Estimado/a María Pérez:</p>"));
+  assert.equal(cuerpoHtml("a <b>x</b>\r\n\r\nb"), cuerpoHtml("a <b>x</b>\n\nb"));
+  assert.ok(cuerpoHtml("a <script>").includes("&lt;script&gt;"));
+}
+
 // Arriendo: tarifa mensual × meses.
 const arr = htmlDeCotizacion(datos(EMPRESAS[0], { tipo: "arriendo", lineas: [{ productoId: null, descripcion: "Grupo electrógeno", cantidad: 1, unidad: "un", precioUnitario: 800_000, descuentoPct: 0, exento: false, meses: 6 }] }));
 assert.ok(arr.includes("6 meses de arriendo") && arr.includes("$4.800.000") && arr.includes("Tarifa"));
@@ -115,21 +127,26 @@ console.log("✓ PDF y correo de la cotización: 3 empresas, escapes, totales, c
 
 if (process.env.PDF_SALIDA) {
   const { chromium } = await import("playwright");
-  const { imprimirCotizacion, LIMITE_PX } = await import("../lib/fin/cotizacion-impresion");
+  const { imprimirCotizacion, ZOOM_MIN } = await import("../lib/fin/cotizacion-impresion");
   const nav = await chromium.launch({ headless: true, executablePath: process.env.CHROME_RUTA || undefined });
   const lineas = (n: number, largas = false) => Array.from({ length: n }, (_, i) => ({ productoId: null, descripcion: largas ? `Servicio de mantención preventiva del equipo ${i + 1}, incluye inspección, lubricación y ajuste de componentes` : `Mantención preventiva del equipo ${i + 1}`, cantidad: 1 + (i % 3), unidad: "un", precioUnitario: 150_000 + i * 10_000, descuentoPct: i % 4 === 0 ? 0.05 : 0, exento: false, meses: null }));
   for (const e of EMPRESAS) {
     const logo = readFileSync(new URL(`../public/empresas/${e.slug}-completo.png`, import.meta.url)).toString("base64");
-    for (const [n, esperado, largas] of [[2, 1, false], [5, 1, false], [10, 1, false], [13, "libre", false], [4, 1, true], [16, "libre", false], [40, "varias", false]] as const) {
+    for (const [n, esperado, largas] of [[1, 1, false], [2, 1, false], [5, 1, false], [10, 1, false], [14, 1, false], [4, 1, true], [10, 1, true], [24, "libre", false], [60, "varias", false]] as const) {
       const d = { ...datos(e, { lineas: lineas(n, largas), descuentoGeneral: { tipo: "pct", valor: 10 }, incluirDatosPago: n !== 5 }), logo: `data:image/png;base64,${logo}` };
       const page = await nav.newPage();
       const r = await imprimirCotizacion(page, d);
       if (process.env.DIAGNOSTICO) console.log("   filas:", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("table.lineas tbody tr")].slice(0, 2).map((tr) => [Math.round(tr.getBoundingClientRect().height), [...tr.children].map((c) => [Math.round(c.getBoundingClientRect().width), Math.round(c.getBoundingClientRect().height), c.textContent!.trim().slice(0, 25)])]))));
       await page.close();
       writeFileSync(`${process.env.PDF_SALIDA}/${e.slug}-${n}-lineas${largas ? "-largas" : ""}.pdf`, r.pdf);
-      console.log(`${e.slug} · ${n} líneas${largas ? " largas" : ""} → ${r.paginas} hoja(s), modo ${r.modo} (alto ${r.altos.normal}px, compacto ${r.altos.compacto ?? "—"}px, límite ${LIMITE_PX}px)`);
-      if (esperado === 1) assert.equal(r.paginas, 1, `${e.slug} con ${n} líneas debe caber en una hoja`);
+      console.log(`${e.slug} · ${n} líneas${largas ? " largas" : ""} → ${r.paginas} hoja(s), ${r.modo}, zoom ${r.zoom.toFixed(2)}, ocupa ${Math.round(r.ocupacion * 100)} % de la hoja`);
+      if (esperado === 1) {
+        assert.equal(r.paginas, 1, `${e.slug} con ${n} líneas${largas ? " largas" : ""} debe caber en una hoja`);
+        assert.ok(r.zoom >= ZOOM_MIN, "no se achica por debajo del mínimo legible");
+      }
       if (esperado === "varias") assert.ok(r.paginas >= 2 && r.modo === "varias-hojas", `${e.slug} con ${n} líneas sigue en una segunda hoja`);
+      // Con pocas líneas el documento llena la hoja (no queda media hoja en blanco).
+      if (n <= 5 && !largas) assert.ok(r.ocupacion >= 0.68, `${e.slug} con ${n} líneas debe ocupar bien la hoja (ocupa ${Math.round(r.ocupacion * 100)} %)`);
     }
   }
   await nav.close();
