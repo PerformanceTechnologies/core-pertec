@@ -97,6 +97,7 @@ export function BotonAccion({
   className = BOTON_SEC,
   titulo,
   irA,
+  volverA,
 }: {
   accion: (motivo: string) => Promise<Res>;
   children: React.ReactNode;
@@ -106,6 +107,8 @@ export function BotonAccion({
   titulo?: string;
   /** Si la acción devuelve un id, abre `${irA}${id}` (p. ej. la versión nueva de una cotización). */
   irA?: string;
+  /** Al terminar bien, abre esta dirección (p. ej. la lista, tras eliminar el registro que se estaba viendo). */
+  volverA?: string;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -129,7 +132,8 @@ export function BotonAccion({
           if (!r.ok) avisar(r.error);
           else {
             if (r.mensaje) avisar(r.mensaje, "info");
-            if (irA && r.id) router.push(`${irA}${r.id}`);
+            if (volverA) router.push(volverA);
+            else if (irA && r.id) router.push(`${irA}${r.id}`);
             else router.refresh();
           }
         });

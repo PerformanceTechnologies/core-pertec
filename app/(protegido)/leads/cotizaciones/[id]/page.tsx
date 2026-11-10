@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconArrowLeft, IconCheck, IconDownload, IconFileTypePdf } from "@tabler/icons-react";
+import { IconArrowLeft, IconCheck, IconDownload, IconFileTypePdf, IconTrash } from "@tabler/icons-react";
 import { RUTA_FIN, RUTA_LEADS, adjuntosDe, cargarComercial, cargarVistaLeads, contextoLeads, historialDe, lineasDeCotizacion, productosInventario } from "@/lib/fin/datos";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA, lineaNeta } from "@/lib/fin/modelo";
@@ -11,6 +11,7 @@ import { BotonAccion, Campo, ConVentana, FormAccion, SubirAdjunto } from "@/comp
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
 import { BotonEnviarCotizacion } from "@/components/leads/EnviarCotizacion";
+import { eliminarCotizacionAction } from "../../acciones";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
 
 export const dynamic = "force-dynamic";
@@ -80,6 +81,12 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
         <a href={`/api/leads/cotizaciones/${id}/pdf?descargar=1`} className={BOTON_SEC}><IconDownload size={14} /> Descargar</a>
         {editable && <BotonEnviarCotizacion id={id} texto={c.enviadaEn ? "Reenviar por correo" : "Enviar por correo"} />}
         <span className="flex-1" />
+        {/* Solo el administrador del sistema (la acción lo vuelve a exigir en el servidor). */}
+        {ctx.usuario.rol === "admin" && (
+          <BotonAccion accion={eliminarCotizacionAction.bind(null, id)} motivo="¿Por qué se elimina esta cotización?" titulo="Eliminar la cotización (solo administrador)" volverA={`${RUTA_LEADS}?ver=cotizaciones`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.06] px-3 py-2 text-xs font-semibold text-alerta transition hover:bg-rose-500/[0.12] disabled:opacity-50">
+            <IconTrash size={14} /> Eliminar
+          </BotonAccion>
+        )}
         <SubirAdjunto entidadTipo="cotizacion" entidadId={id} tipo="cotizacion_cliente" texto="Adjuntar respaldo" />
       </div>
 
