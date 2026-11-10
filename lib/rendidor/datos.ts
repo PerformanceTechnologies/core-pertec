@@ -50,11 +50,13 @@ interface FilaResumen {
   fondo_id: string | null;
 }
 
-const COLUMNAS = `
+const COLUMNAS_BASE = `
   id, nombre_quien_rinde, rinde_correo, monto_asignado, titulo_rendicion, estado,
   empresa_company_id, gastos, creado_por, creado_en, enviada_en, revisada_por,
-  revisada_en, motivo_rechazo, pagada_por, pagada_en, nota_pago, fondo_id, empresa_id, ciclo_revision
-`;
+  revisada_en, motivo_rechazo, pagada_por, pagada_en, nota_pago`;
+const COLUMNAS = `${COLUMNAS_BASE}, fondo_id, empresa_id, ciclo_revision`;
+/** Sin el SQL de Fondos (0002) las columnas nuevas no existen: se lee sin ellas. */
+const faltaColumna = (e: { message: string } | null) => !!e && /fondo_id|empresa_id|ciclo_revision/.test(e.message);
 
 function filaARendicion(fila: FilaRendicion): Rendicion {
   return {
@@ -97,21 +99,17 @@ export async function listarRendiciones(quien: {
   /** Si ve las de toda la empresa. Lo decide puedeVerRendicionesAjenas, no este archivo. */
   verTodas: boolean;
 }): Promise<ResumenRendicion[]> {
-  const consulta = supabaseAdmin
-    .from("rendiciones_resumen")
-    .select(
-      `id, creado_por, rinde_correo, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
-       cantidad_gastos, total_gastos, enviada_en, revisada_en, motivo_rechazo, pagada_en, creado_en, fondo_id`,
-    )
-    .order("creado_en", { ascending: false });
+  const base = `id, creado_por, rinde_correo, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
+       cantidad_gastos, total_gastos, enviada_en, revisada_en, motivo_rechazo, pagada_en, creado_en`;
+  const armar = (cols: string) => supabaseAdmin.from("rendiciones_resumen").select(cols).order("creado_en", { ascending: false });
 
   // El filtro va en la CONSULTA y no en el resultado: filtrar despues significa
   // traer las rendiciones de toda la empresa a la memoria del servidor para
   // descartarlas.
   const correo = quien.correo.toLowerCase();
-  const { data, error } = await (quien.verTodas
-    ? consulta
-    : consulta.or(`creado_por.eq.${quien.usuarioId},rinde_correo.eq.${correo}`));
+  const filtrar = (q: ReturnType<typeof armar>) => (quien.verTodas ? q : q.or(`creado_por.eq.${quien.usuarioId},rinde_correo.eq.${correo}`));
+  let { data, error } = await filtrar(armar(`${base}, fondo_id`));
+  if (faltaColumna(error)) ({ data, error } = await filtrar(armar(base)));
 
   // Se propaga el error en vez de devolver [] en silencio: una lista vacia por
   // fallo de red es indistinguible de "no tienes rendiciones".
@@ -137,11 +135,12 @@ export async function listarRendiciones(quien: {
 }
 
 export async function obtenerRendicion(id: string): Promise<Rendicion | null> {
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("rendiciones")
     .select(COLUMNAS)
     .eq("id", id)
     .maybeSingle();
+  if (faltaColumna(error)) ({ data, error } = await supabaseAdmin.from("rendiciones").select(COLUMNAS_BASE).eq("id", id).maybeSingle());
 
   if (error) throw new Error(`No pudimos cargar la rendición: ${error.message}`);
   return data ? filaARendicion(data as unknown as FilaRendicion) : null;
