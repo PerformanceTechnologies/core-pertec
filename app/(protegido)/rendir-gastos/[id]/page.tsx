@@ -16,6 +16,11 @@ import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
 import FlujoRendicion, { EditarCabecera } from "@/components/rendidor/FlujoRendicion";
 import { ChipEstadoRendicion, money } from "@/components/rendidor/Visual";
+import { leerParametros, obtenerFondo, rolesDe } from "@/lib/rendidor/fondos";
+import { gastoRendido, pesos } from "@/lib/rendidor/fondos-modelo";
+import { BotonAccion } from "@/components/rendidor/fondos/ControlesFondo";
+import { pagarReembolsoAction } from "../acciones-fondos";
+import type { AccionRendicion } from "@/lib/permisos-rendidor";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +33,29 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
 
   const rendicion = await obtenerRendicion(id);
   if (!rendicion) notFound();
+  // Informes con fondo: también los abren quienes revisan, transfieren o administran Fondos.
+  const conFondo = Boolean(rendicion.fondoId && rendicion.empresaId);
+  const rolesFondos = conFondo ? await rolesDe(usuario, rol === "admin", rendicion.empresaId!) : [];
   // Cada quien ve lo suyo (lo que creó o rinde); quien administra gastos, todas.
-  if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol, rendicion.rindeCorreo, usuario.correo)) notFound();
+  if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol, rendicion.rindeCorreo, usuario.correo) && !rolesFondos.length) notFound();
 
   const esMia = rendicion.creadoPor === usuario.id || rendicion.rindeCorreo?.toLowerCase() === usuario.correo.toLowerCase();
-  const revisa = puedeVerRendicionesAjenas(usuario.rol, rol);
-  const acciones = accionesPosibles({ estado: rendicion.estado, esMia }, revisa, usuario.rol === "admin");
-  const editable = esEditable(rendicion.estado) && (esMia || revisa);
+  const revisa = conFondo ? rolesFondos.includes("revisor") && !esMia : puedeVerRendicionesAjenas(usuario.rol, rol);
+  const acciones: AccionRendicion[] = conFondo
+    ? [
+        ...(esMia && esEditable(rendicion.estado) ? (["enviar"] as const) : []),
+        ...(esMia && rendicion.estado === "enviada" ? (["retirar"] as const) : []),
+        ...(revisa && rendicion.estado === "enviada" ? (["aprobar", "rechazar"] as const) : []),
+      ]
+    : accionesPosibles({ estado: rendicion.estado, esMia }, revisa, usuario.rol === "admin");
+  const editable = esEditable(rendicion.estado) && (conFondo ? esMia : esMia || revisa);
+  const [fondo, parametros] = conFondo ? await Promise.all([obtenerFondo(rendicion.fondoId!), leerParametros(rendicion.empresaId!)]) : [null, null];
+  const rendido = gastoRendido(rendicion.gastos);
+  // Lo disponible del fondo antes de este informe (sus gastos entran al libro recién al aprobarse).
+  const yaEnLibro = rendicion.estado === "cerrada" || rendicion.estado === "reembolso_pendiente" || rendicion.estado === "reembolsada";
+  const disponible = fondo ? (yaEnLibro ? fondo.saldo + rendido : fondo.saldo) : 0;
+  const usoPct = disponible > 0 ? Math.round((rendido / disponible) * 100) : rendido > 0 ? 100 : 0;
+  const cercaDelLimite = Boolean(fondo && parametros && !yaEnLibro && usoPct >= parametros.umbralAvisoLimite * 100);
   const total = rendicion.gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
   const saldo = saldoRendicion(total, rendicion.montoAsignado);
   const problemas = problemasParaEnviar(rendicion.gastos);
@@ -49,7 +70,12 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   });
 
   // En qué paso va: rechazada se dibuja en el primero, con su aviso aparte.
-  const indice = rendicion.estado === "rechazada" ? 0 : PASOS_RENDICION.findIndex((p) => p.estado === rendicion.estado);
+  const indice =
+    rendicion.estado === "rechazada" ? 0
+    : rendicion.estado === "reembolso_pendiente" ? 2
+    : rendicion.estado === "cerrada" || rendicion.estado === "reembolsada" ? 3
+    : PASOS_RENDICION.findIndex((p) => p.estado === rendicion.estado);
+  const terminado = rendicion.estado === "pagada" || rendicion.estado === "cerrada";
   const historica = rendicion.estado === "cargada_odoo";
 
   const historial = [
@@ -90,15 +116,15 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         {!historica && (
           <ol className="mt-6 grid gap-2 sm:grid-cols-4">
             {PASOS_RENDICION.map((p, i) => {
-              const hecho = i < indice || rendicion.estado === "pagada";
-              const actual = i === indice && rendicion.estado !== "pagada";
+              const hecho = i < indice || terminado;
+              const actual = i === indice && !terminado;
               return (
                 <li key={p.estado} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${actual ? "border-naranjo bg-naranjo/15" : "borde-banda"}`}>
                   <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${hecho ? "bg-emerald-500 text-white" : actual ? "bg-naranjo text-white" : "texto-banda-45 border borde-banda"}`}>
                     {hecho ? <IconCheck size={15} /> : i + 1}
                   </span>
                   <span className={`text-sm font-bold ${actual || hecho ? "texto-banda" : "texto-banda-65"}`}>
-                    {i === 0 && rendicion.estado === "rechazada" ? "Corregir" : p.etiqueta}
+                    {i === 0 && rendicion.estado === "rechazada" ? "Corregir" : i === 3 && conFondo ? (rendicion.estado === "reembolso_pendiente" ? "Reembolso" : "Cerrada") : p.etiqueta}
                   </span>
                 </li>
               );
@@ -106,6 +132,17 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
           </ol>
         )}
 
+        {fondo ? (
+        <dl className="borde-banda mt-5 grid grid-cols-2 gap-x-8 gap-y-4 rounded-xl border px-5 py-4 sm:grid-cols-4">
+          <div>
+            <dt className="texto-banda-45 text-[10px] font-semibold uppercase tracking-[0.14em]">Fondo</dt>
+            <dd className="mt-1"><Link href={`/rendir-gastos/fondos/${fondo.id}`} className="font-condensed text-2xl font-bold text-naranjo underline-offset-2 hover:underline">{fondo.codigo}</Link></dd>
+          </div>
+          <Dato etiqueta="Disponible" valor={pesos(disponible)} />
+          <Dato etiqueta="Rendido aquí" valor={pesos(rendido)} />
+          <Dato etiqueta={disponible - rendido >= 0 ? "Quedaría" : "Exceso"} valor={pesos(Math.abs(disponible - rendido))} tono={disponible - rendido < 0 ? "text-orange-400" : undefined} />
+        </dl>
+        ) : (
         <dl className="borde-banda mt-5 grid grid-cols-2 gap-x-8 gap-y-4 rounded-xl border px-5 py-4 sm:grid-cols-4">
           <Dato etiqueta="Fondo entregado" valor={money(rendicion.montoAsignado)} />
           <Dato etiqueta="Total rendido" valor={money(total)} />
@@ -116,6 +153,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
           />
           <Dato etiqueta="Comprobantes" valor={String(rendicion.gastos.length)} />
         </dl>
+        )}
 
         {acciones.length > 0 && (
           <div className="mt-5">
@@ -125,6 +163,20 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
       </header>
 
       {/* Avisos según el estado */}
+      {cercaDelLimite && esMia && esEditable(rendicion.estado) && (
+        <Aviso tono="rose" titulo={usoPct >= 100 ? "Te pasaste del fondo" : `Llevas el ${usoPct}% del fondo`} Icono={IconAlertTriangle}>
+          {usoPct >= 100 ? "Lo que rindas sobre el fondo se te reembolsa al aprobarse. " : ""}Te conviene enviar este informe a revisión.
+        </Aviso>
+      )}
+      {rendicion.estado === "reembolso_pendiente" && fondo && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-orange-300/60 bg-orange-500/[0.06] px-5 py-4 text-sm text-orange-800">
+          <IconAlertTriangle size={20} className="shrink-0" />
+          <p className="min-w-[12rem] flex-1"><b>Reembolso pendiente: {pesos(-fondo.saldo)}.</b> Se gastó más que el fondo; Tesorería lo paga y el fondo se cierra.</p>
+          {rolesFondos.includes("tesoreria") && !esMia && (
+            <BotonAccion accion={pagarReembolsoAction.bind(null, rendicion.id)} pide="Referencia de la transferencia del reembolso:">Pagué el reembolso</BotonAccion>
+          )}
+        </div>
+      )}
       {rendicion.estado === "rechazada" && rendicion.motivoRechazo && (
         <Aviso tono="rose" titulo="Hay que corregir" Icono={IconAlertTriangle}>
           {rendicion.motivoRechazo}
@@ -133,7 +185,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
       )}
       {rendicion.estado === "enviada" && (
         <Aviso tono="sky" titulo={esMia ? "En revisión" : "Esperando tu revisión"} Icono={IconHistory}>
-          {esMia ? "Ya no se puede editar. Si necesitas corregir algo, retírala." : "Revisa los comprobantes de abajo y apruébala o recházala con el motivo."}
+          {esMia ? "Ya no se puede editar. Si necesitas corregir algo, retírala." : conFondo ? "Abre cada boleta y acéptala, obsérvala o recházala. Después aprueba el informe u obsérvalo para que lo corrijan." : "Revisa los comprobantes de abajo y apruébala o recházala con el motivo."}
         </Aviso>
       )}
       {rendicion.estado === "pagada" && (
@@ -148,7 +200,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
-        <PanelRendicion rendicionInicial={rendicion} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} />
+        <PanelRendicion rendicionInicial={rendicion} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
 
         {/* Historial */}
         <aside className="h-fit rounded-2xl border border-borde bg-superficie p-4 xl:sticky xl:top-4">

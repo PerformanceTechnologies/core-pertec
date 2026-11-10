@@ -16,6 +16,8 @@ import { leerRespuesta, mapaConTope } from "@/lib/rendidor/red";
 import { TextInput, NumInput, SelectInput } from "@/components/cotizador/campos/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
 import ColaDeFotos from "./ColaDeFotos";
+import { ETIQUETA_BOLETA, TONO_BOLETA } from "@/lib/rendidor/fondos-modelo";
+import { revisarBoletaAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import {
   IconAlertCircle,
   IconBed,
@@ -277,8 +279,11 @@ export default function PanelRendicion({
   urlsRespaldo = {},
   editable,
   puedeEnviar,
+  revisarBoletas = false,
 }: {
   rendicionInicial: Rendicion;
+  /** Quien revisa un informe con fondo: acepta, observa o rechaza cada boleta. */
+  revisarBoletas?: boolean;
   /** Si los gastos se pueden tocar: solo en borrador o rechazada, y por quien puede abrirla. */
   editable: boolean;
   /** Si quien mira puede enviarla a revisión (es suya y está en sus manos). */
@@ -952,6 +957,16 @@ export default function PanelRendicion({
                             <span className="rounded-md bg-naranjo/10 px-1.5 py-0.5 font-semibold text-naranjo">Sin categoría</span>
                           )}
                           {g.tipoDocumento && <span className="rounded-md bg-tinta/[0.05] px-1.5 py-0.5 text-gris">{TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta}</span>}
+                          {rendicion.fondoId && (
+                            <span className={`rounded-md px-1.5 py-0.5 font-semibold ${TONO_BOLETA[g.revision?.estado ?? "cargada"]}`}>
+                              {ETIQUETA_BOLETA[g.revision?.estado ?? "cargada"]}
+                            </span>
+                          )}
+                          {g.duplicadoDe && (
+                            <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 font-semibold text-rose-600" title={`Mismo RUT, folio y monto que en «${g.duplicadoDe.titulo}»`}>
+                              Posible duplicado
+                            </span>
+                          )}
                           {fechaCorta(g.fecha) ? (
                             <span className="inline-flex items-center gap-1 text-gris"><IconCalendar size={12} /> {fechaCorta(g.fecha)}</span>
                           ) : (
@@ -984,6 +999,36 @@ export default function PanelRendicion({
                     </summary>
 
                     <div className="border-t border-borde bg-tinta/[0.012] px-4 pb-4 pl-5">
+                      {g.revision?.motivo && g.revision.estado !== "aceptada" && (
+                        <p className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800">
+                          <b>{ETIQUETA_BOLETA[g.revision.estado]}:</b> {g.revision.motivo}
+                        </p>
+                      )}
+                      {revisarBoletas && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(["aceptada", "observada", "rechazada"] as const).map((est) => (
+                            <button
+                              key={est}
+                              type="button"
+                              onClick={async () => {
+                                const motivo = est === "aceptada" ? "" : prompt(est === "observada" ? "¿Qué hay que corregir?" : "¿Por qué se rechaza esta boleta?") ?? null;
+                                if (motivo === null) return;
+                                const r = await revisarBoletaAction(rendicion.id, g.id, est, motivo);
+                                if (!r.ok) return alert(r.error);
+                                setRendicion((prev) => ({
+                                  ...prev,
+                                  gastos: prev.gastos.map((x) => (x.id === g.id ? { ...x, revision: { estado: est, motivo: motivo || null } } : x)),
+                                }));
+                              }}
+                              className={`inline-flex h-9 items-center rounded-lg px-3 text-xs font-bold transition ${
+                                (g.revision?.estado ?? "cargada") === est ? TONO_BOLETA[est] + " ring-1 ring-current" : "border border-borde bg-superficie text-gris hover:text-tinta"
+                              }`}
+                            >
+                              {est === "aceptada" ? "Aceptar" : est === "observada" ? "Observar" : "Rechazar"}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
                         <Campo etiqueta="Fecha">
                           <input

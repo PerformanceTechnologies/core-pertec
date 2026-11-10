@@ -27,6 +27,9 @@ interface FilaRendicion {
   pagada_por: string | null;
   pagada_en: string | null;
   nota_pago: string | null;
+  fondo_id: string | null;
+  empresa_id: string | null;
+  ciclo_revision: number | null;
 }
 
 interface FilaResumen {
@@ -44,12 +47,13 @@ interface FilaResumen {
   motivo_rechazo: string | null;
   pagada_en: string | null;
   creado_en: string;
+  fondo_id: string | null;
 }
 
 const COLUMNAS = `
   id, nombre_quien_rinde, rinde_correo, monto_asignado, titulo_rendicion, estado,
   empresa_company_id, gastos, creado_por, creado_en, enviada_en, revisada_por,
-  revisada_en, motivo_rechazo, pagada_por, pagada_en, nota_pago
+  revisada_en, motivo_rechazo, pagada_por, pagada_en, nota_pago, fondo_id, empresa_id, ciclo_revision
 `;
 
 function filaARendicion(fila: FilaRendicion): Rendicion {
@@ -71,6 +75,9 @@ function filaARendicion(fila: FilaRendicion): Rendicion {
     pagadaPor: fila.pagada_por,
     pagadaEn: fila.pagada_en,
     notaPago: fila.nota_pago,
+    fondoId: fila.fondo_id ?? null,
+    empresaId: fila.empresa_id ?? null,
+    cicloRevision: Number(fila.ciclo_revision ?? 0),
   };
 }
 
@@ -94,7 +101,7 @@ export async function listarRendiciones(quien: {
     .from("rendiciones_resumen")
     .select(
       `id, creado_por, rinde_correo, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
-       cantidad_gastos, total_gastos, enviada_en, revisada_en, motivo_rechazo, pagada_en, creado_en`,
+       cantidad_gastos, total_gastos, enviada_en, revisada_en, motivo_rechazo, pagada_en, creado_en, fondo_id`,
     )
     .order("creado_en", { ascending: false });
 
@@ -125,6 +132,7 @@ export async function listarRendiciones(quien: {
     motivoRechazo: f.motivo_rechazo,
     pagadaEn: f.pagada_en,
     creadoEn: f.creado_en,
+    fondoId: f.fondo_id ?? null,
   }));
 }
 
@@ -140,6 +148,8 @@ export async function obtenerRendicion(id: string): Promise<Rendicion | null> {
 }
 
 export interface DatosNuevaRendicion {
+  fondoId?: string | null;
+  empresaId?: string | null;
   nombreQuienRinde: string;
   rindeCorreo: string;
   montoAsignado: number;
@@ -157,6 +167,8 @@ export async function crearRendicion(datos: DatosNuevaRendicion, usuarioId: stri
       monto_asignado: datos.montoAsignado,
       titulo_rendicion: datos.tituloRendicion.trim(),
       empresa_company_id: datos.empresaCompanyId,
+      fondo_id: datos.fondoId ?? null,
+      empresa_id: datos.empresaId ?? null,
       creado_por: usuarioId,
       gastos: [],
     })

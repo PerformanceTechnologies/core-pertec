@@ -22,7 +22,34 @@ import {
 } from "@/lib/rendidor/datos";
 import { borrarRespaldosDeRendicion } from "@/lib/rendidor/almacenamiento";
 import { crearNotificacion } from "@/lib/buzon";
-import type { Rendicion } from "@/lib/rendidor/tipos";
+import type { GastoRendicion, Rendicion } from "@/lib/rendidor/tipos";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { contextoDeEmpresa } from "@/lib/empresas";
+import { auditar, aprobacion, correosConRol, leerParametros, obtenerFondo, rolesDe } from "@/lib/rendidor/fondos";
+import { cerrarInformeAprobado } from "@/lib/rendidor/cierre";
+import type { EstadoBoleta, RolFondos } from "@/lib/rendidor/fondos-modelo";
+
+/** Los roles del módulo de Fondos para un informe con fondo (vacío si es de los antiguos). */
+async function rolesParaInforme(r: Rendicion, usuario: Parameters<typeof rolesDe>[0], esAdminModulo: boolean): Promise<RolFondos[]> {
+  return r.empresaId ? rolesDe(usuario, esAdminModulo, r.empresaId) : [];
+}
+
+/** Boletas con el mismo RUT, folio y monto en otros informes de la empresa. */
+async function marcarDuplicados(r: Rendicion): Promise<GastoRendicion[]> {
+  if (!r.empresaId) return r.gastos;
+  const { data } = await supabaseAdmin.from("rendiciones").select("id, titulo_rendicion, gastos").eq("empresa_id", r.empresaId).neq("id", r.id).limit(500);
+  const clave = (g: Pick<GastoRendicion, "rutProveedor" | "numeroDocumento" | "total">) =>
+    g.rutProveedor && g.numeroDocumento ? `${g.rutProveedor.replace(/[.\s-]/g, "").toLowerCase()}|${String(g.numeroDocumento).trim()}|${Math.round(Number(g.total) || 0)}` : null;
+  const vistas = new Map<string, { informeId: string; titulo: string }>();
+  for (const otra of data ?? []) for (const g of (otra.gastos ?? []) as GastoRendicion[]) {
+    const k = clave(g);
+    if (k) vistas.set(k, { informeId: otra.id as string, titulo: otra.titulo_rendicion as string });
+  }
+  return r.gastos.map((g) => {
+    const k = clave(g);
+    return { ...g, duplicadoDe: (k && vistas.get(k)) || null };
+  });
+}
 
 export type Resultado = { ok: true } | { ok: false; error: string };
 
@@ -65,22 +92,30 @@ export async function crearRendicionAction(form: FormData) {
   const { usuario, rol } = await exigirAccesoRendidor();
 
   const tituloRendicion = String(form.get("tituloRendicion") ?? "").trim().slice(0, 200);
-  const montoAsignado = Math.max(0, Math.round(Number(form.get("montoAsignado") ?? 0) || 0));
   const empresaCompanyId = Number(form.get("empresaCompanyId") ?? 1) === 2 ? 2 : 1;
-  if (!tituloRendicion) throw new Error("El título de la rendición es obligatorio.");
+  if (!tituloRendicion) throw new Error("El título del informe es obligatorio.");
 
-  // Quien rinde: uno mismo, o —si administra gastos— otra persona del Core.
-  let rinde = { correo: usuario.correo.toLowerCase(), nombre: usuario.nombre || usuario.correo.split("@")[0] };
-  const pedido = String(form.get("rindeCorreo") ?? "").trim().toLowerCase();
-  if (pedido && pedido !== rinde.correo) {
-    if (!puedeVerRendicionesAjenas(usuario.rol, rol)) throw new Error("Solo quien administra gastos puede crear una rendición a nombre de otra persona.");
-    const persona = (await listarPersonas()).find((p) => p.correo === pedido);
-    if (!persona) throw new Error("Esa persona no es un usuario activo del Core.");
-    rinde = persona;
+  // Todo informe nuevo se carga contra un fondo ACTIVO de quien rinde.
+  const fondoId = String(form.get("fondoId") ?? "").trim();
+  const fondo = fondoId ? await obtenerFondo(fondoId) : null;
+  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  if (!fondo || !activa || fondo.empresaId !== activa.id) throw new Error("Elige el fondo contra el que vas a rendir.");
+  if (fondo.estado !== "activo") throw new Error("Ese fondo no está activo.");
+  const params = await leerParametros(fondo.empresaId);
+  const { count: abiertos } = await supabaseAdmin
+    .from("rendiciones").select("id", { count: "exact", head: true })
+    .eq("fondo_id", fondo.id).in("estado", ["borrador", "enviada", "rechazada"]);
+  if ((abiertos ?? 0) >= params.maxInformesAbiertos) throw new Error("Ese fondo ya tiene un informe abierto: termínalo o envíalo antes de crear otro.");
+  const montoAsignado = Math.max(0, fondo.saldo);
+
+  // Quien rinde es el dueño del fondo: uno mismo, o —si administra gastos— a su nombre.
+  const rinde = { correo: fondo.rendidorCorreo, nombre: fondo.rendidorNombre };
+  if (rinde.correo !== usuario.correo.toLowerCase() && !puedeVerRendicionesAjenas(usuario.rol, rol)) {
+    throw new Error("Ese fondo es de otra persona.");
   }
 
   const rendicion = await crearRendicion(
-    { nombreQuienRinde: rinde.nombre, rindeCorreo: rinde.correo, tituloRendicion, montoAsignado, empresaCompanyId },
+    { nombreQuienRinde: rinde.nombre, rindeCorreo: rinde.correo, tituloRendicion, montoAsignado, empresaCompanyId, fondoId: fondo.id, empresaId: fondo.empresaId },
     usuario.id,
   );
 
@@ -115,6 +150,7 @@ export async function moverRendicionAction(id: string, accion: AccionRendicion, 
   try {
     const { usuario, rol } = await exigirAccesoRendidor();
     const r = await obtenerRendicion(id);
+    if (r?.fondoId) return await moverInformeConFondo(r, accion, nota, usuario, rol === "admin");
     const mia = r ? esMia(r, usuario) : false;
     const revisa = puedeVerRendicionesAjenas(usuario.rol, rol);
     if (!r || (!mia && !revisa)) return { ok: false, error: "No encontramos esa rendición." };
@@ -163,6 +199,105 @@ export async function moverRendicionAction(id: string, accion: AccionRendicion, 
     if (!hecho) return { ok: false, error: "La rendición cambió mientras tanto. Recarga la página." };
     revalidatePath(`/rendir-gastos/${id}`);
     revalidatePath("/rendir-gastos");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/**
+ * El ciclo de un informe con fondo: enviar → (observar ⇄ reenviar) → aprobar → cierre.
+ * Solo un revisor (que no sea quien rinde) aprueba u observa. Al aprobar se ejecuta el cierre.
+ */
+async function moverInformeConFondo(
+  r: Rendicion,
+  accion: AccionRendicion,
+  nota: string | undefined,
+  usuario: Awaited<ReturnType<typeof exigirAccesoRendidor>>["usuario"],
+  esAdminModulo: boolean,
+): Promise<Resultado> {
+  const yo = usuario.correo.toLowerCase();
+  const mia = esMia(r, usuario);
+  const roles = await rolesParaInforme(r, usuario, esAdminModulo);
+  const revisor = roles.includes("revisor") && !mia;
+  if (!mia && !revisor) return { ok: false, error: "No encontramos ese informe." };
+  const ahora = new Date().toISOString();
+  const total = money(totalDe(r));
+  const condicionado = async (desde: string[], hacia: string, extra: Record<string, unknown> = {}) => {
+    const { data, error } = await supabaseAdmin.from("rendiciones").update({ estado: hacia, ...extra, actualizado_en: ahora }).eq("id", r.id).in("estado", desde).select("id");
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("El informe cambió mientras tanto. Recarga la página.");
+    await auditar("informe", r.id, r.estado, hacia, yo, (extra.motivo_rechazo as string) ?? null);
+  };
+
+  switch (accion) {
+    case "enviar": {
+      if (!mia) return { ok: false, error: "Solo quien rinde envía el informe." };
+      const fondo = r.fondoId ? await obtenerFondo(r.fondoId) : null;
+      if (fondo?.estado !== "activo") return { ok: false, error: "El fondo de este informe ya no está activo." };
+      const problemas = problemasParaEnviar(r.gastos);
+      if (problemas.length) return { ok: false, error: problemas.join(" ") };
+      // Las observadas que se corrigieron vuelven a «cargada»; se marcan los posibles duplicados.
+      const gastos = (await marcarDuplicados(r)).map((g) => (g.revision?.estado === "observada" ? { ...g, revision: { ...g.revision, estado: "cargada" as EstadoBoleta } } : g));
+      await condicionado(["borrador", "rechazada"], "enviada", { enviada_en: ahora, motivo_rechazo: null, revisada_por: null, revisada_en: null, gastos, ciclo_revision: r.cicloRevision + 1 });
+      const dup = gastos.filter((g) => g.duplicadoDe).length;
+      await avisarInforme(await correosConRol(r.empresaId!, "revisor"), yo, r, "enviada", `Informe por revisar: ${r.tituloRendicion}`, `${r.nombreQuienRinde} · ${total}${dup ? ` · ${dup} posible(s) duplicado(s)` : ""}`, "alerta");
+      break;
+    }
+    case "retirar":
+      if (!mia) return { ok: false, error: "Solo quien rinde retira el informe." };
+      await condicionado(["enviada"], "borrador", { enviada_en: null });
+      break;
+    case "aprobar": {
+      if (!revisor) return { ok: false, error: "Solo un revisor (que no sea quien rinde) aprueba informes." };
+      if (r.gastos.some((g) => g.revision?.estado === "observada")) return { ok: false, error: "Hay boletas observadas: acéptalas o devuelve el informe con «Observar»." };
+      const gastos = r.gastos.map((g) => ((g.revision?.estado ?? "cargada") === "cargada" ? { ...g, revision: { estado: "aceptada" as EstadoBoleta, por: yo, en: ahora } } : g));
+      await condicionado(["enviada"], "aprobada", { revisada_por: yo, revisada_en: ahora, motivo_rechazo: null, gastos });
+      await aprobacion("informe", r.id, yo, "aprueba");
+      const cierre = await cerrarInformeAprobado({ ...r, estado: "aprobada", gastos }, yo);
+      await avisarInforme(
+        r.rindeCorreo ? [r.rindeCorreo] : [], yo, r, "aprobada", `Aprobaron tu informe: ${r.tituloRendicion}`,
+        cierre.estado === "reembolso_pendiente" ? `Gastaste más que el fondo: Tesorería te reembolsará ${money(-cierre.saldo)}.` : `Por ${usuario.nombre ?? yo} · ${total}`,
+      );
+      break;
+    }
+    case "rechazar": {
+      if (!revisor) return { ok: false, error: "Solo un revisor observa informes." };
+      const motivo = (nota ?? "").trim().slice(0, 1000);
+      if (!motivo) return { ok: false, error: "Escribe qué hay que corregir." };
+      await condicionado(["enviada"], "rechazada", { revisada_por: yo, revisada_en: ahora, motivo_rechazo: motivo });
+      await aprobacion("informe", r.id, yo, "observa", motivo);
+      await avisarInforme(r.rindeCorreo ? [r.rindeCorreo] : [], yo, r, "observada", `Observaron tu informe: ${r.tituloRendicion}`, motivo, "alerta");
+      break;
+    }
+    default:
+      return { ok: false, error: "Ese paso no corresponde a un informe con fondo." };
+  }
+  revalidatePath(`/rendir-gastos/${r.id}`);
+  revalidatePath("/rendir-gastos", "layout");
+  return { ok: true };
+}
+
+async function avisarInforme(para: string[], actor: string, r: Rendicion, tipo: string, titulo: string, cuerpo?: string, severidad: "info" | "alerta" = "info") {
+  await avisar(para, actor, r, tipo, titulo, cuerpo, severidad);
+}
+
+/** Quien revisa marca una boleta: aceptada, observada (con qué corregir) o rechazada (con motivo). */
+export async function revisarBoletaAction(id: string, gastoId: string, estado: EstadoBoleta, motivo?: string): Promise<Resultado> {
+  try {
+    const { usuario, rol } = await exigirAccesoRendidor();
+    const r = await obtenerRendicion(id);
+    if (!r?.fondoId) return { ok: false, error: "Ese informe no se revisa boleta por boleta." };
+    const roles = await rolesParaInforme(r, usuario, rol === "admin");
+    if (!roles.includes("revisor") || esMia(r, usuario)) return { ok: false, error: "Solo un revisor (que no sea quien rinde) revisa boletas." };
+    if (r.estado !== "enviada") return { ok: false, error: "El informe no está en revisión." };
+    if (!["aceptada", "observada", "rechazada"].includes(estado)) return { ok: false, error: "Estado inválido." };
+    const m = (motivo ?? "").trim().slice(0, 500);
+    if (estado !== "aceptada" && !m) return { ok: false, error: "Escribe el motivo." };
+    const yo = usuario.correo.toLowerCase();
+    const gastos = r.gastos.map((g) => (g.id === gastoId ? { ...g, revision: { estado, motivo: m || null, por: yo, en: new Date().toISOString() } } : g));
+    const { error } = await supabaseAdmin.from("rendiciones").update({ gastos, actualizado_en: new Date().toISOString() }).eq("id", id).eq("estado", "enviada");
+    if (error) throw new Error(error.message);
     return { ok: true };
   } catch (e) {
     return fallo(e);

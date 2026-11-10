@@ -1,44 +1,42 @@
 "use client";
 
 import { useState } from "react";
-import { IconPlus, IconReceipt2 } from "@tabler/icons-react";
+import { IconPlus, IconWallet } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonEnviar from "@/components/BotonEnviar";
-import { Campo, Seccion, TarjetaAccion } from "@/components/flota/Campos";
+import { Campo, TarjetaAccion } from "@/components/flota/Campos";
 import { CAMPO } from "@/lib/estilos";
 import { crearRendicionAction } from "@/app/(protegido)/rendir-gastos/acciones";
-import { money } from "@/components/rendidor/Visual";
+import { pesos } from "@/lib/rendidor/fondos-modelo";
 
 const EMPRESAS = [
   { id: 1, nombre: "Performance Technologies SpA" },
   { id: 2, nombre: "Performance Service SpA" },
 ];
 
+export interface FondoElegible {
+  id: string;
+  codigo: string;
+  rendidorNombre: string;
+  saldo: number;
+  motivo: string | null;
+  esMio: boolean;
+}
+
 /**
- * Crear una rendición: título, quién rinde, fondo entregado y empresa. Al crear se va
- * directo a subir comprobantes.
+ * Crear un informe de rendición: siempre contra un fondo ACTIVO (el propio, o —si administra
+ * gastos— el de otra persona). Al crear se va directo a subir las boletas.
  */
-export default function NuevaRendicion({
-  yo,
-  personas,
-  comoTarjeta = false,
-}: {
-  yo: { correo: string; nombre: string };
-  /** Solo para quien administra gastos: puede crearla a nombre de otra persona. */
-  personas?: { correo: string; nombre: string }[];
-  comoTarjeta?: boolean;
-}) {
+export default function NuevaRendicion({ fondos, comoTarjeta = false }: { fondos: FondoElegible[]; comoTarjeta?: boolean }) {
   const [abierta, setAbierta] = useState(false);
+  const [fondoId, setFondoId] = useState("");
   const [titulo, setTitulo] = useState("");
-  const [monto, setMonto] = useState("");
-  const [rinde, setRinde] = useState(yo.correo);
   const [empresa, setEmpresa] = useState(1);
-  const nombreRinde = personas?.find((p) => p.correo === rinde)?.nombre ?? yo.nombre;
+  const elegido = fondos.find((f) => f.id === fondoId);
 
   function abrir() {
+    setFondoId(fondos.length === 1 ? fondos[0].id : "");
     setTitulo("");
-    setMonto("");
-    setRinde(yo.correo);
     setEmpresa(1);
     setAbierta(true);
   }
@@ -46,59 +44,44 @@ export default function NuevaRendicion({
   return (
     <>
       {comoTarjeta ? (
-        <TarjetaAccion titulo="Nueva rendición" detalle="Sube boletas y facturas" Icono={IconPlus} tono="bg-naranjo/10 text-naranjo" onClick={abrir} />
+        <TarjetaAccion titulo="Nuevo informe" detalle="Rinde boletas contra un fondo" Icono={IconPlus} tono="bg-naranjo/10 text-naranjo" onClick={abrir} />
       ) : (
         <button onClick={abrir} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-naranjo px-4 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave">
-          <IconPlus size={16} /> Nueva rendición
+          <IconPlus size={16} /> Nuevo informe
         </button>
       )}
 
-      <VentanaModal abierta={abierta} alCerrar={() => setAbierta(false)} titulo="Nueva rendición" descripcion="Después de crearla subes los comprobantes y el Core los lee solo." ancho="max-w-3xl">
-        <form action={crearRendicionAction} className="grid gap-6 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
-          <aside className="lg:sticky lg:top-0 lg:self-start">
-            <div className="banda-contraste space-y-4 rounded-2xl p-5">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">Resumen</span>
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-naranjo/20 text-naranjo">
-                <IconReceipt2 size={22} stroke={1.75} />
-              </span>
-              <div>
-                <p className="texto-banda text-sm font-bold leading-snug">{titulo || "Título de la rendición"}</p>
-                <p className="texto-banda-65 mt-1 text-xs">{nombreRinde}</p>
-              </div>
-              <div className="borde-banda border-t pt-3">
-                <p className="texto-banda-45 text-[10px] font-semibold uppercase tracking-[0.14em]">Fondo entregado</p>
-                <p className="texto-banda font-condensed text-3xl font-bold tabular-nums">{money(Number(monto) || 0)}</p>
-              </div>
-            </div>
-          </aside>
-
-          <div className="space-y-6">
-            <Seccion n={1} titulo="¿De qué es la rendición?">
-              <Campo etiqueta="Título" obligatorio>
-                <input name="tituloRendicion" required value={titulo} onChange={(e) => setTitulo(e.target.value)} autoFocus className={CAMPO} placeholder="Ej: Operación Antucoya — marzo" />
-              </Campo>
-              {personas && personas.length > 1 && (
-                <Campo etiqueta="¿Quién rinde?" ayuda="Puedes crearla a nombre de otra persona">
-                  <select name="rindeCorreo" value={rinde} onChange={(e) => setRinde(e.target.value)} className={CAMPO}>
-                    {personas.map((p) => (
-                      <option key={p.correo} value={p.correo}>{p.nombre}{p.correo === yo.correo ? " (yo)" : ""}</option>
-                    ))}
-                  </select>
-                </Campo>
-              )}
-            </Seccion>
-
-            <Seccion n={2} titulo="¿Te entregaron un fondo?">
-              <Campo etiqueta="Monto entregado" ayuda="0 si pagaste de tu bolsillo">
-                <span className="relative block">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gris">$</span>
-                  <input name="montoAsignado" type="number" min="0" step="1" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="0" className={`${CAMPO} pl-7`} />
-                </span>
-              </Campo>
-              <p className="text-xs text-gris">Al final se compara con lo rendido: si gastaste más, la empresa te devuelve la diferencia; si sobró, la reintegras.</p>
-            </Seccion>
-
-            <Seccion n={3} titulo="¿A qué empresa?">
+      <VentanaModal abierta={abierta} alCerrar={() => setAbierta(false)} titulo="Nuevo informe de rendición" descripcion="Elige el fondo y después subes las boletas: el Core las lee solo." ancho="max-w-xl">
+        {fondos.length === 0 ? (
+          <div className="space-y-3 py-4 text-center">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-naranjo/10 text-naranjo">
+              <IconWallet size={24} />
+            </span>
+            <p className="font-bold text-tinta">No tienes un fondo activo</p>
+            <p className="text-sm text-gris">Para rendir necesitas un fondo. Pídelo con «Solicitar fondo»; cuando Tesorería lo transfiera, quedará activo.</p>
+          </div>
+        ) : (
+          <form action={crearRendicionAction} className="space-y-4">
+            <Campo etiqueta="Fondo *">
+              <select name="fondoId" required value={fondoId} onChange={(e) => setFondoId(e.target.value)} className={CAMPO}>
+                <option value="">Elige un fondo…</option>
+                {fondos.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.codigo} · {f.esMio ? "mío" : f.rendidorNombre} · saldo {pesos(f.saldo)}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+            {elegido && (
+              <p className="rounded-xl bg-emerald-500/[0.07] px-3 py-2 text-xs text-emerald-800">
+                Tienes <b>{pesos(elegido.saldo)}</b> disponibles en {elegido.codigo}
+                {elegido.motivo ? ` · ${elegido.motivo}` : ""}.
+              </p>
+            )}
+            <Campo etiqueta="Título del informe *">
+              <input name="tituloRendicion" required maxLength={200} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej: Operación Antucoya — semana 1" className={CAMPO} />
+            </Campo>
+            <Campo etiqueta="Empresa que reembolsa">
               <input type="hidden" name="empresaCompanyId" value={empresa} />
               <div className="grid gap-2 sm:grid-cols-2">
                 {EMPRESAS.map((e) => (
@@ -106,24 +89,18 @@ export default function NuevaRendicion({
                     key={e.id}
                     type="button"
                     onClick={() => setEmpresa(e.id)}
-                    className={`rounded-xl border p-3 text-left text-sm font-semibold transition ${empresa === e.id ? "border-naranjo bg-naranjo/[0.06] text-tinta ring-2 ring-naranjo/15" : "border-borde text-gris hover:border-naranjo/40"}`}
+                    className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${empresa === e.id ? "border-naranjo bg-naranjo/[0.07] text-tinta" : "border-borde text-gris hover:text-tinta"}`}
                   >
                     {e.nombre}
                   </button>
                 ))}
               </div>
-            </Seccion>
-
-            <div className="flex justify-end gap-2 border-t border-borde pt-4">
-              <button type="button" onClick={() => setAbierta(false)} className="rounded-lg border border-borde px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-gris transition hover:text-tinta">
-                Cancelar
-              </button>
-              <BotonEnviar cargando="Creando…" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-azul px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-azul-suave">
-                Crear y subir comprobantes →
-              </BotonEnviar>
+            </Campo>
+            <div className="flex justify-end">
+              <BotonEnviar cargando="Creando…">Crear y subir boletas →</BotonEnviar>
             </div>
-          </div>
-        </form>
+          </form>
+        )}
       </VentanaModal>
     </>
   );

@@ -156,6 +156,12 @@ export interface GastoRendicion {
   // Trazabilidad de la carga a Odoo
   odooExpenseId: number | null;
   odooPartnerId: number | null;
+  /** Cómo quedó en la revisión (informes con fondo). Sin esto, la boleta está «cargada». */
+  revision?: { estado: import("./fondos-modelo").EstadoBoleta; motivo?: string | null; por?: string | null; en?: string | null } | null;
+  /** Otra boleta de la empresa con el mismo RUT, folio y monto (posible duplicado). */
+  duplicadoDe?: { informeId: string; titulo: string } | null;
+  /** Enlace futuro con el módulo de compras. */
+  compraId?: string | null;
 }
 
 /**
@@ -163,7 +169,10 @@ export interface GastoRendicion {
  *   borrador → enviada → aprobada → pagada, y enviada → rechazada → (corrige) → enviada.
  * «cargada_odoo» queda solo para las históricas, de antes de dejar Odoo: se leen, no se tocan.
  */
-export type EstadoRendicion = "borrador" | "enviada" | "aprobada" | "rechazada" | "pagada" | "cargada_odoo";
+export type EstadoRendicion =
+  | "borrador" | "enviada" | "aprobada" | "rechazada" | "pagada" | "cargada_odoo"
+  // Informes con fondo: el cierre.
+  | "reembolso_pendiente" | "reembolsada" | "cerrada" | "anulada";
 
 /**
  * Lo que necesita la pantalla de lista, y nada más.
@@ -187,6 +196,7 @@ export interface ResumenRendicion {
   motivoRechazo: string | null;
   pagadaEn: string | null;
   creadoEn: string;
+  fondoId: string | null;
 }
 
 export interface Rendicion {
@@ -207,4 +217,7 @@ export interface Rendicion {
   pagadaPor: string | null;
   pagadaEn: string | null;
   notaPago: string | null;
+  fondoId: string | null;
+  empresaId: string | null;
+  cicloRevision: number;
 }

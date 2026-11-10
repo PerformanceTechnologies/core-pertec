@@ -79,9 +79,13 @@ export const ETIQUETA_ESTADO_RENDICION: Record<EstadoRendicion, string> = {
   borrador: "Borrador",
   enviada: "En revisión",
   aprobada: "Aprobada",
-  rechazada: "Rechazada",
+  rechazada: "Observada",
   pagada: "Pagada",
   cargada_odoo: "Histórica",
+  reembolso_pendiente: "Reembolso pendiente",
+  reembolsada: "Reembolsada",
+  cerrada: "Cerrada",
+  anulada: "Anulada",
 };
 
 /** Los pasos que se dibujan en la cabecera; rechazada vuelve al primero. */

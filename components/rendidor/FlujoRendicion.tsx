@@ -14,7 +14,7 @@ const BOTON: Record<AccionRendicion, { texto: string; Icono: typeof IconCheck; c
   enviar: { texto: "Enviar a revisión", Icono: IconSend, clase: "bg-naranjo text-white hover:bg-naranjo-suave" },
   retirar: { texto: "Retirar para corregir", Icono: IconArrowBackUp, clase: "border border-borde bg-superficie text-tinta hover:border-naranjo/50" },
   aprobar: { texto: "Aprobar", Icono: IconCheck, clase: "bg-emerald-600 text-white hover:bg-emerald-700" },
-  rechazar: { texto: "Rechazar", Icono: IconX, clase: "border border-rose-300 bg-superficie text-rose-600 hover:bg-rose-50" },
+  rechazar: { texto: "Observar", Icono: IconX, clase: "border border-rose-300 bg-superficie text-rose-600 hover:bg-rose-50" },
   pagar: { texto: "Marcar como pagada", Icono: IconCash, clase: "bg-emerald-600 text-white hover:bg-emerald-700" },
   reabrir: { texto: "Volver a revisión", Icono: IconArrowBackUp, clase: "border border-borde bg-superficie text-tinta hover:border-naranjo/50" },
 };
@@ -83,7 +83,7 @@ export default function FlujoRendicion({
       <VentanaModal
         abierta={pidiendo !== null}
         alCerrar={() => setPidiendo(null)}
-        titulo={pidiendo === "rechazar" ? "Rechazar rendición" : "Marcar como pagada"}
+        titulo={pidiendo === "rechazar" ? "Observar y devolver" : "Marcar como pagada"}
         descripcion={
           pidiendo === "rechazar"
             ? `Vuelve a ${nombre} para que la corrija. El motivo le llega en la campana.`
@@ -118,7 +118,7 @@ export default function FlujoRendicion({
               className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-60 ${pidiendo === "rechazar" ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
             >
               {pendiente && <RuedaCarga />}
-              {pidiendo === "rechazar" ? "Rechazar" : "Confirmar pago"}
+              {pidiendo === "rechazar" ? "Devolver para corregir" : "Confirmar pago"}
             </button>
           </div>
         </form>

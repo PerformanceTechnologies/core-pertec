@@ -10,6 +10,10 @@ export const ESTILO_ESTADO_RENDICION: Record<EstadoRendicion, { punto: string; f
   aprobada: { punto: "bg-amber-500", fondo: "bg-amber-500/12 text-amber-700 dark:text-amber-300", barra: "#f59e0b" },
   pagada: { punto: "bg-emerald-500", fondo: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", barra: "#10b981" },
   cargada_odoo: { punto: "bg-violet-400", fondo: "bg-violet-500/10 text-violet-700 dark:text-violet-300", barra: "#a78bfa" },
+  reembolso_pendiente: { punto: "bg-orange-500", fondo: "bg-orange-500/12 text-orange-700 dark:text-orange-300", barra: "#f97316" },
+  reembolsada: { punto: "bg-emerald-500", fondo: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", barra: "#10b981" },
+  cerrada: { punto: "bg-emerald-600", fondo: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", barra: "#059669" },
+  anulada: { punto: "bg-slate-300", fondo: "bg-slate-500/10 text-slate-500", barra: "#cbd5e1" },
 };
 
 export function ChipEstadoRendicion({ estado }: { estado: EstadoRendicion }) {

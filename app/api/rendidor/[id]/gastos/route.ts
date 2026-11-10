@@ -36,8 +36,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Falta el arreglo de gastos." }, { status: 400 });
   }
 
+  // La revisión de cada boleta la pone quien revisa, no quien rinde: se conserva la guardada.
+  // Una boleta observada que se corrige vuelve a «cargada» para la próxima revisión.
+  const previas = new Map(rendicion.gastos.map((g) => [g.id, g]));
+  const firma = (g: GastoRendicion) => JSON.stringify([g.fecha, g.proveedor, g.rutProveedor, g.total, g.tipoDocumento, g.categoria]);
+  const gastos = body.gastos.map((g) => {
+    const antes = previas.get(g.id);
+    let revision = antes?.revision ?? null;
+    if (revision?.estado === "observada" && antes && firma(antes) !== firma(g)) revision = { ...revision, estado: "cargada" };
+    return { ...g, revision, duplicadoDe: antes?.duplicadoDe ?? null, compraId: antes?.compraId ?? null };
+  });
+
   try {
-    await guardarGastos(id, body.gastos);
+    await guardarGastos(id, gastos);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[rendidor] Error al guardar gastos:", error);
