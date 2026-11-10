@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { RUTA_FIN, cargarVista, rutinasHechas } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, rutinasHechas, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { clpCorto, inicioDeMes, sumarDias } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
 import { Seccion } from "@/components/fin/piezas";
@@ -44,16 +44,16 @@ export default async function RutinasPage() {
       titulo: "Diario", periodo: v.hoy, tareas: [
         { id: "cargar-banco", t: "Cargar los movimientos de ayer (bancos y tarjeta), categorizar y ligar", c: `${porAclarar.length} por aclarar`, href: `${RUTA_FIN}/tesoreria` },
         { id: "asignar-consultas", t: "Asignar a quién preguntar lo que no se reconoce", c: `${porAclarar.filter((m) => !m.responsable).length} sin responsable · ${v.dashboard.movimientosEscalar} para escalar`, href: `${RUTA_FIN}/tesoreria?ver=escalar` },
-        { id: "facturas-recibidas", t: "Revisar facturas recibidas: ligar a su OC o reclamar dentro de plazo", c: `${recibidasAyer.length} desde ayer · ${sinOc.length} sin OC${sinOc.length ? ` (mínimo ${minReclamo} días para reclamar)` : ""}`, href: `${RUTA_FIN}/compras?ver=facturas` },
-        { id: "facturas-emitidas", t: "Revisar facturas emitidas: ligadas a su hito", c: `${emitidasSinHito.length} sin hito`, href: `${RUTA_FIN}/ventas?ver=facturas` },
-        { id: "listo-facturar", t: "Ver «Lista para facturar» y emitir", c: `${listas.length} · ${clpCorto(listas.reduce((s, h) => s + h.totalConIva, 0))}`, href: `${RUTA_FIN}/ventas?etapa=Lista para facturar` },
+        { id: "facturas-recibidas", t: "Revisar facturas recibidas: ligar a su OC o reclamar dentro de plazo", c: `${recibidasAyer.length} desde ayer · ${sinOc.length} sin OC${sinOc.length ? ` (mínimo ${minReclamo} días para reclamar)` : ""}`, href: `${RUTA_COMPRAS}?ver=facturas` },
+        { id: "facturas-emitidas", t: "Revisar facturas emitidas: ligadas a su hito", c: `${emitidasSinHito.length} sin hito`, href: `${RUTA_VENTAS}?ver=facturas` },
+        { id: "listo-facturar", t: "Ver «Lista para facturar» y emitir", c: `${listas.length} · ${clpCorto(listas.reduce((s, h) => s + h.totalConIva, 0))}`, href: `${RUTA_VENTAS}?etapa=Lista para facturar` },
       ],
     },
     {
       titulo: "Semanal", periodo: semana(v.hoy), tareas: [
-        { id: "cobranza", t: "Cobranza: vencidas y por vencer, registrar fecha prometida", c: `${vencidas.length} vencidas · ${porVencer7.length} vencen en 7 días · ${sinFecha.length} sin fecha estimada`, href: `${RUTA_FIN}/ventas?etapa=Vencida` },
+        { id: "cobranza", t: "Cobranza: vencidas y por vencer, registrar fecha prometida", c: `${vencidas.length} vencidas · ${porVencer7.length} vencen en 7 días · ${sinFecha.length} sin fecha estimada`, href: `${RUTA_VENTAS}?etapa=Vencida` },
         { id: "factoring", t: "Factoring: confirmar con los factores qué clientes pagaron", c: `${confirmar.length} por confirmar`, href: `${RUTA_FIN}/tesoreria?ver=factoring` },
-        { id: "visar-programar", t: "Visar compras y programar pagos según el flujo", c: `${visar.length} esperando visado · ${sinCuentas ? "sin cuentas creadas" : `holgura del mes ${clpCorto(v.flujo.meses[0]?.holgura ?? 0)}`}`, href: `${RUTA_FIN}/compras?ver=visar` },
+        { id: "visar-programar", t: "Visar compras y programar pagos según el flujo", c: `${visar.length} esperando visado · ${sinCuentas ? "sin cuentas creadas" : `holgura del mes ${clpCorto(v.flujo.meses[0]?.holgura ?? 0)}`}`, href: `${RUTA_COMPRAS}?ver=visar` },
         { id: "flujo", t: "Revisar el flujo de 3 meses y la holgura", c: faltaCaja.length ? `${faltaCaja.length} mes(es) con FALTA CAJA` : sinCuentas ? "Crea tus cuentas para proyectar la caja" : "Sin meses con falta de caja", href: `${RUTA_FIN}/tesoreria?ver=flujo` },
       ],
     },

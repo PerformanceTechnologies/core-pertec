@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { IconBuildingBank, IconCreditCard, IconPlus } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES, clp, clpCorto, fechaCl, finDeMes, mesLargo, type MesFlujo } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
 import { actualizarSaldoAction, guardarPartidaAction } from "../acciones-config";
@@ -225,10 +225,10 @@ function FlujoCaja({ v }: { v: V }) {
   const f = v.flujo;
   const enMes = (fecha: string | null, i: number) => Boolean(fecha && (i === 0 ? fecha <= finDeMes(f.meses[0].mes) : fecha >= f.meses[i].mes && fecha <= finDeMes(f.meses[i].mes)));
   const detalle = {
-    cobrosFacturadas: (i: number) => v.hitos.filter((h) => h.tipoFlujo === "Facturada" && h.montoFlujo && enMes(h.fechaFlujo, i)).map((h) => ({ t: `${h.codigo} · ${h.clienteNombre ?? ""} · N° ${h.factura?.folio}`, m: h.montoFlujo, f: h.fechaFlujo, href: `${RUTA_FIN}/ventas/hito/${h.id}` })),
-    cobrosPorFacturar: (i: number) => v.hitos.filter((h) => h.tipoFlujo === "Por facturar" && h.montoFlujo && enMes(h.fechaFlujo, i)).map((h) => ({ t: `${h.codigo} · ${h.clienteNombre ?? ""} · ${h.etapa}`, m: h.montoFlujo, f: h.fechaFlujo, href: `${RUTA_FIN}/ventas/hito/${h.id}` })),
+    cobrosFacturadas: (i: number) => v.hitos.filter((h) => h.tipoFlujo === "Facturada" && h.montoFlujo && enMes(h.fechaFlujo, i)).map((h) => ({ t: `${h.codigo} · ${h.clienteNombre ?? ""} · N° ${h.factura?.folio}`, m: h.montoFlujo, f: h.fechaFlujo, href: `${RUTA_VENTAS}/hito/${h.id}` })),
+    cobrosPorFacturar: (i: number) => v.hitos.filter((h) => h.tipoFlujo === "Por facturar" && h.montoFlujo && enMes(h.fechaFlujo, i)).map((h) => ({ t: `${h.codigo} · ${h.clienteNombre ?? ""} · ${h.etapa}`, m: h.montoFlujo, f: h.fechaFlujo, href: `${RUTA_VENTAS}/hito/${h.id}` })),
     excedentesFactoring: (i: number) => v.cesiones.filter((c) => c.montoFlujo && enMes(c.fechaFlujo, i)).map((c) => ({ t: `Op. ${c.operacionNumero} · N° ${c.folio}`, m: c.montoFlujo, f: c.fechaFlujo, href: `${RUTA_FIN}/tesoreria?ver=factoring` })),
-    pagosProveedores: (i: number) => v.compras.filter((c) => c.montoFlujo && enMes(c.fechaFlujo, i)).map((c) => ({ t: `${c.codigo} · ${c.proveedorNombre ?? ""} · ${c.paso}`, m: c.montoFlujo, f: c.fechaFlujo, href: `${RUTA_FIN}/compras?q=${c.codigo}` })),
+    pagosProveedores: (i: number) => v.compras.filter((c) => c.montoFlujo && enMes(c.fechaFlujo, i)).map((c) => ({ t: `${c.codigo} · ${c.proveedorNombre ?? ""} · ${c.paso}`, m: c.montoFlujo, f: c.fechaFlujo, href: `${RUTA_COMPRAS}?q=${c.codigo}` })),
   } as const;
   const fila = (etiqueta: string, clave: keyof MesFlujo, signo: "+" | "−" | "", calc?: keyof typeof detalle, manual?: string, fuerte = false) => (
     <tr className={fuerte ? "bg-tinta/[0.03] font-bold" : ""}>
@@ -283,8 +283,8 @@ function FlujoCaja({ v }: { v: V }) {
       <div className="grid gap-3 md:grid-cols-2">
         <Seccion titulo="Informativo (no incluido)">
           <ul className={`${TARJETA} divide-y divide-borde text-sm`}>
-            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Trabajos por facturar sin fecha estimada</span><span className="font-semibold tabular-nums">{clp(f.porFacturarSinFecha)}</span><Link href={`${RUTA_FIN}/ventas?sinFecha=1`} className="text-xs font-semibold text-naranjo">Asignar fecha</Link></li>
-            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Compras sin visar</span><span className="font-semibold tabular-nums">{clp(f.comprasSinVisar)}</span><Link href={`${RUTA_FIN}/compras?ver=visar`} className="text-xs font-semibold text-naranjo">Revisar</Link></li>
+            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Trabajos por facturar sin fecha estimada</span><span className="font-semibold tabular-nums">{clp(f.porFacturarSinFecha)}</span><Link href={`${RUTA_VENTAS}?sinFecha=1`} className="text-xs font-semibold text-naranjo">Asignar fecha</Link></li>
+            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Compras sin visar</span><span className="font-semibold tabular-nums">{clp(f.comprasSinVisar)}</span><Link href={`${RUTA_COMPRAS}?ver=visar`} className="text-xs font-semibold text-naranjo">Revisar</Link></li>
           </ul>
         </Seccion>
         <Seccion titulo="Cargar una partida manual">

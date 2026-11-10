@@ -76,7 +76,7 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <Link href={`/gestion-financiera/ventas/hito/${h.id}`} className="min-w-0 font-semibold text-tinta hover:text-naranjo">{h.codigo} · {h.periodo ?? h.descripcion}</Link>
+                  <Link href={`/finanzas/ventas/hito/${h.id}`} className="min-w-0 font-semibold text-tinta hover:text-naranjo">{h.codigo} · {h.periodo ?? h.descripcion}</Link>
                   <span className="shrink-0 text-right text-sm font-bold tabular-nums text-tinta"><Monto valor={h.neto} /></span>
                 </div>
                 <span className="block truncate text-[11px] text-gris">{h.clienteNombre ?? "Sin cliente"} · {h.proyectoNombre ?? "Sin proyecto"}</span>
@@ -123,7 +123,7 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
                   )}
                 </td>
                 <td className={`${TD} max-w-[18rem]`}>
-                  <Link href={`/gestion-financiera/ventas/hito/${h.id}`} className="font-semibold text-tinta hover:text-naranjo">{h.codigo} · {h.periodo ?? h.descripcion}</Link>
+                  <Link href={`/finanzas/ventas/hito/${h.id}`} className="font-semibold text-tinta hover:text-naranjo">{h.codigo} · {h.periodo ?? h.descripcion}</Link>
                   <span className="block truncate text-[11px] text-gris" title={`${h.clienteNombre ?? ""} · ${h.proyectoNombre ?? ""}`}>{h.clienteNombre ?? "Sin cliente"} · {h.proyectoNombre ?? "Sin proyecto"}</span>
                 </td>
                 <td className={TD}>

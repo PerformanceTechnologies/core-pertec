@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { IconPlus, IconReceipt2 } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista } from "@/lib/fin/datos";
+import { cargarVista, RUTA_VENTAS } from "@/lib/fin/datos";
 import { ETAPAS_HITO, clp, clpCorto, fechaCl, type EtapaHito } from "@/lib/fin/reglas";
 import { DTE_CORTO, TIPOS_DTE } from "@/lib/fin/modelo";
-import { anularCobroAction, anularDocumentoAction, guardarHitoAction, registrarNotaAction } from "../acciones-ventas";
+import { anularCobroAction, anularDocumentoAction, guardarHitoAction, registrarNotaAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { Banda, Chip, Deshabilitado, Monto, Pestanas, TD, TH, TONO_ETAPA, Vacio } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -39,12 +39,12 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
         valor={clp(v.dashboard.porCobrar)}
         bajada="Por cobrar con IVA: facturas emitidas que el cliente aún no paga. Cada fila de abajo es algo que se factura: un EDP, un hito, un mes de arriendo o un spot."
         pasos={[
-          { titulo: "Por iniciar", ayuda: "Cotización aceptada", n: enEtapa("Por iniciar"), href: `${RUTA_FIN}/ventas?etapa=Por iniciar` },
-          { titulo: "En ejecución", ayuda: "Se está haciendo el trabajo", n: enEtapa("En ejecución"), href: `${RUTA_FIN}/ventas?etapa=En ejecución` },
+          { titulo: "Por iniciar", ayuda: "Cotización aceptada", n: enEtapa("Por iniciar"), href: `${RUTA_VENTAS}?etapa=Por iniciar` },
+          { titulo: "En ejecución", ayuda: "Se está haciendo el trabajo", n: enEtapa("En ejecución"), href: `${RUTA_VENTAS}?etapa=En ejecución` },
           { titulo: "Requisitos", ayuda: "EDP, OC o HES del cliente", n: enEtapa("Esperando aprobación EDP") + enEtapa("Esperando OC") + enEtapa("Esperando HES") },
-          { titulo: "Lista para facturar", ayuda: "Registra la factura", n: enEtapa("Lista para facturar"), href: `${RUTA_FIN}/ventas?etapa=Lista para facturar`, alerta: true },
-          { titulo: "Por cobrar", ayuda: "Registra el cobro cuando llegue", n: enEtapa("Por cobrar") + enEtapa("Vencida"), href: `${RUTA_FIN}/ventas?etapa=Por cobrar`, alerta: enEtapa("Vencida") > 0 },
-          { titulo: "Cobrada", n: enEtapa("Cobrada"), href: `${RUTA_FIN}/ventas?etapa=Cobrada` },
+          { titulo: "Lista para facturar", ayuda: "Registra la factura", n: enEtapa("Lista para facturar"), href: `${RUTA_VENTAS}?etapa=Lista para facturar`, alerta: true },
+          { titulo: "Por cobrar", ayuda: "Registra el cobro cuando llegue", n: enEtapa("Por cobrar") + enEtapa("Vencida"), href: `${RUTA_VENTAS}?etapa=Por cobrar`, alerta: enEtapa("Vencida") > 0 },
+          { titulo: "Cobrada", n: enEtapa("Cobrada"), href: `${RUTA_VENTAS}?etapa=Cobrada` },
         ]}
         cifras={[
           { etiqueta: "Listo para facturar", valor: clpCorto(v.dashboard.listoParaFacturar), alerta: v.dashboard.listoParaFacturar > 0 },
@@ -55,7 +55,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Pestanas base={`${RUTA_FIN}/ventas`} actual={ver} opciones={[{ clave: "hitos", etiqueta: "Hitos por facturar / cobrar", n: activos.length }, { clave: "facturas", etiqueta: "Facturas emitidas", n: emitidos.length }, { clave: "cobros", etiqueta: "Cobros", n: v.cobros.length }]} />
+        <Pestanas base={`${RUTA_VENTAS}`} actual={ver} opciones={[{ clave: "hitos", etiqueta: "Hitos por facturar / cobrar", n: activos.length }, { clave: "facturas", etiqueta: "Facturas emitidas", n: emitidos.length }, { clave: "cobros", etiqueta: "Cobros", n: v.cobros.length }]} />
         <span className="flex-1" />
         <ConVentana boton={<><IconPlus size={15} /> Nuevo hito</>} titulo="Nuevo hito facturable" descripcion="Para un trabajo spot o un hito extra. Lo normal es que nazcan al aceptar una cotización." className={BOTON_SEC}>
           {(
@@ -89,12 +89,12 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
         <>
           {/* Barra de etapas: clic = filtro */}
           <div className="flex flex-wrap gap-1.5">
-            <Link href={`${RUTA_FIN}/ventas`} scroll={false} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${!sp.etapa && !sp.sinFecha ? "border-tinta bg-tinta text-superficie" : "border-borde bg-superficie text-gris hover:text-tinta"}`}>Todas · {activos.length}</Link>
+            <Link href={`${RUTA_VENTAS}`} scroll={false} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${!sp.etapa && !sp.sinFecha ? "border-tinta bg-tinta text-superficie" : "border-borde bg-superficie text-gris hover:text-tinta"}`}>Todas · {activos.length}</Link>
             {ETAPAS_HITO.map((e) => {
               const xs = activos.filter((h) => h.etapa === e);
               if (xs.length === 0) return null;
               return (
-                <Link key={e} href={`${RUTA_FIN}/ventas?etapa=${encodeURIComponent(e)}`} scroll={false} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${sp.etapa === e ? "border-naranjo ring-2 ring-naranjo/20" : "border-transparent"} ${TONO_ETAPA[e as EtapaHito]}`}>
+                <Link key={e} href={`${RUTA_VENTAS}?etapa=${encodeURIComponent(e)}`} scroll={false} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${sp.etapa === e ? "border-naranjo ring-2 ring-naranjo/20" : "border-transparent"} ${TONO_ETAPA[e as EtapaHito]}`}>
                   {e === "Lista para facturar" && "▶ "}{e} · {xs.length} · {clpCorto(xs.reduce((s, h) => s + h.totalConIva, 0))}
                 </Link>
               );
@@ -102,7 +102,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
           </div>
           <form className="max-w-md"><input name="q" defaultValue={sp.q} placeholder="Buscar hito, cliente, proyecto o folio…" className={CAMPO} />{sp.etapa && <input type="hidden" name="etapa" value={sp.etapa} />}</form>
           {filtrados.length === 0 ? (
-            <Vacio titulo={activos.length ? "Ningún hito con ese filtro" : "Todavía no hay hitos"} texto={activos.length ? "Prueba con otra etapa o borra la búsqueda." : "Los hitos nacen solos al aceptar una cotización en Leads. Para un trabajo suelto, usa «Nuevo hito»."} icono={<IconReceipt2 size={24} stroke={1.6} />}>{activos.length ? <Link href={`${RUTA_FIN}/ventas`} className={BOTON_SEC}>Ver todos</Link> : <Link href={"/leads"} className={BOTON}>Ir a Leads</Link>}</Vacio>
+            <Vacio titulo={activos.length ? "Ningún hito con ese filtro" : "Todavía no hay hitos"} texto={activos.length ? "Prueba con otra etapa o borra la búsqueda." : "Los hitos nacen solos al aceptar una cotización en Leads. Para un trabajo suelto, usa «Nuevo hito»."} icono={<IconReceipt2 size={24} stroke={1.6} />}>{activos.length ? <Link href={`${RUTA_VENTAS}`} className={BOTON_SEC}>Ver todos</Link> : <Link href={"/leads"} className={BOTON}>Ir a Leads</Link>}</Vacio>
           ) : (
             <TablaHitos hitos={filtrados} tasaIva={v.p.tasaIva} hoy={v.hoy} />
           )}
@@ -139,7 +139,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
             </ConVentana>
           </div>
           {emitidos.length === 0 ? (
-            <Vacio titulo="No hay facturas emitidas" texto="Se registran desde los hitos «Lista para facturar»: márcalos y usa «Registrar factura»." icono={<IconReceipt2 size={24} stroke={1.6} />}><Link href={`${RUTA_FIN}/ventas?etapa=Lista para facturar`} className={BOTON_SEC}>Ver lo listo para facturar</Link></Vacio>
+            <Vacio titulo="No hay facturas emitidas" texto="Se registran desde los hitos «Lista para facturar»: márcalos y usa «Registrar factura»." icono={<IconReceipt2 size={24} stroke={1.6} />}><Link href={`${RUTA_VENTAS}?etapa=Lista para facturar`} className={BOTON_SEC}>Ver lo listo para facturar</Link></Vacio>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
               <table className="w-full min-w-[62rem] text-sm">

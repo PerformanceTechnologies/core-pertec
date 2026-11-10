@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { IconCalendarStats, IconChartBar, IconClock, IconFolders, IconTargetArrow, IconUsers } from "@tabler/icons-react";
-import { RUTA_FIN, cargarComercial, cargarVista } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarComercial, cargarVista, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { clp, clpCorto, diaChile, diasEntre, fechaCl, mesLargo, sumarDias } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
@@ -56,13 +56,13 @@ export default async function ResumenFinanzasPage() {
   const atencion = [
     { n: d.movimientosEscalar, texto: "movimientos del banco para escalar", href: `${RUTA_FIN}/tesoreria?ver=escalar`, tono: "rose" },
     { n: d.movimientosPorAclarar, texto: "movimientos por aclarar", href: `${RUTA_FIN}/tesoreria`, tono: "amber" },
-    { n: d.facturasSinOc, texto: `facturas sin OC${facturasSinOcPorReclamar.length ? ` (la más urgente: ${Math.min(...facturasSinOcPorReclamar.map((x) => x.diasParaReclamo!))} días para reclamar)` : ""}`, href: `${RUTA_FIN}/compras`, tono: "rose" },
-    { n: v.compras.filter((c) => c.paso === "Falta visado de Finanzas").length, texto: "compras esperando visado", href: `${RUTA_FIN}/compras?ver=visar`, tono: "amber" },
-    { n: v.compras.filter((c) => c.paso === "Falta aprobación JP o gerente").length, texto: "compras esperando aprobación", href: `${RUTA_FIN}/compras?ver=aprobar`, tono: "amber" },
-    { n: v.hitos.filter((h) => h.etapa === "Lista para facturar").length, texto: `hitos listos para facturar (${clpCorto(d.listoParaFacturar)})`, href: `${RUTA_FIN}/ventas?etapa=Lista para facturar`, tono: "naranjo" },
-    { n: sinGestion.length, texto: "facturas vencidas hace más de 7 días", href: `${RUTA_FIN}/ventas?etapa=Vencida`, tono: "rose" },
+    { n: d.facturasSinOc, texto: `facturas sin OC${facturasSinOcPorReclamar.length ? ` (la más urgente: ${Math.min(...facturasSinOcPorReclamar.map((x) => x.diasParaReclamo!))} días para reclamar)` : ""}`, href: `${RUTA_COMPRAS}`, tono: "rose" },
+    { n: v.compras.filter((c) => c.paso === "Falta visado de Finanzas").length, texto: "compras esperando visado", href: `${RUTA_COMPRAS}?ver=visar`, tono: "amber" },
+    { n: v.compras.filter((c) => c.paso === "Falta aprobación JP o gerente").length, texto: "compras esperando aprobación", href: `${RUTA_COMPRAS}?ver=aprobar`, tono: "amber" },
+    { n: v.hitos.filter((h) => h.etapa === "Lista para facturar").length, texto: `hitos listos para facturar (${clpCorto(d.listoParaFacturar)})`, href: `${RUTA_VENTAS}?etapa=Lista para facturar`, tono: "naranjo" },
+    { n: sinGestion.length, texto: "facturas vencidas hace más de 7 días", href: `${RUTA_VENTAS}?etapa=Vencida`, tono: "rose" },
     { n: v.cesiones.filter((c) => c.estado === "Cliente pagó: confirmar con el factor").length, texto: "cesiones: cliente pagó, confirmar con el factor", href: `${RUTA_FIN}/tesoreria?ver=factoring`, tono: "amber" },
-    { n: v.hitos.filter((h) => h.tipoFlujo === "Por facturar" && h.fechaAceptacion && !h.fechaFlujo && !h.anulado).length, texto: "trabajos por facturar sin fecha estimada de pago", href: `${RUTA_FIN}/ventas?sinFecha=1`, tono: "slate" },
+    { n: v.hitos.filter((h) => h.tipoFlujo === "Por facturar" && h.fechaAceptacion && !h.fechaFlujo && !h.anulado).length, texto: "trabajos por facturar sin fecha estimada de pago", href: `${RUTA_VENTAS}?sinFecha=1`, tono: "slate" },
     { n: sinCuentas ? 0 : v.flujo.meses.filter((m) => m.alerta === "FALTA CAJA").length, texto: "meses con FALTA CAJA en la proyección", href: `${RUTA_FIN}/tesoreria?ver=flujo`, tono: "rose" },
   ].filter((x) => x.n > 0);
 
@@ -92,10 +92,10 @@ export default async function ResumenFinanzasPage() {
       <Cifras
         entra={{
           porCobrar: d.porCobrar, vencido: d.porCobrarVencido, cedido: d.porCobrarCedido, terminado: d.terminadoSinFacturar, listo: d.listoParaFacturar, factoring: d.cedidasVigentes,
-          href: { cobrar: `${RUTA_FIN}/ventas?ver=facturas`, terminado: `${RUTA_FIN}/ventas?etapa=Lista para facturar`, factoring: `${RUTA_FIN}/tesoreria?ver=factoring` },
+          href: { cobrar: `${RUTA_VENTAS}?ver=facturas`, terminado: `${RUTA_VENTAS}?etapa=Lista para facturar`, factoring: `${RUTA_FIN}/tesoreria?ver=factoring` },
         }}
-        sale={{ porPagar: d.porPagar, vencido: d.porPagarVencido, prox30: d.porPagar30, href: `${RUTA_FIN}/compras?ver=facturas` }}
-        mes={{ ventas: ventasMes, anioPasado: ventasAnioPasado, margen: pct(margenActivos), vendido: vendidoActivos, href: { ventas: `${RUTA_FIN}/ventas?ver=facturas`, proyectos: `${RUTA_FIN}/proyectos` } }}
+        sale={{ porPagar: d.porPagar, vencido: d.porPagarVencido, prox30: d.porPagar30, href: `${RUTA_COMPRAS}?ver=facturas` }}
+        mes={{ ventas: ventasMes, anioPasado: ventasAnioPasado, margen: pct(margenActivos), vendido: vendidoActivos, href: { ventas: `${RUTA_VENTAS}?ver=facturas`, proyectos: `${RUTA_FIN}/proyectos` } }}
       />
 
       <AtencionHoy items={atencion} rutinas={`${RUTA_FIN}/rutinas`} />
@@ -130,7 +130,7 @@ export default async function ResumenFinanzasPage() {
         <Seccion titulo="Ventas por etapa" icono={<IconChartBar size={15} />}>
           <div className={`${TARJETA} space-y-2 p-5`}>
             {d.porEtapa.map((e) => (
-              <Link key={e.etapa} href={`${RUTA_FIN}/ventas?etapa=${encodeURIComponent(e.etapa)}`} className="group block">
+              <Link key={e.etapa} href={`${RUTA_VENTAS}?etapa=${encodeURIComponent(e.etapa)}`} className="group block">
                 <div className="flex items-baseline gap-2 text-xs">
                   <span className="min-w-0 flex-1 truncate font-semibold text-tinta group-hover:text-naranjo">{e.etapa}</span>
                   <span className="tabular-nums text-gris">{e.n}</span>

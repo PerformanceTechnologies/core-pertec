@@ -25,6 +25,8 @@ import {
   IconDatabase,
   IconCloud,
   IconMessages,
+  IconReceipt,
+  IconShoppingCart,
   type Icon,
 } from "@tabler/icons-react";
 
@@ -55,6 +57,8 @@ export const ICONOS_DISPONIBLES: { clave: string; etiqueta: string; Componente: 
   { clave: "cloud", etiqueta: "Cloud / infraestructura", Componente: IconCloud },
   { clave: "music", etiqueta: "Eventos", Componente: IconMusic },
   { clave: "messages", etiqueta: "Muro / conversaciones", Componente: IconMessages },
+  { clave: "receipt", etiqueta: "Ventas / cobranza", Componente: IconReceipt },
+  { clave: "shopping-cart", etiqueta: "Compras / pagos", Componente: IconShoppingCart },
 ];
 
 const MAPA_ICONOS = new Map(ICONOS_DISPONIBLES.map((i) => [i.clave, i.Componente]));

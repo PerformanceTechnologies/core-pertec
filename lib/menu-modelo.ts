@@ -87,10 +87,20 @@ const SUBPANELES_EN_MENU = [
   { slug: "facturas-historicas", href: "/finanzas/facturas-historicas", nombre: "Históricos facturas", icono: "folder" },
 ];
 
+/**
+ * Ventas y cobranza y Compras y pagos: submódulos de Finanzas que por dentro siguen siendo de la
+ * aplicación «Gestión financiera» (mismo permiso, mismos datos). Aparecen si la persona la tiene.
+ */
+const SUBMODULOS_DE_GESTION = {
+  ventas: { href: "/finanzas/ventas", nombre: "Ventas y cobranza", icono: "receipt", descripcion: "Lo aceptado: facturar y cobrar." },
+  compras: { href: "/finanzas/compras", nombre: "Compras y pagos", icono: "shopping-cart", descripcion: "De la solicitud de compra al pago al proveedor." },
+} as const;
+
 type Plan = { slug: string; titulo: string; descripcion: string; items: Paso[]; directo?: boolean };
 type Paso =
   | { ruta: string; nombre?: string }
   | { subpanel: string }
+  | { gestion: keyof typeof SUBMODULOS_DE_GESTION }
   | { pronto: string; icono: string };
 
 const PLAN: Plan[] = [
@@ -108,7 +118,7 @@ const PLAN: Plan[] = [
     descripcion: "Contactos para facturar, gestión financiera (ventas, compras, banco y flujo), facturas del SII, rendición de gastos y facturas históricas.",
     // «Gestión financiera» va justo después de Contactos (que sigue encabezando: es la base de la
     // facturación). Es su propia aplicación, con su propio permiso.
-    items: [{ subpanel: "contactos" }, { ruta: "/gestion-financiera", nombre: "Gestión financiera" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
+    items: [{ subpanel: "contactos" }, { ruta: "/gestion-financiera", nombre: "Gestión financiera" }, { gestion: "ventas" }, { gestion: "compras" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
   },
   {
     slug: "crm",
@@ -208,6 +218,9 @@ export function armarMenu(
         usadas.add(paso.ruta);
         const app = porRuta.get(paso.ruta);
         if (app) items.push({ tipo: "app", app, nombre: paso.nombre ?? app.nombre });
+      } else if ("gestion" in paso) {
+        const g = SUBMODULOS_DE_GESTION[paso.gestion];
+        if (porRuta.has("/gestion-financiera")) items.push({ tipo: "enlace", href: g.href, nombre: g.nombre, icono: g.icono, descripcion: g.descripcion });
       } else if ("subpanel" in paso) {
         const sp = SUBPANELES_EN_MENU.find((s) => s.slug === paso.subpanel);
         if (sp && tieneFinanzas && subpanelesFinanzas.includes(sp.slug)) {

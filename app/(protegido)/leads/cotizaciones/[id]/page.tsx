@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconCheck, IconDownload, IconFileTypePdf, IconTrash } from "@tabler/icons-react";
-import { RUTA_FIN, RUTA_LEADS, adjuntosDe, cargarComercial, cargarVistaLeads, contextoLeads, historialDe, lineasDeCotizacion, productosInventario } from "@/lib/fin/datos";
+import { RUTA_FIN, RUTA_LEADS, adjuntosDe, cargarComercial, cargarVistaLeads, contextoLeads, historialDe, lineasDeCotizacion, productosInventario, RUTA_VENTAS } from "@/lib/fin/datos";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA, lineaNeta } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
@@ -101,7 +101,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
         <div className="flex flex-wrap gap-2 text-xs">
           {c.oportunidadId && <Link href={RUTA_LEADS} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">Lead: {com.oportunidades.find((o) => o.id === c.oportunidadId)?.nombre}</Link>}
           {c.proyectoId && <Link href={`${RUTA_FIN}/proyectos/${c.proyectoId}`} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">Proyecto: {v.proyectos.find((p) => p.id === c.proyectoId)?.nombre}</Link>}
-          {hitos.length > 0 && <Link href={`${RUTA_FIN}/ventas`} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">{hitos.length} hito(s): {hitos.map((h) => h.codigo).join(", ")}</Link>}
+          {hitos.length > 0 && <Link href={`${RUTA_VENTAS}`} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">{hitos.length} hito(s): {hitos.map((h) => h.codigo).join(", ")}</Link>}
         </div>
       )}
 

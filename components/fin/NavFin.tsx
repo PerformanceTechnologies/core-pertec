@@ -10,17 +10,13 @@ import {
   IconChecklist,
   IconFolders,
   IconLayoutDashboard,
-  IconReceipt,
   IconSettings,
-  IconShoppingCart,
   type Icon,
 } from "@tabler/icons-react";
 
 const BASE = "/gestion-financiera";
 const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean; ayuda: string }[] = [
   { href: BASE, etiqueta: "Resumen", Icono: IconLayoutDashboard, exacto: true, ayuda: "La foto de hoy: caja, lo que te deben, lo que debes y lo urgente" },
-  { href: `${BASE}/ventas`, etiqueta: "Ventas y cobranza", Icono: IconReceipt, ayuda: "Lo aceptado: facturar y cobrar" },
-  { href: `${BASE}/compras`, etiqueta: "Compras y pagos", Icono: IconShoppingCart, ayuda: "De la solicitud de compra al pago al proveedor" },
   { href: `${BASE}/tesoreria`, etiqueta: "Tesorería", Icono: IconBuildingBank, ayuda: "Banco diario, factoring y flujo de caja" },
   { href: `${BASE}/proyectos`, etiqueta: "Proyectos", Icono: IconFolders, ayuda: "Cuánto se vendió, gastó y ganó en cada proyecto" },
   { href: `${BASE}/contabilidad`, etiqueta: "Contabilidad", Icono: IconCalculator, ayuda: "Libros, IVA del mes, asientos y cierre" },

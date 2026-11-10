@@ -43,6 +43,9 @@ import {
 
 export const SLUG_APP_FIN = "gestion-financiera";
 export const RUTA_FIN = "/gestion-financiera";
+/** Ventas y cobranza y Compras y pagos viven como submódulos de Finanzas (los datos siguen siendo fin_*). */
+export const RUTA_VENTAS = "/finanzas/ventas";
+export const RUTA_COMPRAS = "/finanzas/compras";
 /** Leads (CRM): oportunidades y cotizaciones. Los datos son los mismos fin_* de Gestión financiera. */
 export const SLUG_APP_LEADS = "leads";
 export const RUTA_LEADS = "/leads";

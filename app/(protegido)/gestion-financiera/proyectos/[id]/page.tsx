@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, contextoFin } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, contextoFin, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { eliminarProyectoAction } from "../../acciones-config";
 import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_TIPO_PROYECTO } from "@/lib/fin/modelo";
@@ -55,7 +55,7 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
           <table className="w-full min-w-[44rem] text-sm">
             <thead><tr className="border-b border-borde"><th className={TH}>Hito</th><th className={TH}>Etapa</th><th className={`${TH} text-right`}>Neto</th><th className={TH}>Factura</th><th className={`${TH} text-right`}>Saldo</th></tr></thead>
-            <tbody className="divide-y divide-borde">{hitos.map((h) => <tr key={h.id}><td className={TD}><Link href={`${RUTA_FIN}/ventas/hito/${h.id}`} className="font-semibold hover:text-naranjo">{h.codigo} · {h.periodo ?? h.descripcion}</Link></td><td className={TD}><Chip texto={h.etapa} tono={TONO_ETAPA[h.etapa]} /></td><td className={`${TD} text-right`}><Monto valor={h.neto} /></td><td className={`${TD} text-xs`}>{h.factura ? `N° ${h.factura.folio}` : "—"}</td><td className={`${TD} text-right`}><Monto valor={h.saldo} /></td></tr>)}</tbody>
+            <tbody className="divide-y divide-borde">{hitos.map((h) => <tr key={h.id}><td className={TD}><Link href={`${RUTA_VENTAS}/hito/${h.id}`} className="font-semibold hover:text-naranjo">{h.codigo} · {h.periodo ?? h.descripcion}</Link></td><td className={TD}><Chip texto={h.etapa} tono={TONO_ETAPA[h.etapa]} /></td><td className={`${TD} text-right`}><Monto valor={h.neto} /></td><td className={`${TD} text-xs`}>{h.factura ? `N° ${h.factura.folio}` : "—"}</td><td className={`${TD} text-right`}><Monto valor={h.saldo} /></td></tr>)}</tbody>
           </table>
           {hitos.length === 0 && <p className="p-6 text-center text-xs text-gris">Sin hitos.</p>}
         </div>
@@ -64,7 +64,7 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
           <table className="w-full min-w-[44rem] text-sm">
             <thead><tr className="border-b border-borde"><th className={TH}>Compra</th><th className={TH}>Siguiente paso</th><th className={TH}>Proveedor</th><th className={`${TH} text-right`}>Comprometido</th></tr></thead>
-            <tbody className="divide-y divide-borde">{compras.map((x) => <tr key={x.id}><td className={TD}><Link href={`${RUTA_FIN}/compras?q=${x.codigo}`} className="font-semibold hover:text-naranjo">{x.codigo}</Link> · {x.descripcion}</td><td className={TD}><Chip texto={x.paso} tono={tonoPaso(x.paso)} /></td><td className={`${TD} max-w-[12rem] truncate`}>{x.proveedorNombre ?? "—"}</td><td className={`${TD} text-right`}><Monto valor={x.comprometidoNeto} /></td></tr>)}</tbody>
+            <tbody className="divide-y divide-borde">{compras.map((x) => <tr key={x.id}><td className={TD}><Link href={`${RUTA_COMPRAS}?q=${x.codigo}`} className="font-semibold hover:text-naranjo">{x.codigo}</Link> · {x.descripcion}</td><td className={TD}><Chip texto={x.paso} tono={tonoPaso(x.paso)} /></td><td className={`${TD} max-w-[12rem] truncate`}>{x.proveedorNombre ?? "—"}</td><td className={`${TD} text-right`}><Monto valor={x.comprometidoNeto} /></td></tr>)}</tbody>
           </table>
           {compras.length === 0 && <p className="p-6 text-center text-xs text-gris">Sin compras.</p>}
         </div>

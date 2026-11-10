@@ -40,7 +40,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           { titulo: "Lead", ayuda: "Un cliente interesado", n: abiertas.length, href: `${RUTA_LEADS}` },
           { titulo: "Cotización", ayuda: "PDF y envío por correo", n: enviadas.length, href: `${RUTA_LEADS}?ver=cotizaciones` },
           { titulo: "Aceptación", ayuda: "Nacen el proyecto y los hitos" },
-          { titulo: "Ventas y cobranza", ayuda: "Se factura y se cobra", href: "/gestion-financiera/ventas" },
+          { titulo: "Ventas y cobranza", ayuda: "Se factura y se cobra", href: "/finanzas/ventas" },
         ]}
         cifras={[
           { etiqueta: "Forecast ponderado", valor: clpCorto(ponderado) },
