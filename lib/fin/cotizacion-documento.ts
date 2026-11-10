@@ -104,7 +104,7 @@ const CSS = `
   html, body { margin: 0; padding: 0; }
   body { font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: #1b1814; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .barra { height: 5px; background: #c85217; }
-  /* El margen lateral vive en .hoja (fijo); lo que se achica o agranda al ajustar a la hoja es .pagina, con «zoom». */
+  /* El margen lateral vive en .hoja. Para ajustar a la hoja solo se achica la tabla de productos (con «zoom»); el resto del texto no cambia. */
   .hoja { padding: 0 16mm; }
   .pagina.una-hoja { display: flex; flex-direction: column; }
   .pagina.una-hoja .cierre { margin-top: auto; }
@@ -167,6 +167,17 @@ const CSS = `
   .firma .raya { width: 60mm; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; }
   .firma b { font-size: 10pt; }
   .g + .g { margin-top: 5mm; }
+
+  /* Espacio justo: antes de achicar las filas de productos se aprietan los márgenes (la letra no cambia). */
+  body.espacio-justo .cabecera { padding: 4mm 0 2.5mm; }
+  body.espacio-justo .titulo { padding: 2.5mm 0; margin-bottom: 3mm; }
+  body.espacio-justo .caja { padding: 2.5mm 4mm; }
+  body.espacio-justo .bloque { margin-bottom: 2.5mm; }
+  body.espacio-justo .bloque li { margin-bottom: 0.6mm; }
+  body.espacio-justo .totales td { padding: 0.8mm 3mm; }
+  body.espacio-justo .totales tr.total td { padding: 1.8mm 3mm; }
+  body.espacio-justo .agradece { margin-bottom: 3mm; }
+  body.espacio-justo .g + .g { margin-top: 3mm; }
 `;
 
 export function htmlDeCotizacion(d: DatosDocumento): string {

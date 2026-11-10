@@ -132,21 +132,24 @@ if (process.env.PDF_SALIDA) {
   const lineas = (n: number, largas = false) => Array.from({ length: n }, (_, i) => ({ productoId: null, descripcion: largas ? `Servicio de mantención preventiva del equipo ${i + 1}, incluye inspección, lubricación y ajuste de componentes` : `Mantención preventiva del equipo ${i + 1}`, cantidad: 1 + (i % 3), unidad: "un", precioUnitario: 150_000 + i * 10_000, descuentoPct: i % 4 === 0 ? 0.05 : 0, exento: false, meses: null }));
   for (const e of EMPRESAS) {
     const logo = readFileSync(new URL(`../public/empresas/${e.slug}-completo.png`, import.meta.url)).toString("base64");
-    for (const [n, esperado, largas] of [[1, 1, false], [2, 1, false], [5, 1, false], [10, 1, false], [14, 1, false], [4, 1, true], [10, 1, true], [24, "libre", false], [60, "varias", false]] as const) {
+    for (const [n, esperado, largas] of [[1, 1, false], [2, 1, false], [5, 1, false], [8, 1, false], [11, 1, false], [14, "libre", false], [18, "libre", false], [4, 1, true], [8, "libre", true], [60, "varias", false]] as const) {
       const d = { ...datos(e, { lineas: lineas(n, largas), descuentoGeneral: { tipo: "pct", valor: 10 }, incluirDatosPago: n !== 5 }), logo: `data:image/png;base64,${logo}` };
       const page = await nav.newPage();
       const r = await imprimirCotizacion(page, d);
+      // El resto del documento nunca cambia de tamaño: la única regla de zoom es la de la tabla.
+      const zoomDeLaPagina = await page.evaluate(() => document.querySelector<HTMLElement>(".pagina")!.style.zoom);
       if (process.env.DIAGNOSTICO) console.log("   filas:", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("table.lineas tbody tr")].slice(0, 2).map((tr) => [Math.round(tr.getBoundingClientRect().height), [...tr.children].map((c) => [Math.round(c.getBoundingClientRect().width), Math.round(c.getBoundingClientRect().height), c.textContent!.trim().slice(0, 25)])]))));
       await page.close();
       writeFileSync(`${process.env.PDF_SALIDA}/${e.slug}-${n}-lineas${largas ? "-largas" : ""}.pdf`, r.pdf);
-      console.log(`${e.slug} · ${n} líneas${largas ? " largas" : ""} → ${r.paginas} hoja(s), ${r.modo}, zoom ${r.zoom.toFixed(2)}, ocupa ${Math.round(r.ocupacion * 100)} % de la hoja`);
+      console.log(`${e.slug} · ${n} líneas${largas ? " largas" : ""} → ${r.paginas} hoja(s), ${r.modo}, zoom ${r.zoom.toFixed(2)}${r.espacioJusto ? ", márgenes justos" : ""}, ocupa ${Math.round(r.ocupacion * 100)} % de la hoja`);
       if (esperado === 1) {
         assert.equal(r.paginas, 1, `${e.slug} con ${n} líneas${largas ? " largas" : ""} debe caber en una hoja`);
-        assert.ok(r.zoom >= ZOOM_MIN, "no se achica por debajo del mínimo legible");
+        assert.ok(r.zoom >= ZOOM_MIN, "las filas no se achican por debajo del mínimo legible");
       }
       if (esperado === "varias") assert.ok(r.paginas >= 2 && r.modo === "varias-hojas", `${e.slug} con ${n} líneas sigue en una segunda hoja`);
-      // Con pocas líneas el documento llena la hoja (no queda media hoja en blanco).
-      if (n <= 5 && !largas) assert.ok(r.ocupacion >= 0.68, `${e.slug} con ${n} líneas debe ocupar bien la hoja (ocupa ${Math.round(r.ocupacion * 100)} %)`);
+      // Con pocas líneas NADA se achica: el texto queda como siempre.
+      if (n <= 5 && !largas) assert.equal(r.zoom, 1, `${e.slug} con ${n} líneas no debe achicar nada`);
+      assert.equal(zoomDeLaPagina, "", "solo la tabla se achica");
     }
   }
   await nav.close();
