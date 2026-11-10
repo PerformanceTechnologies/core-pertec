@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconArrowLeft } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista } from "@/lib/fin/datos";
+import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
+import { RUTA_FIN, cargarVista, contextoFin } from "@/lib/fin/datos";
+import { eliminarProyectoAction } from "../../acciones-config";
 import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_TIPO_PROYECTO } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { Chip, Kpi, Monto, Seccion, TD, TH, TONO_ETAPA, tonoPaso } from "@/components/fin/piezas";
-import { ConVentana } from "@/components/fin/ui";
+import { BotonAccion, ConVentana } from "@/components/fin/ui";
 import { BOTON_SEC } from "@/components/fin/estilos";
 import FormProyecto from "@/components/fin/FormProyecto";
 
@@ -16,7 +17,7 @@ const pct = (x: number | null) => (x === null ? "—" : `${(x * 100).toLocaleStr
 
 export default async function ProyectoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const v = await cargarVista();
+  const [v, ctx] = await Promise.all([cargarVista(), contextoFin()]);
   const p = v.proyectos.find((x) => x.id === id);
   if (!p) notFound();
   const hitos = v.hitos.filter((h) => h.proyectoId === id);
@@ -33,6 +34,12 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
           <p className="text-sm text-gris">{p.mandanteId ? v.nombreDe.get(p.mandanteId) : p.esGeneral ? "Interno" : "Sin mandante"}{p.jefeProyecto ? ` · JP ${p.jefeProyecto}` : ""}{p.fechaInicio ? ` · ${fechaCl(p.fechaInicio)} → ${fechaCl(p.fechaTermino)}` : ""}</p>
           {p.descripcion && <p className="mt-1 text-sm text-tinta">{p.descripcion}</p>}
         </div>
+        {/* Solo el administrador del sistema, y solo un proyecto vacío (la acción lo vuelve a exigir). */}
+        {ctx.usuario.rol === "admin" && !p.esGeneral && (
+          <BotonAccion accion={eliminarProyectoAction.bind(null, id)} motivo="¿Por qué se elimina este proyecto?" titulo="Eliminar el proyecto (solo administrador, solo si está vacío)" volverA={`${RUTA_FIN}/proyectos`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.06] px-3 py-2 text-xs font-semibold text-alerta transition hover:bg-rose-500/[0.12] disabled:opacity-50">
+            <IconTrash size={14} /> Eliminar proyecto
+          </BotonAccion>
+        )}
         <ConVentana boton="Editar" titulo={`Editar ${p.nombre}`} className={BOTON_SEC}>{<FormProyecto p={p} clientes={v.contrapartes.map((x) => ({ id: x.id, nombre: x.nombre, rut: x.rut }))} />}</ConVentana>
       </header>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">

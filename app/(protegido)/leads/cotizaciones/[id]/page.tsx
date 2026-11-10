@@ -11,7 +11,7 @@ import { BotonAccion, Campo, ConVentana, FormAccion, SubirAdjunto } from "@/comp
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
 import { BotonEnviarCotizacion } from "@/components/leads/EnviarCotizacion";
-import { eliminarCotizacionAction } from "../../acciones";
+import { eliminarCotizacionAction, eliminarCotizacionConHitosAction } from "../../acciones";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
 
 export const dynamic = "force-dynamic";
@@ -83,8 +83,14 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
         <span className="flex-1" />
         {/* Solo el administrador del sistema (la acción lo vuelve a exigir en el servidor). */}
         {ctx.usuario.rol === "admin" && (
-          <BotonAccion accion={eliminarCotizacionAction.bind(null, id)} motivo="¿Por qué se elimina esta cotización?" titulo="Eliminar la cotización (solo administrador)" volverA={`${RUTA_LEADS}?ver=cotizaciones`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.06] px-3 py-2 text-xs font-semibold text-alerta transition hover:bg-rose-500/[0.12] disabled:opacity-50">
-            <IconTrash size={14} /> Eliminar
+          <BotonAccion
+            accion={(hitos.length > 0 ? eliminarCotizacionConHitosAction : eliminarCotizacionAction).bind(null, id)}
+            motivo={hitos.length > 0 ? `¿Por qué se elimina? Se borrarán también sus ${hitos.length} hito(s) de venta` : "¿Por qué se elimina esta cotización?"}
+            titulo="Eliminar (solo administrador)"
+            volverA={`${RUTA_LEADS}?ver=cotizaciones`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.06] px-3 py-2 text-xs font-semibold text-alerta transition hover:bg-rose-500/[0.12] disabled:opacity-50"
+          >
+            <IconTrash size={14} /> {hitos.length > 0 ? "Eliminar cotización y sus hitos" : "Eliminar"}
           </BotonAccion>
         )}
         <SubirAdjunto entidadTipo="cotizacion" entidadId={id} tipo="cotizacion_cliente" texto="Adjuntar respaldo" />
