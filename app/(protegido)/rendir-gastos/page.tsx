@@ -7,6 +7,7 @@ import {
   IconHome,
   IconListDetails,
   IconNotebook,
+  IconReceipt,
   IconReceipt2,
   IconSettings,
   IconUserCheck,
@@ -37,7 +38,7 @@ import { eliminarRendicionAction } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type Pestana = "inicio" | "fondos" | "informes" | "validar" | "asignar" | "tesoreria" | "revisar" | "libro" | "config";
+type Pestana = "inicio" | "fondos" | "gastos" | "informes" | "validar" | "asignar" | "tesoreria" | "revisar" | "libro" | "config";
 
 export default async function RendirGastosPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
   const { usuario, rol } = await exigirAccesoRendidor();
@@ -77,6 +78,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const pestanas: { id: Pestana; texto: string; Icono: typeof IconHome; cuenta?: number }[] = [
     { id: "inicio", texto: "Inicio", Icono: IconHome },
     { id: "fondos", texto: "Mis fondos", Icono: IconWallet },
+    { id: "gastos", texto: "Mis gastos", Icono: IconReceipt },
     { id: "informes", texto: "Mis informes", Icono: IconReceipt2 },
     ...(tiene("validador") ? [{ id: "validar" as const, texto: "Por validar", Icono: IconUserCheck, cuenta: porValidar.length }] : []),
     ...(tiene("asignador") ? [{ id: "asignar" as const, texto: "Por asignar", Icono: IconChecklist, cuenta: porAsignar.length + porReponer.length }] : []),
@@ -114,7 +116,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
             return (
               <Link
                 key={p.id}
-                href={`/rendir-gastos?ver=${p.id}`}
+                href={p.id === "gastos" ? "/rendir-gastos/gastos" : `/rendir-gastos?ver=${p.id}`}
                 scroll={false}
                 aria-current={on ? "page" : undefined}
                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition ${on ? "bg-naranjo text-white shadow-sm" : "text-gris hover:text-tinta"}`}
@@ -129,7 +131,14 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
 
       {actual === "inicio" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Link href="/rendir-gastos/gastos" className="flex items-center gap-3 rounded-2xl border border-borde bg-superficie p-3.5 transition hover:border-naranjo/40">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600"><IconReceipt size={20} /></span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-tinta">Subir gastos</span>
+                <span className="block text-[11px] text-gris">Boletas sueltas, se leen solas</span>
+              </span>
+            </Link>
             <SolicitarFondo comoTarjeta />
             <NuevaRendicion fondos={fondosParaInforme} comoTarjeta />
           </div>
