@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { IconChevronDown } from "@tabler/icons-react";
 import type { CodigoIndicador, Indicador } from "@/lib/indicadores";
 
-// Cartilla de indicadores económicos (dólar, UF, UTM, IPC) bajo la barra superior, solo en Finanzas
+// Cartilla de indicadores económicos (dólar, UF, UTM, IPC) bajo la barra superior, solo en Finanzas, CRM
 // y sus submódulos. Transparente y de una línea; al tocarla abre un popup con el detalle completo.
 
-/** Rutas donde se muestra: el módulo Finanzas y todo lo que cuelga de él. */
-const RUTAS = ["/modulos/finanzas", "/finanzas", "/gestion-financiera", "/rendir-gastos"];
+/**
+ * Rutas donde se muestra: los módulos Finanzas y CRM, y todo lo que cuelga de ellos. Los submódulos de CRM
+ * son Leads, Cotizador y Ofertas técnicas (ver PLAN en lib/menu-modelo.ts): si se agrega uno, va acá.
+ */
+const RUTAS = ["/modulos/finanzas", "/finanzas", "/gestion-financiera", "/rendir-gastos", "/modulos/crm", "/leads", "/cotizador", "/ofertas"];
 const REFRESCO_MS = 10 * 60 * 1000;
 
 /** Lo que muestra la cartilla, en este orden. */

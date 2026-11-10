@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconAlertTriangle, IconCalendar, IconFileText, IconFlag, IconPhone, IconPlus, IconSearch, IconUser } from "@tabler/icons-react";
+import { IconAlertTriangle, IconChevronDown, IconFileText, IconPhone, IconPlus, IconSearch } from "@tabler/icons-react";
 import { moverOportunidadAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { clpCorto, diaChile, diasEntre, fechaCl } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
@@ -178,52 +179,111 @@ export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo }
 }
 
 /** Cambiar de etapa sin arrastrar: lo que se usa en el celular y con teclado. */
-function SelectorEtapa({ o, alMover }: { o: Oportunidad; alMover: (etapa: string) => void }) {
+function SelectorEtapa({ o, alMover, className = "max-w-full" }: { o: Oportunidad; alMover: (etapa: string) => void; className?: string }) {
   return (
     <select value={o.etapa} onChange={(e) => alMover(e.target.value)} aria-label={`Etapa de ${o.nombre}`} onClick={(e) => e.stopPropagation()}
-      className={`max-w-full cursor-pointer rounded-full border-0 py-1 pl-2.5 pr-6 text-[11px] font-semibold ${TONO[o.etapa]?.chip ?? ""}`}>
+      className={`${className} cursor-pointer truncate rounded-full border-0 py-1 pl-2.5 pr-6 text-[11px] font-semibold ${TONO[o.etapa]?.chip ?? ""}`}>
       {ETAPAS_OPORTUNIDAD.map((e) => <option key={e.clave} value={e.clave}>{e.etiqueta}</option>)}
     </select>
   );
 }
 
+/** Lo que no cabe en la tarjeta: se ve al pasar el cursor (en computador) o con «Ver más» (en el celular). */
+function DetalleLead({ o, hoy, conLlamar = false }: { o: Oportunidad; hoy: string; conLlamar?: boolean }) {
+  const ref = diaChile(o.ultimaActividad ?? o.actualizadoEn);
+  const hace = diasEntre(ref, hoy);
+  const vencido = !cerrada(o.etapa) && o.proximoPasoFecha && o.proximoPasoFecha < hoy;
+  const filas: [string, React.ReactNode][] = [];
+  if (o.contactoNombre || o.contactoTelefono || o.contactoCorreo) {
+    filas.push(["Contacto", <span key="c" className="break-words">{[o.contactoNombre, o.contactoTelefono, o.contactoCorreo].filter(Boolean).join(" · ")}{conLlamar && o.contactoTelefono && <a href={`tel:${o.contactoTelefono.replace(/[^\d+]/g, "")}`} onClick={(e) => e.stopPropagation()} className="ml-1.5 inline-flex items-center gap-0.5 font-semibold text-naranjo"><IconPhone size={11} /> llamar</a>}</span>]);
+  }
+  if (o.proximoPaso) filas.push(["Próximo paso", <span key="p" className={vencido ? "font-semibold text-alerta" : ""}>{o.proximoPaso}{o.proximoPasoFecha && ` · ${fechaCl(o.proximoPasoFecha)}`}{vencido && " (vencido)"}</span>]);
+  if (o.fechaCierre) filas.push(["Cierre estimado", fechaCl(o.fechaCierre)]);
+  filas.push(["Responsable", o.responsable?.split("@")[0] ?? "—"]);
+  filas.push(["Tipo y origen", [o.tipo, o.origen].filter(Boolean).join(" · ")]);
+  filas.push(["Última actividad", hace <= 0 ? "hoy" : `hace ${hace} ${hace === 1 ? "día" : "días"}${!cerrada(o.etapa) && hace > 7 ? " (sin seguimiento)" : ""}`]);
+  if (o.descripcion) filas.push(["Notas", <span key="n" className="line-clamp-4 break-words">{o.descripcion}</span>]);
+  if (o.etapa === "perdida" && o.motivoPerdida) filas.push(["Motivo de pérdida", <span key="m" className="text-alerta">{o.motivoPerdida}</span>]);
+  return (
+    <dl className="space-y-1.5 text-[11px] leading-snug">
+      {filas.map(([k, v]) => (
+        <div key={k} className="grid grid-cols-[5.5rem_1fr] gap-2">
+          <dt className="font-semibold text-gris">{k}</dt>
+          <dd className="min-w-0 text-tinta">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * La tarjeta, concisa: qué es, de quién, cuánto y en qué etapa. El resto (contacto, próximo paso, cierre, notas…)
+ * aparece al pasar el cursor por encima, o con «Ver más» en el celular, donde no hay cursor.
+ */
 function TarjetaLead({ o, cliente, hoy, clientes, arrastrable, arrastrando, alArrastrar, alSoltar, alMover }: {
   o: Oportunidad; cliente: string; hoy: string; clientes: OpcionContacto[]; arrastrable: boolean; arrastrando: boolean; alArrastrar: () => void; alSoltar: () => void; alMover: (etapa: string) => void;
 }) {
   const ref = diaChile(o.ultimaActividad ?? o.actualizadoEn);
   const quieta = !cerrada(o.etapa) && diasEntre(ref, hoy) > 7;
-  const vencido = !cerrada(o.etapa) && o.proximoPasoFecha && o.proximoPasoFecha < hoy;
+  const vencido = !cerrada(o.etapa) && Boolean(o.proximoPasoFecha && o.proximoPasoFecha < hoy);
+  const aviso = vencido ? "Próximo paso vencido" : quieta ? `${diasEntre(ref, hoy)} días sin actividad` : null;
+  const tarjeta = useRef<HTMLElement>(null);
+  const espera = useRef<number | undefined>(undefined);
+  const [flotante, setFlotante] = useState<{ x: number; y: number } | null>(null);
+  const [masAbierto, setMasAbierto] = useState(false);
+
+  const ocultar = () => {
+    window.clearTimeout(espera.current);
+    setFlotante(null);
+  };
+  useEffect(() => () => window.clearTimeout(espera.current), []);
+  // Un instante de espera: pasar el cursor de largo no abre nada. Solo con mouse (el táctil usa «Ver más»).
+  const mostrar = (e: React.PointerEvent) => {
+    if (e.pointerType !== "mouse" || arrastrando) return;
+    window.clearTimeout(espera.current);
+    espera.current = window.setTimeout(() => {
+      const r = tarjeta.current?.getBoundingClientRect();
+      if (!r) return;
+      const ancho = 296;
+      const aLaDerecha = r.right + 10 + ancho <= window.innerWidth;
+      setFlotante({ x: aLaDerecha ? r.right + 10 : Math.max(8, r.left - 10 - ancho), y: Math.max(8, Math.min(r.top, window.innerHeight - 320)) });
+    }, 300);
+  };
+
   return (
     <article
+      ref={tarjeta}
       draggable={arrastrable}
-      onDragStart={arrastrable ? alArrastrar : undefined}
+      onDragStart={arrastrable ? () => (ocultar(), alArrastrar()) : undefined}
       onDragEnd={arrastrable ? alSoltar : undefined}
-      className={`rounded-xl border bg-superficie p-3 shadow-sm ${arrastrable ? "cursor-grab active:cursor-grabbing" : ""} ${arrastrando ? "opacity-40" : ""} ${quieta ? "border-amber-400/60" : "border-borde"}`}
+      onPointerEnter={mostrar}
+      onPointerLeave={ocultar}
+      className={`rounded-xl border bg-superficie p-2.5 shadow-sm transition-shadow hover:shadow-md ${arrastrable ? "cursor-grab active:cursor-grabbing" : ""} ${arrastrando ? "opacity-40" : ""} ${aviso ? "border-amber-400/60" : "border-borde"}`}
     >
-      <ConVentana boton={<span className="block text-left text-sm font-semibold leading-snug text-tinta hover:text-naranjo">{o.nombre}</span>} titulo={`${o.codigo} · ${o.nombre}`} className="w-full">
-        {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} />}
-      </ConVentana>
+      <div className="flex items-start gap-1.5">
+        <ConVentana boton={<span className="line-clamp-2 text-left text-[13px] font-semibold leading-snug text-tinta hover:text-naranjo">{o.nombre}</span>} titulo={`${o.codigo} · ${o.nombre}`} className="min-w-0 flex-1 text-left">
+          {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} />}
+        </ConVentana>
+        {aviso && <span title={aviso} aria-label={aviso} className={`mt-0.5 shrink-0 ${vencido ? "text-alerta" : "text-aviso"}`}><IconAlertTriangle size={14} /></span>}
+      </div>
       <p className="mt-0.5 truncate text-[11px] text-gris">{cliente}</p>
-      <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
-        <span className="font-bold tabular-nums text-tinta">{clpCorto(o.montoEstimado)} <span className="font-medium text-gris">· {o.probabilidad}%</span></span>
-        {o.fechaCierre && <span className="inline-flex items-center gap-0.5 text-gris"><IconCalendar size={11} /> {fechaCl(o.fechaCierre)}</span>}
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
+        <span className="font-bold tabular-nums text-tinta">{clpCorto(o.montoEstimado)}</span>
+        <span className="rounded-full bg-tinta/[0.06] px-1.5 py-px font-semibold tabular-nums text-gris">{o.probabilidad}%</span>
       </div>
-      {(o.contactoNombre || o.contactoTelefono) && (
-        <p className="mt-1.5 flex items-center gap-1 truncate text-[11px] text-gris"><IconUser size={11} className="shrink-0" /> {o.contactoNombre ?? "Contacto"}
-          {o.contactoTelefono && <a href={`tel:${o.contactoTelefono.replace(/[^\d+]/g, "")}`} onClick={(e) => e.stopPropagation()} className="ml-1 inline-flex items-center gap-0.5 font-semibold text-naranjo"><IconPhone size={11} /> llamar</a>}</p>
+      <div className="mt-2 flex items-center gap-1.5 border-t border-borde/60 pt-2">
+        <div className="min-w-0 flex-1"><SelectorEtapa o={o} alMover={alMover} className="w-full" /></div>
+        <button type="button" onClick={() => setMasAbierto((v) => !v)} aria-expanded={masAbierto} aria-label={masAbierto ? "Ver menos" : "Ver más del lead"} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-gris transition hover:bg-tinta/[0.06] md:hidden"><IconChevronDown size={15} className={`transition ${masAbierto ? "rotate-180" : ""}`} /></button>
+        {!cerrada(o.etapa) && <Link href={`/leads/cotizaciones/nueva?oportunidad=${o.id}`} title="Crear cotización" aria-label="Crear cotización para este lead" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-naranjo transition hover:bg-naranjo/10"><IconFileText size={15} /></Link>}
+      </div>
+      {masAbierto && <div className="mt-2 border-t border-borde/60 pt-2 md:hidden"><DetalleLead o={o} hoy={hoy} conLlamar /></div>}
+      {flotante && typeof document !== "undefined" && createPortal(
+        <div role="tooltip" style={{ position: "fixed", left: flotante.x, top: flotante.y, width: 296 }} className="pointer-events-none z-[60] rounded-xl border border-borde bg-superficie p-3 shadow-[0_18px_40px_-14px_rgba(23,20,17,0.35)]">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-gris">{o.codigo} · {cliente}</p>
+          <DetalleLead o={o} hoy={hoy} />
+        </div>,
+        document.body,
       )}
-      {o.proximoPaso && (
-        <p className={`mt-1.5 flex items-start gap-1 text-[11px] ${vencido ? "font-semibold text-alerta" : "text-gris"}`}><IconFlag size={11} className="mt-px shrink-0" /> <span className="min-w-0 break-words">{o.proximoPaso}{o.proximoPasoFecha && ` · ${fechaCl(o.proximoPasoFecha)}`}</span></p>
-      )}
-      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-gris">
-        <span className="truncate">{o.responsable?.split("@")[0] ?? "—"}</span>
-        {quieta && <span className="inline-flex shrink-0 items-center gap-0.5 text-aviso"><IconAlertTriangle size={11} /> {diasEntre(ref, hoy)} d sin actividad</span>}
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2 border-t border-borde/60 pt-2">
-        <SelectorEtapa o={o} alMover={alMover} />
-        {!cerrada(o.etapa) && <Link href={`/leads/cotizaciones/nueva?oportunidad=${o.id}`} className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-naranjo hover:underline"><IconFileText size={12} /> Cotizar</Link>}
-      </div>
-      {o.etapa === "perdida" && o.motivoPerdida && <p className="mt-1 text-[10px] text-alerta">{o.motivoPerdida}</p>}
     </article>
   );
 }
