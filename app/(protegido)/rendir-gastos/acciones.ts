@@ -17,7 +17,6 @@ import {
   correosRevisores,
   crearRendicion,
   eliminarRendicion,
-  listarPersonas,
   obtenerRendicion,
 } from "@/lib/rendidor/datos";
 import { borrarRespaldosDeRendicion } from "@/lib/rendidor/almacenamiento";
@@ -88,7 +87,19 @@ async function avisar(para: string[], actor: string, r: Rendicion, tipo: string,
 
 // ---------- Crear y editar -----------------------------------------------------
 
-export async function crearRendicionAction(form: FormData) {
+export async function crearRendicionAction(form: FormData): Promise<Resultado> {
+  // Los errores vuelven como mensaje (para el formulario); el éxito redirige al informe.
+  let id: string;
+  try {
+    id = await crearInforme(form);
+  } catch (e) {
+    return fallo(e);
+  }
+  revalidatePath("/rendir-gastos");
+  redirect(`/rendir-gastos/${id}`);
+}
+
+async function crearInforme(form: FormData): Promise<string> {
   const { usuario, rol } = await exigirAccesoRendidor();
 
   const tituloRendicion = String(form.get("tituloRendicion") ?? "").trim().slice(0, 200);
@@ -119,8 +130,7 @@ export async function crearRendicionAction(form: FormData) {
     usuario.id,
   );
 
-  revalidatePath("/rendir-gastos");
-  redirect(`/rendir-gastos/${rendicion.id}`);
+  return rendicion.id;
 }
 
 export async function actualizarCabeceraAction(id: string, datos: { tituloRendicion: string; montoAsignado: number }): Promise<Resultado> {

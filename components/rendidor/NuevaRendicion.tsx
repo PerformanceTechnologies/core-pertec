@@ -32,12 +32,14 @@ export default function NuevaRendicion({ fondos, comoTarjeta = false }: { fondos
   const [fondoId, setFondoId] = useState("");
   const [titulo, setTitulo] = useState("");
   const [empresa, setEmpresa] = useState(1);
+  const [error, setError] = useState<string | null>(null);
   const elegido = fondos.find((f) => f.id === fondoId);
 
   function abrir() {
     setFondoId(fondos.length === 1 ? fondos[0].id : "");
     setTitulo("");
     setEmpresa(1);
+    setError(null);
     setAbierta(true);
   }
 
@@ -61,7 +63,14 @@ export default function NuevaRendicion({ fondos, comoTarjeta = false }: { fondos
             <p className="text-sm text-gris">Para rendir necesitas un fondo. Pídelo con «Solicitar fondo»; cuando Tesorería lo transfiera, quedará activo.</p>
           </div>
         ) : (
-          <form action={crearRendicionAction} className="space-y-4">
+          <form
+            action={async (fd) => {
+              setError(null);
+              const r = await crearRendicionAction(fd);
+              if (r && !r.ok) setError(r.error);
+            }}
+            className="space-y-4"
+          >
             <Campo etiqueta="Fondo *">
               <select name="fondoId" required value={fondoId} onChange={(e) => setFondoId(e.target.value)} className={CAMPO}>
                 <option value="">Elige un fondo…</option>
@@ -96,6 +105,7 @@ export default function NuevaRendicion({ fondos, comoTarjeta = false }: { fondos
                 ))}
               </div>
             </Campo>
+            {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
             <div className="flex justify-end">
               <BotonEnviar cargando="Creando…">Crear y subir boletas →</BotonEnviar>
             </div>
