@@ -8,12 +8,12 @@ export default async function LayoutLeads({ children }: { children: React.ReactN
   const { empresa } = await contextoLeads();
   return (
     <div className="animar-entrada">
-      <header className="mb-5 flex flex-wrap items-center gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-naranjo text-white shadow-sm">
-          <IconTargetArrow size={23} stroke={1.75} />
+      <header className="mb-3 flex flex-wrap items-center gap-3">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-naranjo text-white shadow-sm">
+          <IconTargetArrow size={21} stroke={1.75} />
         </span>
         <div className="min-w-[13rem] flex-1">
-          <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Leads</h1>
+          <h1 className="font-condensed text-xl font-bold uppercase leading-tight tracking-tight text-tinta">Leads</h1>
           <p className="text-sm text-gris">Del primer contacto a la cotización aceptada: cada paso queda en Gestión financiera</p>
         </div>
         {/* Siempre a la vista: evita registrar algo en la empresa equivocada. */}

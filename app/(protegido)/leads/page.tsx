@@ -30,8 +30,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const vence = (c: { fecha: string; validezDias: number }) => new Date(Date.parse(`${c.fecha}T12:00:00Z`) + c.validezDias * 86_400_000).toISOString().slice(0, 10);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <Banda
+        compacta
         etiqueta="Leads y oportunidades"
         valor={clpCorto(abiertas.reduce((s, o) => s + o.montoEstimado, 0))}
         bajada="Negocios abiertos, por su monto estimado."

@@ -72,7 +72,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           empresaActiva={empresa.activa}
           empresasPermitidas={empresa.permitidas}
         />
-        {/* Solo en Finanzas y sus submódulos: la cartilla de indicadores, bajo la barra superior. */}
+        {/* Solo en Finanzas, CRM y sus submódulos: la cartilla de indicadores, bajo la barra superior. */}
         <PanelIndicadores />
         {children}
       </main>
