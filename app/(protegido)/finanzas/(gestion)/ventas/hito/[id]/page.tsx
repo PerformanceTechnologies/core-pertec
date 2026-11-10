@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconCheck, IconCircleDashed, IconHistory, IconMessage2, IconPaperclip } from "@tabler/icons-react";
-import { RUTA_FIN, actividadesDe, adjuntosDe, cargarVista, contextoFin, historialDe } from "@/lib/fin/datos";
+import { RUTA_FIN, actividadesDe, adjuntosDe, cargarVista, contextoFin, historialDe, RUTA_VENTAS } from "@/lib/fin/datos";
 import { ACCION_ETAPA, clp, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_TRABAJO } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
-import { agregarActividadAction } from "../../../acciones-config";
-import { anularHitoAction, guardarHitoAction } from "../../../acciones-ventas";
+import { agregarActividadAction } from "@/app/(protegido)/gestion-financiera/acciones-config";
+import { anularHitoAction, guardarHitoAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { Chip, Monto, Seccion, TONO_ETAPA } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import { CAMPO, BOTON_SEC } from "@/components/fin/estilos";
@@ -35,7 +35,7 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="space-y-6">
-      <Link href={`${RUTA_FIN}/ventas`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris hover:text-naranjo"><IconArrowLeft size={14} /> Ventas y cobranza</Link>
+      <Link href={`${RUTA_VENTAS}`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris hover:text-naranjo"><IconArrowLeft size={14} /> Ventas y cobranza</Link>
 
       <header className={`${TARJETA} flex flex-wrap items-start gap-4 p-5`}>
         <div className="min-w-0 flex-1">

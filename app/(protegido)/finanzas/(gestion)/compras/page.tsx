@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { IconFileInvoice, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista } from "@/lib/fin/datos";
+import { cargarVista, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { clp, clpCorto, conIva, fechaCl, inicioDeMes, mesLargo, sumarDias, type PasoCompra } from "@/lib/fin/reglas";
 import { DTE_CORTO } from "@/lib/fin/modelo";
-import { anularPagoAction, crearCompraAction, registrarFacturaCompraAction, registrarPagoAction } from "../acciones-compras";
+import { anularPagoAction, crearCompraAction, registrarFacturaCompraAction, registrarPagoAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -46,11 +46,11 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
         bajada="Por pagar: facturas de proveedores recibidas que aún no se pagan."
         pasos={[
           { titulo: "Solicitud", ayuda: "Quien necesita la compra", n: undefined },
-          { titulo: "Aprobación", ayuda: "Jefe de proyecto o gerente", n: porAprobar.length, href: `${RUTA_FIN}/compras?ver=aprobar`, alerta: true },
-          { titulo: "Visado", ayuda: "Finanzas revisa la caja y emite la OC", n: porVisar.length, href: `${RUTA_FIN}/compras?ver=visar`, alerta: true },
+          { titulo: "Aprobación", ayuda: "Jefe de proyecto o gerente", n: porAprobar.length, href: `${RUTA_COMPRAS}?ver=aprobar`, alerta: true },
+          { titulo: "Visado", ayuda: "Finanzas revisa la caja y emite la OC", n: porVisar.length, href: `${RUTA_COMPRAS}?ver=visar`, alerta: true },
           { titulo: "Recepción", ayuda: "Llegó conforme", n: enPaso("Esperar recepción conforme") },
-          { titulo: "Factura", ayuda: "Se compara con la OC", n: enPaso("Esperar factura del proveedor") + enPaso("Revisar diferencia con la OC"), href: `${RUTA_FIN}/compras?ver=facturas` },
-          { titulo: "Pago", ayuda: "Se programa según el flujo", n: enPaso("Programar pago") + enPaso("Vencida: programar pago ya") + enPaso("Pago programado"), href: `${RUTA_FIN}/compras?ver=pagos`, alerta: enPaso("Vencida: programar pago ya") > 0 },
+          { titulo: "Factura", ayuda: "Se compara con la OC", n: enPaso("Esperar factura del proveedor") + enPaso("Revisar diferencia con la OC"), href: `${RUTA_COMPRAS}?ver=facturas` },
+          { titulo: "Pago", ayuda: "Se programa según el flujo", n: enPaso("Programar pago") + enPaso("Vencida: programar pago ya") + enPaso("Pago programado"), href: `${RUTA_COMPRAS}?ver=pagos`, alerta: enPaso("Vencida: programar pago ya") > 0 },
         ]}
         cifras={[
           { etiqueta: "Por aprobar", valor: String(porAprobar.length), alerta: porAprobar.length > 0 },
@@ -62,7 +62,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
 
       <div className="flex flex-wrap items-center gap-2">
         <Pestanas
-          base={`${RUTA_FIN}/compras`}
+          base={`${RUTA_COMPRAS}`}
           actual={ver}
           opciones={[
             { clave: "todas", etiqueta: "Todas", n: vivas.length },

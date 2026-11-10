@@ -40,7 +40,7 @@ export default function FormCobro({ facturas, cuentas, hoy, alOk, movimiento }: 
       <VacioVentana
         titulo="No hay facturas por cobrar"
         texto="Un cobro se aplica a facturas emitidas que tienen saldo. Primero registra la factura en Ventas, desde un hito «Lista para facturar»."
-        enlace={{ href: "/gestion-financiera/ventas?etapa=Lista%20para%20facturar", texto: "Ir a facturar" }}
+        enlace={{ href: "/finanzas/ventas?etapa=Lista%20para%20facturar", texto: "Ir a facturar" }}
       />
     );
   return (

@@ -109,6 +109,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: CABECERAS_DE_SEGURIDAD }];
   },
+  // Ventas y cobranza y Compras y pagos pasaron de Gestión financiera a Finanzas: los enlaces y
+  // marcadores viejos siguen funcionando (la consulta, como ?etapa=…, se conserva sola).
+  async redirects() {
+    return [
+      { source: "/gestion-financiera/ventas", destination: "/finanzas/ventas", permanent: true },
+      { source: "/gestion-financiera/ventas/:path*", destination: "/finanzas/ventas/:path*", permanent: true },
+      { source: "/gestion-financiera/compras", destination: "/finanzas/compras", permanent: true },
+      { source: "/gestion-financiera/compras/:path*", destination: "/finanzas/compras/:path*", permanent: true },
+    ];
+  },
   // pdf-parse (pdfjs-dist) necesita resolver su propio pdf.worker.mjs vía
   // require/import normal de Node en tiempo de ejecucion -- si Turbopack/
   // webpack lo empaqueta como cualquier otro modulo, ese archivo deja de

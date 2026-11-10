@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { exigirAccesoApp } from "@/lib/autorizacion";
+import { exigirAccesoApp, puedeVerApp } from "@/lib/autorizacion";
 import { obtenerIcono } from "@/lib/iconos";
 import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
 import { obtenerSubpanelesFinanzasGuardados, subpanelFinanzasPermitido } from "@/lib/finanzas-subpaneles-usuario";
@@ -18,6 +18,18 @@ export default async function FinanzasPage() {
     (sp) => sp.slug !== "facturas-ih" && (usuario.rol === "admin" || subpanelFinanzasPermitido(sp.slug, guardados)),
   );
 
+  // Ventas y cobranza y Compras y pagos: de Gestión financiera por dentro (su propio permiso).
+  const conGestion = usuario.rol === "admin" || (await puedeVerApp(usuario, "gestion-financiera"));
+  const tarjetas = [
+    ...(conGestion
+      ? [
+          { slug: "ventas", nombre: "Ventas y cobranza", descripcion: "Lo aceptado: hitos por facturar, facturas emitidas y cobros.", href: "/finanzas/ventas", icono: "receipt" },
+          { slug: "compras", nombre: "Compras y pagos", descripcion: "De la solicitud de compra al pago al proveedor.", href: "/finanzas/compras", icono: "shopping-cart" },
+        ]
+      : []),
+    ...subpaneles,
+  ];
+
   return (
     <div>
       <span className="etiqueta-seccion">Herramientas Finanzas</span>
@@ -29,7 +41,7 @@ export default async function FinanzasPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {subpaneles.map((sp) => {
+        {tarjetas.map((sp) => {
           const Icono = obtenerIcono(sp.icono);
           return (
             <Link
