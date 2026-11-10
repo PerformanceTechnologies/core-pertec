@@ -52,15 +52,16 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const revisaAntiguas = puedeVerRendicionesAjenas(usuario.rol, rol);
 
   // Sin el SQL de Fondos corrido, la página no se cae: avisa qué falta.
-  let faltaSql: string | null = null;
-  const [fondos, rendiciones, parametros] = await Promise.all([
-    listarFondos(empresaId).catch((e: unknown) => {
-      faltaSql = e instanceof Error ? e.message : "No se pudieron leer los fondos.";
-      return [] as Fondo[];
-    }),
+  const [lecturaFondos, rendiciones, parametros] = await Promise.all([
+    listarFondos(empresaId).then(
+      (fs) => ({ fondos: fs, error: null as string | null }),
+      (e: unknown) => ({ fondos: [] as Fondo[], error: e instanceof Error ? e.message : "No se pudieron leer los fondos." }),
+    ),
     listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: revisaAntiguas || tiene("revisor") || tiene("tesoreria") }),
     leerParametros(empresaId),
   ]);
+  const fondos = lecturaFondos.fondos;
+  const faltaSql = lecturaFondos.error;
   const misFondos = fondos.filter((f) => f.rendidorCorreo === yo);
   const misInformes = rendiciones.filter((r) => r.esMia);
 

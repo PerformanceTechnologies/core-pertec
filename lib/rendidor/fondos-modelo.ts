@@ -170,4 +170,4 @@ export function gastoRendido(gastos: { total: number; revision?: { estado: Estad
   return gastos.filter((g) => (g.revision?.estado ?? "cargada") !== "rechazada").reduce((s, g) => s + (Number(g.total) || 0), 0);
 }
 
-export const pesos = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
+export const pesos = (n: number) => `${n < 0 ? "−" : ""}$${Math.abs(Math.round(n)).toLocaleString("es-CL")}`;
