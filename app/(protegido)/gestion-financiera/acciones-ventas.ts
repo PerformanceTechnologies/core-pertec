@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { RUTA_FIN, auditar, cargarVista, conciliarConMovimiento, contextoFin, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
+import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, conciliarConMovimiento, contextoFin, contextoLeads, prefijoCotizacion, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { generarHitos, peso } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD, lineaNeta, type LineaCotizacion } from "@/lib/fin/modelo";
 
@@ -11,16 +11,20 @@ export type Resultado = { ok: true; id?: string } | { ok: false; error: string }
 function fallo(e: unknown): Resultado {
   return { ok: false, error: e instanceof Error ? e.message.replace(/^\[fin\]\s*/, "") : "Ocurrió un error inesperado." };
 }
-const refrescar = () => revalidatePath(RUTA_FIN, "layout");
+const refrescar = () => {
+  revalidatePath(RUTA_FIN, "layout");
+  revalidatePath(RUTA_LEADS, "layout");
+};
 const texto = (fd: FormData, k: string, max = 200) => String(fd.get(k) ?? "").replace(/\s+/g, " ").trim().slice(0, max) || null;
 const uuid = (v: unknown) => (typeof v === "string" && /^[0-9a-f-]{36}$/.test(v) ? v : null);
 const ahora = () => new Date().toISOString();
+const correoValido = (v: string | null) => (v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v.toLowerCase() : null);
 
 // ---------- Oportunidades ------------------------------------------------------------
 
 export async function guardarOportunidadAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoLeads();
     const nombre = texto(fd, "nombre", 160);
     if (!nombre) return { ok: false, error: "La oportunidad necesita un nombre." };
     const etapa = String(fd.get("etapa") ?? "prospecto");
@@ -34,6 +38,8 @@ export async function guardarOportunidadAction(id: string | null, fd: FormData):
       monto_estimado: montoDe(fd.get("montoEstimado")) ?? 0, probabilidad: Number.isFinite(prob) && String(fd.get("probabilidad") ?? "") !== "" ? Math.max(0, Math.min(100, Math.round(prob))) : info.probabilidad,
       fecha_cierre: fechaValida(fd.get("fechaCierre")), responsable: texto(fd, "responsable", 120), origen: texto(fd, "origen", 60), motivo_perdida: motivo,
       descripcion: texto(fd, "descripcion", 2000), actualizado_en: ahora(),
+      contacto_nombre: texto(fd, "contactoNombre", 120), contacto_correo: correoValido(texto(fd, "contactoCorreo", 120)), contacto_telefono: texto(fd, "contactoTelefono", 40),
+      proximo_paso: texto(fd, "proximoPaso", 200), proximo_paso_fecha: fechaValida(fd.get("proximoPasoFecha")),
     };
     let opId = id;
     if (id) {
@@ -58,7 +64,7 @@ export async function guardarOportunidadAction(id: string | null, fd: FormData):
 /** Mover en el Kanban. A «Perdida» pide motivo; la probabilidad se ajusta a la de la etapa. */
 export async function moverOportunidadAction(id: string, etapa: string, motivo?: string): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoLeads();
     const info = ETAPAS_OPORTUNIDAD.find((x) => x.clave === etapa);
     if (!info) return { ok: false, error: "Etapa inválida." };
     if (etapa === "perdida" && !motivo?.trim()) return { ok: false, error: "Escribe el motivo de la pérdida." };
@@ -91,6 +97,10 @@ interface DatosCotizacion {
   requiereEdp: boolean;
   requiereHes: boolean;
   notas: string | null;
+  atencion?: string | null;
+  correoAtencion?: string | null;
+  plazoEntrega?: string | null;
+  formaPago?: string | null;
   lineas: LineaCotizacion[];
 }
 
@@ -115,10 +125,10 @@ function leerCotizacion(json: string): DatosCotizacion | string {
 
 export async function guardarCotizacionAction(id: string | null, json: string): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoLeads();
     const d = leerCotizacion(json);
     if (typeof d === "string") return { ok: false, error: d };
-    const vista = await cargarVista();
+    const vista = await cargarVistaDe(ctx);
     const lineas = d.lineas.map((l, i) => ({ ...l, orden: i, netoLinea: lineaNeta(l) }));
     const neto = lineas.reduce((s, l) => s + l.netoLinea, 0);
     const afecto = lineas.filter((l) => !l.exento).reduce((s, l) => s + l.netoLinea, 0);
@@ -128,8 +138,13 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
       fecha: fechaValida(d.fecha) ?? ctx.hoy, validez_dias: Math.max(1, Math.min(365, Math.round(Number(d.validezDias) || 30))),
       condicion_pago_dias: d.condicionPagoDias === null || d.condicionPagoDias === undefined ? null : Math.round(Number(d.condicionPagoDias)),
       requiere_oc: Boolean(d.requiereOc), requiere_edp: Boolean(d.requiereEdp), requiere_hes: Boolean(d.requiereHes), notas: d.notas?.slice(0, 4000) ?? null,
+      atencion: d.atencion?.trim().slice(0, 120) || null, correo_atencion: correoValido(d.correoAtencion?.trim() ?? null),
+      plazo_entrega: d.plazoEntrega?.trim().slice(0, 160) || null, forma_pago: d.formaPago?.trim().slice(0, 300) || null,
       neto, exento: neto - afecto, iva, total: neto + iva, actualizado_en: ahora(),
     };
+    // El lead y el proyecto enlazados tienen que ser de ESTA empresa: un id de otra no debe colarse.
+    if (cabecera.oportunidad_id) await exigirDeEmpresa("fin_oportunidades", cabecera.oportunidad_id, ctx.empresa.id);
+    if (cabecera.proyecto_id) await exigirDeEmpresa("fin_proyectos", cabecera.proyecto_id, ctx.empresa.id);
     let cotId = id;
     if (id) {
       const antes = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
@@ -139,7 +154,7 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
       await supabaseAdmin.from("fin_cotizacion_lineas").delete().eq("cotizacion_id", id);
       await auditar(ctx, "fin_cotizaciones", id, "editar", `Cotización ${antes.numero}: total ${cabecera.total}`);
     } else {
-      const numero = await siguienteNumero(ctx.empresa.id, "cotizacion", "COT");
+      const numero = await siguienteNumero(ctx.empresa.id, "cotizacion", await prefijoCotizacion(ctx.empresa.id));
       const { data, error } = await supabaseAdmin.from("fin_cotizaciones").insert({ ...cabecera, empresa_id: ctx.empresa.id, numero, creado_por: ctx.usuario.correo }).select("id").single();
       revienta("crear la cotización", error);
       cotId = data!.id;
@@ -165,7 +180,7 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
 
 export async function cambiarEstadoCotizacionAction(id: string, estado: "enviada" | "rechazada" | "anulada" | "borrador", motivo?: string): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoLeads();
     const antes = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
     if (antes.estado === "aceptada") return { ok: false, error: "Una cotización aceptada ya generó sus hitos: anula los hitos si corresponde." };
     if ((estado === "rechazada" || estado === "anulada") && !motivo?.trim()) return { ok: false, error: "Escribe el motivo." };
@@ -188,7 +203,7 @@ export async function cambiarEstadoCotizacionAction(id: string, estado: "enviada
 /** Nueva versión (V2, V3…): clona la cotización y deja la anterior «reemplazada». */
 export async function nuevaVersionCotizacionAction(id: string): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoLeads();
     const c = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
     if (c.estado === "aceptada") return { ok: false, error: "Ya está aceptada: no se versiona." };
     const { data: ultima } = await supabaseAdmin.from("fin_cotizaciones").select("version").eq("empresa_id", ctx.empresa.id).eq("numero", c.numero as string).order("version", { ascending: false }).limit(1).single();
@@ -221,7 +236,7 @@ export async function nuevaVersionCotizacionAction(id: string): Promise<Resultad
  */
 export async function aceptarCotizacionAction(id: string, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoLeads();
     const c = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
     if (!["borrador", "enviada"].includes(String(c.estado))) return { ok: false, error: "Esta cotización ya no se puede aceptar." };
     const fecha = fechaValida(fd.get("fechaAceptacion"));

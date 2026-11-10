@@ -102,7 +102,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
           </div>
           <form className="max-w-md"><input name="q" defaultValue={sp.q} placeholder="Buscar hito, cliente, proyecto o folio…" className={CAMPO} />{sp.etapa && <input type="hidden" name="etapa" value={sp.etapa} />}</form>
           {filtrados.length === 0 ? (
-            <Vacio titulo={activos.length ? "Ningún hito con ese filtro" : "Todavía no hay hitos"} texto={activos.length ? "Prueba con otra etapa o borra la búsqueda." : "Los hitos nacen solos al aceptar una cotización en Comercial. Para un trabajo suelto, usa «Nuevo hito»."} icono={<IconReceipt2 size={24} stroke={1.6} />}>{activos.length ? <Link href={`${RUTA_FIN}/ventas`} className={BOTON_SEC}>Ver todos</Link> : <Link href={`${RUTA_FIN}/comercial`} className={BOTON}>Ir a Comercial</Link>}</Vacio>
+            <Vacio titulo={activos.length ? "Ningún hito con ese filtro" : "Todavía no hay hitos"} texto={activos.length ? "Prueba con otra etapa o borra la búsqueda." : "Los hitos nacen solos al aceptar una cotización en Leads. Para un trabajo suelto, usa «Nuevo hito»."} icono={<IconReceipt2 size={24} stroke={1.6} />}>{activos.length ? <Link href={`${RUTA_FIN}/ventas`} className={BOTON_SEC}>Ver todos</Link> : <Link href={"/leads"} className={BOTON}>Ir a Leads</Link>}</Vacio>
           ) : (
             <TablaHitos hitos={filtrados} tasaIva={v.p.tasaIva} hoy={v.hoy} />
           )}

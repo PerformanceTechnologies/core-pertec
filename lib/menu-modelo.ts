@@ -113,8 +113,9 @@ const PLAN: Plan[] = [
   {
     slug: "crm",
     titulo: "CRM",
-    descripcion: "Cotizaciones y ofertas técnicas para tus clientes.",
-    items: [{ ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }],
+    descripcion: "Leads con cotizaciones en PDF, el cotizador de costos y las ofertas técnicas para tus clientes.",
+    // Leads va primero: es donde nace todo lo comercial (el lead, su cotización y, al aceptarla, el proyecto en Finanzas).
+    items: [{ ruta: "/leads" }, { ruta: "/cotizador" }, { ruta: "/ofertas", nombre: "Ofertas técnicas" }],
   },
   // Contratos es un módulo de una sola aplicación: se ve y pliega igual que los demás.
   {

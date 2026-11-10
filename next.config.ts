@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+/** Logos de las empresas del grupo (se incrustan en el PDF de la cotizacion; ver lib/fin/empresa-perfil.ts). */
+const LOGOS_DE_EMPRESAS = ["./public/empresas/*-completo.png"];
+
 /**
  * El visor de traces de playwright, que el tracing trae por su cuenta.
  *
@@ -132,6 +135,8 @@ const nextConfig: NextConfig = {
     "/api/cotizador/\\[id\\]/eco-pdf": SIN_VISOR_DE_TRACES,
     "/api/ofertas/\\[id\\]/pdf": SIN_VISOR_DE_TRACES,
     "/api/ofertas/\\[id\\]/emitir": SIN_VISOR_DE_TRACES,
+    "/api/leads/cotizaciones/\\[id\\]/pdf": SIN_VISOR_DE_TRACES,
+    "/api/leads/cotizaciones/\\[id\\]/enviar": SIN_VISOR_DE_TRACES,
     "/finanzas/sii": SIN_VISOR_DE_TRACES,
   },
   outputFileTracingIncludes: {
@@ -157,6 +162,11 @@ const nextConfig: NextConfig = {
     // con "Cannot find module .../playwright-core/browsers.json": cualquier ruta
     // nueva que imprima necesita la suya, y scripts/probar-ofertas.mts lo comprueba.
     "/api/ofertas/\\[id\\]/emitir": NAVEGADOR,
+    // La cotizacion de Leads imprime con el mismo Chromium (ver lib/fin/cotizacion-pdf.ts) y lleva
+    // el logo de la empresa, que se lee de /public: en Vercel esa carpeta no viaja con la funcion
+    // si no se pide aqui.
+    "/api/leads/cotizaciones/\\[id\\]/pdf": [...NAVEGADOR, ...LOGOS_DE_EMPRESAS],
+    "/api/leads/cotizaciones/\\[id\\]/enviar": [...NAVEGADOR, ...LOGOS_DE_EMPRESAS],
     // Releer un periodo del SII desde la pantalla usa el MISMO scraper con navegador que
     // el cron, y una Server Action se empaqueta con la RUTA QUE LA IMPORTA, no con una
     // ruta propia: por eso la clave es la pagina. Sin esta entrada la accion falla en

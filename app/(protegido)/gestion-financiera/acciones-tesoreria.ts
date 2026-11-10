@@ -9,6 +9,8 @@ import {
   cargarVista,
   conciliarConMovimiento,
   contextoFin,
+  contextoFinApi,
+  contextoLeadsApi,
   entradaContable,
   exigirDeEmpresa,
   fechaValida,
@@ -312,8 +314,12 @@ export async function cerrarPeriodoAction(anio: number, mes: number, cerrar: boo
 
 export async function enlaceAdjuntoAction(id: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {
-    const ctx = await contextoFin();
+    // Finanzas ve todos sus respaldos; quien solo tiene Leads, únicamente los de cotizaciones.
+    const ctxFin = await contextoFinApi();
+    const ctx = ctxFin ?? (await contextoLeadsApi());
+    if (!ctx) return { ok: false, error: "No autorizado." };
     const a = await exigirDeEmpresa("fin_adjuntos", id, ctx.empresa.id);
+    if (!ctxFin && a.entidad_tipo !== "cotizacion") return { ok: false, error: "No autorizado." };
     const url = await enlaceTemporal("finanzas", String(a.ruta), { segundos: 60, descarga: String(a.nombre) });
     if (!url) return { ok: false, error: "No se pudo abrir el archivo." };
     return { ok: true, url };

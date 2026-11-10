@@ -38,7 +38,7 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
         <ConVentana boton={<><IconPlus size={15} /> Nuevo proyecto</>} titulo="Nuevo proyecto" className={BOTON}>{<FormProyecto clientes={clientes} />}</ConVentana>
       </div>
       {lista.length === 0 ? (
-        <Vacio titulo="Todavía no hay proyectos" texto="Se crean solos al aceptar una cotización, o a mano con «Nuevo proyecto». Los gastos sin proyecto van a «General»." icono={<IconFolders size={24} stroke={1.6} />}><Link href={`${RUTA_FIN}/comercial`} className={BOTON_SEC}>Ir a Comercial</Link></Vacio>
+        <Vacio titulo="Todavía no hay proyectos" texto="Se crean solos al aceptar una cotización, o a mano con «Nuevo proyecto». Los gastos sin proyecto van a «General»." icono={<IconFolders size={24} stroke={1.6} />}><Link href={"/leads"} className={BOTON_SEC}>Ir a Leads</Link></Vacio>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
           <table className="w-full min-w-[80rem] text-sm">

@@ -70,7 +70,7 @@ export default async function ResumenFinanzasPage() {
   const primerosPasos = [
     { titulo: "Crea tus cuentas", texto: "Banco, tarjeta y caja, con el saldo de hoy. La tarjeta va con su deuda en negativo.", listo: v.cuentas.length > 0, href: `${RUTA_FIN}/configuracion?ver=cuentas`, boton: "Crear cuentas" },
     { titulo: "Importa la cartola", texto: "El CSV o Excel que bajas del banco. Si la vuelves a subir, no se duplica.", listo: Boolean(v.ultimaImportacion) || v.movimientos.length > 0, href: `${RUTA_FIN}/tesoreria`, boton: "Ir a Tesorería" },
-    { titulo: "Registra ventas y compras", texto: "Una oportunidad o cotización en Comercial, o una solicitud en Compras. El resumen se arma solo.", listo: v.hitos.length > 0 || v.compras.length > 0 || com.oportunidades.length > 0, href: `${RUTA_FIN}/comercial`, boton: "Ir a Comercial" },
+    { titulo: "Registra ventas y compras", texto: "Una oportunidad o cotización en Leads, o una solicitud en Compras. El resumen se arma solo.", listo: v.hitos.length > 0 || v.compras.length > 0 || com.oportunidades.length > 0, href: "/leads", boton: "Ir a Leads" },
   ];
   const listos = primerosPasos.filter((x) => x.listo).length;
 
@@ -214,7 +214,7 @@ export default async function ResumenFinanzasPage() {
       </div>
 
       {/* ── CRM ── */}
-      <Seccion titulo="Pipeline comercial" icono={<IconTargetArrow size={15} />} accion={<Link href={`${RUTA_FIN}/comercial`} className="text-xs font-semibold text-naranjo hover:underline">Ver oportunidades</Link>}>
+      <Seccion titulo="Pipeline comercial" icono={<IconTargetArrow size={15} />} accion={<Link href={"/leads"} className="text-xs font-semibold text-naranjo hover:underline">Ver leads</Link>}>
         <div className={`${TARJETA} grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_14rem]`}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ETAPAS_OPORTUNIDAD.filter((e) => !["ganada", "perdida"].includes(e.clave)).map((e) => {

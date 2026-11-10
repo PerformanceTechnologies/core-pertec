@@ -5,7 +5,7 @@ import { carpetaFinanzas } from "@/lib/archivos/carpetas";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { RUTA_FIN, auditar, contextoFinApi } from "@/lib/fin/datos";
+import { RUTA_FIN, RUTA_LEADS, auditar, contextoFinApi, contextoLeadsApi } from "@/lib/fin/datos";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
 
 export const runtime = "nodejs";
@@ -21,7 +21,9 @@ const ENTIDADES: Record<string, string> = {
 
 /** Sube un respaldo al bucket privado «finanzas» bajo la carpeta de la empresa activa. */
 export async function POST(request: Request) {
-  const ctx = await contextoFinApi();
+  const ctxFin = await contextoFinApi();
+  // Quien solo tiene Leads puede respaldar cotizaciones y nada más de Finanzas.
+  const ctx = ctxFin ?? (await contextoLeadsApi());
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const fd = await request.formData().catch(() => null);
   const archivo = fd?.get("archivo");
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
   if (!(archivo instanceof File) || archivo.size === 0) return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
   if (!Object.hasOwn(TIPOS, archivo.type)) return NextResponse.json({ error: "Sube un PDF, una imagen, un XML o una planilla." }, { status: 400 });
   if (archivo.size > LIMITE_SUBIDA) return NextResponse.json({ error: "El archivo pasa el tope de 4 MB." }, { status: 413 });
+  if (!ctxFin && entidadTipo !== "cotizacion") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const tabla = ENTIDADES[entidadTipo];
   if (!tabla || !/^[0-9a-f-]{36}$/.test(entidadId)) return NextResponse.json({ error: "Registro inválido." }, { status: 400 });
   const { data: dueño } = await supabaseAdmin.from(tabla).select("id").eq("id", entidadId).eq("empresa_id", ctx.empresa.id).maybeSingle();
@@ -58,5 +61,6 @@ export async function POST(request: Request) {
   if (entidadTipo === "movimiento") await supabaseAdmin.from("fin_movimientos").update({ tiene_respaldo: true }).eq("id", entidadId);
   await auditar(ctx, tabla, entidadId, "adjuntar", archivo.name);
   revalidatePath(RUTA_FIN, "layout");
+  revalidatePath(RUTA_LEADS, "layout");
   return NextResponse.json({ ok: true, id: data!.id });
 }

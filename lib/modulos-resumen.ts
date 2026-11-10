@@ -253,6 +253,38 @@ const contratos: Cargador = async () => {
 
 // ─── CRM ─────────────────────────────────────────────────────────────────────
 
+// Leads: lee lo mismo que su pantalla (las tablas fin_* de la empresa activa). Sin empresa con el módulo, sin cifras.
+const leads: Cargador = async ({ usuario, hoy }) => {
+  const [fin, { clpCorto }] = await Promise.all([import("./fin/datos"), import("./fin/reglas")]);
+  const ctx = await fin.contextoFinDeUsuario(usuario);
+  if (!ctx) return null;
+  const { supabaseAdmin } = await import("./supabase-admin");
+  const [{ data: ops }, { data: cots }] = await Promise.all([
+    supabaseAdmin.from("fin_oportunidades").select("etapa, monto_estimado, probabilidad").eq("empresa_id", ctx.empresa.id).limit(5000),
+    supabaseAdmin.from("fin_cotizaciones").select("estado, total, fecha, validez_dias").eq("empresa_id", ctx.empresa.id).limit(5000),
+  ]);
+  const abiertas = (ops ?? []).filter((o) => !["ganada", "perdida"].includes(String(o.etapa)));
+  if ((ops ?? []).length === 0 && (cots ?? []).length === 0) return null;
+  const monto = abiertas.reduce((s, o) => s + Number(o.monto_estimado ?? 0), 0);
+  const pond = abiertas.reduce((s, o) => s + (Number(o.monto_estimado ?? 0) * Number(o.probabilidad ?? 0)) / 100, 0);
+  const enviadas = (cots ?? []).filter((c) => c.estado === "enviada");
+  const hoyIso = hoy.toISOString().slice(0, 10);
+  const porVencer = enviadas.filter((c) => {
+    const vence = new Date(Date.parse(`${c.fecha}T12:00:00Z`) + Number(c.validez_dias ?? 30) * 86_400_000).toISOString().slice(0, 10);
+    return vence < hoyIso;
+  }).length;
+  return {
+    metricas: [
+      { etiqueta: "Leads abiertos", valor: n(abiertas.length), detalle: clpCorto(monto), href: "/leads" },
+      { etiqueta: "Forecast ponderado", valor: clpCorto(pond), href: "/leads" },
+      { etiqueta: "Cotizaciones enviadas", valor: n(enviadas.length), detalle: clpCorto(enviadas.reduce((s, c) => s + Number(c.total ?? 0), 0)), href: "/leads?ver=cotizaciones" },
+      { etiqueta: "Vencidas sin respuesta", valor: n(porVencer), tono: porVencer > 0 ? "aviso" : "ok", href: "/leads?ver=cotizaciones" },
+    ],
+    avisos: porVencer > 0 ? [{ texto: `${cuenta(porVencer, "cotización enviada vencida", "cotizaciones enviadas vencidas")}`, tono: "aviso", href: "/leads?ver=cotizaciones" }] : [],
+    pie: ctx.empresa.nombre,
+  };
+};
+
 const cotizador: Cargador = async ({ usuario, hoy }) => {
   const { listarCotizaciones, resolverRolCotizador } = await import("./cotizador");
   const rol = await resolverRolCotizador(usuario);
@@ -497,6 +529,7 @@ const CARGADORES: Record<string, Cargador> = {
   "/valorizacion-historica": valorizacionHistorica,
   "/tareas": tareas,
   "/contratos": contratos,
+  "/leads": leads,
   "/cotizador": cotizador,
   "/ofertas": ofertas,
   "/rendir-gastos": rendirGastos,
