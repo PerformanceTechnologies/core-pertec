@@ -53,7 +53,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         <span className="flex-1" />
         <Link href={`${RUTA_LEADS}/cotizaciones/nueva`} className={BOTON}><IconFilePlus size={15} /> Nueva cotización</Link>
         <ConVentana boton={<><IconPlus size={15} /> Nuevo lead</>} titulo="Nuevo lead">
-          {(cerrar) => <FormLead clientes={clientes} alOk={cerrar} responsableInicial={ctx.usuario.correo} />}
+          {/* Elemento y no función: una página de servidor no puede pasar funciones a un componente de cliente. El formulario cierra la ventana solo. */}
+          <FormLead clientes={clientes} responsableInicial={ctx.usuario.correo} />
         </ConVentana>
       </div>
 
