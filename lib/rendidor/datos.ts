@@ -258,3 +258,40 @@ export async function correosRevisores(): Promise<string[]> {
   }
   return [...correos];
 }
+
+// ---------- «Mis gastos»: la bolsa de boletas sueltas de cada persona -------------------
+
+/** La bolsa de esta persona (una rendición con tipo 'bolsa'); la crea la primera vez. */
+export async function obtenerOCrearBolsa(rinde: { correo: string; nombre: string }, usuarioId: string): Promise<Rendicion> {
+  const correo = rinde.correo.toLowerCase();
+  const { data, error } = await supabaseAdmin.from("rendiciones").select(COLUMNAS).eq("tipo", "bolsa").eq("rinde_correo", correo).limit(1).maybeSingle();
+  if (error) throw new Error(/tipo/.test(error.message) ? "Falta el SQL de «Mis gastos»: corre supabase/rendir-gastos/0003_mis_gastos.sql." : error.message);
+  if (data) return filaARendicion(data as unknown as FilaRendicion);
+  const { data: nueva, error: e2 } = await supabaseAdmin
+    .from("rendiciones")
+    .insert({ tipo: "bolsa", nombre_quien_rinde: rinde.nombre, rinde_correo: correo, monto_asignado: 0, titulo_rendicion: "Mis gastos por rendir", empresa_company_id: 1, creado_por: usuarioId, gastos: [] })
+    .select(COLUMNAS)
+    .single();
+  if (e2) throw new Error(e2.message);
+  return filaARendicion(nueva as unknown as FilaRendicion);
+}
+
+/** ¿Es la bolsa de alguien? (no se abre como informe) */
+export async function esBolsa(id: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.from("rendiciones").select("tipo").eq("id", id).maybeSingle();
+  if (error) return false;
+  return data?.tipo === "bolsa";
+}
+
+/** Los informes donde esta persona puede agregar gastos: suyos y todavía editables. */
+export async function informesAbiertosDe(correo: string): Promise<{ id: string; titulo: string; fondoId: string | null }[]> {
+  const { data, error } = await supabaseAdmin
+    .from("rendiciones")
+    .select("id, titulo_rendicion, fondo_id")
+    .eq("tipo", "informe")
+    .eq("rinde_correo", correo.toLowerCase())
+    .in("estado", ["borrador", "rechazada"])
+    .order("creado_en", { ascending: false });
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, titulo: r.titulo_rendicion as string, fondoId: (r.fondo_id as string | null) ?? null }));
+}

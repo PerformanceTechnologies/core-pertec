@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { IconAlertTriangle, IconArrowLeft, IconCheck, IconCircleCheck, IconHistory, IconReceipt2 } from "@tabler/icons-react";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
 import {
@@ -11,7 +11,8 @@ import {
   puedeVerRendicionesAjenas,
   saldoRendicion,
 } from "@/lib/permisos-rendidor";
-import { obtenerRendicion } from "@/lib/rendidor/datos";
+import { esBolsa, obtenerOCrearBolsa, obtenerRendicion } from "@/lib/rendidor/datos";
+import AgregarMisGastos from "@/components/rendidor/AgregarMisGastos";
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
 import FlujoRendicion, { EditarCabecera } from "@/components/rendidor/FlujoRendicion";
@@ -33,6 +34,8 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
 
   const rendicion = await obtenerRendicion(id);
   if (!rendicion) notFound();
+  // La bolsa de «Mis gastos» no es un informe: tiene su propia pantalla.
+  if (await esBolsa(id)) redirect("/rendir-gastos/gastos");
   // Informes con fondo: también los abren quienes revisan, transfieren o administran Fondos.
   const conFondo = Boolean(rendicion.fondoId && rendicion.empresaId);
   const rolesFondos = conFondo ? await rolesDe(usuario, rol === "admin", rendicion.empresaId!) : [];
@@ -60,6 +63,10 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   const total = rendicion.gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
   const saldo = saldoRendicion(total, rendicion.montoAsignado);
   const problemas = problemasParaEnviar(rendicion.gastos);
+  // Los gastos sueltos de quien rinde, para sumarlos a este informe (solo si es suyo y editable).
+  const misGastos = editable && esMia
+    ? await obtenerOCrearBolsa({ correo: usuario.correo, nombre: usuario.nombre || usuario.correo }, usuario.id).catch(() => null)
+    : null;
 
   // URLs firmadas para ver cada comprobante, DESPUÉS del chequeo de acceso: son
   // credenciales portadoras. En paralelo: son N llamadas independientes.
@@ -200,8 +207,12 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         </Aviso>
       )}
 
+      {editable && esMia && misGastos && misGastos.gastos.length > 0 && (
+        <AgregarMisGastos bolsaId={misGastos.id} informeId={rendicion.id} gastos={misGastos.gastos.map((g) => ({ id: g.id, proveedor: g.proveedor, fecha: g.fecha, total: Number(g.total) || 0 }))} />
+      )}
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
-        <PanelRendicion rendicionInicial={rendicion} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
+        <PanelRendicion key={`${rendicion.id}-${rendicion.gastos.length}`} rendicionInicial={rendicion} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
 
         {/* Historial */}
         <aside className="h-fit rounded-2xl border border-borde bg-superficie p-4 xl:sticky xl:top-4">

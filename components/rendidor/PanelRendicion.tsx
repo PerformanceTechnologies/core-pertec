@@ -280,10 +280,13 @@ export default function PanelRendicion({
   editable,
   puedeEnviar,
   revisarBoletas = false,
+  alCambiarGastos,
 }: {
   rendicionInicial: Rendicion;
   /** Quien revisa un informe con fondo: acepta, observa o rechaza cada boleta. */
   revisarBoletas?: boolean;
+  /** Avisa los gastos actuales (subidos, corregidos o quitados) a quien contiene el panel. */
+  alCambiarGastos?: (gastos: Rendicion["gastos"]) => void;
   /** Si los gastos se pueden tocar: solo en borrador o rechazada, y por quien puede abrirla. */
   editable: boolean;
   /** Si quien mira puede enviarla a revisión (es suya y está en sus manos). */
@@ -296,6 +299,9 @@ export default function PanelRendicion({
 }) {
   const router = useRouter();
   const [rendicion, setRendicion] = useState(rendicionInicial);
+  useEffect(() => {
+    alCambiarGastos?.(rendicion.gastos);
+  }, [rendicion.gastos, alCambiarGastos]);
   /**
    * Vistas de los archivos recién subidos, con URL.createObjectURL.
    *

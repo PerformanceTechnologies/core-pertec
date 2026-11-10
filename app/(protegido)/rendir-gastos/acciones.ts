@@ -346,3 +346,35 @@ export async function eliminarRendicionAction(id: string): Promise<Resultado> {
     return fallo(e);
   }
 }
+
+// ---------- «Mis gastos» → informe ------------------------------------------------------
+
+/**
+ * Pasa gastos de una rendición a otra: de la bolsa («Mis gastos») a un informe, o de vuelta.
+ * Las dos tienen que ser de esta persona y estar en sus manos (borrador u observada).
+ */
+export async function moverGastosAction(desdeId: string, haciaId: string, gastoIds: string[]): Promise<Resultado> {
+  try {
+    const { usuario } = await exigirAccesoRendidor();
+    const [desde, hacia] = await Promise.all([obtenerRendicion(desdeId), obtenerRendicion(haciaId)]);
+    if (!desde || !hacia) return { ok: false, error: "No encontramos el origen o el destino." };
+    if (!esMia(desde, usuario) || !esMia(hacia, usuario)) return { ok: false, error: "Solo puedes mover tus propios gastos." };
+    if (!esEditable(desde.estado) || !esEditable(hacia.estado)) return { ok: false, error: "Ese informe ya no se puede editar." };
+    const ids = new Set(gastoIds);
+    const mover = desde.gastos.filter((g) => ids.has(g.id));
+    if (!mover.length) return { ok: false, error: "Elige al menos un gasto." };
+    const quedan = desde.gastos.filter((g) => !ids.has(g.id)).map((g, i) => ({ ...g, orden: i }));
+    const llegan = [...hacia.gastos, ...mover.map((g) => ({ ...g, revision: null, duplicadoDe: null }))].map((g, i) => ({ ...g, orden: i }));
+    // Primero se agregan al destino y después se sacan del origen: si falla a medias, se duplica
+    // (visible y corregible) en vez de perderse.
+    const ahora = new Date().toISOString();
+    const e1 = (await supabaseAdmin.from("rendiciones").update({ gastos: llegan, actualizado_en: ahora }).eq("id", haciaId).in("estado", ["borrador", "rechazada"])).error;
+    if (e1) throw new Error(e1.message);
+    const e2 = (await supabaseAdmin.from("rendiciones").update({ gastos: quedan, actualizado_en: ahora }).eq("id", desdeId)).error;
+    if (e2) throw new Error(e2.message);
+    revalidatePath("/rendir-gastos", "layout");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
