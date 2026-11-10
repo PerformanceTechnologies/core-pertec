@@ -40,7 +40,8 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol, rendicion.rindeCorreo, usuario.correo) && !rolesFondos.length) notFound();
 
   const esMia = rendicion.creadoPor === usuario.id || rendicion.rindeCorreo?.toLowerCase() === usuario.correo.toLowerCase();
-  const revisa = conFondo ? rolesFondos.includes("revisor") && !esMia : puedeVerRendicionesAjenas(usuario.rol, rol);
+  const rindeYo = rendicion.rindeCorreo?.toLowerCase() === usuario.correo.toLowerCase();
+  const revisa = conFondo ? rolesFondos.includes("revisor") && !rindeYo : puedeVerRendicionesAjenas(usuario.rol, rol);
   const acciones: AccionRendicion[] = conFondo
     ? [
         ...(esMia && esEditable(rendicion.estado) ? (["enviar"] as const) : []),
@@ -172,7 +173,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-orange-300/60 bg-orange-500/[0.06] px-5 py-4 text-sm text-orange-800">
           <IconAlertTriangle size={20} className="shrink-0" />
           <p className="min-w-[12rem] flex-1"><b>Reembolso pendiente: {pesos(-fondo.saldo)}.</b> Se gastó más que el fondo; Tesorería lo paga y el fondo se cierra.</p>
-          {rolesFondos.includes("tesoreria") && !esMia && (
+          {rolesFondos.includes("tesoreria") && !rindeYo && (
             <BotonAccion accion={pagarReembolsoAction.bind(null, rendicion.id)} pide="Referencia de la transferencia del reembolso:">Pagué el reembolso</BotonAccion>
           )}
         </div>

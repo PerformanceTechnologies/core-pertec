@@ -229,7 +229,9 @@ async function moverInformeConFondo(
   const yo = usuario.correo.toLowerCase();
   const mia = esMia(r, usuario);
   const roles = await rolesParaInforme(r, usuario, esAdminModulo);
-  const revisor = roles.includes("revisor") && !mia;
+  // Lo propio es lo de quien rinde: quien lo creó a su nombre (un admin) sí puede revisarlo.
+  const rinde = r.rindeCorreo?.toLowerCase() === yo;
+  const revisor = roles.includes("revisor") && !rinde;
   if (!mia && !revisor) return { ok: false, error: "No encontramos ese informe." };
   const ahora = new Date().toISOString();
   const total = money(totalDe(r));
@@ -299,7 +301,7 @@ export async function revisarBoletaAction(id: string, gastoId: string, estado: E
     const r = await obtenerRendicion(id);
     if (!r?.fondoId) return { ok: false, error: "Ese informe no se revisa boleta por boleta." };
     const roles = await rolesParaInforme(r, usuario, rol === "admin");
-    if (!roles.includes("revisor") || esMia(r, usuario)) return { ok: false, error: "Solo un revisor (que no sea quien rinde) revisa boletas." };
+    if (!roles.includes("revisor") || r.rindeCorreo?.toLowerCase() === usuario.correo.toLowerCase()) return { ok: false, error: "Solo un revisor (que no sea quien rinde) revisa boletas." };
     if (r.estado !== "enviada") return { ok: false, error: "El informe no está en revisión." };
     if (!["aceptada", "observada", "rechazada"].includes(estado)) return { ok: false, error: "Estado inválido." };
     const m = (motivo ?? "").trim().slice(0, 500);

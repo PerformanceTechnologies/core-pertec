@@ -71,8 +71,8 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const porReponer = fondos.filter((f) => f.estado === "cerrado_con_saldo" && f.rendidorCorreo !== yo);
   const porTransferir = fondos.filter((f) => f.estado === "por_transferir" && f.rendidorCorreo !== yo);
   const devoluciones = fondos.filter((f) => f.estado === "devolucion_pendiente" && f.rendidorCorreo !== yo);
-  const reembolsos = rendiciones.filter((r) => r.fondoId && r.estado === "reembolso_pendiente" && !r.esMia);
-  const porRevisar = rendiciones.filter((r) => r.fondoId && r.estado === "enviada" && !r.esMia);
+  const reembolsos = rendiciones.filter((r) => r.fondoId && r.estado === "reembolso_pendiente" && r.rindeCorreo?.toLowerCase() !== yo);
+  const porRevisar = rendiciones.filter((r) => r.fondoId && r.estado === "enviada" && r.rindeCorreo?.toLowerCase() !== yo);
 
   const pestanas: { id: Pestana; texto: string; Icono: typeof IconHome; cuenta?: number }[] = [
     { id: "inicio", texto: "Inicio", Icono: IconHome },
