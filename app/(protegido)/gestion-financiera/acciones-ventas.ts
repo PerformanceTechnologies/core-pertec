@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, conciliarConMovimiento, contextoFin, contextoLeads, prefijoCotizacion, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { generarHitos, peso } from "@/lib/fin/reglas";
-import { ETAPAS_OPORTUNIDAD, lineaNeta, type LineaCotizacion } from "@/lib/fin/modelo";
+import { ETAPAS_OPORTUNIDAD, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -101,6 +101,9 @@ interface DatosCotizacion {
   correoAtencion?: string | null;
   plazoEntrega?: string | null;
   formaPago?: string | null;
+  descuentoGeneralTipo?: "pct" | "monto" | null;
+  descuentoGeneralValor?: number;
+  incluirDatosPago?: boolean;
   lineas: LineaCotizacion[];
 }
 
@@ -120,6 +123,9 @@ function leerCotizacion(json: string): DatosCotizacion | string {
     if (!(Number(l.precioUnitario) >= 0)) return `El precio de «${l.descripcion}» no es válido.`;
   }
   if (!["servicio", "arriendo", "venta"].includes(d.tipo)) d.tipo = "servicio";
+  if (d.descuentoGeneralTipo !== "pct" && d.descuentoGeneralTipo !== "monto") d.descuentoGeneralTipo = null;
+  if (!Number.isFinite(Number(d.descuentoGeneralValor)) || Number(d.descuentoGeneralValor) < 0) d.descuentoGeneralValor = 0;
+  if (d.descuentoGeneralTipo === "pct" && Number(d.descuentoGeneralValor) > 100) return "El descuento general no puede pasar de 100 %.";
   return d;
 }
 
@@ -130,9 +136,11 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
     if (typeof d === "string") return { ok: false, error: d };
     const vista = await cargarVistaDe(ctx);
     const lineas = d.lineas.map((l, i) => ({ ...l, orden: i, netoLinea: lineaNeta(l) }));
-    const neto = lineas.reduce((s, l) => s + l.netoLinea, 0);
-    const afecto = lineas.filter((l) => !l.exento).reduce((s, l) => s + l.netoLinea, 0);
-    const iva = peso(afecto * vista.p.tasaIva);
+    // Totales con el descuento general repartido entre lo afecto y lo exento (ver totalesCotizacion).
+    const general = d.descuentoGeneralTipo && Number(d.descuentoGeneralValor) > 0 ? { tipo: d.descuentoGeneralTipo, valor: Number(d.descuentoGeneralValor) } : null;
+    const t = totalesCotizacion(d.lineas, vista.p.tasaIva, general);
+    const neto = t.neto + t.exento;
+    const iva = t.iva;
     const cabecera = {
       titulo: d.titulo.trim().slice(0, 200), cliente_id: uuid(d.clienteId), oportunidad_id: uuid(d.oportunidadId), proyecto_id: uuid(d.proyectoId), tipo: d.tipo,
       fecha: fechaValida(d.fecha) ?? ctx.hoy, validez_dias: Math.max(1, Math.min(365, Math.round(Number(d.validezDias) || 30))),
@@ -140,7 +148,9 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
       requiere_oc: Boolean(d.requiereOc), requiere_edp: Boolean(d.requiereEdp), requiere_hes: Boolean(d.requiereHes), notas: d.notas?.slice(0, 4000) ?? null,
       atencion: d.atencion?.trim().slice(0, 120) || null, correo_atencion: correoValido(d.correoAtencion?.trim() ?? null),
       plazo_entrega: d.plazoEntrega?.trim().slice(0, 160) || null, forma_pago: d.formaPago?.trim().slice(0, 300) || null,
-      neto, exento: neto - afecto, iva, total: neto + iva, actualizado_en: ahora(),
+      neto, exento: t.exento, iva, total: t.total, actualizado_en: ahora(),
+      descuento_general_tipo: general?.tipo ?? null, descuento_general_valor: general ? Math.min(general.tipo === "pct" ? 100 : 1_000_000_000_000, general.valor) : 0, descuento_general: t.descuento,
+      incluir_datos_pago: Boolean(d.incluirDatosPago),
     };
     // El lead y el proyecto enlazados tienen que ser de ESTA empresa: un id de otra no debe colarse.
     if (cabecera.oportunidad_id) await exigirDeEmpresa("fin_oportunidades", cabecera.oportunidad_id, ctx.empresa.id);
