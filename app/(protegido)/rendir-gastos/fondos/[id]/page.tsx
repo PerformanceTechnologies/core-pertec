@@ -13,6 +13,7 @@ import ListaRendiciones from "@/components/rendidor/ListaRendiciones";
 import NuevaRendicion from "@/components/rendidor/NuevaRendicion";
 import {
   anularFondoAction,
+  cerrarConAjusteAction,
   confirmarDevolucionAction,
   dejarSaldoAFavorAction,
   informarDevolucionAction,
@@ -68,6 +69,9 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
   if (f.estado === "activo" && f.saldo > 0 && !abiertos && (mio || roles.includes("asignador"))) {
     if (mio) acciones.push(<BotonAccion key="d" accion={informarDevolucionAction.bind(null, id)} pide={`Devuelve ${pesos(f.saldo)} a la empresa y escribe la referencia de la transferencia:`} tono="secundario">Devolver {pesos(f.saldo)}</BotonAccion>);
     if (f.esFijo) acciones.push(<BotonAccion key="s" accion={dejarSaldoAFavorAction.bind(null, id)} confirma={`El fondo queda cerrado con ${pesos(f.saldo)} a favor hasta la reposición. ¿Seguir?`} tono="secundario">Dejar saldo a favor</BotonAccion>);
+  }
+  if (f.estado === "activo" && !abiertos && roles.includes("administrador")) {
+    acciones.push(<BotonAccion key="aj" accion={cerrarConAjusteAction.bind(null, id)} pide={`Se registra un ajuste de ${pesos(-f.saldo)} para dejar el saldo en cero y se cierra el fondo. Motivo:`} tono="peligro">Cerrar con ajuste</BotonAccion>);
   }
   if (["en_validacion", "validado", "por_transferir"].includes(f.estado) && (roles.includes("asignador") || roles.includes("administrador"))) {
     acciones.push(<BotonAccion key="a" accion={anularFondoAction.bind(null, id)} pide="¿Por qué se anula el fondo?" tono="peligro">Anular</BotonAccion>);

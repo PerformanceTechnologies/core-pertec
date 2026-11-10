@@ -414,3 +414,26 @@ export async function guardarParametrosAction(fd: FormData): Promise<Resultado> 
     return fallo(e);
   }
 }
+
+/**
+ * Administración cierra un fondo activo con un ajuste que deja el saldo en cero (con motivo).
+ * Para regularizar fondos que no se van a rendir (p. ej. pruebas o errores de asignación).
+ */
+export async function cerrarConAjusteAction(id: string, motivo: string): Promise<Resultado> {
+  try {
+    const c = await ctx();
+    if (!c.tiene("administrador")) return { ok: false, error: "Solo administración cierra fondos con ajuste." };
+    const f = await fondoDeEmpresa(id, c.empresaId);
+    if (f.estado !== "activo") return { ok: false, error: "Solo se cierra con ajuste un fondo activo." };
+    if (await informesAbiertos(id)) return { ok: false, error: "El fondo tiene informes abiertos: ciérralos o bórralos primero." };
+    const m = motivo.trim().slice(0, 1000);
+    if (!m) return { ok: false, error: "Escribe el motivo del ajuste." };
+    if (f.saldo !== 0) await registrarMovimiento(f, "AJUSTE", Math.abs(f.saldo), c.yo, { signo: f.saldo > 0 ? -1 : 1, motivo: m });
+    if (!(await transicion(f, ["activo"], "cerrado", c.yo, { cerrado_en: new Date().toISOString() }, `Cierre con ajuste ${pesos(-f.saldo)}: ${m}`))) {
+      return { ok: false, error: "El fondo cambió mientras tanto." };
+    }
+    return listo(id);
+  } catch (e) {
+    return fallo(e);
+  }
+}
