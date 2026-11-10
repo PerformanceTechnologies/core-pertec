@@ -51,8 +51,13 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const tiene = (r: RolFondos) => roles.includes(r);
   const revisaAntiguas = puedeVerRendicionesAjenas(usuario.rol, rol);
 
+  // Sin el SQL de Fondos corrido, la página no se cae: avisa qué falta.
+  let faltaSql: string | null = null;
   const [fondos, rendiciones, parametros] = await Promise.all([
-    listarFondos(empresaId),
+    listarFondos(empresaId).catch((e: unknown) => {
+      faltaSql = e instanceof Error ? e.message : "No se pudieron leer los fondos.";
+      return [] as Fondo[];
+    }),
     listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: revisaAntiguas || tiene("revisor") || tiene("tesoreria") }),
     leerParametros(empresaId),
   ]);
@@ -98,6 +103,8 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
           <p className="text-sm text-gris">Fondos por rendir, informes, revisión y cierre</p>
         </div>
       </header>
+
+      {faltaSql && <p className="rounded-xl border border-rose-300/60 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700">{faltaSql}</p>}
 
       <nav className="desliza -mx-1 overflow-x-auto px-1 pb-1">
         <div className="inline-flex min-w-full gap-1 rounded-2xl border border-borde bg-superficie p-1">
