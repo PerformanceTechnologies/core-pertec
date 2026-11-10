@@ -1,8 +1,9 @@
 import { IconBuildingBank, IconCalculator, IconCreditCard, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, type Perfil } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, contextoFin, type Perfil } from "@/lib/fin/datos";
+import { perfilDeEmpresa } from "@/lib/fin/empresa-perfil";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
-import { eliminarReglaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarReglaAction } from "../acciones-config";
+import { eliminarReglaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction } from "../acciones-config";
 import { Pestanas, Seccion, TD, TH } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -13,13 +14,14 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
   const sp = await searchParams;
   const v = await cargarVista();
   const ver = sp.ver ?? "parametros";
+  const perfilEmpresa = ver === "empresa" ? await perfilDeEmpresa((await contextoFin()).empresa.id) : null;
   const p = v.p;
   return (
     <div className="space-y-5">
       <Pestanas
         base={`${RUTA_FIN}/configuracion`}
         actual={ver}
-        opciones={[{ clave: "parametros", etiqueta: "Parámetros" }, { clave: "cuentas", etiqueta: "Cuentas y factores" }, { clave: "categorias", etiqueta: "Categorías y reglas" }, { clave: "perfiles", etiqueta: "Clientes y proveedores" }]}
+        opciones={[{ clave: "parametros", etiqueta: "Parámetros" }, { clave: "empresa", etiqueta: "Datos de la empresa" }, { clave: "cuentas", etiqueta: "Cuentas y factores" }, { clave: "categorias", etiqueta: "Categorías y reglas" }, { clave: "perfiles", etiqueta: "Clientes y proveedores" }]}
       />
 
       {ver === "parametros" && (
@@ -52,6 +54,26 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
                 </span>
               </label>
             </GrupoParametros>
+          </FormAccion>
+        </div>
+      )}
+
+      {ver === "empresa" && perfilEmpresa && (
+        <div className={`${TARJETA} max-w-3xl p-5`}>
+          <p className="mb-5 text-sm text-gris">Lo que sale en el encabezado y el pie del PDF de las cotizaciones de {v.empresa.nombre}. Cada empresa del grupo tiene los suyos: cambia de empresa en el menú para completarlos.</p>
+          <FormAccion accion={guardarPerfilEmpresaAction} className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo etiqueta="Razón social"><input value={perfilEmpresa.nombre} readOnly className={`${CAMPO} opacity-70`} /></Campo>
+              <Campo etiqueta="RUT"><input value={perfilEmpresa.rut ?? "Sin RUT cargado"} readOnly className={`${CAMPO} opacity-70`} /></Campo>
+              <Campo etiqueta="Giro"><input name="giro" defaultValue={perfilEmpresa.giro ?? ""} className={CAMPO} placeholder="Servicios de ingeniería y mantención industrial" /></Campo>
+              <Campo etiqueta="Dirección"><input name="direccion" defaultValue={perfilEmpresa.direccion ?? ""} className={CAMPO} placeholder="Calle 123, comuna, ciudad" /></Campo>
+              <Campo etiqueta="Teléfono"><input name="telefono" defaultValue={perfilEmpresa.telefono ?? ""} className={CAMPO} placeholder="+56 2 2345 6789" /></Campo>
+              <Campo etiqueta="Correo comercial"><input name="correo" type="email" defaultValue={perfilEmpresa.correo ?? ""} className={CAMPO} placeholder="comercial@empresa.cl" /></Campo>
+              <Campo etiqueta="Sitio web"><input name="web" defaultValue={perfilEmpresa.web ?? ""} className={CAMPO} placeholder="www.empresa.cl" /></Campo>
+              <Campo etiqueta="Prefijo del N° de cotización" ayuda="Ej.: COT → COT-000123. Cada empresa lleva su propio correlativo"><input name="prefijo" defaultValue={perfilEmpresa.prefijo} className={CAMPO} maxLength={6} /></Campo>
+            </div>
+            <Campo etiqueta="Datos bancarios" ayuda="Salen al pie de la cotización, para que el cliente sepa dónde pagar"><textarea name="datosBancarios" defaultValue={perfilEmpresa.datosBancarios ?? ""} rows={4} className={CAMPO} placeholder={"Banco: …\nCuenta corriente N°: …\nTitular y RUT: …\nCorreo de pagos: …"} /></Campo>
+            <Campo etiqueta="Texto del pie" ayuda="Opcional: una línea de cierre, por ejemplo condiciones generales"><textarea name="pie" defaultValue={perfilEmpresa.pie ?? ""} rows={2} className={CAMPO} /></Campo>
           </FormAccion>
         </div>
       )}

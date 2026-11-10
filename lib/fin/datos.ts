@@ -43,6 +43,9 @@ import {
 
 export const SLUG_APP_FIN = "gestion-financiera";
 export const RUTA_FIN = "/gestion-financiera";
+/** Leads (CRM): oportunidades y cotizaciones. Los datos son los mismos fin_* de Gestión financiera. */
+export const SLUG_APP_LEADS = "leads";
+export const RUTA_LEADS = "/leads";
 const EMPRESAS_CON_FINANZAS = ["pertec", "zeus", "performance-service"];
 
 export interface ContextoFin {
@@ -58,6 +61,38 @@ export const contextoFin = cache(async (): Promise<ContextoFin> => {
   if (!activa || !EMPRESAS_CON_FINANZAS.includes(activa.slug)) redirect("/");
   return { usuario, empresa: activa, hoy: hoyEnSantiago().iso };
 });
+
+/**
+ * Quién puede trabajar en Leads: quien tiene la app «Leads» o, mientras se reparte el permiso, quien ya
+ * tenía «Gestión financiera» (de donde sale Comercial). El admin del Core entra a todo. Sin sesión: null
+ * y 401; sin permiso: null y 403.
+ */
+async function usuarioDeLeads(): Promise<{ usuario: UsuarioConAcceso | null; status: number | null }> {
+  const { verificarAccesoAppApi } = await import("../autorizacion");
+  const enLeads = await verificarAccesoAppApi(SLUG_APP_LEADS);
+  if (enLeads.usuario) return { usuario: enLeads.usuario, status: null };
+  if (enLeads.status === 401) return { usuario: null, status: 401 };
+  const enFin = await verificarAccesoAppApi(SLUG_APP_FIN);
+  return enFin.usuario ? { usuario: enFin.usuario, status: null } : { usuario: null, status: 403 };
+}
+
+/** Como contextoFin, pero para Leads: lo que se registra queda en la empresa activa, igual que en Finanzas. */
+export const contextoLeads = cache(async (): Promise<ContextoFin> => {
+  const { usuario, status } = await usuarioDeLeads();
+  if (!usuario) redirect(status === 401 ? "/ingresar" : "/");
+  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  if (!activa || !EMPRESAS_CON_FINANZAS.includes(activa.slug)) redirect("/");
+  return { usuario, empresa: activa, hoy: hoyEnSantiago().iso };
+});
+
+/** Para route handlers de Leads: null en vez de redirigir. */
+export async function contextoLeadsApi(): Promise<ContextoFin | null> {
+  const { usuario } = await usuarioDeLeads();
+  if (!usuario) return null;
+  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  if (!activa || !EMPRESAS_CON_FINANZAS.includes(activa.slug)) return null;
+  return { usuario, empresa: activa, hoy: hoyEnSantiago().iso };
+}
 
 /** Para la cartilla del módulo Finanzas: el mismo contexto, sin redirigir (null si la empresa no aplica). */
 export async function contextoFinDeUsuario(usuario: UsuarioConAcceso): Promise<ContextoFin | null> {
@@ -321,6 +356,8 @@ function aParametros(r: any): Parametros & { flags: Record<string, unknown> } {
  * lee de una vez y cada pantalla toma lo suyo; React cache evita leerlo dos veces en un pedido.
  */
 export const cargarVista = cache(async (): Promise<VistaFin> => cargarVistaDe(await contextoFin()));
+/** La misma vista, pero entrando por Leads (permiso de Leads o de Finanzas). */
+export const cargarVistaLeads = cache(async (): Promise<VistaFin> => cargarVistaDe(await contextoLeads()));
 
 /** La misma vista para un contexto ya resuelto (route handlers). */
 export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
@@ -602,6 +639,13 @@ export async function siguienteNumero(empresaId: string, tipo: string, prefijo: 
   return `${prefijo}-${String(data).padStart(relleno, "0")}`;
 }
 
+/** Prefijo del correlativo de cotizaciones de la empresa (COT por omisión; cada empresa puede tener el suyo). */
+export async function prefijoCotizacion(empresaId: string): Promise<string> {
+  const { data } = await supabaseAdmin.from("empresas").select("prefijo_cotizacion").eq("id", empresaId).maybeSingle();
+  const p = String((data as { prefijo_cotizacion?: string } | null)?.prefijo_cotizacion ?? "COT").toUpperCase();
+  return /^[A-Z0-9]{2,6}$/.test(p) ? p : "COT";
+}
+
 /** Todo cambio guarda quién, cuándo y por qué. Si la auditoría falla, el cambio igual quedó. */
 export async function auditar(
   ctx: ContextoFin,
@@ -735,6 +779,11 @@ export interface Oportunidad {
   descripcion: string | null;
   actualizadoEn: string;
   ultimaActividad: string | null;
+  contactoNombre: string | null;
+  contactoCorreo: string | null;
+  contactoTelefono: string | null;
+  proximoPaso: string | null;
+  proximoPasoFecha: Iso | null;
 }
 
 export interface Cotizacion {
@@ -761,11 +810,17 @@ export interface Cotizacion {
   iva: number;
   total: number;
   notas: string | null;
+  atencion: string | null;
+  correoAtencion: string | null;
+  plazoEntrega: string | null;
+  formaPago: string | null;
+  enviadaA: string | null;
+  enviadaEn: string | null;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const cargarComercial = cache(async () => {
-  const { empresa } = await contextoFin();
+  const { empresa } = await contextoLeads();
   const [ops, cots, acts] = await Promise.all([
     tabla("fin_oportunidades", empresa.id, "orden"),
     tabla("fin_cotizaciones", empresa.id, "fecha"),
@@ -777,13 +832,16 @@ export const cargarComercial = cache(async () => {
     id: r.id, codigo: r.codigo, nombre: r.nombre, clienteId: r.cliente_id, proyectoId: r.proyecto_id, tipo: r.tipo, etapa: r.etapa, montoEstimado: n(r.monto_estimado),
     probabilidad: r.probabilidad, fechaCierre: r.fecha_cierre, responsable: r.responsable, origen: r.origen, motivoPerdida: r.motivo_perdida, descripcion: r.descripcion,
     actualizadoEn: r.actualizado_en, ultimaActividad: ultima.get(r.id) ?? null,
+    contactoNombre: r.contacto_nombre ?? null, contactoCorreo: r.contacto_correo ?? null, contactoTelefono: r.contacto_telefono ?? null,
+    proximoPaso: r.proximo_paso ?? null, proximoPasoFecha: r.proximo_paso_fecha ?? null,
   }));
   const cotizaciones: Cotizacion[] = cots
     .map((r: any) => ({
       id: r.id, numero: r.numero, version: r.version, oportunidadId: r.oportunidad_id, clienteId: r.cliente_id, proyectoId: r.proyecto_id, titulo: r.titulo, fecha: r.fecha,
       validezDias: r.validez_dias, tipo: r.tipo, condicionPagoDias: nOrNull(r.condicion_pago_dias), requiereOc: r.requiere_oc, requiereEdp: r.requiere_edp, requiereHes: r.requiere_hes,
       estado: r.estado, fechaEnvio: r.fecha_envio, fechaAceptacion: r.fecha_aceptacion, ocClienteNumero: r.oc_cliente_numero, motivo: r.motivo, neto: n(r.neto), iva: n(r.iva),
-      total: n(r.total), notas: r.notas,
+      total: n(r.total), notas: r.notas, atencion: r.atencion ?? null, correoAtencion: r.correo_atencion ?? null, plazoEntrega: r.plazo_entrega ?? null,
+      formaPago: r.forma_pago ?? null, enviadaA: r.enviada_a ?? null, enviadaEn: r.enviada_en ?? null,
     }))
     .reverse();
   return { oportunidades, cotizaciones };
@@ -810,14 +868,14 @@ export interface Actividad {
 }
 
 export async function actividadesDe(entidadTipo: string, entidadId: string): Promise<Actividad[]> {
-  const { empresa } = await contextoFin();
+  const { empresa } = await contextoLeads();
   const { data, error } = await supabaseAdmin.from("fin_actividades").select("*").eq("empresa_id", empresa.id).eq("entidad_tipo", entidadTipo).eq("entidad_id", entidadId).order("creado_en", { ascending: false }).limit(200);
   revienta("leer actividades", error);
   return (data ?? []).map((a: any) => ({ id: a.id, tipo: a.tipo, texto: a.texto, fecha: a.fecha, vencimiento: a.vencimiento, hecha: a.hecha, creadoPor: a.creado_por, creadoEn: a.creado_en }));
 }
 
 export async function adjuntosDe(entidadTipo: string, entidadId: string): Promise<{ id: string; nombre: string; tipo: string; creadoEn: string }[]> {
-  const { empresa } = await contextoFin();
+  const { empresa } = await contextoLeads();
   const { data } = await supabaseAdmin.from("fin_adjuntos").select("id, nombre, tipo, creado_en").eq("empresa_id", empresa.id).eq("entidad_tipo", entidadTipo).eq("entidad_id", entidadId).order("creado_en", { ascending: false });
   return (data ?? []).map((a: any) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, creadoEn: a.creado_en }));
 }

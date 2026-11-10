@@ -1,5 +1,6 @@
 import {
   IconAddressBook,
+  IconTargetArrow,
   IconApps,
   IconFileInvoice,
   IconMusic,
@@ -31,6 +32,7 @@ export const ICONOS_DISPONIBLES: { clave: string; etiqueta: string; Componente: 
   { clave: "apps", etiqueta: "General", Componente: IconApps },
   { clave: "file-invoice", etiqueta: "Facturación / licitaciones", Componente: IconFileInvoice },
   { clave: "cash", etiqueta: "Finanzas", Componente: IconCash },
+  { clave: "target", etiqueta: "Leads / comercial", Componente: IconTargetArrow },
   { clave: "chart-bar", etiqueta: "Reportes / métricas", Componente: IconChartBar },
   { clave: "building", etiqueta: "Empresa / faena", Componente: IconBuilding },
   { clave: "truck", etiqueta: "Logística / arriendos", Componente: IconTruck },

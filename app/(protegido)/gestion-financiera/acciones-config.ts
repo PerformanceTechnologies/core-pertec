@@ -27,6 +27,31 @@ const pct = (fd: FormData, k: string) => {
   return Number.isFinite(x) && x >= 0 && x <= 100 ? x / 100 : null;
 };
 
+// ---------- Datos de la empresa (encabezado y pie del PDF de cotización) ----------------
+
+export async function guardarPerfilEmpresaAction(fd: FormData): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    const correo = texto(fd, "correo", 120);
+    if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return { ok: false, error: "El correo comercial no es válido." };
+    const prefijo = (texto(fd, "prefijo", 6) ?? "COT").toUpperCase();
+    if (!/^[A-Z0-9]{2,6}$/.test(prefijo)) return { ok: false, error: "El prefijo de las cotizaciones son 2 a 6 letras o números." };
+    const largo = (k: string, max: number) => String(fd.get(k) ?? "").replace(/\r/g, "").trim().slice(0, max) || null;
+    const fila = {
+      direccion: texto(fd, "direccion", 200), giro: texto(fd, "giro", 200), telefono: texto(fd, "telefono", 60), correo_comercial: correo, web: texto(fd, "web", 120),
+      datos_bancarios: largo("datosBancarios", 600), pie_cotizacion: largo("pie", 600), prefijo_cotizacion: prefijo,
+    };
+    const { error } = await supabaseAdmin.from("empresas").update(fila).eq("id", ctx.empresa.id);
+    revienta("guardar los datos de la empresa", error);
+    await auditar(ctx, "empresas", ctx.empresa.id, "editar", `Datos de ${ctx.empresa.nombre} para cotizaciones`);
+    refrescar();
+    revalidatePath("/leads", "layout");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
 // ---------- Parámetros ------------------------------------------------------------
 
 export async function guardarParametrosAction(fd: FormData): Promise<Resultado> {

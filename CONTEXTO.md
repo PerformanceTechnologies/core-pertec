@@ -62,6 +62,7 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 | Facturas históricas | `/finanzas/facturas-historicas` | Busca XML y PDF de facturas guardados en SharePoint |
 | Facturas IH | `/finanzas/facturas-ih` | Sincroniza documentos de las empresas IH e IL; corre en GitHub Actions |
 | Rendir Gastos | `/rendir-gastos` | La IA lee boletas, genera el Excel con respaldos y los carga como gastos en Odoo |
+| Leads | `/leads` | Aplicación del módulo CRM (antes «Comercial» dentro de Gestión financiera, que sigue redirigiendo). Leads en tablero o tabla, historial y próximo paso; cotizaciones en pasos, con PDF profesional (`lib/fin/cotizacion-documento.ts`, impreso con Chromium) y envío por correo desde el Outlook de quien envía. Usa las mismas tablas `fin_*`: aceptar una cotización crea proyecto e hitos en Gestión financiera. Permiso propio (`leads`); quien tiene Gestión financiera también entra (`contextoLeads`) |
 | Cotizador | `/cotizador` | Motor de costos y remuneraciones, modo obra, ECO-1 en PDF, importación de propuestas |
 | Ofertas técnicas | `/ofertas` | Convierte un borrador en oferta editable y la emite en PDF |
 | Contratos | `/contratos/[contrato]/…` | Acreditación de personas y vehículos, logística, gastos de arranque, dashboard y reportes |
@@ -109,7 +110,8 @@ Todos con `Authorization: Bearer <secreto>`.
   `@/lib/supabase-admin`. Una tabla nueva con `contrato_id` va en `TABLAS_DE_CONTRATO`. `proxy.ts` toma el contrato de
   la URL y borra cualquier cabecera igual que mande el cliente.
 - **Inventario**: el stock no se edita; solo transferencias mediante las funciones SQL (son atómicas).
-- **Multiempresa**: los módulos no tienen `empresa_id`; `FiltroDeEmpresa` solo oculta lo que no es de PERTEC.
+- **Leads / Gestión financiera**: todo lleva `empresa_id` de la empresa activa y toda escritura pasa por `contextoLeads()` / `contextoFin()`. El correlativo de cotizaciones es por empresa (`fin_siguiente_numero`) con el prefijo de `empresas.prefijo_cotizacion`. Los datos que salen en el PDF (dirección, giro, banco…) se editan en Gestión financiera › Configuración › Datos de la empresa. Rutas que imprimen: `/api/leads/cotizaciones/[id]/pdf` y `/enviar` (tienen su entrada en `next.config.ts`, con los logos de `public/empresas`).
+- **Multiempresa**: el resto de los módulos no tiene `empresa_id`; `FiltroDeEmpresa` solo oculta lo que no es de PERTEC.
 - **`next.config.ts`**: toda ruta nueva que lance Chromium o use `pdf-parse` necesita su entrada en
   `outputFileTracingIncludes` (las claves son globs: escapa `[id]` como `\\[id\\]`). Depende de detalles internos de
   varias librerías: por eso `next`, `react`, las de PDF y las de navegador se actualizan solo a mano y con prueba.
