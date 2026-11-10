@@ -44,6 +44,8 @@ export interface DatosDocumento {
   estado: string;
   cliente: ClienteDocumento | null;
   atencion: string | null;
+  /** Correo de la persona de atención (si no hay, se usa el del cliente). */
+  correoAtencion: string | null;
   lineas: LineaCotizacion[];
   tasaIva: number;
   /** Descuento sobre todo el documento (además del de cada línea); null si no hay. */
@@ -107,7 +109,6 @@ const CSS = `
   /* El margen lateral vive en .hoja. Para ajustar a la hoja solo se achica la tabla de productos (con «zoom»); el resto del texto no cambia. */
   .hoja { padding: 0 16mm; }
   .pagina.una-hoja { display: flex; flex-direction: column; }
-  .pagina.una-hoja .cierre { margin-top: auto; }
   .g { display: block; }
 
   .cabecera { display: flex; justify-content: space-between; align-items: center; gap: 12mm; padding: 6mm 0 4mm; }
@@ -142,9 +143,10 @@ const CSS = `
   table.lineas tr { break-inside: avoid; page-break-inside: avoid; }
   table.lineas .num { color: #9a9086; white-space: nowrap; }
   table.lineas .sub { display: block; font-size: 7.5pt; color: #8a8176; margin-top: 0.6mm; }
-  .resumen { display: grid; grid-template-columns: 1fr 80mm; gap: 8mm; align-items: start; break-inside: avoid; page-break-inside: avoid; }
-  .resumen.solo { grid-template-columns: 1fr; }
-  .totales table { width: 100%; border-collapse: collapse; }
+  /* La nota opcional de la línea: la descripción larga del producto o servicio. */
+  table.lineas .nota { display: block; font-size: 8pt; line-height: 1.35; color: #6b6258; margin-top: 1mm; }
+  .totales { display: flex; justify-content: flex-end; margin-top: 3mm; break-inside: avoid; page-break-inside: avoid; }
+  .totales table { width: 80mm; border-collapse: collapse; }
   .totales td { padding: 1.2mm 3mm; font-size: 9.5pt; }
   .totales td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .totales tr.desc td { color: #b3261e; }
@@ -158,15 +160,19 @@ const CSS = `
   .bloque li b { flex: 0 0 34mm; color: #3d362f; }
   .bloque p { margin: 0; font-size: 9pt; }
   .banco { white-space: pre-line; background: #fbf9f5; border: 1px dashed #d8cfc2; border-radius: 2mm; padding: 3mm 4mm; font-size: 9pt; }
+  /* Abajo de todo. Izquierda: observaciones (si hay) y, al final, las condiciones comerciales. Derecha: datos de pago (si se piden) y la firma. */
   .cierre { break-inside: avoid; page-break-inside: avoid; padding-bottom: 2mm; }
-  .cierre .fila { display: grid; grid-template-columns: 1fr 70mm; gap: 8mm; align-items: end; }
-  .cierre .fila.solo { grid-template-columns: 1fr; justify-items: end; }
-  .cierre .bloque { margin-bottom: 0; }
-  .agradece { margin: 0 0 4mm; font-size: 9pt; color: #5a5249; }
+  .cierre .fila { display: grid; grid-template-columns: 1fr 66mm; gap: 8mm; align-items: end; }
+  .cierre .izq .bloque:last-child { margin-bottom: 0; }
+  .cierre .der .bloque { margin-bottom: 4mm; }
+  .agradece { margin: 0 0 6mm; font-size: 8.5pt; color: #5a5249; }
   .firma { font-size: 9pt; }
-  .firma .raya { width: 60mm; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; }
+  .firma .raya { width: 100%; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; }
   .firma b { font-size: 10pt; }
-  .g + .g { margin-top: 5mm; }
+  .g + .g { margin-top: 4mm; }
+  .g + .g.cierre { margin-top: 6mm; }
+  /* En una sola hoja la firma y las condiciones van pegadas al pie; todo lo demás, arriba y junto. */
+  .pagina.una-hoja .g + .g.cierre { margin-top: auto; }
 
   /* Espacio justo: antes de achicar las filas de productos se aprietan los márgenes (la letra no cambia). */
   body.espacio-justo .cabecera { padding: 4mm 0 2.5mm; }
@@ -176,8 +182,8 @@ const CSS = `
   body.espacio-justo .bloque li { margin-bottom: 0.6mm; }
   body.espacio-justo .totales td { padding: 0.8mm 3mm; }
   body.espacio-justo .totales tr.total td { padding: 1.8mm 3mm; }
-  body.espacio-justo .agradece { margin-bottom: 3mm; }
-  body.espacio-justo .g + .g { margin-top: 3mm; }
+  body.espacio-justo .agradece { margin-bottom: 4mm; }
+  body.espacio-justo .g + .g:not(.cierre) { margin-top: 3mm; }
 `;
 
 export function htmlDeCotizacion(d: DatosDocumento): string {
@@ -197,7 +203,7 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
       (l, i) => `
       <tr>
         <td class="num">${i + 1}</td>
-        <td>${conSaltos(l.descripcion)}${l.exento ? '<span class="sub">Exento de IVA</span>' : ""}${arriendo && l.meses ? `<span class="sub">${l.meses} ${l.meses === 1 ? "mes" : "meses"} de arriendo</span>` : ""}</td>
+        <td>${conSaltos(l.descripcion)}${l.nota?.trim() ? `<span class="nota">${conSaltos(l.nota.trim())}</span>` : ""}${l.exento ? '<span class="sub">Exento de IVA</span>' : ""}${arriendo && l.meses ? `<span class="sub">${l.meses} ${l.meses === 1 ? "mes" : "meses"} de arriendo</span>` : ""}</td>
         <td class="n">${esc(Number(l.cantidad).toLocaleString("es-CL", { maximumFractionDigits: 2 }))}${l.unidad ? ` ${esc(l.unidad)}` : ""}</td>
         <td class="n">${clp(Number(l.precioUnitario))}${arriendo ? '<span class="sub">por mes</span>' : ""}</td>
         ${hayDescuento ? `<td class="n">${Number(l.descuentoPct) > 0 ? `${Math.round(Number(l.descuentoPct) * 1000) / 10}%` : "—"}</td>` : ""}
@@ -207,7 +213,8 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
     .join("");
 
   const c = d.cliente;
-  const atencionSecundaria = [c?.correo, c?.telefono].filter((x): x is string => Boolean(x));
+  // Bajo el nombre va el correo de ESA persona (si no se cargó, el del cliente) y el teléfono del cliente.
+  const atencionSecundaria = [d.correoAtencion?.trim() || c?.correo, c?.telefono].filter((x): x is string => Boolean(x));
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(d.numero)} ${esc(d.titulo)}</title><style>${CSS}</style></head>
 <body>
@@ -254,32 +261,29 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
         <tbody>${filas}</tbody>
       </table>
 
+      <div class="totales"><table>
+        ${t.descuento > 0 ? `<tr><td>Subtotal</td><td>${clp(t.bruto)}</td></tr><tr class="desc"><td>${esc(etiquetaDescuento)}</td><td>−${clp(t.descuento)}</td></tr>` : ""}
+        <tr${t.descuento > 0 ? ' class="sep"' : ""}><td>${t.exento > 0 ? "Neto afecto" : "Neto"}</td><td>${clp(t.neto)}</td></tr>
+        ${t.exento > 0 ? `<tr><td>Exento</td><td>${clp(t.exento)}</td></tr>` : ""}
+        <tr><td>IVA ${Math.round(d.tasaIva * 1000) / 10}%</td><td>${clp(t.iva)}</td></tr>
+        <tr class="total"><td>TOTAL</td><td>${clp(t.total)}</td></tr>
+      </table></div>
     </div>
 
-    <div class="g">
-      <div class="resumen">
-        <div>
+    <div class="g cierre">
+      <div class="fila">
+        <div class="izq">
+          ${d.notas?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.notas.trim())}</p></section>` : ""}
           <section class="bloque">
             <h2>Condiciones comerciales</h2>
             <ul>${condiciones.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul>
           </section>
-          ${d.notas?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.notas.trim())}</p></section>` : ""}
         </div>
-        <div class="totales"><table>
-          ${t.descuento > 0 ? `<tr><td>Subtotal</td><td>${clp(t.bruto)}</td></tr><tr class="desc"><td>${esc(etiquetaDescuento)}</td><td>−${clp(t.descuento)}</td></tr>` : ""}
-          <tr${t.descuento > 0 ? ' class="sep"' : ""}><td>${t.exento > 0 ? "Neto afecto" : "Neto"}</td><td>${clp(t.neto)}</td></tr>
-          ${t.exento > 0 ? `<tr><td>Exento</td><td>${clp(t.exento)}</td></tr>` : ""}
-          <tr><td>IVA ${Math.round(d.tasaIva * 1000) / 10}%</td><td>${clp(t.iva)}</td></tr>
-          <tr class="total"><td>TOTAL</td><td>${clp(t.total)}</td></tr>
-        </table></div>
-      </div>
-    </div>
-
-    <div class="g cierre">
-      <p class="agradece">Quedamos atentos a sus comentarios. Gracias por considerarnos.</p>
-      <div class="fila${pago ? "" : " solo"}">
-        ${pago ? `<section class="bloque"><h2>Datos para el pago</h2><div class="banco">${esc(pago)}</div></section>` : ""}
-        <div class="firma"><div class="raya"></div><b>${esc(d.emisor.nombre)}</b><br>${esc(e.nombre)}<br>${esc(d.emisor.correo)}</div>
+        <div class="der">
+          ${pago ? `<section class="bloque"><h2>Datos para el pago</h2><div class="banco">${esc(pago)}</div></section>` : ""}
+          <p class="agradece">Quedamos atentos a sus comentarios. Gracias por considerarnos.</p>
+          <div class="firma"><div class="raya"></div><b>${esc(d.emisor.nombre)}</b><br>${esc(e.nombre)}<br>${esc(d.emisor.correo)}</div>
+        </div>
       </div>
     </div>
   </div></div>

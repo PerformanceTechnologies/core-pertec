@@ -41,6 +41,8 @@ export interface LineaCotizacion {
   descuentoPct: number;
   exento: boolean;
   meses: number | null;
+  /** Nota opcional del producto o servicio (descripción larga); sale bajo la línea en el PDF. */
+  nota?: string | null;
 }
 
 /** Neto de una línea: cantidad × precio × (meses, en arriendo) − descuento, a peso. */

@@ -8,8 +8,8 @@
 //   3. Si aún no cabe, se busca el mayor tamaño de las filas (entre ZOOM_MIN y 1) con el que todo cabe.
 //   4. Si ni al tamaño mínimo cabe, sigue en una segunda hoja ordenada: encabezado de la tabla repetido,
 //      sin cortar filas ni bloques por la mitad.
-// Con pocas líneas sobra alto: se reparte como un respiro entre bloques (hasta un tope) y la firma va al
-// pie, en vez de agrandar la letra.
+// Con pocas líneas sobra alto: los productos y sus valores quedan arriba, juntos, y las condiciones con la
+// firma al pie de la hoja, en vez de agrandar la letra.
 
 import type { Page } from "playwright-core";
 import { htmlDeCotizacion, pieDeCotizacion, type DatosDocumento } from "./cotizacion-documento";
@@ -20,8 +20,6 @@ export const LIMITE_PX = 1052;
 export const ZOOM_MIN = 0.6;
 /** Tamaño de las filas cuando de verdad son demasiadas para una hoja (así la segunda hoja ocupa menos). */
 const ZOOM_VARIAS_HOJAS = 0.85;
-/** Lo máximo que se separa cada bloque del anterior para repartir el sobrante, en px. */
-const RESPIRO_MAX_PX = 56;
 
 export type ModoDeImpresion = "una-hoja" | "varias-hojas";
 
@@ -56,7 +54,6 @@ export async function imprimirCotizacion(page: Page, d: DatosDocumento): Promise
       p.className = "pagina";
       p.style.minHeight = "";
       document.querySelector<HTMLElement>("table.lineas")!.style.zoom = String(z);
-      document.querySelectorAll<HTMLElement>(".g + .g").forEach((g) => (g.style.marginTop = ""));
       return document.querySelector(".hoja")!.getBoundingClientRect().height;
     }, { z: zoom, j: justo });
 
@@ -86,22 +83,13 @@ export async function imprimirCotizacion(page: Page, d: DatosDocumento): Promise
   const usado = await alto(zoom, justo);
   const ocupacion = usado / LIMITE_PX;
   if (modo === "una-hoja") {
-    // El sobrante se reparte como respiro entre los bloques, hasta un tope; lo que quede va arriba de la firma.
-    const respiro = Math.max(0, Math.min(RESPIRO_MAX_PX, (LIMITE_PX - usado) / 4));
-    await page.evaluate(
-      ({ extra, min }) => {
-        const p = document.querySelector<HTMLElement>(".pagina")!;
-        // Primero se leen los márgenes de cada bloque (5 mm, o 3 mm con el espacio justo): con la hoja ya en
-        // columna, el margen automático de la firma se informaría como el sobrante entero.
-        // La firma (.cierre) queda fuera: su margen automático es lo que la lleva al pie de la hoja.
-        const bloques = [...document.querySelectorAll<HTMLElement>(".g + .g:not(.cierre)")];
-        const base = bloques.map((g) => parseFloat(getComputedStyle(g).marginTop));
-        p.className = "pagina una-hoja";
-        p.style.minHeight = `${min}px`;
-        bloques.forEach((g, i) => (g.style.marginTop = `${base[i] + extra}px`));
-      },
-      { extra: respiro, min: LIMITE_PX },
-    );
+    // Una sola hoja: la hoja se estira hasta el pie y las condiciones con la firma quedan abajo (margen automático);
+    // los productos y sus valores van arriba, uno tras otro, sin huecos.
+    await page.evaluate((min) => {
+      const p = document.querySelector<HTMLElement>(".pagina")!;
+      p.className = "pagina una-hoja";
+      p.style.minHeight = `${min}px`;
+    }, LIMITE_PX);
   }
 
   const pdf = Buffer.from(
