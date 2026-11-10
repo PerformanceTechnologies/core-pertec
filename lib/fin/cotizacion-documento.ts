@@ -52,6 +52,8 @@ export interface DatosDocumento {
   descuentoGeneral: DescuentoGeneral | null;
   /** Si el PDF lleva los datos bancarios de la empresa (apagado por omisión). */
   incluirDatosPago: boolean;
+  /** Arriendo cobrado por mes o por día. */
+  arriendoUnidad: "mes" | "dia";
   condicionPagoDias: number | null;
   formaPago: string | null;
   plazoEntrega: string | null;
@@ -160,12 +162,13 @@ const CSS = `
   .bloque li b { flex: 0 0 34mm; color: #3d362f; }
   .bloque p { margin: 0; font-size: 9pt; }
   .banco { white-space: pre-line; background: #fbf9f5; border: 1px dashed #d8cfc2; border-radius: 2mm; padding: 3mm 4mm; font-size: 9pt; }
-  /* Abajo de todo. Izquierda: observaciones (si hay) y, al final, las condiciones comerciales. Derecha: datos de pago (si se piden) y la firma. */
+  /* Abajo de todo. Izquierda: observaciones (si hay), condiciones comerciales y el mensaje de cierre. Derecha: datos de pago (si se piden) y la firma. */
   .cierre { break-inside: avoid; page-break-inside: avoid; padding-bottom: 2mm; }
   .cierre .fila { display: grid; grid-template-columns: 1fr 66mm; gap: 8mm; align-items: end; }
-  .cierre .izq .bloque:last-child { margin-bottom: 0; }
+  /* El mensaje de cierre va al final de la columna izquierda, después de las condiciones. */
+  .cierre .izq .agradece { margin: 0; }
   .cierre .der .bloque { margin-bottom: 4mm; }
-  .agradece { margin: 0 0 6mm; font-size: 8.5pt; color: #5a5249; }
+  .agradece { margin: 0; font-size: 9pt; color: #5a5249; }
   .firma { font-size: 9pt; }
   .firma .raya { width: 100%; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; }
   .firma b { font-size: 10pt; }
@@ -182,7 +185,6 @@ const CSS = `
   body.espacio-justo .bloque li { margin-bottom: 0.6mm; }
   body.espacio-justo .totales td { padding: 0.8mm 3mm; }
   body.espacio-justo .totales tr.total td { padding: 1.8mm 3mm; }
-  body.espacio-justo .agradece { margin-bottom: 4mm; }
   body.espacio-justo .g + .g:not(.cierre) { margin-top: 3mm; }
 `;
 
@@ -203,9 +205,9 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
       (l, i) => `
       <tr>
         <td class="num">${i + 1}</td>
-        <td>${conSaltos(l.descripcion)}${l.nota?.trim() ? `<span class="nota">${conSaltos(l.nota.trim())}</span>` : ""}${l.exento ? '<span class="sub">Exento de IVA</span>' : ""}${arriendo && l.meses ? `<span class="sub">${l.meses} ${l.meses === 1 ? "mes" : "meses"} de arriendo</span>` : ""}</td>
+        <td>${conSaltos(l.descripcion)}${l.nota?.trim() ? `<span class="nota">${conSaltos(l.nota.trim())}</span>` : ""}${l.exento ? '<span class="sub">Exento de IVA</span>' : ""}${arriendo && l.meses ? `<span class="sub">${l.meses} ${d.arriendoUnidad === "dia" ? (l.meses === 1 ? "día" : "días") : l.meses === 1 ? "mes" : "meses"} de arriendo</span>` : ""}</td>
         <td class="n">${esc(Number(l.cantidad).toLocaleString("es-CL", { maximumFractionDigits: 2 }))}${l.unidad ? ` ${esc(l.unidad)}` : ""}</td>
-        <td class="n">${clp(Number(l.precioUnitario))}${arriendo ? '<span class="sub">por mes</span>' : ""}</td>
+        <td class="n">${clp(Number(l.precioUnitario))}${arriendo ? `<span class="sub">por ${d.arriendoUnidad === "dia" ? "día" : "mes"}</span>` : ""}</td>
         ${hayDescuento ? `<td class="n">${Number(l.descuentoPct) > 0 ? `${Math.round(Number(l.descuentoPct) * 1000) / 10}%` : "—"}</td>` : ""}
         <td class="n"><b>${clp(lineaNeta(l))}</b></td>
       </tr>`,
@@ -278,10 +280,10 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
             <h2>Condiciones comerciales</h2>
             <ul>${condiciones.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul>
           </section>
+          <p class="agradece">Agradecemos su interés. Quedamos atentos a sus comentarios sobre la cotización.</p>
         </div>
         <div class="der">
           ${pago ? `<section class="bloque"><h2>Datos para el pago</h2><div class="banco">${esc(pago)}</div></section>` : ""}
-          <p class="agradece">Quedamos atentos a sus comentarios. Gracias por considerarnos.</p>
           <div class="firma"><div class="raya"></div><b>${esc(d.emisor.nombre)}</b><br>${esc(e.nombre)}<br>${esc(d.emisor.correo)}</div>
         </div>
       </div>

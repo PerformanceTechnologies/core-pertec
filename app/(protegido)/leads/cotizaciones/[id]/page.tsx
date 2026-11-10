@@ -63,9 +63,9 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
                 )}
                 <fieldset className="space-y-2 rounded-xl border border-borde p-3">
                   <legend className="px-1 text-xs font-semibold text-gris">¿Cómo se factura?</legend>
-                  <label className="flex items-center gap-2 text-sm"><input type="radio" name="modo" value="unica" defaultChecked={c.tipo !== "arriendo"} /> Un solo hito («Única»)</label>
+                  <label className="flex items-center gap-2 text-sm"><input type="radio" name="modo" value="unica" defaultChecked={c.tipo !== "arriendo" || c.arriendoUnidad === "dia"} /> Un solo hito («Única»)</label>
                   <label className="flex flex-wrap items-center gap-2 text-sm"><input type="radio" name="modo" value="partes" /> En <input name="partes" defaultValue={3} className="w-14 rounded border border-borde px-1.5 py-0.5 text-center" /> hitos iguales</label>
-                  <label className="flex flex-wrap items-center gap-2 text-sm"><input type="radio" name="modo" value="mensual" defaultChecked={c.tipo === "arriendo"} /> {c.tipo === "arriendo" ? "Un hito por mes de arriendo" : "EDP mensuales"} del <input name="desde" type="date" defaultValue={v.hoy} className="rounded border border-borde px-1.5 py-0.5" /> al <input name="hasta" type="date" className="rounded border border-borde px-1.5 py-0.5" /></label>
+                  <label className="flex flex-wrap items-center gap-2 text-sm"><input type="radio" name="modo" value="mensual" defaultChecked={c.tipo === "arriendo" && c.arriendoUnidad !== "dia"} /> {c.tipo === "arriendo" ? "Un hito por mes de arriendo" : "EDP mensuales"} del <input name="desde" type="date" defaultValue={v.hoy} className="rounded border border-borde px-1.5 py-0.5" /> al <input name="hasta" type="date" className="rounded border border-borde px-1.5 py-0.5" /></label>
                   <label className="ml-6 flex items-center gap-2 text-xs text-gris">Monto por mes (opcional; vacío = repartir el neto) <input name="montoMensual" className="w-32 rounded border border-borde px-1.5 py-0.5" /></label>
                 </fieldset>
                 <p className="text-[11px] text-gris">Adjunta la evidencia de aceptación (correo o firma del cliente) en «Respaldos» después de aceptar.</p>
@@ -94,7 +94,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
 
       {editable ? (
         <EditorCotizacion
-          inicial={{ id, titulo: c.titulo, clienteId: c.clienteId, oportunidadId: c.oportunidadId, proyectoId: c.proyectoId, tipo: c.tipo, fecha: c.fecha, validezDias: c.validezDias, condicionPagoDias: c.condicionPagoDias, requiereOc: c.requiereOc, requiereEdp: c.requiereEdp, requiereHes: c.requiereHes, notas: c.notas, atencion: c.atencion, correoAtencion: c.correoAtencion, plazoEntrega: c.plazoEntrega, formaPago: c.formaPago, descuentoGeneralTipo: c.descuentoGeneralTipo, descuentoGeneralValor: c.descuentoGeneralValor, incluirDatosPago: c.incluirDatosPago, lineas }}
+          inicial={{ id, titulo: c.titulo, clienteId: c.clienteId, oportunidadId: c.oportunidadId, proyectoId: c.proyectoId, tipo: c.tipo, fecha: c.fecha, validezDias: c.validezDias, condicionPagoDias: c.condicionPagoDias, requiereOc: c.requiereOc, requiereEdp: c.requiereEdp, requiereHes: c.requiereHes, notas: c.notas, atencion: c.atencion, correoAtencion: c.correoAtencion, plazoEntrega: c.plazoEntrega, formaPago: c.formaPago, descuentoGeneralTipo: c.descuentoGeneralTipo, descuentoGeneralValor: c.descuentoGeneralValor, incluirDatosPago: c.incluirDatosPago, arriendoUnidad: c.arriendoUnidad, lineas }}
           clientes={v.contrapartes.map((x) => ({ id: x.id, nombre: x.nombre, rut: x.rut }))}
           perfiles={Object.fromEntries([...v.perfiles.values()].map((p) => [p.contactoId, { condicion: p.condicionVentaDias, oc: p.requiereOc, edp: p.requiereEdp, hes: p.requiereHes }]))}
           productos={productos}

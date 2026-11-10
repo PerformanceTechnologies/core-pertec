@@ -11,6 +11,7 @@ import { condicionesDelDocumento, esc, htmlDeCotizacion, pieDeCotizacion, vigent
 import { asuntoDeCotizacion, mensajeDeCotizacion } from "../lib/fin/cotizacion-correo";
 import { totalesCotizacion } from "../lib/fin/modelo";
 import { cuerpoHtml } from "../lib/ofertas/correo-html";
+import { armarPedidoDeObservaciones, limpiarDatosParaObservaciones, limpiarObservacionesGeneradas } from "../lib/fin/cotizacion-ia-datos";
 
 const EMPRESAS = [
   { slug: "pertec", nombre: "Performance Technologies SpA", rut: "76.123.456-7", prefijo: "COT" },
@@ -24,7 +25,7 @@ function datos(e: (typeof EMPRESAS)[number], extra: Partial<DatosDocumento> = {}
     logo: null,
     numero: `${e.prefijo}-000123`, version: 1, titulo: "Mantención mensual de chancadores <planta Norte>", fecha: "2026-11-10", validezDias: 30, tipo: "servicio", estado: "borrador",
     cliente: { nombre: "Minera Los Andes S.A.", rut: "96.555.444-3", giro: "Minería", direccion: "Camino Real 55, Calama", telefono: "+56 55 2111222", correo: "compras@mla.cl" },
-    atencion: "María Pérez", correoAtencion: "maria.perez@mla.cl", tasaIva: 0.19, descuentoGeneral: null, incluirDatosPago: true, condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.",
+    atencion: "María Pérez", correoAtencion: "maria.perez@mla.cl", tasaIva: 0.19, descuentoGeneral: null, incluirDatosPago: true, arriendoUnidad: "mes", condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.",
     lineas: [
       { productoId: null, descripcion: "Mantención preventiva mensual <b>chancador</b>", cantidad: 2, unidad: "un", precioUnitario: 1_500_000, descuentoPct: 0.1, exento: false, meses: null },
       { productoId: null, descripcion: "Informe técnico", cantidad: 1, unidad: "un", precioUnitario: 250_000, descuentoPct: 0, exento: true, meses: null },
@@ -90,7 +91,9 @@ assert.ok(!htmlDeCotizacion(datos(EMPRESAS[0])).includes("Preparada por"));
   assert.ok(orden.every((x, i) => x > 0 && (i === 0 || x > orden[i - 1])), "orden: cartillas, tabla, valores, condiciones, firma");
   // Abajo: observaciones y condiciones a la izquierda (las condiciones al final); datos de pago y firma a la derecha.
   const abajo = h.slice(h.indexOf('class="g cierre"'));
-  assert.ok(abajo.indexOf("Observaciones") < abajo.indexOf("Condiciones comerciales") && abajo.indexOf("Condiciones comerciales") < abajo.indexOf("Datos para el pago") && abajo.indexOf("Datos para el pago") < abajo.indexOf('class="firma"'));
+  const MENSAJE = "Agradecemos su interés. Quedamos atentos a sus comentarios sobre la cotización.";
+  assert.ok(abajo.includes(MENSAJE) && !h.includes("Gracias por considerarnos"), "el mensaje de cierre nuevo");
+  assert.ok(abajo.indexOf("Observaciones") < abajo.indexOf("Condiciones comerciales") && abajo.indexOf("Condiciones comerciales") < abajo.indexOf(MENSAJE) && abajo.indexOf(MENSAJE) < abajo.indexOf("Datos para el pago") && abajo.indexOf("Datos para el pago") < abajo.indexOf('class="firma"'), "el mensaje va después de las condiciones, a la izquierda");
   // Sin observaciones ni datos de pago, las condiciones quedan solas abajo a la izquierda, frente a la firma.
   const sola = htmlDeCotizacion({ ...base, notas: null, incluirDatosPago: false }).slice(htmlDeCotizacion({ ...base, notas: null, incluirDatosPago: false }).indexOf('class="g cierre"'));
   assert.ok(!sola.includes("Observaciones") && !sola.includes("Datos para el pago") && sola.indexOf("Condiciones comerciales") < sola.indexOf('class="firma"'));
@@ -133,6 +136,31 @@ assert.ok(mensajeDeCotizacion(datos(EMPRESAS[0], { lineas: Array.from({ length: 
   assert.ok(h.includes("Estimado/a María Pérez:</p>"));
   assert.equal(cuerpoHtml("a <b>x</b>\r\n\r\nb"), cuerpoHtml("a <b>x</b>\n\nb"));
   assert.ok(cuerpoHtml("a <script>").includes("&lt;script&gt;"));
+}
+
+// Arriendo por día: la unidad cambia en todo el documento y el total es tarifa × días.
+{
+  const dia = htmlDeCotizacion(datos(EMPRESAS[0], { tipo: "arriendo", arriendoUnidad: "dia", lineas: [{ productoId: null, descripcion: "Andamio", cantidad: 2, unidad: "un", precioUnitario: 15_000, descuentoPct: 0, exento: false, meses: 10, nota: null }] }));
+  assert.ok(dia.includes("10 días de arriendo") && dia.includes("por día") && !dia.includes("por mes") && dia.includes("$300.000"));
+  assert.ok(htmlDeCotizacion(datos(EMPRESAS[0], { tipo: "arriendo", arriendoUnidad: "dia", lineas: [{ productoId: null, descripcion: "Andamio", cantidad: 1, unidad: "un", precioUnitario: 15_000, descuentoPct: 0, exento: false, meses: 1, nota: null }] })).includes("1 día de arriendo"));
+}
+
+// Observaciones con IA: solo arriendos, sin cliente ni montos, y la respuesta se deja como viñetas limpias.
+{
+  const crudo = { tipo: "arriendo", arriendoUnidad: "dia", validezDias: 15, formaPago: "50% al aceptar", plazoEntrega: "5 días hábiles", condicionPagoDias: 30, requiereOc: true, requiereEdp: false, requiereHes: false, hayDescuento: true,
+    cliente: "Minera Secreta S.A.", lineas: [{ descripcion: "Andamio tubular 2 m", nota: "Con ruedas", cantidad: 4, unidad: "un", meses: 10, precioUnitario: 123_456 }, { descripcion: "", cantidad: 1 }] };
+  const d = limpiarDatosParaObservaciones(crudo);
+  assert.ok(typeof d !== "string" && d.lineas.length === 1 && d.unidadArriendo === "dia" && d.requisitosDeFacturacion.join() === "orden de compra (OC)");
+  const pedido = typeof d === "string" ? "" : armarPedidoDeObservaciones(d);
+  assert.ok(pedido.includes("Andamio tubular 2 m — Detalle: Con ruedas") && pedido.includes("Periodo: 10 días") && pedido.includes("50% al aceptar") && pedido.includes("5 días hábiles"));
+  assert.ok(!pedido.includes("Minera Secreta") && !pedido.includes("123") && !/\$\s?\d/.test(pedido), "no viaja el cliente ni los montos");
+  assert.equal(limpiarDatosParaObservaciones({ ...crudo, tipo: "servicio" }), "Las observaciones con IA son solo para cotizaciones de arriendo.");
+  assert.equal(typeof limpiarDatosParaObservaciones({ ...crudo, lineas: [] }), "string");
+  assert.equal(typeof limpiarDatosParaObservaciones(null), "string");
+  assert.equal((limpiarDatosParaObservaciones({ ...crudo, lineas: Array.from({ length: 200 }, () => ({ descripcion: "x".repeat(900), cantidad: 1 })) }) as { lineas: { descripcion: string }[] }).lineas.length, 60);
+  assert.equal(limpiarObservacionesGeneradas("Observaciones:\n- **Equipo** arrendado\n2) Plazo: 5 días\n• Vigencia 15 días"), "• Equipo arrendado\n• Plazo: 5 días\n• Vigencia 15 días");
+  assert.ok(limpiarObservacionesGeneradas("• ".concat("a".repeat(5000))).length <= 1800);
+  assert.equal(limpiarObservacionesGeneradas("  \n "), "");
 }
 
 // Arriendo: tarifa mensual × meses.

@@ -819,6 +819,8 @@ export interface Cotizacion {
   descuentoGeneralTipo: "pct" | "monto" | null;
   descuentoGeneralValor: number;
   incluirDatosPago: boolean;
+  /** Arriendo cobrado por mes o por día (la cantidad de cada línea está en esa unidad). */
+  arriendoUnidad: "mes" | "dia";
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -845,7 +847,7 @@ export const cargarComercial = cache(async () => {
       estado: r.estado, fechaEnvio: r.fecha_envio, fechaAceptacion: r.fecha_aceptacion, ocClienteNumero: r.oc_cliente_numero, motivo: r.motivo, neto: n(r.neto), iva: n(r.iva),
       total: n(r.total), notas: r.notas, atencion: r.atencion ?? null, correoAtencion: r.correo_atencion ?? null, plazoEntrega: r.plazo_entrega ?? null,
       formaPago: r.forma_pago ?? null, enviadaA: r.enviada_a ?? null, enviadaEn: r.enviada_en ?? null,
-      descuentoGeneralTipo: r.descuento_general_tipo ?? null, descuentoGeneralValor: n(r.descuento_general_valor), incluirDatosPago: Boolean(r.incluir_datos_pago),
+      descuentoGeneralTipo: r.descuento_general_tipo ?? null, descuentoGeneralValor: n(r.descuento_general_valor), incluirDatosPago: Boolean(r.incluir_datos_pago), arriendoUnidad: r.arriendo_unidad === "dia" ? ("dia" as const) : ("mes" as const),
     }))
     .reverse();
   return { oportunidades, cotizaciones };

@@ -104,6 +104,7 @@ interface DatosCotizacion {
   descuentoGeneralTipo?: "pct" | "monto" | null;
   descuentoGeneralValor?: number;
   incluirDatosPago?: boolean;
+  arriendoUnidad?: "mes" | "dia";
   lineas: LineaCotizacion[];
 }
 
@@ -156,8 +157,13 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
     if (cabecera.oportunidad_id) await exigirDeEmpresa("fin_oportunidades", cabecera.oportunidad_id, ctx.empresa.id);
     if (cabecera.proyecto_id) await exigirDeEmpresa("fin_proyectos", cabecera.proyecto_id, ctx.empresa.id);
     let cotId = id;
+    // «Por día» se guarda solo si se pide (o si estaba así y se vuelve a «por mes»): así las cotizaciones por mes
+    // se guardan igual aunque la columna aún no exista en la base.
+    const porDia = d.tipo === "arriendo" && d.arriendoUnidad === "dia";
+    if (porDia) Object.assign(cabecera, { arriendo_unidad: "dia" });
     if (id) {
       const antes = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
+      if (!porDia && antes.arriendo_unidad === "dia") Object.assign(cabecera, { arriendo_unidad: "mes" });
       if (!["borrador", "enviada"].includes(String(antes.estado))) return { ok: false, error: "Solo se edita una cotización en borrador o enviada. Crea una nueva versión." };
       const { error } = await supabaseAdmin.from("fin_cotizaciones").update(cabecera).eq("id", id);
       revienta("guardar la cotización", error);
