@@ -81,7 +81,7 @@ export default function VentanaModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6 ${completaEnMovil ? "max-lg:!p-0" : ""} ${hoja ? "animar-fondo-ventana bg-tinta/35 backdrop-blur-sm" : "bg-tinta/60 sm:p-8"}`}
+      className={`fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-3 sm:p-6 ${completaEnMovil ? "max-lg:!p-0" : ""} ${hoja ? "animar-fondo-ventana bg-tinta/35 backdrop-blur-sm" : "bg-tinta/60 sm:p-8"}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) alCerrar();
       }}

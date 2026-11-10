@@ -7,6 +7,9 @@ import VentanaModal from "@/components/inventario/VentanaModal";
 import { moverGastosAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import { pesos } from "@/lib/rendidor/fondos-modelo";
 
+const fechaCorta = (f: string | null) =>
+  f ? new Date(`${f}T12:00:00Z`).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "Sin fecha";
+
 /** Dentro de un informe: traer gastos ya subidos en «Mis gastos». */
 export default function AgregarMisGastos({
   bolsaId,
@@ -49,7 +52,7 @@ export default function AgregarMisGastos({
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-tinta">{g.proveedor?.trim() || "Sin proveedor"}</span>
-                  <span className="block text-[11px] text-gris">{g.fecha ?? "Sin fecha"}</span>
+                  <span className="block text-[11px] text-gris">{fechaCorta(g.fecha)}</span>
                 </span>
                 <span className="font-condensed text-lg font-bold tabular-nums">{pesos(g.total)}</span>
               </label>
