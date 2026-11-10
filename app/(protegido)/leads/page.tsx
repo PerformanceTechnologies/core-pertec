@@ -63,7 +63,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         com.oportunidades.length === 0 ? (
           <Vacio titulo="Todavía no hay leads" texto="Un lead es un cliente interesado. Créalo con «Nuevo lead» y arrástralo entre etapas a medida que avanza." icono={<IconTargetArrow size={24} stroke={1.6} />} />
         ) : (
-          <TableroLeads oportunidades={com.oportunidades} clientes={clientes} hoy={v.hoy} vista={ver} yo={ctx.usuario.correo} />
+          <TableroLeads oportunidades={com.oportunidades} clientes={clientes} hoy={v.hoy} vista={ver} yo={ctx.usuario.correo} esAdmin={ctx.usuario.rol === "admin"} />
         )
       ) : com.cotizaciones.length === 0 ? (
         <Vacio titulo="Todavía no hay cotizaciones" texto="Crea una con «Nueva cotización». Al aceptarla nacen el proyecto y los hitos que se facturan." icono={<IconFilePlus size={24} stroke={1.6} />} />

@@ -30,7 +30,7 @@ const cerrada = (e: string) => e === "ganada" || e === "perdida";
  * Panel de leads: tablero (se arrastra de etapa en etapa; en el celular, con el selector de cada tarjeta)
  * o tabla, con búsqueda y filtro por responsable. Todo movimiento queda registrado en Finanzas.
  */
-export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo }: { oportunidades: Oportunidad[]; clientes: OpcionContacto[]; hoy: string; vista: "tablero" | "tabla"; yo: string }) {
+export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo, esAdmin = false }: { oportunidades: Oportunidad[]; clientes: OpcionContacto[]; hoy: string; vista: "tablero" | "tabla"; yo: string; esAdmin?: boolean }) {
   const router = useRouter();
   const [ops, setOps] = useState(oportunidades);
   const [base, setBase] = useState(oportunidades);
@@ -74,7 +74,7 @@ export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo }
   };
 
   const tarjeta = (o: Oportunidad, arrastrable: boolean) => (
-    <TarjetaLead key={o.id} o={o} cliente={nombre(o.clienteId)} hoy={hoy} clientes={clientes} arrastrable={arrastrable} arrastrando={arrastrada === o.id}
+    <TarjetaLead key={o.id} o={o} cliente={nombre(o.clienteId)} hoy={hoy} clientes={clientes} esAdmin={esAdmin} arrastrable={arrastrable} arrastrando={arrastrada === o.id}
       alArrastrar={() => setArrastrada(o.id)} alSoltar={() => setArrastrada(null)} alMover={(e) => mover(o.id, e)} />
   );
 
@@ -111,7 +111,11 @@ export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo }
                   onDrop={(ev) => {
                     ev.preventDefault();
                     setSobre(null);
-                    if (arrastrada) void mover(arrastrada, e.clave);
+                    // Se suelta el «arrastrando» acá y no solo en dragend: al caer en otra columna la tarjeta original
+                    // se desmonta y su dragend nunca llega, y la tarjeta nueva se quedaba semitransparente (gris).
+                    const id = arrastrada;
+                    setArrastrada(null);
+                    if (id) void mover(id, e.clave);
                   }}
                   className={`flex min-h-[18rem] w-[82vw] max-w-[19rem] shrink-0 snap-start flex-col rounded-2xl border border-t-4 p-2 transition md:w-auto md:max-w-none md:shrink ${TONO[e.clave].franja} ${sobre === e.clave ? "border-naranjo bg-naranjo/[0.05]" : "border-borde bg-tinta/[0.02]"}`}
                 >
@@ -155,7 +159,7 @@ export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo }
                     <tr key={o.id} className="hover:bg-tinta/[0.02]">
                       <td className="max-w-[16rem] px-3 py-2.5 align-top">
                         <ConVentana boton={<span className="block truncate text-left font-semibold text-tinta hover:text-naranjo">{o.nombre}</span>} titulo={`${o.codigo} · ${o.nombre}`} className="w-full">
-                          {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} />}
+                          {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} esAdmin={esAdmin} />}
                         </ConVentana>
                         <span className="text-[11px] text-gris">{o.codigo}{quieta && <span className="ml-1.5 inline-flex items-center gap-0.5 text-aviso"><IconAlertTriangle size={11} /> {diasEntre(ref, hoy)} d sin actividad</span>}</span>
                       </td>
@@ -220,8 +224,8 @@ function DetalleLead({ o, hoy, conLlamar = false }: { o: Oportunidad; hoy: strin
  * La tarjeta, concisa: qué es, de quién, cuánto y en qué etapa. El resto (contacto, próximo paso, cierre, notas…)
  * aparece al pasar el cursor por encima, o con «Ver más» en el celular, donde no hay cursor.
  */
-function TarjetaLead({ o, cliente, hoy, clientes, arrastrable, arrastrando, alArrastrar, alSoltar, alMover }: {
-  o: Oportunidad; cliente: string; hoy: string; clientes: OpcionContacto[]; arrastrable: boolean; arrastrando: boolean; alArrastrar: () => void; alSoltar: () => void; alMover: (etapa: string) => void;
+function TarjetaLead({ o, cliente, hoy, clientes, esAdmin, arrastrable, arrastrando, alArrastrar, alSoltar, alMover }: {
+  o: Oportunidad; cliente: string; hoy: string; clientes: OpcionContacto[]; esAdmin: boolean; arrastrable: boolean; arrastrando: boolean; alArrastrar: () => void; alSoltar: () => void; alMover: (etapa: string) => void;
 }) {
   const ref = diaChile(o.ultimaActividad ?? o.actualizadoEn);
   const quieta = !cerrada(o.etapa) && diasEntre(ref, hoy) > 7;
@@ -262,7 +266,7 @@ function TarjetaLead({ o, cliente, hoy, clientes, arrastrable, arrastrando, alAr
     >
       <div className="flex items-start gap-1.5">
         <ConVentana boton={<span className="line-clamp-2 text-left text-[13px] font-semibold leading-snug text-tinta hover:text-naranjo">{o.nombre}</span>} titulo={`${o.codigo} · ${o.nombre}`} className="min-w-0 flex-1 text-left">
-          {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} />}
+          {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} esAdmin={esAdmin} />}
         </ConVentana>
         {aviso && <span title={aviso} aria-label={aviso} className={`mt-0.5 shrink-0 ${vencido ? "text-alerta" : "text-aviso"}`}><IconAlertTriangle size={14} /></span>}
       </div>

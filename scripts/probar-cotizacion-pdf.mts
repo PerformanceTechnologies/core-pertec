@@ -167,6 +167,22 @@ assert.ok(mensajeDeCotizacion(datos(EMPRESAS[0], { lineas: Array.from({ length: 
 const arr = htmlDeCotizacion(datos(EMPRESAS[0], { tipo: "arriendo", lineas: [{ productoId: null, descripcion: "Grupo electrógeno", cantidad: 1, unidad: "un", precioUnitario: 800_000, descuentoPct: 0, exento: false, meses: 6 }] }));
 assert.ok(arr.includes("6 meses de arriendo") && arr.includes("$4.800.000") && arr.includes("Tarifa"));
 
+// Eliminar leads y cotizaciones: solo el administrador, y la acción lo exige en el servidor ANTES de borrar nada.
+{
+  const fuente = readFileSync(new URL("../app/(protegido)/leads/acciones.ts", import.meta.url), "utf8");
+  for (const nombre of ["eliminarOportunidadAction", "eliminarCotizacionAction"]) {
+    const cuerpo = fuente.slice(fuente.indexOf(`export async function ${nombre}`));
+    const hasta = cuerpo.indexOf("\n}\n");
+    const fn = cuerpo.slice(0, hasta);
+    assert.ok(fn.includes("soloAdmin(ctx)"), `${nombre} debe exigir administrador`);
+    assert.ok(fn.indexOf("soloAdmin(ctx)") < fn.indexOf(".delete()"), `${nombre}: la revisión de administrador va antes de borrar`);
+    assert.ok(fn.includes("motivo") && fn.includes("auditar("), `${nombre} pide motivo y deja auditoría`);
+  }
+  assert.ok(fuente.includes('ctx.usuario.rol === "admin"'), "el guard mira el rol admin del Core");
+  const tablero = readFileSync(new URL("../components/leads/TableroLeads.tsx", import.meta.url), "utf8");
+  assert.ok(/setArrastrada\(null\);\s*if \(id\)/.test(tablero), "al soltar se limpia el «arrastrando» (la tarjeta no queda gris)");
+}
+
 // Las rutas con navegador están declaradas en next.config (si no, falla recién en Vercel).
 const cfg = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
 for (const ruta of ["pdf", "enviar"]) assert.ok(cfg.includes(`"/api/leads/cotizaciones/\\\\[id\\\\]/${ruta}": [...NAVEGADOR`), `next.config: falta la entrada de ${ruta}`);
