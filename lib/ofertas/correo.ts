@@ -1,5 +1,6 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
+import { cuerpoHtml } from "./correo-html";
 
 /**
  * Mandar la oferta por correo, desde la cuenta de quien la emite.
@@ -35,15 +36,6 @@ export interface EnvioDeOferta {
   cuerpo: string;
   nombreArchivo: string;
   pdf: Buffer;
-}
-
-function cuerpoHtml(texto: string): string {
-  const escapado = texto
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#171411;white-space:pre-wrap">${escapado}</div>`;
 }
 
 export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeOferta): Promise<void> {
