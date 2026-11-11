@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { signIn } from "@/auth";
 import BotonEnviar from "@/components/BotonEnviar";
+import AccesoInvitado from "@/components/AccesoInvitado";
 
 export default function IngresarPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   return (
@@ -38,6 +39,7 @@ export default function IngresarPage({ searchParams }: { searchParams: Promise<{
         </form>
 
         <ErrorAcceso searchParams={searchParams} />
+        <AccesoInvitado />
       </div>
 
       <Image

@@ -3,8 +3,8 @@ import { cache } from "react";
 import { supabaseAdmin } from "../supabase-admin";
 import { listarUsuarios } from "../usuarios";
 import { obtenerAplicacionPorSlug } from "../aplicaciones";
-import { SLUG_APP_FIN, type ContextoFin } from "./datos";
-import { ROLES_FLUJO, type PuedeFlujo, type RolFlujo } from "./flujos-modelo";
+import { SLUG_APP_FIN, esAdminFin, type ContextoFin } from "./datos";
+import { ROLES_FLUJO, SOLO_ADMIN_SIN_ASIGNAR, type PuedeFlujo, type RolFlujo } from "./flujos-modelo";
 
 // -----------------------------------------------------------------------------
 //  Permisos de flujos.
@@ -44,10 +44,11 @@ export async function candidatosDeFlujo(): Promise<PersonaFlujo[]> {
 /** Los permisos del usuario actual en todos los roles, para la interfaz. */
 export async function permisosDeUsuario(ctx: ContextoFin): Promise<PuedeFlujo> {
   const mapa = await asignacionesDeEmpresa(ctx.empresa.id);
+  const admin = await esAdminFin(ctx.usuario);
   return Object.fromEntries(
     ROLES_FLUJO.map((r) => {
       const asignados = mapa.get(r) ?? [];
-      return [r, ctx.usuario.rol === "admin" || asignados.length === 0 || asignados.includes(ctx.usuario.id)];
+      return [r, admin || (asignados.length === 0 && !SOLO_ADMIN_SIN_ASIGNAR.includes(r)) || asignados.includes(ctx.usuario.id)];
     }),
   ) as PuedeFlujo;
 }
@@ -57,7 +58,7 @@ export async function permisosDeUsuario(ctx: ContextoFin): Promise<PuedeFlujo> {
  * salvo que sea la única persona asignada (o el admin global): así nadie queda sin poder avanzar.
  */
 export async function exigirRol(ctx: ContextoFin, rol: RolFlujo, opciones: { solicitante?: string | null; accion?: string } = {}): Promise<void> {
-  if (ctx.usuario.rol === "admin") return;
+  if (await esAdminFin(ctx.usuario)) return;
   const asignados = (await asignacionesDeEmpresa(ctx.empresa.id)).get(rol) ?? [];
   if (asignados.length === 0) return;
   if (!asignados.includes(ctx.usuario.id)) {
@@ -67,12 +68,19 @@ export async function exigirRol(ctx: ContextoFin, rol: RolFlujo, opciones: { sol
   if (propio && asignados.length > 1) throw new Error("No puedes aprobar ni visar tu propia solicitud: lo hace otra de las personas asignadas.");
 }
 
-/** Para pasos que puede hacer cualquiera de varios roles (p. ej. rechazar: quien aprueba o quien visa). */
-export async function exigirAlgunRol(ctx: ContextoFin, roles: RolFlujo[], accion?: string): Promise<void> {
-  if (ctx.usuario.rol === "admin") return;
+/**
+ * Pasos que ya eran solo del administrador de finanzas (aprobar, visar, rechazar, anular documentos):
+ * pueden hacerlos el administrador de finanzas o quien esté asignado a alguno de los roles. Si los roles
+ * no tienen a nadie, queda la regla anterior: solo administradores de finanzas.
+ * Con `solicitante`, quien pidió la compra no la aprueba ni la visa él mismo salvo que sea el único asignado.
+ */
+export async function exigirRolOAdminFin(ctx: ContextoFin, roles: RolFlujo[], opciones: { solicitante?: string | null; accion?: string } = {}): Promise<void> {
+  if (await esAdminFin(ctx.usuario)) return;
   const mapa = await asignacionesDeEmpresa(ctx.empresa.id);
-  const configurados = roles.filter((r) => (mapa.get(r) ?? []).length > 0);
-  if (configurados.length === 0) return;
-  if (configurados.some((r) => (mapa.get(r) ?? []).includes(ctx.usuario.id))) return;
-  throw new Error(`No tienes asignado este paso${accion ? ` (${accion})` : ""}. Pídele al administrador que te sume en «Permisos de flujos».`);
+  const mios = roles.filter((r) => (mapa.get(r) ?? []).includes(ctx.usuario.id));
+  if (mios.length === 0) {
+    throw new Error(`Este paso${opciones.accion ? ` (${opciones.accion})` : ""} es de los administradores de finanzas o de las personas asignadas en «Permisos de flujos».`);
+  }
+  const propio = opciones.solicitante && opciones.solicitante.toLowerCase() === ctx.usuario.correo.toLowerCase();
+  if (propio && mios.some((r) => (mapa.get(r) ?? []).length > 1)) throw new Error("No puedes aprobar ni visar tu propia solicitud: lo hace otra de las personas asignadas.");
 }

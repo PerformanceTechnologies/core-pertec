@@ -50,6 +50,15 @@ const ROLES_INTERNOS: Record<string, RolInterno> = {
     ayuda: "Usuario: opera el inventario (productos, operaciones, ajustes). Administrador de inventario: además archiva y restaura productos.",
     opciones: ROLES_INVENTARIO.map((r) => ({ valor: r.valor, etiqueta: r.etiqueta.replace(/^Inventario: /, "") })),
   },
+  "gestion-financiera": {
+    titulo: "Rol en Gestión financiera",
+    porOmision: "usuario",
+    ayuda: "Usuario: registra y opera el día a día. Administrador de finanzas: además aprueba y visa compras, anula documentos, cierra y contabiliza períodos y cambia la configuración.",
+    opciones: [
+      { valor: "usuario", etiqueta: "Usuario" },
+      { valor: "admin", etiqueta: "Administrador de finanzas" },
+    ],
+  },
   cotizador: {
     titulo: "Rol en el Cotizador",
     porOmision: "visualizador",
@@ -110,9 +119,29 @@ export default function FormularioUsuario({
     <form action={accion} className="space-y-7">
       <fieldset className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
         <legend className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-tinta/70">Quién es</legend>
+        <div className="sm:col-span-2">
+          <span className={ETIQUETA}>Tipo de acceso</span>
+          {valoresPorDefecto?.tipo === "invitado" && <input type="hidden" name="tipoPrevio" value="invitado" />}
+          <div className="mt-1 grid gap-2 sm:grid-cols-2">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-borde p-3 has-[:checked]:border-naranjo has-[:checked]:bg-naranjo/[0.05]">
+              <input type="radio" name="tipo" value="interno" defaultChecked={valoresPorDefecto?.tipo !== "invitado"} className="mt-1 accent-[var(--color-naranjo)]" />
+              <span className="text-sm">
+                <b className="text-tinta">Interno de PERTEC</b>
+                <span className="block text-xs text-tinta/60">Entra con su cuenta Microsoft @pertec.cl.</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-borde p-3 has-[:checked]:border-naranjo has-[:checked]:bg-naranjo/[0.05]">
+              <input type="radio" name="tipo" value="invitado" defaultChecked={valoresPorDefecto?.tipo === "invitado"} className="mt-1 accent-[var(--color-naranjo)]" />
+              <span className="text-sm">
+                <b className="text-tinta">Invitado externo</b>
+                <span className="block text-xs text-tinta/60">Cualquier correo. Entra con un código que le llega por mail y solo ve los módulos que le marques. Nunca es administrador.</span>
+              </span>
+            </label>
+          </div>
+        </div>
         <div>
           <label htmlFor="usuario-correo" className={ETIQUETA}>
-            Correo @pertec.cl
+            Correo
           </label>
           <input
             id="usuario-correo"
@@ -121,7 +150,7 @@ export default function FormularioUsuario({
             required
             disabled={correoBloqueado}
             defaultValue={valoresPorDefecto?.correo}
-            placeholder="nombre.apellido@pertec.cl"
+            placeholder="nombre.apellido@pertec.cl o el correo del invitado"
             autoComplete="off"
             className={`mt-1 ${CAMPO} disabled:bg-crema disabled:text-tinta/50`}
           />

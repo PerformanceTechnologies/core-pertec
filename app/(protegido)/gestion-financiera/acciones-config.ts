@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { borrarArchivos } from "@/lib/archivos/almacen";
-import { RUTA_FIN, auditar, contextoFin, exigirDeEmpresa, fechaValida, montoDe, revienta, siguienteNumero } from "@/lib/fin/datos";
+import { RUTA_FIN, auditar, contextoFin, contextoFinAdmin, exigirContacto, exigirDeEmpresa, fechaValida, montoDe, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES } from "@/lib/fin/reglas";
 import { candidatosDeFlujo } from "@/lib/fin/flujos";
 import { esRolFlujo } from "@/lib/fin/flujos-modelo";
@@ -113,7 +113,7 @@ export async function guardarFlujoPersonasAction(rol: string, fd: FormData): Pro
 
 export async function guardarPerfilEmpresaAction(fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const correo = texto(fd, "correo", 120);
     if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return { ok: false, error: "El correo comercial no es válido." };
     // Razón social: obligatoria. El slug (la identidad estable de la empresa) no cambia nunca.
@@ -146,7 +146,7 @@ export async function guardarPerfilEmpresaAction(fd: FormData): Promise<Resultad
 
 export async function guardarParametrosAction(fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const fila = {
       empresa_id: ctx.empresa.id,
       tasa_iva: pct(fd, "tasaIva") ?? 0.19,
@@ -177,7 +177,7 @@ export async function guardarParametrosAction(fd: FormData): Promise<Resultado> 
 
 export async function guardarCuentaAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const nombre = texto(fd, "nombre", 80);
     const tipo = String(fd.get("tipo") ?? "banco");
     if (!nombre) return { ok: false, error: "La cuenta necesita un nombre." };
@@ -191,7 +191,7 @@ export async function guardarCuentaAction(id: string | null, fd: FormData): Prom
       await exigirDeEmpresa("fin_cuentas", id, ctx.empresa.id);
       const cambios: Partial<typeof fila> = { ...fila };
       if (!numero) delete cambios.numero_enmascarado; // número en blanco al editar = se mantiene el guardado
-      const { error } = await supabaseAdmin.from("fin_cuentas").update(cambios).eq("id", id);
+      const { error } = await supabaseAdmin.from("fin_cuentas").update(cambios).eq("id", id).eq("empresa_id", ctx.empresa.id);
       revienta("guardar la cuenta", error);
     } else {
       const { error } = await supabaseAdmin.from("fin_cuentas").insert(fila);
@@ -208,11 +208,11 @@ export async function guardarCuentaAction(id: string | null, fd: FormData): Prom
 /** Actualiza solo el saldo según el banco y su fecha (la rutina diaria). */
 export async function actualizarSaldoAction(id: string, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     await exigirDeEmpresa("fin_cuentas", id, ctx.empresa.id);
     const saldo = montoDe(fd.get("saldoBanco"));
     if (saldo === null) return { ok: false, error: "Escribe el saldo que dice el banco." };
-    const { error } = await supabaseAdmin.from("fin_cuentas").update({ saldo_banco: saldo, fecha_saldo: fechaValida(fd.get("fechaSaldo")) ?? ctx.hoy }).eq("id", id);
+    const { error } = await supabaseAdmin.from("fin_cuentas").update({ saldo_banco: saldo, fecha_saldo: fechaValida(fd.get("fechaSaldo")) ?? ctx.hoy }).eq("id", id).eq("empresa_id", ctx.empresa.id);
     revienta("guardar el saldo", error);
     await auditar(ctx, "fin_cuentas", id, "saldo", `Saldo según banco: ${saldo}`);
     refrescar();
@@ -224,7 +224,7 @@ export async function actualizarSaldoAction(id: string, fd: FormData): Promise<R
 
 export async function guardarFactorAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const nombre = texto(fd, "nombre", 80);
     if (!nombre) return { ok: false, error: "El factor necesita un nombre." };
     const fila = {
@@ -244,7 +244,7 @@ export async function guardarFactorAction(id: string | null, fd: FormData): Prom
 
 export async function guardarCategoriaAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const nombre = texto(fd, "nombre", 60);
     if (!nombre) return { ok: false, error: "La categoría necesita un nombre." };
     const sentido = String(fd.get("sentido") ?? "ambos");
@@ -264,15 +264,19 @@ export async function guardarCategoriaAction(id: string | null, fd: FormData): P
 
 export async function guardarReglaAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const patron = texto(fd, "patron", 80);
     const categoriaId = String(fd.get("categoriaId") ?? "");
     if (!patron) return { ok: false, error: "Escribe qué texto de la glosa reconoce la regla." };
     if (!categoriaId) return { ok: false, error: "Elige la categoría que asigna." };
     await exigirDeEmpresa("fin_categorias", categoriaId, ctx.empresa.id);
+    const cuentaId = String(fd.get("cuentaId") ?? "") || null;
+    const proyectoId = String(fd.get("proyectoId") ?? "") || null;
+    if (cuentaId) await exigirDeEmpresa("fin_cuentas", cuentaId, ctx.empresa.id);
+    if (proyectoId) await exigirDeEmpresa("fin_proyectos", proyectoId, ctx.empresa.id);
     const fila = {
-      empresa_id: ctx.empresa.id, patron, categoria_id: categoriaId, cuenta_id: String(fd.get("cuentaId") ?? "") || null,
-      proyecto_id: String(fd.get("proyectoId") ?? "") || null, monto_min: montoDe(fd.get("montoMin")), monto_max: montoDe(fd.get("montoMax")),
+      empresa_id: ctx.empresa.id, patron, categoria_id: categoriaId, cuenta_id: cuentaId,
+      proyecto_id: proyectoId, monto_min: montoDe(fd.get("montoMin")), monto_max: montoDe(fd.get("montoMax")),
       prioridad: entero(fd, "prioridad") ?? 100, activa: fd.get("activa") !== "off", creado_por: ctx.usuario.correo,
     };
     const q = id ? supabaseAdmin.from("fin_reglas").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id) : supabaseAdmin.from("fin_reglas").insert(fila);
@@ -288,9 +292,9 @@ export async function guardarReglaAction(id: string | null, fd: FormData): Promi
 
 export async function eliminarReglaAction(id: string): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     await exigirDeEmpresa("fin_reglas", id, ctx.empresa.id);
-    const { error } = await supabaseAdmin.from("fin_reglas").update({ activa: false }).eq("id", id);
+    const { error } = await supabaseAdmin.from("fin_reglas").update({ activa: false }).eq("id", id).eq("empresa_id", ctx.empresa.id);
     revienta("desactivar la regla", error);
     await auditar(ctx, "fin_reglas", id, "desactivar", "Regla desactivada");
     refrescar();
@@ -304,7 +308,7 @@ export async function eliminarReglaAction(id: string): Promise<Resultado> {
 
 export async function guardarPerfilAction(contactoId: string, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const { data: c } = await supabaseAdmin.from("finanzas_contactos").select("id, razon_social").eq("id", contactoId).maybeSingle();
     if (!c) return { ok: false, error: "Ese contacto no existe en Contactos." };
     const fila = {
@@ -328,7 +332,7 @@ export async function guardarPerfilAction(contactoId: string, fd: FormData): Pro
 
 export async function guardarProyectoAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     let nombre = texto(fd, "nombre", 120);
     const tipo = String(fd.get("tipo") ?? "contrato");
     if (!nombre) return { ok: false, error: "El proyecto necesita un nombre." };
@@ -339,10 +343,11 @@ export async function guardarProyectoAction(id: string | null, fd: FormData): Pr
       fecha_inicio: fechaValida(fd.get("fechaInicio")), fecha_termino: fechaValida(fd.get("fechaTermino")), presupuesto_costos: montoDe(fd.get("presupuestoCostos")),
       estado: fd.get("estado") === "cerrado" ? "cerrado" : "activo", actualizado_en: new Date().toISOString(),
     };
+    if (fila.mandante_id) await exigirContacto(fila.mandante_id);
     let proyectoId = id;
     if (id) {
       const antes = await exigirDeEmpresa("fin_proyectos", id, ctx.empresa.id);
-      const { error } = await supabaseAdmin.from("fin_proyectos").update(fila).eq("id", id);
+      const { error } = await supabaseAdmin.from("fin_proyectos").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id);
       revienta("guardar el proyecto", error);
       await auditar(ctx, "fin_proyectos", id, "editar", `Proyecto ${nombre}`, { antes, despues: fila });
     } else {
@@ -363,7 +368,7 @@ export async function guardarProyectoAction(id: string | null, fd: FormData): Pr
 
 export async function guardarPartidaAction(fd: FormData): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
     const mes = fechaValida(fd.get("mes"));
     const concepto = String(fd.get("concepto") ?? "");
     if (!mes) return { ok: false, error: "Mes inválido." };
@@ -425,7 +430,8 @@ export async function agregarActividadAction(entidadTipo: string, entidadId: str
     const promesa = fechaValida(fd.get("fechaPrometida"));
     if (promesa && entidadTipo === "hito") {
       await exigirDeEmpresa("fin_hitos", entidadId, ctx.empresa.id);
-      await supabaseAdmin.from("fin_hitos").update({ fecha_estimada_pago: promesa, actualizado_por: ctx.usuario.correo, actualizado_en: new Date().toISOString() }).eq("id", entidadId);
+      const { error: eH } = await supabaseAdmin.from("fin_hitos").update({ fecha_estimada_pago: promesa, actualizado_por: ctx.usuario.correo, actualizado_en: new Date().toISOString() }).eq("id", entidadId).eq("empresa_id", ctx.empresa.id);
+      revienta("guardar la fecha prometida", eH);
       await auditar(ctx, "fin_hitos", entidadId, "editar", `Fecha estimada de pago (promesa del cliente): ${promesa}`);
     }
     refrescar();
