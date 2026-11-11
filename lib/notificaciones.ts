@@ -12,6 +12,12 @@ const CORREO_SOPORTE = "soporte@pertec.cl";
 /** La casilla genérica de los avisos personales del Core (p. ej. «te asignaron una tarea»). */
 const CORREO_AVISOS = "notificaciones@pertec.cl";
 /**
+ * Casillas generales de PERTEC, en orden, para los avisos personales (códigos de invitado,
+ * tareas…). Sale de la primera que Microsoft deje usar; la de una persona queda solo como último
+ * recurso. (soporte@ no va: es una lista de distribución y no puede enviar.)
+ */
+const CASILLAS_GENERALES = [CORREO_AVISOS, "comercial@pertec.cl", "finanzas@pertec.cl"];
+/**
  * Exportada solo para poder DECIR a quien se le mando, no para elegirlo: sigue siendo una
  * constante de este archivo. Ver el comentario de enviar().
  */
@@ -182,7 +188,7 @@ async function enviar(
       toRecipients: [{ emailAddress: { address: destinatario } }],
     },
     // Los avisos desde la casilla genérica no se guardan en «Enviados».
-    saveToSentItems: remitente !== CORREO_AVISOS,
+    saveToSentItems: !CASILLAS_GENERALES.includes(remitente),
   });
 }
 
@@ -214,10 +220,12 @@ export async function enviarCorreoAUsuario(destinatario: string, asunto: string,
   }
   // Sale de la casilla genérica de avisos. Si Microsoft no la deja (no existe o sin permiso),
   // sale del buzón de siempre, para que el aviso no se pierda.
-  try {
-    return await enviar(correo, asunto, cuerpoHtml, "HTML", CORREO_AVISOS);
-  } catch (e) {
-    console.error(`[correo] No se pudo enviar desde ${CORREO_AVISOS}; sale del buzón de siempre:`, e instanceof Error ? e.message : e);
+  for (const casilla of CASILLAS_GENERALES) {
+    try {
+      return await enviar(correo, asunto, cuerpoHtml, "HTML", casilla);
+    } catch (e) {
+      console.error(`[correo] No se pudo enviar desde ${casilla}; se prueba la siguiente:`, e instanceof Error ? e.message : e);
+    }
   }
   return enviar(correo, asunto, cuerpoHtml, "HTML");
 }
