@@ -44,6 +44,22 @@ orden escrito**: la primera que se cumple gana.
     - si no → **Programar pago**
 11. Si no → **Pago programado**
 
+**Solicitud con formato de OC (`formato_oc = true`).** Las compras nuevas se crean con el formulario de OC (ítems, moneda CLP/UF/USD,
+entrega, condiciones) y siguen este recorrido; las anteriores siguen la lista de arriba sin cambios:
+
+1. Anulada → **Anulada** (se conserva el registro; solo el administrador global la reactiva)
+2. Pago real → **Pagada**
+3. No enviada a aprobación → **Devuelta: corregir y reenviar** (si la devolvieron) o **Borrador: enviar a aprobación**
+4. Sin aprobación → **Falta aprobación JP o gerente** (cualquiera de los asignados basta)
+5. Sin visado → **Falta visado de Finanzas** (al visar nace el N° de OC correlativo)
+6. OC no enviada al proveedor → **Enviar OC al proveedor**
+7. El proveedor la rechazó → **OC rechazada por el proveedor**; sin respuesta → **Esperar respuesta del proveedor**
+8. El proveedor la aceptó → pasa directo a **Esperar factura del proveedor** (no hay recepción de mercadería aparte)
+9. Desde la factura, igual que el flujo anterior.
+
+Devolver (por quien aprueba o visa) la deja de nuevo editable por su autor y le quita la aprobación y el visado; el N° de OC, si ya existía, se conserva.
+`neto_cotizado` sigue siendo el neto **en pesos** (neto × (1 + IVA) = total en pesos al tipo de cambio de la OC); el neto en la moneda de la OC va en `neto_moneda`.
+
 **Comprometido neto:**
 - Si hay factura: factura / (1 + IVA).
 - Si no, pero está visada: el neto cotizado.

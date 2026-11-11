@@ -28,7 +28,8 @@ export const COLOR_ETAPA: Record<EtapaHito, string> = {
 export function tonoPaso(p: PasoCompra): string {
   if (p === "Pagada") return "bg-emerald-500/12 text-ok dark:text-emerald-300";
   if (p === "Anulada") return "bg-slate-500/10 text-slate-500";
-  if (p.startsWith("Vencida") || p.startsWith("Factura sin OC") || p.startsWith("Revisar")) return "bg-rose-500/12 text-alerta dark:text-rose-300";
+  if (p.startsWith("Vencida") || p.startsWith("Factura sin OC") || p.startsWith("Revisar") || p.startsWith("Devuelta") || p.startsWith("OC rechazada")) return "bg-rose-500/12 text-alerta dark:text-rose-300";
+  if (p.startsWith("Borrador")) return "bg-slate-500/10 text-slate-500 dark:text-slate-300";
   if (p.startsWith("Falta")) return "bg-amber-500/12 text-aviso dark:text-amber-300";
   if (p === "Pago programado") return "bg-sky-500/10 text-info dark:text-sky-300";
   return "bg-naranjo/12 text-naranjo";

@@ -227,12 +227,27 @@ export interface CompraBase {
   fechaPagoReal: Iso | null;
   comentario: string | null;
   anulada: boolean;
+  /** Solicitud con formato de OC (líneas, moneda, PDF). Las compras anteriores no lo son y siguen el flujo de antes. */
+  formatoOc?: boolean;
+  /** Ya se mandó a aprobación (false = borrador o devuelta). */
+  enviadaAprobacion?: boolean;
+  /** Si el aprobador la devolvió: el motivo (queda así hasta que se reenvíe). */
+  devueltaMotivo?: string | null;
+  /** La OC ya se mandó al proveedor. */
+  ocEnviada?: boolean;
+  /** Respuesta del proveedor a la OC. */
+  ocRespuesta?: "aceptada" | "rechazada" | null;
 }
 
 export const PASOS_COMPRA = [
+  "Borrador: enviar a aprobación",
+  "Devuelta: corregir y reenviar",
   "Falta aprobación JP o gerente",
   "Falta visado de Finanzas",
   "Emitir OC al proveedor",
+  "Enviar OC al proveedor",
+  "Esperar respuesta del proveedor",
+  "OC rechazada por el proveedor",
   "Esperar recepción conforme",
   "Esperar factura del proveedor",
   "Factura sin OC: regularizar",
@@ -262,11 +277,20 @@ export function diferenciaVsOc(c: Pick<CompraBase, "facturaTotal" | "ocNumero" |
 export function siguientePasoCompra(c: CompraBase, p: Parametros, hoy: Iso): PasoCompra {
   if (c.anulada) return "Anulada";
   if (c.fechaPagoReal) return "Pagada";
+  // Una solicitud con formato de OC no se aprueba hasta que su autor la manda a aprobación.
+  if (c.formatoOc && !c.enviadaAprobacion) return c.devueltaMotivo ? "Devuelta: corregir y reenviar" : "Borrador: enviar a aprobación";
   if (c.facturaFolio && !c.ocNumero) return "Factura sin OC: regularizar";
   if (!c.aprobadoPor && !c.fechaAprobacion) return "Falta aprobación JP o gerente";
   if (!c.fechaVisado) return "Falta visado de Finanzas";
-  if (!c.ocNumero) return "Emitir OC al proveedor";
-  if (c.recepcion !== "si") return "Esperar recepción conforme";
+  if (c.formatoOc) {
+    // Con formato de OC, «recepción» es la respuesta del proveedor: si la acepta pasa directo a facturas.
+    if (!c.ocEnviada) return "Enviar OC al proveedor";
+    if (c.ocRespuesta === "rechazada") return "OC rechazada por el proveedor";
+    if (c.ocRespuesta !== "aceptada") return "Esperar respuesta del proveedor";
+  } else {
+    if (!c.ocNumero) return "Emitir OC al proveedor";
+    if (c.recepcion !== "si") return "Esperar recepción conforme";
+  }
   if (!c.facturaFolio) return "Esperar factura del proveedor";
   const dif = diferenciaVsOc(c, p.tasaIva);
   if (dif !== null && Math.abs(dif) > p.toleranciaFacturaOc) return "Revisar diferencia con la OC";

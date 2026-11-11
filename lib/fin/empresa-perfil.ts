@@ -24,6 +24,8 @@ export interface PerfilEmpresa {
   datosBancarios: string | null;
   pie: string | null;
   prefijo: string;
+  /** Condiciones generales de las órdenes de compra de la empresa (null = las de omisión). */
+  condicionesOc: string | null;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -33,7 +35,7 @@ export async function perfilDeEmpresa(empresaId: string): Promise<PerfilEmpresa>
   const r = data as any;
   return {
     id: r.id, slug: r.slug, nombre: r.nombre, rut: r.rut ?? null, direccion: r.direccion ?? null, giro: r.giro ?? null, telefono: r.telefono ?? null,
-    correo: r.correo_comercial ?? null, web: r.web ?? null, datosBancarios: r.datos_bancarios ?? null, pie: r.pie_cotizacion ?? null, prefijo: r.prefijo_cotizacion ?? "COT",
+    correo: r.correo_comercial ?? null, web: r.web ?? null, datosBancarios: r.datos_bancarios ?? null, pie: r.pie_cotizacion ?? null, prefijo: r.prefijo_cotizacion ?? "COT", condicionesOc: r.condiciones_oc ?? null,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
