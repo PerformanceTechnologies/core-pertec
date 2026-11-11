@@ -9,6 +9,7 @@ import {
   cargarVista,
   conciliarConMovimiento,
   contextoFin,
+  contextoFinAdmin,
   contextoFinApi,
   contextoLeadsApi,
   entradaContable,
@@ -18,6 +19,7 @@ import {
   periodoCerrado,
   registrarEvento,
   revienta,
+  saldoActualDocumento,
   siguienteNumero,
 } from "@/lib/fin/datos";
 import { finDeMes, huellaMovimiento } from "@/lib/fin/reglas";
@@ -32,6 +34,8 @@ const refrescar = () => revalidatePath(RUTA_FIN, "layout");
 const texto = (fd: FormData, k: string, max = 200) => String(fd.get(k) ?? "").replace(/\s+/g, " ").trim().slice(0, max) || null;
 const uuid = (v: unknown) => (typeof v === "string" && /^[0-9a-f-]{36}$/.test(v) ? v : null);
 const ahora = () => new Date().toISOString();
+/** Año y mes que vienen del cliente: enteros y en rango, o null. */
+const periodoValido = (anio: number, mes: number) => Number.isInteger(anio) && anio >= 2000 && anio <= 2100 && Number.isInteger(mes) && mes >= 1 && mes <= 12;
 
 // ---------- Movimientos del banco ------------------------------------------------------
 
@@ -71,11 +75,12 @@ export async function categorizarMovimientoAction(id: string, fd: FormData): Pro
     if (categoriaId && !categoria) return { ok: false, error: "Categoría inválida." };
     const proyectoId = uuid(fd.get("proyectoId"));
     if (categoria?.requiereProyecto && !proyectoId) return { ok: false, error: `«${categoria.nombre}» pide el proyecto.` };
+    if (proyectoId) await exigirDeEmpresa("fin_proyectos", proyectoId, ctx.empresa.id);
     const fila = {
       categoria_id: categoriaId, proyecto_id: proyectoId, responsable: texto(fd, "responsable", 120), tiene_respaldo: fd.get("tieneRespaldo") === "on",
       documento_ref: texto(fd, "documentoRef", 120), rendicion_ref: texto(fd, "rendicionRef", 120), comentario: texto(fd, "comentario", 500), actualizado_en: ahora(),
     };
-    const { error } = await supabaseAdmin.from("fin_movimientos").update(fila).eq("id", id);
+    const { error } = await supabaseAdmin.from("fin_movimientos").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id);
     revienta("guardar el movimiento", error);
     await auditar(ctx, "fin_movimientos", id, "categorizar", `${categoria?.nombre ?? "Sin categoría"}${fila.tiene_respaldo ? " · con respaldo" : ""}${fila.responsable ? ` · preguntar a ${fila.responsable}` : ""}`);
     refrescar();
@@ -144,6 +149,8 @@ export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pag
     const vista = await cargarVista();
     const m = vista.movimientos.find((x) => x.id === id);
     if (!m) return { ok: false, error: "Ese movimiento no existe." };
+    const cerrado = await periodoCerrado(ctx.empresa.id, m.fecha);
+    if (cerrado) return { ok: false, error: cerrado };
     if (tipo === "cobro") {
       // Un cobro registrado a mano en Ventas y que después llega en la cartola: se liga, no se duplica.
       const c = vista.cobros.find((x) => x.id === entidadId);
@@ -160,9 +167,23 @@ export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pag
       // Un programado cuya factura ya se pagó por otro lado: marcarlo pagado la pagaría dos veces.
       if (p.estado === "programado" && p.aplicaciones.length > 0 && p.aplicaciones.every((a) => (vista.documentos.find((d) => d.id === a.documentoId)?.saldo ?? 0) <= 0))
         return { ok: false, error: `La factura de ${p.numero} ya está pagada con otro pago: anula ${p.numero} y liga el cargo al pago que sí se hizo.` };
+      if (p.estado === "anulado") return { ok: false, error: `El pago ${p.numero} está anulado.` };
       if (p.estado === "programado") {
-        const { error } = await supabaseAdmin.from("fin_pagos").update({ estado: "pagado", fecha_pago: m.fecha, cuenta_id: m.cuentaId, movimiento_id: id }).eq("id", p.id);
+        // Se relee el saldo de cada factura en la base: no se paga más de lo que de verdad se debe.
+        for (const a of p.aplicaciones) {
+          const { saldo } = await saldoActualDocumento(ctx.empresa.id, a.documentoId);
+          if (a.monto > saldo) return { ok: false, error: `El pago ${p.numero} (${a.monto}) es mayor que el saldo actual de su factura (${Math.max(saldo, 0)}): ajústalo o anúlalo.` };
+        }
+        // Condicional: si otro clic ya lo marcó, no se marca dos veces.
+        const { data: marcado, error } = await supabaseAdmin
+          .from("fin_pagos")
+          .update({ estado: "pagado", fecha_pago: m.fecha, cuenta_id: m.cuentaId, movimiento_id: id })
+          .eq("id", p.id)
+          .eq("empresa_id", ctx.empresa.id)
+          .eq("estado", "programado")
+          .select("id");
         revienta("marcar el pago", error);
+        if (!marcado?.length) return { ok: false, error: `El pago ${p.numero} ya no está programado.` };
       } else {
         // Pago ya registrado como hecho: solo se liga al cargo del banco.
         const { error } = await supabaseAdmin.from("fin_pagos").update({ movimiento_id: id, cuenta_id: m.cuentaId }).eq("id", p.id).eq("empresa_id", ctx.empresa.id);
@@ -204,8 +225,11 @@ export async function crearOperacionFactoringAction(fd: FormData): Promise<Resul
     const docs = vista.documentos.filter((d) => docIds.includes(d.id) && d.direccion === "emitido" && d.estado === "vigente" && !d.cedido && d.saldo > 0);
     if (docs.length === 0) return { ok: false, error: "Elige facturas vigentes, no cedidas y con saldo." };
     const pctTexto = String(fd.get("pctAnticipo") ?? "").replace(",", ".").replace("%", "").trim();
-    const pct = pctTexto ? (Number(pctTexto) > 1 ? Number(pctTexto) / 100 : Number(pctTexto)) : factor.pctAnticipoDefault;
+    const pctNum = Number(pctTexto);
+    if (pctTexto && (!Number.isFinite(pctNum) || pctNum <= 0 || pctNum > 100)) return { ok: false, error: "El % de anticipo debe ser un número entre 0 y 100." };
+    const pct = pctTexto ? (pctNum > 1 ? pctNum / 100 : pctNum) : factor.pctAnticipoDefault;
     const costo = montoDe(fd.get("costoTotal")) ?? 0;
+    if (costo < 0) return { ok: false, error: "El costo no puede ser negativo." };
     const numero = texto(fd, "numero", 30) ?? (await siguienteNumero(ctx.empresa.id, "factoring", "FAC-OP", 4));
     const { data, error } = await supabaseAdmin
       .from("fin_operaciones_factoring")
@@ -263,7 +287,8 @@ export async function actualizarCesionAction(id: string, campo: string, valor: s
 /** Contabiliza un mes: guarda los asientos que propone el motor y que no estaban (idempotente). */
 export async function contabilizarPeriodoAction(anio: number, mes: number): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
+    if (!periodoValido(anio, mes)) return { ok: false, error: "Período inválido." };
     const { data: per } = await supabaseAdmin.from("fin_periodos").select("estado").eq("empresa_id", ctx.empresa.id).eq("anio", anio).eq("mes", mes).maybeSingle();
     if (per?.estado === "cerrado") return { ok: false, error: "El período está cerrado." };
     const vista = await cargarVista();
@@ -296,7 +321,8 @@ export async function contabilizarPeriodoAction(anio: number, mes: number): Prom
 
 export async function cerrarPeriodoAction(anio: number, mes: number, cerrar: boolean, motivo?: string): Promise<Resultado> {
   try {
-    const ctx = await contextoFin();
+    const ctx = await contextoFinAdmin();
+    if (!periodoValido(anio, mes)) return { ok: false, error: "Período inválido." };
     if (!cerrar && !motivo?.trim()) return { ok: false, error: "Reabrir un período pide un motivo." };
     const { error } = await supabaseAdmin.from("fin_periodos").upsert({
       empresa_id: ctx.empresa.id, anio, mes, estado: cerrar ? "cerrado" : "abierto", cerrado_por: ctx.usuario.correo, cerrado_en: ahora(), motivo: motivo ?? null,
