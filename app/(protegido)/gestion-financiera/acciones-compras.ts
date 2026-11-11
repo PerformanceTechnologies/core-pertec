@@ -8,7 +8,6 @@ import {
   cargarVista,
   conciliarConMovimiento,
   contextoFin,
-  contextoFinAdmin,
   exigirContacto,
   exigirDeEmpresa,
   fechaValida,
