@@ -36,3 +36,30 @@ export interface ResumenCompra {
   devuelta: { motivo: string; por: string | null; en: string | null } | null;
   motivoAnulacion: string | null;
 }
+
+/** Una solicitud pendiente de alguien, como tarjeta de Mi Día (con su resumen completo para el popup). */
+export interface TarjetaAprobacion {
+  id: string;
+  codigo: string;
+  titulo: string;
+  paso: string;
+  ocNumero: string | null;
+  proveedor: string | null;
+  solicitante: string;
+  /** Ya formateado: «$1.234.567», «UF 12,30»… */
+  total: string;
+  /** Desde cuándo espera (ISO). */
+  desde: string | null;
+  resumen: ResumenCompra;
+}
+
+/** Lo que una persona tiene pendiente en Compras y pagos. */
+export interface PendientesDeCompras {
+  empresa: string;
+  porAprobar: TarjetaAprobacion[];
+  porVisar: TarjetaAprobacion[];
+  /** Solicitudes suyas que le devolvieron para corregir. */
+  devueltas: TarjetaAprobacion[];
+  puedeAprobar: boolean;
+  puedeVisar: boolean;
+}

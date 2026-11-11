@@ -5,10 +5,11 @@ import { RUTA_COMPRAS, adjuntosDe, cargarVista, contextoFin, historialDeCompra }
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { DTE_CORTO } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
-import { anularCompraAction, aprobarComprasAction, devolverCompraAction, eliminarCompraAction, enviarAAprobacionAction, reactivarCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
+import { anularCompraAction, aprobarComprasAction, devolverCompraAction, eliminarCompraAction, enviarAAprobacionAction, marcarOcEnviadaAction, reactivarCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { permisosDeUsuario } from "@/lib/fin/flujos";
 import { lineasDeCompra, resumenDeCompra, tasaIvaDe } from "@/lib/fin/oc-datos";
 import ResumenOc from "@/components/fin/ResumenOc";
+import { BotonEnviarOc } from "@/components/fin/EnviarOc";
 import { Chip, Monto, Seccion, TD, TH, tonoPaso } from "@/components/fin/piezas";
 import { BotonAccion, SubirAdjunto } from "@/components/fin/ui";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
@@ -94,6 +95,12 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
             )}
             {aprobando && <BotonAccion accion={aprobarComprasAction.bind(null, [id])} className={BOTON}>Aprobar</BotonAccion>}
             {visando && <BotonAccion accion={visarComprasAction.bind(null, [id])} className={BOTON}>Visar y emitir OC</BotonAccion>}
+            {c.paso === "Enviar OC al proveedor" && puede.compras_visador && (
+              <>
+                <BotonEnviarOc id={id} />
+                <BotonAccion accion={marcarOcEnviadaAction.bind(null, id)} confirmar="¿Ya se la enviaste al proveedor por otro medio? Queda marcada como enviada, sin mandar correo.">Ya la envié</BotonAccion>
+              </>
+            )}
             {(aprobando || visando) && <BotonAccion accion={devolverCompraAction.bind(null, id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>}
             <a href={`/api/finanzas/compras/${id}/oc-pdf`} target="_blank" rel="noopener" className={BOTON_SEC}><IconFileTypePdf size={14} /> {c.ocNumero ? "Ver OC" : "Ver borrador"}</a>
             <a href={`/api/finanzas/compras/${id}/oc-pdf?descargar=1`} className={BOTON_SEC}><IconDownload size={14} /> Descargar</a>

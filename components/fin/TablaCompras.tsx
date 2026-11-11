@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { IconEye, IconFileTypePdf, IconTrash } from "@tabler/icons-react";
+import { IconEye, IconTrash } from "@tabler/icons-react";
 import { anularCompraAction, devolverCompraAction, eliminarCompraAction, enviarAAprobacionAction, reactivarCompraAction, responderOcAction, aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, registrarFacturaCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { CompraVista } from "@/lib/fin/datos";
 import { TODO_PERMITIDO, type PuedeFlujo } from "@/lib/fin/flujos-modelo";
 import type { ResumenCompra } from "@/lib/fin/oc-resumen";
-import ResumenOc from "./ResumenOc";
+import ResumenConAcciones from "./ResumenConAcciones";
+import { BotonEnviarOc } from "./EnviarOc";
 import { Chip, Monto, TD, TH, tonoPaso } from "./piezas";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion } from "./ui";
 
@@ -151,7 +152,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   </div>
                 )}
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  {resumenes[c.id] && <ConVentana boton={<><IconEye size={14} /> Ver resumen</>} titulo={`Solicitud ${c.codigo}`} ancho="max-w-3xl" className={BOTON_SEC}>{(cerrar) => <ResumenConAcciones c={c} r={resumenes[c.id]} puede={puede} cerrar={cerrar} />}</ConVentana>}
+                  {resumenes[c.id] && <ConVentana boton={<><IconEye size={14} /> Ver resumen</>} titulo={`Solicitud ${c.codigo}`} ancho="max-w-3xl" className={BOTON_SEC}>{(cerrar) => <ResumenConAcciones id={c.id} codigo={c.codigo} paso={c.paso} ocNumero={c.ocNumero} r={resumenes[c.id]} puedeAprobar={puede.compras_aprobador} puedeVisar={puede.compras_visador} cerrar={cerrar} />}</ConVentana>}
                   {(puede.compras_aprobador || puede.compras_visador) && (c.formatoOc
                     ? <BotonAccion accion={devolverCompraAction.bind(null, c.id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>
                     : <BotonAccion accion={rechazarCompraAction.bind(null, c.id)} motivo={`¿Por qué se rechaza ${c.codigo}?`}>Rechazar</BotonAccion>)}
@@ -182,30 +183,11 @@ function AccionCompra({ c, cuentas, hoy, puede, esAdmin, resumen }: { c: CompraV
       {paso}
       {resumen && (
         <ConVentana boton={<><IconEye size={14} /> Resumen</>} titulo={`Solicitud ${c.codigo}`} ancho="max-w-3xl" className={BOTON_SEC}>
-          {(cerrar) => <ResumenConAcciones c={c} r={resumen} puede={puede} cerrar={cerrar} />}
+          {(cerrar) => <ResumenConAcciones id={c.id} codigo={c.codigo} paso={c.paso} ocNumero={c.ocNumero} r={resumen} puedeAprobar={puede.compras_aprobador} puedeVisar={puede.compras_visador} cerrar={cerrar} />}
         </ConVentana>
       )}
       {esAdmin && c.estadoOverride && <BotonAccion accion={() => reactivarCompraAction(c.id)} confirmar={`¿Reactivar ${c.codigo}? Vuelve al flujo donde estaba.`}>Reactivar</BotonAccion>}
     </span>
-  );
-}
-
-/** El resumen de la OC en el popup, con lo que quien lo mira puede decidir ahí mismo: aprobar o visar, o devolverla. */
-function ResumenConAcciones({ c, r, puede, cerrar }: { c: CompraVista; r: ResumenCompra; puede: PuedeFlujo; cerrar: () => void }) {
-  const aprobando = c.paso === "Falta aprobación JP o gerente" && puede.compras_aprobador;
-  const visando = c.paso === "Falta visado de Finanzas" && puede.compras_visador;
-  return (
-    <div className="space-y-4">
-      <ResumenOc r={r} />
-      <div className="flex flex-col-reverse gap-2 border-t border-borde pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-        <a href={`/api/finanzas/compras/${c.id}/oc-pdf`} target="_blank" rel="noopener" className={`${BOTON_SEC} sm:mr-auto`}><IconFileTypePdf size={14} /> {c.ocNumero ? "Ver OC en PDF" : "Ver borrador en PDF"}</a>
-        {(aprobando || visando) && (
-          <BotonAccion accion={devolverCompraAction.bind(null, c.id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>
-        )}
-        {aprobando && <BotonAccion accion={async () => { const x = await aprobarComprasAction([c.id]); if (x.ok) cerrar(); return x; }} className={BOTON}>Aprobar</BotonAccion>}
-        {visando && <BotonAccion accion={async () => { const x = await visarComprasAction([c.id]); if (x.ok) cerrar(); return x; }} className={BOTON}>Visar y emitir OC</BotonAccion>}
-      </div>
-    </div>
   );
 }
 
@@ -243,7 +225,12 @@ function AccionPaso({ c, cuentas, hoy, puede }: { c: CompraVista; cuentas: { id:
       );
     case "Enviar OC al proveedor":
       if (!puede.compras_visador) return otra("Lo gestiona quien visa");
-      return <BotonAccion accion={() => marcarOcEnviadaAction(c.id)} titulo="Márcala cuando ya la enviaste al proveedor">OC enviada</BotonAccion>;
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1">
+          <BotonEnviarOc id={c.id} />
+          <BotonAccion accion={() => marcarOcEnviadaAction(c.id)} titulo="Márcala solo si ya se la enviaste al proveedor por otro medio" confirmar="¿Ya se la enviaste al proveedor por otro medio? Queda marcada como enviada, sin mandar correo.">Ya la envié</BotonAccion>
+        </span>
+      );
     case "Esperar respuesta del proveedor":
       if (!puede.compras_recepcion) return otra("Lo registra otra persona");
       return (

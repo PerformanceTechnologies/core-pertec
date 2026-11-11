@@ -58,6 +58,15 @@ entrega, condiciones) y siguen este recorrido; las anteriores siguen la lista de
 9. Desde la factura, igual que el flujo anterior.
 
 Devolver (por quien aprueba o visa) la deja de nuevo editable por su autor y le quita la aprobación y el visado; el N° de OC, si ya existía, se conserva.
+**Envío al proveedor y avisos (formato OC).**
+- Tras visar, quien visa envía la OC por correo desde su Outlook (con el PDF adjunto y un mensaje editable, sin el detalle de los
+  productos). Al enviar queda `oc_enviada_en/oc_enviada_a`, el historial y el PDF exacto como respaldo; el paso pasa a **Esperar respuesta del proveedor**.
+  «Ya la envié» marca el envío sin mandar correo (por si se envió por otro medio).
+- Avisos (campana + correo desde la casilla general de avisos): enviar a aprobación → quienes aprueban; aprobar → quienes visan;
+  devolver → solicitante y autor; visar → solicitante y autor. Un paso sin personas asignadas avisa a los administradores del Core.
+  Nunca llega a quien hizo el cambio, y un aviso que falla no tumba la acción.
+- Mi Día muestra «Aprobaciones de compras»: lo que le toca aprobar o visar a la persona y lo suyo que le devolvieron, con el resumen en popup.
+
 `neto_cotizado` sigue siendo el neto **en pesos** (neto × (1 + IVA) = total en pesos al tipo de cambio de la OC); el neto en la moneda de la OC va en `neto_moneda`.
 
 **Comprometido neto:**
