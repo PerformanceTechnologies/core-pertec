@@ -556,7 +556,9 @@ function Modulo({
   // Un módulo «directo» (Tareas) abre su única pantalla al tocarlo, sin portada ni submódulos.
   const primero = grupo.items[0];
   const destino = grupo.directo && primero ? (primero.tipo === "app" ? primero.app.url : primero.tipo === "enlace" ? primero.href : null) : null;
-  const ruta = destino ?? rutaDeModulo(grupo.slug);
+  // Contratos: los contratos cuelgan directo del módulo (cada uno es un submódulo) y tocar el módulo abre la lista.
+  const esContratos = grupo.slug === "contratos";
+  const ruta = destino ?? (esContratos ? "/contratos" : rutaDeModulo(grupo.slug));
   const enPortada = destino ? esRutaActiva(destino, pathname) : pathname === ruta;
   // La página abierta cuelga de este módulo. Plegado, el módulo se marca igual: si no, no habría
   // cómo saber dónde está uno parado sin desplegar todo.
@@ -602,15 +604,19 @@ function Modulo({
       <Colapsable abierto={abierto} id={idDeRegion(clave)}>
         {/* La línea guía queda justo debajo del centro de la ficha del módulo: de ahí "cuelgan" los submódulos. */}
         <div className="ml-[19px] flex flex-col gap-0.5 border-l border-borde pb-1 pl-2 pt-1">
-          {grupo.items.map((item) => (
-            <Submodulo
-              key={itemClave(item)}
-              item={item}
-              pathname={pathname}
-              contratos={contratos}
-              despliegue={despliegue}
-            />
-          ))}
+          {esContratos ? (
+            <SubmenuDeContratos contratos={contratos} pathname={pathname} despliegue={despliegue} plano />
+          ) : (
+            grupo.items.map((item) => (
+              <Submodulo
+                key={itemClave(item)}
+                item={item}
+                pathname={pathname}
+                contratos={contratos}
+                despliegue={despliegue}
+              />
+            ))
+          )}
         </div>
       </Colapsable>
       )}
@@ -840,18 +846,22 @@ function SubmenuDeContratos({
   contratos,
   pathname,
   despliegue,
+  plano = false,
 }: {
   contratos: ContratoDelMenu[];
   pathname: string;
   despliegue: Despliegue;
+  /** Colgando directo del módulo: sin la sangría y la línea guía propias, que ya pone el módulo. */
+  plano?: boolean;
 }) {
+  const envoltura = plano ? "flex flex-col gap-px" : "mb-1 ml-[13px] mt-0.5 flex flex-col gap-px border-l border-borde pl-2";
   const ruta = decodeURIComponent(pathname);
   // Solo dentro de /contratos/<contrato>/…: en otra ruta ningún contrato está "abierto".
   const abierto = ruta.startsWith("/contratos/") ? ruta.split("/")[2] : undefined;
 
   if (contratos.length === 0) {
     return (
-      <div className="mb-1 ml-[13px] mt-0.5 border-l border-borde pl-2">
+      <div className={plano ? undefined : "mb-1 ml-[13px] mt-0.5 border-l border-borde pl-2"}>
         <Link href="/contratos" className={claseDeSeccion(false)}>
           Sin contratos todavía
         </Link>
@@ -860,7 +870,7 @@ function SubmenuDeContratos({
   }
 
   return (
-    <div className="mb-1 ml-[13px] mt-0.5 flex flex-col gap-px border-l border-borde pl-2">
+    <div className={envoltura}>
       {contratos.map((c) => {
         const esAbierto = c.slug === abierto;
         const clave = `contrato:${c.slug}`;

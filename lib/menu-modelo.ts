@@ -133,8 +133,6 @@ const PLAN: Plan[] = [
     titulo: "Contratos",
     descripcion: "Acreditación, logística y gastos de arranque de cada contrato.",
     items: [{ ruta: "/contratos" }],
-    // Un solo submódulo con el mismo nombre del módulo: tocarlo abre la lista de contratos directo.
-    directo: true,
   },
   // Flota y Valorización histórica cuelgan de Inventario: son aplicaciones aparte (su propio
   // permiso y sus propias rutas), pero para la gente es parte de lo mismo: lo que la empresa tiene,
