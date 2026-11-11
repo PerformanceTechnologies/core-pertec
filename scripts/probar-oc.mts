@@ -100,6 +100,70 @@ assert.equal(siguientePasoCompra({ ...oc, anulada: true }, P, HOY), "Anulada");
 // Las compras anteriores (sin formato OC) siguen el flujo de siempre.
 assert.equal(siguientePasoCompra({ ...base, aprobadoPor: "X", fechaAprobacion: HOY, fechaVisado: HOY, ocNumero: "OC-1" }, P, HOY), "Esperar recepción conforme");
 
+// ── Leer la cotización de un proveedor con IA ──────────────────────────────────
+import { buscarProveedor, normalizarLectura, rutPlano, type LecturaCotizacion } from "../lib/fin/oc-ia-datos";
+
+const lectura = (extra: Partial<LecturaCotizacion> = {}): LecturaCotizacion => ({
+  numeroCotizacion: "COT-88", fecha: "2026-11-10", titulo: "Repuestos chancador", moneda: null, preciosIncluyenIva: false,
+  proveedor: { razonSocial: "Ferretería Industrial Ltda.", rut: "76.555.444-3", atencion: "Juan Soto", correo: "ventas@ferreteria.cl", telefono: null, direccion: null },
+  lineas: [
+    { descripcion: "Rodamiento 22318", cantidad: 4, unidad: "un", precioUnitario: 100_000, descuentoPct: 10, exento: false },
+    { descripcion: "Flete", cantidad: 1, unidad: null, precioUnitario: 50_000, descuentoPct: null, exento: true },
+  ],
+  totalDeclarado: 475_400, plazoEntrega: "5 días hábiles", formaPago: "Transferencia", condicionPagoDias: 30, lugarEntrega: null, observaciones: null, ilegibles: [], ...extra,
+});
+{
+  // Neto 4×100.000 −10 % = 360.000 afecto + 50.000 exento; IVA 68.400 → 478.400. Con total declarado igual no hay avisos.
+  const ok = normalizarLectura(lectura({ totalDeclarado: 478_400 }), 0.19);
+  assert.equal(ok.moneda, "CLP", "sin moneda impresa se asume pesos");
+  assert.equal(ok.lineas.length, 2);
+  assert.equal(ok.lineas[0].descuentoPct, 0.1, "el descuento llega en % y se guarda como fracción");
+  assert.equal(ok.lineas[1].unidad, "un", "sin unidad impresa se usa «un»");
+  assert.equal(ok.condicionPagoDias, 30);
+  assert.deepEqual(ok.avisos, [], "si el total cuadra no hay nada que revisar");
+
+  // Si la suma no calza con el total impreso, se avisa (no se «arregla»).
+  const mal = normalizarLectura(lectura({ totalDeclarado: 999_999 }), 0.19);
+  assert.ok(mal.avisos.some((a) => a.includes("no coincide con el total")));
+
+  // Precios con IVA incluido: el servidor los pasa a neto (119.000 → 100.000), y lo exento no se toca.
+  const conIva = normalizarLectura(lectura({ preciosIncluyenIva: true, lineas: [{ descripcion: "Bomba", cantidad: 1, unidad: "un", precioUnitario: 119_000, descuentoPct: null, exento: false }, { descripcion: "Flete exento", cantidad: 1, unidad: "un", precioUnitario: 50_000, descuentoPct: null, exento: true }], totalDeclarado: 169_000 }), 0.19);
+  assert.equal(conIva.lineas[0].precioUnitario, 100_000);
+  assert.equal(conIva.lineas[1].precioUnitario, 50_000);
+  assert.ok(conIva.avisos.some((a) => a.includes("incluyen IVA")));
+  assert.ok(!conIva.avisos.some((a) => a.includes("no coincide")), "169.000 = 100.000 × 1,19 + 50.000 exento");
+
+  // Sin precio legible: queda en cero y se avisa. Sin ítems: se avisa. Basura numérica no rompe nada.
+  const sinPrecio = normalizarLectura(lectura({ lineas: [{ descripcion: "Algo", cantidad: null, unidad: null, precioUnitario: null, descuentoPct: 500, exento: false }], totalDeclarado: null }), 0.19);
+  assert.equal(sinPrecio.lineas[0].precioUnitario, 0);
+  assert.equal(sinPrecio.lineas[0].cantidad, 1);
+  assert.equal(sinPrecio.lineas[0].descuentoPct, 1, "un descuento absurdo se acota al 100 %");
+  assert.ok(sinPrecio.avisos.some((a) => a.includes("precio legible")));
+  assert.ok(normalizarLectura(lectura({ lineas: [], totalDeclarado: null }), 0.19).avisos.some((a) => a.includes("no encontró ítems")));
+
+  // UF: se respeta la moneda impresa y los decimales.
+  const enUf = normalizarLectura(lectura({ moneda: "UF", lineas: [{ descripcion: "Arriendo", cantidad: 3, unidad: "mes", precioUnitario: 12.345, descuentoPct: null, exento: false }], totalDeclarado: 44.08 }), 0.19);
+  assert.equal(enUf.moneda, "UF");
+  assert.deepEqual(enUf.avisos, []);
+
+  // Lo ilegible se nombra, y el título cae en el primer ítem si el documento no lo trae.
+  const ileg = normalizarLectura(lectura({ titulo: null, ilegibles: ["la fecha de entrega"], totalDeclarado: null }), 0.19);
+  assert.ok(ileg.avisos.some((a) => a.includes("la fecha de entrega")));
+  assert.equal(ileg.titulo, "Rodamiento 22318");
+}
+{
+  const contactos = [
+    { id: "1", nombre: "Ferretería Industrial Ltda.", rut: "76.555.444-3" },
+    { id: "2", nombre: "Otra Empresa SpA", rut: "77.111.222-K" },
+    { id: "3", nombre: "Otra Empresa SpA", rut: "77.999.888-1" },
+  ];
+  assert.equal(rutPlano("77.111.222-k"), "77111222K");
+  assert.equal(buscarProveedor(contactos, "765554443", null)?.id, "1", "por RUT, con o sin puntos y guion");
+  assert.equal(buscarProveedor(contactos, null, "FERRETERIA industrial ltda")?.id, "1", "por nombre, sin tildes ni mayúsculas");
+  assert.equal(buscarProveedor(contactos, null, "Otra Empresa SpA"), null, "dos con el mismo nombre: no se adivina");
+  assert.equal(buscarProveedor(contactos, "11.111.111-1", "Desconocido S.A."), null);
+}
+
 console.log("probar-oc: todo bien");
 
 // ── Impresión opcional ─────────────────────────────────────────────────────────

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconFileTypePdf, IconLoader2, IconPlus, IconSend, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconFileTypePdf, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash, IconX } from "@tabler/icons-react";
 import { guardarSolicitudAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
-import { MONEDAS, ETIQUETA_MONEDA, formatoMonto, netoLineaOc, aPesos, totalesOc, type LineaOc, type Moneda, type SolicitanteTipo } from "@/lib/fin/oc-modelo";
-import { BOTON, BOTON_SEC, CAMPO } from "./estilos";
-import { Campo, ComboContacto, type OpcionContacto } from "./ui";
+import { MONEDAS, formatoMonto, netoLineaOc, aPesos, totalesOc, type LineaOc, type Moneda, type SolicitanteTipo } from "@/lib/fin/oc-modelo";
+import type { DatosLeidos } from "@/lib/fin/oc-ia-datos";
+import { BOTON, BOTON_SEC } from "./estilos";
+import { ComboContacto, type OpcionContacto } from "./ui";
 import { avisar, confirmar } from "./dialogos";
 
 export interface DatosEditorSolicitud {
@@ -55,9 +56,10 @@ function leerNumero(t: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+const texto = (n: number) => String(n).replace(".", ",");
 const aForm = (l: LineaOc): LineaForm => ({
-  productoId: l.productoId, descripcion: l.descripcion, cantidad: String(l.cantidad).replace(".", ","), unidad: l.unidad ?? "", precio: String(l.precioUnitario).replace(".", ","),
-  dto: l.descuentoPct > 0 ? String(Math.round(l.descuentoPct * 1000) / 10).replace(".", ",") : "", exento: l.exento, nota: l.nota ?? "",
+  productoId: l.productoId, descripcion: l.descripcion, cantidad: texto(l.cantidad), unidad: l.unidad ?? "", precio: l.precioUnitario ? texto(l.precioUnitario) : "",
+  dto: l.descuentoPct > 0 ? texto(Math.round(l.descuentoPct * 1000) / 10) : "", exento: l.exento, nota: l.nota ?? "",
 });
 const aLinea = (f: LineaForm): LineaOc => ({
   productoId: f.productoId, descripcion: f.descripcion.trim(), cantidad: leerNumero(f.cantidad), unidad: f.unidad.trim() || null, precioUnitario: leerNumero(f.precio),
@@ -65,15 +67,46 @@ const aLinea = (f: LineaForm): LineaOc => ({
 });
 const LINEA_NUEVA: LineaForm = { productoId: null, descripcion: "", cantidad: "1", unidad: "un", precio: "", dto: "", exento: false, nota: "" };
 
-const TARJETA_SECCION = "rounded-2xl border border-borde bg-superficie p-4 sm:p-5";
-const TITULO_SECCION = "mb-3 text-[13px] font-bold uppercase tracking-wide text-gris";
-/** Más bajos que el resto: esta pantalla tiene muchos campos. */
-const CAMPO_C = `${CAMPO} min-h-10`;
+/** Campos algo más bajos que los del resto del módulo: esta pantalla tiene muchos y se quiere ver casi todo sin desplazarse. */
+const CAMPO_C =
+  "min-h-9 w-full rounded-lg border border-transparent bg-tinta/[0.05] px-2.5 py-1.5 text-sm text-tinta placeholder:text-gris-suave transition hover:bg-tinta/[0.07] focus:border-cian/60 focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-cian/15";
+const LBL = "text-[10px] font-semibold text-gris lg:hidden";
+/** Columnas de cada ítem en pantalla ancha (en el celular cada ítem es una tarjeta de dos columnas). */
+const COLUMNAS = "lg:grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_4rem_7.5rem_4.5rem_4rem_7rem_1.75rem]";
+const TIPOS_ARCHIVO = "application/pdf,image/jpeg,image/png,image/webp";
+const MAXIMO_ARCHIVO = 4 * 1024 * 1024;
+
+/** Una sección compacta: título en una línea y el contenido pegado debajo. */
+function Seccion({ n, titulo, ayuda, derecha, children }: { n: number; titulo: string; ayuda?: string; derecha?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-borde bg-superficie p-3 sm:p-4">
+      <header className="mb-2.5 flex flex-wrap items-center gap-2.5" title={ayuda}>
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-naranjo text-[11px] font-bold text-white">{n}</span>
+        <h3 className="text-sm font-bold text-tinta">{titulo}</h3>
+        {ayuda && <span className="hidden truncate text-xs text-gris md:inline">{ayuda}</span>}
+        <span className="flex-1" />
+        {derecha}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** Etiqueta pequeña sobre su campo. */
+function Et({ t, children, className = "" }: { t: string; children: React.ReactNode; className?: string }) {
+  return (
+    <label className={`block min-w-0 ${className}`}>
+      <span className="mb-1 block text-[11px] font-semibold text-tinta/70">{t}</span>
+      {children}
+    </label>
+  );
+}
 
 /**
- * La solicitud de compra con formato de OC. Un solo formulario, de arriba abajo, pensado para el celular
- * (cada ítem es una tarjeta) y que en pantallas grandes pone los campos en fila. «Guardar borrador» no exige
- * nada más que el título; «Enviar a aprobación» exige proveedor, ítems y total.
+ * La solicitud de compra con formato de OC, en tres secciones y casi sin desplazarse (como la cotización):
+ * 1) quién, qué y a quién, 2) ítems con totales en vivo, 3) entrega, pago y condiciones. Arriba hay una alternativa:
+ * subir la cotización del proveedor y dejar que la IA llene el formulario (se revisa antes de guardar).
+ * «Guardar borrador» no exige más que el título; «Enviar a aprobación» exige proveedor, ítems y total.
  */
 export default function EditorSolicitud({
   inicial,
@@ -101,12 +134,15 @@ export default function EditorSolicitud({
   const [solicitanteUsuarioId, setSolicitanteUsuarioId] = useState(inicial.solicitanteUsuarioId ?? "");
   const [solicitanteOtro, setSolicitanteOtro] = useState(inicial.solicitanteOtro);
   const [proveedorId, setProveedorId] = useState<string | null>(inicial.proveedorId);
+  // El combo de proveedor solo lee su valor inicial al montarse: al cargar uno desde la IA se remonta con otra clave.
+  const [claveProveedor, setClaveProveedor] = useState(0);
   const [atencion, setAtencion] = useState(inicial.atencion);
   const [proveedorCorreo, setProveedorCorreo] = useState(inicial.proveedorCorreo);
   const [proyectoId, setProyectoId] = useState(inicial.proyectoId ?? "");
   const [moneda, setMoneda] = useState<Moneda>(inicial.moneda);
   const [tipoCambio, setTipoCambio] = useState(inicial.tipoCambio);
   const [lineas, setLineas] = useState<LineaForm[]>(inicial.lineas.length > 0 ? inicial.lineas.map(aForm) : [{ ...LINEA_NUEVA }]);
+  const [notasAbiertas, setNotasAbiertas] = useState<number[]>([]);
   const [fechaRequerida, setFechaRequerida] = useState(inicial.fechaRequerida);
   const [entregaLugar, setEntregaLugar] = useState(inicial.entregaLugar);
   const [entregaPlazo, setEntregaPlazo] = useState(inicial.entregaPlazo);
@@ -115,20 +151,64 @@ export default function EditorSolicitud({
   const [observaciones, setObservaciones] = useState(inicial.observaciones);
   const [condiciones, setCondiciones] = useState(inicial.condiciones || condicionesEmpresa);
 
+  // Cotización del proveedor leída con IA.
+  const entradaArchivo = useRef<HTMLInputElement>(null);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [leyendo, setLeyendo] = useState(false);
+  const [avisosIa, setAvisosIa] = useState<string[]>([]);
+
   const items = lineas.map(aLinea);
   const t = totalesOc(items.filter((l) => l.descripcion), tasaIva, moneda);
   const tc = moneda === "CLP" ? 1 : leerNumero(tipoCambio);
   const sugerido = moneda === "UF" ? indicadores.uf : moneda === "USD" ? indicadores.dolar : null;
-
-  function cambiarLinea(i: number, parche: Partial<LineaForm>) {
-    setLineas((ls) => ls.map((l, j) => (j === i ? { ...l, ...parche } : l)));
-  }
+  const cambiarLinea = (i: number, parche: Partial<LineaForm>) => setLineas((ls) => ls.map((l, j) => (j === i ? { ...l, ...parche } : l)));
+  const quitarLinea = (i: number) => {
+    setLineas((ls) => (ls.length === 1 ? [{ ...LINEA_NUEVA }] : ls.filter((_, j) => j !== i)));
+    setNotasAbiertas((a) => a.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k)));
+  };
+  const alternarNota = (i: number) => setNotasAbiertas((a) => (a.includes(i) ? a.filter((k) => k !== i) : [...a, i]));
 
   function cambiarMoneda(nueva: Moneda) {
     setMoneda(nueva);
     // Al pasar a UF o dólar se propone el valor de hoy; el de antes no sirve en otra moneda.
     const valor = nueva === "UF" ? indicadores.uf : nueva === "USD" ? indicadores.dolar : null;
-    setTipoCambio(valor ? String(valor).replace(".", ",") : "");
+    setTipoCambio(valor ? texto(valor) : "");
+  }
+
+  async function leerConIa(f: File) {
+    if (f.size > MAXIMO_ARCHIVO) return avisar("El archivo pesa más de 4 MB. Comprímelo o sube solo las páginas con los precios.");
+    const hayItems = lineas.some((l) => l.descripcion.trim());
+    if (hayItems && !(await confirmar({ titulo: "¿Leer la cotización con IA?", ayuda: "Reemplazará los ítems, el proveedor y las condiciones que ya escribiste. Podrás revisar todo antes de guardar.", boton: "Leer y reemplazar" }))) return;
+    setLeyendo(true);
+    setAvisosIa([]);
+    try {
+      const fd = new FormData();
+      fd.set("archivo", f);
+      const r = await fetch("/api/finanzas/compras/leer-cotizacion", { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "No se pudo leer la cotización." }));
+      if (r.error || !r.datos) return avisar(r.error ?? "No se pudo leer la cotización.");
+      const d = r.datos as DatosLeidos;
+      setArchivo(f);
+      if (d.titulo) setTitulo(d.titulo);
+      setProveedorId(r.proveedorId ?? null);
+      setClaveProveedor((k) => k + 1);
+      setAtencion(d.atencion ?? "");
+      setProveedorCorreo(r.correoProveedor ?? "");
+      setMoneda(d.moneda);
+      const valor = d.moneda === "UF" ? indicadores.uf : d.moneda === "USD" ? indicadores.dolar : null;
+      setTipoCambio(d.moneda === "CLP" || !valor ? "" : texto(valor));
+      setLineas(d.lineas.length > 0 ? d.lineas.map(aForm) : [{ ...LINEA_NUEVA }]);
+      setNotasAbiertas([]);
+      if (d.plazoEntrega) setEntregaPlazo(d.plazoEntrega);
+      if (d.lugarEntrega) setEntregaLugar(d.lugarEntrega);
+      if (d.formaPago) setFormaPago(d.formaPago);
+      if (d.condicionPagoDias !== null) setCondicionPagoDias(String(d.condicionPagoDias));
+      if (d.observaciones) setObservaciones(d.observaciones);
+      setAvisosIa(d.avisos);
+      avisar(d.avisos.length > 0 ? "Listo. Revisa los avisos antes de guardar." : "Listo: revisa los datos y guarda.", d.avisos.length > 0 ? "info" : "ok");
+    } finally {
+      setLeyendo(false);
+      if (entradaArchivo.current) entradaArchivo.current.value = "";
+    }
   }
 
   function guardar(enviar: boolean) {
@@ -141,6 +221,16 @@ export default function EditorSolicitud({
       if (enviar && !(await confirmar({ titulo: "¿Enviar a aprobación?", ayuda: "Después de enviarla ya no se puede editar, salvo que quien aprueba la devuelva.", boton: "Enviar" }))) return;
       const r = await guardarSolicitudAction(inicial.id, JSON.stringify(datos), enviar);
       if (!r.ok) return avisar(r.error);
+      // La cotización del proveedor que se leyó queda de respaldo de la solicitud.
+      if (archivo && r.id) {
+        const fd = new FormData();
+        fd.set("archivo", archivo);
+        fd.set("entidadTipo", "compra");
+        fd.set("entidadId", r.id);
+        fd.set("tipo", "cotizacion_proveedor");
+        const sub = await fetch("/api/gestion-financiera/adjunto", { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "No se pudo adjuntar." }));
+        if (sub.error) avisar(`La solicitud quedó guardada, pero no se pudo adjuntar la cotización: ${sub.error}`);
+      }
       avisar(enviar ? "Enviada a aprobación." : "Borrador guardado.", "ok");
       router.push(`/finanzas/compras/${r.id}`);
       router.refresh();
@@ -148,150 +238,157 @@ export default function EditorSolicitud({
   }
 
   return (
-    <div className="space-y-4 pb-24 lg:pb-4">
+    <div className="space-y-3 pb-24 lg:pb-20">
       {inicial.devueltaMotivo && (
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/[0.07] px-4 py-3 text-sm text-alerta">
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/[0.07] px-3 py-2 text-sm text-alerta">
           <strong>La devolvieron:</strong> {inicial.devueltaMotivo}
         </p>
       )}
 
-      <section className={TARJETA_SECCION}>
-        <h2 className={TITULO_SECCION}>Quién solicita y qué se compra</h2>
-        <div className="space-y-3">
-          <div>
-            <span className="mb-1.5 block text-[12px] font-semibold text-tinta/75">Quién solicita</span>
-            <div role="radiogroup" aria-label="Quién solicita" className="inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-borde bg-tinta/[0.03] p-1">
-              {(
-                [
-                  ["yo", `Yo (${yo.nombre})`],
-                  ["usuario", "Otra persona del Core"],
-                  ["otro", "Alguien externo"],
-                ] as const
-              ).map(([clave, etiqueta]) => (
-                <button
-                  key={clave}
-                  type="button"
-                  role="radio"
-                  aria-checked={solicitanteTipo === clave}
-                  onClick={() => setSolicitanteTipo(clave)}
-                  className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${solicitanteTipo === clave ? "bg-tinta text-superficie" : "text-gris hover:text-tinta"}`}
-                >
-                  {etiqueta}
-                </button>
-              ))}
-            </div>
-            {solicitanteTipo === "usuario" && (
-              <select value={solicitanteUsuarioId} onChange={(e) => setSolicitanteUsuarioId(e.target.value)} className={`${CAMPO_C} mt-2`} aria-label="Persona que solicita">
-                <option value="">Elige a la persona…</option>
+      {/* Alternativa: en vez de escribir todo, subir la cotización del proveedor. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-dashed border-naranjo/50 bg-naranjo/[0.04] px-3 py-2.5">
+        <IconSparkles size={18} className="shrink-0 text-naranjo" />
+        <div className="min-w-0 flex-1 basis-56">
+          <p className="text-sm font-semibold text-tinta">¿Tienes la cotización del proveedor?</p>
+          <p className="text-xs text-gris">{archivo ? <><IconFileTypePdf size={12} className="mr-1 inline" />{archivo.name} · se adjuntará a la solicitud</> : "Súbela (PDF o foto) y la IA llena el formulario. Tú revisas antes de guardar."}</p>
+        </div>
+        <input ref={entradaArchivo} type="file" accept={TIPOS_ARCHIVO} className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void leerConIa(f); }} />
+        <button type="button" disabled={leyendo || pendiente} onClick={() => entradaArchivo.current?.click()} className={`${BOTON_SEC} shrink-0`}>
+          {leyendo ? <IconLoader2 size={15} className="animate-spin" /> : <IconSparkles size={15} />} {leyendo ? "Leyendo…" : archivo ? "Leer otra" : "Subir y leer con IA"}
+        </button>
+      </div>
+      {avisosIa.length > 0 && (
+        <div role="status" className="relative rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-3 py-2 pr-9 text-xs text-aviso">
+          <p className="mb-1 flex items-center gap-1.5 font-semibold"><IconAlertTriangle size={14} /> Revisa esto antes de guardar</p>
+          <ul className="list-disc space-y-0.5 pl-4 text-tinta/80">{avisosIa.map((a, i) => <li key={i}>{a}</li>)}</ul>
+          <button type="button" onClick={() => setAvisosIa([])} className="absolute right-2 top-2 rounded p-1 text-gris hover:text-tinta" aria-label="Cerrar los avisos"><IconX size={14} /></button>
+        </div>
+      )}
+
+      <Seccion n={1} titulo="¿Quién, qué y a quién?" ayuda="Quién pide la compra, para qué proyecto y a qué proveedor.">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
+          <Et t="Título o descripción breve *" className="sm:col-span-2 lg:col-span-6"><input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Repuestos para chancador planta Norte" maxLength={300} className={CAMPO_C} autoFocus={!inicial.id} /></Et>
+          <Et t="Quién solicita" className="lg:col-span-3">
+            <select value={solicitanteTipo} onChange={(e) => setSolicitanteTipo(e.target.value as SolicitanteTipo)} className={CAMPO_C}>
+              <option value="yo">Yo ({yo.nombre})</option>
+              <option value="usuario">Otra persona del Core</option>
+              <option value="otro">Alguien externo</option>
+            </select>
+          </Et>
+          <Et t={solicitanteTipo === "otro" ? "Nombre de quien solicita" : "Persona"} className="lg:col-span-3">
+            {solicitanteTipo === "usuario" ? (
+              <select value={solicitanteUsuarioId} onChange={(e) => setSolicitanteUsuarioId(e.target.value)} className={CAMPO_C}>
+                <option value="">Elige…</option>
                 {personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
+            ) : solicitanteTipo === "otro" ? (
+              <input value={solicitanteOtro} onChange={(e) => setSolicitanteOtro(e.target.value)} placeholder="Nombre y apellido" maxLength={120} className={CAMPO_C} />
+            ) : (
+              <input value={yo.nombre} readOnly tabIndex={-1} className={`${CAMPO_C} cursor-default opacity-70`} aria-label="Solicita: tú" />
             )}
-            {solicitanteTipo === "otro" && <input value={solicitanteOtro} onChange={(e) => setSolicitanteOtro(e.target.value)} placeholder="Nombre de quien solicita" maxLength={120} className={`${CAMPO_C} mt-2`} aria-label="Nombre de quien solicita" />}
-          </div>
-          <Campo etiqueta="Título o descripción breve *">
-            <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Repuestos para chancador planta Norte" maxLength={300} className={CAMPO_C} />
-          </Campo>
-          <Campo etiqueta="Proyecto" ayuda="A qué proyecto se carga el gasto.">
+          </Et>
+
+          <Et t="Proyecto (a quién se carga el gasto)" className="sm:col-span-2 lg:col-span-5">
             <select value={proyectoId} onChange={(e) => setProyectoId(e.target.value)} className={CAMPO_C}>
               <option value="">General</option>
               {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
-          </Campo>
-        </div>
-      </section>
+          </Et>
+          <Et t="Proveedor *" className="sm:col-span-2 lg:col-span-7">
+            <ComboContacto key={claveProveedor} name="_proveedor" opciones={proveedores} inicial={proveedorId} alCambiar={setProveedorId} />
+          </Et>
 
-      <section className={TARJETA_SECCION}>
-        <h2 className={TITULO_SECCION}>Proveedor</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Campo etiqueta="Proveedor *" className="sm:col-span-2">
-            <ComboContacto name="proveedorId" opciones={proveedores} inicial={proveedorId} alCambiar={setProveedorId} />
-          </Campo>
-          <Campo etiqueta="Atención"><input value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Nombre de su contacto" maxLength={120} className={CAMPO_C} /></Campo>
-          <Campo etiqueta="Correo para enviarle la OC"><input value={proveedorCorreo} onChange={(e) => setProveedorCorreo(e.target.value)} type="email" inputMode="email" placeholder="ventas@proveedor.cl" maxLength={160} className={CAMPO_C} /></Campo>
+          <Et t="Atención del proveedor" className="lg:col-span-4"><input value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Nombre de su contacto" maxLength={120} className={CAMPO_C} /></Et>
+          <Et t="Correo para enviarle la OC" className="lg:col-span-5"><input value={proveedorCorreo} onChange={(e) => setProveedorCorreo(e.target.value)} type="email" inputMode="email" placeholder="ventas@proveedor.cl" maxLength={160} className={CAMPO_C} /></Et>
+          <Et t="Se necesita para" className="lg:col-span-3"><input type="date" value={fechaRequerida} onChange={(e) => setFechaRequerida(e.target.value)} className={CAMPO_C} /></Et>
         </div>
-      </section>
+      </Seccion>
 
-      <section className={TARJETA_SECCION}>
-        <h2 className={TITULO_SECCION}>Ítems</h2>
-        <div className="mb-3 grid gap-3 sm:grid-cols-2">
-          <Campo etiqueta="Moneda">
-            <select value={moneda} onChange={(e) => cambiarMoneda(e.target.value as Moneda)} className={CAMPO_C}>
-              {MONEDAS.map((m) => <option key={m} value={m}>{ETIQUETA_MONEDA[m]}</option>)}
+      <Seccion
+        n={2}
+        titulo="¿Qué se compra?"
+        ayuda="Una fila por producto o servicio. Los precios son netos."
+        derecha={
+          <div className="flex items-center gap-1.5">
+            <select value={moneda} onChange={(e) => cambiarMoneda(e.target.value as Moneda)} className={`${CAMPO_C} w-auto text-xs`} aria-label="Moneda">
+              {MONEDAS.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
-          </Campo>
-          {moneda !== "CLP" && (
-            <Campo etiqueta={`Valor de ${moneda} en pesos *`} ayuda={sugerido ? `Hoy: ${formatoMonto(sugerido, "CLP")}. Puedes ajustarlo.` : "Escríbelo: no pudimos traer el valor de hoy."}>
-              <div className="flex gap-2">
-                <input value={tipoCambio} onChange={(e) => setTipoCambio(e.target.value)} inputMode="decimal" placeholder="38.500" className={CAMPO_C} />
-                {sugerido && <button type="button" onClick={() => setTipoCambio(String(sugerido).replace(".", ","))} className={`${BOTON_SEC} shrink-0`}>Usar hoy</button>}
+            {moneda !== "CLP" && (
+              <>
+                <input value={tipoCambio} onChange={(e) => setTipoCambio(e.target.value)} inputMode="decimal" placeholder={`$ por ${moneda}`} aria-label={`Valor de ${moneda} en pesos`} title={sugerido ? `Hoy: ${formatoMonto(sugerido, "CLP")}` : "Escribe el valor en pesos"} className={`${CAMPO_C} w-28 text-right text-xs`} />
+                {sugerido && <button type="button" onClick={() => setTipoCambio(texto(sugerido))} className="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-naranjo hover:bg-naranjo/10" title={`Usar el valor de hoy: ${formatoMonto(sugerido, "CLP")}`}>Hoy</button>}
+              </>
+            )}
+          </div>
+        }
+      >
+        {/* Encabezado de columnas: solo en pantalla ancha; en el celular cada campo lleva su rótulo. */}
+        <div className={`mb-1 hidden gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-wide text-gris lg:grid ${COLUMNAS}`}>
+          <span /><span>Descripción</span><span className="text-right">Cant.</span><span>Unidad</span><span className="text-right">Precio unit.</span><span className="text-right">Desc. %</span><span className="text-center">Exento</span><span className="text-right">Total</span><span />
+        </div>
+        <ul className="space-y-1.5">
+          {lineas.map((l, i) => (
+            <li key={i} className={`grid grid-cols-2 items-end gap-1.5 rounded-xl border border-borde bg-tinta/[0.015] p-2 lg:items-center ${COLUMNAS}`}>
+              <span className="hidden text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
+              <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
+                <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
+                <textarea aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} rows={1} maxLength={500} onChange={(e) => cambiarLinea(i, { descripcion: e.target.value })} className={`${CAMPO_C} min-h-9 resize-y`} placeholder="Descripción del producto o servicio" />
+                <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar el detalle de este ítem" : "Agregar un detalle (marca, código, especificación)"}
+                  className={`rounded-lg p-1.5 transition ${l.nota.trim() ? "bg-naranjo/10 text-naranjo" : notasAbiertas.includes(i) ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Detalle del ítem ${i + 1}`}><IconNotes size={16} /></button>
+                <button type="button" onClick={() => quitarLinea(i)} className="rounded-lg p-1.5 text-gris hover:bg-rose-500/10 hover:text-alerta lg:hidden" aria-label={`Quitar el ítem ${i + 1}`}><IconTrash size={16} /></button>
               </div>
-            </Campo>
-          )}
-        </div>
-
-        <ul className="space-y-3">
-          {lineas.map((l, i) => {
-            const li = items[i];
-            return (
-              <li key={i} className="rounded-xl border border-borde bg-tinta/[0.02] p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-gris">Ítem {i + 1}</span>
-                  <span className="text-sm font-bold tabular-nums text-tinta">{formatoMonto(netoLineaOc(li, moneda), moneda)}</span>
-                  <button type="button" onClick={() => setLineas((ls) => (ls.length === 1 ? [{ ...LINEA_NUEVA }] : ls.filter((_, j) => j !== i)))} className="grid h-9 w-9 place-items-center rounded-lg text-gris transition hover:bg-rose-500/10 hover:text-alerta" aria-label={`Quitar el ítem ${i + 1}`}>
-                    <IconTrash size={16} />
-                  </button>
+              <label className="block"><span className={LBL}>Cantidad</span><input aria-label="Cantidad" value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: e.target.value })} inputMode="decimal" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
+              <label className="block"><span className={LBL}>Unidad</span><input aria-label="Unidad" value={l.unidad} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} maxLength={20} className={CAMPO_C} /></label>
+              <label className="block"><span className={LBL}>Precio unitario (neto)</span><input aria-label="Precio unitario" value={l.precio} onChange={(e) => cambiarLinea(i, { precio: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
+              <label className="block"><span className={LBL}>Descuento %</span><input aria-label="Descuento de la línea" value={l.dto} onChange={(e) => cambiarLinea(i, { dto: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} /></label>
+              <label className="flex items-center gap-1.5 text-xs text-gris lg:justify-center"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} aria-label="Exento de IVA" /> <span className="lg:hidden">Exento de IVA</span></label>
+              <span className="col-span-2 text-right font-condensed text-base font-bold tabular-nums text-tinta lg:col-span-1">{formatoMonto(netoLineaOc(items[i], moneda), moneda)}</span>
+              <button type="button" onClick={() => quitarLinea(i)} className="hidden rounded-lg p-1 text-gris hover:bg-rose-500/10 hover:text-alerta lg:block" aria-label={`Quitar el ítem ${i + 1}`}><IconTrash size={15} /></button>
+              {(notasAbiertas.includes(i) || Boolean(l.nota.trim())) && (
+                <div className="col-span-2 lg:col-span-full lg:pl-[1.75rem]">
+                  <textarea aria-label={`Detalle del ítem ${i + 1}`} value={l.nota} rows={2} maxLength={1000} onChange={(e) => cambiarLinea(i, { nota: e.target.value })} className={`${CAMPO_C} resize-y text-[13px]`} placeholder="Detalle opcional: marca, código, especificación. Sale bajo el ítem en la OC." />
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-                  <input value={l.descripcion} onChange={(e) => cambiarLinea(i, { descripcion: e.target.value })} placeholder="Descripción del producto o servicio" maxLength={500} className={`${CAMPO_C} col-span-2 sm:col-span-12`} aria-label={`Descripción del ítem ${i + 1}`} />
-                  <label className="sm:col-span-2"><span className="mb-1 block text-[10px] font-semibold uppercase text-gris">Cantidad</span><input value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: e.target.value })} inputMode="decimal" className={CAMPO_C} /></label>
-                  <label className="sm:col-span-2"><span className="mb-1 block text-[10px] font-semibold uppercase text-gris">Unidad</span><input value={l.unidad} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} maxLength={20} className={CAMPO_C} /></label>
-                  <label className="col-span-2 sm:col-span-4"><span className="mb-1 block text-[10px] font-semibold uppercase text-gris">Precio unitario (neto)</span><input value={l.precio} onChange={(e) => cambiarLinea(i, { precio: e.target.value })} inputMode="decimal" placeholder="0" className={CAMPO_C} /></label>
-                  <label className="sm:col-span-2"><span className="mb-1 block text-[10px] font-semibold uppercase text-gris">Desc. %</span><input value={l.dto} onChange={(e) => cambiarLinea(i, { dto: e.target.value })} inputMode="decimal" placeholder="0" className={CAMPO_C} /></label>
-                  <label className="flex items-end gap-2 pb-2 text-xs text-tinta sm:col-span-2"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} className="h-4 w-4 accent-[var(--color-naranjo)]" /> Exento de IVA</label>
-                  <textarea value={l.nota} onChange={(e) => cambiarLinea(i, { nota: e.target.value })} rows={1} placeholder="Detalle opcional (marca, código, especificación…)" maxLength={1000} className={`${CAMPO_C} col-span-2 sm:col-span-12`} aria-label={`Detalle del ítem ${i + 1}`} />
-                </div>
-              </li>
-            );
-          })}
+              )}
+            </li>
+          ))}
         </ul>
-        <button type="button" onClick={() => setLineas((ls) => [...ls, { ...LINEA_NUEVA }])} className={`${BOTON_SEC} mt-3 w-full sm:w-auto`}><IconPlus size={15} /> Agregar ítem</button>
-
-        <div className="mt-4 ml-auto w-full max-w-xs space-y-1 rounded-xl bg-tinta/[0.04] px-4 py-3 text-sm">
-          <p className="flex justify-between"><span className="text-gris">{t.exento > 0 ? "Neto afecto" : "Neto"}</span><span className="tabular-nums">{formatoMonto(t.neto, moneda)}</span></p>
-          {t.exento > 0 && <p className="flex justify-between"><span className="text-gris">Exento</span><span className="tabular-nums">{formatoMonto(t.exento, moneda)}</span></p>}
-          <p className="flex justify-between"><span className="text-gris">IVA {Math.round(tasaIva * 1000) / 10}%</span><span className="tabular-nums">{formatoMonto(t.iva, moneda)}</span></p>
-          <p className="flex justify-between border-t border-borde pt-1 text-base font-extrabold text-tinta"><span>Total</span><span className="tabular-nums">{formatoMonto(t.total, moneda)}</span></p>
-          {moneda !== "CLP" && <p className="flex justify-between text-xs text-gris"><span>En pesos</span><span className="tabular-nums">{formatoMonto(aPesos(t.total, moneda, tc), "CLP")}</span></p>}
+        <div className="mt-2.5 flex flex-wrap items-start justify-between gap-3">
+          <button type="button" onClick={() => setLineas((ls) => [...ls, { ...LINEA_NUEVA }])} className={BOTON_SEC}><IconPlus size={14} /> Agregar ítem</button>
+          <dl className="grid min-w-[15rem] grid-cols-[1fr_auto] gap-x-6 gap-y-0 rounded-xl bg-tinta/[0.03] px-3 py-2 text-sm">
+            <dt className="text-gris">{t.exento > 0 ? "Neto afecto" : "Neto"}</dt><dd className="text-right tabular-nums">{formatoMonto(t.neto, moneda)}</dd>
+            {t.exento > 0 && <><dt className="text-gris">Exento</dt><dd className="text-right tabular-nums">{formatoMonto(t.exento, moneda)}</dd></>}
+            <dt className="text-gris">IVA {Math.round(tasaIva * 100)}%</dt><dd className="text-right tabular-nums">{formatoMonto(t.iva, moneda)}</dd>
+            <dt className="font-bold text-tinta">Total</dt><dd className="text-right font-condensed text-lg font-bold tabular-nums text-tinta">{formatoMonto(t.total, moneda)}</dd>
+            {moneda !== "CLP" && <><dt className="text-xs text-gris">En pesos</dt><dd className="text-right text-xs tabular-nums text-gris">{formatoMonto(aPesos(t.total, moneda, tc), "CLP")}</dd></>}
+          </dl>
         </div>
-      </section>
+      </Seccion>
 
-      <section className={TARJETA_SECCION}>
-        <h2 className={TITULO_SECCION}>Entrega y pago</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Campo etiqueta="Lugar de entrega" className="sm:col-span-2"><input value={entregaLugar} onChange={(e) => setEntregaLugar(e.target.value)} placeholder="Faena Planta Norte, Calama" maxLength={300} className={CAMPO_C} /></Campo>
-          <Campo etiqueta="Plazo de entrega"><input value={entregaPlazo} onChange={(e) => setEntregaPlazo(e.target.value)} placeholder="5 días hábiles" maxLength={120} className={CAMPO_C} /></Campo>
-          <Campo etiqueta="Se necesita para"><input type="date" value={fechaRequerida} onChange={(e) => setFechaRequerida(e.target.value)} className={CAMPO_C} /></Campo>
-          <Campo etiqueta="Días para pagar" ayuda="0 = contado contra factura."><input value={condicionPagoDias} onChange={(e) => setCondicionPagoDias(e.target.value)} inputMode="numeric" placeholder="30" className={CAMPO_C} /></Campo>
-          <Campo etiqueta="Forma de pago"><input value={formaPago} onChange={(e) => setFormaPago(e.target.value)} placeholder="Transferencia" maxLength={200} className={CAMPO_C} /></Campo>
+      <Seccion n={3} titulo="Entrega, pago y condiciones" ayuda="Salen en el PDF. Lo que dejes vacío no aparece.">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
+          <Et t="Lugar de entrega" className="sm:col-span-2 lg:col-span-6"><input value={entregaLugar} onChange={(e) => setEntregaLugar(e.target.value)} placeholder="Faena Planta Norte, Calama" maxLength={300} className={CAMPO_C} /></Et>
+          <Et t="Plazo de entrega" className="lg:col-span-3"><input value={entregaPlazo} onChange={(e) => setEntregaPlazo(e.target.value)} placeholder="5 días hábiles" maxLength={120} className={CAMPO_C} /></Et>
+          <Et t="Días de pago" className="lg:col-span-3"><input value={condicionPagoDias} onChange={(e) => setCondicionPagoDias(e.target.value)} inputMode="numeric" placeholder="30 (0 = contado)" className={`${CAMPO_C} text-right`} /></Et>
+          <Et t="Forma de pago" className="sm:col-span-2 lg:col-span-4"><input value={formaPago} onChange={(e) => setFormaPago(e.target.value)} placeholder="Transferencia" maxLength={200} className={CAMPO_C} /></Et>
+          <Et t="Observaciones para el proveedor" className="sm:col-span-2 lg:col-span-8"><textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} rows={1} maxLength={2000} className={`${CAMPO_C} resize-y`} placeholder="Despachar con guía y certificado…" /></Et>
+          <details className="sm:col-span-2 lg:col-span-12">
+            <summary className="cursor-pointer text-xs font-semibold text-gris hover:text-tinta">Condiciones generales de la OC (vienen de la empresa; ajústalas solo para esta OC)</summary>
+            <textarea value={condiciones} onChange={(e) => setCondiciones(e.target.value)} rows={4} maxLength={3000} className={`${CAMPO_C} mt-1.5 resize-y`} aria-label="Condiciones generales" />
+          </details>
         </div>
-      </section>
-
-      <section className={TARJETA_SECCION}>
-        <h2 className={TITULO_SECCION}>Observaciones y condiciones</h2>
-        <div className="space-y-3">
-          <Campo etiqueta="Observaciones" ayuda="Salen en la OC, para el proveedor."><textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} rows={3} maxLength={2000} className={CAMPO_C} /></Campo>
-          <Campo etiqueta="Condiciones generales" ayuda="Vienen de la empresa; puedes ajustarlas solo para esta OC."><textarea value={condiciones} onChange={(e) => setCondiciones(e.target.value)} rows={5} maxLength={3000} className={CAMPO_C} /></Campo>
-        </div>
-      </section>
+      </Seccion>
 
       {/* En el celular la barra queda sobre el menú de abajo (h-16); en escritorio, al pie de la pantalla. */}
-      <div className="sticky bottom-[4.5rem] z-30 flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-borde bg-superficie/95 px-4 py-3 shadow-lg backdrop-blur lg:bottom-3">
-        <span className="mr-auto text-sm font-bold tabular-nums text-tinta">{formatoMonto(t.total, moneda)}</span>
-        {inicial.id && (
-          <a href={`/api/finanzas/compras/${inicial.id}/oc-pdf`} target="_blank" rel="noopener" className={BOTON_SEC}><IconFileTypePdf size={15} /> Vista previa</a>
-        )}
-        <button type="button" disabled={pendiente} onClick={() => guardar(false)} className={BOTON_SEC}>{pendiente ? <IconLoader2 size={15} className="animate-spin" /> : null} Guardar borrador</button>
-        <button type="button" disabled={pendiente} onClick={() => guardar(true)} className={BOTON}><IconSend size={15} /> Enviar a aprobación</button>
+      <div className="sticky bottom-[4.5rem] z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-borde bg-superficie/95 px-4 py-2.5 shadow-[0_12px_32px_-12px_rgba(23,20,17,0.35)] backdrop-blur lg:bottom-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gris">Total con IVA</p>
+          <p className="font-condensed text-2xl font-bold leading-tight tabular-nums text-tinta">{formatoMonto(t.total, moneda)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {inicial.id && <a href={`/api/finanzas/compras/${inicial.id}/oc-pdf`} target="_blank" rel="noopener" className={BOTON_SEC}><IconFileTypePdf size={14} /> Vista previa</a>}
+          <button type="button" disabled={pendiente || leyendo} onClick={() => guardar(false)} className={BOTON_SEC}>{pendiente && <IconLoader2 size={14} className="animate-spin" />} Guardar borrador</button>
+          <button type="button" disabled={pendiente || leyendo} onClick={() => guardar(true)} className={BOTON}><IconSend size={14} /> Enviar a aprobación</button>
+        </div>
       </div>
     </div>
   );
