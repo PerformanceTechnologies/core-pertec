@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import type { LecturaCotizacion } from "./oc-ia-datos";
+import { aLectura, type LecturaCotizacion, type LecturaCruda } from "./oc-ia-datos";
 
 // Leer la cotización de un proveedor (PDF o foto) con IA, para llenar la solicitud de compra (solo servidor).
 // Lo que se hace con lo leído (neto, verificación de totales) vive en oc-ia-datos.ts: acá solo está la llamada.
@@ -12,28 +12,29 @@ function cliente(): Anthropic {
   return new Anthropic();
 }
 
-const nullable = (type: "string" | "number") => ({ type: [type, "null"] });
-
+// La API de salida estructurada acepta como máximo 16 campos que admitan «vacío» (null o varios tipos): este documento
+// necesita más, así que NINGUNO es null. Lo que no está impreso se devuelve como texto vacío o con un valor centinela
+// (-1 en los números donde 0 es un dato válido) y `aLectura` (oc-ia-datos.ts) lo traduce a null.
 const ESQUEMA = {
   type: "object",
   properties: {
-    numeroCotizacion: { ...nullable("string"), description: "N° de cotización o presupuesto del proveedor, tal como está impreso." },
-    fecha: { ...nullable("string"), description: "Fecha del documento en formato YYYY-MM-DD." },
-    titulo: { ...nullable("string"), description: "Qué se está comprando, en una línea corta (menos de 80 caracteres), p. ej. «Repuestos para chancador». Sin el nombre del proveedor." },
+    numeroCotizacion: { type: "string", description: "N° de cotización o presupuesto del proveedor, tal como está impreso. Texto vacío si no hay." },
+    fecha: { type: "string", description: "Fecha del documento en formato YYYY-MM-DD. Texto vacío si no hay." },
+    titulo: { type: "string", description: "Qué se está comprando, en una línea corta (menos de 80 caracteres), p. ej. «Repuestos para chancador». Sin el nombre del proveedor. Texto vacío si no se puede decir." },
     proveedor: {
       type: "object",
       properties: {
-        razonSocial: { ...nullable("string"), description: "Razón social de quien EMITE la cotización (el proveedor), no de quien la recibe." },
-        rut: { ...nullable("string"), description: "RUT del proveedor tal como aparece (ej. 76.123.456-7)." },
-        atencion: { ...nullable("string"), description: "Nombre de la persona de contacto o vendedor del proveedor." },
-        correo: { ...nullable("string"), description: "Correo del proveedor o de su vendedor." },
-        telefono: { ...nullable("string") },
-        direccion: { ...nullable("string") },
+        razonSocial: { type: "string", description: "Razón social de quien EMITE la cotización (el proveedor), no de quien la recibe. Texto vacío si no se lee." },
+        rut: { type: "string", description: "RUT del proveedor tal como aparece (ej. 76.123.456-7). Texto vacío si no aparece." },
+        atencion: { type: "string", description: "Nombre de la persona de contacto o vendedor del proveedor. Texto vacío si no hay." },
+        correo: { type: "string", description: "Correo del proveedor o de su vendedor. Texto vacío si no hay." },
+        telefono: { type: "string", description: "Texto vacío si no hay." },
+        direccion: { type: "string", description: "Texto vacío si no hay." },
       },
       required: ["razonSocial", "rut", "atencion", "correo", "telefono", "direccion"],
       additionalProperties: false,
     },
-    moneda: { anyOf: [{ type: "string", enum: ["CLP", "UF", "USD"] }, { type: "null" }], description: "Moneda de los precios: CLP (pesos), UF o USD (dólares). null si no se indica (se asume pesos)." },
+    moneda: { type: "string", enum: ["CLP", "UF", "USD", "no_indica"], description: "Moneda de los precios: CLP (pesos), UF o USD (dólares). «no_indica» si el documento no la señala (se asume pesos)." },
     preciosIncluyenIva: {
       type: "boolean",
       description: "true SOLO si el documento muestra los precios unitarios ya con IVA incluido y no entrega el neto. false si los precios son netos (el documento suma el IVA aparte) o si no hay certeza.",
@@ -45,22 +46,22 @@ const ESQUEMA = {
         type: "object",
         properties: {
           descripcion: { type: "string", description: "Descripción del ítem, con su código o marca si lo trae." },
-          cantidad: nullable("number"),
-          unidad: { ...nullable("string"), description: "Unidad impresa (un, kg, m, mes, global…). null si no hay." },
-          precioUnitario: { ...nullable("number"), description: "Precio unitario IMPRESO, sin puntos ni símbolo. No lo calcules: si el documento solo trae el total de la línea, déjalo en null." },
-          descuentoPct: { ...nullable("number"), description: "Descuento de la línea en porcentaje (10 = 10 %), solo si está impreso." },
+          cantidad: { type: "number", description: "Cantidad impresa. 0 si no se lee." },
+          unidad: { type: "string", description: "Unidad impresa (un, kg, m, mes, global…). Texto vacío si no hay." },
+          precioUnitario: { type: "number", description: "Precio unitario IMPRESO, sin puntos ni símbolo. No lo calcules: si el documento solo trae el total de la línea, o no se lee, devuelve -1." },
+          descuentoPct: { type: "number", description: "Descuento de la línea en porcentaje (10 = 10 %), solo si está impreso. 0 si no hay." },
           exento: { type: "boolean", description: "true si el ítem está declarado exento de IVA." },
         },
         required: ["descripcion", "cantidad", "unidad", "precioUnitario", "descuentoPct", "exento"],
         additionalProperties: false,
       },
     },
-    totalDeclarado: { ...nullable("number"), description: "El TOTAL final impreso (a pagar). Se usa para verificar la suma; no lo calcules." },
-    plazoEntrega: { ...nullable("string"), description: "Plazo de entrega o disponibilidad, p. ej. «5 días hábiles»." },
-    formaPago: { ...nullable("string"), description: "Forma de pago impresa, p. ej. «Transferencia», «50% anticipo»." },
-    condicionPagoDias: { ...nullable("number"), description: "Días de crédito si dice «30 días»; 0 si es contado. null si no lo dice." },
-    lugarEntrega: { ...nullable("string"), description: "Lugar de entrega o despacho, si lo dice." },
-    observaciones: { ...nullable("string"), description: "Condiciones o notas importantes del proveedor (garantía, validez, exclusiones), resumidas en pocas líneas." },
+    totalDeclarado: { type: "number", description: "El TOTAL final impreso (a pagar). Se usa para verificar la suma; no lo calcules. 0 si no está impreso." },
+    plazoEntrega: { type: "string", description: "Plazo de entrega o disponibilidad, p. ej. «5 días hábiles». Texto vacío si no hay." },
+    formaPago: { type: "string", description: "Forma de pago impresa, p. ej. «Transferencia», «50% anticipo». Texto vacío si no hay." },
+    condicionPagoDias: { type: "number", description: "Días de crédito si dice «30 días»; 0 si es contado. -1 si el documento no lo dice." },
+    lugarEntrega: { type: "string", description: "Lugar de entrega o despacho, si lo dice. Texto vacío si no." },
+    observaciones: { type: "string", description: "Condiciones o notas importantes del proveedor (garantía, validez, exclusiones), resumidas en pocas líneas. Texto vacío si no hay." },
     ilegibles: { type: "array", items: { type: "string" }, description: "Datos que no se pudieron leer con certeza. Nunca adivinar." },
   },
   required: ["numeroCotizacion", "fecha", "titulo", "proveedor", "moneda", "preciosIncluyenIva", "lineas", "totalDeclarado", "plazoEntrega", "formaPago", "condicionPagoDias", "lugarEntrega", "observaciones", "ilegibles"],
@@ -71,12 +72,12 @@ const INSTRUCCIONES = `Eres un asistente que TRANSCRIBE cotizaciones de proveedo
 
 REGLA PRINCIPAL: transcribes, no calculas.
 - Copia los montos y cantidades EXACTAMENTE como están impresos. No sumes, no promedies, no conviertas monedas.
-- Si un dato no está en el documento, déjalo en null. Nunca lo inventes ni lo deduzcas.
+- Si un dato no está en el documento, déjalo vacío (texto vacío, 0 o -1 según el campo). Nunca lo inventes ni lo deduzcas.
 - Lo que no puedas leer con certeza va nombrado en "ilegibles".
 
 El proveedor es quien EMITE la cotización (su logo y datos suelen ir arriba). La empresa que compra es el destinatario: no la confundas con el proveedor.
 
-Precios: copia el precio UNITARIO de cada ítem. Si la tabla solo muestra el total de la línea y la cantidad, deja el precio unitario en null (el sistema lo calcula). Marca preciosIncluyenIva en true únicamente si los precios impresos ya incluyen IVA y el documento no muestra un neto aparte; en una cotización con «Neto», «IVA» y «Total» al pie, los precios de la tabla son netos y preciosIncluyenIva es false.
+Precios: copia el precio UNITARIO de cada ítem. Si la tabla solo muestra el total de la línea y la cantidad, deja el precio unitario en -1 (el sistema lo calcula). Marca preciosIncluyenIva en true únicamente si los precios impresos ya incluyen IVA y el documento no muestra un neto aparte; en una cotización con «Neto», «IVA» y «Total» al pie, los precios de la tabla son netos y preciosIncluyenIva es false.
 
 El documento puede ser un PDF o una foto. Puede traer varias páginas; transcribe todos los ítems de la tabla.`;
 
@@ -107,7 +108,7 @@ export async function leerCotizacionProveedor(archivo: Buffer, mime: string, nom
   const bloque = respuesta.content.find((b) => b.type === "text");
   if (!bloque || bloque.type !== "text") throw new Error(`La lectura de «${nombre}» no devolvió datos.`);
   try {
-    return JSON.parse(bloque.text) as LecturaCotizacion;
+    return aLectura(JSON.parse(bloque.text) as LecturaCruda);
   } catch {
     throw new Error(`La IA devolvió un formato inesperado al leer «${nombre}». Inténtalo de nuevo.`);
   }
