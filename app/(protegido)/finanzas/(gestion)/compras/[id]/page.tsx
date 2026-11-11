@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconArrowLeft, IconDownload, IconFileTypePdf, IconHistory, IconPencil, IconSend, IconTrash } from "@tabler/icons-react";
-import { RUTA_COMPRAS, cargarVista, contextoFin, historialDeCompra } from "@/lib/fin/datos";
+import { IconArrowLeft, IconDownload, IconFileTypePdf, IconHistory, IconPaperclip, IconPencil, IconSend, IconTrash } from "@tabler/icons-react";
+import { RUTA_COMPRAS, adjuntosDe, cargarVista, contextoFin, historialDeCompra } from "@/lib/fin/datos";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { DTE_CORTO } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
@@ -10,7 +10,8 @@ import { permisosDeUsuario } from "@/lib/fin/flujos";
 import { lineasDeCompra, resumenDeCompra, tasaIvaDe } from "@/lib/fin/oc-datos";
 import ResumenOc from "@/components/fin/ResumenOc";
 import { Chip, Monto, Seccion, TD, TH, tonoPaso } from "@/components/fin/piezas";
-import { BotonAccion } from "@/components/fin/ui";
+import { BotonAccion, SubirAdjunto } from "@/components/fin/ui";
+import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
 import { BOTON, BOTON_SEC } from "@/components/fin/estilos";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
   const facturas = v.documentos.filter((d) => d.compraIds.includes(id));
   const idsFacturas = new Set(facturas.map((d) => d.id));
   const pagos = v.pagos.filter((p) => p.aplicaciones.some((a) => idsFacturas.has(a.documentoId)));
-  const historial = await historialDeCompra(ctx.empresa.id, id, [...idsFacturas], pagos.map((p) => p.id));
+  const [historial, adjuntos] = await Promise.all([historialDeCompra(ctx.empresa.id, id, [...idsFacturas], pagos.map((p) => p.id)), adjuntosDe("compra", id)]);
   const puede = await permisosDeUsuario(ctx);
   const yoCorreo = ctx.usuario.correo.toLowerCase();
   const esSuya = ctx.usuario.rol === "admin" || (c.solicitante ?? "").toLowerCase() === yoCorreo || (c.creadoPor ?? "").toLowerCase() === yoCorreo;
@@ -88,17 +89,17 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
             {editable && (
               <>
                 <Link href={`${RUTA_COMPRAS}/${id}/editar`} className={BOTON_SEC}><IconPencil size={14} /> Editar</Link>
-                <BotonAccion accion={() => enviarAAprobacionAction(id)} className={BOTON} confirmar="¿Enviar a aprobación? Después ya no se puede editar, salvo que la devuelvan."><IconSend size={14} /> Enviar a aprobación</BotonAccion>
+                <BotonAccion accion={enviarAAprobacionAction.bind(null, id)} className={BOTON} confirmar="¿Enviar a aprobación? Después ya no se puede editar, salvo que la devuelvan."><IconSend size={14} /> Enviar a aprobación</BotonAccion>
               </>
             )}
-            {aprobando && <BotonAccion accion={() => aprobarComprasAction([id])} className={BOTON}>Aprobar</BotonAccion>}
-            {visando && <BotonAccion accion={() => visarComprasAction([id])} className={BOTON}>Visar y emitir OC</BotonAccion>}
+            {aprobando && <BotonAccion accion={aprobarComprasAction.bind(null, [id])} className={BOTON}>Aprobar</BotonAccion>}
+            {visando && <BotonAccion accion={visarComprasAction.bind(null, [id])} className={BOTON}>Visar y emitir OC</BotonAccion>}
             {(aprobando || visando) && <BotonAccion accion={devolverCompraAction.bind(null, id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>}
             <a href={`/api/finanzas/compras/${id}/oc-pdf`} target="_blank" rel="noopener" className={BOTON_SEC}><IconFileTypePdf size={14} /> {c.ocNumero ? "Ver OC" : "Ver borrador"}</a>
             <a href={`/api/finanzas/compras/${id}/oc-pdf?descargar=1`} className={BOTON_SEC}><IconDownload size={14} /> Descargar</a>
             <span className="flex-1" />
             {!c.estadoOverride && (esSuya || puede.compras_aprobador || puede.compras_visador) && <BotonAccion accion={anularCompraAction.bind(null, id)} motivo={`¿Por qué se anula ${c.codigo}? Queda en el registro y un administrador puede reactivarla.`}>Anular</BotonAccion>}
-            {ctx.usuario.rol === "admin" && c.estadoOverride && <BotonAccion accion={() => reactivarCompraAction(id)} confirmar={`¿Reactivar ${c.codigo}? Vuelve al flujo donde estaba.`}>Reactivar</BotonAccion>}
+            {ctx.usuario.rol === "admin" && c.estadoOverride && <BotonAccion accion={reactivarCompraAction.bind(null, id)} confirmar={`¿Reactivar ${c.codigo}? Vuelve al flujo donde estaba.`}>Reactivar</BotonAccion>}
           </div>
           {resumen && <section className={`${TARJETA} p-4 sm:p-5`}><ResumenOc r={resumen} /></section>}
         </>
@@ -115,6 +116,13 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
             </div>
           ))}
         </div>
+      </Seccion>
+
+      <Seccion titulo="Respaldos" icono={<IconPaperclip size={15} />} accion={<SubirAdjunto entidadTipo="compra" entidadId={id} tipo="cotizacion_proveedor" texto="Adjuntar cotización" />}>
+        <ul className={`${TARJETA} divide-y divide-borde text-sm`}>
+          {adjuntos.map((a) => <li key={a.id} className="px-4 py-2"><EnlaceAdjunto id={a.id} nombre={a.nombre} /></li>)}
+          {adjuntos.length === 0 && <li className="px-4 py-3 text-xs text-gris">Aquí queda la cotización del proveedor y cualquier otro respaldo.</li>}
+        </ul>
       </Seccion>
 
       <Seccion titulo="Historial" icono={<IconHistory size={15} />}>
