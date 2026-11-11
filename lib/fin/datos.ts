@@ -705,14 +705,6 @@ export async function exigirDeEmpresa(tabla: string, id: string, empresaId: stri
   return data;
 }
 
-/** Los contactos (clientes/proveedores) son compartidos entre empresas: basta con que existan y estén activos. */
-export async function exigirContacto(id: string): Promise<Record<string, unknown>> {
-  const { data, error } = await supabaseAdmin.from("finanzas_contactos").select("id, razon_social, rut, activo").eq("id", id).maybeSingle();
-  revienta("leer el contacto", error);
-  if (!data) throw new Error("[fin] Ese cliente o proveedor no existe.");
-  return data;
-}
-
 export function fechaValida(v: FormDataEntryValue | null): Iso | null {
   const t = String(v ?? "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
@@ -725,66 +717,15 @@ export function montoDe(v: FormDataEntryValue | null): number | null {
   return Number.isFinite(x) ? Math.round(x) : null;
 }
 
-/**
- * Liga un movimiento bancario a un cobro/pago: queda «Conciliado con documento».
- * Un movimiento se concilia una sola vez: si ya tiene conciliación, se rechaza (para cambiarla hay que
- * desconciliarlo primero). Los traspasos ligan cada lado por separado, así que también caben acá.
- */
+/** Liga un movimiento bancario a un cobro/pago: queda «Conciliado con documento». */
 export async function conciliarConMovimiento(empresaId: string, movimientoId: string, tipo: "cobro" | "pago" | "factoring" | "traspaso" | "otro", entidadId: string | null, monto: number, categoriaId: string | null): Promise<void> {
-  const { data: m, error: em } = await supabaseAdmin.from("fin_movimientos").select("id, categoria_id").eq("id", movimientoId).eq("empresa_id", empresaId).maybeSingle();
-  revienta("leer el movimiento", em);
+  const { data: m } = await supabaseAdmin.from("fin_movimientos").select("id, categoria_id").eq("id", movimientoId).eq("empresa_id", empresaId).maybeSingle();
   if (!m) throw new Error("[fin] Ese movimiento no existe o es de otra empresa.");
-  const { data: previas, error: ep } = await supabaseAdmin.from("fin_conciliaciones").select("id").eq("movimiento_id", movimientoId).eq("empresa_id", empresaId).limit(1);
-  revienta("revisar la conciliación del movimiento", ep);
-  if ((previas ?? []).length > 0) throw new Error("[fin] Ese movimiento ya está conciliado: desconcílialo primero si quieres cambiarlo.");
-  const { error: ei } = await supabaseAdmin.from("fin_conciliaciones").insert({ empresa_id: empresaId, movimiento_id: movimientoId, entidad_tipo: tipo, entidad_id: entidadId, monto });
-  revienta("conciliar el movimiento", ei);
-  const { error: eu } = await supabaseAdmin
+  await supabaseAdmin.from("fin_conciliaciones").insert({ empresa_id: empresaId, movimiento_id: movimientoId, entidad_tipo: tipo, entidad_id: entidadId, monto });
+  await supabaseAdmin
     .from("fin_movimientos")
     .update({ tiene_respaldo: true, categoria_id: m.categoria_id ?? categoriaId, actualizado_en: new Date().toISOString() })
-    .eq("id", movimientoId)
-    .eq("empresa_id", empresaId);
-  revienta("marcar el movimiento como conciliado", eu);
-}
-
-/**
- * Administrador de finanzas: el admin del Core o quien tenga el rol extra «admin» en Gestión financiera.
- * Aprobar compras, cerrar períodos, contabilizar, anular y tocar la configuración queda solo para él.
- */
-export async function esAdminFin(usuario: UsuarioConAcceso): Promise<boolean> {
-  if (usuario.rol === "admin") return true;
-  const { obtenerAplicacionPorSlug } = await import("../aplicaciones");
-  const app = await obtenerAplicacionPorSlug(SLUG_APP_FIN);
-  return !!app && usuario.rolesExtra[app.id] === "admin";
-}
-
-/** Como contextoFin, pero exige ser administrador de finanzas. */
-export async function contextoFinAdmin(): Promise<ContextoFin> {
-  const ctx = await contextoFin();
-  if (!(await esAdminFin(ctx.usuario))) throw new Error("[fin] Esta acción es solo para administradores de finanzas.");
-  return ctx;
-}
-
-/**
- * Saldo vivo de un documento leído de la base, con la misma regla que cargarVista (cobros vigentes, pagos
- * pagados, NC y ND), para revisarlo justo antes de aplicar y no con una vista que pudo quedar vieja.
- */
-export async function saldoActualDocumento(empresaId: string, documentoId: string): Promise<{ total: number; saldo: number; estado: string }> {
-  const d = await exigirDeEmpresa("fin_documentos", documentoId, empresaId);
-  const [cob, pag, nc] = await Promise.all([
-    supabaseAdmin.from("fin_cobro_aplicaciones").select("monto, fin_cobros!inner(estado)").eq("documento_id", documentoId).neq("fin_cobros.estado", "anulado"),
-    supabaseAdmin.from("fin_pago_aplicaciones").select("monto, fin_pagos!inner(estado)").eq("documento_id", documentoId).eq("fin_pagos.estado", "pagado"),
-    supabaseAdmin.from("fin_documentos").select("total, tipo_dte").eq("documento_referenciado_id", documentoId).eq("empresa_id", empresaId).in("tipo_dte", [61, 56]).eq("estado", "vigente"),
-  ]);
-  revienta("leer los cobros del documento", cob.error);
-  revienta("leer los pagos del documento", pag.error);
-  revienta("leer las notas de crédito del documento", nc.error);
-  const suma = (xs: { monto?: unknown; total?: unknown }[] | null, k: "monto" | "total") => (xs ?? []).reduce((s, x) => s + n(x[k]), 0);
-  const total = n(d.total);
-  // Igual que cargarVista: la NC rebaja el saldo y la nota de débito lo sube.
-  const notas = (nc.data ?? []).reduce((s, x) => s + (x.tipo_dte === 61 ? n(x.total) : -n(x.total)), 0);
-  const aplicado = suma(cob.data, "monto") + suma(pag.data, "monto") + notas;
-  return { total, saldo: total - aplicado, estado: String(d.estado) };
+    .eq("id", movimientoId);
 }
 
 /** Lo que el motor contable necesita de la vista (lib/fin/contabilidad.ts). */

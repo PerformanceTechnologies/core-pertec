@@ -50,15 +50,6 @@ const ROLES_INTERNOS: Record<string, RolInterno> = {
     ayuda: "Usuario: opera el inventario (productos, operaciones, ajustes). Administrador de inventario: además archiva y restaura productos.",
     opciones: ROLES_INVENTARIO.map((r) => ({ valor: r.valor, etiqueta: r.etiqueta.replace(/^Inventario: /, "") })),
   },
-  "gestion-financiera": {
-    titulo: "Rol en Gestión financiera",
-    porOmision: "usuario",
-    ayuda: "Usuario: registra y opera el día a día. Administrador de finanzas: además aprueba y visa compras, anula documentos, cierra y contabiliza períodos y cambia la configuración.",
-    opciones: [
-      { valor: "usuario", etiqueta: "Usuario" },
-      { valor: "admin", etiqueta: "Administrador de finanzas" },
-    ],
-  },
   cotizador: {
     titulo: "Rol en el Cotizador",
     porOmision: "visualizador",

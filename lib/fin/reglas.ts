@@ -412,17 +412,9 @@ export function reglaQueCalza(m: Pick<MovimientoBase, "glosa" | "monto" | "cuent
   );
 }
 
-/**
- * Huella para no importar dos veces la misma línea de cartola.
- *
- * `ocurrencia` es el número de vez que aparece esa misma línea (cuenta, fecha, monto, glosa y N°) dentro
- * del MISMO archivo: dos movimientos reales idénticos (dos transferencias iguales el mismo día) quedan
- * con huellas distintas y entran los dos, y reimportar el archivo los vuelve a reconocer como duplicados.
- * La primera ocurrencia no lleva sufijo, así calza con las huellas ya guardadas antes de este cambio.
- */
-export function huellaMovimiento(cuentaId: string, fecha: Iso, monto: number, glosa: string, documento: string | null, ocurrencia = 1): string {
-  const base = [cuentaId, fecha, Math.round(monto), glosa.trim().toLowerCase().replace(/\s+/g, " "), (documento ?? "").trim()].join("|");
-  return ocurrencia > 1 ? `${base}|#${ocurrencia}` : base;
+/** Huella para no importar dos veces la misma línea de cartola. */
+export function huellaMovimiento(cuentaId: string, fecha: Iso, monto: number, glosa: string, documento: string | null): string {
+  return [cuentaId, fecha, Math.round(monto), glosa.trim().toLowerCase().replace(/\s+/g, " "), (documento ?? "").trim()].join("|");
 }
 
 // -----------------------------------------------------------------------------
