@@ -22,6 +22,7 @@ import {
 } from "@/lib/fin/datos";
 import { finDeMes, huellaMovimiento } from "@/lib/fin/reglas";
 import { generarAsientos } from "@/lib/fin/contabilidad";
+import { exigirRol } from "@/lib/fin/flujos";
 
 export type Resultado = { ok: true; id?: string; mensaje?: string } | { ok: false; error: string };
 
@@ -64,6 +65,7 @@ export async function crearMovimientoAction(fd: FormData): Promise<Resultado> {
 export async function categorizarMovimientoAction(id: string, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "categorizar el movimiento" });
     const vista = await cargarVista();
     await exigirDeEmpresa("fin_movimientos", id, ctx.empresa.id);
     const categoriaId = uuid(fd.get("categoriaId"));
@@ -89,6 +91,7 @@ export async function categorizarMovimientoAction(id: string, fd: FormData): Pro
 export async function aceptarSugerenciasAction(movimientoIds: string[]): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "aceptar sugerencias" });
     const vista = await cargarVista();
     const elegidos = vista.movimientos.filter((m) => movimientoIds.includes(m.id) && m.sugerencia && !m.categoriaId);
     for (const m of elegidos) {
@@ -141,6 +144,7 @@ export async function reglaDesdeMovimientoAction(id: string, patron: string): Pr
 export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pago" | "traspaso" | "otro", entidadId: string | null): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "conciliar el movimiento" });
     const vista = await cargarVista();
     const m = vista.movimientos.find((x) => x.id === id);
     if (!m) return { ok: false, error: "Ese movimiento no existe." };
@@ -192,6 +196,7 @@ export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pag
 export async function crearOperacionFactoringAction(fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_factoring", { accion: "crear la operación" });
     const vista = await cargarVista();
     const factorId = uuid(fd.get("factorId"));
     const factor = vista.factores.find((f) => f.id === factorId);
@@ -244,6 +249,7 @@ const CAMPOS_CESION: Record<string, "fecha" | "monto"> = {
 export async function actualizarCesionAction(id: string, campo: string, valor: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_factoring", { accion: "actualizar la cesión" });
     const tipo = CAMPOS_CESION[campo];
     if (!tipo) return { ok: false, error: "Ese campo no se edita así." };
     await exigirDeEmpresa("fin_cesiones", id, ctx.empresa.id);

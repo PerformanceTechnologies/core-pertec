@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { borrarArchivos } from "@/lib/archivos/almacen";
 import { RUTA_FIN, auditar, contextoFin, exigirDeEmpresa, fechaValida, montoDe, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES } from "@/lib/fin/reglas";
+import { candidatosDeFlujo } from "@/lib/fin/flujos";
+import { esRolFlujo } from "@/lib/fin/flujos-modelo";
 import { formatearRut, normalizarRut, rutEsValido } from "@/lib/contratos/rut";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
@@ -67,6 +69,40 @@ export async function eliminarProyectoAction(id: string, motivo: string): Promis
     await auditar(ctx, "fin_proyectos", id, "eliminar", `Proyecto ${p.codigo} «${p.nombre}» eliminado`, { antes: p, motivo: razon });
     refrescar();
     revalidatePath("/leads", "layout");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Permisos de flujos (solo el administrador global) -----------------------------
+
+/** Deja exactamente a estas personas en el rol. Vacío = rol libre (cualquiera con la app puede). */
+export async function guardarFlujoPersonasAction(rol: string, fd: FormData): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    // Solo el rol «admin» del Core, y se exige acá: ocultar la pestaña no protege nada.
+    if (ctx.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del sistema asigna personas a los flujos." };
+    if (!esRolFlujo(rol)) return { ok: false, error: "Ese rol no existe." };
+    const elegidos = [...new Set(fd.getAll("personas").map(String))];
+    const validos = new Set((await candidatosDeFlujo()).map((c) => c.id));
+    if (elegidos.some((id) => !validos.has(id))) return { ok: false, error: "Alguna de las personas elegidas ya no está disponible." };
+
+    const { data: actuales, error: e1 } = await supabaseAdmin.from("fin_flujo_personas").select("usuario_id").eq("empresa_id", ctx.empresa.id).eq("rol", rol);
+    revienta("leer las personas del flujo", e1);
+    const antes = new Set(((actuales ?? []) as { usuario_id: string }[]).map((f) => f.usuario_id));
+    const sobran = [...antes].filter((id) => !elegidos.includes(id));
+    const faltan = elegidos.filter((id) => !antes.has(id));
+    if (sobran.length > 0) {
+      const { error } = await supabaseAdmin.from("fin_flujo_personas").delete().eq("empresa_id", ctx.empresa.id).eq("rol", rol).in("usuario_id", sobran);
+      revienta("quitar personas del flujo", error);
+    }
+    if (faltan.length > 0) {
+      const { error } = await supabaseAdmin.from("fin_flujo_personas").insert(faltan.map((usuario_id) => ({ empresa_id: ctx.empresa.id, rol, usuario_id, asignado_por: ctx.usuario.correo })));
+      revienta("asignar personas al flujo", error);
+    }
+    await auditar(ctx, "fin_flujo_personas", null, "asignar", `Rol ${rol}: ${elegidos.length} persona(s)`, { antes: [...antes], despues: elegidos });
+    refrescar();
     return { ok: true };
   } catch (e) {
     return fallo(e);

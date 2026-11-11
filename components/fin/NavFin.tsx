@@ -11,27 +11,29 @@ import {
   IconFolders,
   IconLayoutDashboard,
   IconSettings,
+  IconShieldCheck,
   type Icon,
 } from "@tabler/icons-react";
 
 const BASE = "/gestion-financiera";
-const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean; ayuda: string }[] = [
+const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean; ayuda: string; soloAdmin?: boolean }[] = [
   { href: BASE, etiqueta: "Resumen", Icono: IconLayoutDashboard, exacto: true, ayuda: "La foto de hoy: caja, lo que te deben, lo que debes y lo urgente" },
   { href: `${BASE}/tesoreria`, etiqueta: "Tesorería", Icono: IconBuildingBank, ayuda: "Banco diario, factoring y flujo de caja" },
   { href: `${BASE}/proyectos`, etiqueta: "Proyectos", Icono: IconFolders, ayuda: "Cuánto se vendió, gastó y ganó en cada proyecto" },
   { href: `${BASE}/contabilidad`, etiqueta: "Contabilidad", Icono: IconCalculator, ayuda: "Libros, IVA del mes, asientos y cierre" },
   { href: `${BASE}/rutinas`, etiqueta: "Rutinas", Icono: IconChecklist, ayuda: "Qué revisar cada día, semana y mes" },
   { href: `${BASE}/configuracion`, etiqueta: "Configuración", Icono: IconSettings, ayuda: "Cuentas, parámetros, categorías y clientes" },
+  { href: `${BASE}/permisos`, etiqueta: "Permisos de flujos", Icono: IconShieldCheck, ayuda: "Quién aprueba, visa, paga y concilia en cada flujo (solo administrador)", soloAdmin: true },
 ];
 
-export default function NavFin() {
+export default function NavFin({ esAdmin = false }: { esAdmin?: boolean }) {
   const ruta = usePathname();
   const fila = usePestanaALaVista<HTMLElement>(ruta);
   return (
     <nav ref={fila} className="desliza mb-6 -mx-1 overflow-x-auto px-1 pb-1">
       <DialogosFin />
       <div className="inline-flex min-w-full gap-1 rounded-2xl border border-borde bg-superficie p-1 shadow-[0_1px_2px_rgba(23,20,17,0.04)]">
-        {PESTANAS.map(({ href, etiqueta, Icono, exacto, ayuda }) => {
+        {PESTANAS.filter((p) => !p.soloAdmin || esAdmin).map(({ href, etiqueta, Icono, exacto, ayuda }) => {
           const on = exacto ? ruta === href : ruta === href || ruta.startsWith(href + "/");
           return (
             <Link
