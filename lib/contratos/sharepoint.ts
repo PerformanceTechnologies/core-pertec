@@ -565,9 +565,9 @@ export async function enlaceDeArchivo(
   rutaRelativa: string,
 ): Promise<string | null> {
   const item = await graph<ItemGraph>(
-    `/sites/${await sitio()}/drive/root:/${rutaCompleta(seccion, rutaRelativa)}` +
-      "?$select=id,name,file,@microsoft.graph.downloadUrl",
+    `/sites/${await sitio()}/drive/root:/${rutaCompleta(seccion, rutaRelativa)}`,
   );
+  // Sin $select: con $select Graph a veces omite la downloadUrl y las imágenes no se veían.
   return item["@microsoft.graph.downloadUrl"] ?? null;
 }
 
