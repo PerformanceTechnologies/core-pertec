@@ -2,13 +2,14 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertTriangle, IconFileTypePdf, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconFileTypePdf, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash, IconUserPlus, IconX } from "@tabler/icons-react";
 import { guardarSolicitudAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { MONEDAS, formatoMonto, netoLineaOc, aPesos, totalesOc, type LineaOc, type Moneda, type SolicitanteTipo } from "@/lib/fin/oc-modelo";
 import type { DatosLeidos } from "@/lib/fin/oc-ia-datos";
 import { BOTON, BOTON_SEC } from "./estilos";
 import { ComboContacto, type OpcionContacto } from "./ui";
 import { avisar, confirmar } from "./dialogos";
+import FormularioContacto, { type ContactoCreado, type PrecargaContacto } from "@/components/contactos/FormularioContacto";
 
 export interface DatosEditorSolicitud {
   id: string | null;
@@ -117,6 +118,7 @@ export default function EditorSolicitud({
   indicadores,
   tasaIva,
   condicionesEmpresa,
+  puedeCrearProveedor = false,
 }: {
   inicial: DatosEditorSolicitud;
   proveedores: OpcionContacto[];
@@ -126,6 +128,8 @@ export default function EditorSolicitud({
   indicadores: { uf: number | null; dolar: number | null };
   tasaIva: number;
   condicionesEmpresa: string;
+  /** Quien no tiene Contactos no ve el botón (la acción lo sacaría de la pantalla y perdería lo escrito). */
+  puedeCrearProveedor?: boolean;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -134,6 +138,10 @@ export default function EditorSolicitud({
   const [solicitanteUsuarioId, setSolicitanteUsuarioId] = useState(inicial.solicitanteUsuarioId ?? "");
   const [solicitanteOtro, setSolicitanteOtro] = useState(inicial.solicitanteOtro);
   const [proveedorId, setProveedorId] = useState<string | null>(inicial.proveedorId);
+  // Proveedores creados desde aquí (popup) y lo que la IA leyó del proveedor cuando no está en Contactos.
+  const [creados, setCreados] = useState<OpcionContacto[]>([]);
+  const [creando, setCreando] = useState<PrecargaContacto | null>(null);
+  const [proveedorSinContacto, setProveedorSinContacto] = useState<PrecargaContacto | null>(null);
   // El combo de proveedor solo lee su valor inicial al montarse: al cargar uno desde la IA se remonta con otra clave.
   const [claveProveedor, setClaveProveedor] = useState(0);
   const [atencion, setAtencion] = useState(inicial.atencion);
@@ -168,6 +176,16 @@ export default function EditorSolicitud({
   };
   const alternarNota = (i: number) => setNotasAbiertas((a) => (a.includes(i) ? a.filter((k) => k !== i) : [...a, i]));
 
+  /** El proveedor recién creado en el popup: queda elegido en la solicitud. */
+  function proveedorCreado(c: ContactoCreado) {
+    setCreados((x) => [...x, { id: c.id, nombre: c.razonSocial, rut: c.rut }]);
+    setProveedorId(c.id);
+    setClaveProveedor((k) => k + 1);
+    setProveedorSinContacto(null);
+    setCreando(null);
+    avisar(`Proveedor «${c.razonSocial}» creado y elegido.`, "ok");
+  }
+
   function cambiarMoneda(nueva: Moneda) {
     setMoneda(nueva);
     // Al pasar a UF o dólar se propone el valor de hoy; el de antes no sirve en otra moneda.
@@ -191,6 +209,9 @@ export default function EditorSolicitud({
       if (d.titulo) setTitulo(d.titulo);
       setProveedorId(r.proveedorId ?? null);
       setClaveProveedor((k) => k + 1);
+      // Si el proveedor del documento no está en Contactos, queda a un clic de crearlo (con lo que se leyó).
+      const leido = r.proveedorLeido as { razonSocial: string | null; rut: string | null; correo: string | null; telefono: string | null; direccion: string | null } | null;
+      setProveedorSinContacto(!r.proveedorId && leido && (leido.razonSocial || leido.rut) ? { razonSocial: leido.razonSocial ?? undefined, rut: leido.rut ?? undefined, correo: leido.correo ?? undefined, telefono: leido.telefono ?? undefined, direccion: leido.direccion ?? undefined } : null);
       setAtencion(d.atencion ?? "");
       setProveedorCorreo(r.correoProveedor ?? "");
       setMoneda(d.moneda);
@@ -294,9 +315,20 @@ export default function EditorSolicitud({
               {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           </Et>
-          <Et t="Proveedor *" className="sm:col-span-2 lg:col-span-7">
-            <ComboContacto key={claveProveedor} name="_proveedor" opciones={proveedores} inicial={proveedorId} alCambiar={setProveedorId} />
-          </Et>
+          <div className="min-w-0 sm:col-span-2 lg:col-span-7">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-tinta/70">Proveedor *</span>
+              {puedeCrearProveedor && <button type="button" onClick={() => setCreando(proveedorSinContacto ?? { esProveedor: true, esCliente: false })} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-naranjo hover:bg-naranjo/10"><IconUserPlus size={13} /> Nuevo proveedor</button>}
+            </div>
+            <ComboContacto key={claveProveedor} name="_proveedor" opciones={[...proveedores, ...creados]} inicial={proveedorId} alCambiar={setProveedorId} />
+            {proveedorSinContacto && !proveedorId && (
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] px-2.5 py-1.5 text-xs text-tinta/80">
+                <IconAlertTriangle size={14} className="shrink-0 text-aviso" />
+                <span className="min-w-0 flex-1">«{proveedorSinContacto.razonSocial ?? proveedorSinContacto.rut}» no está en Contactos.</span>
+                {puedeCrearProveedor ? <button type="button" onClick={() => setCreando(proveedorSinContacto)} className={`${BOTON} !px-2.5 !py-1 !text-xs`}><IconUserPlus size={13} /> Crear proveedor</button> : <span className="text-gris">Pídele a quien administra Contactos que lo cree.</span>}
+              </p>
+            )}
+          </div>
 
           <Et t="Atención del proveedor" className="lg:col-span-4"><input value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Nombre de su contacto" maxLength={120} className={CAMPO_C} /></Et>
           <Et t="Correo para enviarle la OC" className="lg:col-span-5"><input value={proveedorCorreo} onChange={(e) => setProveedorCorreo(e.target.value)} type="email" inputMode="email" placeholder="ventas@proveedor.cl" maxLength={160} className={CAMPO_C} /></Et>
@@ -377,6 +409,16 @@ export default function EditorSolicitud({
           </details>
         </div>
       </Seccion>
+
+      {/* Crear el proveedor sin salir de la solicitud: el formulario de Contactos, en un popup y ya con lo que leyó la IA. */}
+      {creando && (
+        <FormularioContacto
+          abiertaExterna
+          precarga={{ esProveedor: true, esCliente: false, ...creando }}
+          alCerrar={() => setCreando(null)}
+          alCrear={proveedorCreado}
+        />
+      )}
 
       {/* En el celular la barra queda sobre el menú de abajo (h-16); en escritorio, al pie de la pantalla. */}
       <div className="sticky bottom-[4.5rem] z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-borde bg-superficie/95 px-4 py-2.5 shadow-[0_12px_32px_-12px_rgba(23,20,17,0.35)] backdrop-blur lg:bottom-3">
