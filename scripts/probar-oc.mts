@@ -101,7 +101,8 @@ assert.equal(siguientePasoCompra({ ...oc, anulada: true }, P, HOY), "Anulada");
 assert.equal(siguientePasoCompra({ ...base, aprobadoPor: "X", fechaAprobacion: HOY, fechaVisado: HOY, ocNumero: "OC-1" }, P, HOY), "Esperar recepción conforme");
 
 // ── Leer la cotización de un proveedor con IA ──────────────────────────────────
-import { buscarProveedor, normalizarLectura, rutPlano, type LecturaCotizacion } from "../lib/fin/oc-ia-datos";
+import { aLectura, buscarProveedor, normalizarLectura, rutPlano, type LecturaCotizacion, type LecturaCruda } from "../lib/fin/oc-ia-datos";
+import { readFileSync } from "node:fs";
 
 const lectura = (extra: Partial<LecturaCotizacion> = {}): LecturaCotizacion => ({
   numeroCotizacion: "COT-88", fecha: "2026-11-10", titulo: "Repuestos chancador", moneda: null, preciosIncluyenIva: false,
@@ -150,6 +151,39 @@ const lectura = (extra: Partial<LecturaCotizacion> = {}): LecturaCotizacion => (
   const ileg = normalizarLectura(lectura({ titulo: null, ilegibles: ["la fecha de entrega"], totalDeclarado: null }), 0.19);
   assert.ok(ileg.avisos.some((a) => a.includes("la fecha de entrega")));
   assert.equal(ileg.titulo, "Rodamiento 22318");
+}
+{
+  // La API de salida estructurada rechaza más de 16 campos que admitan «vacío» (null o varios tipos): el esquema no debe tener ninguno.
+  const fuente = readFileSync(new URL("../lib/fin/oc-ia.ts", import.meta.url), "utf8");
+  const esquema = fuente.slice(fuente.indexOf("const ESQUEMA"), fuente.indexOf("const INSTRUCCIONES"));
+  assert.equal((esquema.match(/type:\s*\[/g) ?? []).length, 0, "ningún campo con type: [..., null]");
+  assert.equal((esquema.match(/anyOf/g) ?? []).length, 0, "ningún anyOf");
+
+  // Lo que devuelve el modelo (sin null) se traduce a null: texto vacío, 0 y -1 son «no está».
+  const cruda: LecturaCruda = {
+    numeroCotizacion: "", fecha: "", titulo: "Repuestos", proveedor: { razonSocial: "Ferretería", rut: "76.555.444-3", atencion: "", correo: "", telefono: "", direccion: "" },
+    moneda: "no_indica", preciosIncluyenIva: false,
+    lineas: [{ descripcion: "Rodamiento", cantidad: 0, unidad: "", precioUnitario: -1, descuentoPct: 0, exento: false }, { descripcion: "Bomba", cantidad: 2, unidad: "un", precioUnitario: 1000, descuentoPct: 10, exento: false }],
+    totalDeclarado: 0, plazoEntrega: "", formaPago: "", condicionPagoDias: -1, lugarEntrega: "", observaciones: "", ilegibles: [],
+  };
+  const l = aLectura(cruda);
+  assert.equal(l.moneda, null);
+  assert.equal(l.proveedor.atencion, null);
+  assert.equal(l.totalDeclarado, null);
+  assert.equal(l.condicionPagoDias, null, "-1 = el documento no lo dice");
+  assert.equal(aLectura({ ...cruda, condicionPagoDias: 0 }).condicionPagoDias, 0, "0 = contado, es un dato");
+  assert.equal(l.lineas[0].cantidad, null);
+  assert.equal(l.lineas[0].precioUnitario, null, "-1 = no se lee");
+  assert.equal(l.lineas[1].precioUnitario, 1000);
+  assert.equal(l.lineas[1].descuentoPct, 10);
+  // Y de ahí al formulario: sin precio queda en cero con aviso; sin cantidad, 1.
+  const d = normalizarLectura(l, 0.19);
+  assert.equal(d.lineas[0].cantidad, 1);
+  assert.equal(d.lineas[0].precioUnitario, 0);
+  assert.ok(d.avisos.some((a) => a.includes("precio legible")));
+  // Una respuesta incompleta no rompe nada.
+  assert.equal(aLectura({}).lineas.length, 0);
+  assert.equal(aLectura({}).titulo, null);
 }
 {
   const contactos = [

@@ -26,6 +26,51 @@ export interface LecturaCotizacion {
   ilegibles: string[];
 }
 
+/**
+ * Lo que el modelo devuelve de verdad: sin null (la API limita los campos que admiten vacío), con texto vacío y centinelas
+ * (-1 = «no se lee» en precio y días de pago; 0 = «no hay» en cantidad y total; «no_indica» en la moneda).
+ */
+export interface LecturaCruda {
+  numeroCotizacion: string;
+  fecha: string;
+  titulo: string;
+  proveedor: { razonSocial: string; rut: string; atencion: string; correo: string; telefono: string; direccion: string };
+  moneda: "CLP" | "UF" | "USD" | "no_indica";
+  preciosIncluyenIva: boolean;
+  lineas: { descripcion: string; cantidad: number; unidad: string; precioUnitario: number; descuentoPct: number; exento: boolean }[];
+  totalDeclarado: number;
+  plazoEntrega: string;
+  formaPago: string;
+  condicionPagoDias: number;
+  lugarEntrega: string;
+  observaciones: string;
+  ilegibles: string[];
+}
+
+const vacio = (v: unknown): string | null => {
+  const t = String(v ?? "").trim();
+  return t || null;
+};
+
+/** Traduce lo que devuelve el modelo (sin null) a la lectura con null, que es la que usa el resto. Tolera campos faltantes. */
+export function aLectura(c: Partial<LecturaCruda>): LecturaCotizacion {
+  const p = c.proveedor ?? ({} as Partial<LecturaCruda["proveedor"]>);
+  const moneda = (MONEDAS as readonly string[]).includes(String(c.moneda)) ? (c.moneda as Moneda) : null;
+  const total = typeof c.totalDeclarado === "number" && c.totalDeclarado > 0 ? c.totalDeclarado : null;
+  const dias = typeof c.condicionPagoDias === "number" && c.condicionPagoDias >= 0 ? c.condicionPagoDias : null;
+  return {
+    numeroCotizacion: vacio(c.numeroCotizacion), fecha: vacio(c.fecha), titulo: vacio(c.titulo),
+    proveedor: { razonSocial: vacio(p.razonSocial), rut: vacio(p.rut), atencion: vacio(p.atencion), correo: vacio(p.correo), telefono: vacio(p.telefono), direccion: vacio(p.direccion) },
+    moneda, preciosIncluyenIva: Boolean(c.preciosIncluyenIva),
+    lineas: (Array.isArray(c.lineas) ? c.lineas : []).map((l) => ({
+      descripcion: String(l?.descripcion ?? ""), cantidad: typeof l?.cantidad === "number" && l.cantidad > 0 ? l.cantidad : null, unidad: vacio(l?.unidad),
+      precioUnitario: typeof l?.precioUnitario === "number" && l.precioUnitario >= 0 ? l.precioUnitario : null, descuentoPct: typeof l?.descuentoPct === "number" && l.descuentoPct > 0 ? l.descuentoPct : null, exento: Boolean(l?.exento),
+    })),
+    totalDeclarado: total, plazoEntrega: vacio(c.plazoEntrega), formaPago: vacio(c.formaPago), condicionPagoDias: dias, lugarEntrega: vacio(c.lugarEntrega), observaciones: vacio(c.observaciones),
+    ilegibles: (Array.isArray(c.ilegibles) ? c.ilegibles : []).map(String),
+  };
+}
+
 /** Lo que se carga en el formulario. */
 export interface DatosLeidos {
   titulo: string;
