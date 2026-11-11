@@ -8,15 +8,15 @@ import { SLUG_APP_FIN, type ContextoFin } from "./datos";
 import { asignacionesDeEmpresa } from "./flujos";
 import type { RolFlujo } from "./flujos-modelo";
 import { lineasDeCompra, tasaIvaDe } from "./oc-datos";
-import { armarCorreoAvisoCompra, asuntoDeAvisoCompra, cuerpoDeAviso, enlaceDeCompra, tituloDeAviso, type DatosAvisoCompra, type TipoAvisoCompra } from "./oc-avisos-correo";
+import { armarCorreoAvisoCompra, asuntoDeAvisoCompra, cuerpoDeAviso, elegirDestinatarios, enlaceDeCompra, tituloDeAviso, type DatosAvisoCompra, type TipoAvisoCompra } from "./oc-avisos-correo";
 import { esMoneda, formatoMonto, totalesOc } from "./oc-modelo";
 
 // -----------------------------------------------------------------------------
 //  Avisos de una solicitud de compra: a la campana de notificaciones y por correo.
 //
 //  Para quien APRUEBA o VISA: las personas asignadas a ese paso en «Permisos de flujos» y, si el paso no tiene a nadie,
-//  los administradores del Core. Para el solicitante (devuelta, visada): quien pidió y quien creó. Nunca le llega a quien
-//  hizo el cambio. Un aviso que falla NUNCA tumba la acción: la solicitud ya quedó guardada, y acá solo se registra el error.
+//  los administradores del Core. Para el solicitante (devuelta, visada): quien pidió y quien creó. Los de «te toca a ti» (aprobar,
+//  visar) le llegan también a quien hizo la acción si a ella le toca; los informativos, nunca. Un aviso que falla NUNCA tumba la acción: la solicitud ya quedó guardada, y acá solo se registra el error.
 // -----------------------------------------------------------------------------
 
 const ROLES_POR_TIPO: Partial<Record<TipoAvisoCompra, RolFlujo>> = { aprobar: "compras_aprobador", visar: "compras_visador" };
@@ -41,8 +41,8 @@ export async function avisarCompra(ctx: ContextoFin, tipo: TipoAvisoCompra, comp
     const yo = ctx.usuario.correo.toLowerCase();
 
     const rol = ROLES_POR_TIPO[tipo];
-    const crudos = rol ? await destinatariosDeRol(ctx.empresa.id, rol) : [c.solicitante, c.creado_por].filter(Boolean).map((x: string) => x.toLowerCase());
-    const para = [...new Set(crudos)].filter((x) => x && x !== yo);
+    const crudos = rol ? await destinatariosDeRol(ctx.empresa.id, rol) : [c.solicitante, c.creado_por];
+    const para = elegirDestinatarios(tipo, crudos, yo);
     if (para.length === 0) return;
 
     const [lineas, tasaIva, prov, proy] = await Promise.all([

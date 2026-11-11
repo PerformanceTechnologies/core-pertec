@@ -200,7 +200,7 @@ const lectura = (extra: Partial<LecturaCotizacion> = {}): LecturaCotizacion => (
 
 // ── El correo al proveedor y los avisos ────────────────────────────────────────
 import { asuntoDeOc, mensajeDeOc } from "../lib/fin/oc-correo";
-import { armarCorreoAvisoCompra, asuntoDeAvisoCompra, cuerpoDeAviso, enlaceDeCompra, tituloDeAviso, type DatosAvisoCompra } from "../lib/fin/oc-avisos-correo";
+import { armarCorreoAvisoCompra, asuntoDeAvisoCompra, cuerpoDeAviso, elegirDestinatarios, enlaceDeCompra, tituloDeAviso, type DatosAvisoCompra } from "../lib/fin/oc-avisos-correo";
 {
   const d = datos(EMPRESAS[0]);
   const asunto = asuntoDeOc(d);
@@ -217,6 +217,13 @@ import { armarCorreoAvisoCompra, asuntoDeAvisoCompra, cuerpoDeAviso, enlaceDeCom
   assert.ok(mensajeDeOc(datos(EMPRESAS[0], { atencion: null, proveedor: null }), { nombre: "X" }).startsWith("Estimados:"));
   // En UF, el total sale en UF.
   assert.ok(mensajeDeOc(datos(EMPRESAS[1], { moneda: "UF", tipoCambio: 38_500.5, lineas: uf }), { nombre: "X" }).includes("UF 44,08"));
+}
+{
+  // A quién llega: lo que le TOCA a alguien le llega aunque haya sido ella quien hizo la acción; lo informativo, no.
+  assert.deepEqual(elegirDestinatarios("aprobar", ["Hugo@pertec.cl", "ana@pertec.cl", "hugo@pertec.cl"], "hugo@pertec.cl"), ["hugo@pertec.cl", "ana@pertec.cl"], "quien envía a aprobación y también aprueba, lo recibe (sin duplicados)");
+  assert.deepEqual(elegirDestinatarios("visar", ["hugo@pertec.cl"], "hugo@pertec.cl"), ["hugo@pertec.cl"], "aprobó y además es quien visa: le queda pendiente");
+  assert.deepEqual(elegirDestinatarios("devuelta", ["hugo@pertec.cl", "ana@pertec.cl", null, undefined, ""], "HUGO@pertec.cl"), ["ana@pertec.cl"], "a quien devuelve no se le avisa de su propia devolución");
+  assert.deepEqual(elegirDestinatarios("visada", ["hugo@pertec.cl"], "hugo@pertec.cl"), [], "ni de su propio visado");
 }
 {
   const base: DatosAvisoCompra = { tipo: "aprobar", id: "11111111-1111-1111-1111-111111111111", codigo: "C-0007", titulo: "Repuestos <planta Norte>", proveedor: "Ferretería", proyecto: null, solicitante: "Hugo Antivil", total: "$5.069.500", empresa: "Zeus Ingeniería SpA", actor: "María Pérez" };

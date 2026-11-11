@@ -53,6 +53,17 @@ const TEXTOS: Record<TipoAvisoCompra, { etiqueta: string; titulo: (d: DatosAviso
 
 const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+/**
+ * A quién llega un aviso. Los de «te toca a ti» (aprobar, visar) le llegan a TODOS los que corresponden, incluida quien hizo la
+ * acción si también le toca: aprobar deja algo pendiente a quien además visa. Los informativos (devuelta, visada) nunca le
+ * llegan a quien hizo el cambio: ya lo sabe.
+ */
+export function elegirDestinatarios(tipo: TipoAvisoCompra, candidatos: (string | null | undefined)[], actor: string): string[] {
+  const yo = actor.trim().toLowerCase();
+  const informativo = tipo === "devuelta" || tipo === "visada";
+  return [...new Set(candidatos.map((c) => String(c ?? "").trim().toLowerCase()).filter(Boolean))].filter((c) => !informativo || c !== yo);
+}
+
 /** Adónde lleva el aviso: el detalle de la solicitud (ahí se aprueba, se devuelve o se corrige). */
 export const enlaceDeCompra = (id: string): string => `/finanzas/compras/${id}`;
 

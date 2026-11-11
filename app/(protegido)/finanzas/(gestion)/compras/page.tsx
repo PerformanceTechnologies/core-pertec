@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { IconFileInvoice, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
+import { formatoMonto, totalesOc } from "@/lib/fin/oc-modelo";
 import { cargarVista, contextoFin, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { permisosDeUsuario } from "@/lib/fin/flujos";
 import { lineasDeCompras, resumenDeCompra, tasaIvaDe } from "@/lib/fin/oc-datos";
@@ -10,6 +11,8 @@ import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/pi
 import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import TablaCompras, { type HolguraCompra } from "@/components/fin/TablaCompras";
+import ListaRecepcion from "@/components/fin/ListaRecepcion";
+import RegistrarFacturaCompra from "@/components/fin/RegistrarFacturaCompra";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +48,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
   );
 
   // El resumen completo de cada solicitud con formato de OC de la lista: lo que ve quien aprueba en el popup.
-  const conFormato = lista.filter((c) => c.formatoOc);
+  const conFormato = ver === "pagos" ? [] : lista.filter((c) => c.formatoOc);
   const resumenes: Record<string, ReturnType<typeof resumenDeCompra>> = {};
   if (conFormato.length > 0) {
     const [lineas, tasaIva] = await Promise.all([lineasDeCompras(conFormato.map((c) => c.id)), tasaIvaDe(ctx.empresa.id)]);
@@ -55,6 +58,17 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
       resumenes[c.id] = prov && r.proveedor ? { ...r, proveedor: { nombre: r.proveedor.nombre, rut: prov.rut } } : r;
     }
   }
+
+  // Recepción: las OC que ya salieron al proveedor, y cuántas esperan que alguien resuelva (sin respuesta o rechazadas).
+  const emitidas = v.compras.filter((c) => c.formatoOc && (c.ocEnviadaEn || c.ocEnviadaFecha));
+  const porResolver = emitidas.filter((c) => !c.estadoOverride && c.ocRespuesta !== "aceptada").length;
+  const totales: Record<string, string> = {};
+  for (const c of emitidas) {
+    const r = resumenes[c.id];
+    if (r) totales[c.id] = formatoMonto(totalesOc(r.lineas, r.tasaIva, r.moneda).total, r.moneda);
+  }
+  // OC ya aceptadas (o compras anteriores) que esperan su factura: se registra desde Facturas recibidas.
+  const esperandoFactura = vivas.filter((c) => c.paso === "Esperar factura del proveedor");
 
   return (
     <div className="space-y-5">
@@ -67,7 +81,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
           { titulo: "Aprobación", ayuda: "Jefe de proyecto o gerente", n: porAprobar.length, href: `${RUTA_COMPRAS}?ver=aprobar`, alerta: true },
           { titulo: "Visado", ayuda: "Finanzas revisa la caja y emite la OC", n: porVisar.length, href: `${RUTA_COMPRAS}?ver=visar`, alerta: true },
           { titulo: "Envío", ayuda: "La OC sale al proveedor", n: enPaso("Enviar OC al proveedor") + enPaso("Emitir OC al proveedor") },
-          { titulo: "Recepción", ayuda: "El proveedor acepta o rechaza", n: enPaso("Esperar respuesta del proveedor") + enPaso("OC rechazada por el proveedor") + enPaso("Esperar recepción conforme"), alerta: enPaso("OC rechazada por el proveedor") > 0 },
+          { titulo: "Recepción", ayuda: "El proveedor acepta o rechaza", n: enPaso("Esperar respuesta del proveedor") + enPaso("OC rechazada por el proveedor") + enPaso("Esperar recepción conforme"), href: `${RUTA_COMPRAS}?ver=recepcion`, alerta: enPaso("OC rechazada por el proveedor") > 0 },
           { titulo: "Factura", ayuda: "Se compara con la OC", n: enPaso("Esperar factura del proveedor") + enPaso("Revisar diferencia con la OC"), href: `${RUTA_COMPRAS}?ver=facturas` },
           { titulo: "Pago", ayuda: "Se programa según el flujo", n: enPaso("Programar pago") + enPaso("Vencida: programar pago ya") + enPaso("Pago programado"), href: `${RUTA_COMPRAS}?ver=pagos`, alerta: enPaso("Vencida: programar pago ya") > 0 },
         ]}
@@ -88,6 +102,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
             { clave: "mias", etiqueta: devueltas > 0 ? "Mis solicitudes · devueltas" : "Mis solicitudes", n: devueltas > 0 ? devueltas : mias.length },
             { clave: "aprobar", etiqueta: "Por aprobar", n: porAprobar.length },
             { clave: "visar", etiqueta: "Por visar", n: porVisar.length },
+            { clave: "recepcion", etiqueta: "Recepción", n: porResolver },
             { clave: "facturas", etiqueta: "Facturas recibidas", n: recibidas.length },
             { clave: "pagos", etiqueta: "Pagos", n: v.pagos.filter((p) => p.estado !== "anulado").length },
           ]}
@@ -125,6 +140,27 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
             <p className="text-[11px] text-gris">Para adjuntar la cotización del proveedor o la guía, ábrela en «Facturas recibidas» o usa el botón de la fila. Imprimir la OC: formato en diseño.</p>
           )}
         </>
+      )}
+
+      {ver === "recepcion" && <ListaRecepcion compras={emitidas} resumenes={resumenes} totales={totales} puede={puede} esAdmin={ctx.usuario.rol === "admin"} />}
+
+      {ver === "facturas" && esperandoFactura.length > 0 && (
+        <section className="rounded-2xl border border-borde bg-superficie p-3 sm:p-4">
+          <h3 className="mb-2.5 flex items-center gap-2 text-sm font-bold text-tinta"><IconFileInvoice size={16} className="text-naranjo" /> Esperando factura <span className="text-xs font-semibold tabular-nums text-gris">{esperandoFactura.length}</span></h3>
+          <p className="mb-2.5 text-xs text-gris">Órdenes que el proveedor aceptó. Cuando llegue su factura, regístrala aquí; después se programa y concilia su pago.</p>
+          <ul className="divide-y divide-borde">
+            {esperandoFactura.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5">
+                <div className="min-w-0 flex-1 basis-60">
+                  <p className="truncate text-sm font-semibold text-tinta"><span className="text-gris">{c.ocNumero ?? c.codigo}</span> · {c.descripcion}</p>
+                  <p className="truncate text-xs text-gris">{c.proveedorNombre ?? "Sin proveedor"}{c.proyectoNombre ? ` · ${c.proyectoNombre}` : ""}{c.ocRespuestaFecha ? ` · aceptada el ${fechaCl(c.ocRespuestaFecha)}` : ""}</p>
+                </div>
+                <span className="text-sm font-bold tabular-nums text-tinta">{totales[c.id] ?? clp(c.montoFlujo)}</span>
+                <RegistrarFacturaCompra id={c.id} codigo={c.codigo} netoCotizado={c.netoCotizado} hoy={v.hoy} principal />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {ver === "facturas" && (
