@@ -82,12 +82,7 @@ export async function POST(request: Request) {
     .single();
   if (eImp) return NextResponse.json({ error: eImp.message }, { status: 500 });
 
-  // Cuántas veces va apareciendo cada línea idéntica en este archivo (1.ª, 2.ª…): va en la huella.
-  const vistas = new Map<string, number>();
   const nuevas = leida.filas.map((f) => {
-    const base = huellaMovimiento(cuenta.id, f.fecha, f.monto, f.glosa, f.documento);
-    const ocurrencia = (vistas.get(base) ?? 0) + 1;
-    vistas.set(base, ocurrencia);
     const regla = reglaQueCalza({ glosa: f.glosa, monto: f.monto, cuentaId: cuenta.id }, vista.reglas);
     // Una regla de categoría que no pide respaldo (comisiones) deja el movimiento conciliado de una.
     const directa = regla && !vista.categorias.find((c) => c.id === regla.categoriaId)?.requiereProyecto ? regla : null;
@@ -95,11 +90,11 @@ export async function POST(request: Request) {
     // en alguna llega como null (no como su valor por omisión) y rompe las que son «not null».
     return {
       empresa_id: ctx.empresa.id, cuenta_id: cuenta.id, fecha: f.fecha, glosa: f.glosa, monto: f.monto, numero_documento: f.documento,
-      huella: huellaMovimiento(cuenta.id, f.fecha, f.monto, f.glosa, f.documento, ocurrencia), importacion_id: imp!.id, creado_por: ctx.usuario.correo,
+      huella: huellaMovimiento(cuenta.id, f.fecha, f.monto, f.glosa, f.documento), importacion_id: imp!.id, creado_por: ctx.usuario.correo,
       categoria_id: directa?.categoriaId ?? null, proyecto_id: directa?.proyectoId ?? null, regla_id: directa?.id ?? null, tiene_respaldo: Boolean(directa),
     };
   });
-  // Con la ocurrencia en la huella ya no hay repetidas dentro del archivo; el Map queda como resguardo.
+  // Dentro del mismo archivo también puede repetirse una línea: se queda la primera.
   const unicas = [...new Map(nuevas.map((x) => [x.huella, x])).values()];
   const { data: insertadas, error } = await supabaseAdmin.from("fin_movimientos").upsert(unicas, { onConflict: "empresa_id,huella", ignoreDuplicates: true }).select("id");
   if (error) {

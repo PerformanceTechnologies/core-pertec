@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, conciliarConMovimiento, contextoFin, contextoFinAdmin, contextoLeads, prefijoCotizacion, exigirContacto, exigirDeEmpresa, saldoActualDocumento, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
+import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, conciliarConMovimiento, contextoFin, contextoLeads, prefijoCotizacion, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { generarHitos, peso } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
-import { exigirRol, exigirRolOAdminFin } from "@/lib/fin/flujos";
+import { exigirRol } from "@/lib/fin/flujos";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -42,12 +42,10 @@ export async function guardarOportunidadAction(id: string | null, fd: FormData):
       contacto_nombre: texto(fd, "contactoNombre", 120), contacto_correo: correoValido(texto(fd, "contactoCorreo", 120)), contacto_telefono: texto(fd, "contactoTelefono", 40),
       proximo_paso: texto(fd, "proximoPaso", 200), proximo_paso_fecha: fechaValida(fd.get("proximoPasoFecha")),
     };
-    if (fila.cliente_id) await exigirContacto(fila.cliente_id);
-    if (fila.proyecto_id) await exigirDeEmpresa("fin_proyectos", fila.proyecto_id, ctx.empresa.id);
     let opId = id;
     if (id) {
       const antes = await exigirDeEmpresa("fin_oportunidades", id, ctx.empresa.id);
-      const { error } = await supabaseAdmin.from("fin_oportunidades").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id);
+      const { error } = await supabaseAdmin.from("fin_oportunidades").update(fila).eq("id", id);
       revienta("guardar la oportunidad", error);
       await auditar(ctx, "fin_oportunidades", id, "editar", `Oportunidad ${nombre}`, { antes, despues: fila });
     } else {
@@ -75,8 +73,7 @@ export async function moverOportunidadAction(id: string, etapa: string, motivo?:
     const { error } = await supabaseAdmin
       .from("fin_oportunidades")
       .update({ etapa, probabilidad: info.probabilidad, motivo_perdida: etapa === "perdida" ? motivo!.trim().slice(0, 300) : null, actualizado_en: ahora() })
-      .eq("id", id)
-      .eq("empresa_id", ctx.empresa.id);
+      .eq("id", id);
     revienta("mover la oportunidad", error);
     await auditar(ctx, "fin_oportunidades", id, "etapa", `De ${antes.etapa} a ${etapa}`, { motivo: motivo ?? null });
     refrescar();
@@ -160,7 +157,6 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
     // El lead y el proyecto enlazados tienen que ser de ESTA empresa: un id de otra no debe colarse.
     if (cabecera.oportunidad_id) await exigirDeEmpresa("fin_oportunidades", cabecera.oportunidad_id, ctx.empresa.id);
     if (cabecera.proyecto_id) await exigirDeEmpresa("fin_proyectos", cabecera.proyecto_id, ctx.empresa.id);
-    if (cabecera.cliente_id) await exigirContacto(cabecera.cliente_id);
     let cotId = id;
     // «Por día» se guarda solo si se pide (o si estaba así y se vuelve a «por mes»): así las cotizaciones por mes
     // se guardan igual aunque la columna aún no exista en la base.
@@ -170,10 +166,9 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
       const antes = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
       if (!porDia && antes.arriendo_unidad === "dia") Object.assign(cabecera, { arriendo_unidad: "mes" });
       if (!["borrador", "enviada"].includes(String(antes.estado))) return { ok: false, error: "Solo se edita una cotización en borrador o enviada. Crea una nueva versión." };
-      const { error } = await supabaseAdmin.from("fin_cotizaciones").update(cabecera).eq("id", id).eq("empresa_id", ctx.empresa.id);
+      const { error } = await supabaseAdmin.from("fin_cotizaciones").update(cabecera).eq("id", id);
       revienta("guardar la cotización", error);
-      const { error: eD } = await supabaseAdmin.from("fin_cotizacion_lineas").delete().eq("cotizacion_id", id);
-      revienta("reemplazar las líneas", eD);
+      await supabaseAdmin.from("fin_cotizacion_lineas").delete().eq("cotizacion_id", id);
       await auditar(ctx, "fin_cotizaciones", id, "editar", `Cotización ${antes.numero}: total ${cabecera.total}`);
     } else {
       const numero = await siguienteNumero(ctx.empresa.id, "cotizacion", await prefijoCotizacion(ctx.empresa.id));
@@ -207,23 +202,14 @@ export async function cambiarEstadoCotizacionAction(id: string, estado: "enviada
     const ctx = await contextoLeads();
     const antes = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
     if (antes.estado === "aceptada") return { ok: false, error: "Una cotización aceptada ya generó sus hitos: anula los hitos si corresponde." };
-    // Solo se mueve lo que sigue abierto: una rechazada, anulada o reemplazada no vuelve a borrador ni a enviada.
-    const desde = ["borrador", "enviada", "vencida"];
-    if (!["enviada", "rechazada", "anulada", "borrador"].includes(estado)) return { ok: false, error: "Estado inválido." };
-    if (!desde.includes(String(antes.estado))) return { ok: false, error: `La cotización está ${antes.estado}: no cambia de estado. Crea una nueva cotización si hace falta.` };
     if ((estado === "rechazada" || estado === "anulada") && !motivo?.trim()) return { ok: false, error: "Escribe el motivo." };
-    const { data: cambiada, error } = await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from("fin_cotizaciones")
       .update({ estado, fecha_envio: estado === "enviada" ? antes.fecha_envio ?? ctx.hoy : antes.fecha_envio, motivo: motivo?.slice(0, 300) ?? null, actualizado_en: ahora() })
-      .eq("id", id)
-      .eq("empresa_id", ctx.empresa.id)
-      .in("estado", desde)
-      .select("id");
+      .eq("id", id);
     revienta("cambiar el estado", error);
-    if (!cambiada?.length) return { ok: false, error: "La cotización cambió mientras tanto: recarga la página." };
     if (estado === "rechazada" && antes.oportunidad_id) {
-      const { error: eO } = await supabaseAdmin.from("fin_oportunidades").update({ etapa: "perdida", probabilidad: 0, motivo_perdida: motivo, actualizado_en: ahora() }).eq("id", antes.oportunidad_id as string).eq("empresa_id", ctx.empresa.id);
-      revienta("marcar perdida la oportunidad", eO);
+      await supabaseAdmin.from("fin_oportunidades").update({ etapa: "perdida", probabilidad: 0, motivo_perdida: motivo, actualizado_en: ahora() }).eq("id", antes.oportunidad_id as string);
     }
     await auditar(ctx, "fin_cotizaciones", id, "estado", `${antes.estado} → ${estado}`, { motivo: motivo ?? null });
     refrescar();
@@ -239,7 +225,6 @@ export async function nuevaVersionCotizacionAction(id: string): Promise<Resultad
     const ctx = await contextoLeads();
     const c = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
     if (c.estado === "aceptada") return { ok: false, error: "Ya está aceptada: no se versiona." };
-    if (c.estado === "reemplazada") return { ok: false, error: "Esa versión ya fue reemplazada: versiona la última." };
     const { data: ultima } = await supabaseAdmin.from("fin_cotizaciones").select("version").eq("empresa_id", ctx.empresa.id).eq("numero", c.numero as string).order("version", { ascending: false }).limit(1).single();
     const { id: _id, creado_en: _c, ...resto } = c as Record<string, unknown>;
     void _id;
@@ -255,8 +240,7 @@ export async function nuevaVersionCotizacionAction(id: string): Promise<Resultad
       const { error: e2 } = await supabaseAdmin.from("fin_cotizacion_lineas").insert(lineas.map(({ id: _l, ...l }) => (void _l, { ...l, cotizacion_id: data!.id })));
       revienta("copiar las líneas", e2);
     }
-    const { error: eR } = await supabaseAdmin.from("fin_cotizaciones").update({ estado: "reemplazada", actualizado_en: ahora() }).eq("id", id).eq("empresa_id", ctx.empresa.id);
-    revienta("marcar reemplazada la versión anterior", eR);
+    await supabaseAdmin.from("fin_cotizaciones").update({ estado: "reemplazada", actualizado_en: ahora() }).eq("id", id);
     await auditar(ctx, "fin_cotizaciones", data!.id, "version", `Nueva versión de ${c.numero}`);
     refrescar();
     return { ok: true, id: data!.id };
@@ -282,76 +266,56 @@ export async function aceptarCotizacionAction(id: string, fd: FormData): Promise
     const exentoCot = Math.max(0, Math.min(neto, Number(c.exento ?? 0)));
 
     let proyectoId = uuid(fd.get("proyectoId")) ?? (c.proyecto_id as string | null);
-    if (proyectoId) await exigirDeEmpresa("fin_proyectos", proyectoId, ctx.empresa.id);
-
-    // Se toma la cotización con un update condicional ANTES de crear proyecto e hitos: si dos personas
-    // aceptan a la vez, solo una gana y la otra no duplica hitos.
-    const { data: tomada, error: eT } = await supabaseAdmin
-      .from("fin_cotizaciones")
-      .update({ estado: "aceptada", fecha_aceptacion: fecha, oc_cliente_numero: oc, actualizado_en: ahora() })
-      .eq("id", id)
-      .eq("empresa_id", ctx.empresa.id)
-      .in("estado", ["borrador", "enviada"])
-      .select("id");
-    revienta("aceptar la cotización", eT);
-    if (!tomada?.length) return { ok: false, error: "Esta cotización ya no se puede aceptar (otra persona la aceptó o cambió de estado)." };
-    // Si algo falla después, la cotización vuelve a su estado anterior para poder reintentar.
-    const deshacer = async () => {
-      await supabaseAdmin.from("fin_cotizaciones").update({ estado: c.estado, fecha_aceptacion: c.fecha_aceptacion ?? null, oc_cliente_numero: c.oc_cliente_numero ?? null }).eq("id", id).eq("empresa_id", ctx.empresa.id);
-    };
-    const filas: Record<string, unknown>[] = [];
-    try {
-      if (!proyectoId) {
-        let nombre = texto(fd, "nombreProyecto", 120) ?? String(c.titulo);
-        const tipoProyecto = String(fd.get("tipoProyecto") ?? (c.tipo === "arriendo" ? "arriendo" : "contrato"));
-        if (tipoProyecto === "spot" && !/^spot\s*-/i.test(nombre)) nombre = `Spot - ${nombre}`;
-        const codigo = await siguienteNumero(ctx.empresa.id, "proyecto", "PRY", 4);
-        const { data, error } = await supabaseAdmin
-          .from("fin_proyectos")
-          .insert({ empresa_id: ctx.empresa.id, codigo, nombre, tipo: ["contrato", "spot", "arriendo", "interno"].includes(tipoProyecto) ? tipoProyecto : "contrato", mandante_id: c.cliente_id, creado_por: ctx.usuario.correo })
-          .select("id")
-          .single();
-        revienta("crear el proyecto", error);
-        proyectoId = data!.id;
-      }
-  
-      const modo = String(fd.get("modo") ?? "unica");
-      const generados =
-        modo === "partes"
-          ? generarHitos({ tipo: "partes", partes: Number(fd.get("partes")) || 2 }, neto)
-          : modo === "mensual"
-            ? generarHitos(
-                {
-                  tipo: "mensual", desde: fechaValida(fd.get("desde")) ?? fecha, hasta: fechaValida(fd.get("hasta")) ?? fecha,
-                  prefijo: c.tipo === "arriendo" ? "Arriendo" : "EDP", montoMensual: montoDe(fd.get("montoMensual")) ?? undefined,
-                },
-                neto,
-              )
-            : generarHitos({ tipo: "unica" }, neto);
-      if (generados.length === 0) throw new Error("[fin] El rango de meses no genera ningún hito.");
-  
-      let exentoRepartido = 0;
-      for (const [i, g] of generados.entries()) {
-        const exento = i === generados.length - 1 ? exentoCot - exentoRepartido : neto > 0 ? peso((g.neto * exentoCot) / neto) : 0;
-        exentoRepartido += exento;
-        filas.push({
-          empresa_id: ctx.empresa.id, codigo: await siguienteNumero(ctx.empresa.id, "hito", "V", 4), cotizacion_id: id, cliente_id: c.cliente_id, proyecto_id: proyectoId,
-          descripcion: String(c.titulo), tipo: c.tipo, periodo: g.periodo, periodo_desde: g.periodoDesde, periodo_hasta: g.periodoHasta, fecha_aceptacion: fecha,
-          neto: g.neto, exento: Math.max(0, Math.min(g.neto, exento)), oc_cliente_numero: oc, oc_cliente_fecha: oc ? fecha : null, estado_trabajo: i === 0 && modo === "mensual" && g.periodoDesde && g.periodoDesde <= ctx.hoy ? "en_curso" : "pendiente",
-          requiere_edp: c.requiere_edp, requiere_hes: c.requiere_hes, condicion_pago_dias: c.condicion_pago_dias, orden: i, creado_por: ctx.usuario.correo,
-        });
-      }
-      const { error: eh } = await supabaseAdmin.from("fin_hitos").insert(filas);
-      revienta("crear los hitos", eh);
-    } catch (e) {
-      await deshacer();
-      throw e;
+    if (!proyectoId) {
+      let nombre = texto(fd, "nombreProyecto", 120) ?? String(c.titulo);
+      const tipoProyecto = String(fd.get("tipoProyecto") ?? (c.tipo === "arriendo" ? "arriendo" : "contrato"));
+      if (tipoProyecto === "spot" && !/^spot\s*-/i.test(nombre)) nombre = `Spot - ${nombre}`;
+      const codigo = await siguienteNumero(ctx.empresa.id, "proyecto", "PRY", 4);
+      const { data, error } = await supabaseAdmin
+        .from("fin_proyectos")
+        .insert({ empresa_id: ctx.empresa.id, codigo, nombre, tipo: ["contrato", "spot", "arriendo", "interno"].includes(tipoProyecto) ? tipoProyecto : "contrato", mandante_id: c.cliente_id, creado_por: ctx.usuario.correo })
+        .select("id")
+        .single();
+      revienta("crear el proyecto", error);
+      proyectoId = data!.id;
     }
-    const { error } = await supabaseAdmin.from("fin_cotizaciones").update({ proyecto_id: proyectoId }).eq("id", id).eq("empresa_id", ctx.empresa.id);
-    revienta("ligar el proyecto a la cotización", error);
+
+    const modo = String(fd.get("modo") ?? "unica");
+    const generados =
+      modo === "partes"
+        ? generarHitos({ tipo: "partes", partes: Number(fd.get("partes")) || 2 }, neto)
+        : modo === "mensual"
+          ? generarHitos(
+              {
+                tipo: "mensual", desde: fechaValida(fd.get("desde")) ?? fecha, hasta: fechaValida(fd.get("hasta")) ?? fecha,
+                prefijo: c.tipo === "arriendo" ? "Arriendo" : "EDP", montoMensual: montoDe(fd.get("montoMensual")) ?? undefined,
+              },
+              neto,
+            )
+          : generarHitos({ tipo: "unica" }, neto);
+    if (generados.length === 0) return { ok: false, error: "El rango de meses no genera ningún hito." };
+
+    const filas = [];
+    let exentoRepartido = 0;
+    for (const [i, g] of generados.entries()) {
+      const exento = i === generados.length - 1 ? exentoCot - exentoRepartido : neto > 0 ? peso((g.neto * exentoCot) / neto) : 0;
+      exentoRepartido += exento;
+      filas.push({
+        empresa_id: ctx.empresa.id, codigo: await siguienteNumero(ctx.empresa.id, "hito", "V", 4), cotizacion_id: id, cliente_id: c.cliente_id, proyecto_id: proyectoId,
+        descripcion: String(c.titulo), tipo: c.tipo, periodo: g.periodo, periodo_desde: g.periodoDesde, periodo_hasta: g.periodoHasta, fecha_aceptacion: fecha,
+        neto: g.neto, exento: Math.max(0, Math.min(g.neto, exento)), oc_cliente_numero: oc, oc_cliente_fecha: oc ? fecha : null, estado_trabajo: i === 0 && modo === "mensual" && g.periodoDesde && g.periodoDesde <= ctx.hoy ? "en_curso" : "pendiente",
+        requiere_edp: c.requiere_edp, requiere_hes: c.requiere_hes, condicion_pago_dias: c.condicion_pago_dias, orden: i, creado_por: ctx.usuario.correo,
+      });
+    }
+    const { error: eh } = await supabaseAdmin.from("fin_hitos").insert(filas);
+    revienta("crear los hitos", eh);
+    const { error } = await supabaseAdmin
+      .from("fin_cotizaciones")
+      .update({ estado: "aceptada", fecha_aceptacion: fecha, oc_cliente_numero: oc, proyecto_id: proyectoId, actualizado_en: ahora() })
+      .eq("id", id);
+    revienta("aceptar la cotización", error);
     if (c.oportunidad_id) {
-      const { error: eO } = await supabaseAdmin.from("fin_oportunidades").update({ etapa: "ganada", probabilidad: 100, proyecto_id: proyectoId, actualizado_en: ahora() }).eq("id", c.oportunidad_id as string).eq("empresa_id", ctx.empresa.id);
-      revienta("marcar ganada la oportunidad", eO);
+      await supabaseAdmin.from("fin_oportunidades").update({ etapa: "ganada", probabilidad: 100, proyecto_id: proyectoId, actualizado_en: ahora() }).eq("id", c.oportunidad_id as string);
     }
     await auditar(ctx, "fin_cotizaciones", id, "aceptar", `Aceptada el ${fecha}: ${filas.length} hito(s)${oc ? `, OC ${oc}` : ", sin OC"}`);
     await registrarEvento(ctx, "cotizacion_aceptada", "cotizacion", id, { hitos: filas.length, neto });
@@ -382,21 +346,12 @@ export async function guardarHitoAction(id: string | null, fd: FormData): Promis
       hes_numero: texto(fd, "hesNumero", 40), fecha_estimada_pago: fechaValida(fd.get("fechaEstimadaPago")), comentario: texto(fd, "comentario", 1000),
       actualizado_por: ctx.usuario.correo, actualizado_en: ahora(),
     };
-    if (fila.cliente_id) await exigirContacto(fila.cliente_id);
-    if (fila.proyecto_id) await exigirDeEmpresa("fin_proyectos", fila.proyecto_id, ctx.empresa.id);
     let hitoId = id;
     if (id) {
       const antes = await exigirDeEmpresa("fin_hitos", id, ctx.empresa.id);
-      if (antes.anulado) return { ok: false, error: `El hito ${antes.codigo} está anulado: no se edita.` };
-      // Un hito ya facturado no cambia monto, cliente ni proyecto: eso se corrige con nota de crédito.
-      const { data: ligados, error: eL } = await supabaseAdmin.from("fin_documento_hitos").select("documento_id, fin_documentos!inner(estado, tipo_dte)").eq("hito_id", id).eq("fin_documentos.estado", "vigente").neq("fin_documentos.tipo_dte", 52);
-      revienta("revisar la factura del hito", eL);
-      const facturado = (ligados ?? []).length > 0;
-      if (facturado && (Number(antes.neto) !== neto || (antes.cliente_id ?? null) !== fila.cliente_id || (antes.proyecto_id ?? null) !== fila.proyecto_id))
-        return { ok: false, error: `El hito ${antes.codigo} ya está facturado: el monto, el cliente y el proyecto se corrigen con una nota de crédito.` };
       const motivo = texto(fd, "motivo", 300);
       if (Number(antes.neto) !== neto && !motivo) return { ok: false, error: "Cambiar el monto pide un motivo." };
-      const { error } = await supabaseAdmin.from("fin_hitos").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id);
+      const { error } = await supabaseAdmin.from("fin_hitos").update(fila).eq("id", id);
       revienta("guardar el hito", error);
       await auditar(ctx, "fin_hitos", id, "editar", `Hito ${antes.codigo}`, { antes, despues: fila, motivo });
     } else {
@@ -449,15 +404,14 @@ export async function actualizarCampoHitoAction(id: string, campo: string, valor
 
 export async function anularHitoAction(id: string, motivo: string): Promise<Resultado> {
   try {
-    const ctx = await contextoFinAdmin();
+    const ctx = await contextoFin();
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     await exigirDeEmpresa("fin_hitos", id, ctx.empresa.id);
-    const { data: ligados, error: eL } = await supabaseAdmin.from("fin_documento_hitos").select("documento_id, fin_documentos!inner(estado)").eq("hito_id", id);
-    revienta("revisar las facturas del hito", eL);
+    const { data: ligados } = await supabaseAdmin.from("fin_documento_hitos").select("documento_id, fin_documentos!inner(estado)").eq("hito_id", id);
     if ((ligados ?? []).some((x: { fin_documentos: { estado: string } | { estado: string }[] }) => [x.fin_documentos].flat().some((d) => d.estado === "vigente"))) {
       return { ok: false, error: "El hito tiene una factura vigente: emite primero la nota de crédito." };
     }
-    const { error } = await supabaseAdmin.from("fin_hitos").update({ anulado: true, motivo_anulacion: motivo.slice(0, 300), actualizado_en: ahora() }).eq("id", id).eq("empresa_id", ctx.empresa.id);
+    const { error } = await supabaseAdmin.from("fin_hitos").update({ anulado: true, motivo_anulacion: motivo.slice(0, 300), actualizado_en: ahora() }).eq("id", id);
     revienta("anular el hito", error);
     await auditar(ctx, "fin_hitos", id, "anular", "Hito anulado", { motivo });
     refrescar();
@@ -496,7 +450,6 @@ export async function registrarFacturaVentaAction(fd: FormData): Promise<Resulta
     const exento = tipo === 34 ? montoDe(fd.get("exento")) ?? netoHitos : montoDe(fd.get("exento")) ?? exentoHitos;
     const iva = tipo === 34 ? 0 : montoDe(fd.get("iva")) ?? peso(neto * vista.p.tasaIva);
     const total = neto + exento + iva;
-    if (neto < 0 || exento < 0 || iva < 0 || total <= 0) return { ok: false, error: "Neto, exento e IVA no pueden ser negativos y el total debe ser mayor que cero." };
     const clienteId = hitos[0].clienteId;
     const condicion = hitos[0].condicion;
     const rut = clienteId ? vista.contrapartes.find((c) => c.id === clienteId)?.rut ?? "" : "";
@@ -543,16 +496,8 @@ export async function registrarNotaAction(fd: FormData): Promise<Resultado> {
     const exento = montoDe(fd.get("exento")) ?? 0;
     const iva = montoDe(fd.get("iva")) ?? peso(neto * vista.p.tasaIva);
     const total = neto + exento + iva;
-    if (neto < 0 || exento < 0 || iva < 0) return { ok: false, error: "Neto, exento e IVA no pueden ser negativos." };
-    if (tipo !== 52 && total <= 0) return { ok: false, error: "El total de la nota debe ser mayor que cero." };
-    if (ref && ref.estado === "anulado") return { ok: false, error: `La factura ${ref.folio} está anulada.` };
-    // La NC rebaja lo que todavía se debe: se compara con el saldo ACTUAL (releído en la base), no con el total.
-    const saldoRef = tipo === 61 && ref ? await saldoActualDocumento(ctx.empresa.id, ref.id) : null;
-    if (saldoRef && total > saldoRef.saldo) return { ok: false, error: `La nota de crédito (${total}) no puede ser mayor que el saldo actual de la factura ${ref!.folio} (${Math.max(saldoRef.saldo, 0)}). Si ya se cobró o pagó, anula primero ese cobro o pago.` };
+    if (tipo === 61 && ref && total > ref.saldo + ref.aplicado) return { ok: false, error: "La nota de crédito no puede ser mayor que la factura." };
     const contraparteId = ref?.contraparteId ?? uuid(fd.get("contraparteId"));
-    if (contraparteId && !ref) await exigirContacto(contraparteId);
-    const hitoGuia = uuid(fd.get("hitoId"));
-    if (tipo === 52 && hitoGuia) await exigirDeEmpresa("fin_hitos", hitoGuia, ctx.empresa.id);
     const { data, error } = await supabaseAdmin
       .from("fin_documentos")
       .insert({
@@ -565,27 +510,15 @@ export async function registrarNotaAction(fd: FormData): Promise<Resultado> {
     if (error?.code === "23505") return { ok: false, error: `Ya existe ese folio.` };
     revienta("registrar el documento", error);
     // Una guía de despacho se anota en el hito (arriendos: el primer mes).
+    const hitoGuia = uuid(fd.get("hitoId"));
     if (tipo === 52 && hitoGuia) {
-      const { error: eG } = await supabaseAdmin.from("fin_hitos").update({ guia_despacho: folio }).eq("id", hitoGuia).eq("empresa_id", ctx.empresa.id);
-      revienta("anotar la guía en el hito", eG);
-      const { error: eGH } = await supabaseAdmin.from("fin_documento_hitos").insert({ documento_id: data!.id, hito_id: hitoGuia, neto_aplicado: 0 });
-      revienta("ligar la guía al hito", eGH);
+      await supabaseAdmin.from("fin_hitos").update({ guia_despacho: folio }).eq("id", hitoGuia).eq("empresa_id", ctx.empresa.id);
+      await supabaseAdmin.from("fin_documento_hitos").insert({ documento_id: data!.id, hito_id: hitoGuia, neto_aplicado: 0 });
     }
-    // Una NC que anula toda la factura reabre los hitos (con motivo), pero solo si la factura no tiene
-    // cobros ni pagos vigentes: si los tiene, la factura sigue viva y hay que anularlos primero.
+    // Una NC que anula toda la factura reabre los hitos (con motivo).
     if (tipo === 61 && ref && ref.direccion === "emitido" && total >= ref.total && fd.get("reabrirHitos") === "on") {
-      const [cob, pag] = await Promise.all([
-        supabaseAdmin.from("fin_cobro_aplicaciones").select("cobro_id, fin_cobros!inner(estado)", { count: "exact", head: true }).eq("documento_id", ref.id).neq("fin_cobros.estado", "anulado"),
-        supabaseAdmin.from("fin_pago_aplicaciones").select("pago_id, fin_pagos!inner(estado)", { count: "exact", head: true }).eq("documento_id", ref.id).neq("fin_pagos.estado", "anulado"),
-      ]);
-      revienta("revisar los cobros de la factura", cob.error);
-      revienta("revisar los pagos de la factura", pag.error);
-      if ((cob.count ?? 0) + (pag.count ?? 0) === 0) {
-        const { error: eH } = await supabaseAdmin.from("fin_documento_hitos").delete().eq("documento_id", ref.id);
-        revienta("reabrir los hitos de la factura", eH);
-        const { error: eA } = await supabaseAdmin.from("fin_documentos").update({ estado: "anulado", motivo_anulacion: `Anulada por NC ${folio}` }).eq("id", ref.id).eq("empresa_id", ctx.empresa.id);
-        revienta("anular la factura", eA);
-      }
+      await supabaseAdmin.from("fin_documento_hitos").delete().eq("documento_id", ref.id);
+      await supabaseAdmin.from("fin_documentos").update({ estado: "anulado", motivo_anulacion: `Anulada por NC ${folio}` }).eq("id", ref.id);
     }
     const nombre = tipo === 61 ? "Nota de crédito" : tipo === 56 ? "Nota de débito" : "Guía de despacho";
     await auditar(ctx, "fin_documentos", data!.id, "crear", `${nombre} ${folio}${ref ? ` sobre ${ref.folio}` : ""} por ${total}`, { motivo: texto(fd, "motivo", 300) });
@@ -599,10 +532,9 @@ export async function registrarNotaAction(fd: FormData): Promise<Resultado> {
 export async function anularDocumentoAction(id: string, motivo: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
-    await exigirRolOAdminFin(ctx, ["ventas_facturador"], { accion: "anular el documento" });
+    await exigirRol(ctx, "ventas_facturador", { accion: "anular el documento" });
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const doc = await exigirDeEmpresa("fin_documentos", id, ctx.empresa.id);
-    if (doc.estado === "anulado") return { ok: false, error: `El documento ${doc.folio} ya está anulado.` };
     const cerrado = await periodoCerrado(ctx.empresa.id, String(doc.fecha_emision ?? ""));
     if (cerrado) return { ok: false, error: cerrado };
     // Solo cuentan los cobros y pagos vigentes: uno anulado deja sus filas de aplicación, pero ya no bloquea.
@@ -613,10 +545,9 @@ export async function anularDocumentoAction(id: string, motivo: string): Promise
     revienta("revisar los cobros del documento", e1);
     revienta("revisar los pagos del documento", e2);
     if ((count ?? 0) + (pagos ?? 0) > 0) return { ok: false, error: "Tiene cobros o pagos aplicados: anúlalos primero." };
-    const { error } = await supabaseAdmin.from("fin_documentos").update({ estado: "anulado", motivo_anulacion: motivo.slice(0, 300) }).eq("id", id).eq("empresa_id", ctx.empresa.id);
+    const { error } = await supabaseAdmin.from("fin_documentos").update({ estado: "anulado", motivo_anulacion: motivo.slice(0, 300) }).eq("id", id);
     revienta("anular el documento", error);
-    const { error: eH } = await supabaseAdmin.from("fin_documento_hitos").delete().eq("documento_id", id);
-    revienta("liberar los hitos del documento", eH);
+    await supabaseAdmin.from("fin_documento_hitos").delete().eq("documento_id", id);
     await auditar(ctx, "fin_documentos", id, "anular", `Documento ${doc.folio} anulado`, { motivo });
     refrescar();
     return { ok: true };
@@ -645,41 +576,26 @@ export async function registrarCobroAction(fd: FormData): Promise<Resultado> {
     }
     aplicaciones = aplicaciones.filter((a) => uuid(a.documentoId) && Number(a.monto) > 0).map((a) => ({ documentoId: a.documentoId, monto: Math.round(Number(a.monto)) }));
     if (aplicaciones.length === 0) return { ok: false, error: "Aplica el cobro a al menos una factura." };
-    if (new Set(aplicaciones.map((a) => a.documentoId)).size !== aplicaciones.length) return { ok: false, error: "Cada factura va una sola vez en el cobro." };
     for (const a of aplicaciones) {
       const d = vista.documentos.find((x) => x.id === a.documentoId);
-      if (!d || d.direccion !== "emitido" || d.estado !== "vigente") return { ok: false, error: "Factura inválida." };
-      // El saldo se relee en la base justo antes de aplicar: la vista pudo quedar vieja (doble clic, otro usuario).
-      const { saldo } = await saldoActualDocumento(ctx.empresa.id, d.id);
-      if (a.monto > saldo) return { ok: false, error: `A la factura ${d.folio} le quedan ${Math.max(saldo, 0)}: no se le puede aplicar más.` };
+      if (!d || d.direccion !== "emitido") return { ok: false, error: "Factura inválida." };
+      if (a.monto > d.saldo) return { ok: false, error: `A la factura ${d.folio} le quedan ${d.saldo}: no se le puede aplicar más.` };
     }
     const monto = aplicaciones.reduce((s, a) => s + a.monto, 0);
     const primera = vista.documentos.find((x) => x.id === aplicaciones[0].documentoId)!;
     const movimientoId = uuid(fd.get("movimientoId"));
-    if (movimientoId) {
-      await exigirDeEmpresa("fin_movimientos", movimientoId, ctx.empresa.id);
-      const { data: previas, error: eP } = await supabaseAdmin.from("fin_conciliaciones").select("id").eq("movimiento_id", movimientoId).eq("empresa_id", ctx.empresa.id).limit(1);
-      revienta("revisar el movimiento", eP);
-      if ((previas ?? []).length > 0) return { ok: false, error: "Ese movimiento del banco ya está conciliado." };
-    }
-    const cuentaId = uuid(fd.get("cuentaId"));
-    if (cuentaId) await exigirDeEmpresa("fin_cuentas", cuentaId, ctx.empresa.id);
     const numero = await siguienteNumero(ctx.empresa.id, "cobro", "COB");
     const { data, error } = await supabaseAdmin
       .from("fin_cobros")
       .insert({
         empresa_id: ctx.empresa.id, numero, cliente_id: primera.contraparteId, fecha, monto, medio: String(fd.get("medio") ?? "transferencia").slice(0, 30),
-        cuenta_id: cuentaId, movimiento_id: movimientoId, referencia: texto(fd, "referencia", 200), creado_por: ctx.usuario.correo,
+        cuenta_id: uuid(fd.get("cuentaId")), movimiento_id: movimientoId, referencia: texto(fd, "referencia", 200), creado_por: ctx.usuario.correo,
       })
       .select("id")
       .single();
     revienta("registrar el cobro", error);
     const { error: e2 } = await supabaseAdmin.from("fin_cobro_aplicaciones").insert(aplicaciones.map((a) => ({ cobro_id: data!.id, documento_id: a.documentoId, monto: a.monto })));
-    if (e2) {
-      // Sin aplicaciones el cobro quedaría suelto: se anula y se avisa (p. ej. el trigger de 0007_integridad.sql lo frenó).
-      await supabaseAdmin.from("fin_cobros").update({ estado: "anulado" }).eq("id", data!.id);
-      revienta("aplicar el cobro", e2);
-    }
+    revienta("aplicar el cobro", e2);
     if (movimientoId) await conciliarConMovimiento(ctx.empresa.id, movimientoId, "cobro", data!.id, monto, vista.categorias.find((c) => c.nombre === "Cobro cliente")?.id ?? null);
     await auditar(ctx, "fin_cobros", data!.id, "crear", `Cobro ${numero} por ${monto}`);
     await registrarEvento(ctx, "cobro_registrado", "cobro", data!.id, { monto });
@@ -696,14 +612,11 @@ export async function anularCobroAction(id: string, motivo: string): Promise<Res
     await exigirRol(ctx, "ventas_cobrador", { accion: "anular el cobro" });
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const c = await exigirDeEmpresa("fin_cobros", id, ctx.empresa.id);
-    if (c.estado === "anulado") return { ok: false, error: `El cobro ${c.numero} ya está anulado.` };
     const cerrado = await periodoCerrado(ctx.empresa.id, String(c.fecha ?? ""));
     if (cerrado) return { ok: false, error: cerrado };
-    const { data: anulado, error } = await supabaseAdmin.from("fin_cobros").update({ estado: "anulado" }).eq("id", id).eq("empresa_id", ctx.empresa.id).neq("estado", "anulado").select("id");
+    const { error } = await supabaseAdmin.from("fin_cobros").update({ estado: "anulado" }).eq("id", id);
     revienta("anular el cobro", error);
-    if (!anulado?.length) return { ok: false, error: `El cobro ${c.numero} ya está anulado.` };
-    const { error: eC } = await supabaseAdmin.from("fin_conciliaciones").delete().eq("empresa_id", ctx.empresa.id).eq("entidad_tipo", "cobro").eq("entidad_id", id);
-    revienta("deshacer la conciliación del cobro", eC);
+    await supabaseAdmin.from("fin_conciliaciones").delete().eq("entidad_tipo", "cobro").eq("entidad_id", id);
     await auditar(ctx, "fin_cobros", id, "anular", `Cobro ${c.numero} anulado`, { motivo });
     refrescar();
     return { ok: true };

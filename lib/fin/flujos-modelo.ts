@@ -37,6 +37,3 @@ export const esRolFlujo = (x: unknown): x is RolFlujo => typeof x === "string" &
 /** Qué puede hacer el usuario actual en cada rol (para mostrar u ocultar botones; la validación real es del servidor). */
 export type PuedeFlujo = Record<RolFlujo, boolean>;
 export const TODO_PERMITIDO: PuedeFlujo = Object.fromEntries(ROLES_FLUJO.map((r) => [r, true])) as PuedeFlujo;
-
-/** Pasos que, sin nadie asignado, son solo de los administradores de finanzas (no de cualquiera). */
-export const SOLO_ADMIN_SIN_ASIGNAR: readonly RolFlujo[] = ["compras_aprobador", "compras_visador"];

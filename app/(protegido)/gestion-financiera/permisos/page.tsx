@@ -22,7 +22,7 @@ export default async function PermisosFlujosPage() {
         <p className="text-sm text-gris">
           Elige quién puede ejecutar cada paso de los flujos de {ctx.empresa.nombre}. Puedes marcar <strong className="text-tinta">más de una persona</strong> por paso:
           basta con que una actúe, así hay quien reemplace si la titular no está. Un paso <strong className="text-tinta">sin nadie marcado</strong> queda
-          abierto a cualquiera con Gestión financiera, salvo aprobar y visar, que sin nadie asignado son solo de los administradores de finanzas. Los administradores de finanzas siempre pueden.
+          abierto a cualquiera con Gestión financiera, como hasta ahora. El administrador del sistema siempre puede.
         </p>
         <p className="mt-2 text-xs text-gris">
           Quien solicitó una compra no puede aprobarla ni visarla él mismo, salvo que sea la única persona asignada a ese paso.
