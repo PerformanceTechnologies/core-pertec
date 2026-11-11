@@ -691,6 +691,26 @@ export async function historialDe(empresaId: string, registroId: string): Promis
   return (data ?? []).map((r) => ({ id: r.id, accion: r.accion, detalle: r.detalle, motivo: r.motivo, usuario: r.usuario, creadoEn: r.creado_en }));
 }
 
+/**
+ * Todo lo que le pasó a una solicitud de compra, en orden: ella misma, sus facturas y sus pagos
+ * (quién aprobó, quién visó, cuándo, la recepción, el pago…). Lo más antiguo primero.
+ */
+export async function historialDeCompra(empresaId: string, compraId: string, documentoIds: string[], pagoIds: string[]): Promise<(EventoAuditoria & { sobre: "compra" | "factura" | "pago" })[]> {
+  const ids = [compraId, ...documentoIds, ...pagoIds];
+  const { data, error } = await supabaseAdmin
+    .from("fin_auditoria")
+    .select("id, registro_id, accion, detalle, motivo, usuario, creado_en")
+    .eq("empresa_id", empresaId)
+    .in("registro_id", ids)
+    .order("creado_en", { ascending: true })
+    .limit(500);
+  revienta("leer el historial de la compra", error);
+  return (data ?? []).map((r) => ({
+    id: r.id, accion: r.accion, detalle: r.detalle, motivo: r.motivo, usuario: r.usuario, creadoEn: r.creado_en,
+    sobre: r.registro_id === compraId ? "compra" : documentoIds.includes(r.registro_id) ? "factura" : "pago",
+  }));
+}
+
 /** El proyecto «General» de la empresa (para gastos que no son de un proyecto). */
 export async function proyectoGeneral(empresaId: string): Promise<string | null> {
   const { data } = await supabaseAdmin.from("fin_proyectos").select("id").eq("empresa_id", empresaId).eq("es_general", true).maybeSingle();

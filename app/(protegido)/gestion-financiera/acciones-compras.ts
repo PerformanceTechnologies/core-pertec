@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { borrarArchivos } from "@/lib/archivos/almacen";
 import {
   RUTA_FIN,
   auditar,
@@ -405,6 +406,95 @@ export async function anularPagoAction(id: string, motivo: string): Promise<Resu
     revienta("anular el pago", error);
     await supabaseAdmin.from("fin_conciliaciones").delete().eq("entidad_tipo", "pago").eq("entidad_id", id);
     await auditar(ctx, "fin_pagos", id, "anular", `Pago ${p.numero} anulado`, { motivo });
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Eliminar una solicitud (solo el administrador global) ---------------------------
+
+/**
+ * Elimina una solicitud de compra, por ejemplo una de prueba, junto con sus facturas cargadas a mano y
+ * sus pagos aún programados. No se borra nada real: si la factura vino del SII, si hay un pago ya hecho o
+ * ligado al banco, o si el período está cerrado, se rechaza. Queda en la auditoría con una copia.
+ */
+export async function eliminarCompraAction(id: string, motivo: string): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    // Solo el rol «admin» del Core, y se exige acá: ocultar el botón no protege nada.
+    if (ctx.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del sistema puede eliminar." };
+    const razon = motivo.replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!razon) return { ok: false, error: "Escribe el motivo de la eliminación." };
+    const c = await exigirDeEmpresa("fin_compras", id, ctx.empresa.id);
+
+    const { data: lig, error: e1 } = await supabaseAdmin.from("fin_documento_compras").select("documento_id").eq("compra_id", id);
+    revienta("revisar las facturas de la compra", e1);
+    const docIds = (lig ?? []).map((x) => x.documento_id as string);
+
+    // Facturas que solo pertenecen a esta compra (si sirven a otra, solo se desligan).
+    let docsPropios: { id: string; folio: string; origen: string; fecha_emision: string }[] = [];
+    if (docIds.length > 0) {
+      const [{ data: docs, error: e2 }, { data: otras, error: e3 }] = await Promise.all([
+        supabaseAdmin.from("fin_documentos").select("id, folio, origen, fecha_emision").eq("empresa_id", ctx.empresa.id).in("id", docIds),
+        supabaseAdmin.from("fin_documento_compras").select("documento_id").in("documento_id", docIds).neq("compra_id", id),
+      ]);
+      revienta("leer las facturas", e2);
+      revienta("revisar las facturas compartidas", e3);
+      const compartidas = new Set((otras ?? []).map((x) => x.documento_id as string));
+      docsPropios = ((docs ?? []) as typeof docsPropios).filter((d) => !compartidas.has(d.id));
+    }
+    const noManual = docsPropios.find((d) => d.origen !== "manual");
+    if (noManual) return { ok: false, error: `La factura ${noManual.folio} vino del SII, no se cargó a mano: no se elimina desde aquí.` };
+    for (const d of docsPropios) {
+      const cerrado = await periodoCerrado(ctx.empresa.id, d.fecha_emision);
+      if (cerrado) return { ok: false, error: cerrado };
+    }
+    const propios = docsPropios.map((d) => d.id);
+
+    let pagoIds: string[] = [];
+    if (propios.length > 0) {
+      const { data: aplic, error: e4 } = await supabaseAdmin.from("fin_pago_aplicaciones").select("pago_id").in("documento_id", propios);
+      revienta("revisar los pagos", e4);
+      pagoIds = [...new Set((aplic ?? []).map((x) => x.pago_id as string))];
+      if (pagoIds.length > 0) {
+        const { data: pagos, error: e5 } = await supabaseAdmin.from("fin_pagos").select("id, numero, estado, movimiento_id").in("id", pagoIds);
+        revienta("leer los pagos", e5);
+        const real = (pagos ?? []).find((p) => p.estado === "pagado" || p.movimiento_id);
+        if (real) return { ok: false, error: `El pago ${real.numero} ya se hizo o está ligado al banco. Anúlalo primero en la pestaña Pagos y vuelve a intentar.` };
+      }
+      const [{ data: notas, error: e6 }, { data: cobros, error: e7 }, { data: cesiones, error: e8 }] = await Promise.all([
+        supabaseAdmin.from("fin_documentos").select("folio").in("documento_referenciado_id", propios).limit(1),
+        supabaseAdmin.from("fin_cobro_aplicaciones").select("documento_id").in("documento_id", propios).limit(1),
+        supabaseAdmin.from("fin_cesiones").select("documento_id").in("documento_id", propios).limit(1),
+      ]);
+      revienta("revisar las notas de la factura", e6);
+      revienta("revisar los cobros", e7);
+      revienta("revisar las cesiones", e8);
+      if ((notas ?? []).length > 0 || (cobros ?? []).length > 0 || (cesiones ?? []).length > 0) return { ok: false, error: "Alguna de sus facturas tiene notas, cobros o cesiones asociadas: no se elimina." };
+    }
+
+    // Respaldos (cotización del proveedor, PDF de la factura) y comentarios se van con ella.
+    const entidades = [id, ...propios];
+    const { data: adjuntos } = await supabaseAdmin.from("fin_adjuntos").select("ruta").eq("empresa_id", ctx.empresa.id).in("entidad_id", entidades).in("entidad_tipo", ["compra", "documento"]);
+    await borrarArchivos("finanzas", (adjuntos ?? []).map((a) => a.ruta as string));
+    await supabaseAdmin.from("fin_adjuntos").delete().eq("empresa_id", ctx.empresa.id).in("entidad_id", entidades).in("entidad_tipo", ["compra", "documento"]);
+    await supabaseAdmin.from("fin_actividades").delete().eq("empresa_id", ctx.empresa.id).in("entidad_id", entidades).in("entidad_tipo", ["compra", "documento"]);
+
+    if (pagoIds.length > 0) {
+      const { error } = await supabaseAdmin.from("fin_pagos").delete().in("id", pagoIds).eq("empresa_id", ctx.empresa.id);
+      revienta("eliminar sus pagos programados", error);
+    }
+    const { error: e9 } = await supabaseAdmin.from("fin_documento_compras").delete().eq("compra_id", id);
+    revienta("desligar sus facturas", e9);
+    if (propios.length > 0) {
+      const { error } = await supabaseAdmin.from("fin_documentos").delete().in("id", propios).eq("empresa_id", ctx.empresa.id);
+      revienta("eliminar sus facturas", error);
+    }
+    const { error } = await supabaseAdmin.from("fin_compras").delete().eq("id", id).eq("empresa_id", ctx.empresa.id);
+    revienta("eliminar la compra", error);
+    await auditar(ctx, "fin_compras", id, "eliminar", `Solicitud ${c.codigo} «${c.descripcion}» eliminada${docsPropios.length ? ` con ${docsPropios.length} factura(s)` : ""}${pagoIds.length ? ` y ${pagoIds.length} pago(s) programado(s)` : ""}`, { antes: { compra: c, facturas: docsPropios, pagos: pagoIds }, motivo: razon });
     refrescar();
     return { ok: true };
   } catch (e) {
