@@ -198,6 +198,49 @@ const lectura = (extra: Partial<LecturaCotizacion> = {}): LecturaCotizacion => (
   assert.equal(buscarProveedor(contactos, "11.111.111-1", "Desconocido S.A."), null);
 }
 
+// ── El correo al proveedor y los avisos ────────────────────────────────────────
+import { asuntoDeOc, mensajeDeOc } from "../lib/fin/oc-correo";
+import { armarCorreoAvisoCompra, asuntoDeAvisoCompra, cuerpoDeAviso, enlaceDeCompra, tituloDeAviso, type DatosAvisoCompra } from "../lib/fin/oc-avisos-correo";
+{
+  const d = datos(EMPRESAS[0]);
+  const asunto = asuntoDeOc(d);
+  assert.ok(asunto.includes("OC-000012") && asunto.includes(EMPRESAS[0].nombre));
+  const m = mensajeDeOc(d, { nombre: "Hugo Antivil" });
+  assert.ok(m.startsWith("Estimado/a Juan Soto:"), "saluda a la persona de atención");
+  assert.ok(m.includes("OC-000012") && m.includes("$5.069.500"), "dice el número y el total");
+  assert.ok(m.includes("Faena Planta Norte") && m.includes("5 días hábiles") && m.includes("Pago a 30 días"), "entrega y pago");
+  assert.ok(m.includes("RUT 76.123.456-7") && m.includes("Hugo Antivil"), "factura a nombre de la empresa, y firma");
+  // El detalle de los productos NO va en el correo: va en el PDF adjunto.
+  assert.ok(!m.includes("Repuestos <chancador>") && !m.includes("1.500.000") && !m.includes("Flete"), "sin el detalle de los ítems");
+  assert.ok(m.includes("PDF adjunto"));
+  assert.ok(mensajeDeOc(datos(EMPRESAS[0], { atencion: null }), { nombre: "X" }).startsWith("Estimados de Ferretería Industrial Ltda.:"));
+  assert.ok(mensajeDeOc(datos(EMPRESAS[0], { atencion: null, proveedor: null }), { nombre: "X" }).startsWith("Estimados:"));
+  // En UF, el total sale en UF.
+  assert.ok(mensajeDeOc(datos(EMPRESAS[1], { moneda: "UF", tipoCambio: 38_500.5, lineas: uf }), { nombre: "X" }).includes("UF 44,08"));
+}
+{
+  const base: DatosAvisoCompra = { tipo: "aprobar", id: "11111111-1111-1111-1111-111111111111", codigo: "C-0007", titulo: "Repuestos <planta Norte>", proveedor: "Ferretería", proyecto: null, solicitante: "Hugo Antivil", total: "$5.069.500", empresa: "Zeus Ingeniería SpA", actor: "María Pérez" };
+  const htmlAprobar = armarCorreoAvisoCompra(base);
+  assert.ok(htmlAprobar.includes("https://core.pertec.cl/finanzas/compras/11111111-1111-1111-1111-111111111111"), "el botón lleva al detalle de la solicitud");
+  assert.ok(htmlAprobar.includes("Revisar y decidir") && htmlAprobar.includes("$5.069.500") && htmlAprobar.includes("General"), "sin proyecto: «General»");
+  assert.ok(!htmlAprobar.includes("<planta Norte>") && htmlAprobar.includes("&lt;planta Norte&gt;"), "el HTML de lo que escribe la gente se escapa");
+  assert.ok(htmlAprobar.includes("Zeus Ingeniería SpA"), "cada correo dice de qué empresa es");
+  assert.equal(enlaceDeCompra("abc"), "/finanzas/compras/abc");
+  assert.ok(tituloDeAviso(base).startsWith("Solicitud de compra por aprobar") && cuerpoDeAviso(base).includes("María Pérez envió"));
+  assert.ok(asuntoDeAvisoCompra(base).includes("Zeus"));
+
+  const visar = { ...base, tipo: "visar" as const };
+  assert.ok(armarCorreoAvisoCompra(visar).includes("Revisar y visar") && cuerpoDeAviso(visar).includes("aprobó") && cuerpoDeAviso(visar).includes("Falta tu visado"));
+  const devuelta = { ...base, tipo: "devuelta" as const, actor: "Carlos Rojas", motivo: "Falta la cotización <urgente>" };
+  const htmlDevuelta = armarCorreoAvisoCompra(devuelta);
+  assert.ok(htmlDevuelta.includes("Falta la cotización &lt;urgente&gt;") && htmlDevuelta.includes("Corregir la solicitud") && htmlDevuelta.includes(">Motivo<"), "la devolución muestra el motivo, escapado");
+  assert.ok(tituloDeAviso(devuelta).startsWith("Te devolvieron la solicitud"));
+  assert.ok(!armarCorreoAvisoCompra(base).includes(">Motivo<"), "sin motivo no hay bloque de motivo");
+  const visada = { ...base, tipo: "visada" as const, ocNumero: "OC-000012" };
+  assert.ok(tituloDeAviso(visada).includes("OC-000012") && cuerpoDeAviso(visada).includes("emitió la OC-000012") && armarCorreoAvisoCompra(visada).includes("Ver la solicitud"));
+  assert.ok(tituloDeAviso({ ...base, titulo: "x".repeat(500) }).length <= 200, "el título de la campana tiene tope");
+}
+
 console.log("probar-oc: todo bien");
 
 // ── Impresión opcional ─────────────────────────────────────────────────────────

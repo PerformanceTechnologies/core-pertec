@@ -19,8 +19,11 @@ import {
   siguienteNumero,
 } from "@/lib/fin/datos";
 import { peso, sumarDias } from "@/lib/fin/reglas";
-import { aPesos, esMoneda, netoLineaOc, totalesOc, type LineaOc, type Moneda } from "@/lib/fin/oc-modelo";
-import { lineasDeCompra, tasaIvaDe } from "@/lib/fin/oc-datos";
+import { aPesos, esMoneda, formatoMonto, netoLineaOc, totalesOc, type LineaOc, type Moneda } from "@/lib/fin/oc-modelo";
+import { lineasDeCompra, ocParaDocumento, tasaIvaDe } from "@/lib/fin/oc-datos";
+import { asuntoDeOc, mensajeDeOc } from "@/lib/fin/oc-correo";
+import { faltantesDelPerfil, perfilDeEmpresa } from "@/lib/fin/empresa-perfil";
+import { avisarCompra } from "@/lib/fin/oc-avisos";
 import { asignacionesDeEmpresa, candidatosDeFlujo, exigirAlgunRol, exigirRol } from "@/lib/fin/flujos";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
@@ -112,7 +115,11 @@ export async function aprobarComprasAction(lista: string[]): Promise<Resultado> 
       .or("formato_oc.eq.false,enviada_aprobacion_en.not.is.null")
       .select("id, codigo");
     revienta("aprobar", error);
-    for (const c of data ?? []) await auditar(ctx, "fin_compras", c.id, "aprobar", `Compra ${c.codigo} aprobada`);
+    for (const c of data ?? []) {
+      await auditar(ctx, "fin_compras", c.id, "aprobar", `Compra ${c.codigo} aprobada`);
+      // Aprobada: ahora le toca a quien visa.
+      await avisarCompra(ctx, "visar", c.id);
+    }
     refrescar();
     return { ok: true };
   } catch (e) {
@@ -139,6 +146,7 @@ export async function visarComprasAction(lista: string[]): Promise<Resultado> {
       revienta("visar", e2);
       await auditar(ctx, "fin_compras", c.id, "visar", `Compra ${c.codigo} visada: OC ${oc}`);
       await registrarEvento(ctx, "compra_visada", "compra", c.id, { oc, neto: Number(c.neto_cotizado) });
+      await avisarCompra(ctx, "visada", c.id);
     }
     refrescar();
     return { ok: true };
@@ -675,6 +683,7 @@ export async function guardarSolicitudAction(id: string | null, json: string, en
     if (enviar) {
       await auditar(ctx, "fin_compras", compraId, "enviar_aprobacion", `Solicitud ${codigo} enviada a aprobación`);
       await registrarEvento(ctx, "compra_solicitada", "compra", compraId, { total: totalPesos });
+      await avisarCompra(ctx, "aprobar", compraId);
     }
     refrescar();
     return { ok: true, id: compraId };
@@ -705,6 +714,7 @@ export async function enviarAAprobacionAction(id: string): Promise<Resultado> {
     revienta("enviar a aprobación", error);
     await auditar(ctx, "fin_compras", id, "enviar_aprobacion", `Solicitud ${c.codigo} enviada a aprobación`);
     await registrarEvento(ctx, "compra_solicitada", "compra", id, {});
+    await avisarCompra(ctx, "aprobar", id);
     refrescar();
     return { ok: true };
   } catch (e) {
@@ -737,6 +747,7 @@ export async function devolverCompraAction(id: string, motivo: string): Promise<
       .eq("empresa_id", ctx.empresa.id);
     revienta("devolver la solicitud", error);
     await auditar(ctx, "fin_compras", id, "devolver", `Solicitud ${c.codigo} devuelta a quien la creó`, { motivo: razon });
+    await avisarCompra(ctx, "devuelta", id, { motivo: razon });
     refrescar();
     return { ok: true };
   } catch (e) {
@@ -814,5 +825,45 @@ export async function responderOcAction(id: string, respuesta: "aceptada" | "rec
     return { ok: true };
   } catch (e) {
     return fallo(e);
+  }
+}
+
+// ---------- Enviar la OC al proveedor por correo ------------------------------------------
+
+export interface PreparacionEnvioOc {
+  numero: string;
+  total: string;
+  para: string;
+  asunto: string;
+  mensaje: string;
+  yaEnviadaA: string | null;
+  /** Datos de la empresa que faltan para que el PDF salga completo (aviso, no bloquea). */
+  faltantes: string[];
+  remitente: string;
+}
+
+/** Lo que el diálogo «Enviar OC por correo» propone: destinatario, asunto y mensaje salen de la propia OC. */
+export async function prepararEnvioOcAction(id: string): Promise<{ ok: true; envio: PreparacionEnvioOc } | { ok: false; error: string }> {
+  try {
+    if (!uuid(id)) return { ok: false, error: "Solicitud inválida." };
+    const ctx = await contextoFin();
+    await exigirRol(ctx, "compras_visador", { accion: "enviar la OC al proveedor" });
+    const c = await exigirDeEmpresa("fin_compras", id, ctx.empresa.id);
+    if (!c.formato_oc) return { ok: false, error: "Esta compra es anterior al formato de OC." };
+    if (c.estado_override) return { ok: false, error: "Está anulada." };
+    if (!c.oc_numero || !c.fecha_visado) return { ok: false, error: "La OC se envía después de visarla." };
+    const { documento, proveedorCorreos } = await ocParaDocumento(ctx, id);
+    const t = totalesOc(documento.lineas, documento.tasaIva, documento.moneda);
+    const nombre = ctx.usuario.nombre?.trim() || ctx.usuario.correo.split("@")[0];
+    return {
+      ok: true,
+      envio: {
+        numero: String(c.oc_numero), total: formatoMonto(t.total, documento.moneda), para: proveedorCorreos.join(", "), asunto: asuntoDeOc(documento), mensaje: mensajeDeOc(documento, { nombre }),
+        yaEnviadaA: (c.oc_enviada_a as string | null) ?? null, faltantes: faltantesDelPerfil(await perfilDeEmpresa(ctx.empresa.id)), remitente: ctx.usuario.correo,
+      },
+    };
+  } catch (e) {
+    const r = fallo(e);
+    return { ok: false, error: r.ok ? "Ocurrió un error inesperado." : r.error };
   }
 }

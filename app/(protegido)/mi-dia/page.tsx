@@ -11,6 +11,8 @@ import { SOMBRA_CALIDA } from "@/lib/estilos";
 import PrioridadDelDia from "@/components/mi-dia/PrioridadDelDia";
 import MisTareas from "@/components/mi-dia/MisTareas";
 import TareasPedidas from "@/components/mi-dia/TareasPedidas";
+import AprobacionesPendientes from "@/components/mi-dia/AprobacionesPendientes";
+import { pendientesDeCompras } from "@/lib/fin/oc-pendientes";
 import { listarResponsables, tareasDeMiDia } from "@/lib/tareas";
 import { resumirMisTareas, resumirTareasPedidas, SLUG_APP_TAREAS } from "@/lib/tareas-modelo";
 
@@ -387,6 +389,11 @@ export default async function MiDiaPage() {
         </div>
       </header>
 
+      {/* Lo que espera una decisión suya va primero: las aprobaciones de compras, en vivo y sin esperar al modelo. */}
+      <Suspense fallback={null}>
+        <SeccionAprobaciones usuario={usuario} />
+      </Suspense>
+
       {/* Las tareas van en vivo y aparte del resumen: no esperan al modelo. */}
       <Suspense fallback={null}>
         <SeccionTareas usuario={usuario} hoyIso={hoy.iso} />
@@ -395,6 +402,16 @@ export default async function MiDiaPage() {
       <CuerpoResumen datos={datos} />
     </div>
   );
+}
+
+/**
+ * Las solicitudes de compra que esperan una decisión de la persona (aprobar, visar) y las suyas que le devolvieron. Solo
+ * aparece si hay algo pendiente: sin pendientes, Mi Día queda como siempre.
+ */
+async function SeccionAprobaciones({ usuario }: { usuario: UsuarioConAcceso }) {
+  const pendientes = await pendientesDeCompras(usuario);
+  if (!pendientes || pendientes.porAprobar.length + pendientes.porVisar.length + pendientes.devueltas.length === 0) return null;
+  return <AprobacionesPendientes pendientes={pendientes} />;
 }
 
 /**
