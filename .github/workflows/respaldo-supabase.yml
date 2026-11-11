@@ -67,8 +67,15 @@ jobs:
           sudo curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           . /etc/os-release
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
-          sudo apt-get -o Acquire::Retries=5 update -qq
-          sudo apt-get -o Acquire::Retries=5 install -y -qq postgresql-client-17 age jq
+          # age se baja de GitHub (no de los espejos de Ubuntu, que a veces no resuelven DNS en el runner).
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o /tmp/age.tgz https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz
+          sudo tar -xzf /tmp/age.tgz -C /usr/local/bin --strip-components=1 age/age age/age-keygen
+          # apt se reintenta completo hasta 4 veces: las caídas de los espejos son pasajeras.
+          for intento in 1 2 3 4; do
+            if sudo apt-get -o Acquire::Retries=5 update -qq && sudo apt-get -o Acquire::Retries=5 install -y -qq --fix-missing postgresql-client-17 jq; then break; fi
+            [ "$intento" = 4 ] && exit 1
+            echo "apt falló (intento $intento), reintentando en 60 s"; sleep 60
+          done
           pg_dump --version
           age --version
 
