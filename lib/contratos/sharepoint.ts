@@ -673,7 +673,7 @@ export function esDeOffice(nombre: string): boolean {
 }
 
 export function sePuedeVerEnLinea(nombre: string): boolean {
-  return /\.(pdf|png|jpe?g|gif|webp|svg|txt|csv)$/i.test(nombre) || esDeOffice(nombre);
+  return /\.(pdf|png|jpe?g|gif|webp|svg|heic|heif|txt|csv)$/i.test(nombre) || esDeOffice(nombre);
 }
 
 /**

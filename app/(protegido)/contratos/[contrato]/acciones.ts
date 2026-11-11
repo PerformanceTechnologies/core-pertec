@@ -106,9 +106,13 @@ export async function enlaceDeArchivoAction(
   // Graph la URL de Office Online. Para un PDF o una imagen el enlace de
   // descarga se muestra tal cual, y pedir la vista previa sería una llamada de
   // más para llegar al mismo sitio.
+  // Los PDF también van por el visor de SharePoint: el enlace de descarga trae la orden de
+  // «descargar» y, dentro del visor, el navegador lo bajaba o lo mostraba en blanco (sobre todo en
+  // el celular). Las imágenes sí se muestran bien desde el enlace directo.
+  const usaVisor = esDeOffice(ruta) || /\.(pdf|heic|heif)$/i.test(ruta);
   const [urlDescarga, vistaPrevia] = await Promise.all([
     enlaceDeArchivo(seccion, ruta),
-    esDeOffice(ruta) ? vistaPreviaDeArchivo(seccion, ruta) : Promise.resolve(null),
+    usaVisor ? vistaPreviaDeArchivo(seccion, ruta) : Promise.resolve(null),
   ]);
 
   return { url: vistaPrevia ?? (esDeOffice(ruta) ? null : urlDescarga), urlDescarga };

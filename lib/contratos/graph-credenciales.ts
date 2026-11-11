@@ -3,6 +3,28 @@ import { cache } from "react";
 import { supabaseAdmin } from "./supabase-admin";
 import { cifrar, descifrar } from "./cifrado";
 import { canjearPorTokenDeSharePoint } from "./graph-token";
+import { ClientSecretCredential } from "@azure/identity";
+
+/**
+ * Puente para invitados (personas de fuera de PERTEC, sin cuenta Microsoft de la empresa): el Core
+ * entra a SharePoint con su propia aplicación (AZURE_*, permiso de aplicación), SOLO después de que
+ * la página o la acción ya revisó que el invitado tiene ese módulo asignado. El invitado nunca
+ * recibe acceso directo a SharePoint.
+ */
+let credencialApp: ClientSecretCredential | null = null;
+let tokenApp: { token: string; hasta: number } | null = null;
+async function tokenDeAplicacion(): Promise<string> {
+  if (tokenApp && tokenApp.hasta > Date.now()) return tokenApp.token;
+  const { AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET } = process.env;
+  if (!AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {
+    throw new SinCredencialesDeGraph("Los archivos de SharePoint no están disponibles para invitados: falta configurar la aplicación del Core (AZURE_*).");
+  }
+  credencialApp ??= new ClientSecretCredential(AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET);
+  const t = await credencialApp.getToken("https://graph.microsoft.com/.default");
+  if (!t) throw new SinCredencialesDeGraph("No se pudo conectar el Core a SharePoint.");
+  tokenApp = { token: t.token, hasta: t.expiresOnTimestamp - MARGEN_MS };
+  return t.token;
+}
 
 export class SinCredencialesDeGraph extends Error {}
 
@@ -33,10 +55,15 @@ export const obtenerAccessToken = cache(async function obtenerAccessToken(correo
 
   const { data: usuario } = await supabaseAdmin
     .from("usuarios")
-    .select("id")
+    .select("id, tipo, activo")
     .eq("correo", correoNormalizado)
     .maybeSingle();
   if (!usuario) throw new SinCredencialesDeGraph(SIN_CONEXION);
+  // Invitado: el Core hace de puente con su propia aplicación.
+  if (usuario.tipo === "invitado") {
+    if (!usuario.activo) throw new SinCredencialesDeGraph(SIN_CONEXION);
+    return tokenDeAplicacion();
+  }
 
   const { data } = await supabaseAdmin
     .from("graph_credenciales")
