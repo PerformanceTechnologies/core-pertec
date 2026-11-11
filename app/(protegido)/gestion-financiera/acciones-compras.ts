@@ -18,6 +18,7 @@ import {
   siguienteNumero,
 } from "@/lib/fin/datos";
 import { peso, sumarDias } from "@/lib/fin/reglas";
+import { exigirAlgunRol, exigirRol } from "@/lib/fin/flujos";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -92,6 +93,9 @@ export async function aprobarComprasAction(lista: string[]): Promise<Resultado> 
     const ctx = await contextoFin();
     const xs = ids(lista);
     if (xs.length === 0) return { ok: false, error: "Elige qué aprobar." };
+    const { data: previas, error: e0 } = await supabaseAdmin.from("fin_compras").select("solicitante").eq("empresa_id", ctx.empresa.id).in("id", xs);
+    revienta("leer las compras", e0);
+    for (const c of previas ?? []) await exigirRol(ctx, "compras_aprobador", { solicitante: c.solicitante, accion: "aprobar" });
     const { data, error } = await supabaseAdmin
       .from("fin_compras")
       .update({ aprobado_por: ctx.usuario.nombre || ctx.usuario.correo, fecha_aprobacion: ctx.hoy, actualizado_en: ahora() })
@@ -118,6 +122,7 @@ export async function visarComprasAction(lista: string[]): Promise<Resultado> {
     revienta("leer las compras", error);
     const listas = (filas ?? []).filter((c) => !c.fecha_visado && (c.aprobado_por || c.fecha_aprobacion));
     if (listas.length === 0) return { ok: false, error: "No hay compras aprobadas sin visar en la selección." };
+    for (const c of listas) await exigirRol(ctx, "compras_visador", { solicitante: c.solicitante, accion: "visar" });
     for (const c of listas) {
       const oc = c.oc_numero ?? (await siguienteNumero(ctx.empresa.id, "oc", "OC"));
       const { error: e2 } = await supabaseAdmin
@@ -139,6 +144,7 @@ export async function rechazarCompraAction(id: string, motivo: string, anular = 
   try {
     const ctx = await contextoFin();
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
+    await exigirAlgunRol(ctx, ["compras_aprobador", "compras_visador"], "rechazar");
     const c = await exigirDeEmpresa("fin_compras", id, ctx.empresa.id);
     const { error } = await supabaseAdmin.from("fin_compras").update({ estado_override: anular ? "anulada" : "rechazada", motivo: motivo.slice(0, 300), actualizado_en: ahora() }).eq("id", id);
     revienta("rechazar", error);
@@ -153,6 +159,7 @@ export async function rechazarCompraAction(id: string, motivo: string, anular = 
 export async function marcarOcEnviadaAction(id: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "compras_visador", { accion: "marcar la OC enviada" });
     const c = await exigirDeEmpresa("fin_compras", id, ctx.empresa.id);
     if (!c.oc_numero) return { ok: false, error: "La compra todavía no tiene OC: visa primero." };
     const { error } = await supabaseAdmin.from("fin_compras").update({ oc_enviada_fecha: ctx.hoy, actualizado_en: ahora() }).eq("id", id);
@@ -169,6 +176,7 @@ export async function marcarOcEnviadaAction(id: string): Promise<Resultado> {
 export async function recepcionAction(id: string, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "compras_recepcion", { accion: "recepción" });
     const c = await exigirDeEmpresa("fin_compras", id, ctx.empresa.id);
     const resultado = String(fd.get("resultado") ?? "");
     if (!["si", "parcial", "no"].includes(resultado)) return { ok: false, error: "Elige Sí, Parcial o No." };
@@ -190,6 +198,7 @@ export async function aprobarDiferenciaAction(id: string, motivo: string): Promi
   try {
     const ctx = await contextoFin();
     if (!motivo.trim()) return { ok: false, error: "Escribe por qué se acepta la diferencia." };
+    await exigirRol(ctx, "compras_recepcion", { accion: "aceptar la diferencia" });
     const c = await exigirDeEmpresa("fin_compras", id, ctx.empresa.id);
     const { error } = await supabaseAdmin.from("fin_compras").update({ diferencia_aprobada: true, actualizado_en: ahora() }).eq("id", id);
     revienta("aprobar la diferencia", error);
@@ -271,6 +280,7 @@ export async function registrarFacturaCompraAction(fd: FormData): Promise<Result
 export async function programarPagosAction(compraIds: string[], fecha: string, cuentaId: string | null): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "compras_pagador", { accion: "programar pagos" });
     const vista = await cargarVista();
     if (!fechaValida(fecha)) return { ok: false, error: "Elige la fecha de pago." };
     const compras = vista.compras.filter((c) => ids(compraIds).includes(c.id));
@@ -303,6 +313,7 @@ export async function programarPagosAction(compraIds: string[], fecha: string, c
 export async function registrarPagoAction(pagoId: string, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "compras_pagador", { accion: "registrar el pago" });
     const p = await exigirDeEmpresa("fin_pagos", pagoId, ctx.empresa.id);
     if (p.estado !== "programado") return { ok: false, error: "Ese pago ya no está programado." };
     // Si su factura ya se pagó por otro lado, marcarlo la pagaría dos veces.
@@ -336,6 +347,7 @@ export async function registrarPagoAction(pagoId: string, fd: FormData): Promise
 export async function pagarCompraAction(compraId: string, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "compras_pagador", { accion: "pagar" });
     const vista = await cargarVista();
     const c = vista.compras.find((x) => x.id === compraId);
     if (!c) return { ok: false, error: "Esa compra no existe." };
@@ -384,6 +396,7 @@ export async function pagarCompraAction(compraId: string, fd: FormData): Promise
 export async function anularPagoAction(id: string, motivo: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "compras_pagador", { accion: "anular el pago" });
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const p = await exigirDeEmpresa("fin_pagos", id, ctx.empresa.id);
     const cerrado = await periodoCerrado(ctx.empresa.id, p.estado === "pagado" ? String(p.fecha_pago ?? "") : null);

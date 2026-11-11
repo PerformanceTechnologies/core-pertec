@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, conciliarConMovimiento, contextoFin, contextoLeads, prefijoCotizacion, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { generarHitos, peso } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
+import { exigirRol } from "@/lib/fin/flujos";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -429,6 +430,7 @@ export async function anularHitoAction(id: string, motivo: string): Promise<Resu
 export async function registrarFacturaVentaAction(fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "ventas_facturador", { accion: "registrar la factura" });
     const vista = await cargarVista();
     const hitoIds = fd.getAll("hitoIds").map(String).filter((x) => uuid(x));
     const hitos = vista.hitos.filter((h) => hitoIds.includes(h.id));
@@ -477,6 +479,7 @@ export async function registrarFacturaVentaAction(fd: FormData): Promise<Resulta
 export async function registrarNotaAction(fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "ventas_facturador", { accion: "registrar la nota" });
     const vista = await cargarVista();
     const tipo = Number(fd.get("tipoDte"));
     if (![61, 56, 52].includes(tipo)) return { ok: false, error: "Tipo inválido." };
@@ -529,6 +532,7 @@ export async function registrarNotaAction(fd: FormData): Promise<Resultado> {
 export async function anularDocumentoAction(id: string, motivo: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "ventas_facturador", { accion: "anular el documento" });
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const doc = await exigirDeEmpresa("fin_documentos", id, ctx.empresa.id);
     const cerrado = await periodoCerrado(ctx.empresa.id, String(doc.fecha_emision ?? ""));
@@ -558,6 +562,7 @@ export async function anularDocumentoAction(id: string, motivo: string): Promise
 export async function registrarCobroAction(fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "ventas_cobrador", { accion: "registrar el cobro" });
     const vista = await cargarVista();
     const fecha = fechaValida(fd.get("fecha"));
     if (!fecha) return { ok: false, error: "Indica la fecha del cobro." };
@@ -604,6 +609,7 @@ export async function registrarCobroAction(fd: FormData): Promise<Resultado> {
 export async function anularCobroAction(id: string, motivo: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "ventas_cobrador", { accion: "anular el cobro" });
     if (!motivo.trim()) return { ok: false, error: "Escribe el motivo." };
     const c = await exigirDeEmpresa("fin_cobros", id, ctx.empresa.id);
     const cerrado = await periodoCerrado(ctx.empresa.id, String(c.fecha ?? ""));

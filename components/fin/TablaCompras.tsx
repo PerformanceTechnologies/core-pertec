@@ -4,6 +4,7 @@ import { useState } from "react";
 import { aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, registrarFacturaCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { CompraVista } from "@/lib/fin/datos";
+import { TODO_PERMITIDO, type PuedeFlujo } from "@/lib/fin/flujos-modelo";
 import { Chip, Monto, TD, TH, tonoPaso } from "./piezas";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion } from "./ui";
 
@@ -17,12 +18,14 @@ export interface HolguraCompra {
  * La hoja «Compras y CxP» con el «Siguiente paso» de cada compra y el botón que lo resuelve.
  * Selección múltiple para aprobar, visar o programar pagos de una vez.
  */
-export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "todas" }: {
+export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "todas", puede = TODO_PERMITIDO }: {
   compras: CompraVista[];
   cuentas: { id: string; nombre: string }[];
   hoy: string;
   holguras?: Record<string, HolguraCompra>;
   modo?: "todas" | "aprobar" | "visar";
+  /** Qué pasos puede ejecutar quien mira (Permisos de flujos). El servidor lo vuelve a exigir. */
+  puede?: PuedeFlujo;
 }) {
   const [marcados, setMarcados] = useState<string[]>([]);
   const elegidas = compras.filter((c) => marcados.includes(c.id));
@@ -40,9 +43,9 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
           <span className="text-sm font-semibold text-tinta">{elegidas.length} compra(s) · {clp(elegidas.reduce((s, c) => s + (c.netoCotizado ?? 0), 0))} neto</span>
           <span className="flex-1" />
           <button type="button" onClick={() => setMarcados([])} className="text-xs font-semibold text-gris hover:text-tinta">Quitar selección</button>
-          {porAprobar.length > 0 && <BotonAccion accion={() => aprobarComprasAction(porAprobar.map((c) => c.id))} className={BOTON}>Aprobar {porAprobar.length}</BotonAccion>}
-          {porVisar.length > 0 && <BotonAccion accion={() => visarComprasAction(porVisar.map((c) => c.id))} className={BOTON} confirmar={`Visar ${porVisar.length} compra(s): Finanzas confirma que hay caja y se emiten sus OC.`}>Visar {porVisar.length} y emitir OC</BotonAccion>}
-          {porProgramar.length > 0 && (
+          {porAprobar.length > 0 && puede.compras_aprobador && <BotonAccion accion={() => aprobarComprasAction(porAprobar.map((c) => c.id))} className={BOTON}>Aprobar {porAprobar.length}</BotonAccion>}
+          {porVisar.length > 0 && puede.compras_visador && <BotonAccion accion={() => visarComprasAction(porVisar.map((c) => c.id))} className={BOTON} confirmar={`Visar ${porVisar.length} compra(s): Finanzas confirma que hay caja y se emiten sus OC.`}>Visar {porVisar.length} y emitir OC</BotonAccion>}
+          {porProgramar.length > 0 && puede.compras_pagador && (
             <span className="inline-flex flex-wrap items-center gap-1.5">
               <input type="date" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} className="rounded-lg border border-borde bg-superficie px-2 py-1.5 text-xs" />
               <select value={cuentaPago} onChange={(e) => setCuentaPago(e.target.value)} className="rounded-lg border border-borde bg-superficie px-2 py-1.5 text-xs">{cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select>
@@ -71,7 +74,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   </div>
                   <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-borde pt-2.5 text-xs">
                     <span className="text-gris">{c.montoFlujo ? <>Por pagar <strong className="text-tinta">{clp(c.montoFlujo)}</strong></> : "Nada por pagar"}</span>
-                    <AccionCompra c={c} cuentas={cuentas} hoy={hoy} />
+                    <AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} />
                   </div>
                 </div>
               </div>
@@ -113,7 +116,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.ocNumero ?? "—"}{c.recepcion && <span className="block text-[10px] text-gris">Recepción {c.recepcion === "si" ? "conforme" : c.recepcion}</span>}</td>
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.facturaFolio ? <>N° {c.facturaFolio}<span className="block text-[10px] text-gris">{clp(c.facturaTotal ?? 0)} · vence {fechaCl(c.facturaVence)}</span>{c.diferenciaVsOc ? <span className={`block text-[10px] ${Math.abs(c.diferenciaVsOc) > 1000 && !c.diferenciaAprobada ? "font-semibold text-alerta" : "text-gris"}`}>dif. OC {clp(c.diferenciaVsOc)}</span> : null}</> : "—"}</td>
                   <td className={`${TD} text-right`}>{c.montoFlujo ? <Monto valor={c.montoFlujo} /> : <span className="text-gris-suave">—</span>}{c.fechaFlujo && <span className="block text-[10px] text-gris">{fechaCl(c.fechaFlujo)}</span>}</td>
-                  <td className={`${TD} sticky right-0 whitespace-nowrap bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}><AccionCompra c={c} cuentas={cuentas} hoy={hoy} /></td>
+                  <td className={`${TD} sticky right-0 whitespace-nowrap bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} /></td>
                 </tr>
               ))}
             </tbody>
@@ -140,12 +143,12 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   </div>
                 )}
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <BotonAccion accion={rechazarCompraAction.bind(null, c.id)} motivo={`¿Por qué se rechaza ${c.codigo}?`}>Rechazar</BotonAccion>
-                  {modo === "aprobar" ? (
+                  {(puede.compras_aprobador || puede.compras_visador) && <BotonAccion accion={rechazarCompraAction.bind(null, c.id)} motivo={`¿Por qué se rechaza ${c.codigo}?`}>Rechazar</BotonAccion>}
+                  {modo === "aprobar" ? (puede.compras_aprobador ? (
                     <BotonAccion accion={() => aprobarComprasAction([c.id])} className={BOTON}>Aprobar</BotonAccion>
-                  ) : (
+                  ) : <span className="text-xs text-gris">Lo aprueba otra persona</span>) : (puede.compras_visador ? (
                     <BotonAccion accion={() => visarComprasAction([c.id])} className={BOTON}>Visar y emitir OC</BotonAccion>
-                  )}
+                  ) : <span className="text-xs text-gris">Lo visa otra persona</span>)}
                 </div>
               </article>
             );
@@ -157,8 +160,9 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
 }
 
 /** El botón que resuelve el siguiente paso de una compra. */
-function AccionCompra({ c, cuentas, hoy }: { c: CompraVista; cuentas: { id: string; nombre: string }[]; hoy: string }) {
+function AccionCompra({ c, cuentas, hoy, puede }: { c: CompraVista; cuentas: { id: string; nombre: string }[]; hoy: string; puede: PuedeFlujo }) {
   if (c.anulada || c.paso === "Pagada") return null;
+  const otra = (quien: string) => <span className="text-xs text-gris" title="Está asignado a otras personas en «Permisos de flujos»">{quien}</span>;
   const factura = (
     <ConVentana boton="Registrar factura" titulo={`Factura del proveedor · ${c.codigo}`} className={BOTON_SEC}>
       {(cerrar) => (
@@ -179,18 +183,22 @@ function AccionCompra({ c, cuentas, hoy }: { c: CompraVista; cuentas: { id: stri
   );
   switch (c.paso) {
     case "Falta aprobación JP o gerente":
+      if (!puede.compras_aprobador) return otra("Lo aprueba otra persona");
       return <BotonAccion accion={() => aprobarComprasAction([c.id])}>Aprobar</BotonAccion>;
     case "Falta visado de Finanzas":
+      if (!puede.compras_visador) return otra("Lo visa otra persona");
       return <BotonAccion accion={() => visarComprasAction([c.id])}>Visar</BotonAccion>;
     case "Factura sin OC: regularizar":
+      if (c.aprobadoPor ? !puede.compras_visador : !puede.compras_aprobador) return otra(c.aprobadoPor ? "Lo visa otra persona" : "Lo aprueba otra persona");
       return c.aprobadoPor ? <BotonAccion accion={() => visarComprasAction([c.id])} titulo="Regularizar: visar y emitir la OC">Visar (regularizar)</BotonAccion> : <BotonAccion accion={() => aprobarComprasAction([c.id])} titulo="Regularizar: aprobar y luego visar">Aprobar (regularizar)</BotonAccion>;
     case "Emitir OC al proveedor":
+      if (!puede.compras_visador) return otra("Lo gestiona quien visa");
       return <BotonAccion accion={() => marcarOcEnviadaAction(c.id)}>OC enviada</BotonAccion>;
     case "Esperar recepción conforme":
       return (
         <span className="inline-flex gap-1">
-          {!c.ocEnviadaFecha && <BotonAccion accion={() => marcarOcEnviadaAction(c.id)} titulo="Marcar la OC como enviada al proveedor">OC enviada</BotonAccion>}
-          <ConVentana boton="Recepción" titulo={`Recepción · ${c.codigo}`} className={BOTON_SEC}>
+          {!c.ocEnviadaFecha && puede.compras_visador && <BotonAccion accion={() => marcarOcEnviadaAction(c.id)} titulo="Marcar la OC como enviada al proveedor">OC enviada</BotonAccion>}
+          {puede.compras_recepcion ? <ConVentana boton="Recepción" titulo={`Recepción · ${c.codigo}`} className={BOTON_SEC}>
             {(cerrar) => (
               <FormAccion accion={recepcionAction.bind(null, c.id)} textoBoton="Guardar recepción" alOk={cerrar}>
                 <div className="flex gap-4 text-sm">{[["si", "Sí, conforme"], ["parcial", "Parcial"], ["no", "No llegó / no conforme"]].map(([v, t]) => <label key={v} className="inline-flex items-center gap-2"><input type="radio" name="resultado" value={v} defaultChecked={v === "si"} /> {t}</label>)}</div>
@@ -198,16 +206,18 @@ function AccionCompra({ c, cuentas, hoy }: { c: CompraVista; cuentas: { id: stri
                 <Campo etiqueta="Observación"><input name="observacion" className={CAMPO} placeholder="Guía del proveedor, faltantes…" /></Campo>
               </FormAccion>
             )}
-          </ConVentana>
+          </ConVentana> : otra("Lo recibe otra persona")}
         </span>
       );
     case "Esperar factura del proveedor":
       return factura;
     case "Revisar diferencia con la OC":
+      if (!puede.compras_recepcion) return otra("Lo revisa otra persona");
       return <BotonAccion accion={aprobarDiferenciaAction.bind(null, c.id)} motivo={`¿Por qué se acepta la diferencia de ${clp(c.diferenciaVsOc ?? 0)} con la OC?`}>Aceptar diferencia</BotonAccion>;
     case "Programar pago":
     case "Vencida: programar pago ya":
     case "Pago programado":
+      if (!puede.compras_pagador) return otra("Lo paga otra persona");
       return (
         <ConVentana boton={c.paso === "Pago programado" ? "Pagar" : "Pagar ahora"} titulo={`Pagar · ${c.codigo}`} className={c.paso.startsWith("Vencida") ? BOTON : BOTON_SEC}>
           {(cerrar) => (

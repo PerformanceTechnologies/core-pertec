@@ -5,7 +5,7 @@ import { contextoFin } from "@/lib/fin/datos";
 export const dynamic = "force-dynamic";
 
 export default async function LayoutFinanzas({ children }: { children: React.ReactNode }) {
-  const { empresa } = await contextoFin();
+  const { empresa, usuario } = await contextoFin();
   return (
     <div className="animar-entrada">
       <header className="mb-5 flex flex-wrap items-center gap-3">
@@ -21,7 +21,7 @@ export default async function LayoutFinanzas({ children }: { children: React.Rea
           <IconBuilding size={14} /> {empresa.nombre}
         </span>
       </header>
-      <NavFin />
+      <NavFin esAdmin={usuario.rol === "admin"} />
       <div className="escalonar">{children}</div>
     </div>
   );

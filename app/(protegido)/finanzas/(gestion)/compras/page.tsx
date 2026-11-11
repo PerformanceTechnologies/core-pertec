@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { IconFileInvoice, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
-import { cargarVista, RUTA_COMPRAS } from "@/lib/fin/datos";
+import { cargarVista, contextoFin, RUTA_COMPRAS } from "@/lib/fin/datos";
+import { permisosDeUsuario } from "@/lib/fin/flujos";
 import { clp, clpCorto, conIva, fechaCl, inicioDeMes, mesLargo, sumarDias, type PasoCompra } from "@/lib/fin/reglas";
 import { DTE_CORTO } from "@/lib/fin/modelo";
 import { anularPagoAction, crearCompraAction, registrarFacturaCompraAction, registrarPagoAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
@@ -13,7 +14,8 @@ export const dynamic = "force-dynamic";
 
 export default async function ComprasPage({ searchParams }: { searchParams: Promise<{ ver?: string; q?: string }> }) {
   const sp = await searchParams;
-  const v = await cargarVista();
+  const [v, ctx] = await Promise.all([cargarVista(), contextoFin()]);
+  const puede = await permisosDeUsuario(ctx);
   const ver = sp.ver ?? "todas";
   const vivas = v.compras.filter((c) => !c.anulada);
   const enPaso = (p: PasoCompra) => vivas.filter((c) => c.paso === p).length;
@@ -113,7 +115,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
           {lista.length === 0 ? (
             <Vacio titulo={ver === "todas" ? "Todavía no hay compras" : "Nada pendiente aquí"} texto={ver === "todas" ? "Toda compra parte como solicitud: usa «Nueva solicitud» (arriba a la derecha). Después pasa por aprobación y visado." : "Todo al día. ✓"} icono={<IconShoppingCart size={24} stroke={1.6} />} />
           ) : (
-            <TablaCompras compras={lista} cuentas={cuentas} hoy={v.hoy} holguras={holguras} modo={ver as "todas" | "aprobar" | "visar"} />
+            <TablaCompras compras={lista} cuentas={cuentas} hoy={v.hoy} holguras={holguras} modo={ver as "todas" | "aprobar" | "visar"} puede={puede} />
           )}
           {ver === "todas" && lista.length > 0 && (
             <p className="text-[11px] text-gris">Para adjuntar la cotización del proveedor o la guía, ábrela en «Facturas recibidas» o usa el botón de la fila. Imprimir la OC: formato en diseño.</p>
@@ -166,7 +168,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
                     <td className={`${TD} text-xs`}>{p.estado === "pagado" ? <span className="text-ok">{fechaCl(p.fechaPago)}</span> : <Chip texto={p.estado === "anulado" ? "Anulado" : "Programado"} tono={p.estado === "anulado" ? "bg-slate-500/10 text-slate-500" : "bg-sky-500/10 text-info"} />}</td>
                     <td className={`${TD} text-right font-semibold`}><Monto valor={p.monto} /></td>
                     <td className={`${TD} whitespace-nowrap text-right`}>
-                      {p.estado === "programado" && (
+                      {p.estado === "programado" && puede.compras_pagador && (
                         <ConVentana boton="Marcar pagado" titulo={`Pago ${p.numero}`} className={BOTON_SEC}>
                           {(
                             <FormAccion accion={registrarPagoAction.bind(null, p.id)} textoBoton="Marcar pagado">
@@ -176,7 +178,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
                           )}
                         </ConVentana>
                       )}{" "}
-                      {p.estado !== "anulado" && <BotonAccion accion={anularPagoAction.bind(null, p.id)} motivo={`¿Por qué se anula el pago ${p.numero}?`}>Anular</BotonAccion>}
+                      {p.estado !== "anulado" && puede.compras_pagador && <BotonAccion accion={anularPagoAction.bind(null, p.id)} motivo={`¿Por qué se anula el pago ${p.numero}?`}>Anular</BotonAccion>}
                     </td>
                   </tr>
                 ))}
