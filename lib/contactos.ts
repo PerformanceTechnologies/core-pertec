@@ -1,7 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "./supabase-admin";
-import { exigirAccesoApp } from "./autorizacion";
+import { exigirAccesoApp, puedeVerApp } from "./autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "./finanzas-subpaneles-usuario";
 import type { UsuarioConAcceso } from "./tipos";
 import { odooSearchRead } from "./odoo/cliente";
@@ -33,6 +33,15 @@ export async function exigirAccesoContactos(): Promise<UsuarioConAcceso> {
     redirect("/finanzas");
   }
   return usuario;
+}
+
+/**
+ * ¿Puede esta persona crear contactos? La misma regla que exigirAccesoContactos, pero devolviendo un booleano: sirve para
+ * decidir si ofrecerle el botón «Crear proveedor» sin arriesgar que la acción la saque de la pantalla en que está.
+ */
+export async function puedeGestionarContactos(usuario: UsuarioConAcceso): Promise<boolean> {
+  if (!(await puedeVerApp(usuario, "finanzas"))) return false;
+  return usuario.rol === "admin" || (await usuarioPuedeVerSubpanelFinanzas(usuario.id, SLUG_SUBPANEL_CONTACTOS));
 }
 
 const T = { contactos: "finanzas_contactos", personas: "finanzas_contacto_personas" } as const;

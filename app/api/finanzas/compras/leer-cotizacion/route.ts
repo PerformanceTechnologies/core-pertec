@@ -42,13 +42,15 @@ export async function POST(request: Request) {
     const proveedor = buscarProveedor(opciones, lectura.proveedor?.rut ?? null, lectura.proveedor?.razonSocial ?? null);
     const avisos = [...datos.avisos];
     if (!proveedor && (lectura.proveedor?.razonSocial || lectura.proveedor?.rut)) {
-      avisos.unshift(`El proveedor «${lectura.proveedor.razonSocial ?? lectura.proveedor.rut}» no está en Contactos: elígelo de la lista o créalo primero en Finanzas › Contactos.`);
+      avisos.unshift(`El proveedor «${lectura.proveedor.razonSocial ?? lectura.proveedor.rut}» no está en Contactos: elígelo de la lista o créalo (botón «Crear proveedor», o pídele a quien administra Contactos).`);
     }
     return NextResponse.json({
       ok: true,
       datos: { ...datos, avisos },
       proveedorId: proveedor?.id ?? null,
       proveedorNombre: proveedor?.nombre ?? lectura.proveedor?.razonSocial ?? null,
+      // Lo que se leyó del proveedor: si no está en Contactos, con esto se abre el formulario para crearlo.
+      proveedorLeido: lectura.proveedor ? { razonSocial: lectura.proveedor.razonSocial, rut: lectura.proveedor.rut, correo: lectura.proveedor.correo, telefono: lectura.proveedor.telefono, direccion: lectura.proveedor.direccion } : null,
       correoProveedor: datos.correo ?? proveedor?.correo ?? null,
     });
   } catch (e) {

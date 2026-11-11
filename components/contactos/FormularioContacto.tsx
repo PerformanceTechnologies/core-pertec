@@ -89,19 +89,46 @@ function Contador({ valor, max }: { valor: string; max: number }) {
   return <span className={`font-normal tabular-nums ${pasado ? "tono-alerta font-bold" : "text-gris-suave"}`}>{valor.length}/{max}</span>;
 }
 
+/** Un contacto recién creado, tal como lo necesita quien lo pidió desde otra pantalla (p. ej. una solicitud de compra). */
+export type ContactoCreado = { id: string; razonSocial: string; rut: string | null };
+
+/** Datos con que se abre el formulario de un contacto nuevo (p. ej. lo que leyó la IA de una cotización). */
+export type PrecargaContacto = Partial<Pick<DatosContacto, "rut" | "razonSocial" | "giro" | "direccion" | "comuna" | "ciudad" | "correo" | "telefono" | "esCliente" | "esProveedor">>;
+
 export default function FormularioContacto({
   contacto,
   completar = false,
   empresas = [],
+  precarga,
+  abiertaExterna,
+  alCerrar,
+  alCrear,
 }: {
   contacto?: Contacto;
+  /**
+   * Modo embebido: lo abre otra pantalla (sin botón propio), viene con `precarga` y, al crear, avisa con `alCrear` en vez
+   * de llevar a la ficha del contacto. Conviene montarlo solo cuando se necesita (una vez por apertura).
+   */
+  precarga?: PrecargaContacto;
+  abiertaExterna?: boolean;
+  alCerrar?: () => void;
+  alCrear?: (contacto: ContactoCreado) => void;
   /** Botón «Completar datos» en vez de «Editar», para la franja de lo que falta. */
   completar?: boolean;
   /** Las empresas de la libreta, para marcar a una persona como contacto de una de ellas. */
   empresas?: EmpresaMin[];
 }) {
   const editar = Boolean(contacto);
-  const [abierta, setAbierta] = useState(false);
+  const externo = abiertaExterna !== undefined;
+  const [abiertaInterna, setAbiertaInterna] = useState(false);
+  const abierta = externo ? abiertaExterna : abiertaInterna;
+  const setAbierta = (a: boolean) => {
+    if (externo) {
+      if (!a) alCerrar?.();
+    } else setAbiertaInterna(a);
+  };
+  // Lo que se ve al abrir: la ficha que se edita o, en un contacto nuevo, lo que se haya precargado.
+  const base = (contacto ?? precarga) as Partial<Contacto> | undefined;
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
   const router = useRouter();
@@ -109,16 +136,16 @@ export default function FormularioContacto({
   const inicial = () => ({
     tipoPersona: (contacto?.tipoPersona ?? "empresa") as TipoPersona,
     tipoContribuyente: (contacto?.tipoContribuyente ?? "primera_categoria") as TipoContribuyente,
-    esCliente: contacto?.esCliente ?? true,
-    esProveedor: contacto?.esProveedor ?? false,
-    rut: contacto?.rut ? formatearRut(contacto.rut) : "",
-    razonSocial: contacto?.razonSocial ?? "",
-    giro: contacto?.giro ?? "",
-    direccion: contacto?.direccion ?? "",
-    comuna: contacto?.comuna ?? "",
-    ciudad: contacto?.ciudad ?? "",
+    esCliente: base?.esCliente ?? true,
+    esProveedor: base?.esProveedor ?? false,
+    rut: base?.rut ? formatearRut(base.rut) : "",
+    razonSocial: base?.razonSocial ?? "",
+    giro: base?.giro ?? "",
+    direccion: base?.direccion ?? "",
+    comuna: base?.comuna ?? "",
+    ciudad: base?.ciudad ?? "",
     pais: contacto?.pais && contacto.pais !== "Chile" ? contacto.pais : "",
-    region: (contacto?.comuna && regionDeComuna(contacto.comuna)) || "",
+    region: (base?.comuna && regionDeComuna(base.comuna)) || "",
     empresaId: contacto?.empresaId ?? "",
   });
   type Valores = ReturnType<typeof inicial>;
@@ -204,7 +231,10 @@ export default function FormularioContacto({
       const r = editar ? await actualizarContactoAction(contacto!.id, fd) : await crearContactoAction(fd);
       if (!r.ok) return setError(r.error);
       setAbierta(false);
-      if (!editar && r.id) router.push(`/finanzas/contactos/${r.id}`);
+      if (!editar && r.id && alCrear) {
+        const rutDado = normalizarRut(String(fd.get("rut") ?? ""));
+        alCrear({ id: r.id, razonSocial: nombrePropio(String(fd.get("razonSocial") ?? "")), rut: rutDado && rutUsable(rutDado) ? formatearRut(rutDado) : null });
+      } else if (!editar && r.id) router.push(`/finanzas/contactos/${r.id}`);
       else router.refresh();
     });
   }
@@ -213,7 +243,7 @@ export default function FormularioContacto({
 
   return (
     <>
-      {completar ? (
+      {externo ? null : completar ? (
         <button onClick={abrir} className={BOTON_SUAVE_C}>
           <IconPencil size={16} /> Completar datos
         </button>
@@ -533,12 +563,12 @@ export default function FormularioContacto({
             </Campo>
             <Campo etiqueta="Correo de contacto" ancho="mitad">
               <ConIcono Icono={IconAt}>
-                <input name="correo" type="email" defaultValue={contacto?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO_I} placeholder="contacto@empresa.cl" />
+                <input name="correo" type="email" defaultValue={base?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO_I} placeholder="contacto@empresa.cl" />
               </ConIcono>
             </Campo>
             <Campo etiqueta="Teléfono" ancho="mitad">
               <ConIcono Icono={IconPhone}>
-                <input name="telefono" type="tel" defaultValue={contacto?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO_I} placeholder="+56 9 1234 5678" />
+                <input name="telefono" type="tel" defaultValue={base?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO_I} placeholder="+56 9 1234 5678" />
               </ConIcono>
             </Campo>
             <Campo etiqueta="Plazo de pago" ancho="mitad">
