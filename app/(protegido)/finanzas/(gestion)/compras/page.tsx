@@ -2,9 +2,10 @@ import Link from "next/link";
 import { IconFileInvoice, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
 import { cargarVista, contextoFin, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { permisosDeUsuario } from "@/lib/fin/flujos";
+import { lineasDeCompras, resumenDeCompra, tasaIvaDe } from "@/lib/fin/oc-datos";
 import { clp, clpCorto, conIva, fechaCl, inicioDeMes, mesLargo, sumarDias, type PasoCompra } from "@/lib/fin/reglas";
 import { DTE_CORTO } from "@/lib/fin/modelo";
-import { anularPagoAction, crearCompraAction, registrarFacturaCompraAction, registrarPagoAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
+import { anularPagoAction, registrarFacturaCompraAction, registrarPagoAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -35,10 +36,25 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
     const yaEnFlujo = c.paso === "Factura sin OC: regularizar";
     if (mes) holguras[c.id] = { mes: mesLargo(mes.mes), antes: mes.holgura, despues: yaEnFlujo ? mes.holgura : mes.holgura - conIva(c.netoCotizado ?? 0, v.p.tasaIva) };
   }
+  const yo = ctx.usuario.correo.toLowerCase();
+  const mias = v.compras.filter((c) => c.formatoOc && ((c.creadoPor ?? "").toLowerCase() === yo || (c.solicitante ?? "").toLowerCase() === yo));
+  const devueltas = mias.filter((c) => c.paso === "Devuelta: corregir y reenviar").length;
   const q = (sp.q ?? "").toLowerCase().trim();
-  const lista = (ver === "aprobar" ? porAprobar : ver === "visar" ? porVisar : v.compras).filter(
+  const lista = (ver === "aprobar" ? porAprobar : ver === "visar" ? porVisar : ver === "mias" ? mias : v.compras).filter(
     (c) => !q || `${c.codigo} ${c.descripcion} ${c.proveedorNombre ?? ""} ${c.proyectoNombre ?? ""} ${c.ocNumero ?? ""} ${c.facturaFolio ?? ""}`.toLowerCase().includes(q),
   );
+
+  // El resumen completo de cada solicitud con formato de OC de la lista: lo que ve quien aprueba en el popup.
+  const conFormato = lista.filter((c) => c.formatoOc);
+  const resumenes: Record<string, ReturnType<typeof resumenDeCompra>> = {};
+  if (conFormato.length > 0) {
+    const [lineas, tasaIva] = await Promise.all([lineasDeCompras(conFormato.map((c) => c.id)), tasaIvaDe(ctx.empresa.id)]);
+    for (const c of conFormato) {
+      const r = resumenDeCompra(c, lineas.get(c.id) ?? [], tasaIva);
+      const prov = c.proveedorId ? v.contrapartes.find((x) => x.id === c.proveedorId) : null;
+      resumenes[c.id] = prov && r.proveedor ? { ...r, proveedor: { nombre: r.proveedor.nombre, rut: prov.rut } } : r;
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -47,10 +63,11 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
         valor={clp(v.dashboard.porPagar)}
         bajada="Por pagar: facturas de proveedores recibidas que aún no se pagan."
         pasos={[
-          { titulo: "Solicitud", ayuda: "Quien necesita la compra", n: undefined },
+          { titulo: "Solicitud", ayuda: "Quien necesita la compra", n: enPaso("Borrador: enviar a aprobación") + enPaso("Devuelta: corregir y reenviar"), href: `${RUTA_COMPRAS}?ver=mias`, alerta: enPaso("Devuelta: corregir y reenviar") > 0 },
           { titulo: "Aprobación", ayuda: "Jefe de proyecto o gerente", n: porAprobar.length, href: `${RUTA_COMPRAS}?ver=aprobar`, alerta: true },
           { titulo: "Visado", ayuda: "Finanzas revisa la caja y emite la OC", n: porVisar.length, href: `${RUTA_COMPRAS}?ver=visar`, alerta: true },
-          { titulo: "Recepción", ayuda: "Llegó conforme", n: enPaso("Esperar recepción conforme") },
+          { titulo: "Envío", ayuda: "La OC sale al proveedor", n: enPaso("Enviar OC al proveedor") + enPaso("Emitir OC al proveedor") },
+          { titulo: "Recepción", ayuda: "El proveedor acepta o rechaza", n: enPaso("Esperar respuesta del proveedor") + enPaso("OC rechazada por el proveedor") + enPaso("Esperar recepción conforme"), alerta: enPaso("OC rechazada por el proveedor") > 0 },
           { titulo: "Factura", ayuda: "Se compara con la OC", n: enPaso("Esperar factura del proveedor") + enPaso("Revisar diferencia con la OC"), href: `${RUTA_COMPRAS}?ver=facturas` },
           { titulo: "Pago", ayuda: "Se programa según el flujo", n: enPaso("Programar pago") + enPaso("Vencida: programar pago ya") + enPaso("Pago programado"), href: `${RUTA_COMPRAS}?ver=pagos`, alerta: enPaso("Vencida: programar pago ya") > 0 },
         ]}
@@ -68,6 +85,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
           actual={ver}
           opciones={[
             { clave: "todas", etiqueta: "Todas", n: vivas.length },
+            { clave: "mias", etiqueta: devueltas > 0 ? "Mis solicitudes · devueltas" : "Mis solicitudes", n: devueltas > 0 ? devueltas : mias.length },
             { clave: "aprobar", etiqueta: "Por aprobar", n: porAprobar.length },
             { clave: "visar", etiqueta: "Por visar", n: porVisar.length },
             { clave: "facturas", etiqueta: "Facturas recibidas", n: recibidas.length },
@@ -92,30 +110,16 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
             </FormAccion>
           )}
         </ConVentana>
-        <ConVentana boton={<><IconPlus size={15} /> Nueva solicitud</>} titulo="Nueva solicitud de compra" descripcion="Pocos datos: queda esperando la aprobación del JP o gerente." className={BOTON}>
-          {(
-            <FormAccion accion={crearCompraAction} textoBoton="Crear solicitud">
-              <Campo etiqueta="Qué se compra *"><input name="descripcion" required autoFocus className={CAMPO} placeholder="Repuestos para chancador" /></Campo>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Campo etiqueta="Proyecto"><select name="proyectoId" className={CAMPO}><option value="">General</option>{v.proyectos.filter((p) => !p.esGeneral && p.estado === "activo").map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></Campo>
-                <Campo etiqueta="Proveedor"><ComboContacto name="proveedorId" opciones={proveedores} /></Campo>
-                <Campo etiqueta="Monto neto cotizado *"><input name="netoCotizado" required inputMode="numeric" className={CAMPO} placeholder="4800000" /></Campo>
-                <Campo etiqueta="Se necesita para"><input name="fechaRequerida" type="date" className={CAMPO} /></Campo>
-                <Campo etiqueta="Prioridad"><select name="prioridad" defaultValue="normal" className={CAMPO}><option value="baja">Baja</option><option value="normal">Normal</option><option value="alta">Alta</option></select></Campo>
-              </div>
-              <p className="text-[11px] text-gris">La cotización del proveedor (PDF) se adjunta desde la compra, después de crearla.</p>
-            </FormAccion>
-          )}
-        </ConVentana>
+        <Link href={`${RUTA_COMPRAS}/nueva`} className={BOTON}><IconPlus size={15} /> Nueva solicitud</Link>
       </div>
 
-      {["todas", "aprobar", "visar"].includes(ver) && (
+      {["todas", "aprobar", "visar", "mias"].includes(ver) && (
         <>
           {ver === "todas" && <form className="max-w-md"><input name="q" defaultValue={sp.q} placeholder="Buscar por código, proveedor, proyecto, OC o folio…" className={CAMPO} /></form>}
           {lista.length === 0 ? (
-            <Vacio titulo={ver === "todas" ? "Todavía no hay compras" : "Nada pendiente aquí"} texto={ver === "todas" ? "Toda compra parte como solicitud: usa «Nueva solicitud» (arriba a la derecha). Después pasa por aprobación y visado." : "Todo al día. ✓"} icono={<IconShoppingCart size={24} stroke={1.6} />} />
+            <Vacio titulo={ver === "todas" ? "Todavía no hay compras" : ver === "mias" ? "No has creado solicitudes" : "Nada pendiente aquí"} texto={ver === "todas" || ver === "mias" ? "Toda compra parte como solicitud: usa «Nueva solicitud» (arriba a la derecha). Después pasa por aprobación y visado." : "Todo al día. ✓"} icono={<IconShoppingCart size={24} stroke={1.6} />} />
           ) : (
-            <TablaCompras compras={lista} cuentas={cuentas} hoy={v.hoy} holguras={holguras} modo={ver as "todas" | "aprobar" | "visar"} puede={puede} esAdmin={ctx.usuario.rol === "admin"} />
+            <TablaCompras compras={lista} cuentas={cuentas} hoy={v.hoy} holguras={holguras} modo={ver === "mias" ? "todas" : (ver as "todas" | "aprobar" | "visar")} puede={puede} esAdmin={ctx.usuario.rol === "admin"} resumenes={resumenes} />
           )}
           {ver === "todas" && lista.length > 0 && (
             <p className="text-[11px] text-gris">Para adjuntar la cotización del proveedor o la guía, ábrela en «Facturas recibidas» o usa el botón de la fila. Imprimir la OC: formato en diseño.</p>

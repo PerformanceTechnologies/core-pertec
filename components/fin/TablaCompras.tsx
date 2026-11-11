@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { IconTrash } from "@tabler/icons-react";
-import { eliminarCompraAction, aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, registrarFacturaCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
+import { IconEye, IconFileTypePdf, IconTrash } from "@tabler/icons-react";
+import { anularCompraAction, devolverCompraAction, eliminarCompraAction, enviarAAprobacionAction, reactivarCompraAction, responderOcAction, aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, registrarFacturaCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { CompraVista } from "@/lib/fin/datos";
 import { TODO_PERMITIDO, type PuedeFlujo } from "@/lib/fin/flujos-modelo";
+import type { ResumenCompra } from "@/lib/fin/oc-resumen";
+import ResumenOc from "./ResumenOc";
 import { Chip, Monto, TD, TH, tonoPaso } from "./piezas";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion } from "./ui";
 
@@ -20,7 +22,7 @@ export interface HolguraCompra {
  * La hoja «Compras y CxP» con el «Siguiente paso» de cada compra y el botón que lo resuelve.
  * Selección múltiple para aprobar, visar o programar pagos de una vez.
  */
-export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "todas", puede = TODO_PERMITIDO, esAdmin = false }: {
+export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "todas", puede = TODO_PERMITIDO, esAdmin = false, resumenes = {} }: {
   compras: CompraVista[];
   cuentas: { id: string; nombre: string }[];
   hoy: string;
@@ -30,6 +32,8 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
   puede?: PuedeFlujo;
   /** Administrador global: ve «Eliminar» en cada solicitud (la acción lo vuelve a exigir en el servidor). */
   esAdmin?: boolean;
+  /** El resumen completo de cada solicitud con formato de OC (para el popup de quien aprueba o visa). */
+  resumenes?: Record<string, ResumenCompra>;
 }) {
   const [marcados, setMarcados] = useState<string[]>([]);
   const elegidas = compras.filter((c) => marcados.includes(c.id));
@@ -78,7 +82,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   </div>
                   <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-borde pt-2.5 text-xs">
                     <span className="text-gris">{c.montoFlujo ? <>Por pagar <strong className="text-tinta">{clp(c.montoFlujo)}</strong></> : "Nada por pagar"}</span>
-                    <><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} />{esAdmin && <EliminarCompra id={c.id} codigo={c.codigo} />}</>
+                    <><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} esAdmin={esAdmin} resumen={resumenes[c.id]} />{esAdmin && <EliminarCompra id={c.id} codigo={c.codigo} />}</>
                   </div>
                 </div>
               </div>
@@ -120,7 +124,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.ocNumero ?? "—"}{c.recepcion && <span className="block text-[10px] text-gris">Recepción {c.recepcion === "si" ? "conforme" : c.recepcion}</span>}</td>
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.facturaFolio ? <>N° {c.facturaFolio}<span className="block text-[10px] text-gris">{clp(c.facturaTotal ?? 0)} · vence {fechaCl(c.facturaVence)}</span>{c.diferenciaVsOc ? <span className={`block text-[10px] ${Math.abs(c.diferenciaVsOc) > 1000 && !c.diferenciaAprobada ? "font-semibold text-alerta" : "text-gris"}`}>dif. OC {clp(c.diferenciaVsOc)}</span> : null}</> : "—"}</td>
                   <td className={`${TD} text-right`}>{c.montoFlujo ? <Monto valor={c.montoFlujo} /> : <span className="text-gris-suave">—</span>}{c.fechaFlujo && <span className="block text-[10px] text-gris">{fechaCl(c.fechaFlujo)}</span>}</td>
-                  <td className={`${TD} sticky right-0 whitespace-nowrap bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}><><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} />{esAdmin && <EliminarCompra id={c.id} codigo={c.codigo} />}</></td>
+                  <td className={`${TD} sticky right-0 whitespace-nowrap bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}><><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} esAdmin={esAdmin} resumen={resumenes[c.id]} />{esAdmin && <EliminarCompra id={c.id} codigo={c.codigo} />}</></td>
                 </tr>
               ))}
             </tbody>
@@ -147,7 +151,10 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   </div>
                 )}
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  {(puede.compras_aprobador || puede.compras_visador) && <BotonAccion accion={rechazarCompraAction.bind(null, c.id)} motivo={`¿Por qué se rechaza ${c.codigo}?`}>Rechazar</BotonAccion>}
+                  {resumenes[c.id] && <ConVentana boton={<><IconEye size={14} /> Ver resumen</>} titulo={`Solicitud ${c.codigo}`} ancho="max-w-3xl" className={BOTON_SEC}>{(cerrar) => <ResumenConAcciones c={c} r={resumenes[c.id]} puede={puede} cerrar={cerrar} />}</ConVentana>}
+                  {(puede.compras_aprobador || puede.compras_visador) && (c.formatoOc
+                    ? <BotonAccion accion={devolverCompraAction.bind(null, c.id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>
+                    : <BotonAccion accion={rechazarCompraAction.bind(null, c.id)} motivo={`¿Por qué se rechaza ${c.codigo}?`}>Rechazar</BotonAccion>)}
                   {modo === "aprobar" ? (puede.compras_aprobador ? (
                     <BotonAccion accion={() => aprobarComprasAction([c.id])} className={BOTON}>Aprobar</BotonAccion>
                   ) : <span className="text-xs text-gris">Lo aprueba otra persona</span>) : (puede.compras_visador ? (
@@ -163,8 +170,47 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
   );
 }
 
+/**
+ * Lo que se puede hacer con una compra en su fila: el botón de su siguiente paso y, si tiene formato de OC, ver su resumen
+ * completo (y su PDF). Un administrador ve además «Reactivar» en las anuladas.
+ */
+function AccionCompra({ c, cuentas, hoy, puede, esAdmin, resumen }: { c: CompraVista; cuentas: { id: string; nombre: string }[]; hoy: string; puede: PuedeFlujo; esAdmin: boolean; resumen?: ResumenCompra }) {
+  const paso = <AccionPaso c={c} cuentas={cuentas} hoy={hoy} puede={puede} />;
+  if (!c.formatoOc) return paso;
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-1">
+      {paso}
+      {resumen && (
+        <ConVentana boton={<><IconEye size={14} /> Resumen</>} titulo={`Solicitud ${c.codigo}`} ancho="max-w-3xl" className={BOTON_SEC}>
+          {(cerrar) => <ResumenConAcciones c={c} r={resumen} puede={puede} cerrar={cerrar} />}
+        </ConVentana>
+      )}
+      {esAdmin && c.estadoOverride && <BotonAccion accion={() => reactivarCompraAction(c.id)} confirmar={`¿Reactivar ${c.codigo}? Vuelve al flujo donde estaba.`}>Reactivar</BotonAccion>}
+    </span>
+  );
+}
+
+/** El resumen de la OC en el popup, con lo que quien lo mira puede decidir ahí mismo: aprobar o visar, o devolverla. */
+function ResumenConAcciones({ c, r, puede, cerrar }: { c: CompraVista; r: ResumenCompra; puede: PuedeFlujo; cerrar: () => void }) {
+  const aprobando = c.paso === "Falta aprobación JP o gerente" && puede.compras_aprobador;
+  const visando = c.paso === "Falta visado de Finanzas" && puede.compras_visador;
+  return (
+    <div className="space-y-4">
+      <ResumenOc r={r} />
+      <div className="flex flex-col-reverse gap-2 border-t border-borde pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <a href={`/api/finanzas/compras/${c.id}/oc-pdf`} target="_blank" rel="noopener" className={`${BOTON_SEC} sm:mr-auto`}><IconFileTypePdf size={14} /> {c.ocNumero ? "Ver OC en PDF" : "Ver borrador en PDF"}</a>
+        {(aprobando || visando) && (
+          <BotonAccion accion={devolverCompraAction.bind(null, c.id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>
+        )}
+        {aprobando && <BotonAccion accion={async () => { const x = await aprobarComprasAction([c.id]); if (x.ok) cerrar(); return x; }} className={BOTON}>Aprobar</BotonAccion>}
+        {visando && <BotonAccion accion={async () => { const x = await visarComprasAction([c.id]); if (x.ok) cerrar(); return x; }} className={BOTON}>Visar y emitir OC</BotonAccion>}
+      </div>
+    </div>
+  );
+}
+
 /** El botón que resuelve el siguiente paso de una compra. */
-function AccionCompra({ c, cuentas, hoy, puede }: { c: CompraVista; cuentas: { id: string; nombre: string }[]; hoy: string; puede: PuedeFlujo }) {
+function AccionPaso({ c, cuentas, hoy, puede }: { c: CompraVista; cuentas: { id: string; nombre: string }[]; hoy: string; puede: PuedeFlujo }) {
   if (c.anulada || c.paso === "Pagada") return null;
   const otra = (quien: string) => <span className="text-xs text-gris" title="Está asignado a otras personas en «Permisos de flujos»">{quien}</span>;
   const factura = (
@@ -186,12 +232,44 @@ function AccionCompra({ c, cuentas, hoy, puede }: { c: CompraVista; cuentas: { i
     </ConVentana>
   );
   switch (c.paso) {
+    case "Borrador: enviar a aprobación":
+    case "Devuelta: corregir y reenviar":
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1">
+          <Link href={`/finanzas/compras/${c.id}/editar`} className={BOTON_SEC}>Editar</Link>
+          <BotonAccion accion={() => enviarAAprobacionAction(c.id)} className={BOTON} confirmar="¿Enviar a aprobación? Después ya no se puede editar, salvo que la devuelvan.">Enviar a aprobación</BotonAccion>
+          <BotonAccion accion={anularCompraAction.bind(null, c.id)} motivo={`¿Por qué se anula ${c.codigo}? Queda en el registro.`}>Anular</BotonAccion>
+        </span>
+      );
+    case "Enviar OC al proveedor":
+      if (!puede.compras_visador) return otra("Lo gestiona quien visa");
+      return <BotonAccion accion={() => marcarOcEnviadaAction(c.id)} titulo="Márcala cuando ya la enviaste al proveedor">OC enviada</BotonAccion>;
+    case "Esperar respuesta del proveedor":
+      if (!puede.compras_recepcion) return otra("Lo registra otra persona");
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1">
+          <BotonAccion accion={() => responderOcAction(c.id, "aceptada", "")} className={BOTON} confirmar="¿El proveedor aceptó la OC? Pasa a facturas recibidas.">Aceptó</BotonAccion>
+          <BotonAccion accion={(m) => responderOcAction(c.id, "rechazada", m)} motivo="¿Por qué la rechazó el proveedor?">Rechazó</BotonAccion>
+        </span>
+      );
+    case "OC rechazada por el proveedor":
+      return <BotonAccion accion={anularCompraAction.bind(null, c.id)} motivo={`¿Anular ${c.codigo}? Queda en el registro y un administrador puede reactivarla.`}>Anular solicitud</BotonAccion>;
     case "Falta aprobación JP o gerente":
       if (!puede.compras_aprobador) return otra("Lo aprueba otra persona");
-      return <BotonAccion accion={() => aprobarComprasAction([c.id])}>Aprobar</BotonAccion>;
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1">
+          <BotonAccion accion={() => aprobarComprasAction([c.id])}>Aprobar</BotonAccion>
+          {c.formatoOc && <BotonAccion accion={devolverCompraAction.bind(null, c.id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>}
+        </span>
+      );
     case "Falta visado de Finanzas":
       if (!puede.compras_visador) return otra("Lo visa otra persona");
-      return <BotonAccion accion={() => visarComprasAction([c.id])}>Visar</BotonAccion>;
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1">
+          <BotonAccion accion={() => visarComprasAction([c.id])}>Visar</BotonAccion>
+          {c.formatoOc && <BotonAccion accion={devolverCompraAction.bind(null, c.id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>}
+        </span>
+      );
     case "Factura sin OC: regularizar":
       if (c.aprobadoPor ? !puede.compras_visador : !puede.compras_aprobador) return otra(c.aprobadoPor ? "Lo visa otra persona" : "Lo aprueba otra persona");
       return c.aprobadoPor ? <BotonAccion accion={() => visarComprasAction([c.id])} titulo="Regularizar: visar y emitir la OC">Visar (regularizar)</BotonAccion> : <BotonAccion accion={() => aprobarComprasAction([c.id])} titulo="Regularizar: aprobar y luego visar">Aprobar (regularizar)</BotonAccion>;

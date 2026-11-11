@@ -274,6 +274,33 @@ export interface CompraVista extends Compra {
   motivo: string | null;
   documentoIds: string[];
   creadoEn: string;
+  // ── Formato OC (solicitud con detalle, moneda y PDF) ──
+  creadoPor: string | null;
+  solicitanteTipo: "yo" | "usuario" | "otro" | null;
+  solicitanteNombre: string | null;
+  moneda: "CLP" | "UF" | "USD";
+  tipoCambio: number;
+  netoMoneda: number | null;
+  atencion: string | null;
+  proveedorCorreo: string | null;
+  entregaLugar: string | null;
+  entregaPlazo: string | null;
+  formaPago: string | null;
+  observacionesOc: string | null;
+  condicionesOc: string | null;
+  condicionPagoDias: number | null;
+  enviadaAprobacionEn: string | null;
+  enviadaAprobacionPor: string | null;
+  devueltaPor: string | null;
+  devueltaEn: string | null;
+  ocEnviadaA: string | null;
+  ocEnviadaEn: string | null;
+  ocRespuestaFecha: Iso | null;
+  ocRespuestaPor: string | null;
+  ocRespuestaObs: string | null;
+  anuladaPor: string | null;
+  anuladaEn: string | null;
+  fechaVisado: Iso | null;
 }
 
 export interface HitoVista extends Hito {
@@ -527,6 +554,8 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
         fechaProgramada: pagosDeCompra.filter((x) => x.estado === "programado").map((x) => x.fechaProgramada).filter(Boolean).sort()[0] ?? null,
         fechaPagoReal: pagada ? pagosDeCompra.filter((x) => x.estado === "pagado").map((x) => x.fechaPago).filter(Boolean).sort().pop() ?? hoy : null,
         comentario: r.comentario, anulada: r.estado_override === "anulada" || r.estado_override === "rechazada",
+        formatoOc: Boolean(r.formato_oc), enviadaAprobacion: Boolean(r.enviada_aprobacion_en), devueltaMotivo: r.devuelta_motivo ?? null,
+        ocEnviada: Boolean(r.oc_enviada_en || r.oc_enviada_fecha), ocRespuesta: r.oc_respuesta ?? null,
       },
       // Una diferencia con la OC ya aprobada (con motivo) deja de detener el pago.
       r.diferencia_aprobada ? { ...p, toleranciaFacturaOc: Number.MAX_SAFE_INTEGER } : p,
@@ -538,6 +567,13 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
       solicitante: r.solicitante, fechaRequerida: r.fecha_requerida, prioridad: r.prioridad, visadoPor: r.visado_por, ocFecha: r.oc_fecha, ocEnviadaFecha: r.oc_enviada_fecha,
       recepcionFecha: r.recepcion_fecha, recepcionObs: r.recepcion_obs, diferenciaAprobada: r.diferencia_aprobada, estadoOverride: r.estado_override, motivo: r.motivo,
       documentoIds: docs.map((d) => d.id), creadoEn: r.creado_en,
+      creadoPor: r.creado_por ?? null, solicitanteTipo: r.solicitante_tipo ?? null, solicitanteNombre: r.solicitante_nombre ?? null, moneda: r.moneda ?? "CLP", tipoCambio: Number(r.tipo_cambio ?? 1),
+      netoMoneda: nOrNull(r.neto_moneda), atencion: r.atencion ?? null, proveedorCorreo: r.proveedor_correo ?? null, entregaLugar: r.entrega_lugar ?? null,
+      entregaPlazo: r.entrega_plazo ?? null, formaPago: r.forma_pago ?? null, observacionesOc: r.observaciones_oc ?? null, condicionesOc: r.condiciones_oc ?? null,
+      condicionPagoDias: nOrNull(r.condicion_pago_dias), enviadaAprobacionEn: r.enviada_aprobacion_en ?? null, enviadaAprobacionPor: r.enviada_aprobacion_por ?? null,
+      devueltaPor: r.devuelta_por ?? null, devueltaEn: r.devuelta_en ?? null, ocEnviadaA: r.oc_enviada_a ?? null, ocEnviadaEn: r.oc_enviada_en ?? null,
+      ocRespuestaFecha: r.oc_respuesta_fecha ?? null, ocRespuestaPor: r.oc_respuesta_por ?? null, ocRespuestaObs: r.oc_respuesta_obs ?? null,
+      anuladaPor: r.anulada_por ?? null, anuladaEn: r.anulada_en ?? null, fechaVisado: r.fecha_visado ?? null,
     };
   });
 

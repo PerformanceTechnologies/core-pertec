@@ -60,7 +60,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
 
       {ver === "empresa" && perfilEmpresa && (
         <div className={`${TARJETA} max-w-3xl p-5`}>
-          <p className="mb-5 text-sm text-gris">Lo que sale en el encabezado y el pie del PDF de las cotizaciones de {v.empresa.nombre}. Cada empresa del grupo tiene los suyos: cambia de empresa en el menú para completarlos.</p>
+          <p className="mb-5 text-sm text-gris">Lo que sale en el encabezado y el pie del PDF de las cotizaciones y de las órdenes de compra de {v.empresa.nombre}. Cada empresa del grupo tiene los suyos: cambia de empresa en el menú para completarlos.</p>
           <FormAccion accion={guardarPerfilEmpresaAction} className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <Campo etiqueta="Razón social *" ayuda="Es el nombre que se ve en el menú y en el PDF"><input name="nombre" required defaultValue={perfilEmpresa.nombre} className={CAMPO} maxLength={120} /></Campo>
@@ -74,6 +74,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
             </div>
             <Campo etiqueta="Datos bancarios" ayuda="Salen al pie de la cotización, para que el cliente sepa dónde pagar"><textarea name="datosBancarios" defaultValue={perfilEmpresa.datosBancarios ?? ""} rows={4} className={CAMPO} placeholder={"Banco: …\nCuenta corriente N°: …\nTitular y RUT: …\nCorreo de pagos: …"} /></Campo>
             <Campo etiqueta="Texto del pie" ayuda="Opcional: una línea de cierre, por ejemplo condiciones generales"><textarea name="pie" defaultValue={perfilEmpresa.pie ?? ""} rows={2} className={CAMPO} /></Campo>
+            <Campo etiqueta="Condiciones generales de las órdenes de compra" ayuda="Una condición por línea. Salen al pie de cada OC; se pueden ajustar en cada solicitud. Vacío = las condiciones estándar."><textarea name="condicionesOc" defaultValue={perfilEmpresa.condicionesOc ?? ""} rows={5} className={CAMPO} placeholder={"La factura debe emitirse a nombre de la empresa y citar el N° de la OC.\nEl proveedor debe confirmar la recepción y aceptación de esta orden."} /></Campo>
           </FormAccion>
         </div>
       )}

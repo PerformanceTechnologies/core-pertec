@@ -129,7 +129,7 @@ export async function guardarPerfilEmpresaAction(fd: FormData): Promise<Resultad
       nombre,
       rut: rutEscrito ? formatearRut(normalizarRut(rutEscrito)) : null,
       direccion: texto(fd, "direccion", 200), giro: texto(fd, "giro", 200), telefono: texto(fd, "telefono", 60), correo_comercial: correo, web: texto(fd, "web", 120),
-      datos_bancarios: largo("datosBancarios", 600), pie_cotizacion: largo("pie", 600), prefijo_cotizacion: prefijo,
+      datos_bancarios: largo("datosBancarios", 600), pie_cotizacion: largo("pie", 600), prefijo_cotizacion: prefijo, condiciones_oc: largo("condicionesOc", 3000),
     };
     const { error } = await supabaseAdmin.from("empresas").update(fila).eq("id", ctx.empresa.id);
     revienta("guardar los datos de la empresa", error);
