@@ -64,7 +64,13 @@ Devolver (por quien aprueba o visa) la deja de nuevo editable por su autor y le 
   «Ya la envié» marca el envío sin mandar correo (por si se envió por otro medio).
 - Avisos (campana + correo desde la casilla general de avisos): enviar a aprobación → quienes aprueban; aprobar → quienes visan;
   devolver → solicitante y autor; visar → solicitante y autor. Un paso sin personas asignadas avisa a los administradores del Core.
-  Nunca llega a quien hizo el cambio, y un aviso que falla no tumba la acción.
+  Los de «te toca a ti» (aprobar, visar) llegan también a quien hizo la acción si a ella le toca (le queda algo pendiente); los
+  informativos (devuelta, visada) nunca. Un aviso que falla no tumba la acción.
+- **Recepción** (pestaña de Compras y pagos): lista de las OC enviadas, con filtro Por resolver / Aceptadas / Anuladas / Todas. Se marca
+  si el proveedor **aceptó** (pasa a «Esperar factura del proveedor», que se registra desde Facturas recibidas) o **rechazó** (se reenvía
+  corregida o se anula). Se puede ver y descargar la OC, ver el resumen y reenviar (el reenvío limpia la respuesta anterior). Anular no borra:
+  queda en el registro y solo el administrador global reactiva; el administrador también puede reabrir una respuesta marcada por error
+  (mientras no tenga facturas).
 - Mi Día muestra «Aprobaciones de compras»: lo que le toca aprobar o visar a la persona y lo suyo que le devolvieron, con el resumen en popup.
 
 `neto_cotizado` sigue siendo el neto **en pesos** (neto × (1 + IVA) = total en pesos al tipo de cambio de la OC); el neto en la moneda de la OC va en `neto_moneda`.

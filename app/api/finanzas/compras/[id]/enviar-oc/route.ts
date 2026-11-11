@@ -83,7 +83,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { error } = await supabaseAdmin
       .from("fin_compras")
-      .update({ oc_enviada_en: new Date().toISOString(), oc_enviada_a: lista, oc_enviada_fecha: ctx.hoy, actualizado_en: new Date().toISOString() })
+      // Al (re)enviar se espera una respuesta nueva: la anterior (p. ej. un rechazo) ya no vale.
+      .update({ oc_enviada_en: new Date().toISOString(), oc_enviada_a: lista, oc_enviada_fecha: ctx.hoy, oc_respuesta: null, oc_respuesta_fecha: null, oc_respuesta_por: null, oc_respuesta_obs: null, actualizado_en: new Date().toISOString() })
       .eq("id", id)
       .eq("empresa_id", ctx.empresa.id);
     if (error) throw new Error(error.message);

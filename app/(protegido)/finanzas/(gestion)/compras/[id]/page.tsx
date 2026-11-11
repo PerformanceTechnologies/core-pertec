@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 const ETIQUETA_ACCION: Record<string, string> = {
   crear: "Creada", editar: "Editada", enviar_aprobacion: "A aprobación", aprobar: "Aprobada", visar: "Visada", devolver: "Devuelta", rechazar: "Rechazada", anular: "Anulada",
   reactivar: "Reactivada", oc_enviada: "OC enviada", respuesta_proveedor: "Respuesta del proveedor", recepcion: "Recepción", diferencia: "Diferencia aceptada",
-  programar: "Pago programado", pagar: "Pago hecho",
+  reabrir_respuesta: "Respuesta reabierta", programar: "Pago programado", pagar: "Pago hecho",
 };
 
 const cuando = (iso: string) => new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "short", timeStyle: "short" });

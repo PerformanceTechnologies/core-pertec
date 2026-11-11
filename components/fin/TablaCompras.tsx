@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { IconEye, IconTrash } from "@tabler/icons-react";
-import { anularCompraAction, devolverCompraAction, eliminarCompraAction, enviarAAprobacionAction, reactivarCompraAction, responderOcAction, aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, registrarFacturaCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
+import { anularCompraAction, devolverCompraAction, eliminarCompraAction, enviarAAprobacionAction, reactivarCompraAction, responderOcAction, aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { CompraVista } from "@/lib/fin/datos";
 import { TODO_PERMITIDO, type PuedeFlujo } from "@/lib/fin/flujos-modelo";
 import type { ResumenCompra } from "@/lib/fin/oc-resumen";
 import ResumenConAcciones from "./ResumenConAcciones";
 import { BotonEnviarOc } from "./EnviarOc";
+import RegistrarFacturaCompra from "./RegistrarFacturaCompra";
 import { Chip, Monto, TD, TH, tonoPaso } from "./piezas";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion } from "./ui";
 
@@ -195,24 +196,7 @@ function AccionCompra({ c, cuentas, hoy, puede, esAdmin, resumen }: { c: CompraV
 function AccionPaso({ c, cuentas, hoy, puede }: { c: CompraVista; cuentas: { id: string; nombre: string }[]; hoy: string; puede: PuedeFlujo }) {
   if (c.anulada || c.paso === "Pagada") return null;
   const otra = (quien: string) => <span className="text-xs text-gris" title="Está asignado a otras personas en «Permisos de flujos»">{quien}</span>;
-  const factura = (
-    <ConVentana boton="Registrar factura" titulo={`Factura del proveedor · ${c.codigo}`} className={BOTON_SEC}>
-      {(cerrar) => (
-        <FormAccion accion={registrarFacturaCompraAction} textoBoton="Registrar factura" alOk={cerrar}>
-          <input type="hidden" name="compraId" value={c.id} />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Campo etiqueta="Tipo"><select name="tipoDte" className={CAMPO}><option value="33">33 · Factura</option><option value="34">34 · Exenta</option><option value="46">46 · Factura de compra</option></select></Campo>
-            <Campo etiqueta="Folio *"><input name="folio" required className={CAMPO} /></Campo>
-            <Campo etiqueta="Emisión *"><input name="fechaEmision" type="date" required defaultValue={hoy} className={CAMPO} /></Campo>
-            <Campo etiqueta="Neto"><input name="neto" defaultValue={c.netoCotizado ?? ""} className={CAMPO} /></Campo>
-            <Campo etiqueta="IVA" ayuda="Vacío = se calcula"><input name="iva" className={CAMPO} /></Campo>
-            <Campo etiqueta="Recepción en el SII"><input name="fechaRecepcion" type="date" defaultValue={hoy} className={CAMPO} /></Campo>
-          </div>
-          <p className="text-[11px] text-gris">El vencimiento se calcula con la condición de pago del proveedor. Diferencias con la OC sobre la tolerancia quedan para revisar.</p>
-        </FormAccion>
-      )}
-    </ConVentana>
-  );
+  const factura = <RegistrarFacturaCompra id={c.id} codigo={c.codigo} netoCotizado={c.netoCotizado} hoy={hoy} />;
   switch (c.paso) {
     case "Borrador: enviar a aprobación":
     case "Devuelta: corregir y reenviar":

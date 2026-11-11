@@ -867,3 +867,30 @@ export async function prepararEnvioOcAction(id: string): Promise<{ ok: true; env
     return { ok: false, error: r.ok ? "Ocurrió un error inesperado." : r.error };
   }
 }
+
+/**
+ * Solo el administrador global: deshace la respuesta del proveedor (por ejemplo, si se marcó «aceptó» por error). La OC vuelve
+ * a esperar su respuesta. No se puede si ya tiene facturas registradas.
+ */
+export async function reabrirRespuestaOcAction(id: string): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    if (ctx.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del sistema puede reabrir la respuesta." };
+    const c = await exigirDeEmpresa("fin_compras", id, ctx.empresa.id);
+    if (!c.formato_oc || !c.oc_respuesta) return { ok: false, error: "Esta OC no tiene una respuesta del proveedor." };
+    const { data: facturas, error: ef } = await supabaseAdmin.from("fin_documento_compras").select("documento_id").eq("compra_id", id).limit(1);
+    revienta("revisar sus facturas", ef);
+    if ((facturas ?? []).length > 0) return { ok: false, error: "Ya tiene facturas registradas: no se puede reabrir la respuesta." };
+    const { error } = await supabaseAdmin
+      .from("fin_compras")
+      .update({ oc_respuesta: null, oc_respuesta_fecha: null, oc_respuesta_por: null, oc_respuesta_obs: null, actualizado_en: ahora() })
+      .eq("id", id)
+      .eq("empresa_id", ctx.empresa.id);
+    revienta("reabrir la respuesta", error);
+    await auditar(ctx, "fin_compras", id, "reabrir_respuesta", `Respuesta del proveedor de ${c.oc_numero ?? c.codigo} reabierta (era «${c.oc_respuesta}»)`);
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
