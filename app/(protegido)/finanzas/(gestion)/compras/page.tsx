@@ -115,7 +115,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
           {lista.length === 0 ? (
             <Vacio titulo={ver === "todas" ? "Todavía no hay compras" : "Nada pendiente aquí"} texto={ver === "todas" ? "Toda compra parte como solicitud: usa «Nueva solicitud» (arriba a la derecha). Después pasa por aprobación y visado." : "Todo al día. ✓"} icono={<IconShoppingCart size={24} stroke={1.6} />} />
           ) : (
-            <TablaCompras compras={lista} cuentas={cuentas} hoy={v.hoy} holguras={holguras} modo={ver as "todas" | "aprobar" | "visar"} puede={puede} />
+            <TablaCompras compras={lista} cuentas={cuentas} hoy={v.hoy} holguras={holguras} modo={ver as "todas" | "aprobar" | "visar"} puede={puede} esAdmin={ctx.usuario.rol === "admin"} />
           )}
           {ver === "todas" && lista.length > 0 && (
             <p className="text-[11px] text-gris">Para adjuntar la cotización del proveedor o la guía, ábrela en «Facturas recibidas» o usa el botón de la fila. Imprimir la OC: formato en diseño.</p>

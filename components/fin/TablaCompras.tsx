@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, registrarFacturaCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
+import { IconTrash } from "@tabler/icons-react";
+import { eliminarCompraAction, aprobarComprasAction, aprobarDiferenciaAction, marcarOcEnviadaAction, pagarCompraAction, programarPagosAction, recepcionAction, rechazarCompraAction, registrarFacturaCompraAction, visarComprasAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { CompraVista } from "@/lib/fin/datos";
 import { TODO_PERMITIDO, type PuedeFlujo } from "@/lib/fin/flujos-modelo";
@@ -18,7 +20,7 @@ export interface HolguraCompra {
  * La hoja «Compras y CxP» con el «Siguiente paso» de cada compra y el botón que lo resuelve.
  * Selección múltiple para aprobar, visar o programar pagos de una vez.
  */
-export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "todas", puede = TODO_PERMITIDO }: {
+export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "todas", puede = TODO_PERMITIDO, esAdmin = false }: {
   compras: CompraVista[];
   cuentas: { id: string; nombre: string }[];
   hoy: string;
@@ -26,6 +28,8 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
   modo?: "todas" | "aprobar" | "visar";
   /** Qué pasos puede ejecutar quien mira (Permisos de flujos). El servidor lo vuelve a exigir. */
   puede?: PuedeFlujo;
+  /** Administrador global: ve «Eliminar» en cada solicitud (la acción lo vuelve a exigir en el servidor). */
+  esAdmin?: boolean;
 }) {
   const [marcados, setMarcados] = useState<string[]>([]);
   const elegidas = compras.filter((c) => marcados.includes(c.id));
@@ -64,7 +68,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                 {!c.anulada && c.paso !== "Pagada" && <input type="checkbox" checked={marcados.includes(c.id)} onChange={(e) => setMarcados((m) => (e.target.checked ? [...m, c.id] : m.filter((x) => x !== c.id)))} className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-naranjo)]" aria-label={`Elegir ${c.codigo}`} />}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 font-semibold text-tinta">{c.codigo} · {c.descripcion}</p>
+                    <p className="min-w-0 font-semibold text-tinta"><Link href={`/finanzas/compras/${c.id}`} className="hover:text-naranjo hover:underline" title="Ver historial">{c.codigo}</Link> · {c.descripcion}</p>
                     <span className="shrink-0 text-sm font-bold tabular-nums text-tinta"><Monto valor={c.netoCotizado} /></span>
                   </div>
                   <p className="truncate text-[11px] text-gris">{c.proveedorNombre ?? "Sin proveedor"} · {c.proyectoNombre ?? "General"}</p>
@@ -74,7 +78,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   </div>
                   <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-borde pt-2.5 text-xs">
                     <span className="text-gris">{c.montoFlujo ? <>Por pagar <strong className="text-tinta">{clp(c.montoFlujo)}</strong></> : "Nada por pagar"}</span>
-                    <AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} />
+                    <><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} />{esAdmin && <EliminarCompra id={c.id} codigo={c.codigo} />}</>
                   </div>
                 </div>
               </div>
@@ -107,7 +111,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                     {!c.anulada && c.paso !== "Pagada" && <input type="checkbox" checked={marcados.includes(c.id)} onChange={(e) => setMarcados((m) => (e.target.checked ? [...m, c.id] : m.filter((x) => x !== c.id)))} className="mt-1 accent-[var(--color-naranjo)]" aria-label={`Elegir ${c.codigo}`} />}
                   </td>
                   <td className={`${TD} max-w-[16rem]`}>
-                    <span className="font-semibold text-tinta">{c.codigo}</span> · <span className="text-tinta">{c.descripcion}</span>
+                    <Link href={`/finanzas/compras/${c.id}`} className="font-semibold text-tinta hover:text-naranjo hover:underline" title="Ver historial">{c.codigo}</Link> · <span className="text-tinta">{c.descripcion}</span>
                     <span className="block truncate text-[11px] text-gris">{c.proyectoNombre ?? "General"}{c.fechaRequerida ? ` · para el ${fechaCl(c.fechaRequerida)}` : ""}</span>
                   </td>
                   <td className={TD}><Chip texto={c.estadoOverride ? (c.estadoOverride === "rechazada" ? "Rechazada" : "Anulada") : c.paso} tono={tonoPaso(c.paso)} />{c.motivo && <span className="block text-[10px] text-gris">{c.motivo}</span>}</td>
@@ -116,7 +120,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.ocNumero ?? "—"}{c.recepcion && <span className="block text-[10px] text-gris">Recepción {c.recepcion === "si" ? "conforme" : c.recepcion}</span>}</td>
                   <td className={`${TD} whitespace-nowrap text-xs`}>{c.facturaFolio ? <>N° {c.facturaFolio}<span className="block text-[10px] text-gris">{clp(c.facturaTotal ?? 0)} · vence {fechaCl(c.facturaVence)}</span>{c.diferenciaVsOc ? <span className={`block text-[10px] ${Math.abs(c.diferenciaVsOc) > 1000 && !c.diferenciaAprobada ? "font-semibold text-alerta" : "text-gris"}`}>dif. OC {clp(c.diferenciaVsOc)}</span> : null}</> : "—"}</td>
                   <td className={`${TD} text-right`}>{c.montoFlujo ? <Monto valor={c.montoFlujo} /> : <span className="text-gris-suave">—</span>}{c.fechaFlujo && <span className="block text-[10px] text-gris">{fechaCl(c.fechaFlujo)}</span>}</td>
-                  <td className={`${TD} sticky right-0 whitespace-nowrap bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} /></td>
+                  <td className={`${TD} sticky right-0 whitespace-nowrap bg-superficie shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]`}><><AccionCompra c={c} cuentas={cuentas} hoy={hoy} puede={puede} />{esAdmin && <EliminarCompra id={c.id} codigo={c.codigo} />}</></td>
                 </tr>
               ))}
             </tbody>
@@ -129,7 +133,7 @@ export default function TablaCompras({ compras, cuentas, hoy, holguras, modo = "
                 <div className="flex items-start gap-2">
                   <input type="checkbox" checked={marcados.includes(c.id)} onChange={(e) => setMarcados((m) => (e.target.checked ? [...m, c.id] : m.filter((x) => x !== c.id)))} className="mt-1 accent-[var(--color-naranjo)]" aria-label={`Elegir ${c.codigo}`} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gris">{c.codigo} · {c.proyectoNombre ?? "General"}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gris"><Link href={`/finanzas/compras/${c.id}`} className="hover:text-naranjo hover:underline">{c.codigo}</Link> · {c.proyectoNombre ?? "General"}</p>
                     <p className="font-bold text-tinta">{c.descripcion}</p>
                     <p className="text-xs text-gris">{c.proveedorNombre ?? "Sin proveedor"} · pidió {c.solicitante?.split("@")[0] ?? "—"}</p>
                   </div>
@@ -236,4 +240,18 @@ function AccionCompra({ c, cuentas, hoy, puede }: { c: CompraVista; cuentas: { i
     default:
       return null;
   }
+}
+
+/** Solo para el administrador global: elimina una solicitud (p. ej. de prueba) con motivo, y queda en la auditoría. */
+function EliminarCompra({ id, codigo }: { id: string; codigo: string }) {
+  return (
+    <BotonAccion
+      accion={eliminarCompraAction.bind(null, id)}
+      motivo={`¿Por qué se elimina ${codigo}?`}
+      titulo="Eliminar (solo administrador)"
+      className="ml-1 inline-flex items-center rounded-lg border border-rose-500/40 bg-rose-500/[0.06] p-1.5 text-alerta transition hover:bg-rose-500/[0.12] disabled:opacity-50"
+    >
+      <IconTrash size={14} />
+    </BotonAccion>
+  );
 }
