@@ -60,6 +60,7 @@ async function crearUsuarioYAccesos(form: FormData) {
     rol: String(form.get("rol") ?? "usuario") as Rol,
     aplicacionIds: form.getAll("aplicaciones").map(String),
     rolesExtra: leerRolesExtra(form),
+    invitado: form.get("tipo") === "invitado",
   });
   await reemplazarSubpanelesFinanzas(usuario.id, leerSubpanelesFinanzas(form));
   await reemplazarEmpresas(usuario.id, leerEmpresas(form));
@@ -74,6 +75,9 @@ export async function actualizarUsuarioAction(id: string, form: FormData) {
       activo: form.get("activo") === "on",
       aplicacionIds: form.getAll("aplicaciones").map(String),
       rolesExtra: leerRolesExtra(form),
+      // Solo se toca si el formulario trae el campo (con la columna ya creada).
+      // Sin tocar la columna cuando no cambia nada (así el formulario sirve aunque falte su SQL).
+      invitado: form.get("tipo") === "invitado" ? true : form.get("tipoPrevio") === "invitado" ? false : undefined,
     });
     await reemplazarSubpanelesFinanzas(id, leerSubpanelesFinanzas(form));
     await reemplazarEmpresas(id, leerEmpresas(form));

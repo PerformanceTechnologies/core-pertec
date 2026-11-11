@@ -29,7 +29,7 @@ function Boton({ href, etiqueta, Icono, activo, aviso }: { href: string; etiquet
   );
 }
 
-export default function NavInferior({ veMiDia }: { veMiDia: boolean }) {
+export default function NavInferior({ veMiDia, invitado = false }: { veMiDia: boolean; invitado?: boolean }) {
   const ruta = usePathname();
   const nuevos = useNuevosMuro();
   const en = (r: string) => ruta === r || ruta.startsWith(`${r}/`);
@@ -39,8 +39,8 @@ export default function NavInferior({ veMiDia }: { veMiDia: boolean }) {
       className="fixed inset-x-0 bottom-0 z-40 flex h-16 border-t border-borde bg-crema/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       <Boton href="/" etiqueta="Inicio" Icono={IconHome} activo={ruta === "/"} />
-      <Boton href="/tareas" etiqueta="Tareas" Icono={IconLayoutKanban} activo={en("/tareas")} />
-      <Boton href="/muro" etiqueta="Muro" Icono={IconMessages} activo={en("/muro")} aviso={en("/muro") ? 0 : nuevos} />
+      {!invitado && <Boton href="/tareas" etiqueta="Tareas" Icono={IconLayoutKanban} activo={en("/tareas")} />}
+      {!invitado && <Boton href="/muro" etiqueta="Muro" Icono={IconMessages} activo={en("/muro")} aviso={en("/muro") ? 0 : nuevos} />}
       {veMiDia && <Boton href="/mi-dia" etiqueta="Mi Día" Icono={IconSunHigh} activo={en("/mi-dia")} />}
       <button
         type="button"

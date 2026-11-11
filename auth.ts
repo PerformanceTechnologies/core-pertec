@@ -1,5 +1,7 @@
 import NextAuth, { type Profile } from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
+import Credentials from "next-auth/providers/credentials";
+import { verificarCodigo } from "@/lib/invitados";
 import { obtenerUsuarioActivo, registrarIngreso } from "@/lib/usuarios";
 import { canjearRefreshToken, SCOPES_GRAPH } from "@/lib/graph-token";
 import { guardarRefreshToken } from "@/lib/graph-credenciales";
@@ -63,6 +65,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // (ver lib/graph-calendario.ts y lib/graph-correo.ts).
       authorization: { params: { scope: SCOPES_GRAPH } },
     }),
+    // Invitados (fuera de PERTEC): correo + código de 6 dígitos que les llega por mail.
+    Credentials({
+      id: "invitado",
+      name: "Invitado",
+      credentials: { correo: {}, codigo: {} },
+      async authorize(c) {
+        const correo = await verificarCodigo(String(c?.correo ?? ""), String(c?.codigo ?? ""));
+        return correo ? { id: correo, email: correo } : null;
+      },
+    }),
   ],
   // Treinta días, y la cookie se corre una vez por día de uso.
   //
@@ -83,8 +95,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Solo decide si puede ENTRAR. El rol y las apps asignadas se leen frescos
     // en cada carga de página (ver app/(protegido)/layout.tsx) para que quitar
     // acceso a alguien tenga efecto de inmediato, no recién cuando expire su sesión.
-    async signIn({ profile }) {
-      const correo = correoDelPerfil(profile);
+    async signIn({ profile, account, user }) {
+      const correo = account?.provider === "invitado" ? user?.email?.toLowerCase() ?? null : correoDelPerfil(profile);
       const usuario = await obtenerUsuarioActivo(correo);
       if (!usuario) {
         // Un rechazo no dejaba ningún rastro: la persona veía "no autorizada" y
@@ -98,7 +110,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, account, profile }) {
+    async jwt({ token, account, profile, user }) {
+      // Invitado: sin Microsoft ni tokens de Graph.
+      if (account?.provider === "invitado") {
+        const correo = user?.email?.toLowerCase() ?? null;
+        const ultimoIngresoAnterior = correo ? await registrarIngreso(correo) : null;
+        return { ...token, email: correo ?? token.email, ultimoIngresoAnterior, error: undefined };
+      }
       // Primer login: "account" trae los tokens que devolvió Microsoft.
       if (account) {
         // Se captura el ultimo_ingreso ANTERIOR antes de que registrarIngreso

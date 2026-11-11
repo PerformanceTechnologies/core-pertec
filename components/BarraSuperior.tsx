@@ -18,11 +18,14 @@ import type { Empresa } from "@/lib/empresas-modelo";
  */
 export default function BarraSuperior({
   veMiDia,
+  invitado = false,
   mostrarBuzon,
   empresaActiva,
   empresasPermitidas,
 }: {
   veMiDia: boolean;
+  /** Invitado externo: sin Muro (es de la gente de la empresa). */
+  invitado?: boolean;
   /** El buzón es de PERTEC: parado en otra empresa no se muestra. */
   mostrarBuzon: boolean;
   empresaActiva: Empresa | null;
@@ -51,6 +54,8 @@ export default function BarraSuperior({
           <span className="max-lg:sr-only">Mi Día</span>
         </Link>
       )}
+      {!invitado && (
+      <>
       {/* El Muro es de todos (no depende de una aplicación asignada), con sus mensajes nuevos encima. */}
       <Link
         href="/muro"
@@ -66,6 +71,8 @@ export default function BarraSuperior({
         <span className="max-lg:sr-only">Muro</span>
         <InsigniaMuro chica />
       </Link>
+      </>
+      )}
       {/* En el celular la empresa va a la izquierda de la barra (hace de logo y de selector). */}
       <div className={`lg:static max-lg:fixed max-lg:top-[0.6875rem] ${pathname === "/" ? "max-lg:left-3" : "max-lg:left-[3.25rem]"}`}>
         <SelectorEmpresa activa={empresaActiva} permitidas={empresasPermitidas} />

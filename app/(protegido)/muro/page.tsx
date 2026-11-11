@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function MuroPage() {
   const usuario = await obtenerUsuarioActivo((await auth())?.user?.email);
   if (!usuario) redirect("/ingresar");
+  if (usuario.tipo === "invitado") redirect("/");
   const empresa = await empresaDelMuro(usuario);
   if (!empresa) redirect("/");
 

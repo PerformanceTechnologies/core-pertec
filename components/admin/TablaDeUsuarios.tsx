@@ -56,6 +56,7 @@ export default function TablaDeUsuarios({
                 <span className="block truncate font-semibold text-tinta">
                   {nombreMostrado}
                   {usuario.id === usuarioActualId && <span className="ml-1.5 rounded-full bg-tinta/10 px-1.5 py-0.5 text-[10px] font-semibold text-tinta/70">Tú</span>}
+                  {usuario.tipo === "invitado" && <span className="ml-1.5 rounded-full bg-violet-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">Invitado</span>}
                 </span>
                 {usuario.nombre && <span className="block truncate text-xs text-tinta/60">{usuario.correo}</span>}
                 <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -109,6 +110,9 @@ export default function TablaDeUsuarios({
                         {nombreMostrado}
                         {usuario.id === usuarioActualId && (
                           <span className="ml-2 rounded-full bg-tinta/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-tinta/70">Tú</span>
+                        )}
+                        {usuario.tipo === "invitado" && (
+                          <span className="ml-2 rounded-full bg-violet-500/12 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-violet-700">Invitado</span>
                         )}
                         {!usuario.activo && (
                           <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-borde px-1.5 py-0.5 align-middle text-[10px] font-semibold text-tinta/65">

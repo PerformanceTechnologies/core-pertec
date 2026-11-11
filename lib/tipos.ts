@@ -12,6 +12,8 @@ export interface Usuario {
   nombre: string | null;
   rol: Rol;
   activo: boolean;
+  /** «invitado»: persona de fuera de PERTEC; entra con código por correo y solo ve lo asignado. */
+  tipo?: "interno" | "invitado";
   creado_en: string;
   ultimo_ingreso: string | null;
 }

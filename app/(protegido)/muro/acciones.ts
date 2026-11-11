@@ -13,6 +13,7 @@ const fallo = (e: unknown): Falla => ({ ok: false, error: e instanceof Error ? e
 async function contexto() {
   const usuario = await obtenerUsuarioActivo((await auth())?.user?.email);
   if (!usuario) redirect("/ingresar");
+  if (usuario.tipo === "invitado") throw new Error("El Muro es solo para la gente de la empresa.");
   const empresa = await empresaDelMuro(usuario);
   if (!empresa) throw new Error("No tienes una empresa activa.");
   return { usuario, empresa };
@@ -71,7 +72,7 @@ export async function anterioresAction(
 export async function nuevosEnMuroAction(vistos: Record<string, string>): Promise<{ empresaId: string; cuantos: number } | null> {
   try {
     const usuario = await obtenerUsuarioActivo((await auth())?.user?.email);
-    if (!usuario) return null;
+    if (!usuario || usuario.tipo === "invitado") return null;
     const empresa = await empresaDelMuro(usuario);
     if (!empresa) return null;
     const desde = vistos && typeof vistos[empresa.id] === "string" ? vistos[empresa.id] : null;

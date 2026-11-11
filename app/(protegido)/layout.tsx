@@ -67,7 +67,8 @@ export default async function LayoutProtegido({ children }: { children: React.Re
           viewport. */}
       <main className={`min-w-0 pb-24 pt-5 lg:py-8 ${HUECO_DE_BARRA}`}>
         <BarraSuperior
-          veMiDia={apps.some((app) => app.url === "/mi-dia")}
+          invitado={usuario.tipo === "invitado"}
+          veMiDia={usuario.tipo !== "invitado" && apps.some((app) => app.url === "/mi-dia")}
           mostrarBuzon={conDatos}
           empresaActiva={empresa.activa}
           empresasPermitidas={empresa.permitidas}
@@ -77,7 +78,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         {children}
       </main>
       <BotonSubir />
-      <NavInferior veMiDia={apps.some((app) => app.url === "/mi-dia")} />
+      <NavInferior invitado={usuario.tipo === "invitado"} veMiDia={usuario.tipo !== "invitado" && apps.some((app) => app.url === "/mi-dia")} />
     </div>
   );
 }

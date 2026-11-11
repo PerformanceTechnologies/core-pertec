@@ -160,13 +160,16 @@ export async function crearUsuario(datos: {
   rol: Rol;
   aplicacionIds: string[];
   rolesExtra: Record<string, string>;
+  invitado?: boolean;
 }): Promise<{ id: string }> {
   const { data: usuario, error } = await supabaseAdmin
     .from("usuarios")
     .insert({
       correo: datos.correo.toLowerCase().trim(),
       nombre: datos.nombre.trim() || null,
-      rol: datos.rol,
+      // Un invitado nunca es administrador.
+      rol: datos.invitado ? "usuario" : datos.rol,
+      ...(datos.invitado ? { tipo: "invitado" } : {}),
     })
     .select("id")
     .single();
@@ -185,14 +188,16 @@ export async function actualizarUsuario(
     activo: boolean;
     aplicacionIds: string[];
     rolesExtra: Record<string, string>;
+    invitado?: boolean;
   },
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from("usuarios")
     .update({
       nombre: datos.nombre.trim() || null,
-      rol: datos.rol,
+      rol: datos.invitado ? "usuario" : datos.rol,
       activo: datos.activo,
+      ...(datos.invitado !== undefined ? { tipo: datos.invitado ? "invitado" : "interno" } : {}),
     })
     .eq("id", id);
 
