@@ -21,11 +21,14 @@ export default function ConciliarGasto({
   gasto,
   puedeConciliar,
   alCambiar,
+  compacto = false,
 }: {
   informeId: string;
   gasto: GastoRendicion;
   puedeConciliar: boolean;
   alCambiar: (c: GastoRendicion["conciliacion"]) => void;
+  /** En una fila de lista: solo el estado y el botón, sin el recuadro. */
+  compacto?: boolean;
 }) {
   const [abierta, setAbierta] = useState(false);
   const [facturas, setFacturas] = useState<FacturaCandidata[] | null>(null);
@@ -60,8 +63,8 @@ export default function ConciliarGasto({
     });
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-borde bg-superficie px-3 py-2 text-xs">
-      <IconScale size={15} className="shrink-0 text-gris" />
+    <div className={compacto ? "inline-flex items-center gap-1.5 text-[11px]" : "mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-borde bg-superficie px-3 py-2 text-xs"}>
+      {!compacto && <IconScale size={15} className="shrink-0 text-gris" />}
       {c ? (
         <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 font-semibold text-emerald-700">
           <IconCircleCheck size={14} /> Conciliado

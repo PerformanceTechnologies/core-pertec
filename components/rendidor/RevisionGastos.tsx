@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { IconAlertTriangle, IconCheck, IconEye, IconLoader2, IconPaperclip, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconEye, IconFileSpreadsheet, IconLoader2, IconPaperclip, IconX } from "@tabler/icons-react";
+import ConciliarGasto from "@/components/rendidor/ConciliarGasto";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import VisorComprobante, { type Comprobante } from "@/components/rendidor/VisorComprobante";
 import { CAMPO } from "@/lib/estilos";
@@ -13,7 +14,7 @@ import { TRATAMIENTO_DOCUMENTO, type GastoRendicion } from "@/lib/rendidor/tipos
 const fechaCorta = (f: string | null) =>
   f ? new Date(`${f}T12:00:00Z`).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "Sin fecha";
 
-const COLS = "md:grid-cols-[1.5rem_5.25rem_minmax(0,1.6fr)_minmax(0,1fr)_6rem_6.5rem_auto]";
+const COLS = "md:grid-cols-[1.5rem_5.25rem_minmax(0,1.5fr)_minmax(0,1fr)_6rem_minmax(11rem,auto)_auto]";
 
 /**
  * Lo que ve quien revisa un informe enviado: los gastos en lista (una línea cada uno), con el
@@ -25,12 +26,17 @@ export default function RevisionGastos({
   gastos: iniciales,
   urlsRespaldo,
   puedeRevisarBoletas,
+  validado = false,
+  puedeConciliar = false,
 }: {
   informeId: string;
   gastos: GastoRendicion[];
   urlsRespaldo: Record<string, string>;
   /** Informes con fondo: se revisa boleta por boleta. Los antiguos solo se leen. */
   puedeRevisarBoletas: boolean;
+  /** Informe ya aprobado o cerrado: se muestra la conciliación de cada gasto. */
+  validado?: boolean;
+  puedeConciliar?: boolean;
 }) {
   const [gastos, setGastos] = useState(iniciales);
   const [viendo, setViendo] = useState<Comprobante | null>(null);
@@ -40,6 +46,31 @@ export default function RevisionGastos({
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
   const [enCurso, setEnCurso] = useState<string | null>(null);
+
+  const [generandoExcel, setGenerandoExcel] = useState(false);
+  const descargarExcel = async () => {
+    setGenerandoExcel(true);
+    setError(null);
+    try {
+      const resp = await fetch(`/api/rendidor/${informeId}/excel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (!resp.ok) {
+        const c = (await resp.json().catch(() => ({}))) as { error?: string };
+        throw new Error(c.error ?? "No se pudo generar la planilla.");
+      }
+      const blob = await resp.blob();
+      const nombre = resp.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? "rendicion.xlsx";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nombre;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar la planilla.");
+    } finally {
+      setGenerandoExcel(false);
+    }
+  };
 
   const estadoDe = (g: GastoRendicion): EstadoBoleta => g.revision?.estado ?? "cargada";
   const total = gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
@@ -85,6 +116,9 @@ export default function RevisionGastos({
             {puedeRevisarBoletas && ` · ${cuenta("aceptada")} aceptados, ${cuenta("cargada")} por revisar${cuenta("observada") ? `, ${cuenta("observada")} observados` : ""}${cuenta("rechazada") ? `, ${cuenta("rechazada")} rechazados` : ""}`}
           </p>
         </div>
+        <button type="button" disabled={generandoExcel} onClick={descargarExcel} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-borde bg-superficie px-3 text-xs font-bold text-tinta transition hover:border-naranjo/50 disabled:opacity-50">
+          {generandoExcel ? <IconLoader2 size={14} className="animate-spin" /> : <IconFileSpreadsheet size={14} />} Descargar Excel
+        </button>
         {puedeRevisarBoletas && cuenta("cargada") > 0 && (
           <button type="button" disabled={pendiente} onClick={aceptarTodas} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-500/10 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-500/20 disabled:opacity-50">
             {pendiente && !enCurso ? <IconLoader2 size={14} className="animate-spin" /> : <IconCheck size={14} />} Aceptar las {cuenta("cargada")} por revisar
@@ -122,6 +156,17 @@ export default function RevisionGastos({
                 <span className="text-right font-semibold tabular-nums text-tinta">{pesos(Number(g.total) || 0)}</span>
                 <span className="hidden whitespace-nowrap md:block">
                   <span className={`inline-flex rounded px-1.5 py-px text-[10.5px] font-semibold ${TONO_BOLETA[est]}`}>{ETIQUETA_BOLETA[est]}</span>
+                  {validado && est !== "rechazada" && est !== "observada" && (
+                    <span className="ml-1.5 align-middle">
+                      <ConciliarGasto
+                        compacto
+                        informeId={informeId}
+                        gasto={g}
+                        puedeConciliar={puedeConciliar}
+                        alCambiar={(c) => setGastos((prev) => prev.map((x) => (x.id === g.id ? { ...x, conciliacion: c } : x)))}
+                      />
+                    </span>
+                  )}
                   {g.duplicadoDe && <span className="ml-1 text-[10px] font-semibold text-rose-600" title={`Mismo RUT, folio y monto que en «${g.duplicadoDe.titulo}»`}>Duplicado</span>}
                 </span>
                 <span className="col-span-3 flex items-center justify-end gap-1 md:col-span-1">
