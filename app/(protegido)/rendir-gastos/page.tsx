@@ -29,6 +29,7 @@ import NuevaRendicion from "@/components/rendidor/NuevaRendicion";
 import { AsignarFondo, BotonAccion, CargarFondo, SolicitarFondo } from "@/components/rendidor/fondos/ControlesFondo";
 import ConfiguracionFondos from "@/components/rendidor/fondos/ConfiguracionFondos";
 import { FilaFondo, Vacio } from "@/components/rendidor/fondos/Vistas";
+import TablaFondos from "@/components/rendidor/fondos/TablaFondos";
 import {
   anularFondoAction,
   conciliarAction,
@@ -239,17 +240,18 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
                   ))}
                 </div>
                 {lista.length === 0 ? <Vacio texto={verArchivados ? "No hay fondos archivados." : "No hay fondos en este estado."} /> : (
-                  <ul className="space-y-2.5">
-                    {lista.map((f) => (
-                      <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite}>
-                        {verArchivados ? (
-                          <BotonAccion accion={archivarFondoAction.bind(null, f.id, false)} tono="secundario">Desarchivar</BotonAccion>
-                        ) : (
-                          <BotonAccion accion={archivarFondoAction.bind(null, f.id, true)} confirma={`${f.codigo} deja de verse en las listas y los pendientes. No se borra nada: lo puedes desarchivar desde «Archivados».`} tono="secundario">Archivar</BotonAccion>
-                        )}
-                      </FilaFondo>
-                    ))}
-                  </ul>
+                  <TablaFondos
+                    fondos={lista}
+                    informes={todasLasRendiciones}
+                    hoy={hoy}
+                    acciones={(f) =>
+                      verArchivados ? (
+                        <BotonAccion compacto accion={archivarFondoAction.bind(null, f.id, false)} tono="secundario">Desarchivar</BotonAccion>
+                      ) : (
+                        <BotonAccion compacto accion={archivarFondoAction.bind(null, f.id, true)} confirma={`${f.codigo} deja de verse en las listas y los pendientes. No se borra nada: lo puedes desarchivar desde «Archivados».`} tono="secundario">Archivar</BotonAccion>
+                      )
+                    }
+                  />
                 )}
               </>
             );

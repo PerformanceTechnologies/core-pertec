@@ -32,6 +32,7 @@ export function BotonAccion({
   confirma,
   comprobante,
   irA,
+  compacto = false,
   tono = "primario",
 }: {
   accion: (texto: string, comprobante?: string) => Promise<Resultado>;
@@ -43,6 +44,8 @@ export function BotonAccion({
   comprobante?: { fondoId: string };
   /** Si la acción borra lo que se está mirando: a dónde ir después. */
   irA?: string;
+  /** Botón chico, para filas de tabla. */
+  compacto?: boolean;
   tono?: "primario" | "secundario" | "peligro";
 }) {
   const router = useRouter();
@@ -93,7 +96,7 @@ export function BotonAccion({
             setAbierta(true);
           } else ejecutar();
         }}
-        className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-bold transition disabled:opacity-50 ${clases}`}
+        className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-bold transition disabled:opacity-50 ${compacto ? "min-h-7 px-2.5 text-xs" : "min-h-10 px-4 text-sm"} ${clases}`}
       >
         {pendiente && !abierta && <IconLoader2 size={15} className="animate-spin" />}
         {children}
