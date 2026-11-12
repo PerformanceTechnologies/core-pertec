@@ -378,6 +378,8 @@ export default function EditorSolicitud({
               <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                 <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
                 <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} flex-1 resize-none leading-snug`} placeholder="Descripción del producto o servicio" />
+                <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar la nota de este ítem" : "Agregar una nota o detalle a este ítem (marca, código, especificación)"}
+                  className={`mt-0.5 shrink-0 rounded-lg p-1.5 transition ${l.nota.trim() ? "bg-naranjo/10 text-naranjo" : notasAbiertas.includes(i) ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Nota del ítem ${i + 1}`}><IconNotes size={16} /></button>
               </div>
               <label className="block"><span className={LBL}>Cantidad</span><input aria-label="Cantidad" value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: e.target.value })} inputMode="decimal" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
               <label className="block"><span className={LBL}>Unidad</span><input aria-label="Unidad" value={l.unidad} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} maxLength={20} className={CAMPO_C} /></label>
@@ -388,14 +390,12 @@ export default function EditorSolicitud({
                 <span className={`${LBL} mb-0`}>Total</span>
                 <span className="font-condensed text-lg font-bold tabular-nums text-tinta">{formatoMonto(netoLineaOc(items[i], moneda), moneda)}</span>
               </div>
-              <div className="col-span-2 flex items-center justify-end gap-0.5 lg:col-span-1">
-                <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar el detalle de este ítem" : "Agregar un detalle (marca, código, especificación)"}
-                  className={`rounded-lg p-1.5 transition ${l.nota.trim() ? "bg-naranjo/10 text-naranjo" : notasAbiertas.includes(i) ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Detalle del ítem ${i + 1}`}><IconNotes size={16} /></button>
-                <button type="button" onClick={() => quitarLinea(i)} className="rounded-lg p-1.5 text-gris hover:bg-rose-500/10 hover:text-alerta" aria-label={`Quitar el ítem ${i + 1}`}><IconTrash size={16} /></button>
+              <div className="col-span-2 flex items-center justify-end lg:col-span-1">
+                <button type="button" onClick={() => quitarLinea(i)} className="rounded-lg p-1.5 text-gris hover:bg-rose-500/10 hover:text-alerta" aria-label={`Quitar el ítem ${i + 1}`} title="Quitar este ítem"><IconTrash size={16} /></button>
               </div>
               {(notasAbiertas.includes(i) || Boolean(l.nota.trim())) && (
                 <div className="col-span-2 lg:col-span-full lg:pl-[1.75rem]">
-                  <AreaAuto aria-label={`Detalle del ítem ${i + 1}`} value={l.nota} maxLength={1000} onChange={(v) => cambiarLinea(i, { nota: v })} className={`${CAMPO_C} min-h-[2.25rem] resize-none text-[13px] leading-snug`} placeholder="Detalle opcional: marca, código, especificación. Sale bajo el ítem en la OC." />
+                  <AreaAuto aria-label={`Nota del ítem ${i + 1}`} value={l.nota} maxLength={1000} onChange={(v) => cambiarLinea(i, { nota: v })} className={`${CAMPO_C} min-h-[2.25rem] resize-none text-[13px] leading-snug`} placeholder="Nota opcional: marca, código, especificación o descripción larga de este ítem. Sale bajo el ítem en la OC." />
                 </div>
               )}
             </li>
