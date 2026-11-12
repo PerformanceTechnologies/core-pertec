@@ -44,8 +44,15 @@ export async function cerrarInformeAprobado(r: Rendicion, revisor: string): Prom
   await auditar("informe", r.id, "aprobada", "cerrada", revisor);
 
   if (saldo === 0) {
-    await transicion(fondo, ["activo"], "cerrado", revisor, { cerrado_en: ahora }, "Gasto igual al fondo");
-    await avisar(dueno, revisor, `Tu fondo ${fondo.codigo} quedó cerrado`, "Lo rendido calzó justo con el fondo.", enlaceFondo(fondo.id), "fondo-cerrado");
+    if (fondo.esFijo) {
+      // Un fondo fijo gastado por completo no se da por terminado: queda esperando su reposición (se repone el monto fijo entero).
+      await transicion(fondo, ["activo"], "cerrado_con_saldo", revisor, { cerrado_en: ahora }, "Gasto igual al fondo fijo: por reponer");
+      await avisar(await correosConRol(fondo.empresaId, "asignador"), revisor, `Fondo fijo por reponer: ${fondo.codigo}`, `${r.nombreQuienRinde} · gastó todo el fondo`, enlaceFondo(fondo.id), "por-reponer", "alerta");
+      await avisar(dueno, revisor, `Tu fondo fijo ${fondo.codigo} espera su reposición`, "Lo rendido calzó justo con el fondo: Administración lo repone.", enlaceFondo(fondo.id), "fondo-cerrado");
+    } else {
+      await transicion(fondo, ["activo"], "cerrado", revisor, { cerrado_en: ahora }, "Gasto igual al fondo");
+      await avisar(dueno, revisor, `Tu fondo ${fondo.codigo} quedó cerrado`, "Lo rendido calzó justo con el fondo.", enlaceFondo(fondo.id), "fondo-cerrado");
+    }
   } else {
     // Para que no se acumulen fondos: también se le avisa a quien asigna, que puede pedir la devolución o
     // cargarle el nuevo fondo a este mismo.

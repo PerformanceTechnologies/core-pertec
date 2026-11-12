@@ -355,7 +355,13 @@ export async function pagarReembolsoAction(informeId: string, referencia: string
     await registrarMovimiento(f, "REEMBOLSO", exceso, c.yo, { informeId, referenciaBanco: ref, comprobante: comp });
     await auditar("informe", informeId, "reembolso_pendiente", "reembolsada", c.yo, `Ref. ${ref}`);
     await auditar("informe", informeId, "reembolsada", "cerrada", c.yo);
-    await transicion(f, ["activo"], "cerrado", c.yo, { cerrado_en: new Date().toISOString() }, "Reembolsado");
+    if (f.esFijo) {
+      // Un fondo fijo que se pasó y ya se reembolsó queda en cero, esperando su reposición (no cerrado del todo).
+      await transicion(f, ["activo"], "cerrado_con_saldo", c.yo, { cerrado_en: new Date().toISOString() }, "Reembolsado: por reponer");
+      await avisar(await correosConRol(c.empresaId, "asignador"), c.yo, `Fondo fijo por reponer: ${f.codigo}`, `${f.rendidorNombre} · se reembolsó el exceso; el fondo quedó en cero`, enlaceFondo(f.id), "por-reponer", "alerta");
+    } else {
+      await transicion(f, ["activo"], "cerrado", c.yo, { cerrado_en: new Date().toISOString() }, "Reembolsado");
+    }
     await avisar([f.rendidorCorreo], c.yo, `Te reembolsaron ${pesos(exceso)}`, `${r.tituloRendicion} · ref. ${ref}`, `/rendir-gastos/${informeId}`, "reembolsado");
     return listo(informeId);
   } catch (e) {
