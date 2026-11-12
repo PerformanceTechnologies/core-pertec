@@ -56,6 +56,9 @@ export interface TarjetaAprobacion {
 /** Lo que una persona tiene pendiente en Compras y pagos. */
 export interface PendientesDeCompras {
   empresa: string;
+  /** Para cambiar a esa empresa y abrir la solicitud allí (las de otra empresa no se resuelven desde Mi Día). */
+  empresaSlug?: string;
+  esActiva?: boolean;
   porAprobar: TarjetaAprobacion[];
   porVisar: TarjetaAprobacion[];
   /** Solicitudes suyas que le devolvieron para corregir. */

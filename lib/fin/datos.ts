@@ -50,6 +50,7 @@ export const RUTA_COMPRAS = "/finanzas/compras";
 export const SLUG_APP_LEADS = "leads";
 export const RUTA_LEADS = "/leads";
 const EMPRESAS_CON_FINANZAS = ["pertec", "zeus", "performance-service"];
+export const EMPRESAS_CON_FINANZAS_SLUGS: readonly string[] = EMPRESAS_CON_FINANZAS;
 
 export interface ContextoFin {
   usuario: UsuarioConAcceso;

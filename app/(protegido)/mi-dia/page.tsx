@@ -12,7 +12,9 @@ import PrioridadDelDia from "@/components/mi-dia/PrioridadDelDia";
 import MisTareas from "@/components/mi-dia/MisTareas";
 import TareasPedidas from "@/components/mi-dia/TareasPedidas";
 import AprobacionesPendientes from "@/components/mi-dia/AprobacionesPendientes";
-import { pendientesDeCompras } from "@/lib/fin/oc-pendientes";
+import { pendientesDeComprasTodas } from "@/lib/fin/oc-pendientes";
+import { pendientesRendirGastos } from "@/lib/rendidor/pendientes";
+import PendientesRendirGastos from "@/components/mi-dia/PendientesRendirGastos";
 import { listarResponsables, tareasDeMiDia } from "@/lib/tareas";
 import { resumirMisTareas, resumirTareasPedidas, SLUG_APP_TAREAS } from "@/lib/tareas-modelo";
 
@@ -394,6 +396,10 @@ export default async function MiDiaPage() {
         <SeccionAprobaciones usuario={usuario} />
       </Suspense>
 
+      <Suspense fallback={null}>
+        <SeccionRendirGastos usuario={usuario} />
+      </Suspense>
+
       {/* Las tareas van en vivo y aparte del resumen: no esperan al modelo. */}
       <Suspense fallback={null}>
         <SeccionTareas usuario={usuario} hoyIso={hoy.iso} />
@@ -409,9 +415,23 @@ export default async function MiDiaPage() {
  * aparece si hay algo pendiente: sin pendientes, Mi Día queda como siempre.
  */
 async function SeccionAprobaciones({ usuario }: { usuario: UsuarioConAcceso }) {
-  const pendientes = await pendientesDeCompras(usuario);
-  if (!pendientes || pendientes.porAprobar.length + pendientes.porVisar.length + pendientes.devueltas.length === 0) return null;
-  return <AprobacionesPendientes pendientes={pendientes} />;
+  // De TODAS las empresas de la persona, no solo la activa.
+  const pendientes = await pendientesDeComprasTodas(usuario);
+  if (pendientes.length === 0) return null;
+  return (
+    <>
+      {pendientes.map((p) => (
+        <AprobacionesPendientes key={p.empresaSlug ?? p.empresa} pendientes={p} />
+      ))}
+    </>
+  );
+}
+
+/** Lo pendiente en Rendir Gastos (validar, asignar, transferir, revisar…), en cada empresa. */
+async function SeccionRendirGastos({ usuario }: { usuario: UsuarioConAcceso }) {
+  const pendientes = await pendientesRendirGastos(usuario);
+  if (pendientes.length === 0) return null;
+  return <PendientesRendirGastos pendientes={pendientes} />;
 }
 
 /**

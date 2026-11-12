@@ -2,7 +2,9 @@ import "server-only";
 import { supabaseAdmin } from "../supabase-admin";
 import { puedeVerApp } from "../autorizacion";
 import type { UsuarioConAcceso } from "../tipos";
-import { SLUG_APP_FIN, contextoFinDeUsuario } from "./datos";
+import { SLUG_APP_FIN, contextoFinDeUsuario, EMPRESAS_CON_FINANZAS_SLUGS } from "./datos";
+import { contextoDeEmpresa } from "../empresas";
+import type { Empresa } from "../empresas-modelo";
 import { asignacionesDeEmpresa } from "./flujos";
 import { lineasDeCompras, tasaIvaDe } from "./oc-datos";
 import { esMoneda, formatoMonto, totalesOc } from "./oc-modelo";
@@ -24,6 +26,33 @@ export async function pendientesDeCompras(usuario: UsuarioConAcceso): Promise<Pe
     if (!(await puedeVerApp(usuario, SLUG_APP_FIN))) return null;
     const ctx = await contextoFinDeUsuario(usuario);
     if (!ctx) return null;
+    return await pendientesDeComprasEn(usuario, ctx.empresa, true);
+  } catch (e) {
+    console.error("[compras] No se pudieron leer las aprobaciones pendientes:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * Lo mismo, de TODAS las empresas de la persona que usan Finanzas (no solo la activa): Mi Día muestra lo pendiente
+ * de cada una, y las que no son la activa se abren cambiando de empresa. Solo devuelve las que tienen algo.
+ */
+export async function pendientesDeComprasTodas(usuario: UsuarioConAcceso): Promise<PendientesDeCompras[]> {
+  try {
+    if (!(await puedeVerApp(usuario, SLUG_APP_FIN))) return [];
+    const { activa, permitidas } = await contextoDeEmpresa(usuario.id, usuario.rol);
+    const empresas = permitidas.filter((e) => EMPRESAS_CON_FINANZAS_SLUGS.includes(e.slug));
+    const todas = await Promise.all(empresas.map((e) => pendientesDeComprasEn(usuario, e, e.id === activa?.id).catch(() => null)));
+    return todas.filter((p): p is PendientesDeCompras => Boolean(p) && p!.porAprobar.length + p!.porVisar.length + p!.devueltas.length > 0);
+  } catch (e) {
+    console.error("[compras] No se pudieron leer las aprobaciones pendientes:", e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
+async function pendientesDeComprasEn(usuario: UsuarioConAcceso, empresa: Empresa, esActiva: boolean): Promise<PendientesDeCompras | null> {
+  try {
+    const ctx = { empresa };
     const mapa = await asignacionesDeEmpresa(ctx.empresa.id);
     const lesToca = (rol: "compras_aprobador" | "compras_visador") => {
       const asignados = mapa.get(rol) ?? [];
@@ -41,7 +70,7 @@ export async function pendientesDeCompras(usuario: UsuarioConAcceso): Promise<Pe
       base().is("enviada_aprobacion_en", null).not("devuelta_motivo", "is", null).or(`creado_por.eq.${yo.replace(/[,()]/g, "")},solicitante.eq.${yo.replace(/[,()]/g, "")}`).order("devuelta_en", { ascending: false }),
     ]);
     const filas = [...(aprobar.data ?? []), ...(visar.data ?? []), ...(devueltas.data ?? [])] as any[];
-    if (filas.length === 0) return { empresa: ctx.empresa.nombre, porAprobar: [], porVisar: [], devueltas: [], puedeAprobar, puedeVisar };
+    if (filas.length === 0) return { empresa: ctx.empresa.nombre, empresaSlug: ctx.empresa.slug, esActiva, porAprobar: [], porVisar: [], devueltas: [], puedeAprobar, puedeVisar };
 
     const ids = [...new Set(filas.map((f) => f.id as string))];
     const provIds = [...new Set(filas.map((f) => f.proveedor_id).filter(Boolean))] as string[];
@@ -77,6 +106,8 @@ export async function pendientesDeCompras(usuario: UsuarioConAcceso): Promise<Pe
 
     return {
       empresa: ctx.empresa.nombre,
+      empresaSlug: ctx.empresa.slug,
+      esActiva,
       porAprobar: (aprobar.data ?? []).map((f: any) => tarjeta(f, PASOS.aprobar)),
       porVisar: (visar.data ?? []).map((f: any) => tarjeta(f, PASOS.visar)),
       devueltas: (devueltas.data ?? []).map((f: any) => tarjeta(f, PASOS.devuelta)),
