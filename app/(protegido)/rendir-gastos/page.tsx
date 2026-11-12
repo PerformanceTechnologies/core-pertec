@@ -246,7 +246,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
               <ul className="space-y-2.5">
                 {porTransferir.map((f) => (
                   <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite}>
-                    <BotonAccion accion={transferirFondoAction.bind(null, f.id)} pide={`Referencia de la transferencia de ${pesos(f.montoPorTransferir ?? 0)} (N° de operación):`}>
+                    <BotonAccion accion={transferirFondoAction.bind(null, f.id)} comprobante={{ fondoId: f.id }} pide={`Referencia de la transferencia de ${pesos(f.montoPorTransferir ?? 0)} (N° de operación):`}>
                       Transferí {pesos(f.montoPorTransferir ?? 0)}
                     </BotonAccion>
                   </FilaFondo>
@@ -266,7 +266,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
                         <span className="block text-xs text-gris">{r.nombreQuienRinde} · {f?.codigo}</span>
                       </Link>
                       <span className="font-condensed text-xl font-bold tabular-nums text-orange-600">{pesos(-(f?.saldo ?? 0))}</span>
-                      <BotonAccion accion={pagarReembolsoAction.bind(null, r.id)} pide="Referencia de la transferencia del reembolso:">Pagué el reembolso</BotonAccion>
+                      <BotonAccion accion={pagarReembolsoAction.bind(null, r.id)} comprobante={r.fondoId ? { fondoId: r.fondoId } : undefined} pide="Referencia de la transferencia del reembolso:">Pagué el reembolso</BotonAccion>
                     </li>
                   );
                 })}

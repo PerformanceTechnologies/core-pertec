@@ -12,13 +12,14 @@ import {
   saldoRendicion,
 } from "@/lib/permisos-rendidor";
 import { esBolsa, obtenerOCrearBolsa, obtenerRendicion } from "@/lib/rendidor/datos";
-import AgregarMisGastos from "@/components/rendidor/AgregarMisGastos";
+import RevisionGastos from "@/components/rendidor/RevisionGastos";
+import InformeSinFondo from "@/components/rendidor/InformeSinFondo";
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
-import FlujoRendicion, { EditarCabecera } from "@/components/rendidor/FlujoRendicion";
+import FlujoRendicion, { EditarCabecera, EliminarInforme } from "@/components/rendidor/FlujoRendicion";
 import { ChipEstadoRendicion, money } from "@/components/rendidor/Visual";
 import { listarProveedores, listarProyectos } from "@/lib/rendidor/proveedores";
-import { leerParametros, obtenerFondo, rolesDe } from "@/lib/rendidor/fondos";
+import { leerParametros, listarFondos, obtenerFondo, rolesDe } from "@/lib/rendidor/fondos";
 import { gastoRendido, pesos } from "@/lib/rendidor/fondos-modelo";
 import { BotonAccion } from "@/components/rendidor/fondos/ControlesFondo";
 import { pagarReembolsoAction } from "../acciones-fondos";
@@ -52,7 +53,11 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         ...(esMia && rendicion.estado === "enviada" ? (["retirar"] as const) : []),
         ...(revisa && rendicion.estado === "enviada" ? (["aprobar", "rechazar"] as const) : []),
       ]
-    : accionesPosibles({ estado: rendicion.estado, esMia }, revisa, usuario.rol === "admin");
+    : accionesPosibles({ estado: rendicion.estado, esMia }, revisa, usuario.rol === "admin").filter((a) => !(sinFondo && a === "enviar"));
+  // Creado sin fondo (con empresa pero sin fondo, a diferencia de los antiguos): siempre en borrador.
+  // Quien revisa un informe enviado (que no es suyo) ve los gastos en lista, no abiertos.
+  const vistaRevisor = revisa && !esMia && rendicion.estado === "enviada";
+  const sinFondo = Boolean(rendicion.empresaId && !rendicion.fondoId);
   const editable = esEditable(rendicion.estado) && (conFondo ? esMia : esMia || revisa);
   const [fondo, parametros] = conFondo ? await Promise.all([obtenerFondo(rendicion.fondoId!), leerParametros(rendicion.empresaId!)]) : [null, null];
   const rendido = gastoRendido(rendicion.gastos);
@@ -61,6 +66,9 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   const disponible = fondo ? (yaEnLibro ? fondo.saldo + rendido : fondo.saldo) : 0;
   const usoPct = disponible > 0 ? Math.round((rendido / disponible) * 100) : rendido > 0 ? 100 : 0;
   const cercaDelLimite = Boolean(fondo && parametros && !yaEnLibro && usoPct >= parametros.umbralAvisoLimite * 100);
+  const fondosActivos = sinFondo && esMia && esEditable(rendicion.estado) && rendicion.empresaId
+    ? await listarFondos(rendicion.empresaId, { rendidor: usuario.correo, estados: ["activo"] }).catch(() => [])
+    : [];
   const total = rendicion.gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
   const saldo = saldoRendicion(total, rendicion.montoAsignado);
   const problemas = problemasParaEnviar(rendicion.gastos);
@@ -124,6 +132,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
           <div className="flex items-center gap-2">
             <ChipEstadoRendicion estado={rendicion.estado} />
             {editable && <EditarCabecera id={rendicion.id} titulo={rendicion.tituloRendicion} monto={rendicion.montoAsignado} />}
+            {editable && esMia && <EliminarInforme id={rendicion.id} titulo={rendicion.tituloRendicion} cantidadGastos={rendicion.gastos.length} />}
           </div>
         </div>
 
@@ -188,7 +197,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
           <IconAlertTriangle size={20} className="shrink-0" />
           <p className="min-w-[12rem] flex-1"><b>Reembolso pendiente: {pesos(-fondo.saldo)}.</b> Se gastó más que el fondo; Tesorería lo paga y el fondo se cierra.</p>
           {rolesFondos.includes("tesoreria") && !rindeYo && (
-            <BotonAccion accion={pagarReembolsoAction.bind(null, rendicion.id)} pide="Referencia de la transferencia del reembolso:">Pagué el reembolso</BotonAccion>
+            <BotonAccion accion={pagarReembolsoAction.bind(null, rendicion.id)} comprobante={rendicion.fondoId ? { fondoId: rendicion.fondoId } : undefined} pide="Referencia de la transferencia del reembolso:">Pagué el reembolso</BotonAccion>
           )}
         </div>
       )}
@@ -214,12 +223,16 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         </Aviso>
       )}
 
-      {editable && esMia && misGastos && misGastos.gastos.length > 0 && (
-        <AgregarMisGastos bolsaId={misGastos.id} informeId={rendicion.id} gastos={misGastos.gastos.map((g) => ({ id: g.id, proveedor: g.proveedor, fecha: g.fecha, total: Number(g.total) || 0 }))} />
+      {sinFondo && esEditable(rendicion.estado) && (
+        <InformeSinFondo informeId={rendicion.id} fondos={fondosActivos.map((f) => ({ id: f.id, codigo: f.codigo, saldo: f.saldo }))} puedeAsociar={esMia} />
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
-        <PanelRendicion key={`${rendicion.id}-${rendicion.gastos.length}`} rendicionInicial={rendicion} proveedores={proveedores} proyectos={proyectos} puedeConciliar={puedeConciliar} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
+        {vistaRevisor ? (
+          <RevisionGastos informeId={rendicion.id} gastos={rendicion.gastos} urlsRespaldo={urlsRespaldo} puedeRevisarBoletas={conFondo} />
+        ) : (
+          <PanelRendicion key={`${rendicion.id}-${rendicion.gastos.length}`} rendicionInicial={rendicion} borradores={(editable && esMia && misGastos ? misGastos.gastos : []).map((g) => ({ id: g.id, proveedor: g.proveedor, fecha: g.fecha, categoria: g.categoria, total: Number(g.total) || 0 }))} bolsaId={misGastos?.id ?? null} proveedores={proveedores} proyectos={proyectos} puedeConciliar={puedeConciliar} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
+        )}
 
         {/* Historial */}
         <aside className="h-fit rounded-2xl border border-borde bg-superficie p-4 xl:sticky xl:top-4">

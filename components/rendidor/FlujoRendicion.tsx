@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconArrowBackUp, IconCash, IconCheck, IconPencil, IconSend, IconX } from "@tabler/icons-react";
+import { IconArrowBackUp, IconCash, IconCheck, IconPencil, IconSend, IconTrash, IconX } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import { Campo } from "@/components/flota/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
 import { CAMPO } from "@/lib/estilos";
 import type { AccionRendicion } from "@/lib/permisos-rendidor";
-import { actualizarCabeceraAction, moverRendicionAction } from "@/app/(protegido)/rendir-gastos/acciones";
+import { actualizarCabeceraAction, eliminarRendicionAction, moverRendicionAction } from "@/app/(protegido)/rendir-gastos/acciones";
 
 const BOTON: Record<AccionRendicion, { texto: string; Icono: typeof IconCheck; clase: string }> = {
   enviar: { texto: "Enviar a revisión", Icono: IconSend, clase: "bg-naranjo text-white hover:bg-naranjo-suave" },
@@ -176,6 +176,48 @@ export function EditarCabecera({ id, titulo, monto }: { id: string; titulo: stri
             </button>
           </div>
         </form>
+      </VentanaModal>
+    </>
+  );
+}
+
+/** Eliminar un informe mientras está en manos de quien rinde (borrador u observado), con confirmación propia. */
+export function EliminarInforme({ id, titulo, cantidadGastos }: { id: string; titulo: string; cantidadGastos: number }) {
+  const [abierta, setAbierta] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendiente, iniciar] = useTransition();
+  const router = useRouter();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => { setError(null); setAbierta(true); }}
+        className="borde-banda texto-banda inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition hover:border-rose-400 hover:text-rose-400"
+      >
+        <IconTrash size={14} /> Eliminar
+      </button>
+      <VentanaModal abierta={abierta} alCerrar={() => !pendiente && setAbierta(false)} titulo="Eliminar informe" descripcion={`«${titulo}» se borra con sus ${cantidadGastos} ${cantidadGastos === 1 ? "gasto" : "gastos"} y sus documentos. No se puede deshacer.`} ancho="max-w-md">
+        <div className="space-y-4">
+          {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={pendiente} onClick={() => setAbierta(false)} className="inline-flex min-h-10 items-center rounded-lg border border-borde px-4 text-sm font-semibold text-gris hover:text-tinta">Cancelar</button>
+            <button
+              type="button"
+              disabled={pendiente}
+              onClick={() =>
+                iniciar(async () => {
+                  const r = await eliminarRendicionAction(id);
+                  if (!r.ok) return setError(r.error);
+                  router.push("/rendir-gastos?ver=informes");
+                  router.refresh();
+                })
+              }
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-rose-600 px-5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              {pendiente && <RuedaCarga />} Eliminar informe
+            </button>
+          </div>
+        </div>
       </VentanaModal>
     </>
   );

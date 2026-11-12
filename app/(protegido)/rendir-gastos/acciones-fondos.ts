@@ -23,6 +23,7 @@ import {
   tieneVencidos,
   transicion,
 } from "@/lib/rendidor/fondos";
+import { esReferenciaSharePoint } from "@/lib/archivos/almacen";
 import { esFactura } from "@/lib/rendidor/mis-gastos-modelo";
 import { facturasCandidatas, type FacturaCandidata } from "@/lib/rendidor/proveedores";
 import { ROLES_FONDOS, pesos, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
@@ -48,6 +49,13 @@ async function fondoDeEmpresa(id: string, empresaId: string): Promise<Fondo> {
   const f = await obtenerFondo(id);
   if (!f || f.empresaId !== empresaId) throw new Error("No encontramos ese fondo.");
   return f;
+}
+
+/** La referencia del comprobante que subió Tesorería: de SharePoint, o de la carpeta de ESTE fondo en el bucket. */
+function comprobanteValido(ruta: string | undefined, fondoId: string): string | null {
+  if (!ruta) return null;
+  if (esReferenciaSharePoint(ruta) || ruta.startsWith(`fondos/${fondoId}/`)) return ruta.slice(0, 300);
+  throw new Error("El comprobante no es válido: súbelo de nuevo.");
 }
 
 const monto = (v: FormDataEntryValue | null) => {
@@ -189,7 +197,7 @@ export async function asignarFondoAction(fd: FormData): Promise<Resultado> {
 }
 
 /** Tesorería transfiere y marca el dinero disponible: el fondo queda ACTIVO. */
-export async function transferirFondoAction(id: string, referencia: string): Promise<Resultado> {
+export async function transferirFondoAction(id: string, referencia: string, comprobante?: string): Promise<Resultado> {
   try {
     const c = await ctx();
     if (!c.tiene("tesoreria")) return { ok: false, error: "Solo Tesorería transfiere fondos." };
@@ -197,6 +205,7 @@ export async function transferirFondoAction(id: string, referencia: string): Pro
     noPropio(f, c.yo, "transferir");
     const ref = referencia.trim().slice(0, 120);
     if (!ref) return { ok: false, error: "Indica la referencia de la transferencia (N° de operación)." };
+    const comp = comprobanteValido(comprobante, f.id);
     const m = f.montoPorTransferir ?? 0;
     const reposicion = f.ciclo > 1;
     const p = await leerParametros(c.empresaId);
@@ -204,7 +213,7 @@ export async function transferirFondoAction(id: string, referencia: string): Pro
     if (!(await transicion(f, ["por_transferir"], "activo", c.yo, { activado_en: new Date().toISOString(), monto_por_transferir: null, vence_en: sumarDias(hoy, p.plazoRendicionDias) }, `Ref. ${ref}`))) {
       return { ok: false, error: "El fondo cambió mientras tanto." };
     }
-    if (m > 0) await registrarMovimiento(f, reposicion ? "REPOSICION" : "TRANSFERENCIA_FONDO", m, c.yo, { referenciaBanco: ref });
+    if (m > 0) await registrarMovimiento(f, reposicion ? "REPOSICION" : "TRANSFERENCIA_FONDO", m, c.yo, { referenciaBanco: ref, comprobante: comp });
     await avisar([f.rendidorCorreo], c.yo, `Tu fondo ${f.codigo} está activo`, reposicion ? `Se repuso con ${pesos(m)}.` : `Ya puedes rendir: ${pesos(m)}.`, enlaceFondo(id), "activo");
     return listo(id);
   } catch (e) {
@@ -322,7 +331,7 @@ export async function reponerFondoAction(id: string): Promise<Resultado> {
 }
 
 /** Tesorería paga el exceso de un informe: el fondo vuelve a cero y se cierra. */
-export async function pagarReembolsoAction(informeId: string, referencia: string): Promise<Resultado> {
+export async function pagarReembolsoAction(informeId: string, referencia: string, comprobante?: string): Promise<Resultado> {
   try {
     const c = await ctx();
     if (!c.tiene("tesoreria")) return { ok: false, error: "Solo Tesorería paga reembolsos." };
@@ -332,6 +341,7 @@ export async function pagarReembolsoAction(informeId: string, referencia: string
     noPropio(f, c.yo, "reembolsar");
     const ref = referencia.trim().slice(0, 120);
     if (!ref) return { ok: false, error: "Indica la referencia de la transferencia." };
+    const comp = comprobanteValido(comprobante, f.id);
     const exceso = -f.saldo;
     if (exceso <= 0) return { ok: false, error: "El fondo ya no tiene exceso por reembolsar." };
     const { data, error } = await supabaseAdmin
@@ -342,7 +352,7 @@ export async function pagarReembolsoAction(informeId: string, referencia: string
       .select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) return { ok: false, error: "El informe cambió mientras tanto." };
-    await registrarMovimiento(f, "REEMBOLSO", exceso, c.yo, { informeId, referenciaBanco: ref });
+    await registrarMovimiento(f, "REEMBOLSO", exceso, c.yo, { informeId, referenciaBanco: ref, comprobante: comp });
     await auditar("informe", informeId, "reembolso_pendiente", "reembolsada", c.yo, `Ref. ${ref}`);
     await auditar("informe", informeId, "reembolsada", "cerrada", c.yo);
     await transicion(f, ["activo"], "cerrado", c.yo, { cerrado_en: new Date().toISOString() }, "Reembolsado");

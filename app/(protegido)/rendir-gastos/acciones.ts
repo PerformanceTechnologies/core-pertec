@@ -109,10 +109,19 @@ async function crearInforme(form: FormData): Promise<string> {
   const empresaCompanyId = Number(form.get("empresaCompanyId") ?? 1) === 2 ? 2 : 1;
   if (!tituloRendicion) throw new Error("El título del informe es obligatorio.");
 
-  // Todo informe nuevo se carga contra un fondo ACTIVO de quien rinde.
   const fondoId = String(form.get("fondoId") ?? "").trim();
-  const fondo = fondoId ? await obtenerFondo(fondoId) : null;
   const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  // Sin fondo: el informe se crea igual, a nombre de quien lo crea, y queda en borrador hasta que se
+  // asocie a un fondo activo (con empresa pero sin fondo es justo lo que lo distingue de los antiguos).
+  if (!fondoId) {
+    if (!activa) throw new Error("No tienes una empresa activa.");
+    const sinFondo = await crearRendicion(
+      { nombreQuienRinde: usuario.nombre || usuario.correo.split("@")[0], rindeCorreo: usuario.correo.toLowerCase(), tituloRendicion, montoAsignado: 0, empresaCompanyId, empresaId: activa.id },
+      usuario.id,
+    );
+    return sinFondo.id;
+  }
+  const fondo = await obtenerFondo(fondoId);
   if (!fondo || !activa || fondo.empresaId !== activa.id) throw new Error("Elige el fondo contra el que vas a rendir.");
   if (fondo.estado !== "activo") throw new Error("Ese fondo no está activo.");
   const params = await leerParametros(fondo.empresaId);
@@ -164,6 +173,7 @@ export async function moverRendicionAction(id: string, accion: AccionRendicion, 
     const { usuario, rol } = await exigirAccesoRendidor();
     const r = await obtenerRendicion(id);
     if (r?.fondoId) return await moverInformeConFondo(r, accion, nota, usuario, rol === "admin");
+    if (r?.empresaId && accion === "enviar") return { ok: false, error: "Este informe no tiene fondo: asócialo a uno de tus fondos activos para poder enviarlo." };
     const mia = r ? esMia(r, usuario) : false;
     const revisa = puedeVerRendicionesAjenas(usuario.rol, rol);
     if (!r || (!mia && !revisa)) return { ok: false, error: "No encontramos esa rendición." };
@@ -426,5 +436,38 @@ export async function respaldoDeGastoAction(rendicionId: string, gastoId: string
   } catch (e) {
     if (typeof e === "object" && e !== null && String((e as { digest?: unknown }).digest ?? "").startsWith("NEXT_REDIRECT")) throw e;
     return { ok: false, error: "No pudimos abrir el documento." };
+  }
+}
+
+// ---------- Informe sin fondo: asociarlo a un fondo ------------------------------------------
+
+/** Liga un informe en borrador (creado sin fondo) a uno de los fondos ACTIVOS de quien rinde. */
+export async function asociarFondoAction(informeId: string, fondoId: string): Promise<Resultado> {
+  try {
+    const { usuario } = await exigirAccesoRendidor();
+    const r = await obtenerRendicion(informeId);
+    if (!r || !esMia(r, usuario)) return { ok: false, error: "No encontramos ese informe." };
+    if (r.fondoId || !r.empresaId) return { ok: false, error: "Este informe ya tiene fondo." };
+    if (!esEditable(r.estado)) return { ok: false, error: "El informe ya no se puede editar." };
+    const fondo = await obtenerFondo(fondoId);
+    if (!fondo || fondo.empresaId !== r.empresaId || fondo.rendidorCorreo !== usuario.correo.toLowerCase()) return { ok: false, error: "Elige uno de tus fondos." };
+    if (fondo.estado !== "activo") return { ok: false, error: "Ese fondo no está activo." };
+    const params = await leerParametros(fondo.empresaId);
+    const { count: abiertos } = await supabaseAdmin
+      .from("rendiciones").select("id", { count: "exact", head: true })
+      .eq("fondo_id", fondo.id).in("estado", ["borrador", "enviada", "rechazada"]);
+    if ((abiertos ?? 0) >= params.maxInformesAbiertos) return { ok: false, error: "Ese fondo ya tiene un informe abierto: termínalo o envíalo antes de asociar otro." };
+    const { error } = await supabaseAdmin
+      .from("rendiciones")
+      .update({ fondo_id: fondo.id, monto_asignado: Math.max(0, fondo.saldo), actualizado_en: new Date().toISOString() })
+      .eq("id", informeId)
+      .is("fondo_id", null);
+    if (error) throw new Error(error.message);
+    await auditar("informe", informeId, r.estado, r.estado, usuario.correo.toLowerCase(), `Asociado al fondo ${fondo.codigo}`);
+    revalidatePath(`/rendir-gastos/${informeId}`);
+    revalidatePath("/rendir-gastos", "layout");
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
   }
 }

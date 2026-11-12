@@ -57,7 +57,7 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
     acciones.push(<BotonAccion key="r" accion={validarFondoAction.bind(null, id, "rechaza")} pide="¿Por qué se rechaza la solicitud?" tono="peligro">Rechazar</BotonAccion>);
   }
   if (f.estado === "por_transferir" && otro && roles.includes("tesoreria")) {
-    acciones.push(<BotonAccion key="t" accion={transferirFondoAction.bind(null, id)} pide={`Referencia de la transferencia de ${pesos(f.montoPorTransferir ?? 0)}:`}>Transferí {pesos(f.montoPorTransferir ?? 0)}</BotonAccion>);
+    acciones.push(<BotonAccion key="t" accion={transferirFondoAction.bind(null, id)} comprobante={{ fondoId: id }} pide={`Referencia de la transferencia de ${pesos(f.montoPorTransferir ?? 0)}:`}>Transferí {pesos(f.montoPorTransferir ?? 0)}</BotonAccion>);
   }
   if (f.estado === "devolucion_pendiente" && otro && roles.includes("tesoreria")) {
     acciones.push(<BotonAccion key="c" accion={confirmarDevolucionAction.bind(null, id)} confirma={`¿Llegó el depósito de ${pesos(f.devolucionMonto ?? 0)}?`}>Confirmar devolución</BotonAccion>);
@@ -141,7 +141,7 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
                   <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-3 text-sm">
                     <span className="min-w-[10rem] flex-1">
                       <span className="block font-semibold text-tinta">{ETIQUETA_MOVIMIENTO[m.tipo]}</span>
-                      <span className="block text-[11px] text-gris">{fecha(m.fecha)}{m.referenciaBanco ? ` · ref. ${m.referenciaBanco}` : ""}{m.motivo ? ` · ${m.motivo}` : ""}</span>
+                      <span className="block text-[11px] text-gris">{fecha(m.fecha)}{m.referenciaBanco ? ` · ref. ${m.referenciaBanco}` : ""}{m.motivo ? ` · ${m.motivo}` : ""}{m.comprobante && <> · <a href={`/api/rendidor/comprobante/${m.id}`} target="_blank" rel="noopener" className="font-semibold text-naranjo hover:underline">Ver comprobante</a></>}</span>
                     </span>
                     <span className={`font-condensed text-lg font-bold tabular-nums ${m.signo > 0 ? "text-emerald-600" : "text-tinta"}`}>{m.signo > 0 ? "+" : "−"}{pesos(m.monto)}</span>
                     <span className="w-24 text-right text-[11px] text-gris">saldo {pesos(m.saldoResultante)}</span>

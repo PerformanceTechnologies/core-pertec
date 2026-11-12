@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconChevronRight, IconReceipt2, IconSearch, IconTrash } from "@tabler/icons-react";
+import VentanaModal from "@/components/inventario/VentanaModal";
 import { CAMPO, TARJETA } from "@/lib/estilos";
 import { esEditable, saldoRendicion } from "@/lib/permisos-rendidor";
 import type { EstadoRendicion, ResumenRendicion } from "@/lib/rendidor/tipos";
@@ -102,12 +103,16 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
   const fecha = r.pagadaEn ?? r.revisadaEn ?? r.enviadaEn ?? r.creadoEn;
   const queFecha = r.pagadaEn ? (r.fondoId ? "Cerrada" : "Pagada") : r.revisadaEn ? "Revisada" : r.enviadaEn ? "Enviada" : "Creada";
 
+  const [confirmando, setConfirmando] = useState(false);
+  const [errorBorrado, setErrorBorrado] = useState<string | null>(null);
+
   function eliminar() {
-    if (!confirm(`¿Borrar «${r.tituloRendicion}» con sus ${r.cantidadGastos} comprobantes? No se puede deshacer.`)) return;
     iniciar(async () => {
       const res = await borrar(r.id);
-      if (res.ok) router.refresh();
-      else alert(res.error);
+      if (res.ok) {
+        setConfirmando(false);
+        router.refresh();
+      } else setErrorBorrado(res.error);
     });
   }
 
@@ -143,7 +148,7 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
           <ChipEstadoRendicion estado={r.estado} />
           <div className="flex w-16 items-center justify-end gap-1">
             {puedeBorrar && (
-              <button type="button" onClick={eliminar} disabled={pendiente} title="Borrar" className="grid h-8 w-8 place-items-center rounded-lg text-gris-suave opacity-0 transition max-lg:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100">
+              <button type="button" onClick={() => { setErrorBorrado(null); setConfirmando(true); }} disabled={pendiente} title="Borrar" className="grid h-8 w-8 place-items-center rounded-lg text-gris-suave opacity-0 transition max-lg:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100">
                 <IconTrash size={16} />
               </button>
             )}
@@ -153,6 +158,15 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
           </div>
         </div>
       </div>
+      <VentanaModal abierta={confirmando} alCerrar={() => !pendiente && setConfirmando(false)} titulo="Eliminar informe" descripcion={`«${r.tituloRendicion}» se borra con sus ${r.cantidadGastos} ${r.cantidadGastos === 1 ? "comprobante" : "comprobantes"}. No se puede deshacer.`} ancho="max-w-md">
+        <div className="space-y-4">
+          {errorBorrado && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{errorBorrado}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={pendiente} onClick={() => setConfirmando(false)} className="inline-flex min-h-10 items-center rounded-lg border border-borde px-4 text-sm font-semibold text-gris hover:text-tinta">Cancelar</button>
+            <button type="button" disabled={pendiente} onClick={eliminar} className="inline-flex min-h-10 items-center rounded-lg bg-rose-600 px-5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50">Eliminar informe</button>
+          </div>
+        </div>
+      </VentanaModal>
     </li>
   );
 }

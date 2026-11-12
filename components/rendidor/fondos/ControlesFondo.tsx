@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconLoader2, IconPlus, IconWallet } from "@tabler/icons-react";
+import { IconLoader2, IconPaperclip, IconPlus, IconWallet } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import { Campo, TarjetaAccion } from "@/components/flota/Campos";
 import { CAMPO } from "@/lib/estilos";
@@ -10,9 +10,18 @@ import { asignarFondoAction, solicitarFondoAction } from "@/app/(protegido)/rend
 
 type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
+/** El texto de un botón, aunque lleve íconos: sirve de título de la ventana. */
+function textoDe(nodo: React.ReactNode): string {
+  if (typeof nodo === "string" || typeof nodo === "number") return String(nodo);
+  if (Array.isArray(nodo)) return nodo.map(textoDe).join("").trim();
+  if (nodo && typeof nodo === "object" && "props" in nodo) return textoDe((nodo as { props: { children?: React.ReactNode } }).props.children);
+  return "";
+}
+
 /**
- * Un botón que ejecuta una acción del servidor ya «atada» a su fondo o informe. Si `pide` viene,
- * pregunta un texto antes (motivo, referencia de la transferencia…); si `confirma`, pide confirmar.
+ * Un botón que ejecuta una acción del servidor ya «atada» a su fondo o informe. Si hace falta un dato
+ * (`pide`: motivo, referencia de la transferencia…), un comprobante (`comprobante`) o una confirmación
+ * (`confirma`), abre una ventana del sistema en vez de los cuadros del navegador.
  */
 export function BotonAccion({
   accion,
@@ -20,46 +29,107 @@ export function BotonAccion({
   pide,
   obligatorio = true,
   confirma,
+  comprobante,
   tono = "primario",
 }: {
-  accion: (texto: string) => Promise<Resultado>;
+  accion: (texto: string, comprobante?: string) => Promise<Resultado>;
   children: React.ReactNode;
   pide?: string;
   obligatorio?: boolean;
   confirma?: string;
+  /** Deja subir el comprobante de la transferencia o depósito (PDF o imagen). */
+  comprobante?: { fondoId: string };
   tono?: "primario" | "secundario" | "peligro";
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
+  const [abierta, setAbierta] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const clases = {
     primario: "bg-naranjo text-white shadow-sm hover:bg-naranjo-suave",
     secundario: "border border-borde bg-superficie text-tinta hover:border-naranjo/40",
     peligro: "border border-rose-300/60 bg-superficie text-rose-600 hover:bg-rose-500/10",
   }[tono];
+  const conVentana = Boolean(pide || confirma || comprobante);
+  const titulo = textoDe(children) || "Confirmar";
+
+  const ejecutar = () =>
+    iniciar(async () => {
+      setError(null);
+      if (pide && obligatorio && !texto.trim()) return setError("Falta completar ese dato.");
+      let ruta: string | undefined;
+      if (comprobante && archivo) {
+        const fd = new FormData();
+        fd.append("archivo", archivo);
+        const resp = await fetch(`/api/rendidor/fondos/${comprobante.fondoId}/comprobante`, { method: "POST", body: fd });
+        const cuerpo = (await resp.json().catch(() => ({}))) as { ruta?: string; error?: string };
+        if (!resp.ok || !cuerpo.ruta) return setError(cuerpo.error ?? "No pudimos subir el comprobante.");
+        ruta = cuerpo.ruta;
+      }
+      const r = await accion(texto, ruta);
+      if (!r.ok) return setError(r.error);
+      setAbierta(false);
+      setTexto("");
+      setArchivo(null);
+      router.refresh();
+    });
+
+  const largo = Boolean(pide?.startsWith("¿"));
   return (
-    <button
-      type="button"
-      disabled={pendiente}
-      onClick={() => {
-        let texto = "";
-        if (pide) {
-          const t = prompt(pide);
-          if (t === null) return;
-          if (obligatorio && !t.trim()) return alert("Falta completar ese dato.");
-          texto = t;
-        }
-        if (confirma && !confirm(confirma)) return;
-        iniciar(async () => {
-          const r = await accion(texto);
-          if (!r.ok) alert(r.error);
-          else router.refresh();
-        });
-      }}
-      className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-bold transition disabled:opacity-50 ${clases}`}
-    >
-      {pendiente && <IconLoader2 size={15} className="animate-spin" />}
-      {children}
-    </button>
+    <>
+      <button
+        type="button"
+        disabled={pendiente}
+        onClick={() => {
+          if (conVentana) {
+            setError(null);
+            setAbierta(true);
+          } else ejecutar();
+        }}
+        className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-bold transition disabled:opacity-50 ${clases}`}
+      >
+        {pendiente && !abierta && <IconLoader2 size={15} className="animate-spin" />}
+        {children}
+      </button>
+      {!conVentana && error && <span className="text-xs text-rose-600">{error}</span>}
+      <VentanaModal abierta={abierta} alCerrar={() => !pendiente && setAbierta(false)} titulo={titulo} descripcion={confirma} ancho="max-w-md">
+        <div className="space-y-4">
+          {pide && (
+            <label className="block">
+              <span className="mb-1 block text-sm font-semibold text-tinta">{pide}</span>
+              {largo ? (
+                <textarea autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} maxLength={1000} className={CAMPO} />
+              ) : (
+                <input autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={120} className={CAMPO} />
+              )}
+            </label>
+          )}
+          {comprobante && (
+            <div>
+              <span className="mb-1 block text-sm font-semibold text-tinta">Comprobante de la transferencia o depósito</span>
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-borde bg-superficie px-3.5 py-3 transition hover:border-naranjo/60">
+                <IconPaperclip size={18} className="shrink-0 text-gris" />
+                <span className="min-w-0 flex-1 truncate text-sm text-gris">{archivo ? archivo.name : "Adjuntar PDF o imagen (opcional)"}</span>
+                {archivo && (
+                  <button type="button" onClick={(e) => { e.preventDefault(); setArchivo(null); }} className="text-xs font-semibold text-gris underline underline-offset-2 hover:text-rose-600">Quitar</button>
+                )}
+                <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} className="sr-only" />
+              </label>
+              <span className="mt-1 block text-[11px] text-gris-suave">Queda guardado en SharePoint y visible en los movimientos del fondo.</span>
+            </div>
+          )}
+          {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={pendiente} onClick={() => setAbierta(false)} className="inline-flex min-h-10 items-center rounded-lg border border-borde px-4 text-sm font-semibold text-gris hover:text-tinta disabled:opacity-50">Cancelar</button>
+            <button type="button" disabled={pendiente} onClick={ejecutar} className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-5 text-sm font-bold disabled:opacity-50 ${tono === "peligro" ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-naranjo text-white hover:bg-naranjo-suave"}`}>
+              {pendiente && <IconLoader2 size={16} className="animate-spin" />} Confirmar
+            </button>
+          </div>
+        </div>
+      </VentanaModal>
+    </>
   );
 }
 

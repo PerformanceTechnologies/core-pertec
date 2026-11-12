@@ -19,6 +19,7 @@ import ColaDeFotos from "./ColaDeFotos";
 import ComboProveedor from "./ComboProveedor";
 import type { ProveedorOpcion, ProyectoOpcion } from "@/lib/rendidor/proveedores";
 import ConciliarGasto from "./ConciliarGasto";
+import MenuAgregarGasto, { type BorradorElegible } from "./MenuAgregarGasto";
 import { textoRepetido, type Repetido } from "@/lib/rendidor/mis-gastos-modelo";
 import { repetidosAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import { ETIQUETA_BOLETA, TONO_BOLETA } from "@/lib/rendidor/fondos-modelo";
@@ -298,6 +299,8 @@ export default function PanelRendicion({
   alGuardar,
   controlRef,
   alCambiarRepetidos,
+  borradores = [],
+  bolsaId = null,
 }: {
   rendicionInicial: Rendicion;
   /** Los proveedores que ya existen (Contactos), para elegir en cada gasto. */
@@ -307,6 +310,9 @@ export default function PanelRendicion({
   soloIds?: string[];
   /** Avisa los ids de los gastos que se acaban de agregar (a mano o subidos), para mostrarlos en el popup. */
   alAgregarIds?: (ids: string[]) => void;
+  /** Dentro de un informe: los gastos en borrador de «Mis gastos» que se pueden agregar, y de qué bolsa vienen. */
+  borradores?: BorradorElegible[];
+  bolsaId?: string | null;
   /** En el popup: «Guardar gasto» guarda al instante y avisa para cerrar la ventana. */
   alGuardar?: () => void;
   /** Para que quien contiene el panel pueda quitar un gasto (desde el listado). */
@@ -340,6 +346,7 @@ export default function PanelRendicion({
   const listaProveedores = useMemo(() => [...proveedores, ...proveedoresCreados].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")), [proveedores, proveedoresCreados]);
   /** Subir un comprobante para leerlo solo es opcional: la zona se abre a pedido. */
   const [verSubida, setVerSubida] = useState(false);
+  const [menuAgregar, setMenuAgregar] = useState(false);
   useEffect(() => {
     alCambiarGastos?.(rendicion.gastos);
   }, [rendicion.gastos, alCambiarGastos]);
@@ -934,23 +941,31 @@ export default function PanelRendicion({
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-borde bg-superficie p-4">
           <button
             type="button"
-            onClick={agregarManual}
+            onClick={() => setMenuAgregar(true)}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-naranjo px-5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
           >
             <IconPencilPlus size={16} /> Agregar gasto
           </button>
           <p className="min-w-0 flex-1 text-xs text-gris">
-            {rendicion.gastos.length === 0 ? "Ingresa cada gasto a mano: proveedor, fecha, tipo, categoría y total." : "Ingresa otro gasto a mano."}
+            {rendicion.gastos.length === 0 ? "Elige entre tus gastos en borrador, o ingresa uno nuevo a mano o subiendo el documento." : "Suma otro gasto a este informe."}
           </p>
-          <button
-            type="button"
-            onClick={() => setVerSubida((v) => !v)}
-            aria-expanded={verSubida || analizando !== null}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris underline underline-offset-2 hover:text-naranjo"
-          >
-            <IconCloudUpload size={14} /> {verSubida || analizando ? "Ocultar" : "Subir un comprobante y leerlo automáticamente (opcional)"}
-          </button>
+          {verSubida && (
+            <button type="button" onClick={() => setVerSubida(false)} className="text-xs font-semibold text-gris underline underline-offset-2 hover:text-naranjo">
+              Ocultar la subida de documentos
+            </button>
+          )}
         </div>
+      )}
+      {!yaCargada && !modoPopup && (
+        <MenuAgregarGasto
+          abierta={menuAgregar}
+          alCerrar={() => setMenuAgregar(false)}
+          borradores={borradores}
+          bolsaId={bolsaId}
+          informeId={rendicion.id}
+          alIngresarManual={() => { setMenuAgregar(false); agregarManual(); }}
+          alSubirDocumentos={() => { setMenuAgregar(false); setVerSubida(true); }}
+        />
       )}
 
       {/* PASO 1 — subir comprobantes: una zona grande para soltar o elegir archivos */}
