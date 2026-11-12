@@ -39,11 +39,11 @@ const EMPRESAS = [
 function datos(e: (typeof EMPRESAS)[number], extra: Partial<DatosOc> = {}): DatosOc {
   return {
     empresa: { slug: e.slug, nombre: e.nombre, rut: e.rut, direccion: "Av. Industrial 1234, Santiago", giro: "Servicios de ingeniería y mantención industrial", telefono: "+56 2 2345 6789", correo: "compras@empresa.cl", web: "www.empresa.cl", condicionesOc: null },
-    logo: null, numero: "OC-000012", fecha: "2026-11-11", titulo: "Repuestos para chancador <planta Norte>", proyecto: "Mantención Planta Norte", solicitante: "Hugo Antivil",
+    logo: null, numero: "OC-000012", fecha: "2026-11-11", titulo: "Repuestos para chancador <planta Norte>",
     proveedor: { nombre: "Ferretería Industrial Ltda.", rut: "76.555.444-3", giro: "Venta de repuestos", direccion: "Camino Real 55, Calama", telefono: "+56 55 2111222", correo: "ventas@ferreteria.cl" },
     atencion: "Juan Soto", moneda: "CLP", tipoCambio: 1, lineas, tasaIva: 0.19, entregaLugar: "Faena Planta Norte, Calama", entregaPlazo: "5 días hábiles", fechaRequerida: "2026-11-20",
     formaPago: "Transferencia", condicionPagoDias: 30, observaciones: "Despachar con guía y certificado de calidad.", condiciones: null,
-    firmas: { solicitado: { nombre: "Hugo Antivil", fecha: "2026-11-11" }, aprobado: { nombre: "María Pérez", fecha: "2026-11-11" }, visado: { nombre: "Carlos Rojas", fecha: "2026-11-11" } },
+    creador: "Hugo Antivil",
     ...extra,
   };
 }
@@ -53,16 +53,23 @@ for (const e of EMPRESAS) {
   const c = coloresDeEmpresa(e.slug);
   assert.ok(html.includes(esc(e.nombre)) && html.includes("OC-000012"), `${e.slug}: nombre y número`);
   for (const otra of EMPRESAS.filter((x) => x.slug !== e.slug)) assert.ok(!html.includes(otra.nombre), `${e.slug}: no debe mostrar a ${otra.slug}`);
-  assert.ok(html.includes(c.acento) && html.includes(c.claro), `${e.slug}: lleva SU color y SU fondo claro`);
+  assert.ok(html.includes(c.acento), `${e.slug}: lleva SU color de acento`);
+  assert.ok(html.includes("html, body { margin: 0; padding: 0; background: #fff; }"), `${e.slug}: la hoja es blanca`);
   assert.ok(!html.includes("<planta Norte>") && !html.includes("<chancador>"), "se escapa el HTML de títulos y descripciones");
   assert.ok(html.includes("$5.069.500") && html.includes("$769.500") && html.includes("Exento"));
   assert.ok(!html.includes("marca-agua\">"), "una OC con número no lleva marca de agua");
   assert.ok(html.includes("Pago a 30 días") && html.includes("Transferencia"));
-  assert.ok(html.includes("Facturar a") && html.includes("Condiciones generales") && html.includes("Visado por"));
+  // Estilo cotización: «Facturar a» al final (después de las condiciones), con solo el nombre de quien creó la OC.
+  const cuerpo = html.slice(html.indexOf("<body>"));
+  assert.ok(cuerpo.includes("<h2>Condiciones generales</h2>") && cuerpo.indexOf("Facturar a") > cuerpo.indexOf("<h2>Condiciones generales</h2>"), "«Facturar a» va al final");
+  assert.ok(cuerpo.indexOf("<h2>Proveedor</h2>") < cuerpo.indexOf('<table class="lineas">'), "el proveedor va arriba");
+  assert.ok(!cuerpo.includes("Mantención Planta Norte") && !cuerpo.includes("Proyecto"), "el PDF no lleva el proyecto");
+  assert.ok(!cuerpo.includes("Solicitado por") && !cuerpo.includes("Aprobado por") && !cuerpo.includes("Visado por"), "sin las tres firmas");
+  assert.ok(cuerpo.includes("<b>Hugo Antivil</b>"), "solo el nombre de quien creó la OC");
+  assert.ok(html.includes('class="pagina"') && html.includes('class="hoja"') && html.includes("table class=\"lineas\""), "trae lo que pide el ajuste a una hoja");
 }
 assert.ok(htmlDeOc(datos(EMPRESAS[0], { numero: null })).includes('class="marca-agua"'), "sin número: marca de agua BORRADOR");
-assert.ok(htmlDeOc(datos(EMPRESAS[0], { numero: null })).includes("Se asigna al visar"));
-assert.ok(htmlDeOc(datos(EMPRESAS[0], { firmas: { solicitado: null, aprobado: null, visado: null } })).includes("Pendiente"));
+assert.ok(htmlDeOc(datos(EMPRESAS[0], { numero: null })).includes("Al visar"));
 
 // Moneda extranjera: se muestra el equivalente en pesos con su tipo de cambio.
 {
@@ -258,7 +265,7 @@ if (process.env.PDF_SALIDA) {
   const browser = await chromium.launch({ headless: true });
   for (const e of EMPRESAS) {
     for (const variante of ["emitida", "borrador"] as const) {
-      const d = datos(e, variante === "borrador" ? { numero: null, firmas: { solicitado: { nombre: "Hugo Antivil", fecha: "2026-11-11" }, aprobado: null, visado: null } } : {});
+      const d = datos(e, variante === "borrador" ? { numero: null } : {});
       const page = await browser.newPage();
       await page.setViewportSize({ width: 794, height: 1123 });
       await page.setContent(htmlDeOc(d), { waitUntil: "networkidle" });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IconAlertTriangle, IconFileTypePdf, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash, IconUserPlus, IconX } from "@tabler/icons-react";
 import { guardarSolicitudAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
@@ -71,11 +71,21 @@ const LINEA_NUEVA: LineaForm = { productoId: null, descripcion: "", cantidad: "1
 /** Campos algo más bajos que los del resto del módulo: esta pantalla tiene muchos y se quiere ver casi todo sin desplazarse. */
 const CAMPO_C =
   "min-h-9 w-full rounded-lg border border-transparent bg-tinta/[0.05] px-2.5 py-1.5 text-sm text-tinta placeholder:text-gris-suave transition hover:bg-tinta/[0.07] focus:border-cian/60 focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-cian/15";
-const LBL = "text-[10px] font-semibold text-gris lg:hidden";
-/** Columnas de cada ítem en pantalla ancha (en el celular cada ítem es una tarjeta de dos columnas). */
-const COLUMNAS = "lg:grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_4rem_7.5rem_4.5rem_4rem_7rem_1.75rem]";
+const LBL = "mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gris";
 const TIPOS_ARCHIVO = "application/pdf,image/jpeg,image/png,image/webp";
 const MAXIMO_ARCHIVO = 4 * 1024 * 1024;
+
+/** Un área de texto que crece con lo que se escribe (descripciones largas), sin barra de desplazamiento. */
+function AreaAuto({ value, onChange, className, ...resto }: { value: string; onChange: (v: string) => void; className: string } & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange" | "className">) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return <textarea ref={ref} rows={1} value={value} onChange={(e) => onChange(e.target.value)} className={className} {...resto} />;
+}
 
 /** Una sección compacta: título en una línea y el contenido pegado debajo. */
 function Seccion({ n, titulo, ayuda, derecha, children }: { n: number; titulo: string; ayuda?: string; derecha?: React.ReactNode; children: React.ReactNode }) {
@@ -354,31 +364,31 @@ export default function EditorSolicitud({
           </div>
         }
       >
-        {/* Encabezado de columnas: solo en pantalla ancha; en el celular cada campo lleva su rótulo. */}
-        <div className={`mb-1 hidden gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-wide text-gris lg:grid ${COLUMNAS}`}>
-          <span /><span>Descripción</span><span className="text-right">Cant.</span><span>Unidad</span><span className="text-right">Precio unit.</span><span className="text-right">Desc. %</span><span className="text-center">Exento</span><span className="text-right">Total</span><span />
-        </div>
-        <ul className="space-y-1.5">
+        {/* Cada ítem en dos filas: arriba la descripción, con todo el ancho (y crece sola al escribir); abajo las cifras. */}
+        <ul className="space-y-2">
           {lineas.map((l, i) => (
-            <li key={i} className={`grid grid-cols-2 items-end gap-1.5 rounded-xl border border-borde bg-tinta/[0.015] p-2 lg:items-center ${COLUMNAS}`}>
-              <span className="hidden text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
-              <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
-                <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                <textarea aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} rows={1} maxLength={500} onChange={(e) => cambiarLinea(i, { descripcion: e.target.value })} className={`${CAMPO_C} min-h-9 resize-y`} placeholder="Descripción del producto o servicio" />
+            <li key={i} className="space-y-2 rounded-xl border border-borde bg-tinta/[0.015] p-2.5">
+              <div className="flex items-start gap-1.5">
+                <span className="mt-2 w-5 shrink-0 text-center text-[11px] font-bold text-gris-suave">{i + 1}</span>
+                <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} min-h-[2.75rem] flex-1 resize-none leading-snug`} placeholder="Descripción del producto o servicio (puedes escribir todo el detalle que haga falta)" />
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar el detalle de este ítem" : "Agregar un detalle (marca, código, especificación)"}
                   className={`rounded-lg p-1.5 transition ${l.nota.trim() ? "bg-naranjo/10 text-naranjo" : notasAbiertas.includes(i) ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Detalle del ítem ${i + 1}`}><IconNotes size={16} /></button>
-                <button type="button" onClick={() => quitarLinea(i)} className="rounded-lg p-1.5 text-gris hover:bg-rose-500/10 hover:text-alerta lg:hidden" aria-label={`Quitar el ítem ${i + 1}`}><IconTrash size={16} /></button>
+                <button type="button" onClick={() => quitarLinea(i)} className="rounded-lg p-1.5 text-gris hover:bg-rose-500/10 hover:text-alerta" aria-label={`Quitar el ítem ${i + 1}`}><IconTrash size={16} /></button>
               </div>
-              <label className="block"><span className={LBL}>Cantidad</span><input aria-label="Cantidad" value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: e.target.value })} inputMode="decimal" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
-              <label className="block"><span className={LBL}>Unidad</span><input aria-label="Unidad" value={l.unidad} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} maxLength={20} className={CAMPO_C} /></label>
-              <label className="block"><span className={LBL}>Precio unitario (neto)</span><input aria-label="Precio unitario" value={l.precio} onChange={(e) => cambiarLinea(i, { precio: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
-              <label className="block"><span className={LBL}>Descuento %</span><input aria-label="Descuento de la línea" value={l.dto} onChange={(e) => cambiarLinea(i, { dto: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} /></label>
-              <label className="flex items-center gap-1.5 text-xs text-gris lg:justify-center"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} aria-label="Exento de IVA" /> <span className="lg:hidden">Exento de IVA</span></label>
-              <span className="col-span-2 text-right font-condensed text-base font-bold tabular-nums text-tinta lg:col-span-1">{formatoMonto(netoLineaOc(items[i], moneda), moneda)}</span>
-              <button type="button" onClick={() => quitarLinea(i)} className="hidden rounded-lg p-1 text-gris hover:bg-rose-500/10 hover:text-alerta lg:block" aria-label={`Quitar el ítem ${i + 1}`}><IconTrash size={15} /></button>
+              <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[5rem_5rem_9rem_5rem_auto_minmax(0,1fr)] sm:pl-[1.625rem]">
+                <label className="block"><span className={LBL}>Cantidad</span><input aria-label="Cantidad" value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: e.target.value })} inputMode="decimal" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
+                <label className="block"><span className={LBL}>Unidad</span><input aria-label="Unidad" value={l.unidad} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} maxLength={20} className={CAMPO_C} /></label>
+                <label className="block"><span className={LBL}>Precio unitario (neto)</span><input aria-label="Precio unitario" value={l.precio} onChange={(e) => cambiarLinea(i, { precio: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
+                <label className="block"><span className={LBL}>Desc. %</span><input aria-label="Descuento de la línea" value={l.dto} onChange={(e) => cambiarLinea(i, { dto: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} /></label>
+                <label className="flex min-h-9 items-center gap-1.5 whitespace-nowrap text-xs text-gris"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} /> Exento de IVA</label>
+                <div className="col-span-2 flex items-baseline justify-end gap-2 sm:col-span-1">
+                  <span className={LBL}>Total</span>
+                  <span className="font-condensed text-lg font-bold tabular-nums text-tinta">{formatoMonto(netoLineaOc(items[i], moneda), moneda)}</span>
+                </div>
+              </div>
               {(notasAbiertas.includes(i) || Boolean(l.nota.trim())) && (
-                <div className="col-span-2 lg:col-span-full lg:pl-[1.75rem]">
-                  <textarea aria-label={`Detalle del ítem ${i + 1}`} value={l.nota} rows={2} maxLength={1000} onChange={(e) => cambiarLinea(i, { nota: e.target.value })} className={`${CAMPO_C} resize-y text-[13px]`} placeholder="Detalle opcional: marca, código, especificación. Sale bajo el ítem en la OC." />
+                <div className="sm:pl-[1.625rem]">
+                  <AreaAuto aria-label={`Detalle del ítem ${i + 1}`} value={l.nota} maxLength={1000} onChange={(v) => cambiarLinea(i, { nota: v })} className={`${CAMPO_C} min-h-[2.5rem] resize-none text-[13px] leading-snug`} placeholder="Detalle opcional: marca, código, especificación. Sale bajo el ítem en la OC." />
                 </div>
               )}
             </li>

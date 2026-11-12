@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconAlertTriangle, IconExternalLink, IconLoader2, IconMail, IconPaperclip, IconSend } from "@tabler/icons-react";
+import { IconAlertTriangle, IconExternalLink, IconLoader2, IconMail, IconPaperclip, IconSend, IconUserPlus } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import { IconoTile } from "@/components/contactos/Visual";
 import { prepararEnvioOcAction, type PreparacionEnvioOc } from "@/app/(protegido)/gestion-financiera/acciones-compras";
@@ -50,6 +50,11 @@ function ContenidoEnvio({ id, alCerrar }: { id: string; alCerrar: () => void }) 
     };
   }, [id]);
 
+  // Los correos registrados del proveedor que todavía no están ni en «Para» ni en «Con copia».
+  const correosEnUso = new Set(`${para},${copias}`.split(/[,;\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean));
+  const porTraer = (prep?.correosRegistrados ?? []).filter((c) => !correosEnUso.has(c.toLowerCase()));
+  const traerCorreoDelProveedor = () => setCopias((x) => [x.trim().replace(/[,;]+$/, ""), ...porTraer].filter(Boolean).join(", "));
+
   const enviar = async () => {
     setEnviando(true);
     setError(null);
@@ -85,7 +90,14 @@ function ContenidoEnvio({ id, alCerrar }: { id: string; alCerrar: () => void }) 
           {!prep.para && <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-aviso">El proveedor no tiene un correo cargado: escríbelo en «Para».</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo etiqueta="Para *" ayuda="Varios correos, separados por coma"><input value={para} onChange={(e) => setPara(e.target.value)} className={CAMPO} type="text" inputMode="email" autoComplete="off" placeholder="ventas@proveedor.cl" /></Campo>
-            <Campo etiqueta="Con copia"><input value={copias} onChange={(e) => setCopias(e.target.value)} className={CAMPO} type="text" inputMode="email" autoComplete="off" placeholder="opcional" /></Campo>
+            <Campo etiqueta="Con copia">
+              <input value={copias} onChange={(e) => setCopias(e.target.value)} className={CAMPO} type="text" inputMode="email" autoComplete="off" placeholder="opcional" />
+              {porTraer.length > 0 && (
+                <button type="button" onClick={traerCorreoDelProveedor} className="mt-1.5 inline-flex max-w-full items-center gap-1 truncate rounded-md px-1.5 py-1 text-[11px] font-semibold text-naranjo hover:bg-naranjo/10" title="Agrega a «Con copia» el correo registrado del proveedor en Contactos">
+                  <IconUserPlus size={13} className="shrink-0" /> Traer el correo del proveedor ({porTraer.join(", ")})
+                </button>
+              )}
+            </Campo>
           </div>
           <Campo etiqueta="Asunto *"><input value={asunto} onChange={(e) => setAsunto(e.target.value)} className={CAMPO} maxLength={200} /></Campo>
           <Campo etiqueta="Mensaje *"><textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={12} className={`${CAMPO} leading-relaxed`} /></Campo>

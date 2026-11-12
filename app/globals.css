@@ -723,3 +723,17 @@ fieldset {
     opacity: 1;
   }
 }
+
+/* Tablas de Finanzas más compactas: las celdas (TD/TH de components/fin/piezas.tsx) tienen menos alto y los botones que
+   viven dentro de una celda son más chicos. Fuera de @layer, como las demás reglas de este archivo, para ganarle a las
+   utilidades del botón (BOTON, BOTON_SEC). Solo toca botones y enlaces con forma de botón (rounded-lg), no el texto. */
+td.celda-fin :is(button, a).rounded-lg {
+  padding: 0.25rem 0.55rem;
+  font-size: 11px;
+  line-height: 1.25;
+  gap: 0.25rem;
+}
+td.celda-fin :is(button, a).rounded-lg svg {
+  width: 13px;
+  height: 13px;
+}

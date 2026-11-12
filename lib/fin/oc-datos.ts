@@ -32,7 +32,7 @@ const fechaDe = (iso: string | null | undefined) => (iso ? String(iso).slice(0, 
  * Todo lo que el PDF y el resumen de una OC necesitan, siempre de la empresa activa (exigirDeEmpresa devuelve
  * «no existe» si el id es de otra).
  */
-export async function ocParaDocumento(ctx: ContextoFin, id: string): Promise<{ documento: DatosOc; formatoOc: boolean; proveedorId: string | null; proveedorCorreos: string[] }> {
+export async function ocParaDocumento(ctx: ContextoFin, id: string): Promise<{ documento: DatosOc; formatoOc: boolean; proveedorId: string | null; correoAtencion: string | null; correosRegistrados: string[] }> {
   const c = (await exigirDeEmpresa("fin_compras", id, ctx.empresa.id)) as any;
   const [lineas, perfil, tasaIva, empresaFila] = await Promise.all([
     lineasDeCompra(id),
@@ -42,25 +42,25 @@ export async function ocParaDocumento(ctx: ContextoFin, id: string): Promise<{ d
   ]);
 
   let proveedor: DatosOc["proveedor"] = null;
-  const correos: string[] = [];
+  // Los correos registrados del proveedor en Contactos (aparte del que se escribió al armar la solicitud).
+  const registrados: string[] = [];
   if (c.proveedor_id) {
     const { data: f, error } = await supabaseAdmin.from("finanzas_contactos").select("razon_social, rut, giro, direccion, comuna, ciudad, correo, telefono").eq("id", c.proveedor_id).maybeSingle();
     revienta("leer el proveedor", error);
     if (f) {
       const lugar = [f.direccion, f.comuna, f.ciudad].filter(Boolean).join(", ");
       proveedor = { nombre: f.razon_social, rut: f.rut ?? null, giro: f.giro ?? null, direccion: lugar || null, telefono: f.telefono ?? null, correo: c.proveedor_correo || f.correo || null };
-      if (c.proveedor_correo) correos.push(c.proveedor_correo);
       const { data: personas } = await supabaseAdmin.from("finanzas_contacto_personas").select("correo, principal").eq("contacto_id", c.proveedor_id).order("principal", { ascending: false });
-      correos.push(...((personas ?? []).map((p) => p.correo).filter(Boolean) as string[]).slice(0, 2));
-      if (f.correo) correos.push(f.correo);
+      if (f.correo) registrados.push(f.correo);
+      registrados.push(...((personas ?? []).map((p) => p.correo).filter(Boolean) as string[]).slice(0, 2));
     }
   }
-  let proyecto: string | null = null;
-  if (c.proyecto_id) {
-    const { data: p } = await supabaseAdmin.from("fin_proyectos").select("nombre").eq("id", c.proyecto_id).maybeSingle();
-    proyecto = p?.nombre ?? null;
+  // Quién creó la OC: es el único nombre que sale al final del PDF.
+  let creador = c.creado_por ? String(c.creado_por).split("@")[0] : "—";
+  if (c.creado_por) {
+    const { data: u } = await supabaseAdmin.from("usuarios").select("nombre").eq("correo", String(c.creado_por).toLowerCase()).maybeSingle();
+    if (u?.nombre?.trim()) creador = u.nombre.trim();
   }
-  const solicitante = c.solicitante_nombre?.trim() || (c.solicitante ? String(c.solicitante).split("@")[0] : "—");
   const moneda = esMoneda(c.moneda) ? c.moneda : "CLP";
 
   return {
@@ -69,20 +69,18 @@ export async function ocParaDocumento(ctx: ContextoFin, id: string): Promise<{ d
       logo: await logoComoDataUri(perfil.slug),
       numero: c.oc_numero ?? null,
       fecha: fechaDe(c.oc_fecha) ?? fechaDe(c.creado_en) ?? ctx.hoy,
-      titulo: c.descripcion, proyecto, solicitante, proveedor, atencion: c.atencion ?? null,
+      titulo: c.descripcion, proveedor, atencion: c.atencion ?? null,
       moneda, tipoCambio: n(c.tipo_cambio) || 1, lineas, tasaIva,
       entregaLugar: c.entrega_lugar ?? null, entregaPlazo: c.entrega_plazo ?? null, fechaRequerida: c.fecha_requerida ?? null,
       formaPago: c.forma_pago ?? null, condicionPagoDias: c.condicion_pago_dias === null || c.condicion_pago_dias === undefined ? null : Number(c.condicion_pago_dias),
       observaciones: c.observaciones_oc ?? null, condiciones: c.condiciones_oc ?? null,
-      firmas: {
-        solicitado: { nombre: solicitante, fecha: fechaDe(c.enviada_aprobacion_en) ?? fechaDe(c.creado_en) },
-        aprobado: c.aprobado_por ? { nombre: c.aprobado_por, fecha: fechaDe(c.fecha_aprobacion) } : null,
-        visado: c.visado_por ? { nombre: c.visado_por, fecha: fechaDe(c.fecha_visado) } : null,
-      },
+      creador,
     },
     formatoOc: Boolean(c.formato_oc),
     proveedorId: c.proveedor_id ?? null,
-    proveedorCorreos: [...new Set(correos.map((x) => x.trim()).filter(Boolean))],
+    // Si al armar la solicitud se escribió el correo de la persona de atención, la OC va SOLO a ese correo.
+    correoAtencion: (c.proveedor_correo as string | null)?.trim() || null,
+    correosRegistrados: [...new Set(registrados.map((x) => x.trim()).filter(Boolean))],
   };
 }
 
