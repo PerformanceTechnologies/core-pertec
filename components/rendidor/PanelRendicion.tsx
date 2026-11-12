@@ -1389,7 +1389,7 @@ export default function PanelRendicion({
                               <IconPaperclip size={14} className="shrink-0 text-gris" />
                               <span className="min-w-0 flex-1 truncate" title={g.archivoNombre}>{g.archivoNombre || "Documento adjunto"}</span>
                               {!yaCargada && (
-                                <button type="button" onClick={() => quitarRespaldo(g.id)} className="shrink-0 font-semibold text-gris underline underline-offset-2 hover:text-rose-600">Quitar</button>
+                                <button type="button" onClick={() => { if (window.confirm(`¿Quitar el documento «${g.archivoNombre || "adjunto"}» de este gasto?`)) quitarRespaldo(g.id); }} className="shrink-0 rounded-md px-2 py-1 font-semibold text-gris underline underline-offset-2 hover:text-rose-600">Quitar</button>
                               )}
                             </span>
                           ) : yaCargada ? (
