@@ -241,6 +241,28 @@ function TarjetaLead({ o, cliente, hoy, clientes, esAdmin, arrastrable, arrastra
     setFlotante(null);
   };
   useEffect(() => () => window.clearTimeout(espera.current), []);
+  // pointerleave no llega si se abre una ventana encima, se navega o se hace scroll: mientras el detalle está
+  // a la vista se revisa en cada movimiento que el cursor siga sobre la tarjeta, y cualquier clic, tecla o scroll lo cierra.
+  useEffect(() => {
+    if (!flotante) return;
+    const fuera = (e: PointerEvent) => {
+      const el = tarjeta.current;
+      if (!el || !el.isConnected || !el.contains(document.elementFromPoint(e.clientX, e.clientY))) ocultar();
+    };
+    const cerrar = () => ocultar();
+    window.addEventListener("pointermove", fuera, { passive: true });
+    window.addEventListener("pointerdown", cerrar, true);
+    window.addEventListener("keydown", cerrar, true);
+    window.addEventListener("scroll", cerrar, true);
+    window.addEventListener("blur", cerrar);
+    return () => {
+      window.removeEventListener("pointermove", fuera);
+      window.removeEventListener("pointerdown", cerrar, true);
+      window.removeEventListener("keydown", cerrar, true);
+      window.removeEventListener("scroll", cerrar, true);
+      window.removeEventListener("blur", cerrar);
+    };
+  }, [flotante]);
   // Un instante de espera: pasar el cursor de largo no abre nada. Solo con mouse (el táctil usa «Ver más»).
   const mostrar = (e: React.PointerEvent) => {
     if (e.pointerType !== "mouse" || arrastrando) return;
@@ -262,6 +284,7 @@ function TarjetaLead({ o, cliente, hoy, clientes, esAdmin, arrastrable, arrastra
       onDragEnd={arrastrable ? alSoltar : undefined}
       onPointerEnter={mostrar}
       onPointerLeave={ocultar}
+      onPointerDown={ocultar}
       className={`rounded-xl border bg-superficie p-2.5 shadow-sm transition-shadow hover:shadow-md ${arrastrable ? "cursor-grab active:cursor-grabbing" : ""} ${arrastrando ? "opacity-40" : ""} ${aviso ? "border-amber-400/60" : "border-borde"}`}
     >
       <div className="flex items-start gap-1.5">
