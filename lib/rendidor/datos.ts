@@ -99,6 +99,8 @@ export async function listarRendiciones(quien: {
   correo: string;
   /** Si ve las de toda la empresa. Lo decide puedeVerRendicionesAjenas, no este archivo. */
   verTodas: boolean;
+  /** Empresa activa. Las rendiciones antiguas (sin empresa) son de PERTEC, la empresa por omisión. */
+  empresa?: { id: string; porOmision: boolean };
 }): Promise<ResumenRendicion[]> {
   const base = `id, creado_por, rinde_correo, nombre_quien_rinde, monto_asignado, titulo_rendicion, estado,
        cantidad_gastos, total_gastos, enviada_en, revisada_en, motivo_rechazo, pagada_en, creado_en`;
@@ -108,9 +110,12 @@ export async function listarRendiciones(quien: {
   // traer las rendiciones de toda la empresa a la memoria del servidor para
   // descartarlas.
   const correo = quien.correo.toLowerCase();
-  const filtrar = (q: ReturnType<typeof armar>) => (quien.verTodas ? q : q.or(`creado_por.eq.${quien.usuarioId},rinde_correo.eq.${correo}`));
-  let { data, error } = await filtrar(armar(`${base}, fondo_id`));
-  if (faltaColumna(error)) ({ data, error } = await filtrar(armar(base)));
+  const porPersona = (q: ReturnType<typeof armar>) => (quien.verTodas ? q : q.or(`creado_por.eq.${quien.usuarioId},rinde_correo.eq.${correo}`));
+  const e = quien.empresa;
+  const porEmpresa = (q: ReturnType<typeof armar>) => (!e ? q : e.porOmision ? q.or(`empresa_id.eq.${e.id},empresa_id.is.null`) : q.eq("empresa_id", e.id));
+  let { data, error } = await porEmpresa(porPersona(armar(`${base}, fondo_id, empresa_id`)));
+  // Sin la columna empresa_id (SQL viejo): solo PERTEC tiene rendiciones.
+  if (faltaColumna(error)) ({ data, error } = e && !e.porOmision ? { data: [], error: null } : await porPersona(armar(base)));
 
   // Se propaga el error en vez de devolver [] en silencio: una lista vacia por
   // fallo de red es indistinguible de "no tienes rendiciones".

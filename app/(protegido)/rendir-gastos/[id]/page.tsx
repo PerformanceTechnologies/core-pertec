@@ -1,3 +1,5 @@
+import { SLUG_POR_OMISION } from "@/lib/empresas-modelo";
+import { contextoDeEmpresa } from "@/lib/empresas";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { IconAlertTriangle, IconArrowLeft, IconCheck, IconCircleCheck, IconHistory, IconReceipt2 } from "@tabler/icons-react";
@@ -36,6 +38,12 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
 
   const rendicion = await obtenerRendicion(id);
   if (!rendicion) notFound();
+  // Cada informe se ve en su empresa (los antiguos, sin empresa, son de PERTEC).
+  {
+    const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+    const suya = rendicion.empresaId ? rendicion.empresaId === activa?.id : (activa?.slug ?? SLUG_POR_OMISION) === SLUG_POR_OMISION;
+    if (!suya && !(await esBolsa(id))) notFound();
+  }
   // La bolsa de «Mis gastos» no es un informe: tiene su propia pantalla.
   if (await esBolsa(id)) redirect("/rendir-gastos/gastos");
   // Informes con fondo: también los abren quienes revisan, transfieren o administran Fondos.

@@ -1,6 +1,5 @@
-import FiltroDeEmpresa from "@/components/FiltroDeEmpresa";
-
-// Los datos de este módulo son de PERTEC: en otra empresa no se muestran.
+// Rendir Gastos trabaja con la empresa activa: fondos e informes guardan su empresa
+// (los antiguos, sin empresa, se muestran en PERTEC).
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <FiltroDeEmpresa>{children}</FiltroDeEmpresa>;
+  return children;
 }

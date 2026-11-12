@@ -16,6 +16,7 @@ import {
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
 import { puedeVerRendicionesAjenas } from "@/lib/permisos-rendidor";
 import { listarPersonas, listarRendiciones, todosLosGastos } from "@/lib/rendidor/datos";
+import { SLUG_POR_OMISION } from "@/lib/empresas-modelo";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
 import { fondosConSaldoAFavor, leerParametros, listarFondos, listarRoles, movimientosDe, rolesDe } from "@/lib/rendidor/fondos";
@@ -63,7 +64,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       (fs) => ({ fondos: fs, error: null as string | null }),
       (e: unknown) => ({ fondos: [] as Fondo[], error: e instanceof Error ? e.message : "No se pudieron leer los fondos." }),
     ),
-    listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: revisaAntiguas || esAdmin || tiene("revisor") || tiene("tesoreria") }),
+    listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, empresa: { id: empresaId, porOmision: activa!.slug === SLUG_POR_OMISION }, verTodas: revisaAntiguas || esAdmin || tiene("revisor") || tiene("tesoreria") }),
     leerParametros(empresaId),
   ]);
   const fondos = lecturaFondos.fondos;
