@@ -289,10 +289,21 @@ export default function PanelRendicion({
   proveedores = [],
   proyectos = [],
   puedeConciliar = false,
+  modoPopup = false,
+  soloIds,
+  alAgregarIds,
+  sinExcel = false,
 }: {
   rendicionInicial: Rendicion;
   /** Los proveedores que ya existen (Contactos), para elegir en cada gasto. */
   proveedores?: ProveedorOpcion[];
+  /** Dentro de un popup: la zona de subir comprobantes va abierta, sin totales, y solo se listan `soloIds`. */
+  modoPopup?: boolean;
+  soloIds?: string[];
+  /** Avisa los ids de los gastos que se acaban de agregar (a mano o subidos), para mostrarlos en el popup. */
+  alAgregarIds?: (ids: string[]) => void;
+  /** Sin el botón «Descargar Excel» (los gastos sueltos no tienen planilla: va en el informe). */
+  sinExcel?: boolean;
   /** Los proyectos de la empresa, para cargarles cada gasto. */
   proyectos?: ProyectoOpcion[];
   /** Tesorería o administración: pueden conciliar los gastos de un informe aprobado. */
@@ -317,7 +328,7 @@ export default function PanelRendicion({
   const [proveedoresCreados, setProveedoresCreados] = useState<ProveedorOpcion[]>([]);
   const listaProveedores = useMemo(() => [...proveedores, ...proveedoresCreados].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")), [proveedores, proveedoresCreados]);
   /** Subir un comprobante para leerlo solo es opcional: la zona se abre a pedido. */
-  const [verSubida, setVerSubida] = useState(false);
+  const [verSubida, setVerSubida] = useState(modoPopup);
   useEffect(() => {
     alCambiarGastos?.(rendicion.gastos);
   }, [rendicion.gastos, alCambiarGastos]);
@@ -448,6 +459,8 @@ export default function PanelRendicion({
     return { total, neto, iva, saldo: total - rendicion.montoAsignado };
   }, [filas, rendicion.montoAsignado]);
 
+  const vista = useMemo(() => (soloIds ? filas.filter((f) => soloIds.includes(f.gasto.id)) : filas), [filas, soloIds]);
+
   const pendientes = useMemo(
     () =>
       filas.filter(
@@ -461,6 +474,8 @@ export default function PanelRendicion({
       ),
     [filas],
   );
+
+  const pendientesVista = pendientes.filter((p) => vista.some((v) => v.gasto.id === p.gasto.id));
 
   const actualizarGasto = (id: string, patch: Partial<GastoRendicion>) => {
     setEstadoGuardado("pendiente");
@@ -516,6 +531,7 @@ export default function PanelRendicion({
         },
       ],
     }));
+    alAgregarIds?.([id]);
     setTimeout(() => irA(`gasto-${id}`), 50);
   };
 
@@ -654,6 +670,7 @@ export default function PanelRendicion({
       setEstadoGuardado("pendiente");
       setVistasLocales((prev) => ({ ...prev, ...vistasNuevas }));
       setRendicion((prev) => ({ ...prev, gastos: [...prev.gastos, ...gastosNuevos] }));
+      alAgregarIds?.(gastosNuevos.map((g) => g.id));
     }
     if (fallos.length > 0) {
       avisar({
@@ -931,14 +948,14 @@ export default function PanelRendicion({
       )}
 
       {/* PASO 2 — revisar y corregir */}
-      {rendicion.gastos.length > 0 && (
+      {vista.length > 0 && (
         <div className={`${yaCargada ? "" : "mt-5"} rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
             <div>
               <p className="text-base font-bold text-tinta">{yaCargada ? "Comprobantes" : "Revisa lo que se leyó"}</p>
               <p className="text-xs text-gris">
-                {filas.length} {filas.length === 1 ? "comprobante" : "comprobantes"}
-                {pendientes.length > 0 ? ` · ${pendientes.length} por revisar` : " · todo listo"}
+                {vista.length} {vista.length === 1 ? "comprobante" : "comprobantes"}
+                {pendientesVista.length > 0 ? ` · ${pendientesVista.length} por revisar` : " · todo listo"}
               </p>
             </div>
             {/* Todo lo demás agrupado a la derecha: con cuatro elementos sueltos,
@@ -969,7 +986,7 @@ export default function PanelRendicion({
               )}
               {/* Solo con más de una tarjeta: con una sola, plegar y desplegar todo
                 es lo mismo que el propio encabezado de esa tarjeta. */}
-              {filas.length > 1 && (
+              {vista.length > 1 && (
                 <span className="flex items-center gap-2 text-[11px]">
                   <button
                     type="button"
@@ -988,12 +1005,12 @@ export default function PanelRendicion({
                   </button>
                 </span>
               )}
-              {filas.length > 1 && (
+              {vista.length > 1 && (
                 <div className="inline-flex rounded-lg border border-borde p-0.5 text-xs font-semibold">
                   {([
-                    ["todos", `Todos ${filas.length}`],
-                    ["revisar", `Por revisar ${pendientes.length}`],
-                    ["listos", `Listos ${filas.length - pendientes.length}`],
+                    ["todos", `Todos ${vista.length}`],
+                    ["revisar", `Por revisar ${pendientesVista.length}`],
+                    ["listos", `Listos ${vista.length - pendientesVista.length}`],
                   ] as const).map(([k, t]) => (
                     <button
                       key={k}
@@ -1023,7 +1040,7 @@ export default function PanelRendicion({
               para el teléfono y para un monitor ancho sin nada oculto ni ningún
               desplazamiento lateral. */}
           <ul ref={listaGastos} className="mt-4 flex flex-col gap-3">
-            {filas.map(({ gasto: g, neto, iva, advertencias }, i) => {
+            {vista.map(({ gasto: g, neto, iva, advertencias }, i) => {
               const porRevisar = pendientes.some((p) => p.gasto.id === g.id);
               if ((verGastos === "revisar" && !porRevisar) || (verGastos === "listos" && porRevisar)) return null;
               const cat = g.categoria ? ESTILO_CATEGORIA[g.categoria] : null;
@@ -1037,7 +1054,7 @@ export default function PanelRendicion({
               //
               // Con un solo gasto no tiene sentido plegarlo: no hay lista que
               // recorrer.
-              const abierto = avisos.length > 0 || rutMalo || filas.length === 1 || g.id === nuevoManualId;
+              const abierto = avisos.length > 0 || rutMalo || vista.length === 1 || g.id === nuevoManualId;
 
               return (
                 <li
@@ -1344,6 +1361,7 @@ export default function PanelRendicion({
           {/* Los totales de la tabla vivían en un <tfoot> que quedaba fuera de
               vista con el scroll horizontal. Ahora van acá, junto al fondo y el
               saldo, que es la única cifra que a alguien le interesa de verdad. */}
+          {!modoPopup && (
           <div className="banda-contraste mt-5 grid grid-cols-2 gap-x-6 gap-y-4 rounded-2xl px-5 py-4 sm:grid-cols-5">
             {[
               { e: "Neto", v: money(totales.neto) },
@@ -1365,6 +1383,7 @@ export default function PanelRendicion({
               </p>
             </div>
           </div>
+          )}
 
           <div className="mt-5 flex flex-col items-center gap-2 sm:flex-row sm:flex-wrap">
             {/* No hay botón de guardar: se guarda solo. El único botón que
@@ -1380,6 +1399,7 @@ export default function PanelRendicion({
                 Reintentar el guardado
               </button>
             )}
+            {!sinExcel && (
             <button
               type="button"
               onClick={descargarExcel}
@@ -1390,17 +1410,18 @@ export default function PanelRendicion({
               {generandoExcel ? <RuedaCarga /> : <IconFileSpreadsheet size={16} />}
               {generandoExcel ? "Generando planilla..." : "Descargar Excel"}
             </button>
+            )}
             {puedeEnviar && (
               <button
                 type="button"
                 onClick={enviar}
-                disabled={enviando || rendicion.gastos.length === 0 || pendientes.length > 0}
+                disabled={enviando || rendicion.gastos.length === 0 || pendientesVista.length > 0}
                 aria-busy={enviando}
-                title={pendientes.length > 0 ? "Confirma primero los datos marcados" : undefined}
+                title={pendientesVista.length > 0 ? "Confirma primero los datos marcados" : undefined}
                 className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-naranjo px-5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto sm:w-auto"
               >
                 {enviando ? <RuedaCarga /> : <IconSend size={16} />}
-                {enviando ? "Enviando..." : pendientes.length > 0 ? `Revisa ${pendientes.length} antes de enviar` : "Enviar a revisión"}
+                {enviando ? "Enviando..." : pendientesVista.length > 0 ? `Revisa ${pendientesVista.length} antes de enviar` : "Enviar a revisión"}
               </button>
             )}
           </div>

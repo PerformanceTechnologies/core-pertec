@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { IconArrowRight, IconLoader2 } from "@tabler/icons-react";
+import { IconArrowRight, IconLoader2, IconPlus, IconX } from "@tabler/icons-react";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
 import { CAMPO } from "@/lib/estilos";
 import { moverGastosAction } from "@/app/(protegido)/rendir-gastos/acciones";
@@ -41,6 +42,26 @@ export default function MisGastos({
   const [destino, setDestino] = useState(informes[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
+  // El popup de ingreso: el panel queda montado siempre (solo se oculta) para que el
+  // autoguardado termine aunque se cierre la ventana al instante.
+  const [abierto, setAbierto] = useState(false);
+  const [idsEdicion, setIdsEdicion] = useState<string[]>([]);
+  // El portal solo existe en el navegador: useSyncExternalStore da false en el servidor y true acá.
+  const montado = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const cerrarPopup = () => { setAbierto(false); setIdsEdicion([]); };
+  useEffect(() => {
+    if (!abierto) return;
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const alTeclear = (e: KeyboardEvent) => e.key === "Escape" && cerrarPopup();
+    document.addEventListener("keydown", alTeclear);
+    return () => {
+      document.body.style.overflow = previo;
+      document.removeEventListener("keydown", alTeclear);
+    };
+  }, [abierto]);
+  const abrirNuevo = () => { setIdsEdicion([]); setAbierto(true); };
+  const abrirEdicion = (id: string) => { setIdsEdicion([id]); setAbierto(true); };
   const [filtro, setFiltro] = useState<EstadoGasto | "todos">("todos");
   const vigentes = elegidos.filter((id) => gastos.some((g) => g.id === id));
   const total = gastos.filter((g) => vigentes.includes(g.id)).reduce((s, g) => s + (Number(g.total) || 0), 0);
@@ -55,22 +76,18 @@ export default function MisGastos({
   ].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? ""));
   const cuenta = (e: EstadoGasto) => filas.filter((f) => f.estado === e).length;
   const visibles = filas.filter((f) => filtro === "todos" || f.estado === filtro);
-  const irAlBorrador = (id: string) => {
-    const nodo = document.getElementById(`gasto-${id}`);
-    if (!nodo) return;
-    nodo.closest("details")?.setAttribute("open", "");
-    nodo.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
   return (
     <div className="space-y-5">
-      {filas.length > 0 && (
+      {(
         <section className="rounded-2xl border border-borde bg-superficie p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-tinta">Todos mis gastos</h2>
-              <p className="text-xs text-gris">Borrador → En informe → Cerrado. Al cerrarse (informe aprobado) quedan por conciliar.</p>
+              <p className="text-xs text-gris">Borrador → En informe → Cerrado (informe aprobado, queda por conciliar).</p>
             </div>
+            <button type="button" onClick={abrirNuevo} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-naranjo px-4 text-sm font-bold text-white shadow-sm transition hover:bg-naranjo-suave">
+              <IconPlus size={16} /> Agregar nuevo gasto
+            </button>
             <div className="inline-flex flex-wrap rounded-lg border border-borde p-0.5 text-xs font-semibold">
               {([["todos", `Todos ${filas.length}`], ["borrador", `Borrador ${cuenta("borrador")}`], ["en_informe", `En informe ${cuenta("en_informe")}`], ["cerrado", `Cerrado ${cuenta("cerrado")}`]] as const).map(([k, t]) => (
                 <button key={k} type="button" onClick={() => setFiltro(k)} className={`rounded-md px-2.5 py-1 transition ${filtro === k ? "bg-tinta text-superficie" : "text-gris hover:text-tinta"}`}>{t}</button>
@@ -82,9 +99,9 @@ export default function MisGastos({
               <span /><span>Fecha</span><span>Proveedor</span><span>Categoría</span><span className="text-right">Total</span><span>Estado</span><span>Informe</span>
             </div>
             <ul className="divide-y divide-borde bg-superficie">
-              {visibles.length === 0 && <li className="px-4 py-6 text-center text-sm text-gris">No hay gastos en este estado.</li>}
+              {visibles.length === 0 && <li className="px-4 py-6 text-center text-sm text-gris">{filas.length === 0 ? "Aún no tienes gastos. Pulsa «Agregar nuevo gasto»." : "No hay gastos en este estado."}</li>}
               {visibles.map((f) => (
-                <li key={f.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3.5 py-2.5 md:grid-cols-[1.5rem_5.5rem_minmax(0,1.6fr)_minmax(0,1fr)_6.5rem_6.5rem_minmax(0,1.2fr)]">
+                <li key={f.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3.5 py-1.5 md:grid-cols-[1.5rem_5.5rem_minmax(0,1.6fr)_minmax(0,1fr)_6.5rem_6.5rem_minmax(0,1.2fr)]">
                   {f.estado === "borrador" ? (
                     <input
                       type="checkbox"
@@ -97,7 +114,7 @@ export default function MisGastos({
                   <span className="hidden text-xs tabular-nums text-gris md:block">{fechaCorta(f.fecha)}</span>
                   <span className="min-w-0">
                     {f.estado === "borrador" ? (
-                      <button type="button" onClick={() => irAlBorrador(f.id)} className="block max-w-full truncate text-left text-sm font-semibold text-tinta hover:text-naranjo">{f.proveedor?.trim() || "Sin proveedor"}</button>
+                      <button type="button" onClick={() => abrirEdicion(f.id)} className="block max-w-full truncate text-left text-sm font-semibold text-tinta hover:text-naranjo">{f.proveedor?.trim() || "Sin proveedor"}</button>
                     ) : (
                       <span className="block truncate text-sm font-semibold text-tinta">{f.proveedor?.trim() || "Sin proveedor"}</span>
                     )}
@@ -154,10 +171,39 @@ export default function MisGastos({
         </section>
       )}
 
-      <div>
-        <h2 className="mb-2 text-base font-bold text-tinta">Ingresar y editar borradores</h2>
-        <PanelRendicion proveedores={proveedores} proyectos={proyectos} key={bolsa.id} rendicionInicial={bolsa} urlsRespaldo={urlsRespaldo} editable puedeEnviar={false} alCambiarGastos={setGastos} />
-      </div>
+      {montado && createPortal(
+        <div
+          className={abierto ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-tinta/50 p-3 sm:p-6" : "hidden"}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) cerrarPopup(); }}
+        >
+          <div role="dialog" aria-label="Agregar gasto" className="w-full max-w-4xl rounded-2xl border border-borde bg-crema p-4 shadow-2xl sm:p-5">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-tinta">{idsEdicion.length && gastos.some((g) => idsEdicion.includes(g.id)) ? "Editar gasto" : "Agregar gasto"}</h2>
+                <p className="text-xs text-gris">Ingrésalo a mano, o sube el documento y se lee solo. Queda en borrador y se guarda solo.</p>
+              </div>
+              <button type="button" onClick={cerrarPopup} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-borde bg-superficie px-3 text-xs font-bold text-tinta hover:border-naranjo/50">
+                <IconX size={14} /> Listo
+              </button>
+            </div>
+            <PanelRendicion
+              proveedores={proveedores}
+              proyectos={proyectos}
+              key={bolsa.id}
+              rendicionInicial={bolsa}
+              urlsRespaldo={urlsRespaldo}
+              editable
+              puedeEnviar={false}
+              alCambiarGastos={setGastos}
+              modoPopup
+              sinExcel
+              soloIds={idsEdicion}
+              alAgregarIds={(ids) => setIdsEdicion((prev) => [...prev, ...ids])}
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
