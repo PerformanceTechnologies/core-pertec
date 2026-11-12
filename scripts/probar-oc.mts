@@ -62,7 +62,13 @@ for (const e of EMPRESAS) {
   // Estilo cotización: «Facturar a» al final (después de las condiciones), con solo el nombre de quien creó la OC.
   const cuerpo = html.slice(html.indexOf("<body>"));
   assert.ok(cuerpo.includes("<h2>Condiciones generales</h2>") && cuerpo.indexOf("Facturar a") > cuerpo.indexOf("<h2>Condiciones generales</h2>"), "«Facturar a» va al final");
-  assert.ok(cuerpo.indexOf("<h2>Proveedor</h2>") < cuerpo.indexOf('<table class="lineas">'), "el proveedor va arriba");
+  assert.ok(cuerpo.indexOf("Ferretería Industrial Ltda.") < cuerpo.indexOf('<table class="lineas">'), "el proveedor va arriba");
+  assert.ok(!cuerpo.includes("<h2>Proveedor</h2>"), "la casilla del proveedor no lleva el rótulo «Proveedor»");
+  // Entrega y pago sigue a la tabla, a la izquierda de los totales y sin hueco: va ANTES de los totales en el mismo bloque y antes de las condiciones.
+  assert.ok(cuerpo.includes('class="bajo-tabla"') && cuerpo.indexOf('class="bajo-tabla"') > cuerpo.indexOf("</table>"), "hay un bloque justo bajo la tabla");
+  assert.ok(cuerpo.indexOf("<h2>Entrega y pago</h2>") > cuerpo.indexOf('class="bajo-tabla"') && cuerpo.indexOf("<h2>Entrega y pago</h2>") < cuerpo.indexOf('class="totales"'), "entrega y pago, a la izquierda de los totales");
+  assert.ok(cuerpo.indexOf('class="totales"') < cuerpo.indexOf("<h2>Condiciones generales</h2>"), "las condiciones siguen a los totales");
+  assert.ok(!html.includes("margin-top: auto"), "nada empuja el cierre al pie: no queda un hueco en blanco");
   assert.ok(!cuerpo.includes("Mantención Planta Norte") && !cuerpo.includes("Proyecto"), "el PDF no lleva el proyecto");
   assert.ok(!cuerpo.includes("Solicitado por") && !cuerpo.includes("Aprobado por") && !cuerpo.includes("Visado por"), "sin las tres firmas");
   assert.ok(cuerpo.includes("<b>Hugo Antivil</b>"), "solo el nombre de quien creó la OC");
@@ -74,7 +80,7 @@ assert.ok(htmlDeOc(datos(EMPRESAS[0], { numero: null })).includes("Al visar"));
 // Moneda extranjera: se muestra el equivalente en pesos con su tipo de cambio.
 {
   const html = htmlDeOc(datos(EMPRESAS[0], { moneda: "UF", tipoCambio: 38_500.5, lineas: uf }));
-  assert.ok(html.includes("UF 44,08") && html.includes("Equivalente en pesos") && html.includes("$1.697.102"));
+  assert.ok(html.includes("UF 44,08") && html.includes("En pesos (UF a") && html.includes("$1.697.102"));
 }
 // Condiciones propias de la empresa mandan sobre las de omisión.
 assert.ok(htmlDeOc(datos({ ...EMPRESAS[0] }, { empresa: { ...datos(EMPRESAS[0]).empresa, condicionesOc: "Garantía de 12 meses." } })).includes("Garantía de 12 meses."));

@@ -120,12 +120,14 @@ function css(slug: string): string {
   /* El detalle opcional del ítem: sale bajo la descripción. */
   table.lineas .nota { display: block; font-size: 8pt; line-height: 1.35; color: #6b6258; margin-top: 1mm; }
 
-  .totales { display: flex; justify-content: flex-end; margin-top: 3mm; break-inside: avoid; page-break-inside: avoid; }
-  .totales table { width: 84mm; border-collapse: collapse; }
-  .totales td { padding: 1.2mm 3mm; font-size: 9.5pt; }
+  /* Justo bajo la tabla: a la izquierda entrega, pago y observaciones; a la derecha, los totales. Sin hueco entre uno y otro. */
+  .bajo-tabla { display: grid; grid-template-columns: minmax(0, 1fr) 74mm; gap: 8mm; align-items: start; margin-top: 3mm; break-inside: avoid; page-break-inside: avoid; }
+  .bajo-tabla .bloque:last-child { margin-bottom: 0; }
+  .totales table { width: 100%; border-collapse: collapse; }
+  .totales td { padding: 1mm 3mm; font-size: 9pt; }
   .totales td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .totales tr.total td { background: ${c.acento}; color: #fff; font-weight: 800; font-size: 12pt; padding: 2.4mm 3mm; }
-  .totales tr.pesos td { color: #6b6258; font-size: 8.5pt; border-top: 1px solid #e3ddd3; }
+  .totales tr.total td { background: ${c.acento}; color: #fff; font-weight: 800; font-size: 10.5pt; padding: 1.7mm 3mm; }
+  .totales tr.pesos td { color: #6b6258; font-size: 8pt; border-top: 1px solid #e3ddd3; }
 
   .bloque { margin-bottom: 4mm; break-inside: avoid; page-break-inside: avoid; }
   .bloque h2 { margin: 0 0 2mm; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: ${c.acento}; border-bottom: 1px solid #e3ddd3; padding-bottom: 1.2mm; }
@@ -136,7 +138,7 @@ function css(slug: string): string {
   .bloque ol { margin: 0; padding-left: 4.5mm; }
   .bloque ol li { display: list-item; font-size: 8.5pt; color: #4a443d; margin-bottom: 0.8mm; }
 
-  /* Abajo de todo: lo de entrega, pago y condiciones, y al final «Facturar a» (chico) con el nombre de quien creó la OC. */
+  /* Lo último: las condiciones y, al final, «Facturar a» (chico) con el nombre de quien creó la OC. Sigue al resto sin dejar huecos. */
   .cierre { break-inside: avoid; page-break-inside: avoid; padding-bottom: 2mm; }
   .final { display: grid; grid-template-columns: 1fr 62mm; gap: 8mm; align-items: end; border-top: 1px solid #e3ddd3; padding-top: 3mm; }
   .facturar { font-size: 7.5pt; line-height: 1.45; color: #6b6258; }
@@ -146,9 +148,7 @@ function css(slug: string): string {
   .firma .raya { width: 100%; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; margin-top: 9mm; }
   .firma b { font-size: 10pt; }
   .g + .g { margin-top: 4mm; }
-  .g + .g.cierre { margin-top: 6mm; }
-  /* En una sola hoja el cierre va pegado al pie; todo lo demás, arriba y junto. */
-  .pagina.una-hoja .g + .g.cierre { margin-top: auto; }
+  .g + .g.cierre { margin-top: 5mm; }
 
   /* Espacio justo: antes de achicar las filas de ítems se aprietan los márgenes (la letra no cambia). */
   body.espacio-justo .cabecera { padding: 4mm 0 2.5mm; }
@@ -156,8 +156,8 @@ function css(slug: string): string {
   body.espacio-justo .caja { padding: 2.5mm 4mm; }
   body.espacio-justo .bloque { margin-bottom: 2.5mm; }
   body.espacio-justo .bloque li { margin-bottom: 0.6mm; }
-  body.espacio-justo .totales td { padding: 0.8mm 3mm; }
-  body.espacio-justo .totales tr.total td { padding: 1.8mm 3mm; }
+  body.espacio-justo .totales td { padding: 0.7mm 3mm; }
+  body.espacio-justo .totales tr.total td { padding: 1.3mm 3mm; }
   body.espacio-justo .firma .raya { margin-top: 5mm; }
   body.espacio-justo .g + .g:not(.cierre) { margin-top: 3mm; }
 `;
@@ -218,7 +218,6 @@ export function htmlDeOc(d: DatosOc): string {
           </div>
         </div>
         <div class="caja">
-          <h2>Proveedor</h2>
           ${p ? `<p class="grande">${esc(p.nombre)}</p>${[p.rut ? `RUT ${esc(p.rut)}` : "", p.giro ? esc(p.giro) : ""].filter(Boolean).length ? `<p>${[p.rut ? `RUT ${esc(p.rut)}` : "", p.giro ? esc(p.giro) : ""].filter(Boolean).join(" · ")}</p>` : ""}${p.direccion ? `<p class="tenue">${esc(p.direccion)}</p>` : ""}${[p.telefono, p.correo].filter(Boolean).length ? `<p class="tenue">${[p.telefono, p.correo].filter(Boolean).map((x) => esc(x)).join(" · ")}</p>` : ""}` : '<p class="tenue">Sin proveedor asignado</p>'}
           ${d.atencion?.trim() ? `<p class="tenue">Atención: ${esc(d.atencion.trim())}</p>` : ""}
         </div>
@@ -232,18 +231,22 @@ export function htmlDeOc(d: DatosOc): string {
         <tbody>${filas}</tbody>
       </table>
 
-      <div class="totales"><table>
-        <tr><td>${t.exento > 0 ? "Neto afecto" : "Neto"}</td><td>${formatoMonto(t.neto, m)}</td></tr>
-        ${t.exento > 0 ? `<tr><td>Exento</td><td>${formatoMonto(t.exento, m)}</td></tr>` : ""}
-        <tr><td>IVA ${Math.round(d.tasaIva * 1000) / 10}%</td><td>${formatoMonto(t.iva, m)}</td></tr>
-        <tr class="total"><td>TOTAL</td><td>${formatoMonto(t.total, m)}</td></tr>
-        ${m !== "CLP" ? `<tr class="pesos"><td>Equivalente en pesos (${m} a ${formatoMonto(d.tipoCambio, "CLP")})</td><td>${formatoMonto(aPesos(t.total, m, d.tipoCambio), "CLP")}</td></tr>` : ""}
-      </table></div>
+      <div class="bajo-tabla">
+        <div>
+          ${entrega.length ? `<section class="bloque"><h2>Entrega y pago</h2><ul>${entrega.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul></section>` : ""}
+          ${d.observaciones?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.observaciones.trim())}</p></section>` : ""}
+        </div>
+        <div class="totales"><table>
+          <tr><td>${t.exento > 0 ? "Neto afecto" : "Neto"}</td><td>${formatoMonto(t.neto, m)}</td></tr>
+          ${t.exento > 0 ? `<tr><td>Exento</td><td>${formatoMonto(t.exento, m)}</td></tr>` : ""}
+          <tr><td>IVA ${Math.round(d.tasaIva * 1000) / 10}%</td><td>${formatoMonto(t.iva, m)}</td></tr>
+          <tr class="total"><td>TOTAL</td><td>${formatoMonto(t.total, m)}</td></tr>
+          ${m !== "CLP" ? `<tr class="pesos"><td>En pesos (${m} a ${formatoMonto(d.tipoCambio, "CLP")})</td><td>${formatoMonto(aPesos(t.total, m, d.tipoCambio), "CLP")}</td></tr>` : ""}
+        </table></div>
+      </div>
     </div>
 
     <div class="g cierre">
-      ${entrega.length ? `<section class="bloque"><h2>Entrega y pago</h2><ul>${entrega.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul></section>` : ""}
-      ${d.observaciones?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.observaciones.trim())}</p></section>` : ""}
       <section class="bloque"><h2>Condiciones generales</h2><ol>${condiciones.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></section>
       <div class="final">
         <div class="facturar"><span class="et">Facturar a</span><b>${esc(e.nombre)}</b>${datosFacturar.length ? `<br>${datosFacturar.map((x) => esc(x)).join(" · ")}` : ""}</div>
