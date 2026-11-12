@@ -249,7 +249,7 @@ async function moverInformeConFondo(
   // Lo propio es lo de quien rinde: quien lo creó a su nombre (un admin) sí puede revisarlo.
   const rinde = r.rindeCorreo?.toLowerCase() === yo;
   const revisor = roles.includes("revisor") && !rinde;
-  if (!mia && !revisor) return { ok: false, error: "No encontramos ese informe." };
+  if (!mia && !revisor && usuario.rol !== "admin") return { ok: false, error: "No encontramos ese informe." };
   const ahora = new Date().toISOString();
   const total = money(totalDe(r));
   const condicionado = async (desde: string[], hacia: string, extra: Record<string, unknown> = {}) => {
@@ -261,7 +261,7 @@ async function moverInformeConFondo(
 
   switch (accion) {
     case "enviar": {
-      if (!mia) return { ok: false, error: "Solo quien rinde envía el informe." };
+      if (!mia && usuario.rol !== "admin") return { ok: false, error: "Solo quien rinde (o el administrador) envía el informe." };
       const fondo = r.fondoId ? await obtenerFondo(r.fondoId) : null;
       if (fondo?.estado !== "activo") return { ok: false, error: "El fondo de este informe ya no está activo." };
       const obs = (nota ?? "").trim().slice(0, 1000);

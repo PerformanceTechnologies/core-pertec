@@ -52,7 +52,8 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   const sinFondo = Boolean(rendicion.empresaId && !rendicion.fondoId);
   const acciones: AccionRendicion[] = conFondo
     ? [
-        ...(esMia && esEditable(rendicion.estado) ? (["enviar"] as const) : []),
+        // El administrador del Core también puede enviarlo a nombre de quien rinde.
+        ...((esMia || usuario.rol === "admin") && esEditable(rendicion.estado) ? (["enviar"] as const) : []),
         ...(esMia && rendicion.estado === "enviada" ? (["retirar"] as const) : []),
         ...(revisa && rendicion.estado === "enviada" ? (["aprobar", "rechazar"] as const) : []),
       ]
@@ -61,7 +62,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   const vistaRevisor = revisa && !esMia && rendicion.estado === "enviada";
   // Un informe ya validado o cerrado también se ve en lista (con su conciliación), no con cada gasto abierto.
   const validado = ["aprobada", "pagada", "cargada_odoo", "reembolso_pendiente", "reembolsada", "cerrada"].includes(rendicion.estado);
-  const editable = esEditable(rendicion.estado) && (conFondo ? esMia : esMia || revisa);
+  const editable = esEditable(rendicion.estado) && (conFondo ? esMia || usuario.rol === "admin" : esMia || revisa);
   const [fondo, parametros] = conFondo ? await Promise.all([obtenerFondo(rendicion.fondoId!), leerParametros(rendicion.empresaId!)]) : [null, null];
   const rendido = gastoRendido(rendicion.gastos);
   // Lo disponible del fondo antes de este informe (sus gastos entran al libro recién al aprobarse).
