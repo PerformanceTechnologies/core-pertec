@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IconLoader2, IconPaperclip, IconPlus, IconWallet } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
@@ -168,9 +168,18 @@ function Formulario({ accion, alListo, children, boton }: { accion: (fd: FormDat
 }
 
 /** Quien rinde pide un fondo: monto, para qué, centro de costo y fecha estimada. */
-export function SolicitarFondo({ comoTarjeta = false }: { comoTarjeta?: boolean }) {
+export function SolicitarFondo({ comoTarjeta = false, abrirConAtajo = false }: { comoTarjeta?: boolean; abrirConAtajo?: boolean }) {
   const router = useRouter();
   const [abierta, setAbierta] = useState(false);
+  // Atajo «Solicitar fondo» (/rendir-gastos?solicitar=1): se abre solo una vez.
+  useEffect(() => {
+    if (!abrirConAtajo) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("solicitar") !== "1") return;
+    url.searchParams.delete("solicitar");
+    window.history.replaceState(null, "", url.toString());
+    setTimeout(() => setAbierta(true), 0);
+  }, [abrirConAtajo]);
   return (
     <>
       {comoTarjeta ? (

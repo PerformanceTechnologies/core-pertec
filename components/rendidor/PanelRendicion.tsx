@@ -317,7 +317,7 @@ export default function PanelRendicion({
   /** En el popup: «Guardar gasto» guarda al instante y avisa para cerrar la ventana. */
   alGuardar?: () => void;
   /** Para que quien contiene el panel pueda quitar un gasto (desde el listado). */
-  controlRef?: RefObject<{ quitar: (id: string) => void; reiniciar: () => void } | null>;
+  controlRef?: RefObject<{ quitar: (id: string) => void; reiniciar: () => void; subir?: () => void } | null>;
   /** Avisa qué gastos parecen repetidos (para marcarlos también en el listado). */
   alCambiarRepetidos?: (m: Record<string, Repetido[]>) => void;
   /** Sin el botón «Descargar Excel» (los gastos sueltos no tienen planilla: va en el informe). */
@@ -589,6 +589,11 @@ export default function PanelRendicion({
     reiniciar: () => {
       setVerSubida(false);
       setNuevoManualId(null);
+    },
+    // Atajo «Escanear gasto»: abre directo la subida de fotos.
+    subir: () => {
+      setNuevoManualId(null);
+      setVerSubida(true);
     },
   }));
 

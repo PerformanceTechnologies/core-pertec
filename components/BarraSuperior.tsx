@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { IconMessages, IconSunHigh } from "@tabler/icons-react";
 import { InsigniaMuro, useNuevosMuro } from "@/components/muro/aviso-muro";
 import BuzonNotificaciones from "@/components/BuzonNotificaciones";
+import Atajos from "@/components/Atajos";
 import SelectorEmpresa from "@/components/SelectorEmpresa";
 import type { Empresa } from "@/lib/empresas-modelo";
 
@@ -40,6 +41,7 @@ export default function BarraSuperior({
   return (
     // En el celular se monta en la barra fija de arriba (al lado del menú) y queda solo con íconos.
     <div className="z-40 flex items-center justify-end gap-1.5 max-lg:fixed max-lg:right-3 max-lg:top-[0.6875rem] lg:mb-4 lg:gap-2">
+      <Atajos />
       {mostrarBuzon && <BuzonNotificaciones activa={empresaActiva} empresas={empresasPermitidas} />}
       {veMiDia && (
         <Link

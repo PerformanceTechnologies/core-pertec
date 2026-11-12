@@ -66,7 +66,7 @@ export default function MisGastos({
     };
   }, [abierto]);
   // Para quitar un borrador desde el listado: lo hace el panel (que guarda solo).
-  const panel = useRef<{ quitar: (id: string) => void; reiniciar: () => void } | null>(null);
+  const panel = useRef<{ quitar: (id: string) => void; reiniciar: () => void; subir?: () => void } | null>(null);
   const [repetidos, setRepetidos] = useState(repetidosIniciales);
   const eliminarBorrador = (f: FilaMiGasto) => {
     if (confirm(`¿Eliminar el gasto de ${f.proveedor?.trim() || "este proveedor"} por ${pesos(f.total)}?`)) panel.current?.quitar(f.id);
@@ -83,6 +83,18 @@ export default function MisGastos({
   };
   const abrirNuevo = () => { panel.current?.reiniciar(); setIdsEdicion([]); setAbierto(true); };
   const abrirEdicion = (id: string) => { setIdsEdicion([id]); setAbierto(true); };
+  // Atajo «Escanear gasto» (/rendir-gastos/gastos?escanear=1): abre el ingreso directo en la subida de fotos.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("escanear") !== "1") return;
+    url.searchParams.delete("escanear");
+    window.history.replaceState(null, "", url.toString());
+    setTimeout(() => {
+      setIdsEdicion([]);
+      setAbierto(true);
+      setTimeout(() => panel.current?.subir?.(), 0);
+    }, 0);
+  }, []);
   const [filtro, setFiltro] = useState<EstadoGasto | "todos">("todos");
   const vigentes = elegidos.filter((id) => gastos.some((g) => g.id === id));
   const total = gastos.filter((g) => vigentes.includes(g.id)).reduce((s, g) => s + (Number(g.total) || 0), 0);

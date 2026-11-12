@@ -162,7 +162,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
                 <span className="block text-[11px] text-gris">Boletas sueltas, se leen solas</span>
               </span>
             </Link>
-            <SolicitarFondo comoTarjeta />
+            <SolicitarFondo comoTarjeta abrirConAtajo />
             <NuevaRendicion empresa={activa?.nombre} fondos={fondosParaInforme} comoTarjeta />
           </div>
 
