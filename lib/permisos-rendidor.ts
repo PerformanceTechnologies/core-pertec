@@ -107,9 +107,15 @@ export function esEditable(estado: EstadoRendicion): boolean {
  * Un dato ilegible sin confirmar o un gasto en $0 llegarían al revisor como si fueran
  * ciertos; se piden antes, no después.
  */
-export function problemasParaEnviar(gastos: Pick<GastoRendicion, "total" | "pendientes" | "proveedor">[]): string[] {
+export function problemasParaEnviar(gastos: Pick<GastoRendicion, "total" | "pendientes" | "proveedor">[], conObservaciones = false): string[] {
   const problemas: string[] = [];
   if (gastos.length === 0) problemas.push("Agrega al menos un gasto (con comprobante o manual).");
+  // Con observaciones se envía igual lo que falta confirmar: quien revisa lee la nota. Solo un gasto sin monto no se puede rendir.
+  if (conObservaciones) {
+    const sinMonto = gastos.filter((g) => !(g.total > 0)).length;
+    if (sinMonto > 0) problemas.push(`${sinMonto} ${sinMonto === 1 ? "gasto no tiene" : "gastos no tienen"} total.`);
+    return problemas;
+  }
   const pendientes = gastos.filter((g) => g.pendientes.length > 0).length;
   if (pendientes > 0) problemas.push(`${pendientes} ${pendientes === 1 ? "gasto tiene" : "gastos tienen"} datos por confirmar.`);
   const sinMonto = gastos.filter((g) => !(g.total > 0)).length;

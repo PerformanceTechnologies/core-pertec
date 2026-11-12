@@ -37,6 +37,8 @@ export interface DesgloseIva {
   neto: number;
   iva: number;
   total: number;
+  /** Impuesto específico al combustible: va dentro del total pero fuera del neto y del IVA. */
+  impuestoEspecifico: number;
   afecto: boolean;
   // Se llena cuando el desglose impreso no cuadra con el total impreso, o
   // cuando hubo que asumir el default del tipo de documento.
@@ -60,8 +62,14 @@ export function calcularDesglose(
   netoLeido: number | null,
   ivaLeido: number | null,
   afectoForzado?: boolean,
+  impuestoEspecifico = 0,
 ): DesgloseIva {
   const advertencias: string[] = [];
+  // El impuesto específico al combustible no lleva IVA: todo el cálculo se hace sobre lo que queda.
+  const ie = Math.max(0, Math.min(Math.round(impuestoEspecifico || 0), total));
+  const totalImpreso = total;
+  total = totalImpreso - ie;
+  const fin = (d: Omit<DesgloseIva, "impuestoEspecifico" | "total">): DesgloseIva => ({ ...d, total: totalImpreso, impuestoEspecifico: ie });
   const tratamiento = TRATAMIENTO_DOCUMENTO[tipo];
 
   // Regla 4 y 7: si el tipo no define la afectación (pasaje aéreo) hace falta
@@ -100,7 +108,7 @@ export function calcularDesglose(
         );
         // El desglose leído no sirve: el IVA se saca del total más abajo.
         const neto = Math.round(total / 1.19);
-        return { neto, iva: total - neto, total, afecto: true, advertencias };
+        return fin({ neto, iva: total - neto, afecto: true, advertencias });
       }
 
       advertencias.push(
@@ -131,12 +139,12 @@ export function calcularDesglose(
       );
     }
 
-    return { neto: total - ivaLeido, iva: ivaLeido, total, afecto, advertencias };
+    return fin({ neto: total - ivaLeido, iva: ivaLeido, afecto, advertencias });
   }
 
   // Regla 3: sin desglose, se aplica el default del tipo.
   if (!afecto) {
-    return { neto: total, iva: 0, total, afecto: false, advertencias };
+    return fin({ neto: total, iva: 0, afecto: false, advertencias });
   }
 
   // El total impreso YA incluye el IVA, así que el neto se saca HACIA ATRÁS y el
@@ -146,7 +154,7 @@ export function calcularDesglose(
   // Vale también para el pasaje aéreo, aunque LATAM lo emita como factura exenta:
   // el criterio es reconocer el IVA que ya viene dentro del monto pagado.
   const neto = Math.round(total / 1.19);
-  return { neto, iva: total - neto, total, afecto: true, advertencias };
+  return fin({ neto, iva: total - neto, afecto: true, advertencias });
 }
 
 /**
@@ -165,14 +173,15 @@ export function calcularDesglose(
  * si eso es un error o una advertencia en pantalla.
  */
 export function desgloseDeGasto(
-  gasto: Pick<GastoRendicion, "total" | "tipoDocumento" | "neto" | "iva" | "ivaDesglosado" | "ivaManual">,
+  gasto: Pick<GastoRendicion, "total" | "tipoDocumento" | "neto" | "iva" | "ivaDesglosado" | "ivaManual" | "impuestoEspecifico">,
 ): DesgloseIva | null {
+  const ie = Math.max(0, Math.min(Math.round(Number(gasto.impuestoEspecifico) || 0), gasto.total));
   if (!gasto.tipoDocumento || gasto.total <= 0) return null;
 
   // Lo que se marcó a mano manda sobre todo: es quien ingresa el gasto, con el documento en la
   // mano, el que sabe si es exento. Sin advertencias: no hay nada que revisar, se decidió.
-  if (gasto.ivaManual === "exento") return { neto: gasto.total, iva: 0, total: gasto.total, afecto: false, advertencias: [] };
-  if (gasto.ivaManual === "afecto") return calcularDesglose(gasto.total, gasto.tipoDocumento, null, null, true);
+  if (gasto.ivaManual === "exento") return { neto: gasto.total - ie, iva: 0, total: gasto.total, impuestoEspecifico: ie, afecto: false, advertencias: [] };
+  if (gasto.ivaManual === "afecto") return calcularDesglose(gasto.total, gasto.tipoDocumento, null, null, true, ie);
 
   const tratamiento = TRATAMIENTO_DOCUMENTO[gasto.tipoDocumento];
 
@@ -192,6 +201,7 @@ export function desgloseDeGasto(
     traeDesglose ? gasto.neto : null,
     traeDesglose ? gasto.iva : null,
     tratamiento.afecto === null ? gasto.iva > 0 : undefined,
+    ie,
   );
 }
 

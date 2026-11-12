@@ -164,6 +164,7 @@ interface ComprobanteLeidoUI {
   iva: number | null;
   total: number | null;
   ilegibles: string[] | null;
+  impuestoEspecifico?: number | null;
 }
 
 /** Un ícono y un color por categoría: se reconocen de un vistazo en la lista y en el selector. */
@@ -450,6 +451,7 @@ export default function PanelRendicion({
       rendicion.gastos.map((g) => {
         let neto = g.neto;
         let iva = g.iva;
+        let especifico = 0;
         const advertencias: string[] = [];
 
         try {
@@ -459,13 +461,14 @@ export default function PanelRendicion({
           if (d) {
             neto = d.neto;
             iva = d.iva;
+            especifico = d.impuestoEspecifico;
             advertencias.push(...d.advertencias);
           }
         } catch (e) {
           advertencias.push(e instanceof Error ? e.message : "No se pudo calcular el IVA.");
         }
 
-        return { gasto: g, neto, iva, advertencias };
+        return { gasto: g, neto, iva, especifico, advertencias };
       }),
     [rendicion.gastos],
   );
@@ -706,6 +709,7 @@ export default function PanelRendicion({
         // documento afirma que no hay IVA (línea "VALOR EXENTO"). Al pasar a
         // number las dos cosas caían en 0 y quedaban indistinguibles.
         ivaDesglosado: l.neto !== null && l.iva !== null,
+        impuestoEspecifico: l.impuestoEspecifico && l.impuestoEspecifico > 0 ? Math.round(l.impuestoEspecifico) : null,
         total: l.total ?? 0,
         pendientes: l.ilegibles ?? [],
         archivoNombre: archivo.name,
@@ -903,11 +907,18 @@ export default function PanelRendicion({
    * El guardado va primero: el servidor valida LO QUE ESTÁ EN LA BASE (que no falten
    * datos), y una corrección todavía en el compás del autoguardado se validaría vieja.
    */
+  const [observaciones, setObservaciones] = useState("");
+  const [conObservaciones, setConObservaciones] = useState(false);
   const enviar = async () => {
+    const obs = observaciones.trim();
+    if (conObservaciones && !obs) {
+      avisar({ tono: "error", clave: "enviar", titulo: "Escribe la observación", detalle: "Cuéntale a quien revisa qué falta o qué hay que mirar." });
+      return;
+    }
     setEnviando(true);
     try {
       await persistirGastos();
-      const r = await moverRendicionAction(rendicion.id, "enviar");
+      const r = await moverRendicionAction(rendicion.id, "enviar", conObservaciones ? obs : undefined);
       if (!r.ok) throw new Error(r.error);
       avisar({ tono: "ok", titulo: "Enviada a revisión", detalle: "Te avisaremos en la campana cuando la aprueben o si hay que corregir algo." });
       router.refresh();
@@ -1115,7 +1126,7 @@ export default function PanelRendicion({
               para el teléfono y para un monitor ancho sin nada oculto ni ningún
               desplazamiento lateral. */}
           <ul ref={listaGastos} className="mt-4 flex flex-col gap-3">
-            {vista.map(({ gasto: g, neto, iva, advertencias }, i) => {
+            {vista.map(({ gasto: g, neto, iva, especifico, advertencias }, i) => {
               const porRevisar = pendientes.some((p) => p.gasto.id === g.id);
               if ((verGastos === "revisar" && !porRevisar) || (verGastos === "listos" && porRevisar)) return null;
               const cat = g.categoria ? ESTILO_CATEGORIA[g.categoria] : null;
@@ -1414,6 +1425,18 @@ export default function PanelRendicion({
                           />
                         </Campo>
 
+                        {(g.categoria === "Combustible" || (g.impuestoEspecifico ?? 0) > 0) && (
+                          <Campo etiqueta="Imp. específico">
+                            <NumInput
+                              value={g.impuestoEspecifico ?? 0}
+                              disabled={yaCargada}
+                              onChange={(v) => actualizarGasto(g.id, { impuestoEspecifico: v > 0 ? v : null })}
+                              align="right"
+                            />
+                            <span className="mt-1 block text-right text-[10px] text-tinta/45">Combustible: no lleva IVA</span>
+                          </Campo>
+                        )}
+
                         <Campo etiqueta="Total impreso">
                           <NumInput
                             value={g.total}
@@ -1426,7 +1449,7 @@ export default function PanelRendicion({
                           derivan, en vez de en dos columnas aparte que parecían
                           campos más. */}
                           <span className="mt-1 block text-right text-[10px] tabular-nums text-tinta/45">
-                            Neto {money(neto)} · IVA {money(iva)}
+                            Neto {money(neto)} · IVA {money(iva)}{especifico > 0 ? ` · Imp. esp. ${money(especifico)}` : ""}
                           </span>
                         </Campo>
                       </div>
@@ -1506,20 +1529,47 @@ export default function PanelRendicion({
               {generandoExcel ? "Generando planilla..." : "Descargar Excel"}
             </button>
             )}
+            {puedeEnviar && pendientesVista.length > 0 && !conObservaciones && (
+              <button
+                type="button"
+                onClick={() => setConObservaciones(true)}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-naranjo/50 bg-superficie px-4 text-xs font-bold uppercase tracking-wide text-naranjo transition hover:bg-naranjo/[0.06] sm:w-auto"
+              >
+                <IconSend size={16} /> Enviar con observaciones
+              </button>
+            )}
             {puedeEnviar && (
               <button
                 type="button"
                 onClick={enviar}
-                disabled={enviando || rendicion.gastos.length === 0 || pendientesVista.length > 0}
+                disabled={enviando || rendicion.gastos.length === 0 || (pendientesVista.length > 0 && !conObservaciones)}
                 aria-busy={enviando}
                 title={pendientesVista.length > 0 ? "Confirma primero los datos marcados" : undefined}
                 className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-naranjo px-5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto sm:w-auto"
               >
                 {enviando ? <RuedaCarga /> : <IconSend size={16} />}
-                {enviando ? "Enviando..." : pendientesVista.length > 0 ? `Revisa ${pendientesVista.length} antes de enviar` : "Enviar a revisión"}
+                {enviando ? "Enviando..." : conObservaciones ? "Enviar con observaciones" : pendientesVista.length > 0 ? `Revisa ${pendientesVista.length} antes de enviar` : "Enviar a revisión"}
               </button>
             )}
           </div>
+          {conObservaciones && (
+            <div className="mt-3 rounded-xl border border-naranjo/40 bg-naranjo/[0.04] p-3">
+              <label className="block text-xs font-semibold text-tinta">
+                Observaciones para quien revisa
+                <span className="ml-1 font-normal text-gris">({pendientesVista.length} gasto{pendientesVista.length === 1 ? "" : "s"} con datos por confirmar)</span>
+              </label>
+              <textarea
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                autoFocus
+                placeholder="Ej.: los pasajes Sky están repetidos porque se compraron dos tramos; el estacionamiento no trae RUT."
+                className="mt-1.5 w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta focus:border-naranjo/60 focus:outline-none"
+              />
+              <button type="button" onClick={() => setConObservaciones(false)} className="mt-1 text-xs font-semibold text-gris underline underline-offset-2">Cancelar</button>
+            </div>
+          )}
           {sinRespaldo > 0 && (
             <p className="mt-2 text-xs text-tinta/50">
               {sinRespaldo} de {rendicion.gastos.length} gasto(s) no tienen comprobante, así que en la hoja

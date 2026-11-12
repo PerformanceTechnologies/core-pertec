@@ -36,6 +36,8 @@ export interface ComprobanteLeido {
   neto: number | null;
   iva: number | null;
   total: number | null;
+  /** Impuesto específico a los combustibles, si el documento lo muestra. */
+  impuestoEspecifico: number | null;
   // Solo aplica a pasaje_aereo. Es INFORMATIVO: sirve para el detalle que lee
   // el contador, no decide el IVA — por criterio de PERTEC el pasaje aereo va
   // siempre afecto (ver TRATAMIENTO_DOCUMENTO en tipos.ts).
@@ -98,6 +100,12 @@ const ESQUEMA = {
       description:
         "El TOTAL A PAGAR impreso. Nunca el neto ni el subtotal. null solo si es completamente ilegible.",
     },
+    impuestoEspecifico: {
+      type: ["number", "null"],
+      description:
+        "Impuesto específico a los combustibles (líneas «Imp. Específico», «IEC», «Impuesto Específico Combustible», " +
+        "«Imp. Esp. Diésel/Gasolina») en pesos, tal como aparece impreso. null si el documento no lo muestra.",
+    },
     tramoNacional: {
       type: ["boolean", "null"],
       description:
@@ -122,6 +130,7 @@ const ESQUEMA = {
     "neto",
     "iva",
     "total",
+    "impuestoEspecifico",
     "tramoNacional",
     "ilegibles",
   ],
@@ -149,6 +158,11 @@ Extrae los datos del comprobante adjunto. Reglas que no puedes romper:
       desglose se calcula después con las reglas de la casa.
 
    No mezcles null con 0: null es silencio del documento, 0 es el documento afirmando que no hay IVA.
+
+2b. **Combustible: el impuesto específico va aparte.** Las boletas y facturas de bencina, diésel o gas
+   suelen mostrar una línea «Imp. Específico», «IEC» o «Impuesto Específico Combustible». Ese monto está
+   DENTRO del total pero NO lleva IVA: cópialo en \`impuestoEspecifico\`. Si el documento desglosa neto e
+   IVA, \`neto\` es el neto sin el impuesto específico (tal como esté impreso). Si no aparece, null.
 
 3. **No inventes nada.** Si un campo es ilegible, déjalo en null y agrega su nombre a \`ilegibles\`.
    Es mucho mejor que alguien lo complete a mano que una cifra inventada en una rendición.

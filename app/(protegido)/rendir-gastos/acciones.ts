@@ -190,10 +190,14 @@ export async function moverRendicionAction(id: string, accion: AccionRendicion, 
 
     switch (accion) {
       case "enviar": {
-        const problemas = problemasParaEnviar(r.gastos);
+        const obs = (nota ?? "").trim().slice(0, 1000);
+        const problemas = problemasParaEnviar(r.gastos, Boolean(obs));
         if (problemas.length) return { ok: false, error: problemas.join(" ") };
         hecho = await cambiarEstado(id, ["borrador", "rechazada"], "enviada", { enviada_en: ahora, motivo_rechazo: null, revisada_por: null, revisada_en: null });
-        if (hecho) await avisar(await correosRevisores(), yo, r, "enviada", `Rendición por revisar: ${r.tituloRendicion}`, `${r.nombreQuienRinde} · ${total}`, "alerta");
+        if (hecho) {
+          if (obs) await auditar("informe", id, r.estado, "enviada", yo, `Enviada con observaciones: ${obs}`);
+          await avisar(await correosRevisores(), yo, r, "enviada", `Rendición por revisar: ${r.tituloRendicion}`, `${r.nombreQuienRinde} · ${total}${obs ? ` · Observaciones: ${obs}` : ""}`, "alerta");
+        }
         break;
       }
       case "retirar":
@@ -260,13 +264,15 @@ async function moverInformeConFondo(
       if (!mia) return { ok: false, error: "Solo quien rinde envía el informe." };
       const fondo = r.fondoId ? await obtenerFondo(r.fondoId) : null;
       if (fondo?.estado !== "activo") return { ok: false, error: "El fondo de este informe ya no está activo." };
-      const problemas = problemasParaEnviar(r.gastos);
+      const obs = (nota ?? "").trim().slice(0, 1000);
+      const problemas = problemasParaEnviar(r.gastos, Boolean(obs));
       if (problemas.length) return { ok: false, error: problemas.join(" ") };
       // Las observadas que se corrigieron vuelven a «cargada»; se marcan los posibles duplicados.
       const gastos = (await marcarDuplicados(r)).map((g) => (g.revision?.estado === "observada" ? { ...g, revision: { ...g.revision, estado: "cargada" as EstadoBoleta } } : g));
       await condicionado(["borrador", "rechazada"], "enviada", { enviada_en: ahora, motivo_rechazo: null, revisada_por: null, revisada_en: null, gastos, ciclo_revision: r.cicloRevision + 1 });
+      if (obs) await auditar("informe", r.id, "enviada", "enviada", yo, `Enviado con observaciones: ${obs}`);
       const dup = gastos.filter((g) => g.duplicadoDe).length;
-      await avisarInforme(await correosConRol(r.empresaId!, "revisor"), yo, r, "enviada", `Informe por revisar: ${r.tituloRendicion}`, `${r.nombreQuienRinde} · ${total}${dup ? ` · ${dup} posible(s) duplicado(s)` : ""}`, "alerta");
+      await avisarInforme(await correosConRol(r.empresaId!, "revisor"), yo, r, "enviada", `Informe por revisar: ${r.tituloRendicion}`, `${r.nombreQuienRinde} · ${total}${dup ? ` · ${dup} posible(s) duplicado(s)` : ""}${obs ? ` · Observaciones: ${obs}` : ""}`, "alerta");
       break;
     }
     case "retirar":

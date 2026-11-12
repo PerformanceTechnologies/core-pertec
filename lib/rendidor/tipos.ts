@@ -152,6 +152,11 @@ export interface GastoRendicion {
    * según el tipo de documento.
    */
   ivaManual?: "afecto" | "exento" | null;
+  /**
+   * Impuesto específico a los combustibles (IEC) incluido en el total. No lleva IVA: el neto y el
+   * IVA se sacan de (total − impuesto específico). Vacío o 0 = no tiene.
+   */
+  impuestoEspecifico?: number | null;
   // Marca los campos que el modelo no pudo leer y que hay que confirmar a mano
   // antes de cargar. La skill es explícita: no inventar datos ilegibles.
   pendientes: string[];

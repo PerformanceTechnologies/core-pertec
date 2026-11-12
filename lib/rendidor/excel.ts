@@ -125,14 +125,19 @@ function dimensionesImagen(buffer: Buffer): { ancho: number; alto: number } | nu
  * define la afectacion) se cae a lo leido: es mejor una fila incompleta que una
  * planilla que no se genera.
  */
-function netoEIva(g: GastoRendicion): { neto: number; iva: number } {
+function netoEIva(g: GastoRendicion): { neto: number; iva: number; especifico: number } {
+  const especifico = Math.max(0, Math.round(Number(g.impuestoEspecifico) || 0));
   try {
     const d = desgloseDeGasto(g);
-    return d ? { neto: d.neto, iva: d.iva } : { neto: g.neto, iva: g.iva };
+    return d ? { neto: d.neto, iva: d.iva, especifico: d.impuestoEspecifico } : { neto: g.neto, iva: g.iva, especifico };
   } catch {
-    return { neto: g.neto, iva: g.iva };
+    return { neto: g.neto, iva: g.iva, especifico };
   }
 }
+
+/** El detalle, con el impuesto específico a la vista cuando lo hay (neto + IVA + específico = total). */
+const detalleCon = (g: GastoRendicion, especifico: number) =>
+  especifico > 0 ? g.detalle + " · Imp. específico combustible " + especifico.toLocaleString("es-CL") + " CLP (sin IVA)" : g.detalle;
 
 export interface RespaldoParaExcel {
   gastoId: string;
@@ -234,7 +239,7 @@ export async function construirLibroRendicion(
     const f = PRIMERA + i;
     const alterna = i % 2 === 0 ? GRIS_ALTERNO : undefined;
     const etiquetaTipo = g.tipoDocumento ? TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta : "[ilegible]";
-    const { neto, iva } = desgloses[i];
+    const { neto, iva, especifico } = desgloses[i];
 
     const columnas: [string, string | number, EstiloCelda][] = [
       ["A", g.orden, { bold: true, horizontal: "center" }],
@@ -243,7 +248,7 @@ export async function construirLibroRendicion(
       ["D", g.rutProveedor ?? "[ilegible]", { horizontal: "center" }],
       ["E", g.numeroDocumento ?? "[ilegible]", { horizontal: "center" }],
       ["F", etiquetaTipo, { horizontal: "center", wrap: true }],
-      ["G", g.detalle, { horizontal: "left", wrap: true }],
+      ["G", detalleCon(g, especifico), { horizontal: "left", wrap: true }],
       ["H", g.categoria ?? "[sin categoría]", { horizontal: "center" }],
       ["I", neto, { horizontal: "right", numFmt: MONEDA }],
       ["J", iva, { horizontal: "right", numFmt: MONEDA }],
@@ -446,7 +451,7 @@ export async function construirLibroRendicion(
   gastos.forEach((g, i) => {
     const base = 4 + i * FILAS_POR_RESPALDO;
     const etiquetaTipo = g.tipoDocumento ? TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta : "[ilegible]";
-    const { neto, iva } = netoEIva(g);
+    const { neto, iva, especifico } = netoEIva(g);
 
     tituloSeccion(respaldosHoja, `A${base}:F${base}`, `GASTO N° ${g.orden}`);
 
@@ -456,7 +461,7 @@ export async function construirLibroRendicion(
       ["RUT proveedor:", g.rutProveedor ?? "[ilegible]", undefined],
       ["N° Documento:", g.numeroDocumento ?? "[ilegible]", undefined],
       ["Tipo Documento:", etiquetaTipo, undefined],
-      ["Detalle:", g.detalle, undefined],
+      ["Detalle:", detalleCon(g, especifico), undefined],
       ["Categoría:", g.categoria ?? "[sin categoría]", undefined],
       ["Neto:", neto, MONEDA],
       ["IVA:", iva, MONEDA],

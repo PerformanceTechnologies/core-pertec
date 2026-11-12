@@ -240,12 +240,14 @@ function DetalleGasto({ d }: { d: { g: GastoRendicion; x: number; y: number; arr
   const g = d.g;
   let neto = g.neto;
   let iva = g.iva;
+  let especifico = 0;
   const avisos: string[] = [];
   try {
     const x = desgloseDeGasto(g);
     if (x) {
       neto = x.neto;
       iva = x.iva;
+      especifico = x.impuestoEspecifico;
       avisos.push(...x.advertencias);
     }
   } catch {
@@ -279,6 +281,7 @@ function DetalleGasto({ d }: { d: { g: GastoRendicion; x: number; y: number; arr
         <div><p className="text-[10px] uppercase text-gris">IVA</p><p className="font-semibold tabular-nums text-tinta">{pesos(iva)}</p></div>
         <div><p className="text-[10px] uppercase text-gris">Total</p><p className="font-bold tabular-nums text-tinta">{pesos(Number(g.total) || 0)}</p></div>
       </div>
+      {especifico > 0 && <p className="mt-1.5 text-[11px] text-gris">Incluye impuesto específico al combustible: {pesos(especifico)} (sin IVA).</p>}
       {g.ivaManual && <p className="mt-1.5 text-[11px] text-gris">IVA marcado a mano: {g.ivaManual === "exento" ? "exento" : "afecto"}.</p>}
       {g.pendientes.length > 0 && <p className="mt-1.5 flex items-start gap-1 text-[11px] text-naranjo"><IconAlertTriangle size={12} className="mt-px shrink-0" /> Ilegible: {g.pendientes.join(", ")}</p>}
       {avisos.map((a) => <p key={a} className="mt-1.5 text-[11px] text-naranjo">{a}</p>)}
