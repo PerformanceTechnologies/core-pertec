@@ -168,6 +168,14 @@ export interface GastoRendicion {
   duplicadoDe?: { informeId: string; titulo: string } | null;
   /** Enlace futuro con el módulo de compras. */
   compraId?: string | null;
+  /** A qué proyecto se carga el gasto (de Finanzas). El nombre se guarda aparte para listarlo sin otra consulta. */
+  proyectoId?: string | null;
+  proyectoNombre?: string | null;
+  /**
+   * Conciliación del gasto ya validado. Una factura se concilia contra la factura recibida
+   * (`documentoId`); lo demás, con una nota. La pone Tesorería o Administración, nunca quien rinde.
+   */
+  conciliacion?: { por: string; en: string; documentoId?: string | null; documentoRef?: string | null; nota?: string | null } | null;
 }
 
 /**

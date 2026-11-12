@@ -17,7 +17,8 @@ import { TextInput, NumInput, SelectInput } from "@/components/cotizador/campos/
 import RuedaCarga from "@/components/RuedaCarga";
 import ColaDeFotos from "./ColaDeFotos";
 import ComboProveedor from "./ComboProveedor";
-import type { ProveedorOpcion } from "@/lib/rendidor/proveedores";
+import type { ProveedorOpcion, ProyectoOpcion } from "@/lib/rendidor/proveedores";
+import ConciliarGasto from "./ConciliarGasto";
 import { ETIQUETA_BOLETA, TONO_BOLETA } from "@/lib/rendidor/fondos-modelo";
 import { revisarBoletaAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import {
@@ -286,10 +287,16 @@ export default function PanelRendicion({
   revisarBoletas = false,
   alCambiarGastos,
   proveedores = [],
+  proyectos = [],
+  puedeConciliar = false,
 }: {
   rendicionInicial: Rendicion;
   /** Los proveedores que ya existen (Contactos), para elegir en cada gasto. */
   proveedores?: ProveedorOpcion[];
+  /** Los proyectos de la empresa, para cargarles cada gasto. */
+  proyectos?: ProyectoOpcion[];
+  /** Tesorería o administración: pueden conciliar los gastos de un informe aprobado. */
+  puedeConciliar?: boolean;
   /** Quien revisa un informe con fondo: acepta, observa o rechaza cada boleta. */
   revisarBoletas?: boolean;
   /** Avisa los gastos actuales (subidos, corregidos o quitados) a quien contiene el panel. */
@@ -1269,6 +1276,24 @@ export default function PanelRendicion({
                           )}
                         </Campo>
 
+                        {(proyectos.length > 0 || g.proyectoId) && (
+                          <Campo etiqueta="Proyecto" ancho="sm:col-span-2 xl:col-span-4">
+                            <SelectInput
+                              value={g.proyectoId ?? ""}
+                              disabled={yaCargada}
+                              onChange={(v) => {
+                                const p = proyectos.find((x) => x.id === v);
+                                actualizarGasto(g.id, { proyectoId: p?.id ?? null, proyectoNombre: p ? `${p.codigo} · ${p.nombre}` : null });
+                              }}
+                              options={[
+                                { value: "", label: "— sin proyecto —" },
+                                ...(g.proyectoId && !proyectos.some((p) => p.id === g.proyectoId) ? [{ value: g.proyectoId, label: g.proyectoNombre ?? "Proyecto" }] : []),
+                                ...proyectos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.nombre}` })),
+                              ]}
+                            />
+                          </Campo>
+                        )}
+
                         <Campo etiqueta="Detalle" ancho="sm:col-span-2 xl:col-span-3">
                           <TextInput
                             value={g.detalle}
@@ -1293,6 +1318,15 @@ export default function PanelRendicion({
                           </span>
                         </Campo>
                       </div>
+
+                      {["aprobada", "pagada", "reembolso_pendiente", "reembolsada", "cerrada"].includes(rendicion.estado) && (g.revision?.estado ?? "cargada") === "aceptada" && (
+                        <ConciliarGasto
+                          informeId={rendicion.id}
+                          gasto={g}
+                          puedeConciliar={puedeConciliar}
+                          alCambiar={(c) => setRendicion((prev) => ({ ...prev, gastos: prev.gastos.map((x) => (x.id === g.id ? { ...x, conciliacion: c } : x)) }))}
+                        />
+                      )}
 
                       {avisos.length > 0 && (
                         <p className="mt-3 flex items-start gap-2 rounded-lg bg-naranjo/[0.07] px-3 py-2 text-xs leading-snug text-pretty text-naranjo">

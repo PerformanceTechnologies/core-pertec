@@ -44,7 +44,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const antes = previas.get(g.id);
     let revision = antes?.revision ?? null;
     if (revision?.estado === "observada" && antes && firma(antes) !== firma(g)) revision = { ...revision, estado: "cargada" };
-    return { ...g, revision, duplicadoDe: antes?.duplicadoDe ?? null, compraId: antes?.compraId ?? null };
+    return { ...g, revision, duplicadoDe: antes?.duplicadoDe ?? null, compraId: antes?.compraId ?? null, conciliacion: antes?.conciliacion ?? null };
   });
 
   try {

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { IconArrowLeft, IconReceipt } from "@tabler/icons-react";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
-import { informesAbiertosDe, obtenerOCrearBolsa } from "@/lib/rendidor/datos";
+import { gastosEnInformesDe, informesAbiertosDe, obtenerOCrearBolsa } from "@/lib/rendidor/datos";
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
-import { listarProveedores } from "@/lib/rendidor/proveedores";
+import { listarProveedores, listarProyectos } from "@/lib/rendidor/proveedores";
+import { contextoDeEmpresa } from "@/lib/empresas";
 import MisGastos from "@/components/rendidor/MisGastos";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ export default async function MisGastosPage() {
   );
   const { bolsa, error } = lectura;
   const informes = bolsa ? await informesAbiertosDe(yo.correo) : [];
+  const enInformes = bolsa ? await gastosEnInformesDe(yo.correo) : [];
+  const empresaId = (await contextoDeEmpresa(usuario.id, usuario.rol).catch(() => null))?.activa?.id;
+  const proyectos = bolsa && empresaId ? await listarProyectos(empresaId) : [];
   const proveedores = bolsa ? await listarProveedores().catch(() => []) : [];
   const urlsRespaldo: Record<string, string> = {};
   if (bolsa) {
@@ -35,11 +39,11 @@ export default async function MisGastosPage() {
         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-naranjo text-white shadow-sm"><IconReceipt size={23} stroke={1.75} /></span>
         <div className="min-w-[13rem] flex-1">
           <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Mis gastos</h1>
-          <p className="text-sm text-gris">Sube tus boletas cuando quieras: se leen solas. Después las pasas a un informe.</p>
+          <p className="text-sm text-gris">Ingresa tus gastos cuando quieras (quedan en borrador) y después los asignas a un informe.</p>
         </div>
       </header>
       {error && <p className="rounded-xl border border-rose-300/60 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700">{error}</p>}
-      {bolsa && <MisGastos proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
+      {bolsa && <MisGastos proyectos={proyectos} enInformes={enInformes} proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
     </div>
   );
 }

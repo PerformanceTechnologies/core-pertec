@@ -23,6 +23,8 @@ import {
   tieneVencidos,
   transicion,
 } from "@/lib/rendidor/fondos";
+import { esFactura } from "@/lib/rendidor/mis-gastos-modelo";
+import { facturasCandidatas, type FacturaCandidata } from "@/lib/rendidor/proveedores";
 import { ROLES_FONDOS, pesos, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
 
 // -----------------------------------------------------------------------------
@@ -433,6 +435,62 @@ export async function cerrarConAjusteAction(id: string, motivo: string): Promise
       return { ok: false, error: "El fondo cambió mientras tanto." };
     }
     return listo(id);
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Conciliación de gastos validados ---------------------------------------------
+
+const INFORME_VALIDADO = ["aprobada", "pagada", "cargada_odoo", "reembolso_pendiente", "reembolsada", "cerrada"];
+
+/** Las facturas recibidas que podrían ser la de este gasto (para conciliarlo). */
+export async function facturasCandidatasAction(informeId: string, gastoId: string): Promise<{ ok: true; facturas: FacturaCandidata[] } | { ok: false; error: string }> {
+  try {
+    const c = await ctx();
+    if (!c.tiene("tesoreria") && !c.tiene("administrador")) return { ok: false, error: "Solo Tesorería o administración concilian." };
+    const r = await obtenerRendicion(informeId);
+    const g = r?.gastos.find((x) => x.id === gastoId);
+    if (!r || !g) return { ok: false, error: "No encontramos ese gasto." };
+    return { ok: true, facturas: await facturasCandidatas(r.empresaId ?? c.empresaId, g.rutProveedor, g.numeroDocumento) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Ocurrió un error inesperado." };
+  }
+}
+
+/**
+ * Concilia un gasto de un informe aprobado. Una factura exige ligarla a la factura recibida (o,
+ * si no está registrada en Finanzas, dejar escrito por qué); el resto, un clic. `deshacer` lo
+ * devuelve a «por conciliar».
+ */
+export async function conciliarGastoAction(informeId: string, gastoId: string, datos: { documentoId?: string | null; nota?: string; deshacer?: boolean }): Promise<Resultado> {
+  try {
+    const c = await ctx();
+    if (!c.tiene("tesoreria") && !c.tiene("administrador")) return { ok: false, error: "Solo Tesorería o administración concilian." };
+    const r = await obtenerRendicion(informeId);
+    const g = r?.gastos.find((x) => x.id === gastoId);
+    if (!r || !g) return { ok: false, error: "No encontramos ese gasto." };
+    if (!INFORME_VALIDADO.includes(r.estado) || (g.revision?.estado ?? "cargada") !== "aceptada") return { ok: false, error: "Solo se concilian gastos validados de un informe aprobado." };
+    if (r.rindeCorreo?.toLowerCase() === c.yo && !c.tiene("administrador")) return { ok: false, error: "No puedes conciliar tus propios gastos: tiene que hacerlo otra persona." };
+
+    let conciliacion: NonNullable<typeof g.conciliacion> | null = null;
+    if (!datos.deshacer) {
+      const nota = (datos.nota ?? "").trim().slice(0, 500) || null;
+      let documentoRef: string | null = null;
+      if (datos.documentoId) {
+        const { data } = await supabaseAdmin.from("fin_documentos").select("folio, razon_social").eq("id", datos.documentoId).eq("direccion", "recibido").maybeSingle();
+        if (!data) return { ok: false, error: "No encontramos esa factura." };
+        documentoRef = `Factura ${data.folio}${data.razon_social ? ` · ${data.razon_social}` : ""}`;
+      } else if (esFactura(g.tipoDocumento) && !nota) {
+        return { ok: false, error: "Una factura se concilia con la factura recibida: elígela, o escribe por qué no está en Finanzas." };
+      }
+      conciliacion = { por: c.yo, en: new Date().toISOString(), documentoId: datos.documentoId ?? null, documentoRef, nota };
+    }
+    const gastos = r.gastos.map((x) => (x.id === gastoId ? { ...x, conciliacion } : x));
+    const { error } = await supabaseAdmin.from("rendiciones").update({ gastos, actualizado_en: new Date().toISOString() }).eq("id", informeId);
+    if (error) throw new Error(error.message);
+    await auditar("informe", informeId, r.estado, r.estado, c.yo, `${datos.deshacer ? "Deshizo la conciliación" : "Concilió"}: ${g.proveedor || "gasto"}`);
+    return listo();
   } catch (e) {
     return fallo(e);
   }

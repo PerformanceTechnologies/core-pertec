@@ -71,3 +71,62 @@ export async function crearProveedorRapido(razonSocial: string, rutCrudo: string
   );
   return { id, nombre, rut: rut ? formatearRut(rut) : null };
 }
+
+export interface ProyectoOpcion {
+  id: string;
+  nombre: string;
+  codigo: string;
+}
+
+/** Los proyectos activos de la empresa (Finanzas), para cargarles un gasto. */
+export async function listarProyectos(empresaId: string): Promise<ProyectoOpcion[]> {
+  const { data, error } = await supabaseAdmin
+    .from("fin_proyectos")
+    .select("id, codigo, nombre")
+    .eq("empresa_id", empresaId)
+    .eq("estado", "activo")
+    .order("codigo");
+  if (error) return [];
+  return (data ?? []).map((p) => ({ id: p.id as string, codigo: p.codigo as string, nombre: p.nombre as string }));
+}
+
+export interface FacturaCandidata {
+  id: string;
+  folio: string;
+  fecha: string;
+  razonSocial: string | null;
+  rut: string;
+  total: number;
+  coincide: boolean;
+}
+
+/**
+ * Facturas recibidas (Finanzas) que podrían ser la de un gasto: las del mismo proveedor (RUT) y,
+ * si el gasto trae número, las de ese folio primero. Es lo que se ofrece al conciliar una factura.
+ */
+export async function facturasCandidatas(empresaId: string, rutProveedor: string | null, folio: string | null): Promise<FacturaCandidata[]> {
+  const rut = rutProveedor ? normalizarRut(rutProveedor) : null;
+  let q = supabaseAdmin
+    .from("fin_documentos")
+    .select("id, folio, fecha_emision, razon_social, rut_contraparte, total")
+    .eq("empresa_id", empresaId)
+    .eq("direccion", "recibido")
+    .eq("estado", "vigente")
+    .order("fecha_emision", { ascending: false })
+    .limit(30);
+  if (folio?.trim()) q = q.eq("folio", folio.trim());
+  else if (rut) q = q.in("rut_contraparte", [rut, formatearRut(rut), rut.replace("-", "")]);
+  const { data } = await q;
+  const f = (folio ?? "").trim();
+  return (data ?? [])
+    .map((d) => ({
+      id: d.id as string,
+      folio: d.folio as string,
+      fecha: d.fecha_emision as string,
+      razonSocial: (d.razon_social as string | null) ?? null,
+      rut: d.rut_contraparte as string,
+      total: Number(d.total) || 0,
+      coincide: Boolean(f) && d.folio === f && (!rut || normalizarRut(String(d.rut_contraparte)) === rut),
+    }))
+    .sort((a, b) => Number(b.coincide) - Number(a.coincide));
+}

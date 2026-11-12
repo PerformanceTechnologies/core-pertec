@@ -17,7 +17,7 @@ import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
 import FlujoRendicion, { EditarCabecera } from "@/components/rendidor/FlujoRendicion";
 import { ChipEstadoRendicion, money } from "@/components/rendidor/Visual";
-import { listarProveedores } from "@/lib/rendidor/proveedores";
+import { listarProveedores, listarProyectos } from "@/lib/rendidor/proveedores";
 import { leerParametros, obtenerFondo, rolesDe } from "@/lib/rendidor/fondos";
 import { gastoRendido, pesos } from "@/lib/rendidor/fondos-modelo";
 import { BotonAccion } from "@/components/rendidor/fondos/ControlesFondo";
@@ -69,7 +69,11 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
     ? await obtenerOCrearBolsa({ correo: usuario.correo, nombre: usuario.nombre || usuario.correo }, usuario.id).catch(() => null)
     : null;
 
-  const proveedores = editable ? await listarProveedores().catch(() => []) : [];
+  const [proveedores, proyectos] = await Promise.all([
+    editable ? listarProveedores().catch(() => []) : Promise.resolve([]),
+    rendicion.empresaId ? listarProyectos(rendicion.empresaId) : Promise.resolve([]),
+  ]);
+  const puedeConciliar = rolesFondos.includes("tesoreria") || rolesFondos.includes("administrador");
 
   // URLs firmadas para ver cada comprobante, DESPUÉS del chequeo de acceso: son
   // credenciales portadoras. En paralelo: son N llamadas independientes.
@@ -215,7 +219,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
-        <PanelRendicion key={`${rendicion.id}-${rendicion.gastos.length}`} rendicionInicial={rendicion} proveedores={proveedores} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
+        <PanelRendicion key={`${rendicion.id}-${rendicion.gastos.length}`} rendicionInicial={rendicion} proveedores={proveedores} proyectos={proyectos} puedeConciliar={puedeConciliar} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
 
         {/* Historial */}
         <aside className="h-fit rounded-2xl border border-borde bg-superficie p-4 xl:sticky xl:top-4">

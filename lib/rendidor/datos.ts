@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "../supabase-admin";
 import type { EstadoRendicion, GastoRendicion, Rendicion, ResumenRendicion } from "./tipos";
+import { estadoDeGasto, type FilaMiGasto } from "./mis-gastos-modelo";
 
 // Capa de datos de las rendiciones. Los gastos van como jsonb embebido porque
 // se editan siempre en bloque desde la tabla de revision (el rendidor corrige
@@ -294,4 +295,35 @@ export async function informesAbiertosDe(correo: string): Promise<{ id: string; 
     .order("creado_en", { ascending: false });
   if (error) return [];
   return (data ?? []).map((r) => ({ id: r.id as string, titulo: r.titulo_rendicion as string, fondoId: (r.fondo_id as string | null) ?? null }));
+}
+
+/**
+ * Los gastos de esta persona que ya están en un informe (en revisión o cerrados), uno por fila,
+ * con el estado que les toca. Los sueltos (borradores) viven en la bolsa y los trae el panel.
+ */
+export async function gastosEnInformesDe(correo: string): Promise<FilaMiGasto[]> {
+  const { data, error } = await supabaseAdmin
+    .from("rendiciones")
+    .select("id, titulo_rendicion, estado, gastos, creado_en")
+    .eq("tipo", "informe")
+    .eq("rinde_correo", correo.toLowerCase())
+    .neq("estado", "anulada")
+    .order("creado_en", { ascending: false });
+  if (error) return [];
+  return (data ?? []).flatMap((r) =>
+    ((r.gastos ?? []) as GastoRendicion[]).map((g) => ({
+      id: g.id,
+      fecha: g.fecha,
+      proveedor: g.proveedor,
+      numeroDocumento: g.numeroDocumento,
+      categoria: g.categoria,
+      tipoDocumento: g.tipoDocumento,
+      total: Number(g.total) || 0,
+      estado: estadoDeGasto(g, r.estado as EstadoRendicion),
+      informeId: r.id as string,
+      informeTitulo: r.titulo_rendicion as string,
+      proyectoNombre: g.proyectoNombre ?? null,
+      conciliado: Boolean(g.conciliacion),
+    })),
+  );
 }
