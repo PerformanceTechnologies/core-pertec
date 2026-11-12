@@ -245,7 +245,7 @@ export async function construirLibroRendicion(
       ["A", g.orden, { bold: true, horizontal: "center" }],
       ["B", g.fecha ?? "[ilegible]", { horizontal: "center" }],
       ["C", g.proveedor || "[ilegible]", { horizontal: "left" }],
-      ["D", g.rutProveedor ?? "[ilegible]", { horizontal: "center" }],
+      ["D", g.rutProveedor ?? (g.sinRut ? "Sin RUT" : "[ilegible]"), { horizontal: "center" }],
       ["E", g.numeroDocumento ?? "[ilegible]", { horizontal: "center" }],
       ["F", etiquetaTipo, { horizontal: "center", wrap: true }],
       ["G", detalleCon(g, especifico), { horizontal: "left", wrap: true }],
@@ -458,7 +458,7 @@ export async function construirLibroRendicion(
     const campos: [string, string | number, string | undefined][] = [
       ["Fecha:", g.fecha ?? "[ilegible]", undefined],
       ["Proveedor:", g.proveedor || "[ilegible]", undefined],
-      ["RUT proveedor:", g.rutProveedor ?? "[ilegible]", undefined],
+      ["RUT proveedor:", g.rutProveedor ?? (g.sinRut ? "Sin RUT" : "[ilegible]"), undefined],
       ["N° Documento:", g.numeroDocumento ?? "[ilegible]", undefined],
       ["Tipo Documento:", etiquetaTipo, undefined],
       ["Detalle:", detalleCon(g, especifico), undefined],

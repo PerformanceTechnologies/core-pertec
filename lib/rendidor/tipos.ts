@@ -157,6 +157,8 @@ export interface GastoRendicion {
    * IVA se sacan de (total − impuesto específico). Vacío o 0 = no tiene.
    */
   impuestoEspecifico?: number | null;
+  /** Se dejó sin RUT a propósito (el comprobante no lo trae). */
+  sinRut?: boolean;
   // Marca los campos que el modelo no pudo leer y que hay que confirmar a mano
   // antes de cargar. La skill es explícita: no inventar datos ilegibles.
   pendientes: string[];

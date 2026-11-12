@@ -1307,11 +1307,29 @@ export default function PanelRendicion({
                         </Campo>
 
                         <Campo etiqueta="RUT del proveedor">
-                          <TextInput
-                            value={g.rutProveedor ?? ""}
-                            disabled={yaCargada}
-                            onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
-                          />
+                          {g.sinRut ? (
+                            <span className="flex h-8 items-center justify-between rounded-md border border-dashed border-borde px-2.5 text-xs text-gris">
+                              Sin RUT
+                              {!yaCargada && <button type="button" onClick={() => actualizarGasto(g.id, { sinRut: false })} className="font-semibold underline underline-offset-2 hover:text-tinta">Poner RUT</button>}
+                            </span>
+                          ) : (
+                            <>
+                              <TextInput
+                                value={g.rutProveedor ?? ""}
+                                disabled={yaCargada}
+                                onChange={(v) => actualizarGasto(g.id, { rutProveedor: v || null })}
+                              />
+                              {!yaCargada && !g.rutProveedor?.trim() && (
+                                <button
+                                  type="button"
+                                  onClick={() => actualizarGasto(g.id, { sinRut: true, rutProveedor: null, pendientes: g.pendientes.filter((x) => !/rut/i.test(x)) })}
+                                  className="mt-1 block text-[11px] font-semibold text-gris underline underline-offset-2 hover:text-naranjo"
+                                >
+                                  Dejar sin RUT
+                                </button>
+                              )}
+                            </>
+                          )}
                           {/* Se avisa al escribirlo: un RUT con el dígito verificador
                           malo es casi siempre un error de lectura del comprobante. */}
                           {rutMalo && (
