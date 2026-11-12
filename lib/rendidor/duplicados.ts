@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../supabase-admin";
 import { normalizarRut } from "../contratos/rut";
 import type { EstadoRendicion, GastoRendicion } from "./tipos";
 import { estadoDeGasto, type Repetido } from "./mis-gastos-modelo";
+import { filtrarPorEmpresaRG, type EmpresaRG } from "./empresa";
 
 const plano = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -34,16 +35,16 @@ function claveDebil(g: GastoRendicion): string | null {
 
 /**
  * Para cada gasto de las rendiciones dadas, los otros gastos que parecen el mismo, en cualquier
- * estado (suelto en «Mis gastos», en un informe en revisión, o ya cerrado) y de cualquier persona.
+ * estado (suelto en «Mis gastos», en un informe en revisión, o ya cerrado) y de cualquier persona, de la misma empresa.
  * Una boleta rechazada por quien revisó no cuenta como el original.
  */
-export async function repetidosDe(rendicionIds: string[]): Promise<Record<string, Repetido[]>> {
+export async function repetidosDe(rendicionIds: string[], empresa: EmpresaRG): Promise<Record<string, Repetido[]>> {
   if (!rendicionIds.length) return {};
-  const { data, error } = await supabaseAdmin
-    .from("rendiciones")
-    .select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos")
-    .neq("estado", "anulada")
-    .limit(3000);
+  // Solo se compara dentro de la misma empresa: un gasto de otra empresa no es un repetido.
+  const { data, error } = await filtrarPorEmpresaRG(
+    supabaseAdmin.from("rendiciones").select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos").neq("estado", "anulada"),
+    empresa,
+  ).limit(3000);
   if (error) return {};
 
   const entradas: Entrada[] = [];

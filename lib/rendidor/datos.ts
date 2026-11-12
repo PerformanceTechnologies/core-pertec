@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "../supabase-admin";
 import type { EstadoRendicion, GastoRendicion, Rendicion, ResumenRendicion } from "./tipos";
 import { estadoDeGasto, type FilaGastoAdmin, type FilaMiGasto } from "./mis-gastos-modelo";
+import { filtrarPorEmpresaRG, type EmpresaRG } from "./empresa";
 
 // Capa de datos de las rendiciones. Los gastos van como jsonb embebido porque
 // se editan siempre en bloque desde la tabla de revision (el rendidor corrige
@@ -270,14 +271,15 @@ export async function correosRevisores(): Promise<string[]> {
 // ---------- «Mis gastos»: la bolsa de boletas sueltas de cada persona -------------------
 
 /** La bolsa de esta persona (una rendición con tipo 'bolsa'); la crea la primera vez. */
-export async function obtenerOCrearBolsa(rinde: { correo: string; nombre: string }, usuarioId: string): Promise<Rendicion> {
+export async function obtenerOCrearBolsa(rinde: { correo: string; nombre: string }, usuarioId: string, empresa: EmpresaRG): Promise<Rendicion> {
   const correo = rinde.correo.toLowerCase();
-  const { data, error } = await supabaseAdmin.from("rendiciones").select(COLUMNAS).eq("tipo", "bolsa").eq("rinde_correo", correo).limit(1).maybeSingle();
+  // Una bolsa por persona Y POR EMPRESA: los gastos sueltos de una empresa no se mezclan con los de otra.
+  const { data, error } = await filtrarPorEmpresaRG(supabaseAdmin.from("rendiciones").select(COLUMNAS).eq("tipo", "bolsa").eq("rinde_correo", correo), empresa).order("creado_en").limit(1).maybeSingle();
   if (error) throw new Error(/tipo/.test(error.message) ? "Falta el SQL de «Mis gastos»: corre supabase/rendir-gastos/0003_mis_gastos.sql." : error.message);
   if (data) return filaARendicion(data as unknown as FilaRendicion);
   const { data: nueva, error: e2 } = await supabaseAdmin
     .from("rendiciones")
-    .insert({ tipo: "bolsa", nombre_quien_rinde: rinde.nombre, rinde_correo: correo, monto_asignado: 0, titulo_rendicion: "Mis gastos por rendir", empresa_company_id: 1, creado_por: usuarioId, gastos: [] })
+    .insert({ tipo: "bolsa", nombre_quien_rinde: rinde.nombre, rinde_correo: correo, monto_asignado: 0, titulo_rendicion: "Mis gastos por rendir", empresa_company_id: 1, empresa_id: empresa.id, creado_por: usuarioId, gastos: [] })
     .select(COLUMNAS)
     .single();
   if (e2) throw new Error(e2.message);
@@ -292,14 +294,16 @@ export async function esBolsa(id: string): Promise<boolean> {
 }
 
 /** Los informes donde esta persona puede agregar gastos: suyos y todavía editables. */
-export async function informesAbiertosDe(correo: string): Promise<{ id: string; titulo: string; fondoId: string | null }[]> {
-  const { data, error } = await supabaseAdmin
-    .from("rendiciones")
-    .select("id, titulo_rendicion, fondo_id")
-    .eq("tipo", "informe")
-    .eq("rinde_correo", correo.toLowerCase())
-    .in("estado", ["borrador", "rechazada"])
-    .order("creado_en", { ascending: false });
+export async function informesAbiertosDe(correo: string, empresa: EmpresaRG): Promise<{ id: string; titulo: string; fondoId: string | null }[]> {
+  const { data, error } = await filtrarPorEmpresaRG(
+    supabaseAdmin
+      .from("rendiciones")
+      .select("id, titulo_rendicion, fondo_id")
+      .eq("tipo", "informe")
+      .eq("rinde_correo", correo.toLowerCase())
+      .in("estado", ["borrador", "rechazada"]),
+    empresa,
+  ).order("creado_en", { ascending: false });
   if (error) return [];
   return (data ?? []).map((r) => ({ id: r.id as string, titulo: r.titulo_rendicion as string, fondoId: (r.fondo_id as string | null) ?? null }));
 }
@@ -308,14 +312,16 @@ export async function informesAbiertosDe(correo: string): Promise<{ id: string; 
  * Los gastos de esta persona que ya están en un informe (en revisión o cerrados), uno por fila,
  * con el estado que les toca. Los sueltos (borradores) viven en la bolsa y los trae el panel.
  */
-export async function gastosEnInformesDe(correo: string): Promise<FilaMiGasto[]> {
-  const { data, error } = await supabaseAdmin
-    .from("rendiciones")
-    .select("id, titulo_rendicion, estado, gastos, creado_en")
-    .eq("tipo", "informe")
-    .eq("rinde_correo", correo.toLowerCase())
-    .neq("estado", "anulada")
-    .order("creado_en", { ascending: false });
+export async function gastosEnInformesDe(correo: string, empresa: EmpresaRG): Promise<FilaMiGasto[]> {
+  const { data, error } = await filtrarPorEmpresaRG(
+    supabaseAdmin
+      .from("rendiciones")
+      .select("id, titulo_rendicion, estado, gastos, creado_en")
+      .eq("tipo", "informe")
+      .eq("rinde_correo", correo.toLowerCase())
+      .neq("estado", "anulada"),
+    empresa,
+  ).order("creado_en", { ascending: false });
   if (error) return [];
   return (data ?? []).flatMap((r) =>
     ((r.gastos ?? []) as GastoRendicion[]).map((g) => ({
@@ -337,15 +343,17 @@ export async function gastosEnInformesDe(correo: string): Promise<FilaMiGasto[]>
 }
 
 /**
- * TODOS los gastos de todas las personas (sueltos y en informes), para quien administra gastos.
+ * TODOS los gastos de todas las personas DE LA EMPRESA ACTIVA (sueltos y en informes), para quien administra gastos.
  * El más reciente primero. Solo la usa una pantalla que ya comprobó el rol de administrador.
  */
-export async function todosLosGastos(): Promise<FilaGastoAdmin[]> {
-  const { data, error } = await supabaseAdmin
-    .from("rendiciones")
-    .select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos")
-    .neq("estado", "anulada")
-    .limit(3000);
+export async function todosLosGastos(empresa: EmpresaRG): Promise<FilaGastoAdmin[]> {
+  const { data, error } = await filtrarPorEmpresaRG(
+    supabaseAdmin
+      .from("rendiciones")
+      .select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos")
+      .neq("estado", "anulada"),
+    empresa,
+  ).limit(3000);
   if (error) return [];
   const filas: FilaGastoAdmin[] = [];
   for (const r of data ?? []) {

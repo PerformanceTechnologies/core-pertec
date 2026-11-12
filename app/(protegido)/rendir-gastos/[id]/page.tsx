@@ -13,6 +13,7 @@ import {
   puedeVerRendicionesAjenas,
   saldoRendicion,
 } from "@/lib/permisos-rendidor";
+import { empresaActivaRG } from "@/lib/rendidor/empresa";
 import { esBolsa, obtenerOCrearBolsa, obtenerRendicion } from "@/lib/rendidor/datos";
 import RevisionGastos from "@/components/rendidor/RevisionGastos";
 import InformeSinFondo from "@/components/rendidor/InformeSinFondo";
@@ -86,7 +87,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   const problemas = problemasParaEnviar(rendicion.gastos);
   // Los gastos sueltos de quien rinde, para sumarlos a este informe (solo si es suyo y editable).
   const misGastos = editable && esMia
-    ? await obtenerOCrearBolsa({ correo: usuario.correo, nombre: usuario.nombre || usuario.correo }, usuario.id).catch(() => null)
+    ? await empresaActivaRG(usuario).then((e) => (e ? obtenerOCrearBolsa({ correo: usuario.correo, nombre: usuario.nombre || usuario.correo }, usuario.id, e) : null)).catch(() => null)
     : null;
 
   const [proveedores, proyectos] = await Promise.all([

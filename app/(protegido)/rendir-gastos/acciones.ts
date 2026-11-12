@@ -28,6 +28,8 @@ import { auditar, aprobacion, correosConRol, leerParametros, obtenerFondo, roles
 import { cerrarInformeAprobado } from "@/lib/rendidor/cierre";
 import { crearProveedorRapido, type ProveedorOpcion } from "@/lib/rendidor/proveedores";
 import { repetidosDe } from "@/lib/rendidor/duplicados";
+import { empresaActivaRG, enEmpresaRG } from "@/lib/rendidor/empresa";
+import { SLUG_POR_OMISION } from "@/lib/empresas-modelo";
 import type { Repetido } from "@/lib/rendidor/mis-gastos-modelo";
 import type { EstadoBoleta, RolFondos } from "@/lib/rendidor/fondos-modelo";
 
@@ -380,6 +382,9 @@ export async function moverGastosAction(desdeId: string, haciaId: string, gastoI
     const [desde, hacia] = await Promise.all([obtenerRendicion(desdeId), obtenerRendicion(haciaId)]);
     if (!desde || !hacia) return { ok: false, error: "No encontramos el origen o el destino." };
     if (!esMia(desde, usuario) || !esMia(hacia, usuario)) return { ok: false, error: "Solo puedes mover tus propios gastos." };
+    // Cada empresa es independiente: un gasto no pasa a un informe de otra empresa.
+    const empresa = await empresaActivaRG(usuario);
+    if (!empresa || !enEmpresaRG(desde.empresaId, empresa) || !enEmpresaRG(hacia.empresaId, empresa)) return { ok: false, error: "Ese informe es de otra empresa: cambia de empresa para usarlo." };
     if (!esEditable(desde.estado) || !esEditable(hacia.estado)) return { ok: false, error: "Ese informe ya no se puede editar." };
     const ids = new Set(gastoIds);
     const mover = desde.gastos.filter((g) => ids.has(g.id));
@@ -422,7 +427,9 @@ export async function repetidosAction(rendicionId: string): Promise<Record<strin
     const { usuario, rol } = await exigirAccesoRendidor();
     const r = await obtenerRendicion(rendicionId);
     if (!r || !puedeAbrirRendicion(r.creadoPor, usuario.id, usuario.rol, rol, r.rindeCorreo, usuario.correo)) return {};
-    return await repetidosDe([rendicionId]);
+    const empresa = await empresaActivaRG(usuario);
+    if (!empresa || !enEmpresaRG(r.empresaId, empresa)) return {};
+    return await repetidosDe([rendicionId], empresa);
   } catch {
     return {};
   }
@@ -439,7 +446,7 @@ export async function respaldoDeGastoAction(rendicionId: string, gastoId: string
     if (!puedeAbrirRendicion(r.creadoPor, usuario.id, usuario.rol, rol, r.rindeCorreo, usuario.correo)) {
       // Quien administra Fondos también ve los documentos de todos.
       const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
-      const roles = activa ? await rolesDe(usuario, false, activa.id) : [];
+      const roles = activa && enEmpresaRG(r.empresaId, { id: activa.id, porOmision: activa.slug === SLUG_POR_OMISION }) ? await rolesDe(usuario, false, activa.id) : [];
       if (!roles.includes("administrador")) return { ok: false, error: "No encontramos ese gasto." };
     }
     const g = r.gastos.find((x) => x.id === gastoId);

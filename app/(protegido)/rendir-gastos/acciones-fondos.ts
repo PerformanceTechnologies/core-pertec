@@ -462,6 +462,7 @@ export async function facturasCandidatasAction(informeId: string, gastoId: strin
     const r = await obtenerRendicion(informeId);
     const g = r?.gastos.find((x) => x.id === gastoId);
     if (!r || !g) return { ok: false, error: "No encontramos ese gasto." };
+    if (r.empresaId && r.empresaId !== c.empresaId) return { ok: false, error: "Ese informe es de otra empresa." };
     return { ok: true, facturas: await facturasCandidatas(r.empresaId ?? c.empresaId, g.rutProveedor, g.numeroDocumento) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Ocurrió un error inesperado." };
@@ -480,6 +481,8 @@ export async function conciliarGastoAction(informeId: string, gastoId: string, d
     const r = await obtenerRendicion(informeId);
     const g = r?.gastos.find((x) => x.id === gastoId);
     if (!r || !g) return { ok: false, error: "No encontramos ese gasto." };
+    // Los roles son por empresa: solo se concilia en la empresa del informe.
+    if (r.empresaId && r.empresaId !== c.empresaId) return { ok: false, error: "Ese informe es de otra empresa: cambia de empresa para conciliarlo." };
     if (!INFORME_VALIDADO.includes(r.estado) || (g.revision?.estado ?? "cargada") !== "aceptada") return { ok: false, error: "Solo se concilian gastos validados de un informe aprobado." };
     if (r.rindeCorreo?.toLowerCase() === c.yo && !c.tiene("administrador")) return { ok: false, error: "No puedes conciliar tus propios gastos: tiene que hacerlo otra persona." };
 

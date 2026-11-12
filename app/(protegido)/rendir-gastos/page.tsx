@@ -104,7 +104,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
     .filter((f) => f.estado === "activo")
     .map((f) => ({ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, motivo: f.motivo, esMio: f.rendidorCorreo === yo }));
   const conSaldoAFavor = tiene("asignador") && (actual === "asignar" || actual === "inicio") ? (await fondosConSaldoAFavor(empresaId).catch(() => [])).filter((f) => f.rendidorCorreo !== yo) : [];
-  const gastosTodos = esAdmin && actual === "todos-gastos" ? await todosLosGastos() : [];
+  const gastosTodos = esAdmin && actual === "todos-gastos" ? await todosLosGastos({ id: empresaId, porOmision: activa!.slug === SLUG_POR_OMISION }) : [];
   const necesitaPersonas = actual === "asignar" || actual === "config";
   const personas = necesitaPersonas ? await listarPersonas() : [];
 

@@ -5,7 +5,7 @@ import { repetidosDe } from "@/lib/rendidor/duplicados";
 import { gastosEnInformesDe, informesAbiertosDe, obtenerOCrearBolsa } from "@/lib/rendidor/datos";
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import { listarProveedores, listarProyectos } from "@/lib/rendidor/proveedores";
-import { contextoDeEmpresa } from "@/lib/empresas";
+import { empresaActivaRG } from "@/lib/rendidor/empresa";
 import ConmutadorTodos from "@/components/rendidor/ConmutadorTodos";
 import { rolesDe } from "@/lib/rendidor/fondos";
 import type { RolFondos } from "@/lib/rendidor/fondos-modelo";
@@ -17,18 +17,22 @@ export const dynamic = "force-dynamic";
 export default async function MisGastosPage() {
   const { usuario, rol } = await exigirAccesoRendidor();
   const yo = { correo: usuario.correo.toLowerCase(), nombre: usuario.nombre || usuario.correo.split("@")[0] };
-  const lectura = await obtenerOCrearBolsa(yo, usuario.id).then(
-    (b) => ({ bolsa: b, error: null as string | null }),
-    (e: unknown) => ({ bolsa: null, error: e instanceof Error ? e.message : "No se pudo abrir «Mis gastos»." }),
-  );
+  // Todo es de la empresa activa: sus gastos sueltos, sus informes y sus proyectos (cada empresa es independiente).
+  const empresa = await empresaActivaRG(usuario).catch(() => null);
+  const empresaId = empresa?.id;
+  const lectura = empresa
+    ? await obtenerOCrearBolsa(yo, usuario.id, empresa).then(
+        (b) => ({ bolsa: b, error: null as string | null }),
+        (e: unknown) => ({ bolsa: null, error: e instanceof Error ? e.message : "No se pudo abrir «Mis gastos»." }),
+      )
+    : { bolsa: null, error: "No tienes una empresa activa." };
   const { bolsa, error } = lectura;
-  const informes = bolsa ? await informesAbiertosDe(yo.correo) : [];
-  const enInformes = bolsa ? await gastosEnInformesDe(yo.correo) : [];
-  const empresaId = (await contextoDeEmpresa(usuario.id, usuario.rol).catch(() => null))?.activa?.id;
+  const informes = bolsa && empresa ? await informesAbiertosDe(yo.correo, empresa) : [];
+  const enInformes = bolsa && empresa ? await gastosEnInformesDe(yo.correo, empresa) : [];
   // Quien administra gastos ve el botón «Todos los gastos» junto al título.
   const esAdmin = rol === "admin" || (empresaId ? (await rolesDe(usuario, false, empresaId).catch((): RolFondos[] => [])).includes("administrador") : false);
   const proyectos = bolsa && empresaId ? await listarProyectos(empresaId) : [];
-  const repetidos = bolsa ? await repetidosDe([bolsa.id, ...new Set(enInformes.map((f) => f.informeId).filter((x): x is string => Boolean(x)))]) : {};
+  const repetidos = bolsa && empresa ? await repetidosDe([bolsa.id, ...new Set(enInformes.map((f) => f.informeId).filter((x): x is string => Boolean(x)))], empresa) : {};
   const proveedores = bolsa ? await listarProveedores().catch(() => []) : [];
   const urlsRespaldo: Record<string, string> = {};
   if (bolsa) {
