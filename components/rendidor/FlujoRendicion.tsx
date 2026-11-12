@@ -68,9 +68,9 @@ export default function FlujoRendicion({
               type="button"
               disabled={pendiente}
               onClick={() => (a === "rechazar" || a === "pagar" ? (setNota(""), setError(null), setPidiendo(a)) : correr(a))}
-              className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 text-xs font-bold uppercase tracking-wide shadow-sm transition disabled:opacity-60 ${b.clase}`}
+              className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3.5 text-xs font-bold uppercase tracking-wide shadow-sm transition disabled:opacity-60 ${b.clase}`}
             >
-              {pendiente ? <RuedaCarga /> : <b.Icono size={16} />} {b.texto}
+              {pendiente ? <RuedaCarga /> : <b.Icono size={14} />} {b.texto}
             </button>
           );
         })}

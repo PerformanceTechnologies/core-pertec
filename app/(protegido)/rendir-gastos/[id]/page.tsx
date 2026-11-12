@@ -131,14 +131,14 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
       </Link>
 
       {/* ── Cabecera ── */}
-      <header className="banda-contraste overflow-hidden rounded-2xl px-5 py-5 sm:px-8 sm:py-6">
-        <div className="flex flex-wrap items-start gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-naranjo/20 text-naranjo">
-            <IconReceipt2 size={24} stroke={1.75} />
+      <header className="banda-contraste overflow-hidden rounded-xl px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-naranjo/20 text-naranjo">
+            <IconReceipt2 size={18} stroke={1.75} />
           </span>
           <div className="min-w-[12rem] flex-1">
-            <h1 className="texto-banda font-condensed text-2xl font-bold uppercase leading-tight tracking-tight sm:text-3xl">{rendicion.tituloRendicion}</h1>
-            <p className="texto-banda-65 mt-1 text-sm">
+            <h1 className="texto-banda font-condensed text-xl font-bold uppercase leading-tight tracking-tight sm:text-2xl">{rendicion.tituloRendicion}</h1>
+            <p className="texto-banda-65 mt-0.5 text-xs">
               {rendicion.nombreQuienRinde} · {rendicion.empresaCompanyId === 2 ? "Performance Service SpA" : "Performance Technologies SpA"}
             </p>
           </div>
@@ -151,16 +151,16 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
 
         {/* Los pasos del ciclo */}
         {!historica && (
-          <ol className="mt-6 grid gap-2 sm:grid-cols-4">
+          <ol className="mt-3 flex flex-wrap items-center gap-1.5">
             {PASOS_RENDICION.map((p, i) => {
               const hecho = i < indice || terminado;
               const actual = i === indice && !terminado;
               return (
-                <li key={p.estado} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${actual ? "border-naranjo bg-naranjo/15" : "borde-banda"}`}>
-                  <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${hecho ? "bg-emerald-500 text-white" : actual ? "bg-naranjo text-white" : "texto-banda-45 border borde-banda"}`}>
-                    {hecho ? <IconCheck size={15} /> : i + 1}
+                <li key={p.estado} className={`flex items-center gap-2 rounded-lg border px-2.5 py-1 ${actual ? "border-naranjo bg-naranjo/15" : "borde-banda"}`}>
+                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold ${hecho ? "bg-emerald-500 text-white" : actual ? "bg-naranjo text-white" : "texto-banda-45 border borde-banda"}`}>
+                    {hecho ? <IconCheck size={12} /> : i + 1}
                   </span>
-                  <span className={`text-sm font-bold ${actual || hecho ? "texto-banda" : "texto-banda-65"}`}>
+                  <span className={`text-xs font-bold ${actual || hecho ? "texto-banda" : "texto-banda-65"}`}>
                     {i === 0 && rendicion.estado === "rechazada" ? "Corregir" : i === 3 && conFondo ? (rendicion.estado === "reembolso_pendiente" ? "Reembolso" : "Cerrada") : p.etiqueta}
                   </span>
                 </li>
@@ -169,18 +169,19 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
           </ol>
         )}
 
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         {fondo ? (
-        <dl className="borde-banda mt-5 grid grid-cols-2 gap-x-8 gap-y-4 rounded-xl border px-5 py-4 sm:grid-cols-4">
+        <dl className="borde-banda grid min-w-[16rem] flex-1 grid-cols-2 gap-x-6 gap-y-2 rounded-lg border px-4 py-2 sm:grid-cols-4">
           <div>
             <dt className="texto-banda-45 text-[10px] font-semibold uppercase tracking-[0.14em]">Fondo</dt>
-            <dd className="mt-1"><Link href={`/rendir-gastos/fondos/${fondo.id}`} className="font-condensed text-2xl font-bold text-naranjo underline-offset-2 hover:underline">{fondo.codigo}</Link></dd>
+            <dd className="mt-0.5"><Link href={`/rendir-gastos/fondos/${fondo.id}`} className="font-condensed text-lg font-bold text-naranjo underline-offset-2 hover:underline">{fondo.codigo}</Link></dd>
           </div>
           <Dato etiqueta="Disponible" valor={pesos(disponible)} />
           <Dato etiqueta="Rendido aquí" valor={pesos(rendido)} />
           <Dato etiqueta={disponible - rendido >= 0 ? "Quedaría" : "Exceso"} valor={pesos(Math.abs(disponible - rendido))} tono={disponible - rendido < 0 ? "text-orange-400" : undefined} />
         </dl>
         ) : (
-        <dl className="borde-banda mt-5 grid grid-cols-2 gap-x-8 gap-y-4 rounded-xl border px-5 py-4 sm:grid-cols-4">
+        <dl className="borde-banda grid min-w-[16rem] flex-1 grid-cols-2 gap-x-6 gap-y-2 rounded-lg border px-4 py-2 sm:grid-cols-4">
           <Dato etiqueta="Fondo entregado" valor={money(rendicion.montoAsignado)} />
           <Dato etiqueta="Total rendido" valor={money(total)} />
           <Dato
@@ -193,10 +194,11 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         )}
 
         {acciones.length > 0 && (
-          <div className="mt-5">
+          <div>
             <FlujoRendicion id={rendicion.id} acciones={acciones} problemasEnvio={problemas} saldo={saldo} nombre={rendicion.nombreQuienRinde} />
           </div>
         )}
+        </div>
       </header>
 
       {/* Avisos según el estado */}
@@ -271,7 +273,7 @@ function Dato({ etiqueta, valor, tono }: { etiqueta: string; valor: string; tono
   return (
     <div>
       <dt className="texto-banda-45 text-[10px] font-semibold uppercase tracking-[0.14em]">{etiqueta}</dt>
-      <dd className={`mt-1 font-condensed text-2xl font-bold tabular-nums ${tono ?? "texto-banda"}`}>{valor}</dd>
+      <dd className={`mt-0.5 font-condensed text-lg font-bold tabular-nums ${tono ?? "texto-banda"}`}>{valor}</dd>
     </div>
   );
 }
@@ -285,9 +287,9 @@ const TONOS = {
 
 function Aviso({ tono, titulo, Icono, children }: { tono: keyof typeof TONOS; titulo: string; Icono: typeof IconHistory; children: React.ReactNode }) {
   return (
-    <div className={`flex items-start gap-3 rounded-2xl border px-5 py-4 ${TONOS[tono]}`}>
-      <Icono size={20} className="mt-0.5 shrink-0" />
-      <div className="text-sm">
+    <div className={`flex items-start gap-2.5 rounded-lg border px-3.5 py-2 ${TONOS[tono]}`}>
+      <Icono size={16} className="mt-0.5 shrink-0" />
+      <div className="text-xs">
         <p className="font-bold">{titulo}</p>
         <p className="mt-0.5 whitespace-pre-line">{children}</p>
       </div>
