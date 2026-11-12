@@ -48,13 +48,13 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   if (await esBolsa(id)) redirect("/rendir-gastos/gastos");
   // Informes con fondo: también los abren quienes revisan, transfieren o administran Fondos.
   const conFondo = Boolean(rendicion.fondoId && rendicion.empresaId);
-  const rolesFondos = conFondo ? await rolesDe(usuario, rol === "admin", rendicion.empresaId!) : [];
+  const rolesFondos = rendicion.empresaId ? await rolesDe(usuario, rol === "admin", rendicion.empresaId) : [];
   // Cada quien ve lo suyo (lo que creó o rinde); quien administra gastos, todas.
   if (!puedeAbrirRendicion(rendicion.creadoPor, usuario.id, usuario.rol, rol, rendicion.rindeCorreo, usuario.correo) && !rolesFondos.length) notFound();
 
   const esMia = rendicion.creadoPor === usuario.id || rendicion.rindeCorreo?.toLowerCase() === usuario.correo.toLowerCase();
   const rindeYo = rendicion.rindeCorreo?.toLowerCase() === usuario.correo.toLowerCase();
-  const revisa = conFondo ? rolesFondos.includes("revisor") && !rindeYo : puedeVerRendicionesAjenas(usuario.rol, rol);
+  const revisa = conFondo ? rolesFondos.includes("revisor") && !rindeYo : puedeVerRendicionesAjenas(usuario.rol, rol) || (rolesFondos.includes("revisor") && !rindeYo);
   // Creado sin fondo (con empresa pero sin fondo, a diferencia de los antiguos): siempre en borrador.
   // Va ANTES de `acciones`, que lo usa.
   const sinFondo = Boolean(rendicion.empresaId && !rendicion.fondoId);
@@ -65,7 +65,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         ...(esMia && rendicion.estado === "enviada" ? (["retirar"] as const) : []),
         ...(revisa && rendicion.estado === "enviada" ? (["aprobar", "rechazar"] as const) : []),
       ]
-    : accionesPosibles({ estado: rendicion.estado, esMia }, revisa, usuario.rol === "admin").filter((a) => !(sinFondo && a === "enviar"));
+    : accionesPosibles({ estado: rendicion.estado, esMia }, revisa, usuario.rol === "admin");
   // Quien revisa un informe enviado (que no es suyo) ve los gastos en lista, no abiertos.
   const vistaRevisor = revisa && !esMia && rendicion.estado === "enviada";
   // Un informe ya validado o cerrado también se ve en lista (con su conciliación), no con cada gasto abierto.

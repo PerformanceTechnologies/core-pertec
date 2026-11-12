@@ -106,11 +106,12 @@ async function crearInforme(form: FormData): Promise<string> {
   const { usuario, rol } = await exigirAccesoRendidor();
 
   const tituloRendicion = String(form.get("tituloRendicion") ?? "").trim().slice(0, 200);
-  const empresaCompanyId = Number(form.get("empresaCompanyId") ?? 1) === 2 ? 2 : 1;
   if (!tituloRendicion) throw new Error("El título del informe es obligatorio.");
 
   const fondoId = String(form.get("fondoId") ?? "").trim();
   const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  // Reembolsa la empresa en la que se está (en Odoo: 2 = Performance Service; el resto, 1).
+  const empresaCompanyId = activa?.slug === "performance-service" ? 2 : 1;
   // Sin fondo: el informe se crea igual, a nombre de quien lo crea, y queda en borrador hasta que se
   // asocie a un fondo activo (con empresa pero sin fondo es justo lo que lo distingue de los antiguos).
   if (!fondoId) {
@@ -173,9 +174,10 @@ export async function moverRendicionAction(id: string, accion: AccionRendicion, 
     const { usuario, rol } = await exigirAccesoRendidor();
     const r = await obtenerRendicion(id);
     if (r?.fondoId) return await moverInformeConFondo(r, accion, nota, usuario, rol === "admin");
-    if (r?.empresaId && accion === "enviar") return { ok: false, error: "Este informe no tiene fondo: asócialo a uno de tus fondos activos para poder enviarlo." };
     const mia = r ? esMia(r, usuario) : false;
-    const revisa = puedeVerRendicionesAjenas(usuario.rol, rol);
+    // Informe sin fondo de una empresa: también lo revisa quien tiene el rol de revisor en ella.
+    const revisorEmpresa = r?.empresaId && !mia ? (await rolesDe(usuario, rol === "admin", r.empresaId)).includes("revisor") : false;
+    const revisa = puedeVerRendicionesAjenas(usuario.rol, rol) || revisorEmpresa;
     if (!r || (!mia && !revisa)) return { ok: false, error: "No encontramos esa rendición." };
     if (!accionesPosibles({ estado: r.estado, esMia: mia }, revisa, usuario.rol === "admin").includes(accion)) {
       return { ok: false, error: "Esa acción no corresponde en el estado actual de la rendición." };

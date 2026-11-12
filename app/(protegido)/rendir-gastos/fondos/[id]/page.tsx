@@ -123,7 +123,7 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
             <div className="mb-3 flex items-center gap-2">
               <IconReceipt2 size={18} className="text-naranjo" />
               <h2 className="flex-1 text-base font-bold text-tinta">Informes</h2>
-              {fondosParaInforme.length > 0 && <NuevaRendicion fondos={fondosParaInforme} />}
+              {fondosParaInforme.length > 0 && <NuevaRendicion empresa={activa?.nombre} fondos={fondosParaInforme} />}
             </div>
             {informes.length === 0 ? <Vacio texto={f.estado === "activo" ? "Aún no hay informes: crea uno y sube tus boletas." : "Sin informes."} /> : (
               <ListaRendiciones rendiciones={informes} revisa={false} filtroInicial="todas" borrar={eliminarRendicionAction} />

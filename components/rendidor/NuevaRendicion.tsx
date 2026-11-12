@@ -9,11 +9,6 @@ import { CAMPO } from "@/lib/estilos";
 import { crearRendicionAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import { pesos } from "@/lib/rendidor/fondos-modelo";
 
-const EMPRESAS = [
-  { id: 1, nombre: "Performance Technologies SpA" },
-  { id: 2, nombre: "Performance Service SpA" },
-];
-
 export interface FondoElegible {
   id: string;
   codigo: string;
@@ -27,18 +22,16 @@ export interface FondoElegible {
  * Crear un informe de rendición: con un fondo ACTIVO (el propio, o —si administra gastos— el de otra
  * persona), o sin fondo (queda en borrador hasta asociarlo a uno).
  */
-export default function NuevaRendicion({ fondos, comoTarjeta = false }: { fondos: FondoElegible[]; comoTarjeta?: boolean }) {
+export default function NuevaRendicion({ fondos, comoTarjeta = false, empresa }: { fondos: FondoElegible[]; comoTarjeta?: boolean; /** La empresa activa: es la que reembolsa. */ empresa?: string }) {
   const [abierta, setAbierta] = useState(false);
   const [fondoId, setFondoId] = useState("");
   const [titulo, setTitulo] = useState("");
-  const [empresa, setEmpresa] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const elegido = fondos.find((f) => f.id === fondoId);
 
   function abrir() {
     setFondoId(fondos.length === 1 ? fondos[0].id : "");
     setTitulo("");
-    setEmpresa(1);
     setError(null);
     setAbierta(true);
   }
@@ -81,28 +74,16 @@ export default function NuevaRendicion({ fondos, comoTarjeta = false }: { fondos
             <p className="flex items-start gap-2 rounded-xl bg-sky-500/[0.07] px-3 py-2 text-xs text-sky-800">
               <IconWallet size={15} className="mt-px shrink-0" />
               {fondos.length === 0
-                ? "No tienes un fondo activo. Puedes armar el informe igual; para enviarlo tendrás que asociarlo a un fondo (pídelo con «Solicitar fondo»)."
-                : "Sin fondo el informe queda en borrador: puedes agregarle gastos y editarlo, pero solo se puede enviar cuando lo asocies a un fondo activo."}
+                ? "No tienes un fondo activo. Puedes crear el informe sin fondo y enviarlo igual: lo que gastes se te reembolsa al aprobarlo."
+                : "Sin fondo: se envía igual a revisión y, al aprobarlo, se te reembolsa todo lo rendido."}
             </p>
           )}
           <Campo etiqueta="Título del informe *">
             <input name="tituloRendicion" required maxLength={200} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej: Operación Antucoya — semana 1" className={CAMPO} />
           </Campo>
-          <Campo etiqueta="Empresa que reembolsa">
-            <input type="hidden" name="empresaCompanyId" value={empresa} />
-            <div className="grid gap-2 sm:grid-cols-2">
-              {EMPRESAS.map((e) => (
-                <button
-                  key={e.id}
-                  type="button"
-                  onClick={() => setEmpresa(e.id)}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${empresa === e.id ? "border-naranjo bg-naranjo/[0.07] text-tinta" : "border-borde text-gris hover:text-tinta"}`}
-                >
-                  {e.nombre}
-                </button>
-              ))}
-            </div>
-          </Campo>
+          {empresa && (
+            <p className="text-xs text-gris">Reembolsa: <span className="font-semibold text-tinta">{empresa}</span> (la empresa en la que estás)</p>
+          )}
           {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
           <div className="flex justify-end">
             <BotonEnviar cargando="Creando…">Crear informe →</BotonEnviar>

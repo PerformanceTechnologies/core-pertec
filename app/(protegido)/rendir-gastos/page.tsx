@@ -79,7 +79,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const porTransferir = fondos.filter((f) => f.estado === "por_transferir" && f.rendidorCorreo !== yo);
   const devoluciones = fondos.filter((f) => f.estado === "devolucion_pendiente" && f.rendidorCorreo !== yo);
   const reembolsos = rendiciones.filter((r) => r.fondoId && r.estado === "reembolso_pendiente" && r.rindeCorreo?.toLowerCase() !== yo);
-  const porRevisar = rendiciones.filter((r) => r.fondoId && r.estado === "enviada" && r.rindeCorreo?.toLowerCase() !== yo);
+  const porRevisar = rendiciones.filter((r) => (r.fondoId || revisaAntiguas || esAdmin || tiene("revisor")) && r.estado === "enviada" && r.rindeCorreo?.toLowerCase() !== yo);
 
   const pestanas: { id: Pestana; texto: string; Icono: typeof IconHome; cuenta?: number }[] = [
     { id: "inicio", texto: "Inicio", Icono: IconHome },
@@ -155,7 +155,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
               </span>
             </Link>
             <SolicitarFondo comoTarjeta />
-            <NuevaRendicion fondos={fondosParaInforme} comoTarjeta />
+            <NuevaRendicion empresa={activa?.nombre} fondos={fondosParaInforme} comoTarjeta />
           </div>
 
           <Seccion titulo="Mis fondos activos" Icono={IconWallet} enlace={{ href: "/rendir-gastos?ver=fondos", texto: "Ver todos" }}>
@@ -201,7 +201,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       )}
 
       {actual === "informes" && (
-        <Seccion titulo={revisaAntiguas ? "Informes" : "Mis informes"} Icono={IconReceipt2} accion={<NuevaRendicion fondos={fondosParaInforme} />}>
+        <Seccion titulo={revisaAntiguas ? "Informes" : "Mis informes"} Icono={IconReceipt2} accion={<NuevaRendicion empresa={activa?.nombre} fondos={fondosParaInforme} />}>
           <ListaRendiciones rendiciones={revisaAntiguas ? rendiciones : misInformes} revisa={revisaAntiguas} filtroInicial="todas" borrar={eliminarRendicionAction} />
         </Seccion>
       )}
