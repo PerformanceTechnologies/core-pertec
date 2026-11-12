@@ -23,6 +23,12 @@ const correoValido = (v: string | null) => (v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.te
 
 // ---------- Oportunidades ------------------------------------------------------------
 
+/** «Se necesita compra» va aparte: si el SQL 0009 no se ha corrido, el lead se guarda igual. */
+async function guardarNecesitaCompra(id: string, fd: FormData): Promise<void> {
+  const { error } = await supabaseAdmin.from("fin_oportunidades").update({ necesita_compra: fd.get("necesitaCompra") === "on" }).eq("id", id);
+  if (error) console.warn("[leads] no se guardó «necesita compra» (¿falta el SQL 0009?):", error.message);
+}
+
 export async function guardarOportunidadAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoLeads();
@@ -47,12 +53,14 @@ export async function guardarOportunidadAction(id: string | null, fd: FormData):
       const antes = await exigirDeEmpresa("fin_oportunidades", id, ctx.empresa.id);
       const { error } = await supabaseAdmin.from("fin_oportunidades").update(fila).eq("id", id);
       revienta("guardar la oportunidad", error);
+      await guardarNecesitaCompra(id, fd);
       await auditar(ctx, "fin_oportunidades", id, "editar", `Oportunidad ${nombre}`, { antes, despues: fila });
     } else {
       const codigo = await siguienteNumero(ctx.empresa.id, "oportunidad", "OPO", 4);
       const { data, error } = await supabaseAdmin.from("fin_oportunidades").insert({ ...fila, empresa_id: ctx.empresa.id, codigo, creado_por: ctx.usuario.correo, orden: Date.now() }).select("id").single();
       revienta("crear la oportunidad", error);
       opId = data!.id;
+      await guardarNecesitaCompra(opId!, fd);
       await auditar(ctx, "fin_oportunidades", opId, "crear", `Oportunidad ${codigo} ${nombre}`);
     }
     refrescar();

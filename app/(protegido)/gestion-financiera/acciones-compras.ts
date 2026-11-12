@@ -45,6 +45,28 @@ async function respaldarOcEmitida(ctx: Awaited<ReturnType<typeof contextoFin>>, 
   await supabaseAdmin.from("fin_adjuntos").insert({ empresa_id: ctx.empresa.id, entidad_tipo: "compra", entidad_id: id, tipo: "oc_enviada", ruta, nombre: nombre.slice(0, 200), mime: "application/pdf", tamano: pdf.length, subido_por: ctx.usuario.correo });
 }
 
+/**
+ * Enlaza una compra nueva con el lead que la originó (y con la solicitud de cotización de donde salió).
+ * Si el SQL 0009 no se ha corrido, no hace nada: la compra se guarda igual.
+ */
+async function enlazarConLead(ctx: Awaited<ReturnType<typeof contextoFin>>, compraId: string, oportunidadId: string | null, solicitudId: string | null): Promise<void> {
+  let opId = oportunidadId;
+  if (solicitudId) {
+    const { data: sc } = await supabaseAdmin.from("fin_solicitudes_cotizacion").select("id, oportunidad_id").eq("id", solicitudId).eq("empresa_id", ctx.empresa.id).maybeSingle();
+    if (sc) {
+      opId = opId ?? sc.oportunidad_id ?? null;
+      await supabaseAdmin.from("fin_solicitudes_cotizacion").update({ compra_id: compraId, estado: "cerrada" }).eq("id", sc.id);
+    }
+  }
+  if (!opId) return;
+  const { data: op } = await supabaseAdmin.from("fin_oportunidades").select("id").eq("id", opId).eq("empresa_id", ctx.empresa.id).maybeSingle();
+  if (!op) return;
+  const { error } = await supabaseAdmin.from("fin_compras").update({ oportunidad_id: opId }).eq("id", compraId);
+  if (error) return console.warn("[compras] no se pudo enlazar con el lead (¿falta el SQL 0009?):", error.message);
+  const { data: c } = await supabaseAdmin.from("fin_compras").select("codigo").eq("id", compraId).maybeSingle();
+  await supabaseAdmin.from("fin_actividades").insert({ empresa_id: ctx.empresa.id, entidad_tipo: "oportunidad", entidad_id: opId, tipo: "nota", texto: `Solicitud de compra ${c?.codigo ?? ""} creada para este lead`, fecha: ctx.hoy, creado_por: ctx.usuario.correo });
+}
+
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
 function fallo(e: unknown): Resultado {
@@ -539,6 +561,8 @@ export async function eliminarCompraAction(id: string, motivo: string): Promise<
 // ---------- Solicitud con formato de OC ---------------------------------------------------
 
 interface DatosSolicitud {
+  oportunidadId: string | null;
+  solicitudCotizacionId: string | null;
   titulo: string;
   proveedorId: string | null;
   atencion: string | null;
@@ -599,6 +623,7 @@ function leerSolicitud(json: string): DatosSolicitud | string {
     moneda, tipoCambio: moneda === "CLP" ? 1 : num(r?.tipoCambio, 0, 1e9), lineas, fechaRequerida: fechaValida(typeof r?.fechaRequerida === "string" ? r.fechaRequerida : null),
     entregaLugar: una(r?.entregaLugar, 300), entregaPlazo: una(r?.entregaPlazo, 120), formaPago: una(r?.formaPago, 200), condicionPagoDias: cond,
     observaciones: corto(r?.observaciones, 2000), condiciones: corto(r?.condiciones, 3000),
+    oportunidadId: uuid(r?.oportunidadId), solicitudCotizacionId: uuid(r?.solicitudCotizacionId),
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -682,6 +707,7 @@ export async function guardarSolicitudAction(id: string | null, json: string, en
       const { data, error } = await supabaseAdmin.from("fin_compras").insert({ ...fila, empresa_id: ctx.empresa.id, codigo, formato_oc: true, creado_por: ctx.usuario.correo }).select("id").single();
       revienta("crear la solicitud", error);
       compraId = data!.id as string;
+      await enlazarConLead(ctx, compraId, d.oportunidadId, d.solicitudCotizacionId);
     } else {
       const { error } = await supabaseAdmin.from("fin_compras").update(fila).eq("id", compraId).eq("empresa_id", ctx.empresa.id);
       revienta("guardar la solicitud", error);

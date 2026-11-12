@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconPlus, IconReceipt2 } from "@tabler/icons-react";
+import { IconFileSearch, IconPlus, IconReceipt2 } from "@tabler/icons-react";
 import { cargarVista, RUTA_VENTAS } from "@/lib/fin/datos";
 import { ETAPAS_HITO, clp, clpCorto, fechaCl, type EtapaHito } from "@/lib/fin/reglas";
 import { DTE_CORTO, TIPOS_DTE } from "@/lib/fin/modelo";
@@ -57,6 +57,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
       <div className="flex flex-wrap items-center gap-2">
         <Pestanas base={`${RUTA_VENTAS}`} actual={ver} opciones={[{ clave: "hitos", etiqueta: "Hitos por facturar / cobrar", n: activos.length }, { clave: "facturas", etiqueta: "Facturas emitidas", n: emitidos.length }, { clave: "cobros", etiqueta: "Cobros", n: v.cobros.length }]} />
         <span className="flex-1" />
+        <Link href={`${RUTA_VENTAS}/solicitar-cotizacion`} className={BOTON_SEC}><IconFileSearch size={15} /> Solicitar cotización</Link>
         <ConVentana boton={<><IconPlus size={15} /> Nuevo hito</>} titulo="Nuevo hito facturable" descripcion="Para un trabajo spot o un hito extra. Lo normal es que nazcan al aceptar una cotización." className={BOTON_SEC}>
           {(
             <FormAccion accion={guardarHitoAction.bind(null, null)} textoBoton="Crear hito">

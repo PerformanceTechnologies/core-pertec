@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { IconFileText, IconHistory, IconLoader2, IconNote, IconPhone, IconMail, IconTrash, IconUsers } from "@tabler/icons-react";
+import { IconFileSearch, IconShoppingCart, IconFileText, IconHistory, IconLoader2, IconNote, IconPhone, IconMail, IconTrash, IconUsers } from "@tabler/icons-react";
 import { guardarOportunidadAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { actividadesDeLeadAction, eliminarOportunidadAction, registrarActividadLeadAction } from "@/app/(protegido)/leads/acciones";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
@@ -10,6 +10,31 @@ import type { Actividad, Oportunidad } from "@/lib/fin/datos";
 import { BotonAccion, CAMPO, Campo, ComboContacto, FormAccion, type OpcionContacto } from "@/components/fin/ui";
 import { avisar } from "@/components/fin/dialogos";
 import { BOTON_SEC } from "@/components/fin/estilos";
+
+/** «Se necesita compra»: al marcarlo aparece el botón para pedirle cotización a un proveedor, enlazada a este lead. */
+function NecesitaCompra({ leadId, inicial }: { leadId: string | null; inicial: boolean }) {
+  const [marcado, setMarcado] = useState(inicial);
+  return (
+    <div className={`rounded-2xl border p-3 transition ${marcado ? "border-naranjo/40 bg-naranjo/[0.05]" : "border-borde"}`}>
+      <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold text-tinta">
+        <input type="checkbox" name="necesitaCompra" checked={marcado} onChange={(e) => setMarcado(e.target.checked)} className="h-4 w-4 accent-[var(--color-naranjo,#c2410c)]" />
+        <IconShoppingCart size={16} className="text-naranjo" /> Se necesita compra
+      </label>
+      {marcado && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-6">
+          {leadId ? (
+            <>
+              <Link href={`/finanzas/ventas/solicitar-cotizacion?lead=${leadId}`} className={BOTON_SEC}><IconFileSearch size={14} /> Solicitar cotización</Link>
+              <span className="text-xs text-gris">Se la pides a un proveedor y la compra que salga queda enlazada a este lead.</span>
+            </>
+          ) : (
+            <span className="text-xs text-gris">Crea el lead y después, al abrirlo, aparece el botón «Solicitar cotización».</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Crear o editar un lead: lo que se pide primero es lo mínimo (nombre), lo demás se completa a medida que avanza. */
 export function FormLead({ o, clientes, alOk, etapaInicial, responsableInicial, esAdmin = false }: { o?: Oportunidad; clientes: OpcionContacto[]; alOk?: () => void; etapaInicial?: string; responsableInicial?: string; esAdmin?: boolean }) {
@@ -48,6 +73,7 @@ export function FormLead({ o, clientes, alOk, etapaInicial, responsableInicial, 
           <Campo etiqueta="Responsable"><input name="responsable" defaultValue={o?.responsable ?? responsableInicial ?? ""} className={CAMPO} placeholder="correo o nombre" /></Campo>
           <Campo etiqueta="Origen"><select name="origen" defaultValue={o?.origen ?? ""} className={CAMPO}><option value="">—</option>{["licitación", "recurrente", "referido", "web", "otro"].map((x) => <option key={x}>{x}</option>)}</select></Campo>
         </div>
+        <NecesitaCompra leadId={o?.id ?? null} inicial={o?.necesitaCompra ?? false} />
         <div className="grid gap-3 sm:grid-cols-[1fr_11rem]">
           <Campo etiqueta="Próximo paso" ayuda="Lo que sigue y quién lo hace: así no se enfría"><input name="proximoPaso" defaultValue={o?.proximoPaso ?? ""} className={CAMPO} placeholder="Llamar para confirmar visita a terreno" /></Campo>
           <Campo etiqueta="Para el día"><input name="proximoPasoFecha" type="date" defaultValue={o?.proximoPasoFecha ?? ""} className={CAMPO} /></Campo>

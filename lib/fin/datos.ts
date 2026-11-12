@@ -841,6 +841,8 @@ export interface Oportunidad {
   contactoNombre: string | null;
   contactoCorreo: string | null;
   contactoTelefono: string | null;
+  /** El lead necesita comprarle algo a un proveedor (columna del SQL 0009). */
+  necesitaCompra: boolean;
   proximoPaso: string | null;
   proximoPasoFecha: Iso | null;
 }
@@ -896,7 +898,7 @@ export const cargarComercial = cache(async () => {
     id: r.id, codigo: r.codigo, nombre: r.nombre, clienteId: r.cliente_id, proyectoId: r.proyecto_id, tipo: r.tipo, etapa: r.etapa, montoEstimado: n(r.monto_estimado),
     probabilidad: r.probabilidad, fechaCierre: r.fecha_cierre, responsable: r.responsable, origen: r.origen, motivoPerdida: r.motivo_perdida, descripcion: r.descripcion,
     actualizadoEn: r.actualizado_en, ultimaActividad: ultima.get(r.id) ?? null,
-    contactoNombre: r.contacto_nombre ?? null, contactoCorreo: r.contacto_correo ?? null, contactoTelefono: r.contacto_telefono ?? null,
+    contactoNombre: r.contacto_nombre ?? null, contactoCorreo: r.contacto_correo ?? null, contactoTelefono: r.contacto_telefono ?? null, necesitaCompra: Boolean(r.necesita_compra),
     proximoPaso: r.proximo_paso ?? null, proximoPasoFecha: r.proximo_paso_fecha ?? null,
   }));
   const cotizaciones: Cotizacion[] = cots

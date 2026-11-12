@@ -36,6 +36,11 @@ export interface DatosEditorSolicitud {
   condiciones: string;
   /** Motivo con que la devolvieron, para tenerlo a la vista mientras corrige. */
   devueltaMotivo: string | null;
+  /** Lead que la origina y solicitud de cotización de donde viene (solo al crear). */
+  oportunidadId?: string | null;
+  solicitudCotizacionId?: string | null;
+  /** Texto del enlace, para mostrarlo arriba del formulario. */
+  origen?: string | null;
 }
 
 interface LineaForm {
@@ -280,6 +285,7 @@ export default function EditorSolicitud({
       titulo, proveedorId, atencion, proveedorCorreo, proyectoId: proyectoId || null, solicitanteTipo, solicitanteUsuarioId: solicitanteUsuarioId || null, solicitanteOtro,
       moneda, tipoCambio: tc, lineas: items.filter((l) => l.descripcion), fechaRequerida: fechaRequerida || null, entregaLugar, entregaPlazo, formaPago,
       condicionPagoDias: condicionPagoDias.trim() === "" ? null : leerNumero(condicionPagoDias), observaciones, condiciones: condiciones.trim() === condicionesEmpresa.trim() ? "" : condiciones,
+      oportunidadId: inicial.oportunidadId ?? null, solicitudCotizacionId: inicial.solicitudCotizacionId ?? null,
     };
     iniciar(async () => {
       if (enviar && !(await confirmar({ titulo: "¿Enviar a aprobación?", ayuda: "Después de enviarla ya no se puede editar, salvo que quien aprueba la devuelva.", boton: "Enviar" }))) return;
@@ -307,6 +313,10 @@ export default function EditorSolicitud({
         <p className="rounded-xl border border-rose-500/30 bg-rose-500/[0.07] px-3 py-2 text-sm text-alerta">
           <strong>La devolvieron:</strong> {inicial.devueltaMotivo}
         </p>
+      )}
+
+      {inicial.origen && (
+        <p className="rounded-xl border border-naranjo/30 bg-naranjo/[0.06] px-3 py-2 text-sm text-tinta/80">{inicial.origen}</p>
       )}
 
       {/* Alternativa: en vez de escribir todo, subir la cotización del proveedor. */}
