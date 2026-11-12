@@ -10,7 +10,7 @@ import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { correosValidos } from "@/lib/ofertas/emision";
 import { guardarArchivo } from "@/lib/archivos/almacen";
 import { nombreUnico } from "@/lib/archivos/sharepoint-core";
-import { carpetaFinanzas } from "@/lib/archivos/carpetas";
+import { carpetaVentaCliente } from "@/lib/archivos/carpetas";
 
 export const runtime = "nodejs";
 // Levanta Chromium, imprime y manda: el paso más largo del módulo.
@@ -94,7 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Respaldo: el PDF exacto que recibió el cliente (como cualquier adjunto de Finanzas).
   try {
     const ruta = await guardarArchivo({
-      carpeta: carpetaFinanzas(ctx.empresa.nombre, "cotizacion", id),
+      carpeta: carpetaVentaCliente(ctx.empresa.nombre, d.cliente?.nombre),
       nombre: nombreUnico(nombreArchivo, "pdf"),
       contenido: pdf,
       tipo: "application/pdf",

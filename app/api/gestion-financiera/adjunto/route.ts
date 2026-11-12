@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardarArchivo } from "@/lib/archivos/almacen";
 import { nombreUnico } from "@/lib/archivos/sharepoint-core";
-import { carpetaFinanzas } from "@/lib/archivos/carpetas";
+import { carpetaFinanzas, carpetaOcProveedor, carpetaVentaCliente } from "@/lib/archivos/carpetas";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -36,13 +36,22 @@ export async function POST(request: Request) {
   if (!ctxFin && entidadTipo !== "cotizacion") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const tabla = ENTIDADES[entidadTipo];
   if (!tabla || !/^[0-9a-f-]{36}$/.test(entidadId)) return NextResponse.json({ error: "Registro inválido." }, { status: 400 });
-  const { data: dueño } = await supabaseAdmin.from(tabla).select("id").eq("id", entidadId).eq("empresa_id", ctx.empresa.id).maybeSingle();
+  const { data: dueño } = await supabaseAdmin.from(tabla).select("*").eq("id", entidadId).eq("empresa_id", ctx.empresa.id).maybeSingle();
   if (!dueño) return NextResponse.json({ error: "Ese registro no existe o es de otra empresa." }, { status: 404 });
+
+  // Compras quedan en la carpeta de su proveedor; cotizaciones e hitos (ventas), en la de su cliente.
+  const fila = dueño as { proveedor_id?: string | null; cliente_id?: string | null };
+  const contactoId = entidadTipo === "compra" ? fila.proveedor_id : entidadTipo === "cotizacion" || entidadTipo === "hito" ? fila.cliente_id : null;
+  let carpeta = carpetaFinanzas(ctx.empresa.nombre, entidadTipo, entidadId);
+  if (contactoId) {
+    const { data: c } = await supabaseAdmin.from("finanzas_contactos").select("razon_social").eq("id", contactoId).maybeSingle();
+    if (c?.razon_social) carpeta = entidadTipo === "compra" ? carpetaOcProveedor(ctx.empresa.nombre, c.razon_social) : carpetaVentaCliente(ctx.empresa.nombre, c.razon_social);
+  }
 
   let ruta: string;
   try {
     ruta = await guardarArchivo({
-      carpeta: carpetaFinanzas(ctx.empresa.nombre, entidadTipo, entidadId),
+      carpeta,
       nombre: nombreUnico(archivo.name, TIPOS[archivo.type]),
       contenido: Buffer.from(await archivo.arrayBuffer()),
       tipo: archivo.type,

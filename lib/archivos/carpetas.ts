@@ -55,6 +55,14 @@ export const carpetaFotosProducto = (p: { id: string; nombre?: string | null; sk
 export const carpetaFinanzas = (empresa: string | null | undefined, entidadTipo: string, entidadId: string) =>
   `Gestion financiera/${legible(empresa, "Empresa")}/${ENTIDADES_FIN[entidadTipo] ?? legible(entidadTipo, "Otros")}/${corto(entidadId)}`;
 
+/** OC emitidas, una carpeta por proveedor: «Gestion financiera/<Empresa>/Ordenes de compra/<Proveedor>». */
+export const carpetaOcProveedor = (empresa: string | null | undefined, proveedor: string | null | undefined) =>
+  `Gestion financiera/${legible(empresa, "Empresa")}/Ordenes de compra/${legible(proveedor, "Sin proveedor")}`;
+
+/** Cotizaciones de venta emitidas, una carpeta por cliente: «Gestion financiera/<Empresa>/Ventas/<Cliente>». */
+export const carpetaVentaCliente = (empresa: string | null | undefined, cliente: string | null | undefined) =>
+  `Gestion financiera/${legible(empresa, "Empresa")}/Ventas/${legible(cliente, "Sin cliente")}`;
+
 export const carpetaRendicion = (r: { id: string; quien?: string | null; titulo?: string | null; creadoEn?: string | null }) =>
   `Rendiciones/${(r.creadoEn ?? new Date().toISOString()).slice(0, 4)}/${legible([r.quien, r.titulo].filter(Boolean).join(" - "), "Rendicion")} (${corto(r.id)})`;
 

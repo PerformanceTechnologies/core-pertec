@@ -26,6 +26,25 @@ import { faltantesDelPerfil, perfilDeEmpresa } from "@/lib/fin/empresa-perfil";
 import { avisarCompra } from "@/lib/fin/oc-avisos";
 import { asignacionesDeEmpresa, candidatosDeFlujo, exigirAlgunRol, exigirRol } from "@/lib/fin/flujos";
 
+/** Guarda el PDF de la OC emitida en SharePoint, en la carpeta de su proveedor (y lo deja como adjunto). */
+async function respaldarOcEmitida(ctx: Awaited<ReturnType<typeof contextoFin>>, id: string): Promise<void> {
+  const { documento, formatoOc } = await ocParaDocumento(ctx, id);
+  if (!formatoOc) return;
+  const [{ ocAPdf }, { nombreArchivoOc }, { guardarArchivo }, { nombreUnico }, { carpetaOcProveedor }, { randomUUID }] = await Promise.all([
+    import("@/lib/fin/oc-pdf"), import("@/lib/fin/oc-documento"), import("@/lib/archivos/almacen"), import("@/lib/archivos/sharepoint-core"), import("@/lib/archivos/carpetas"), import("node:crypto"),
+  ]);
+  const pdf = await ocAPdf(documento);
+  const nombre = nombreArchivoOc(documento);
+  const ruta = await guardarArchivo({
+    carpeta: carpetaOcProveedor(ctx.empresa.nombre, documento.proveedor?.nombre),
+    nombre: nombreUnico(nombre, "pdf"),
+    contenido: pdf,
+    tipo: "application/pdf",
+    respaldo: { bucket: "finanzas", ruta: `${ctx.empresa.id}/compra/${id}/${randomUUID()}.pdf` },
+  });
+  await supabaseAdmin.from("fin_adjuntos").insert({ empresa_id: ctx.empresa.id, entidad_tipo: "compra", entidad_id: id, tipo: "oc_enviada", ruta, nombre: nombre.slice(0, 200), mime: "application/pdf", tamano: pdf.length, subido_por: ctx.usuario.correo });
+}
+
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
 function fallo(e: unknown): Resultado {
@@ -180,6 +199,7 @@ export async function marcarOcEnviadaAction(id: string): Promise<Resultado> {
     const { error } = await supabaseAdmin.from("fin_compras").update({ oc_enviada_fecha: ctx.hoy, actualizado_en: ahora() }).eq("id", id);
     revienta("marcar enviada", error);
     await auditar(ctx, "fin_compras", id, "oc_enviada", `OC ${c.oc_numero} enviada al proveedor`);
+    await respaldarOcEmitida(ctx, id).catch((e) => console.error("[compras] no se pudo guardar la OC en SharePoint:", e instanceof Error ? e.message : e));
     refrescar();
     return { ok: true };
   } catch (e) {
