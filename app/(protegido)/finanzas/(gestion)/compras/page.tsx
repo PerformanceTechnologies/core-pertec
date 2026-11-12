@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { IconFileInvoice, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
+import { IconFileInvoice, IconFileSearch, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
 import { formatoMonto, totalesOc } from "@/lib/fin/oc-modelo";
-import { cargarVista, contextoFin, RUTA_COMPRAS } from "@/lib/fin/datos";
+import { cargarVista, contextoFin, RUTA_COMPRAS, RUTA_VENTAS } from "@/lib/fin/datos";
 import { permisosDeUsuario } from "@/lib/fin/flujos";
 import { lineasDeCompras, resumenDeCompra, tasaIvaDe } from "@/lib/fin/oc-datos";
 import { clp, clpCorto, conIva, fechaCl, inicioDeMes, mesLargo, sumarDias, type PasoCompra } from "@/lib/fin/reglas";
@@ -108,6 +108,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
           ]}
         />
         <span className="flex-1" />
+        <Link href={`${RUTA_VENTAS}/solicitar-cotizacion`} className={BOTON_SEC}><IconFileSearch size={15} /> Solicitar cotización</Link>
         <ConVentana boton={<><IconFileInvoice size={15} /> Factura sin OC</>} titulo="Registrar factura de proveedor sin OC" descripcion="Queda como «Factura sin OC: regularizar» para que pase por aprobación y visado (o se reclame en el SII dentro del plazo)." className={BOTON_SEC}>
           {(
             <FormAccion accion={registrarFacturaCompraAction} textoBoton="Registrar">
