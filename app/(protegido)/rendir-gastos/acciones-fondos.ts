@@ -23,7 +23,7 @@ import {
   tieneVencidos,
   transicion,
 } from "@/lib/rendidor/fondos";
-import { esReferenciaSharePoint } from "@/lib/archivos/almacen";
+import { borrarArchivos, esReferenciaSharePoint } from "@/lib/archivos/almacen";
 import { esFactura } from "@/lib/rendidor/mis-gastos-modelo";
 import { facturasCandidatas, type FacturaCandidata } from "@/lib/rendidor/proveedores";
 import { ROLES_FONDOS, pesos, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
@@ -548,6 +548,43 @@ export async function pedirDevolucionAction(id: string): Promise<Resultado> {
     await avisar([f.rendidorCorreo], c.yo, `Te piden devolver tu saldo a favor: ${pesos(f.saldo)}`, `${f.codigo} · devuélvelo a la empresa y registra la referencia de la transferencia desde el fondo.`, enlaceFondo(id), "pedir-devolucion", "alerta");
     await auditar("fondo", id, f.estado, f.estado, c.yo, `Pidió devolver el saldo a favor de ${pesos(f.saldo)}`);
     return listo(id);
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Eliminar un fondo (solo el administrador del Core) ---------------------------------
+
+/**
+ * Elimina un fondo con TODO lo suyo (movimientos, informes, gastos y documentos). Es para limpiar pruebas: solo
+ * el administrador del Core, y pide escribir el código del fondo. Exige haber corrido 0004_eliminar_fondos.sql,
+ * que es lo único que puede borrar el libro (que es inmutable para todo lo demás).
+ */
+export async function eliminarFondoAction(id: string, confirmacion: string): Promise<Resultado> {
+  try {
+    const c = await ctx();
+    if (c.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del Core elimina fondos." };
+    const f = await fondoDeEmpresa(id, c.empresaId);
+    if (confirmacion.trim().toUpperCase() !== f.codigo.toUpperCase()) return { ok: false, error: `Escribe el código del fondo (${f.codigo}) para confirmar.` };
+
+    // Los archivos se anotan ANTES: después de borrar, las filas ya no existen para leerlos.
+    const [{ data: informes }, { data: movs }] = await Promise.all([
+      supabaseAdmin.from("rendiciones").select("gastos").eq("fondo_id", id),
+      supabaseAdmin.from("rg_movimientos").select("comprobante").eq("fondo_id", id).not("comprobante", "is", null),
+    ]);
+    const archivos = [
+      ...(informes ?? []).flatMap((r) => ((r.gastos ?? []) as { archivoPath?: string | null }[]).map((g) => g?.archivoPath)),
+      ...(movs ?? []).map((m) => m.comprobante as string | null),
+    ].filter((x): x is string => Boolean(x));
+
+    const { error } = await supabaseAdmin.rpc("rg_eliminar_fondo", { p_fondo: id, p_usuario: c.yo });
+    if (error) {
+      if (/rg_eliminar_fondo|schema cache|does not exist/i.test(error.message)) return { ok: false, error: "Falta el SQL de eliminación: corre supabase/rendir-gastos/0004_eliminar_fondos.sql en Supabase." };
+      return { ok: false, error: error.message };
+    }
+    await borrarArchivos("rendiciones-respaldos", archivos);
+    revalidatePath("/rendir-gastos", "layout");
+    return { ok: true };
   } catch (e) {
     return fallo(e);
   }

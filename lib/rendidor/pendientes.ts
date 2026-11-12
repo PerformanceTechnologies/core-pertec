@@ -12,6 +12,8 @@ export interface PendienteRG {
   clave: string;
   texto: string;
   cantidad: number;
+  /** Si viene, va en la insignia en lugar de la cantidad (por ejemplo «vencido»). */
+  etiqueta?: string;
   href: string;
 }
 

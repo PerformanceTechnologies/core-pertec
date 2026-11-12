@@ -31,6 +31,7 @@ export function BotonAccion({
   obligatorio = true,
   confirma,
   comprobante,
+  irA,
   tono = "primario",
 }: {
   accion: (texto: string, comprobante?: string) => Promise<Resultado>;
@@ -40,6 +41,8 @@ export function BotonAccion({
   confirma?: string;
   /** Deja subir el comprobante de la transferencia o depósito (PDF o imagen). */
   comprobante?: { fondoId: string };
+  /** Si la acción borra lo que se está mirando: a dónde ir después. */
+  irA?: string;
   tono?: "primario" | "secundario" | "peligro";
 }) {
   const router = useRouter();
@@ -74,6 +77,7 @@ export function BotonAccion({
       setAbierta(false);
       setTexto("");
       setArchivo(null);
+      if (irA) router.push(irA);
       router.refresh();
     });
 

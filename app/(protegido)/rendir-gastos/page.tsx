@@ -33,6 +33,7 @@ import {
   anularFondoAction,
   conciliarAction,
   confirmarDevolucionAction,
+  eliminarFondoAction,
   pagarReembolsoAction,
   pedirDevolucionAction,
   reponerFondoAction,
@@ -231,7 +232,13 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
             const lista = fondos.filter((f) => !estadoFiltro || f.estado === estadoFiltro);
             return lista.length === 0 ? <Vacio texto="No hay fondos en este estado." /> : (
               <ul className="space-y-2.5">
-                {lista.map((f) => (<FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite} />))}
+                {lista.map((f) => (
+                  <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite}>
+                    {usuario.rol === "admin" && (
+                      <BotonAccion accion={eliminarFondoAction.bind(null, f.id)} confirma={`Se elimina para siempre ${f.codigo} con sus movimientos, informes, gastos y documentos. No se puede deshacer.`} pide={`Escribe «${f.codigo}» para confirmar:`} tono="peligro">Eliminar</BotonAccion>
+                    )}
+                  </FilaFondo>
+                ))}
               </ul>
             );
           })()}

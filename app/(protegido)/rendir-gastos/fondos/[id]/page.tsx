@@ -20,6 +20,7 @@ import {
   reponerFondoAction,
   transferirFondoAction,
   validarFondoAction,
+  eliminarFondoAction,
 } from "../../acciones-fondos";
 import { eliminarRendicionAction } from "../../acciones";
 
@@ -75,6 +76,13 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
   }
   if (["en_validacion", "validado", "por_transferir"].includes(f.estado) && (roles.includes("asignador") || roles.includes("administrador"))) {
     acciones.push(<BotonAccion key="a" accion={anularFondoAction.bind(null, id)} pide="¿Por qué se anula el fondo?" tono="peligro">Anular</BotonAccion>);
+  }
+
+  // Solo el administrador del Core: elimina el fondo con todo lo suyo (para limpiar pruebas).
+  if (usuario.rol === "admin") {
+    acciones.push(
+      <BotonAccion key="del" accion={eliminarFondoAction.bind(null, id)} irA="/rendir-gastos?ver=fondos" confirma={`Se elimina para siempre ${f.codigo} con sus movimientos, informes, gastos y documentos. No se puede deshacer.`} pide={`Escribe «${f.codigo}» para confirmar:`} tono="peligro">Eliminar fondo</BotonAccion>,
+    );
   }
 
   const fondosParaInforme = f.estado === "activo" && (mio || rol === "admin" || usuario.rol === "admin")

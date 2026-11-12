@@ -14,6 +14,8 @@ import TareasPedidas from "@/components/mi-dia/TareasPedidas";
 import AprobacionesPendientes from "@/components/mi-dia/AprobacionesPendientes";
 import { pendientesDeComprasTodas } from "@/lib/fin/oc-pendientes";
 import { pendientesRendirGastos } from "@/lib/rendidor/pendientes";
+import { pendientesDeFinanzas } from "@/lib/fin/pendientes-flujos";
+import { plazosDeContratosPendientes } from "@/lib/contratos/pendientes-plazos";
 import PendientesRendirGastos from "@/components/mi-dia/PendientesRendirGastos";
 import { listarResponsables, tareasDeMiDia } from "@/lib/tareas";
 import { resumirMisTareas, resumirTareasPedidas, SLUG_APP_TAREAS } from "@/lib/tareas-modelo";
@@ -400,6 +402,14 @@ export default async function MiDiaPage() {
         <SeccionRendirGastos usuario={usuario} />
       </Suspense>
 
+      <Suspense fallback={null}>
+        <SeccionFinanzas usuario={usuario} />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <SeccionContratos usuario={usuario} />
+      </Suspense>
+
       {/* Las tareas van en vivo y aparte del resumen: no esperan al modelo. */}
       <Suspense fallback={null}>
         <SeccionTareas usuario={usuario} hoyIso={hoy.iso} />
@@ -425,6 +435,20 @@ async function SeccionAprobaciones({ usuario }: { usuario: UsuarioConAcceso }) {
       ))}
     </>
   );
+}
+
+/** Los plazos de Contratos de los submódulos donde la persona es responsable, vencidos o por vencer. */
+async function SeccionContratos({ usuario }: { usuario: UsuarioConAcceso }) {
+  const plazos = await plazosDeContratosPendientes(usuario);
+  if (plazos.length === 0) return null;
+  return <PendientesRendirGastos pendientes={[{ empresa: "Contratos", empresaSlug: "contratos", esActiva: true, items: plazos }]} titulo="Plazos de Contratos a tu cargo" />;
+}
+
+/** Lo pendiente en los flujos de Finanzas donde la persona está asignada (recibir, pagar, facturar, cobrar, banco), en cada empresa. */
+async function SeccionFinanzas({ usuario }: { usuario: UsuarioConAcceso }) {
+  const pendientes = await pendientesDeFinanzas(usuario);
+  if (pendientes.length === 0) return null;
+  return <PendientesRendirGastos pendientes={pendientes} titulo="Pendiente en Finanzas" />;
 }
 
 /** Lo pendiente en Rendir Gastos (validar, asignar, transferir, revisar…), en cada empresa. */
