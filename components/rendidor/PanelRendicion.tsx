@@ -30,6 +30,7 @@ import {
   IconFileSpreadsheet,
   IconGasStation,
   IconPackage,
+  IconPencilPlus,
   IconRoad,
   IconSend,
   IconToolsKitchen2,
@@ -459,6 +460,47 @@ export default function PanelRendicion({
     setRendicion((prev) => ({ ...prev, gastos: prev.gastos.filter((g) => g.id !== id) }));
   };
 
+  /** El gasto que se acaba de agregar a mano: arranca desplegado aunque haya otros. */
+  const [nuevoManualId, setNuevoManualId] = useState<string | null>(null);
+
+  // Gasto sin comprobante: se llena a mano. Sin archivo, así que en la planilla sale
+  // con un aviso en vez de la imagen. Todo lo que falta queda marcado «Por revisar»
+  // y no deja enviar hasta completarlo.
+  const agregarManual = () => {
+    const id = crypto.randomUUID();
+    setEstadoGuardado("pendiente");
+    setNuevoManualId(id);
+    setVerGastos("todos");
+    setRendicion((prev) => ({
+      ...prev,
+      gastos: [
+        ...prev.gastos,
+        {
+          id,
+          orden: prev.gastos.length + 1,
+          fecha: new Date().toISOString().slice(0, 10),
+          proveedor: "",
+          rutProveedor: null,
+          numeroDocumento: null,
+          tipoDocumento: null,
+          detalle: "",
+          categoria: null,
+          neto: 0,
+          iva: 0,
+          ivaDesglosado: false,
+          total: 0,
+          pendientes: [],
+          archivoNombre: "",
+          archivoPath: "",
+          archivoTipo: "",
+          odooExpenseId: null,
+          odooPartnerId: null,
+        },
+      ],
+    }));
+    setTimeout(() => irA(`gasto-${id}`), 50);
+  };
+
   // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
   // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
   // boletas de a una eran más de cinco minutos de espera.
@@ -820,6 +862,19 @@ export default function PanelRendicion({
         </label>
       )}
 
+      {!yaCargada && !analizando && (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+          <button
+            type="button"
+            onClick={agregarManual}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-borde bg-superficie px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo"
+          >
+            <IconPencilPlus size={16} /> Agregar gasto manual
+          </button>
+          <span className="text-[11px] text-gris-suave">Para un gasto sin boleta o que prefieras escribir tú.</span>
+        </div>
+      )}
+
       {/* PASO 2 — revisar y corregir */}
       {rendicion.gastos.length > 0 && (
         <div className={`${yaCargada ? "" : "mt-5"} rounded-2xl border border-borde bg-superficie p-5 ${SOMBRA_CALIDA}`}>
@@ -927,7 +982,7 @@ export default function PanelRendicion({
               //
               // Con un solo gasto no tiene sentido plegarlo: no hay lista que
               // recorrer.
-              const abierto = avisos.length > 0 || rutMalo || filas.length === 1;
+              const abierto = avisos.length > 0 || rutMalo || filas.length === 1 || g.id === nuevoManualId;
 
               return (
                 <li

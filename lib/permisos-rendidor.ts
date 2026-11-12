@@ -109,7 +109,7 @@ export function esEditable(estado: EstadoRendicion): boolean {
  */
 export function problemasParaEnviar(gastos: Pick<GastoRendicion, "total" | "pendientes" | "proveedor">[]): string[] {
   const problemas: string[] = [];
-  if (gastos.length === 0) problemas.push("Sube al menos un comprobante.");
+  if (gastos.length === 0) problemas.push("Agrega al menos un gasto (con comprobante o manual).");
   const pendientes = gastos.filter((g) => g.pendientes.length > 0).length;
   if (pendientes > 0) problemas.push(`${pendientes} ${pendientes === 1 ? "gasto tiene" : "gastos tienen"} datos por confirmar.`);
   const sinMonto = gastos.filter((g) => !(g.total > 0)).length;
