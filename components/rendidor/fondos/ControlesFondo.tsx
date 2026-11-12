@@ -6,7 +6,8 @@ import { IconLoader2, IconPaperclip, IconPlus, IconWallet } from "@tabler/icons-
 import VentanaModal from "@/components/inventario/VentanaModal";
 import { Campo, TarjetaAccion } from "@/components/flota/Campos";
 import { CAMPO } from "@/lib/estilos";
-import { asignarFondoAction, solicitarFondoAction } from "@/app/(protegido)/rendir-gastos/acciones-fondos";
+import { pesos } from "@/lib/rendidor/fondos-modelo";
+import { asignarFondoAction, cargarFondoAction, solicitarFondoAction } from "@/app/(protegido)/rendir-gastos/acciones-fondos";
 
 type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -202,14 +203,20 @@ export function AsignarFondo({
   personas,
   validado,
   plazoPorOmision,
+  saldosAFavor = [],
 }: {
   personas: { correo: string; nombre: string }[];
-  validado?: { id: string; codigo: string; rendidorNombre: string; montoSolicitado: number | null };
+  validado?: { id: string; codigo: string; rendidorNombre: string; rendidorCorreo?: string; montoSolicitado: number | null };
   plazoPorOmision: number;
+  /** Fondos activos con saldo a favor, para avisar antes de crear otro fondo a la misma persona. */
+  saldosAFavor?: { correo: string; codigo: string; saldo: number }[];
 }) {
   const router = useRouter();
   const [abierta, setAbierta] = useState(false);
   const [fijo, setFijo] = useState(false);
+  const [persona, setPersona] = useState("");
+  const correoElegido = validado?.rendidorCorreo ?? persona;
+  const conSaldo = saldosAFavor.filter((x) => x.correo === correoElegido);
   return (
     <>
       {validado ? (
@@ -232,7 +239,7 @@ export function AsignarFondo({
           ) : (
             <>
               <Campo etiqueta="A quién *">
-                <select name="rendidorCorreo" required className={CAMPO} defaultValue="">
+                <select name="rendidorCorreo" required className={CAMPO} value={persona} onChange={(e) => setPersona(e.target.value)}>
                   <option value="">Elige una persona…</option>
                   {personas.map((p) => (
                     <option key={p.correo} value={p.correo}>{p.nombre}</option>
@@ -246,6 +253,11 @@ export function AsignarFondo({
                 <input name="centroCosto" maxLength={120} className={CAMPO} />
               </Campo>
             </>
+          )}
+          {conSaldo.length > 0 && (
+            <p className="rounded-xl border border-amber-300/60 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-900">
+              <b>Ya tiene saldo a favor:</b> {conSaldo.map((x) => `${x.codigo} (${pesos(x.saldo)})`).join(", ")}. Para no acumular fondos, cárgale el nuevo monto a ese fondo desde «Fondos con saldo a favor» (más abajo), o pídele que lo devuelva.
+            </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo etiqueta="Monto autorizado *">
@@ -263,6 +275,57 @@ export function AsignarFondo({
             </span>
           </label>
         </Formulario>
+      </VentanaModal>
+    </>
+  );
+}
+
+/** Cargar el nuevo monto a un fondo que ya tiene saldo a favor (en vez de crear otro): se transfiere solo la diferencia. */
+export function CargarFondo({ fondo }: { fondo: { id: string; codigo: string; rendidorNombre: string; saldo: number; montoAutorizado: number | null } }) {
+  const router = useRouter();
+  const [abierta, setAbierta] = useState(false);
+  const [total, setTotal] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pendiente, iniciar] = useTransition();
+  const n = Math.round(Number(total.replace(/[$.\s]/g, "").replace(",", "."))) || 0;
+  const diferencia = n - fondo.saldo;
+  return (
+    <>
+      <button type="button" onClick={() => { setTotal(String(fondo.montoAutorizado ?? "")); setError(null); setAbierta(true); }} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-naranjo px-4 text-sm font-bold text-white shadow-sm transition hover:bg-naranjo-suave">
+        <IconPlus size={15} /> Cargar fondo
+      </button>
+      <VentanaModal abierta={abierta} alCerrar={() => !pendiente && setAbierta(false)} titulo={`Cargar ${fondo.codigo}`} descripcion={`${fondo.rendidorNombre} ya tiene ${pesos(fondo.saldo)} a favor. Cárgale el nuevo monto a este fondo en vez de crear otro: Tesorería transfiere solo la diferencia.`} ancho="max-w-md">
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-tinta">¿Cuánto debe quedar disponible en total? *</span>
+            <input autoFocus value={total} onChange={(e) => setTotal(e.target.value)} inputMode="numeric" placeholder="Ej: 300.000" className={CAMPO} />
+          </label>
+          {n > 0 && (
+            <p className={`rounded-xl px-3 py-2 text-sm ${diferencia > 0 ? "bg-emerald-500/[0.07] text-emerald-800" : "bg-amber-500/10 text-amber-800"}`}>
+              {diferencia > 0 ? <>Saldo a favor <b>{pesos(fondo.saldo)}</b> + a transferir <b>{pesos(diferencia)}</b> = {pesos(n)}.</> : `Ya tiene ${pesos(fondo.saldo)}: indica un monto mayor.`}
+            </p>
+          )}
+          {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={pendiente} onClick={() => setAbierta(false)} className="inline-flex min-h-10 items-center rounded-lg border border-borde px-4 text-sm font-semibold text-gris hover:text-tinta">Cancelar</button>
+            <button
+              type="button"
+              disabled={pendiente || diferencia <= 0}
+              onClick={() =>
+                iniciar(async () => {
+                  setError(null);
+                  const r = await cargarFondoAction(fondo.id, total);
+                  if (!r.ok) return setError(r.error);
+                  setAbierta(false);
+                  router.refresh();
+                })
+              }
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-naranjo px-5 text-sm font-bold text-white disabled:opacity-40"
+            >
+              {pendiente && <IconLoader2 size={16} className="animate-spin" />} Cargar fondo
+            </button>
+          </div>
+        </div>
       </VentanaModal>
     </>
   );

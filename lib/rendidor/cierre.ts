@@ -47,6 +47,17 @@ export async function cerrarInformeAprobado(r: Rendicion, revisor: string): Prom
     await transicion(fondo, ["activo"], "cerrado", revisor, { cerrado_en: ahora }, "Gasto igual al fondo");
     await avisar(dueno, revisor, `Tu fondo ${fondo.codigo} quedó cerrado`, "Lo rendido calzó justo con el fondo.", enlaceFondo(fondo.id), "fondo-cerrado");
   } else {
+    // Para que no se acumulen fondos: también se le avisa a quien asigna, que puede pedir la devolución o
+    // cargarle el nuevo fondo a este mismo.
+    await avisar(
+      await correosConRol(fondo.empresaId, "asignador"),
+      revisor,
+      `${r.nombreQuienRinde} tiene saldo a favor: ${pesos(saldo)} en ${fondo.codigo}`,
+      "Pídele que lo devuelva, o cárgale el próximo fondo a este mismo en «Por asignar».",
+      "/rendir-gastos?ver=asignar",
+      "saldo-a-favor-asignador",
+      "alerta",
+    );
     await avisar(
       dueno,
       revisor,

@@ -18,11 +18,11 @@ import { puedeVerRendicionesAjenas } from "@/lib/permisos-rendidor";
 import { listarPersonas, listarRendiciones } from "@/lib/rendidor/datos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
-import { leerParametros, listarFondos, listarRoles, movimientosDe, rolesDe } from "@/lib/rendidor/fondos";
+import { fondosConSaldoAFavor, leerParametros, listarFondos, listarRoles, movimientosDe, rolesDe } from "@/lib/rendidor/fondos";
 import { ETIQUETA_MOVIMIENTO, pesos, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
 import ListaRendiciones from "@/components/rendidor/ListaRendiciones";
 import NuevaRendicion from "@/components/rendidor/NuevaRendicion";
-import { AsignarFondo, BotonAccion, SolicitarFondo } from "@/components/rendidor/fondos/ControlesFondo";
+import { AsignarFondo, BotonAccion, CargarFondo, SolicitarFondo } from "@/components/rendidor/fondos/ControlesFondo";
 import ConfiguracionFondos from "@/components/rendidor/fondos/ConfiguracionFondos";
 import { FilaFondo, Vacio } from "@/components/rendidor/fondos/Vistas";
 import {
@@ -30,6 +30,7 @@ import {
   conciliarAction,
   confirmarDevolucionAction,
   pagarReembolsoAction,
+  pedirDevolucionAction,
   reponerFondoAction,
   transferirFondoAction,
   validarFondoAction,
@@ -92,6 +93,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const fondosParaInforme = (revisaAntiguas ? fondos : misFondos)
     .filter((f) => f.estado === "activo")
     .map((f) => ({ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, motivo: f.motivo, esMio: f.rendidorCorreo === yo }));
+  const conSaldoAFavor = tiene("asignador") && (actual === "asignar" || actual === "inicio") ? (await fondosConSaldoAFavor(empresaId).catch(() => [])).filter((f) => f.rendidorCorreo !== yo) : [];
   const necesitaPersonas = actual === "asignar" || actual === "config";
   const personas = necesitaPersonas ? await listarPersonas() : [];
 
@@ -209,14 +211,29 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       {actual === "asignar" && (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2">
-            <AsignarFondo personas={personas.filter((p) => p.correo !== yo)} plazoPorOmision={parametros.plazoRendicionDias} />
+            <AsignarFondo personas={personas.filter((p) => p.correo !== yo)} plazoPorOmision={parametros.plazoRendicionDias} saldosAFavor={conSaldoAFavor.map((f) => ({ correo: f.rendidorCorreo, codigo: f.codigo, saldo: f.saldo }))} />
           </div>
+          <Seccion titulo="Fondos con saldo a favor" Icono={IconWallet}>
+            {conSaldoAFavor.length === 0 ? <Vacio texto="Nadie tiene saldo a favor sin usar." /> : (
+              <>
+                <p className="mb-2 text-xs text-gris">Para que no se acumulen fondos: cárgales el nuevo monto a estos mismos (se transfiere solo la diferencia) o pide que devuelvan el saldo.</p>
+                <ul className="space-y-2.5">
+                  {conSaldoAFavor.map((f) => (
+                    <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite}>
+                      <BotonAccion accion={pedirDevolucionAction.bind(null, f.id)} confirma={`Se le avisa a ${f.rendidorNombre} que devuelva ${pesos(f.saldo)}.`} tono="secundario">Pedir devolución</BotonAccion>
+                      <CargarFondo fondo={{ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, montoAutorizado: f.montoAutorizado }} />
+                    </FilaFondo>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Seccion>
           <Seccion titulo="Validados, por asignar" Icono={IconChecklist}>
             {porAsignar.length === 0 ? <Vacio texto="No hay solicitudes validadas esperando." /> : (
               <ul className="space-y-2.5">
                 {porAsignar.map((f) => (
                   <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite}>
-                    <AsignarFondo personas={[]} validado={{ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, montoSolicitado: f.montoSolicitado }} plazoPorOmision={parametros.plazoRendicionDias} />
+                    <AsignarFondo personas={[]} validado={{ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, rendidorCorreo: f.rendidorCorreo, montoSolicitado: f.montoSolicitado }} plazoPorOmision={parametros.plazoRendicionDias} saldosAFavor={conSaldoAFavor.map((x) => ({ correo: x.rendidorCorreo, codigo: x.codigo, saldo: x.saldo }))} />
                     <BotonAccion accion={anularFondoAction.bind(null, f.id)} pide="¿Por qué se anula?" tono="peligro">Anular</BotonAccion>
                   </FilaFondo>
                 ))}

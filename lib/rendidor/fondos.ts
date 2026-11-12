@@ -316,3 +316,21 @@ export async function avisar(para: string[], actor: string, titulo: string, cuer
 
 export const enlaceFondo = (id: string) => `/rendir-gastos/fondos/${id}`;
 export { pesos };
+
+/**
+ * Fondos ACTIVOS que quedaron con saldo a favor: ya se cerró al menos un informe y no hay otro abierto.
+ * Son los que quien asigna puede cargar con el nuevo monto (en vez de crear otro fondo) o pedir devolver.
+ */
+export async function fondosConSaldoAFavor(empresaId: string): Promise<Fondo[]> {
+  const activos = (await listarFondos(empresaId, { estados: ["activo"] })).filter((f) => f.saldo > 0);
+  if (!activos.length) return [];
+  const { data } = await supabaseAdmin.from("rendiciones").select("fondo_id, estado").in("fondo_id", activos.map((f) => f.id));
+  const cerrado = new Set<string>();
+  const abierto = new Set<string>();
+  for (const r of data ?? []) {
+    const id = r.fondo_id as string;
+    if (r.estado === "cerrada") cerrado.add(id);
+    if (["borrador", "enviada", "rechazada", "aprobada", "reembolso_pendiente"].includes(r.estado as string)) abierto.add(id);
+  }
+  return activos.filter((f) => cerrado.has(f.id) && !abierto.has(f.id));
+}

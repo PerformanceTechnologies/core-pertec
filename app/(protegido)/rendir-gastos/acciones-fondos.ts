@@ -505,3 +505,47 @@ export async function conciliarGastoAction(informeId: string, gastoId: string, d
     return fallo(e);
   }
 }
+
+// ---------- Saldo a favor: cargar el fondo que ya tiene, o pedir que lo devuelva ----------------
+
+/**
+ * En vez de crear otro fondo a quien ya tiene saldo a favor, se le carga el nuevo monto a ESTE: Tesorería
+ * transfiere solo la diferencia y el fondo vuelve a empezar su plazo. `montoTotal` es lo que debe quedar disponible.
+ */
+export async function cargarFondoAction(id: string, montoTotal: string): Promise<Resultado> {
+  try {
+    const c = await ctx();
+    if (!c.tiene("asignador")) return { ok: false, error: "Solo un asignador carga fondos." };
+    const f = await fondoDeEmpresa(id, c.empresaId);
+    noPropio(f, c.yo, "cargar");
+    if (f.estado !== "activo") return { ok: false, error: "Solo se carga un fondo activo." };
+    if (await informesAbiertos(id)) return { ok: false, error: "Tiene informes abiertos: espera a que se cierren para cargarlo." };
+    const total = monto(montoTotal);
+    if (!total) return { ok: false, error: "Indica cuánto debe quedar disponible en el fondo." };
+    const diferencia = total - f.saldo;
+    if (diferencia <= 0) return { ok: false, error: `El fondo ya tiene ${pesos(f.saldo)}: indica un monto mayor.` };
+    if (!(await transicion(f, ["activo"], "por_transferir", c.yo, { monto_por_transferir: diferencia, monto_autorizado: total, ciclo: f.ciclo + 1, asignado_por: c.yo, asignado_en: new Date().toISOString() }, `Carga al fondo existente: total ${pesos(total)}, a transferir ${pesos(diferencia)} (saldo a favor ${pesos(f.saldo)})`))) {
+      return { ok: false, error: "El fondo cambió mientras tanto." };
+    }
+    await avisar(await correosConRol(c.empresaId, "tesoreria"), c.yo, `Carga por transferir: ${pesos(diferencia)}`, `${f.rendidorNombre} · ${f.codigo} (solo la diferencia; ya tenía ${pesos(f.saldo)})`, enlaceFondo(id), "reposicion", "alerta");
+    await avisar([f.rendidorCorreo], c.yo, `Te cargaron tu fondo ${f.codigo}`, `Quedará con ${pesos(total)}: Tesorería transfiere ${pesos(diferencia)}, el resto es tu saldo a favor.`, enlaceFondo(id), "reposicion");
+    return listo(id);
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Quien asigna le pide a la persona que devuelva su saldo a favor (le llega el aviso con el enlace al fondo). */
+export async function pedirDevolucionAction(id: string): Promise<Resultado> {
+  try {
+    const c = await ctx();
+    if (!c.tiene("asignador")) return { ok: false, error: "Solo un asignador pide devoluciones." };
+    const f = await fondoDeEmpresa(id, c.empresaId);
+    if (f.estado !== "activo" || f.saldo <= 0) return { ok: false, error: "El fondo no tiene saldo a favor." };
+    await avisar([f.rendidorCorreo], c.yo, `Te piden devolver tu saldo a favor: ${pesos(f.saldo)}`, `${f.codigo} · devuélvelo a la empresa y registra la referencia de la transferencia desde el fondo.`, enlaceFondo(id), "pedir-devolucion", "alerta");
+    await auditar("fondo", id, f.estado, f.estado, c.yo, `Pidió devolver el saldo a favor de ${pesos(f.saldo)}`);
+    return listo(id);
+  } catch (e) {
+    return fallo(e);
+  }
+}

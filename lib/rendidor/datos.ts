@@ -170,6 +170,8 @@ export async function crearRendicion(datos: DatosNuevaRendicion, usuarioId: stri
       fondo_id: datos.fondoId ?? null,
       empresa_id: datos.empresaId ?? null,
       creado_por: usuarioId,
+      // Todo informe nace en borrador, con o sin fondo: solo cambia de estado cuando se envía.
+      estado: "borrador",
       gastos: [],
     })
     .select(COLUMNAS)
