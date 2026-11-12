@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { IconArrowLeft, IconHistory, IconNotebook, IconReceipt2, IconWallet } from "@tabler/icons-react";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
 import { contextoDeEmpresa } from "@/lib/empresas";
@@ -32,8 +32,13 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
   const { usuario, rol } = await exigirAccesoRendidor();
   const { id } = await params;
   const f = await obtenerFondo(id);
-  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
-  if (!f || f.empresaId !== activa?.id) notFound();
+  const { activa, permitidas } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  if (!f) notFound();
+  if (f.empresaId !== activa?.id) {
+    // Cambiaste de empresa mirando este fondo: si es de otra empresa tuya, de vuelta a la lista (no un 404).
+    if (permitidas.some((e) => e.id === f.empresaId)) redirect("/rendir-gastos?ver=fondos");
+    notFound();
+  }
   const yo = usuario.correo.toLowerCase();
   const roles = await rolesDe(usuario, rol === "admin", f.empresaId);
   const mio = f.rendidorCorreo === yo;

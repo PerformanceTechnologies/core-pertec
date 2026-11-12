@@ -41,9 +41,14 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
   if (!rendicion) notFound();
   // Cada informe se ve en su empresa (los antiguos, sin empresa, son de PERTEC).
   {
-    const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+    const { activa, permitidas } = await contextoDeEmpresa(usuario.id, usuario.rol);
     const suya = rendicion.empresaId ? rendicion.empresaId === activa?.id : (activa?.slug ?? SLUG_POR_OMISION) === SLUG_POR_OMISION;
-    if (!suya && !(await esBolsa(id))) notFound();
+    if (!suya && !(await esBolsa(id))) {
+      // Cambiaste de empresa mirando este informe: si es de otra empresa tuya, de vuelta a la lista (no un 404).
+      const deOtraEmpresaTuya = rendicion.empresaId ? permitidas.some((e) => e.id === rendicion.empresaId) : permitidas.some((e) => e.slug === SLUG_POR_OMISION);
+      if (deOtraEmpresaTuya) redirect("/rendir-gastos?ver=informes");
+      notFound();
+    }
   }
   // La bolsa de «Mis gastos» no es un informe: tiene su propia pantalla.
   if (await esBolsa(id)) redirect("/rendir-gastos/gastos");
