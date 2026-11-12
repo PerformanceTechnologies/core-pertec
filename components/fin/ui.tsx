@@ -247,13 +247,15 @@ export interface OpcionContacto {
  * Elegir un contacto escribiendo (razón social o RUT). Guarda el id en un campo oculto `name`.
  * Los contactos se crean en Contactos: acá solo se eligen.
  */
-export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar por nombre o RUT…", requerido = false, alCambiar }: {
+export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar por nombre o RUT…", requerido = false, alCambiar, alVerHistorial }: {
   name: string;
   opciones: OpcionContacto[];
   inicial?: string | null;
   placeholder?: string;
   requerido?: boolean;
   alCambiar?: (id: string | null) => void;
+  /** Si viene, cada fila muestra «Ver historial» al lado del RUT. */
+  alVerHistorial?: (o: OpcionContacto) => void;
 }) {
   const [id, setId] = useState<string | null>(inicial ?? null);
   const [q, setQ] = useState(() => opciones.find((o) => o.id === inicial)?.nombre ?? "");
@@ -302,11 +304,16 @@ export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar p
       {abierto && lista.length > 0 && (
         <ul className="absolute z-40 mt-1.5 max-h-64 w-full overflow-auto rounded-2xl border border-borde/60 bg-superficie p-1.5 shadow-[0_18px_40px_-14px_rgba(23,20,17,0.35)]">
           {lista.map((o) => (
-            <li key={o.id}>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegir(o)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition hover:bg-naranjo/[0.08] ${o.id === id ? "bg-naranjo/[0.08]" : ""}`}>
+            <li key={o.id} className={`flex items-center gap-1 rounded-xl transition hover:bg-naranjo/[0.08] ${o.id === id ? "bg-naranjo/[0.08]" : ""}`}>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegir(o)} className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2.5 text-left text-sm">
                 <span className="truncate text-tinta">{o.nombre}</span>
                 {o.rut && <span className="shrink-0 font-mono text-[11px] text-gris">{o.rut}</span>}
               </button>
+              {alVerHistorial && (
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { elegir(o); alVerHistorial(o); }} className="mr-1.5 shrink-0 rounded-lg border border-naranjo/30 px-2 py-1 text-[11px] font-semibold text-naranjo transition hover:bg-naranjo/10">
+                  Ver historial
+                </button>
+              )}
             </li>
           ))}
         </ul>

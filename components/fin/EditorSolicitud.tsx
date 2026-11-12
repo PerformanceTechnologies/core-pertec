@@ -9,6 +9,8 @@ import type { DatosLeidos } from "@/lib/fin/oc-ia-datos";
 import { BOTON, BOTON_SEC } from "./estilos";
 import { ComboContacto, type OpcionContacto } from "./ui";
 import { avisar, confirmar } from "./dialogos";
+import HistorialProveedor from "./HistorialProveedor";
+import type { DetalleOcHistorica } from "@/app/(protegido)/gestion-financiera/acciones-historial";
 import FormularioContacto, { type ContactoCreado, type PrecargaContacto } from "@/components/contactos/FormularioContacto";
 
 export interface DatosEditorSolicitud {
@@ -156,6 +158,7 @@ export default function EditorSolicitud({
   const [proveedorSinContacto, setProveedorSinContacto] = useState<PrecargaContacto | null>(null);
   // El combo de proveedor solo lee su valor inicial al montarse: al cargar uno desde la IA se remonta con otra clave.
   const [claveProveedor, setClaveProveedor] = useState(0);
+  const [historialDe, setHistorialDe] = useState<{ id: string; nombre: string } | null>(null);
   const [atencion, setAtencion] = useState(inicial.atencion);
   const [proveedorCorreo, setProveedorCorreo] = useState(inicial.proveedorCorreo);
   const [proyectoId, setProyectoId] = useState(inicial.proyectoId ?? "");
@@ -242,6 +245,28 @@ export default function EditorSolicitud({
       setLeyendo(false);
       if (entradaArchivo.current) entradaArchivo.current.value = "";
     }
+  }
+
+  /** Rellena el formulario con una OC anterior del mismo proveedor (sin tocar proveedor, proyecto ni solicitante). */
+  async function copiarHistorica(d: DetalleOcHistorica) {
+    const hayItems = lineas.some((l) => l.descripcion.trim());
+    if (hayItems && !(await confirmar({ titulo: "¿Copiar esta OC?", ayuda: "Reemplazará los ítems y las condiciones que ya escribiste. Podrás revisar todo antes de guardar.", boton: "Copiar y reemplazar" }))) return;
+    setHistorialDe(null);
+    if (d.titulo) setTitulo(d.titulo);
+    if (d.atencion) setAtencion(d.atencion);
+    if (d.proveedorCorreo) setProveedorCorreo(d.proveedorCorreo);
+    setMoneda(d.moneda);
+    const valor = d.moneda === "UF" ? indicadores.uf : d.moneda === "USD" ? indicadores.dolar : null;
+    setTipoCambio(d.moneda === "CLP" || !valor ? "" : texto(valor));
+    setLineas(d.lineas.length > 0 ? d.lineas.map(aForm) : [{ ...LINEA_NUEVA }]);
+    setNotasAbiertas([]);
+    if (d.entregaLugar) setEntregaLugar(d.entregaLugar);
+    if (d.entregaPlazo) setEntregaPlazo(d.entregaPlazo);
+    if (d.formaPago) setFormaPago(d.formaPago);
+    if (d.condicionPagoDias) setCondicionPagoDias(d.condicionPagoDias);
+    if (d.observaciones) setObservaciones(d.observaciones);
+    if (d.condiciones) setCondiciones(d.condiciones);
+    avisar("Listo: se copió la OC. Revisa precios y cantidades antes de guardar.", "ok");
   }
 
   function guardar(enviar: boolean) {
@@ -332,7 +357,13 @@ export default function EditorSolicitud({
               <span className="text-[11px] font-semibold text-tinta/70">Proveedor *</span>
               {puedeCrearProveedor && <button type="button" onClick={() => setCreando(proveedorSinContacto ?? { esProveedor: true, esCliente: false })} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-naranjo hover:bg-naranjo/10"><IconUserPlus size={13} /> Nuevo proveedor</button>}
             </div>
-            <ComboContacto key={claveProveedor} name="_proveedor" opciones={[...proveedores, ...creados]} inicial={proveedorId} alCambiar={setProveedorId} />
+            <ComboContacto key={claveProveedor} name="_proveedor" opciones={[...proveedores, ...creados]} inicial={proveedorId} alCambiar={setProveedorId} alVerHistorial={(o) => setHistorialDe({ id: o.id, nombre: o.nombre })} />
+            {proveedorId && (
+              <button type="button" onClick={() => { const o = [...proveedores, ...creados].find((x) => x.id === proveedorId); if (o) setHistorialDe({ id: o.id, nombre: o.nombre }); }} className="mt-1 text-[11px] font-semibold text-naranjo hover:underline">
+                Ver historial de este proveedor
+              </button>
+            )}
+            <HistorialProveedor proveedor={historialDe} alCerrar={() => setHistorialDe(null)} alCopiar={copiarHistorica} />
             {proveedorSinContacto && !proveedorId && (
               <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] px-2.5 py-1.5 text-xs text-tinta/80">
                 <IconAlertTriangle size={14} className="shrink-0 text-aviso" />
