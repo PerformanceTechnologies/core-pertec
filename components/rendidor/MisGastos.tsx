@@ -121,10 +121,12 @@ export default function MisGastos({
             <button type="button" onClick={abrirNuevo} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-naranjo px-4 text-sm font-bold text-white shadow-sm transition hover:bg-naranjo-suave">
               <IconPlus size={16} /> Agregar nuevo gasto
             </button>
+            <div className="flex basis-full justify-end">
             <div className="inline-flex flex-wrap rounded-lg border border-borde p-0.5 text-xs font-semibold">
               {([["todos", `Todos ${filas.length}`], ["borrador", `Borrador ${cuenta("borrador")}`], ["en_informe", `En informe ${cuenta("en_informe")}`], ["cerrado", `Cerrado ${cuenta("cerrado")}`]] as const).map(([k, t]) => (
                 <button key={k} type="button" onClick={() => setFiltro(k)} className={`rounded-md px-2.5 py-1 transition ${filtro === k ? "bg-tinta text-superficie" : "text-gris hover:text-tinta"}`}>{t}</button>
               ))}
+            </div>
             </div>
           </div>
           <div className="mt-2 overflow-hidden rounded-lg border border-borde">
