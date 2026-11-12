@@ -16,7 +16,7 @@ export default async function NuevaSolicitudPage() {
   const [ctx, v] = await Promise.all([contextoFin(), cargarVista()]);
   const apoyo = await apoyoDelEditor(ctx, v);
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="mx-auto max-w-[1500px] space-y-4">
       <Link href={RUTA_COMPRAS} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris hover:text-naranjo"><IconArrowLeft size={14} /> Compras y pagos</Link>
       <header>
         <h2 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Nueva solicitud de compra</h2>

@@ -71,7 +71,9 @@ const LINEA_NUEVA: LineaForm = { productoId: null, descripcion: "", cantidad: "1
 /** Campos algo más bajos que los del resto del módulo: esta pantalla tiene muchos y se quiere ver casi todo sin desplazarse. */
 const CAMPO_C =
   "min-h-9 w-full rounded-lg border border-transparent bg-tinta/[0.05] px-2.5 py-1.5 text-sm text-tinta placeholder:text-gris-suave transition hover:bg-tinta/[0.07] focus:border-cian/60 focus:bg-superficie focus:outline-none focus:ring-4 focus:ring-cian/15";
-const LBL = "mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gris";
+const LBL = "mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gris lg:hidden";
+/** Columnas de cada ítem en pantalla ancha: la descripción se lleva lo que sobra. En el celular cada ítem es una tarjeta. */
+const COLUMNAS = "lg:grid-cols-[1.25rem_minmax(0,1fr)_4.75rem_4.25rem_7.5rem_4.25rem_3.75rem_7rem_4.25rem]";
 const TIPOS_ARCHIVO = "application/pdf,image/jpeg,image/png,image/webp";
 const MAXIMO_ARCHIVO = 4 * 1024 * 1024;
 
@@ -298,15 +300,15 @@ export default function EditorSolicitud({
 
       <Seccion n={1} titulo="¿Quién, qué y a quién?" ayuda="Quién pide la compra, para qué proyecto y a qué proveedor.">
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
-          <Et t="Título o descripción breve *" className="sm:col-span-2 lg:col-span-6"><input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Repuestos para chancador planta Norte" maxLength={300} className={CAMPO_C} autoFocus={!inicial.id} /></Et>
-          <Et t="Quién solicita" className="lg:col-span-3">
+          <Et t="Título o descripción breve *" className="sm:col-span-2 lg:col-span-5"><input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Repuestos para chancador planta Norte" maxLength={300} className={CAMPO_C} autoFocus={!inicial.id} /></Et>
+          <Et t="Quién solicita" className="lg:col-span-2">
             <select value={solicitanteTipo} onChange={(e) => setSolicitanteTipo(e.target.value as SolicitanteTipo)} className={CAMPO_C}>
               <option value="yo">Yo ({yo.nombre})</option>
               <option value="usuario">Otra persona del Core</option>
               <option value="otro">Alguien externo</option>
             </select>
           </Et>
-          <Et t={solicitanteTipo === "otro" ? "Nombre de quien solicita" : "Persona"} className="lg:col-span-3">
+          <Et t={solicitanteTipo === "otro" ? "Nombre de quien solicita" : "Persona"} className="lg:col-span-2">
             {solicitanteTipo === "usuario" ? (
               <select value={solicitanteUsuarioId} onChange={(e) => setSolicitanteUsuarioId(e.target.value)} className={CAMPO_C}>
                 <option value="">Elige…</option>
@@ -319,13 +321,13 @@ export default function EditorSolicitud({
             )}
           </Et>
 
-          <Et t="Proyecto (a quién se carga el gasto)" className="sm:col-span-2 lg:col-span-5">
+          <Et t="Proyecto (a quién se carga el gasto)" className="sm:col-span-2 lg:col-span-3">
             <select value={proyectoId} onChange={(e) => setProyectoId(e.target.value)} className={CAMPO_C}>
               <option value="">General</option>
               {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           </Et>
-          <div className="min-w-0 sm:col-span-2 lg:col-span-7">
+          <div className="min-w-0 sm:col-span-2 lg:col-span-5">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-[11px] font-semibold text-tinta/70">Proveedor *</span>
               {puedeCrearProveedor && <button type="button" onClick={() => setCreando(proveedorSinContacto ?? { esProveedor: true, esCliente: false })} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-naranjo hover:bg-naranjo/10"><IconUserPlus size={13} /> Nuevo proveedor</button>}
@@ -340,9 +342,9 @@ export default function EditorSolicitud({
             )}
           </div>
 
-          <Et t="Atención del proveedor" className="lg:col-span-4"><input value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Nombre de su contacto" maxLength={120} className={CAMPO_C} /></Et>
-          <Et t="Correo para enviarle la OC" className="lg:col-span-5"><input value={proveedorCorreo} onChange={(e) => setProveedorCorreo(e.target.value)} type="email" inputMode="email" placeholder="ventas@proveedor.cl" maxLength={160} className={CAMPO_C} /></Et>
-          <Et t="Se necesita para" className="lg:col-span-3"><input type="date" value={fechaRequerida} onChange={(e) => setFechaRequerida(e.target.value)} className={CAMPO_C} /></Et>
+          <Et t="Atención del proveedor" className="lg:col-span-2"><input value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Nombre de su contacto" maxLength={120} className={CAMPO_C} /></Et>
+          <Et t="Correo para enviarle la OC" className="lg:col-span-3"><input value={proveedorCorreo} onChange={(e) => setProveedorCorreo(e.target.value)} type="email" inputMode="email" placeholder="ventas@proveedor.cl" maxLength={160} className={CAMPO_C} /></Et>
+          <Et t="Se necesita para" className="lg:col-span-2"><input type="date" value={fechaRequerida} onChange={(e) => setFechaRequerida(e.target.value)} className={CAMPO_C} /></Et>
         </div>
       </Seccion>
 
@@ -364,31 +366,36 @@ export default function EditorSolicitud({
           </div>
         }
       >
-        {/* Cada ítem en dos filas: arriba la descripción, con todo el ancho (y crece sola al escribir); abajo las cifras. */}
-        <ul className="space-y-2">
+        {/* Encabezado de columnas: solo en pantalla ancha; en el celular cada campo lleva su rótulo. */}
+        <div className={`mb-1 hidden gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-wide text-gris lg:grid ${COLUMNAS}`}>
+          <span /><span>Descripción</span><span className="text-right">Cant.</span><span>Unidad</span><span className="text-right">Precio unit. (neto)</span><span className="text-right">Desc. %</span><span className="text-center">Exento</span><span className="text-right">Total</span><span />
+        </div>
+        {/* Una fila por ítem: la descripción se lleva todo el ancho que sobra y crece sola si es larga. En el celular, tarjeta de dos columnas. */}
+        <ul className="space-y-1.5">
           {lineas.map((l, i) => (
-            <li key={i} className="space-y-2 rounded-xl border border-borde bg-tinta/[0.015] p-2.5">
-              <div className="flex items-start gap-1.5">
-                <span className="mt-2 w-5 shrink-0 text-center text-[11px] font-bold text-gris-suave">{i + 1}</span>
-                <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} min-h-[2.75rem] flex-1 resize-none leading-snug`} placeholder="Descripción del producto o servicio (puedes escribir todo el detalle que haga falta)" />
+            <li key={i} className={`grid grid-cols-2 items-start gap-1.5 rounded-xl border border-borde bg-tinta/[0.015] p-2 ${COLUMNAS}`}>
+              <span className="hidden pt-2 text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
+              <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
+                <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
+                <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} flex-1 resize-none leading-snug`} placeholder="Descripción del producto o servicio" />
+              </div>
+              <label className="block"><span className={LBL}>Cantidad</span><input aria-label="Cantidad" value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: e.target.value })} inputMode="decimal" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
+              <label className="block"><span className={LBL}>Unidad</span><input aria-label="Unidad" value={l.unidad} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} maxLength={20} className={CAMPO_C} /></label>
+              <label className="block"><span className={LBL}>Precio unitario (neto)</span><input aria-label="Precio unitario" value={l.precio} onChange={(e) => cambiarLinea(i, { precio: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
+              <label className="block"><span className={LBL}>Desc. %</span><input aria-label="Descuento de la línea" value={l.dto} onChange={(e) => cambiarLinea(i, { dto: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} /></label>
+              <label className="flex min-h-9 items-center gap-1.5 text-xs text-gris lg:justify-center"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} aria-label="Exento de IVA" /> <span className="lg:hidden">Exento de IVA</span></label>
+              <div className="flex min-h-9 items-center justify-end gap-2">
+                <span className={`${LBL} mb-0`}>Total</span>
+                <span className="font-condensed text-lg font-bold tabular-nums text-tinta">{formatoMonto(netoLineaOc(items[i], moneda), moneda)}</span>
+              </div>
+              <div className="col-span-2 flex items-center justify-end gap-0.5 lg:col-span-1">
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar el detalle de este ítem" : "Agregar un detalle (marca, código, especificación)"}
                   className={`rounded-lg p-1.5 transition ${l.nota.trim() ? "bg-naranjo/10 text-naranjo" : notasAbiertas.includes(i) ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Detalle del ítem ${i + 1}`}><IconNotes size={16} /></button>
                 <button type="button" onClick={() => quitarLinea(i)} className="rounded-lg p-1.5 text-gris hover:bg-rose-500/10 hover:text-alerta" aria-label={`Quitar el ítem ${i + 1}`}><IconTrash size={16} /></button>
               </div>
-              <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[5rem_5rem_9rem_5rem_auto_minmax(0,1fr)] sm:pl-[1.625rem]">
-                <label className="block"><span className={LBL}>Cantidad</span><input aria-label="Cantidad" value={l.cantidad} onChange={(e) => cambiarLinea(i, { cantidad: e.target.value })} inputMode="decimal" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
-                <label className="block"><span className={LBL}>Unidad</span><input aria-label="Unidad" value={l.unidad} onChange={(e) => cambiarLinea(i, { unidad: e.target.value })} maxLength={20} className={CAMPO_C} /></label>
-                <label className="block"><span className={LBL}>Precio unitario (neto)</span><input aria-label="Precio unitario" value={l.precio} onChange={(e) => cambiarLinea(i, { precio: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} onFocus={(e) => e.currentTarget.select()} /></label>
-                <label className="block"><span className={LBL}>Desc. %</span><input aria-label="Descuento de la línea" value={l.dto} onChange={(e) => cambiarLinea(i, { dto: e.target.value })} inputMode="decimal" placeholder="0" className={`${CAMPO_C} text-right`} /></label>
-                <label className="flex min-h-9 items-center gap-1.5 whitespace-nowrap text-xs text-gris"><input type="checkbox" checked={l.exento} onChange={(e) => cambiarLinea(i, { exento: e.target.checked })} /> Exento de IVA</label>
-                <div className="col-span-2 flex items-baseline justify-end gap-2 sm:col-span-1">
-                  <span className={LBL}>Total</span>
-                  <span className="font-condensed text-lg font-bold tabular-nums text-tinta">{formatoMonto(netoLineaOc(items[i], moneda), moneda)}</span>
-                </div>
-              </div>
               {(notasAbiertas.includes(i) || Boolean(l.nota.trim())) && (
-                <div className="sm:pl-[1.625rem]">
-                  <AreaAuto aria-label={`Detalle del ítem ${i + 1}`} value={l.nota} maxLength={1000} onChange={(v) => cambiarLinea(i, { nota: v })} className={`${CAMPO_C} min-h-[2.5rem] resize-none text-[13px] leading-snug`} placeholder="Detalle opcional: marca, código, especificación. Sale bajo el ítem en la OC." />
+                <div className="col-span-2 lg:col-span-full lg:pl-[1.75rem]">
+                  <AreaAuto aria-label={`Detalle del ítem ${i + 1}`} value={l.nota} maxLength={1000} onChange={(v) => cambiarLinea(i, { nota: v })} className={`${CAMPO_C} min-h-[2.25rem] resize-none text-[13px] leading-snug`} placeholder="Detalle opcional: marca, código, especificación. Sale bajo el ítem en la OC." />
                 </div>
               )}
             </li>
@@ -408,11 +415,11 @@ export default function EditorSolicitud({
 
       <Seccion n={3} titulo="Entrega, pago y condiciones" ayuda="Salen en el PDF. Lo que dejes vacío no aparece.">
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
-          <Et t="Lugar de entrega" className="sm:col-span-2 lg:col-span-6"><input value={entregaLugar} onChange={(e) => setEntregaLugar(e.target.value)} placeholder="Faena Planta Norte, Calama" maxLength={300} className={CAMPO_C} /></Et>
-          <Et t="Plazo de entrega" className="lg:col-span-3"><input value={entregaPlazo} onChange={(e) => setEntregaPlazo(e.target.value)} placeholder="5 días hábiles" maxLength={120} className={CAMPO_C} /></Et>
-          <Et t="Días de pago" className="lg:col-span-3"><input value={condicionPagoDias} onChange={(e) => setCondicionPagoDias(e.target.value)} inputMode="numeric" placeholder="30 (0 = contado)" className={`${CAMPO_C} text-right`} /></Et>
+          <Et t="Lugar de entrega" className="sm:col-span-2 lg:col-span-4"><input value={entregaLugar} onChange={(e) => setEntregaLugar(e.target.value)} placeholder="Faena Planta Norte, Calama" maxLength={300} className={CAMPO_C} /></Et>
+          <Et t="Plazo de entrega" className="lg:col-span-2"><input value={entregaPlazo} onChange={(e) => setEntregaPlazo(e.target.value)} placeholder="5 días hábiles" maxLength={120} className={CAMPO_C} /></Et>
+          <Et t="Días de pago" className="lg:col-span-2"><input value={condicionPagoDias} onChange={(e) => setCondicionPagoDias(e.target.value)} inputMode="numeric" placeholder="30 (0 = contado)" className={`${CAMPO_C} text-right`} /></Et>
           <Et t="Forma de pago" className="sm:col-span-2 lg:col-span-4"><input value={formaPago} onChange={(e) => setFormaPago(e.target.value)} placeholder="Transferencia" maxLength={200} className={CAMPO_C} /></Et>
-          <Et t="Observaciones para el proveedor" className="sm:col-span-2 lg:col-span-8"><textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} rows={1} maxLength={2000} className={`${CAMPO_C} resize-y`} placeholder="Despachar con guía y certificado…" /></Et>
+          <Et t="Observaciones para el proveedor" className="sm:col-span-2 lg:col-span-12"><AreaAuto value={observaciones} onChange={setObservaciones} maxLength={2000} className={`${CAMPO_C} resize-none leading-snug`} placeholder="Despachar con guía y certificado…" /></Et>
           <details className="sm:col-span-2 lg:col-span-12">
             <summary className="cursor-pointer text-xs font-semibold text-gris hover:text-tinta">Condiciones generales de la OC (vienen de la empresa; ajústalas solo para esta OC)</summary>
             <textarea value={condiciones} onChange={(e) => setCondiciones(e.target.value)} rows={4} maxLength={3000} className={`${CAMPO_C} mt-1.5 resize-y`} aria-label="Condiciones generales" />
