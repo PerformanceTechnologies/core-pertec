@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { IconArrowRight, IconLoader2, IconPlus, IconX } from "@tabler/icons-react";
+import { IconArrowRight, IconLoader2, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
 import { CAMPO } from "@/lib/estilos";
 import { moverGastosAction } from "@/app/(protegido)/rendir-gastos/acciones";
@@ -60,6 +60,11 @@ export default function MisGastos({
       document.removeEventListener("keydown", alTeclear);
     };
   }, [abierto]);
+  // Para quitar un borrador desde el listado: lo hace el panel (que guarda solo).
+  const panel = useRef<{ quitar: (id: string) => void } | null>(null);
+  const eliminarBorrador = (f: FilaMiGasto) => {
+    if (confirm(`¿Eliminar el gasto de ${f.proveedor?.trim() || "este proveedor"} por ${pesos(f.total)}?`)) panel.current?.quitar(f.id);
+  };
   const abrirNuevo = () => { setIdsEdicion([]); setAbierto(true); };
   const abrirEdicion = (id: string) => { setIdsEdicion([id]); setAbierto(true); };
   const [filtro, setFiltro] = useState<EstadoGasto | "todos">("todos");
@@ -94,41 +99,46 @@ export default function MisGastos({
               ))}
             </div>
           </div>
-          <div className="mt-3 overflow-hidden rounded-xl border border-borde">
-            <div className="hidden grid-cols-[1.5rem_5.5rem_minmax(0,1.6fr)_minmax(0,1fr)_6.5rem_6.5rem_minmax(0,1.2fr)] items-center gap-3 border-b border-borde bg-tinta/[0.03] px-3.5 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-gris md:grid">
-              <span /><span>Fecha</span><span>Proveedor</span><span>Categoría</span><span className="text-right">Total</span><span>Estado</span><span>Informe</span>
+          <div className="mt-2 overflow-hidden rounded-lg border border-borde">
+            <div className="hidden md:grid-cols-[1.25rem_4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_6.5rem_minmax(0,1fr)_3.75rem] items-center gap-2.5 border-b border-borde bg-tinta/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gris md:grid">
+              <span /><span>Fecha</span><span>Proveedor</span><span>Categoría</span><span className="text-right">Total</span><span>Estado</span><span>Informe</span><span />
             </div>
             <ul className="divide-y divide-borde bg-superficie">
-              {visibles.length === 0 && <li className="px-4 py-6 text-center text-sm text-gris">{filas.length === 0 ? "Aún no tienes gastos. Pulsa «Agregar nuevo gasto»." : "No hay gastos en este estado."}</li>}
+              {visibles.length === 0 && <li className="px-4 py-4 text-center text-sm text-gris">{filas.length === 0 ? "Aún no tienes gastos. Pulsa «Agregar nuevo gasto»." : "No hay gastos en este estado."}</li>}
               {visibles.map((f) => (
-                <li key={f.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3.5 py-1.5 md:grid-cols-[1.5rem_5.5rem_minmax(0,1.6fr)_minmax(0,1fr)_6.5rem_6.5rem_minmax(0,1.2fr)]">
+                <li key={f.id} className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 px-3 py-1 text-[13px] leading-tight md:grid-cols-[1.25rem_4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_6.5rem_minmax(0,1fr)_3.75rem]">
                   {f.estado === "borrador" ? (
                     <input
                       type="checkbox"
                       aria-label="Elegir para pasar a un informe"
                       checked={vigentes.includes(f.id)}
                       onChange={(e) => setElegidos((xs) => (e.target.checked ? [...xs, f.id] : xs.filter((x) => x !== f.id)))}
-                      className="h-4 w-4 accent-[var(--color-naranjo)]"
+                      className="h-3.5 w-3.5 accent-[var(--color-naranjo)]"
                     />
                   ) : <span />}
                   <span className="hidden text-xs tabular-nums text-gris md:block">{fechaCorta(f.fecha)}</span>
-                  <span className="min-w-0">
-                    {f.estado === "borrador" ? (
-                      <button type="button" onClick={() => abrirEdicion(f.id)} className="block max-w-full truncate text-left text-sm font-semibold text-tinta hover:text-naranjo">{f.proveedor?.trim() || "Sin proveedor"}</button>
-                    ) : (
-                      <span className="block truncate text-sm font-semibold text-tinta">{f.proveedor?.trim() || "Sin proveedor"}</span>
-                    )}
-                    <span className="block text-[11px] text-gris md:hidden">{fechaCorta(f.fecha)}{f.categoria ? ` · ${f.categoria}` : ""}</span>
-                    {esFactura(f.tipoDocumento) && <span className="text-[10px] font-semibold text-sky-700">Factura{f.numeroDocumento ? ` N° ${f.numeroDocumento}` : ""}</span>}
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="truncate font-semibold text-tinta">{f.proveedor?.trim() || "Sin proveedor"}</span>
+                    {esFactura(f.tipoDocumento) && <span className="shrink-0 text-[10px] font-semibold text-sky-700">Fact.{f.numeroDocumento ? ` ${f.numeroDocumento}` : ""}</span>}
+                    <span className="shrink-0 text-[11px] text-gris md:hidden">{fechaCorta(f.fecha)}</span>
                   </span>
-                  <span className="hidden min-w-0 text-xs text-gris md:block"><span className="block truncate">{f.categoria ?? "—"}</span>{f.proyectoNombre && <span className="block truncate text-[10px] text-gris-suave">{f.proyectoNombre}</span>}</span>
-                  <span className="text-right font-condensed text-lg font-bold tabular-nums text-tinta">{pesos(f.total)}</span>
-                  <span className="col-start-2 md:col-start-auto">
-                    <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${TONO_ESTADO_GASTO[f.estado]}`}>{ETIQUETA_ESTADO_GASTO[f.estado]}</span>
-                    {f.estado === "cerrado" && (f.conciliado ? <span className="ml-1 text-[10px] font-semibold text-emerald-700">Conciliado</span> : <span className="ml-1 text-[10px] text-gris" title="Validado: falta conciliarlo">Por conciliar</span>)}
+                  <span className="hidden min-w-0 truncate text-xs text-gris md:block" title={f.proyectoNombre ?? undefined}>{f.categoria ?? "—"}{f.proyectoNombre ? ` · ${f.proyectoNombre}` : ""}</span>
+                  <span className="text-right font-semibold tabular-nums text-tinta">{pesos(f.total)}</span>
+                  <span className="hidden whitespace-nowrap md:block">
+                    <span className={`inline-flex rounded px-1.5 py-px text-[10.5px] font-semibold ${TONO_ESTADO_GASTO[f.estado]}`}>{ETIQUETA_ESTADO_GASTO[f.estado]}</span>
+                    {f.estado === "cerrado" && <span className={`ml-1 text-[10px] ${f.conciliado ? "font-semibold text-emerald-700" : "text-gris"}`}>{f.conciliado ? "Conciliado" : "Por conciliar"}</span>}
                   </span>
-                  <span className="col-span-2 min-w-0 truncate text-xs md:col-span-1">
+                  <span className="hidden min-w-0 truncate text-xs md:block">
                     {f.informeId ? <Link href={`/rendir-gastos/${f.informeId}`} className="font-semibold text-naranjo hover:underline">{f.informeTitulo}</Link> : <span className="text-gris-suave">—</span>}
+                  </span>
+                  <span className="flex items-center justify-end gap-0.5">
+                    <span className={`mr-1 rounded px-1.5 py-px text-[10px] font-semibold md:hidden ${TONO_ESTADO_GASTO[f.estado]}`}>{ETIQUETA_ESTADO_GASTO[f.estado]}</span>
+                    {f.estado === "borrador" && (
+                      <>
+                        <button type="button" title="Editar" aria-label="Editar gasto" onClick={() => abrirEdicion(f.id)} className="grid h-6 w-6 place-items-center rounded text-gris-suave transition hover:bg-naranjo/10 hover:text-naranjo"><IconPencil size={14} /></button>
+                        <button type="button" title="Eliminar" aria-label="Eliminar gasto" onClick={() => eliminarBorrador(f)} className="grid h-6 w-6 place-items-center rounded text-gris-suave transition hover:bg-rose-500/10 hover:text-rose-500"><IconTrash size={14} /></button>
+                      </>
+                    )}
                   </span>
                 </li>
               ))}
@@ -180,10 +190,10 @@ export default function MisGastos({
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-tinta">{idsEdicion.length && gastos.some((g) => idsEdicion.includes(g.id)) ? "Editar gasto" : "Agregar gasto"}</h2>
-                <p className="text-xs text-gris">Ingrésalo a mano, o sube el documento y se lee solo. Queda en borrador y se guarda solo.</p>
+                <p className="text-xs text-gris">Elige cómo ingresarlo. Queda en borrador.</p>
               </div>
               <button type="button" onClick={cerrarPopup} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-borde bg-superficie px-3 text-xs font-bold text-tinta hover:border-naranjo/50">
-                <IconX size={14} /> Listo
+                <IconX size={14} /> Cerrar
               </button>
             </div>
             <PanelRendicion
@@ -197,6 +207,8 @@ export default function MisGastos({
               alCambiarGastos={setGastos}
               modoPopup
               sinExcel
+              controlRef={panel}
+              alGuardar={cerrarPopup}
               soloIds={idsEdicion}
               alAgregarIds={(ids) => setIdsEdicion((prev) => [...prev, ...ids])}
             />

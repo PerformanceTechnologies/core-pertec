@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import {
   CATEGORIAS_GASTO,
@@ -293,6 +293,8 @@ export default function PanelRendicion({
   soloIds,
   alAgregarIds,
   sinExcel = false,
+  alGuardar,
+  controlRef,
 }: {
   rendicionInicial: Rendicion;
   /** Los proveedores que ya existen (Contactos), para elegir en cada gasto. */
@@ -302,6 +304,10 @@ export default function PanelRendicion({
   soloIds?: string[];
   /** Avisa los ids de los gastos que se acaban de agregar (a mano o subidos), para mostrarlos en el popup. */
   alAgregarIds?: (ids: string[]) => void;
+  /** En el popup: «Guardar gasto» guarda al instante y avisa para cerrar la ventana. */
+  alGuardar?: () => void;
+  /** Para que quien contiene el panel pueda quitar un gasto (desde el listado). */
+  controlRef?: RefObject<{ quitar: (id: string) => void } | null>;
   /** Sin el botón «Descargar Excel» (los gastos sueltos no tienen planilla: va en el informe). */
   sinExcel?: boolean;
   /** Los proyectos de la empresa, para cargarles cada gasto. */
@@ -328,7 +334,7 @@ export default function PanelRendicion({
   const [proveedoresCreados, setProveedoresCreados] = useState<ProveedorOpcion[]>([]);
   const listaProveedores = useMemo(() => [...proveedores, ...proveedoresCreados].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")), [proveedores, proveedoresCreados]);
   /** Subir un comprobante para leerlo solo es opcional: la zona se abre a pedido. */
-  const [verSubida, setVerSubida] = useState(modoPopup);
+  const [verSubida, setVerSubida] = useState(false);
   useEffect(() => {
     alCambiarGastos?.(rendicion.gastos);
   }, [rendicion.gastos, alCambiarGastos]);
@@ -561,6 +567,8 @@ export default function PanelRendicion({
     setVistasLocales((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== gastoId)));
     actualizarGasto(gastoId, { archivoPath: "", archivoNombre: "", archivoTipo: "" });
   };
+
+  useImperativeHandle(controlRef, () => ({ quitar: quitarGasto }));
 
   // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
   // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
@@ -870,7 +878,22 @@ export default function PanelRendicion({
     // El <main> del core no tiene tope de ancho: sin esto los campos del editor
     // se estiran a 1900px en un monitor grande.
     <div>
-      {!yaCargada && (
+      {/* En el popup: se elige UNA forma de ingresar. A mano es un solo gasto; subiendo documentos pueden ser varios. */}
+      {!yaCargada && modoPopup && vista.length === 0 && !verSubida && analizando === null && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={agregarManual} className="flex flex-col items-start gap-2 rounded-2xl border border-borde bg-superficie p-5 text-left transition hover:border-naranjo/60 hover:bg-naranjo/[0.03]">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-naranjo/10 text-naranjo"><IconPencilPlus size={22} /></span>
+            <span className="text-base font-bold text-tinta">Ingresar a mano</span>
+            <span className="text-xs text-gris">Un gasto: proveedor, fecha, tipo, categoría y total. Puedes adjuntar el documento de respaldo.</span>
+          </button>
+          <button type="button" onClick={() => setVerSubida(true)} className="flex flex-col items-start gap-2 rounded-2xl border border-borde bg-superficie p-5 text-left transition hover:border-naranjo/60 hover:bg-naranjo/[0.03]">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-naranjo/10 text-naranjo"><IconCloudUpload size={22} /></span>
+            <span className="text-base font-bold text-tinta">Subir documentos</span>
+            <span className="text-xs text-gris">Se leen solos. Puedes subir uno o varios a la vez y se crea un gasto por cada uno.</span>
+          </button>
+        </div>
+      )}
+      {!yaCargada && !modoPopup && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-borde bg-superficie p-4">
           <button
             type="button"
@@ -895,8 +918,8 @@ export default function PanelRendicion({
 
       {/* PASO 1 — subir comprobantes: una zona grande para soltar o elegir archivos */}
       {/* Celular: juntar varias fotos antes de analizar (mientras analiza, se muestra el avance de abajo). */}
-      {!yaCargada && (verSubida || analizando !== null) && !analizando && <ColaDeFotos ocupado={analizando !== null} alAnalizar={(fs) => subirYAnalizar(fs)} />}
-      {!yaCargada && (verSubida || analizando !== null) && (
+      {!yaCargada && (verSubida || analizando !== null) && (!modoPopup || vista.length === 0 || analizando !== null) && !analizando && <ColaDeFotos ocupado={analizando !== null} alAnalizar={(fs) => subirYAnalizar(fs)} />}
+      {!yaCargada && (verSubida || analizando !== null) && (!modoPopup || vista.length === 0 || analizando !== null) && (
         <label
           onDragOver={(e) => { e.preventDefault(); if (!analizando) setArrastrando(true); }}
           onDragLeave={() => setArrastrando(false)}
@@ -1431,6 +1454,21 @@ export default function PanelRendicion({
               Respaldos salen con un aviso en vez de la imagen.
             </p>
           )}
+        </div>
+      )}
+
+      {modoPopup && alGuardar && vista.length > 0 && analizando === null && (
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={async () => {
+              if (estadoGuardado === "pendiente" || estadoGuardado === "error") await persistir();
+              alGuardar();
+            }}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-naranjo px-6 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
+          >
+            <IconCircleCheck size={16} /> {vista.length === 1 ? "Guardar gasto" : `Guardar ${vista.length} gastos`}
+          </button>
         </div>
       )}
 
