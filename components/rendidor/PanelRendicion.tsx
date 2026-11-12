@@ -1129,7 +1129,9 @@ export default function PanelRendicion({
               //
               // Con un solo gasto no tiene sentido plegarlo: no hay lista que
               // recorrer.
-              const abierto = avisos.length > 0 || rutMalo || vista.length === 1 || g.id === nuevoManualId;
+              // En un informe, todos arrancan minimizados (los que piden revisión llevan su marca «Revisar»);
+              // solo se abre el que se acaba de agregar a mano. En el popup de «Mis gastos» sí se abre el que se edita.
+              const abierto = modoPopup ? avisos.length > 0 || rutMalo || vista.length === 1 || g.id === nuevoManualId : g.id === nuevoManualId;
 
               return (
                 <li
