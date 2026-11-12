@@ -7,6 +7,7 @@ import PanelRendicion from "@/components/rendidor/PanelRendicion";
 import { CAMPO } from "@/lib/estilos";
 import { moverGastosAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import type { Rendicion } from "@/lib/rendidor/tipos";
+import type { ProveedorOpcion } from "@/lib/rendidor/proveedores";
 import { pesos } from "@/lib/rendidor/fondos-modelo";
 
 const fechaCorta = (f: string | null) =>
@@ -20,10 +21,12 @@ export default function MisGastos({
   bolsa,
   urlsRespaldo,
   informes,
+  proveedores = [],
 }: {
   bolsa: Rendicion;
   urlsRespaldo: Record<string, string>;
   informes: { id: string; titulo: string }[];
+  proveedores?: ProveedorOpcion[];
 }) {
   const router = useRouter();
   const [gastos, setGastos] = useState(bolsa.gastos);
@@ -36,7 +39,7 @@ export default function MisGastos({
 
   return (
     <div className="space-y-5">
-      <PanelRendicion key={bolsa.id} rendicionInicial={bolsa} urlsRespaldo={urlsRespaldo} editable puedeEnviar={false} alCambiarGastos={setGastos} />
+      <PanelRendicion proveedores={proveedores} key={bolsa.id} rendicionInicial={bolsa} urlsRespaldo={urlsRespaldo} editable puedeEnviar={false} alCambiarGastos={setGastos} />
 
       {gastos.length > 0 && (
         <section className="rounded-2xl border border-naranjo/30 bg-naranjo/[0.04] p-4 sm:p-5">

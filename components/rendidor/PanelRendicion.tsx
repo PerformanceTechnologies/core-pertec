@@ -16,6 +16,8 @@ import { leerRespuesta, mapaConTope } from "@/lib/rendidor/red";
 import { TextInput, NumInput, SelectInput } from "@/components/cotizador/campos/Campos";
 import RuedaCarga from "@/components/RuedaCarga";
 import ColaDeFotos from "./ColaDeFotos";
+import ComboProveedor from "./ComboProveedor";
+import type { ProveedorOpcion } from "@/lib/rendidor/proveedores";
 import { ETIQUETA_BOLETA, TONO_BOLETA } from "@/lib/rendidor/fondos-modelo";
 import { revisarBoletaAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import {
@@ -282,8 +284,11 @@ export default function PanelRendicion({
   puedeEnviar,
   revisarBoletas = false,
   alCambiarGastos,
+  proveedores = [],
 }: {
   rendicionInicial: Rendicion;
+  /** Los proveedores que ya existen (Contactos), para elegir en cada gasto. */
+  proveedores?: ProveedorOpcion[];
   /** Quien revisa un informe con fondo: acepta, observa o rechaza cada boleta. */
   revisarBoletas?: boolean;
   /** Avisa los gastos actuales (subidos, corregidos o quitados) a quien contiene el panel. */
@@ -300,6 +305,11 @@ export default function PanelRendicion({
 }) {
   const router = useRouter();
   const [rendicion, setRendicion] = useState(rendicionInicial);
+  // Los proveedores existentes más los que se crean desde el popup de un gasto.
+  const [proveedoresCreados, setProveedoresCreados] = useState<ProveedorOpcion[]>([]);
+  const listaProveedores = useMemo(() => [...proveedores, ...proveedoresCreados].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")), [proveedores, proveedoresCreados]);
+  /** Subir un comprobante para leerlo solo es opcional: la zona se abre a pedido. */
+  const [verSubida, setVerSubida] = useState(false);
   useEffect(() => {
     alCambiarGastos?.(rendicion.gastos);
   }, [rendicion.gastos, alCambiarGastos]);
@@ -808,10 +818,33 @@ export default function PanelRendicion({
     // El <main> del core no tiene tope de ancho: sin esto los campos del editor
     // se estiran a 1900px en un monitor grande.
     <div>
+      {!yaCargada && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-borde bg-superficie p-4">
+          <button
+            type="button"
+            onClick={agregarManual}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-naranjo px-5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
+          >
+            <IconPencilPlus size={16} /> Agregar gasto
+          </button>
+          <p className="min-w-0 flex-1 text-xs text-gris">
+            {rendicion.gastos.length === 0 ? "Ingresa cada gasto a mano: proveedor, fecha, tipo, categoría y total." : "Ingresa otro gasto a mano."}
+          </p>
+          <button
+            type="button"
+            onClick={() => setVerSubida((v) => !v)}
+            aria-expanded={verSubida || analizando !== null}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris underline underline-offset-2 hover:text-naranjo"
+          >
+            <IconCloudUpload size={14} /> {verSubida || analizando ? "Ocultar" : "Subir un comprobante y leerlo automáticamente (opcional)"}
+          </button>
+        </div>
+      )}
+
       {/* PASO 1 — subir comprobantes: una zona grande para soltar o elegir archivos */}
       {/* Celular: juntar varias fotos antes de analizar (mientras analiza, se muestra el avance de abajo). */}
-      {!yaCargada && !analizando && <ColaDeFotos ocupado={analizando !== null} alAnalizar={(fs) => subirYAnalizar(fs)} />}
-      {!yaCargada && (
+      {!yaCargada && (verSubida || analizando !== null) && !analizando && <ColaDeFotos ocupado={analizando !== null} alAnalizar={(fs) => subirYAnalizar(fs)} />}
+      {!yaCargada && (verSubida || analizando !== null) && (
         <label
           onDragOver={(e) => { e.preventDefault(); if (!analizando) setArrastrando(true); }}
           onDragLeave={() => setArrastrando(false)}
@@ -820,7 +853,7 @@ export default function PanelRendicion({
             setArrastrando(false);
             if (!analizando && e.dataTransfer.files.length) subirYAnalizar(e.dataTransfer.files);
           }}
-          className={`group relative cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed px-6 py-9 text-center transition ${analizando ? "flex" : "hidden lg:flex"} ${
+          className={`mt-3 group relative cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed px-6 py-9 text-center transition ${analizando ? "flex" : "hidden lg:flex"} ${
             arrastrando ? "border-naranjo bg-naranjo/[0.07]" : "border-borde bg-superficie hover:border-naranjo/60 hover:bg-naranjo/[0.03]"
           } ${analizando ? "pointer-events-none" : ""}`}
         >
@@ -850,7 +883,7 @@ export default function PanelRendicion({
               </span>
               <div>
                 <p className="text-base font-bold text-tinta">
-                  {rendicion.gastos.length === 0 ? "Sube tus boletas y facturas" : "Agregar más comprobantes"}
+                  {rendicion.gastos.length === 0 ? "Sube un comprobante para leerlo" : "Agregar más comprobantes"}
                 </p>
                 <p className="mt-1 text-sm text-gris">
                   Arrástralas aquí o <span className="font-semibold text-naranjo underline underline-offset-2">elige archivos</span>. Se leen solas: proveedor, RUT, fecha, total e IVA.
@@ -860,19 +893,6 @@ export default function PanelRendicion({
             </>
           )}
         </label>
-      )}
-
-      {!yaCargada && !analizando && (
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
-          <button
-            type="button"
-            onClick={agregarManual}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-borde bg-superficie px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 hover:text-naranjo"
-          >
-            <IconPencilPlus size={16} /> Agregar gasto manual
-          </button>
-          <span className="text-[11px] text-gris-suave">Para un gasto sin boleta o que prefieras escribir tú.</span>
-        </div>
       )}
 
       {/* PASO 2 — revisar y corregir */}
@@ -1118,11 +1138,13 @@ export default function PanelRendicion({
                           />
                         </Campo>
 
-                        <Campo etiqueta="Proveedor" ancho="xl:col-span-2">
-                          <TextInput
-                            value={g.proveedor}
-                            disabled={yaCargada}
-                            onChange={(v) => actualizarGasto(g.id, { proveedor: v })}
+                        <Campo etiqueta="Proveedor *" ancho="xl:col-span-2">
+                          <ComboProveedor
+                            valor={g.proveedor}
+                            opciones={listaProveedores}
+                            deshabilitado={yaCargada}
+                            alElegir={(p) => actualizarGasto(g.id, { proveedor: p.nombre, ...(p.rut ? { rutProveedor: p.rut } : {}) })}
+                            alCrear={(p) => setProveedoresCreados((prev) => [...prev, p])}
                           />
                         </Campo>
 

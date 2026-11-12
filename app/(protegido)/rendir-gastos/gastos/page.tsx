@@ -3,6 +3,7 @@ import { IconArrowLeft, IconReceipt } from "@tabler/icons-react";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
 import { informesAbiertosDe, obtenerOCrearBolsa } from "@/lib/rendidor/datos";
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
+import { listarProveedores } from "@/lib/rendidor/proveedores";
 import MisGastos from "@/components/rendidor/MisGastos";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export default async function MisGastosPage() {
   );
   const { bolsa, error } = lectura;
   const informes = bolsa ? await informesAbiertosDe(yo.correo) : [];
+  const proveedores = bolsa ? await listarProveedores().catch(() => []) : [];
   const urlsRespaldo: Record<string, string> = {};
   if (bolsa) {
     const con = bolsa.gastos.filter((g) => g.archivoPath);
@@ -37,7 +39,7 @@ export default async function MisGastosPage() {
         </div>
       </header>
       {error && <p className="rounded-xl border border-rose-300/60 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700">{error}</p>}
-      {bolsa && <MisGastos bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
+      {bolsa && <MisGastos proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
     </div>
   );
 }

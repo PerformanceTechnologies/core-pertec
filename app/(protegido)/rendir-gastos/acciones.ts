@@ -26,6 +26,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { auditar, aprobacion, correosConRol, leerParametros, obtenerFondo, rolesDe } from "@/lib/rendidor/fondos";
 import { cerrarInformeAprobado } from "@/lib/rendidor/cierre";
+import { crearProveedorRapido, type ProveedorOpcion } from "@/lib/rendidor/proveedores";
 import type { EstadoBoleta, RolFondos } from "@/lib/rendidor/fondos-modelo";
 
 /** Los roles del módulo de Fondos para un informe con fondo (vacío si es de los antiguos). */
@@ -376,5 +377,19 @@ export async function moverGastosAction(desdeId: string, haciaId: string, gastoI
     return { ok: true };
   } catch (e) {
     return fallo(e);
+  }
+}
+
+// ---------- Proveedores --------------------------------------------------------
+
+/** Alta rápida de un proveedor desde el popup de un gasto (queda en Contactos). */
+export async function crearProveedorAction(razonSocial: string, rut: string): Promise<{ ok: true; proveedor: ProveedorOpcion } | { ok: false; error: string }> {
+  try {
+    const { usuario } = await exigirAccesoRendidor();
+    const proveedor = await crearProveedorRapido(razonSocial, rut, usuario.correo);
+    return { ok: true, proveedor };
+  } catch (e) {
+    if (typeof e === "object" && e !== null && String((e as { digest?: unknown }).digest ?? "").startsWith("NEXT_REDIRECT")) throw e;
+    return { ok: false, error: e instanceof Error ? e.message.replace(/^\[contactos\]\s*/, "") : "No pudimos crear el proveedor." };
   }
 }
