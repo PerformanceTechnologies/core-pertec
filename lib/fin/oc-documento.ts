@@ -120,9 +120,11 @@ function css(slug: string): string {
   /* El detalle opcional del ítem: sale bajo la descripción. */
   table.lineas .nota { display: block; font-size: 8pt; line-height: 1.35; color: #6b6258; margin-top: 1mm; }
 
-  /* Justo bajo la tabla: a la izquierda entrega, pago y observaciones; a la derecha, los totales. Sin hueco entre uno y otro. */
-  .bajo-tabla { display: grid; grid-template-columns: minmax(0, 1fr) 74mm; gap: 8mm; align-items: start; margin-top: 3mm; break-inside: avoid; page-break-inside: avoid; }
-  .bajo-tabla .bloque:last-child { margin-bottom: 0; }
+  /* Bajo la tabla: primero los totales, a la derecha; una línea más abajo, a la izquierda, entrega, pago y observaciones. Sin huecos. */
+  .bajo-tabla { margin-top: 4mm; break-inside: avoid; page-break-inside: avoid; }
+  .bajo-tabla .totales { width: 74mm; margin-left: auto; }
+  .bajo-tabla .entrega { margin-top: 5mm; }
+  .bajo-tabla .entrega .bloque:last-child { margin-bottom: 0; }
   .totales table { width: 100%; border-collapse: collapse; }
   .totales td { padding: 1mm 3mm; font-size: 9pt; }
   .totales td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -232,10 +234,6 @@ export function htmlDeOc(d: DatosOc): string {
       </table>
 
       <div class="bajo-tabla">
-        <div>
-          ${entrega.length ? `<section class="bloque"><h2>Entrega y pago</h2><ul>${entrega.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul></section>` : ""}
-          ${d.observaciones?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.observaciones.trim())}</p></section>` : ""}
-        </div>
         <div class="totales"><table>
           <tr><td>${t.exento > 0 ? "Neto afecto" : "Neto"}</td><td>${formatoMonto(t.neto, m)}</td></tr>
           ${t.exento > 0 ? `<tr><td>Exento</td><td>${formatoMonto(t.exento, m)}</td></tr>` : ""}
@@ -243,6 +241,10 @@ export function htmlDeOc(d: DatosOc): string {
           <tr class="total"><td>TOTAL</td><td>${formatoMonto(t.total, m)}</td></tr>
           ${m !== "CLP" ? `<tr class="pesos"><td>En pesos (${m} a ${formatoMonto(d.tipoCambio, "CLP")})</td><td>${formatoMonto(aPesos(t.total, m, d.tipoCambio), "CLP")}</td></tr>` : ""}
         </table></div>
+        ${entrega.length || d.observaciones?.trim() ? `<div class="entrega">
+          ${entrega.length ? `<section class="bloque"><h2>Entrega y pago</h2><ul>${entrega.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul></section>` : ""}
+          ${d.observaciones?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.observaciones.trim())}</p></section>` : ""}
+        </div>` : ""}
       </div>
     </div>
 
