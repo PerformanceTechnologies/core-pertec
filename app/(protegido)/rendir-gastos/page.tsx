@@ -23,6 +23,7 @@ import { fondosConSaldoAFavor, leerParametros, listarFondos, listarRoles, movimi
 import { ETIQUETA_ESTADO_FONDO, ETIQUETA_MOVIMIENTO, pesos, type EstadoFondo, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
 import ListaRendiciones from "@/components/rendidor/ListaRendiciones";
 import EnVivo from "@/components/rendidor/EnVivo";
+import ConmutadorTodos from "@/components/rendidor/ConmutadorTodos";
 import TodosLosGastos from "@/components/rendidor/TodosLosGastos";
 import NuevaRendicion from "@/components/rendidor/NuevaRendicion";
 import { AsignarFondo, BotonAccion, CargarFondo, SolicitarFondo } from "@/components/rendidor/fondos/ControlesFondo";
@@ -86,13 +87,6 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
     { id: "fondos", texto: "Mis fondos", Icono: IconWallet },
     { id: "gastos", texto: "Mis gastos", Icono: IconReceipt },
     { id: "informes", texto: "Mis informes", Icono: IconReceipt2 },
-    ...(esAdmin
-      ? [
-          { id: "todos-gastos" as const, texto: "Todos los gastos", Icono: IconListDetails },
-          { id: "todos-informes" as const, texto: "Todos los informes", Icono: IconFileInvoice },
-          { id: "todos-fondos" as const, texto: "Todos los fondos", Icono: IconWallet },
-        ]
-      : []),
     ...(tiene("validador") ? [{ id: "validar" as const, texto: "Por validar", Icono: IconUserCheck, cuenta: porValidar.length }] : []),
     ...(tiene("asignador") ? [{ id: "asignar" as const, texto: "Por asignar", Icono: IconChecklist, cuenta: porAsignar.length + porReponer.length }] : []),
     ...(tiene("tesoreria") ? [{ id: "tesoreria" as const, texto: "Tesorería", Icono: IconBuildingBank, cuenta: porTransferir.length + reembolsos.length + devoluciones.length }] : []),
@@ -100,7 +94,11 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
     ...(tiene("tesoreria") || tiene("administrador") ? [{ id: "libro" as const, texto: "Libro", Icono: IconNotebook }] : []),
     ...(tiene("administrador") ? [{ id: "config" as const, texto: "Configuración", Icono: IconSettings }] : []),
   ];
-  const actual: Pestana = pestanas.some((p) => p.id === ver) ? (ver as Pestana) : "inicio";
+  // Las vistas de «Todos…» no van en el menú: se abren con el botón junto a «Mis gastos / informes / fondos»,
+  // y en el menú queda marcada la pestaña «Mis…» de la que vienen.
+  const TODOS: Record<string, Pestana> = { "todos-gastos": "gastos", "todos-informes": "informes", "todos-fondos": "fondos" };
+  const actual: Pestana = pestanas.some((p) => p.id === ver) || (esAdmin && ver && ver in TODOS) ? (ver as Pestana) : "inicio";
+  const pestanaMarcada: Pestana = TODOS[actual] ?? actual;
 
   const fondosParaInforme = (revisaAntiguas ? fondos : misFondos)
     .filter((f) => f.estado === "activo")
@@ -127,7 +125,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       <nav className="desliza -mx-1 overflow-x-auto px-1 pb-1">
         <div className="inline-flex min-w-full gap-1 rounded-2xl border border-borde bg-superficie p-1">
           {pestanas.map((p) => {
-            const on = p.id === actual;
+            const on = p.id === pestanaMarcada;
             return (
               <Link
                 key={p.id}
@@ -193,7 +191,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       )}
 
       {actual === "fondos" && (
-        <Seccion titulo="Mis fondos" Icono={IconWallet} accion={<SolicitarFondo />}>
+        <Seccion titulo="Mis fondos" Icono={IconWallet} accion={<>{esAdmin && <ConmutadorTodos activa="mias" mias={{ href: "/rendir-gastos?ver=fondos", texto: "Mis fondos" }} todas={{ href: "/rendir-gastos?ver=todos-fondos", texto: "Todos los fondos" }} />}<SolicitarFondo /></>}>
           {misFondos.length === 0 ? <Vacio texto="Todavía no tienes fondos. Usa «Solicitar fondo»." /> : (
             <ul className="space-y-2.5">{misFondos.map((f) => <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite} />)}</ul>
           )}
@@ -201,25 +199,25 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       )}
 
       {actual === "informes" && (
-        <Seccion titulo={revisaAntiguas ? "Informes" : "Mis informes"} Icono={IconReceipt2} accion={<NuevaRendicion empresa={activa?.nombre} fondos={fondosParaInforme} />}>
-          <ListaRendiciones rendiciones={revisaAntiguas ? rendiciones : misInformes} revisa={revisaAntiguas} filtroInicial="todas" borrar={eliminarRendicionAction} />
+        <Seccion titulo="Mis informes" Icono={IconReceipt2} accion={<>{esAdmin && <ConmutadorTodos activa="mias" mias={{ href: "/rendir-gastos?ver=informes", texto: "Mis informes" }} todas={{ href: "/rendir-gastos?ver=todos-informes", texto: "Todos los informes" }} />}<NuevaRendicion empresa={activa?.nombre} fondos={fondosParaInforme} /></>}>
+          <ListaRendiciones rendiciones={misInformes} revisa={revisaAntiguas} filtroInicial="todas" borrar={eliminarRendicionAction} />
         </Seccion>
       )}
 
       {esAdmin && actual === "todos-gastos" && (
-        <Seccion titulo="Todos los gastos" Icono={IconListDetails} accion={<EnVivo />}>
+        <Seccion titulo="Todos los gastos" Icono={IconListDetails} accion={<><EnVivo /><ConmutadorTodos activa="todas" mias={{ href: "/rendir-gastos/gastos", texto: "Mis gastos" }} todas={{ href: "/rendir-gastos?ver=todos-gastos", texto: "Todos los gastos" }} /></>}>
           <TodosLosGastos filas={gastosTodos} />
         </Seccion>
       )}
 
       {esAdmin && actual === "todos-informes" && (
-        <Seccion titulo="Todos los informes" Icono={IconFileInvoice} accion={<EnVivo />}>
+        <Seccion titulo="Todos los informes" Icono={IconFileInvoice} accion={<><EnVivo /><ConmutadorTodos activa="todas" mias={{ href: "/rendir-gastos?ver=informes", texto: "Mis informes" }} todas={{ href: "/rendir-gastos?ver=todos-informes", texto: "Todos los informes" }} /></>}>
           <ListaRendiciones rendiciones={rendiciones} revisa filtroInicial="todas" borrar={eliminarRendicionAction} />
         </Seccion>
       )}
 
       {esAdmin && actual === "todos-fondos" && (
-        <Seccion titulo="Todos los fondos" Icono={IconWallet} accion={<EnVivo />}>
+        <Seccion titulo="Todos los fondos" Icono={IconWallet} accion={<><EnVivo /><ConmutadorTodos activa="todas" mias={{ href: "/rendir-gastos?ver=fondos", texto: "Mis fondos" }} todas={{ href: "/rendir-gastos?ver=todos-fondos", texto: "Todos los fondos" }} /></>}>
           <div className="mb-3 flex flex-wrap gap-1.5 text-xs font-semibold">
             {([["", "Todos", fondos.length], ...(Object.keys(ETIQUETA_ESTADO_FONDO) as EstadoFondo[]).map((e) => [e, ETIQUETA_ESTADO_FONDO[e], fondos.filter((f) => f.estado === e).length] as const)] as const)
               .filter(([e, , n]) => e === "" || n > 0)

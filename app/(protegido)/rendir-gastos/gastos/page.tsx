@@ -6,13 +6,16 @@ import { gastosEnInformesDe, informesAbiertosDe, obtenerOCrearBolsa } from "@/li
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import { listarProveedores, listarProyectos } from "@/lib/rendidor/proveedores";
 import { contextoDeEmpresa } from "@/lib/empresas";
+import ConmutadorTodos from "@/components/rendidor/ConmutadorTodos";
+import { rolesDe } from "@/lib/rendidor/fondos";
+import type { RolFondos } from "@/lib/rendidor/fondos-modelo";
 import MisGastos from "@/components/rendidor/MisGastos";
 
 export const dynamic = "force-dynamic";
 
 /** «Mis gastos»: boletas sueltas que se suben y se leen solas, y después se pasan a un informe. */
 export default async function MisGastosPage() {
-  const { usuario } = await exigirAccesoRendidor();
+  const { usuario, rol } = await exigirAccesoRendidor();
   const yo = { correo: usuario.correo.toLowerCase(), nombre: usuario.nombre || usuario.correo.split("@")[0] };
   const lectura = await obtenerOCrearBolsa(yo, usuario.id).then(
     (b) => ({ bolsa: b, error: null as string | null }),
@@ -22,6 +25,8 @@ export default async function MisGastosPage() {
   const informes = bolsa ? await informesAbiertosDe(yo.correo) : [];
   const enInformes = bolsa ? await gastosEnInformesDe(yo.correo) : [];
   const empresaId = (await contextoDeEmpresa(usuario.id, usuario.rol).catch(() => null))?.activa?.id;
+  // Quien administra gastos ve el botón «Todos los gastos» junto al título.
+  const esAdmin = rol === "admin" || (empresaId ? (await rolesDe(usuario, false, empresaId).catch((): RolFondos[] => [])).includes("administrador") : false);
   const proyectos = bolsa && empresaId ? await listarProyectos(empresaId) : [];
   const repetidos = bolsa ? await repetidosDe([bolsa.id, ...new Set(enInformes.map((f) => f.informeId).filter((x): x is string => Boolean(x)))]) : {};
   const proveedores = bolsa ? await listarProveedores().catch(() => []) : [];
@@ -43,6 +48,7 @@ export default async function MisGastosPage() {
           <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Mis gastos</h1>
           <p className="text-sm text-gris">Ingresa tus gastos cuando quieras (quedan en borrador) y después los asignas a un informe.</p>
         </div>
+        {esAdmin && <ConmutadorTodos activa="mias" mias={{ href: "/rendir-gastos/gastos", texto: "Mis gastos" }} todas={{ href: "/rendir-gastos?ver=todos-gastos", texto: "Todos los gastos" }} />}
       </header>
       {error && <p className="rounded-xl border border-rose-300/60 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700">{error}</p>}
       {bolsa && <MisGastos repetidosIniciales={repetidos} proyectos={proyectos} enInformes={enInformes} proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
