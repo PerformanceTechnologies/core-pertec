@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { IconBell, IconPointFilled } from "@tabler/icons-react";
 import type { Notificacion } from "@/lib/buzon";
+import type { Empresa } from "@/lib/empresas-modelo";
+import { useRouter } from "next/navigation";
+import { cambiarEmpresaAction } from "@/app/(protegido)/cambiar-empresa";
 import {
   listarMisNotificacionesAction,
   marcarNotificacionesLeidasAction,
@@ -30,7 +33,9 @@ function haceCuanto(iso: string): string {
  * con las notificaciones de los módulos que esta persona ve y sus avisos personales (Tareas).
  * Abrir el panel NO las marca: cada una desaparece cuando se abre (o con «Marcar todas como leídas»).
  */
-export default function BuzonNotificaciones() {
+export default function BuzonNotificaciones({ activa = null, empresas = [] }: { activa?: Empresa | null; empresas?: Empresa[] }) {
+  const router = useRouter();
+  const nombreEmpresa = (id?: string | null) => (id && id !== activa?.id ? empresas.find((e) => e.id === id) ?? null : null);
   const [abierto, setAbierto] = useState(false);
   const [notis, setNotis] = useState<Notificacion[] | null>(null);
   const [noLeidas, setNoLeidas] = useState(0);
@@ -136,6 +141,9 @@ export default function BuzonNotificaciones() {
                     className={`mt-1 shrink-0 ${COLOR_SEVERIDAD[n.severidad] ?? COLOR_SEVERIDAD.info}`}
                   />
                   <div className="min-w-0">
+                    {nombreEmpresa(n.empresa_id) && (
+                      <span className="mb-0.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-700">{nombreEmpresa(n.empresa_id)!.nombre}</span>
+                    )}
                     <p className="text-sm font-medium text-tinta">{n.titulo}</p>
                     {n.cuerpo && <p className="mt-0.5 text-xs text-gris">{n.cuerpo}</p>}
                     <p className="mt-1 text-[11px] text-gris-suave">{haceCuanto(n.creado_en)}</p>
@@ -146,9 +154,16 @@ export default function BuzonNotificaciones() {
                 <Link
                   key={n.id}
                   href={n.enlace}
-                  onClick={() => {
+                  onClick={(e) => {
                     descartar(n.id);
                     setAbierto(false);
+                    // De otra empresa: primero se cambia a esa empresa y después se abre.
+                    const otra = nombreEmpresa(n.empresa_id);
+                    if (otra && n.enlace) {
+                      e.preventDefault();
+                      const destino = n.enlace;
+                      void cambiarEmpresaAction(otra.slug).then(() => router.push(destino));
+                    }
                   }}
                   className="block"
                 >

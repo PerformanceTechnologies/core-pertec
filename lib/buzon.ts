@@ -15,6 +15,8 @@ export interface Notificacion {
   severidad: Severidad;
   creado_en: string;
   leida: boolean;
+  /** Empresa donde se generó (null = general). */
+  empresa_id?: string | null;
 }
 
 export interface NuevaNotificacion {
@@ -29,14 +31,28 @@ export interface NuevaNotificacion {
   clave: string;
   /** Correo de la única persona que la ve (avisos personales). Sin esto, la ven todos los del módulo. */
   destinatario?: string | null;
+  /** Empresa donde ocurrió. Sin esto, se toma la empresa activa de quien la genera (si hay sesión). */
+  empresaId?: string | null;
+}
+
+/** La empresa activa de quien está usando el Core ahora (null en un cron o sin sesión). */
+async function empresaDeQuienAvisa(): Promise<string | null> {
+  try {
+    const { auth } = await import("@/auth");
+    const { obtenerUsuarioActivo } = await import("./usuarios");
+    const { contextoDeEmpresa } = await import("./empresas");
+    const correo = (await auth())?.user?.email;
+    const u = correo ? await obtenerUsuarioActivo(correo) : null;
+    return u ? (await contextoDeEmpresa(u.id, u.rol)).activa?.id ?? null : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Crea una notificación si no existe otra con la misma `clave`. Devuelve true si la creó. */
 export async function crearNotificacion(datos: NuevaNotificacion): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from("notificaciones")
-    .upsert(
-      {
+  const empresaId = datos.empresaId !== undefined ? datos.empresaId : await empresaDeQuienAvisa();
+  const fila = {
         modulo: datos.modulo,
         tipo: datos.tipo,
         titulo: datos.titulo,
@@ -45,10 +61,12 @@ export async function crearNotificacion(datos: NuevaNotificacion): Promise<boole
         severidad: datos.severidad ?? "info",
         clave: datos.clave,
         destinatario: datos.destinatario ? datos.destinatario.toLowerCase() : null,
-      },
-      { onConflict: "clave", ignoreDuplicates: true }
-    )
-    .select("id");
+  };
+  const insertar = (f: Record<string, unknown>) =>
+    supabaseAdmin.from("notificaciones").upsert(f, { onConflict: "clave", ignoreDuplicates: true }).select("id");
+  let { data, error } = await insertar(empresaId ? { ...fila, empresa_id: empresaId } : fila);
+  // Sin el SQL 0003 corrido, se crea igual (sin empresa).
+  if (error && /empresa_id/.test(error.message)) ({ data, error } = await insertar(fila));
   if (error) {
     console.error(`[buzon] no se pudo crear "${datos.clave}": ${error.message}`);
     return false;
@@ -86,9 +104,10 @@ export async function listarNotificaciones(
   // El correo va dentro de un filtro de PostgREST: entre comillas dobles, y sin las que pudiera traer.
   const correo = usuario.correo.toLowerCase().replace(/"/g, "");
 
+  const armar = (conEmpresa: boolean) => {
   let query = supabaseAdmin
     .from("notificaciones")
-    .select("id, modulo, tipo, titulo, cuerpo, enlace, severidad, creado_en")
+    .select((conEmpresa ? "id, modulo, tipo, titulo, cuerpo, enlace, severidad, creado_en, empresa_id" : "id, modulo, tipo, titulo, cuerpo, enlace, severidad, creado_en") as "*")
     .or(`destinatario.is.null,destinatario.eq."${correo}"`)
     // Con `or` y no con un `not like` suelto: una clave vacía no es del Muro, y un NOT LIKE sobre
     // NULL descartaría la fila.
@@ -102,7 +121,10 @@ export async function listarNotificaciones(
       : query.is("modulo", null);
   }
 
-  const { data: notis, error } = await query;
+  return query;
+  };
+  let { data: notis, error } = await armar(true);
+  if (error && /empresa_id/.test(error.message)) ({ data: notis, error } = await armar(false));
   if (error || !notis) {
     if (error) console.error(`[buzon] no se pudieron leer: ${error.message}`);
     return [];
@@ -135,4 +157,12 @@ export async function marcarLeidas(usuario: UsuarioConAcceso, ids?: string[]): P
       objetivo.map((notificacion_id) => ({ notificacion_id, usuario_id: usuario.id })),
       { onConflict: "notificacion_id,usuario_id", ignoreDuplicates: true }
     );
+}
+
+/** Cuántas pendientes tiene esta persona en cada OTRA empresa (para avisar en el selector). */
+export async function pendientesPorEmpresa(usuario: UsuarioConAcceso, empresaActivaId: string | null): Promise<Record<string, number>> {
+  const notis = await listarNotificaciones(usuario, 100, true);
+  const cuenta: Record<string, number> = {};
+  for (const n of notis) if (n.empresa_id && n.empresa_id !== empresaActivaId) cuenta[n.empresa_id] = (cuenta[n.empresa_id] ?? 0) + 1;
+  return cuenta;
 }

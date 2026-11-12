@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { IconCheck, IconSelector } from "@tabler/icons-react";
 import { cambiarEmpresaAction } from "@/app/(protegido)/cambiar-empresa";
+import { pendientesOtrasEmpresasAction } from "@/app/(protegido)/buzon/acciones";
 import { inicialesDe, logoDe, mostrarSelector, type Empresa } from "@/lib/empresas-modelo";
 
 // El chip de cada empresa: PERTEC naranjo, Zeus dorado, Performance Service gris.
@@ -30,6 +31,22 @@ export default function SelectorEmpresa({
   const [abierto, setAbierto] = useState(false);
   const [pendiente, iniciar] = useTransition();
   const caja = useRef<HTMLDivElement>(null);
+  // Notificaciones sin ver de OTRAS empresas: el selector late hasta que se abren.
+  const [pendientes, setPendientes] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let vigente = true;
+    const traer = () => pendientesOtrasEmpresasAction().then((p) => vigente && setPendientes(p)).catch(() => {});
+    void traer();
+    const t = setInterval(traer, 30_000);
+    const alVolver = () => document.visibilityState === "visible" && void traer();
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      vigente = false;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [activa?.id]);
+  const totalOtras = Object.values(pendientes).reduce((a, b) => a + b, 0);
 
   // Cerrar al hacer clic afuera o con Escape: un panel que se queda abierto
   // tapando el menú es peor que no tenerlo.
@@ -68,9 +85,15 @@ export default function SelectorEmpresa({
         disabled={pendiente}
         aria-haspopup="listbox"
         aria-expanded={abierto}
-        title="Cambiar de empresa"
-        className="flex h-[34px] items-center gap-1.5 rounded-lg border border-borde bg-superficie px-2 text-sm lg:gap-2 lg:px-2.5 text-tinta/75 transition hover:border-naranjo/40 disabled:opacity-50"
+        title={totalOtras ? `Tienes ${totalOtras} notificación(es) en otra empresa` : "Cambiar de empresa"}
+        className={`relative flex h-[34px] items-center gap-1.5 rounded-lg border bg-superficie px-2 text-sm lg:gap-2 lg:px-2.5 text-tinta/75 transition hover:border-naranjo/40 disabled:opacity-50 ${totalOtras ? "animate-pulse border-naranjo ring-2 ring-naranjo/50" : "border-borde"}`}
       >
+        {totalOtras > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-naranjo opacity-75" />
+            <span className="relative inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-naranjo px-1 text-[10px] font-bold text-white">{totalOtras}</span>
+          </span>
+        )}
         <Distintivo empresa={activa} />
         <span className="max-w-[9rem] truncate text-left font-medium lg:max-w-[14rem]">{activa.nombre}</span>
         <IconSelector size={15} stroke={1.75} className="shrink-0 text-tinta/35" aria-hidden />
@@ -97,6 +120,9 @@ export default function SelectorEmpresa({
               >
                 <Distintivo empresa={e} />
                 <span className="min-w-0 flex-1 truncate">{e.nombre}</span>
+                {(pendientes[e.id] ?? 0) > 0 && (
+                  <span className="shrink-0 animate-pulse rounded-full bg-naranjo px-1.5 text-[10px] font-bold text-white">{pendientes[e.id]} nueva{pendientes[e.id] === 1 ? "" : "s"}</span>
+                )}
                 {esActiva && <IconCheck size={15} stroke={2.25} className="shrink-0 text-naranjo" aria-hidden />}
               </button>
             );

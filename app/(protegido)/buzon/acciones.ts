@@ -2,7 +2,8 @@
 
 import { auth } from "@/auth";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { listarNotificaciones, marcarLeidas, type Notificacion } from "@/lib/buzon";
+import { listarNotificaciones, marcarLeidas, pendientesPorEmpresa, type Notificacion } from "@/lib/buzon";
+import { contextoDeEmpresa } from "@/lib/empresas";
 import { recordarVencimientos } from "@/lib/tareas-avisos";
 
 async function usuarioActual() {
@@ -22,4 +23,11 @@ export async function listarMisNotificacionesAction(): Promise<Notificacion[]> {
 
 export async function marcarNotificacionesLeidasAction(ids?: string[]): Promise<void> {
   await marcarLeidas(await usuarioActual(), ids);
+}
+
+/** Pendientes de otras empresas, por id de empresa: el selector parpadea mientras haya alguna. */
+export async function pendientesOtrasEmpresasAction(): Promise<Record<string, number>> {
+  const usuario = await usuarioActual();
+  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  return pendientesPorEmpresa(usuario, activa?.id ?? null);
 }

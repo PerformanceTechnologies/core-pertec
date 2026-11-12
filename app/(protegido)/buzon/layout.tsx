@@ -1,6 +1,4 @@
-import FiltroDeEmpresa from "@/components/FiltroDeEmpresa";
-
-// Los datos de este módulo son de PERTEC: en otra empresa no se muestran.
+// Las notificaciones son de la persona: se ven en cualquier empresa (cada una dice de cuál viene).
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <FiltroDeEmpresa>{children}</FiltroDeEmpresa>;
+  return children;
 }

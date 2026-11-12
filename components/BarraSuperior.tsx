@@ -40,7 +40,7 @@ export default function BarraSuperior({
   return (
     // En el celular se monta en la barra fija de arriba (al lado del menú) y queda solo con íconos.
     <div className="z-40 flex items-center justify-end gap-1.5 max-lg:fixed max-lg:right-3 max-lg:top-[0.6875rem] lg:mb-4 lg:gap-2">
-      {mostrarBuzon && <BuzonNotificaciones />}
+      {mostrarBuzon && <BuzonNotificaciones activa={empresaActiva} empresas={empresasPermitidas} />}
       {veMiDia && (
         <Link
           href="/mi-dia"

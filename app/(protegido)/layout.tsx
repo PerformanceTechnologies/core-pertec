@@ -69,7 +69,7 @@ export default async function LayoutProtegido({ children }: { children: React.Re
         <BarraSuperior
           invitado={usuario.tipo === "invitado"}
           veMiDia={usuario.tipo !== "invitado" && apps.some((app) => app.url === "/mi-dia")}
-          mostrarBuzon={conDatos}
+          mostrarBuzon
           empresaActiva={empresa.activa}
           empresasPermitidas={empresa.permitidas}
         />
