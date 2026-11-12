@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "../supabase-admin";
 import type { EstadoRendicion, GastoRendicion, Rendicion, ResumenRendicion } from "./tipos";
-import { estadoDeGasto, type FilaMiGasto } from "./mis-gastos-modelo";
+import { estadoDeGasto, type FilaGastoAdmin, type FilaMiGasto } from "./mis-gastos-modelo";
 
 // Capa de datos de las rendiciones. Los gastos van como jsonb embebido porque
 // se editan siempre en bloque desde la tabla de revision (el rendidor corrige
@@ -329,4 +329,41 @@ export async function gastosEnInformesDe(correo: string): Promise<FilaMiGasto[]>
       respaldo: g.archivoPath ? { nombre: g.archivoNombre, tipo: g.archivoTipo } : null,
     })),
   );
+}
+
+/**
+ * TODOS los gastos de todas las personas (sueltos y en informes), para quien administra gastos.
+ * El más reciente primero. Solo la usa una pantalla que ya comprobó el rol de administrador.
+ */
+export async function todosLosGastos(): Promise<FilaGastoAdmin[]> {
+  const { data, error } = await supabaseAdmin
+    .from("rendiciones")
+    .select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos")
+    .neq("estado", "anulada")
+    .limit(3000);
+  if (error) return [];
+  const filas: FilaGastoAdmin[] = [];
+  for (const r of data ?? []) {
+    const esBolsa = r.tipo === "bolsa";
+    for (const g of (r.gastos ?? []) as GastoRendicion[]) {
+      filas.push({
+        id: g.id,
+        fecha: g.fecha,
+        proveedor: g.proveedor,
+        numeroDocumento: g.numeroDocumento,
+        categoria: g.categoria,
+        tipoDocumento: g.tipoDocumento,
+        total: Number(g.total) || 0,
+        estado: estadoDeGasto(g, esBolsa ? null : (r.estado as EstadoRendicion)),
+        informeId: esBolsa ? null : (r.id as string),
+        informeTitulo: esBolsa ? null : (r.titulo_rendicion as string),
+        proyectoNombre: g.proyectoNombre ?? null,
+        conciliado: Boolean(g.conciliacion),
+        respaldo: g.archivoPath ? { nombre: g.archivoNombre, tipo: g.archivoTipo } : null,
+        quien: r.nombre_quien_rinde as string,
+        rendicionId: r.id as string,
+      });
+    }
+  }
+  return filas.sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? ""));
 }

@@ -53,6 +53,12 @@ export interface FilaMiGasto {
 
 export const esFactura = (t: GastoRendicion["tipoDocumento"]) => t === "factura_electronica" || t === "factura_exenta_no_afecta";
 
+/** Un gasto en la vista del administrador: de cualquier persona, en cualquier estado. */
+export interface FilaGastoAdmin extends FilaMiGasto {
+  quien: string;
+  rendicionId: string;
+}
+
 /** Otro gasto que parece el mismo (en cualquier estado: borrador, en informe o cerrado). */
 export interface Repetido {
   enRendicionId: string;

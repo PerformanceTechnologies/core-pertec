@@ -433,7 +433,13 @@ export async function respaldoDeGastoAction(rendicionId: string, gastoId: string
   try {
     const { usuario, rol } = await exigirAccesoRendidor();
     const r = await obtenerRendicion(rendicionId);
-    if (!r || !puedeAbrirRendicion(r.creadoPor, usuario.id, usuario.rol, rol, r.rindeCorreo, usuario.correo)) return { ok: false, error: "No encontramos ese gasto." };
+    if (!r) return { ok: false, error: "No encontramos ese gasto." };
+    if (!puedeAbrirRendicion(r.creadoPor, usuario.id, usuario.rol, rol, r.rindeCorreo, usuario.correo)) {
+      // Quien administra Fondos también ve los documentos de todos.
+      const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+      const roles = activa ? await rolesDe(usuario, false, activa.id) : [];
+      if (!roles.includes("administrador")) return { ok: false, error: "No encontramos ese gasto." };
+    }
     const g = r.gastos.find((x) => x.id === gastoId);
     if (!g?.archivoPath) return { ok: false, error: "Este gasto no tiene documento." };
     const url = await urlFirmadaDeRespaldo(g.archivoPath);

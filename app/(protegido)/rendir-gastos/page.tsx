@@ -15,12 +15,14 @@ import {
 } from "@tabler/icons-react";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
 import { puedeVerRendicionesAjenas } from "@/lib/permisos-rendidor";
-import { listarPersonas, listarRendiciones } from "@/lib/rendidor/datos";
+import { listarPersonas, listarRendiciones, todosLosGastos } from "@/lib/rendidor/datos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
 import { fondosConSaldoAFavor, leerParametros, listarFondos, listarRoles, movimientosDe, rolesDe } from "@/lib/rendidor/fondos";
-import { ETIQUETA_MOVIMIENTO, pesos, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
+import { ETIQUETA_ESTADO_FONDO, ETIQUETA_MOVIMIENTO, pesos, type EstadoFondo, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
 import ListaRendiciones from "@/components/rendidor/ListaRendiciones";
+import EnVivo from "@/components/rendidor/EnVivo";
+import TodosLosGastos from "@/components/rendidor/TodosLosGastos";
 import NuevaRendicion from "@/components/rendidor/NuevaRendicion";
 import { AsignarFondo, BotonAccion, CargarFondo, SolicitarFondo } from "@/components/rendidor/fondos/ControlesFondo";
 import ConfiguracionFondos from "@/components/rendidor/fondos/ConfiguracionFondos";
@@ -39,11 +41,11 @@ import { eliminarRendicionAction } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type Pestana = "inicio" | "fondos" | "gastos" | "informes" | "validar" | "asignar" | "tesoreria" | "revisar" | "libro" | "config";
+type Pestana = "inicio" | "fondos" | "gastos" | "informes" | "todos-gastos" | "todos-informes" | "todos-fondos" | "validar" | "asignar" | "tesoreria" | "revisar" | "libro" | "config";
 
-export default async function RendirGastosPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
+export default async function RendirGastosPage({ searchParams }: { searchParams: Promise<{ ver?: string; estado?: string }> }) {
   const { usuario, rol } = await exigirAccesoRendidor();
-  const { ver } = await searchParams;
+  const { ver, estado: estadoFiltro } = await searchParams;
   const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
   const empresaId = activa!.id;
   const yo = usuario.correo.toLowerCase();
@@ -52,6 +54,8 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const roles = await rolesDe(usuario, rol === "admin", empresaId);
   const tiene = (r: RolFondos) => roles.includes(r);
   const revisaAntiguas = puedeVerRendicionesAjenas(usuario.rol, rol);
+  // Administrador de gastos (o del Core): ve todo lo de todos, en vivo.
+  const esAdmin = rol === "admin" || roles.includes("administrador");
 
   // Sin el SQL de Fondos corrido, la página no se cae: avisa qué falta.
   const [lecturaFondos, rendiciones, parametros] = await Promise.all([
@@ -59,7 +63,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       (fs) => ({ fondos: fs, error: null as string | null }),
       (e: unknown) => ({ fondos: [] as Fondo[], error: e instanceof Error ? e.message : "No se pudieron leer los fondos." }),
     ),
-    listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: revisaAntiguas || tiene("revisor") || tiene("tesoreria") }),
+    listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, verTodas: revisaAntiguas || esAdmin || tiene("revisor") || tiene("tesoreria") }),
     leerParametros(empresaId),
   ]);
   const fondos = lecturaFondos.fondos;
@@ -81,6 +85,13 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
     { id: "fondos", texto: "Mis fondos", Icono: IconWallet },
     { id: "gastos", texto: "Mis gastos", Icono: IconReceipt },
     { id: "informes", texto: "Mis informes", Icono: IconReceipt2 },
+    ...(esAdmin
+      ? [
+          { id: "todos-gastos" as const, texto: "Todos los gastos", Icono: IconListDetails },
+          { id: "todos-informes" as const, texto: "Todos los informes", Icono: IconFileInvoice },
+          { id: "todos-fondos" as const, texto: "Todos los fondos", Icono: IconWallet },
+        ]
+      : []),
     ...(tiene("validador") ? [{ id: "validar" as const, texto: "Por validar", Icono: IconUserCheck, cuenta: porValidar.length }] : []),
     ...(tiene("asignador") ? [{ id: "asignar" as const, texto: "Por asignar", Icono: IconChecklist, cuenta: porAsignar.length + porReponer.length }] : []),
     ...(tiene("tesoreria") ? [{ id: "tesoreria" as const, texto: "Tesorería", Icono: IconBuildingBank, cuenta: porTransferir.length + reembolsos.length + devoluciones.length }] : []),
@@ -94,6 +105,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
     .filter((f) => f.estado === "activo")
     .map((f) => ({ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, motivo: f.motivo, esMio: f.rendidorCorreo === yo }));
   const conSaldoAFavor = tiene("asignador") && (actual === "asignar" || actual === "inicio") ? (await fondosConSaldoAFavor(empresaId).catch(() => [])).filter((f) => f.rendidorCorreo !== yo) : [];
+  const gastosTodos = esAdmin && actual === "todos-gastos" ? await todosLosGastos() : [];
   const necesitaPersonas = actual === "asignar" || actual === "config";
   const personas = necesitaPersonas ? await listarPersonas() : [];
 
@@ -190,6 +202,40 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
       {actual === "informes" && (
         <Seccion titulo={revisaAntiguas ? "Informes" : "Mis informes"} Icono={IconReceipt2} accion={<NuevaRendicion fondos={fondosParaInforme} />}>
           <ListaRendiciones rendiciones={revisaAntiguas ? rendiciones : misInformes} revisa={revisaAntiguas} filtroInicial="todas" borrar={eliminarRendicionAction} />
+        </Seccion>
+      )}
+
+      {esAdmin && actual === "todos-gastos" && (
+        <Seccion titulo="Todos los gastos" Icono={IconListDetails} accion={<EnVivo />}>
+          <TodosLosGastos filas={gastosTodos} />
+        </Seccion>
+      )}
+
+      {esAdmin && actual === "todos-informes" && (
+        <Seccion titulo="Todos los informes" Icono={IconFileInvoice} accion={<EnVivo />}>
+          <ListaRendiciones rendiciones={rendiciones} revisa filtroInicial="todas" borrar={eliminarRendicionAction} />
+        </Seccion>
+      )}
+
+      {esAdmin && actual === "todos-fondos" && (
+        <Seccion titulo="Todos los fondos" Icono={IconWallet} accion={<EnVivo />}>
+          <div className="mb-3 flex flex-wrap gap-1.5 text-xs font-semibold">
+            {([["", "Todos", fondos.length], ...(Object.keys(ETIQUETA_ESTADO_FONDO) as EstadoFondo[]).map((e) => [e, ETIQUETA_ESTADO_FONDO[e], fondos.filter((f) => f.estado === e).length] as const)] as const)
+              .filter(([e, , n]) => e === "" || n > 0)
+              .map(([e, t, n]) => (
+                <Link key={e || "todos"} href={e ? `/rendir-gastos?ver=todos-fondos&estado=${e}` : "/rendir-gastos?ver=todos-fondos"} scroll={false} className={`rounded-lg border px-2.5 py-1 transition ${(estadoFiltro ?? "") === e ? "border-tinta bg-tinta text-superficie" : "border-borde text-gris hover:text-tinta"}`}>
+                  {t} {n}
+                </Link>
+              ))}
+          </div>
+          {(() => {
+            const lista = fondos.filter((f) => !estadoFiltro || f.estado === estadoFiltro);
+            return lista.length === 0 ? <Vacio texto="No hay fondos en este estado." /> : (
+              <ul className="space-y-2.5">
+                {lista.map((f) => (<FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite} />))}
+              </ul>
+            );
+          })()}
         </Seccion>
       )}
 
