@@ -41,9 +41,18 @@ export function paginasDelPdf(pdf: Buffer): number {
 }
 
 export async function imprimirCotizacion(page: Page, d: DatosDocumento): Promise<Impresion> {
+  return imprimirAjustado(page, htmlDeCotizacion(d), pieDeCotizacion(d));
+}
+
+/**
+ * Imprime un documento A4 ajustándolo a la hoja (la regla de arriba). Lo usan la cotización y la orden de compra: el HTML
+ * tiene que traer `.pagina` dentro de `.hoja`, una `table.lineas` y la clase `espacio-justo` en el body para apretar márgenes.
+ * `pie` es el pie que Chromium repite en cada página.
+ */
+export async function imprimirAjustado(page: Page, html: string, pie: string): Promise<Impresion> {
   // El ancho de A4 a 96 dpi: la maqueta se mide como se va a imprimir.
   await page.setViewportSize({ width: 794, height: 1123 });
-  await page.setContent(htmlDeCotizacion(d), { waitUntil: "networkidle" });
+  await page.setContent(html, { waitUntil: "networkidle" });
   await page.emulateMedia({ media: "print" });
 
   /** Alto del contenido con las filas a ese tamaño (se mide en .hoja, que no lleva zoom). */
@@ -98,7 +107,7 @@ export async function imprimirCotizacion(page: Page, d: DatosDocumento): Promise
       printBackground: true,
       displayHeaderFooter: true,
       headerTemplate: "<span></span>",
-      footerTemplate: pieDeCotizacion(d),
+      footerTemplate: pie,
       // Los márgenes salen del @page del documento (la primera hoja sin margen arriba, las demás con aire).
       preferCSSPageSize: true,
     }),

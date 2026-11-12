@@ -1,8 +1,9 @@
 // El PDF de la Orden de Compra: arma el HTML (A4) que Chromium imprime.
 //
-// Sin "server-only" a propósito (texto → texto, se prueba con tsx). Mismo lenguaje visual que la cotización,
-// pero con el color de cada empresa (acento + fondo claro con su tono) y marca de agua «BORRADOR» mientras la
-// OC no tenga número (el número nace al visar). Todo lo que viene de personas pasa por `esc`.
+// Sin "server-only" a propósito (texto → texto, se prueba con tsx). Mismo lenguaje visual que la cotización —hoja blanca,
+// barra de color arriba, tabla con encabezado oscuro y barra de TOTAL— con el color de cada empresa, y se ajusta a UNA hoja
+// con la misma regla (ver cotizacion-impresion.ts: lo único que se achica son las filas de la tabla de ítems). Marca de agua
+// «BORRADOR» mientras la OC no tenga número (nace al visar). Todo lo que viene de personas pasa por `esc`.
 
 import { fechaCl } from "./reglas";
 import { coloresDeEmpresa, formatoMonto, netoLineaOc, aPesos, totalesOc, CONDICIONES_OC_POR_OMISION, type LineaOc, type Moneda } from "./oc-modelo";
@@ -25,8 +26,6 @@ export interface DatosOc {
   numero: string | null;
   fecha: string;
   titulo: string;
-  proyecto: string | null;
-  solicitante: string;
   proveedor: { nombre: string; rut: string | null; giro: string | null; direccion: string | null; telefono: string | null; correo: string | null } | null;
   atencion: string | null;
   moneda: Moneda;
@@ -41,12 +40,8 @@ export interface DatosOc {
   condicionPagoDias: number | null;
   observaciones: string | null;
   condiciones: string | null;
-  firmas: { solicitado: Firma | null; aprobado: Firma | null; visado: Firma | null };
-}
-
-export interface Firma {
-  nombre: string;
-  fecha: string | null;
+  /** Quién creó la OC: es el único nombre que sale al final del documento. */
+  creador: string;
 }
 
 export function esc(t: string | null | undefined): string {
@@ -78,71 +73,93 @@ export function textoDePago(d: Pick<DatosOc, "formaPago" | "condicionPagoDias">)
 function css(slug: string): string {
   const c = coloresDeEmpresa(slug);
   return `
-  @page { size: A4; margin: 12mm 0 14mm 0; }
+  /* La primera hoja arranca sin margen superior (la barra de color va pegada arriba); las siguientes llevan aire. */
+  @page { size: A4; margin: 12mm 0 13mm 0; }
   @page :first { margin-top: 0; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: ${c.claro}; }
+  html, body { margin: 0; padding: 0; background: #fff; }
   body { font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: #1b1814; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .barra { height: 6px; background: ${c.acento}; }
-  .hoja { padding: 0 16mm; position: relative; }
-  .marca-agua { position: fixed; top: 46%; left: 50%; transform: translate(-50%, -50%) rotate(-28deg); font-size: 96pt; font-weight: 900; letter-spacing: 0.1em; color: ${c.acento}; opacity: 0.07; pointer-events: none; z-index: 0; white-space: nowrap; }
+  .barra { height: 5px; background: ${c.acento}; }
+  /* El margen lateral vive en .hoja. Para ajustar a la hoja solo se achica la tabla de ítems (con «zoom»); el resto del texto no cambia. */
+  .hoja { padding: 0 16mm; }
+  .pagina.una-hoja { display: flex; flex-direction: column; }
   .g { display: block; position: relative; z-index: 1; }
-  .g + .g { margin-top: 4mm; }
+  .marca-agua { position: fixed; top: 46%; left: 50%; transform: translate(-50%, -50%) rotate(-28deg); font-size: 96pt; font-weight: 900; letter-spacing: 0.1em; color: ${c.acento}; opacity: 0.07; pointer-events: none; z-index: 0; white-space: nowrap; }
 
   .cabecera { display: flex; justify-content: space-between; align-items: center; gap: 12mm; padding: 6mm 0 4mm; }
-  .marca img { max-height: 16mm; max-width: 60mm; display: block; }
+  .marca img { max-height: 15mm; max-width: 58mm; display: block; }
   .marca .nombre { font-size: 17pt; font-weight: 800; letter-spacing: -0.01em; }
   .emisora { text-align: right; font-size: 8pt; color: #5a5249; line-height: 1.4; }
   .emisora b { color: #1b1814; font-size: 9pt; }
 
-  .titulo { display: grid; grid-template-columns: 1fr auto; gap: 10mm; align-items: center; border-top: 1.5px solid ${c.acento}; border-bottom: 1px solid ${c.borde}; padding: 3.5mm 0; margin-bottom: 4.5mm; }
-  .titulo h1 { margin: 0; font-size: 20pt; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; color: ${c.acento}; line-height: 1.05; }
-  .titulo .sub { margin: 1.5mm 0 0; font-size: 11pt; font-weight: 600; overflow-wrap: anywhere; }
-  .meta { display: grid; grid-template-columns: repeat(2, auto); gap: 2.5mm 9mm; }
+  /* Portada: a la izquierda el título y los datos de la OC; a la derecha, la casilla del proveedor. */
+  .portada { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; align-items: stretch; border-top: 1px solid #e3ddd3; padding-top: 4mm; }
+  .portada h1 { margin: 0; font-size: 20pt; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; color: ${c.acento}; line-height: 1.05; }
+  .portada .sub { margin: 1.5mm 0 3mm; font-size: 11pt; font-weight: 600; overflow-wrap: anywhere; }
+  .meta { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 2.5mm 9mm; }
   .meta .et { display: block; color: #7a7167; text-transform: uppercase; letter-spacing: 0.07em; font-size: 7pt; }
   .meta b { display: block; font-size: 9.5pt; white-space: nowrap; }
   .meta b.pend { color: #9a9086; font-weight: 600; }
 
-  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
-  .caja { border: 1px solid ${c.borde}; border-radius: 3mm; padding: 3.2mm 4.5mm; background: #fff; }
-  .caja h2 { margin: 0 0 1.8mm; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: ${c.acento}; }
-  .caja p { margin: 0.4mm 0; font-size: 9pt; overflow-wrap: anywhere; }
+  .caja { border: 1px solid #e3ddd3; border-radius: 3mm; padding: 3.5mm 5mm; background: #fbf9f5; }
+  .caja h2 { margin: 0 0 2mm; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: ${c.acento}; }
+  .caja p { margin: 0.5mm 0; font-size: 9pt; overflow-wrap: anywhere; }
   .caja .grande { font-size: 10.5pt; font-weight: 700; }
   .caja .tenue { color: #6b6258; }
 
-  table.lineas { width: 100%; border-collapse: collapse; table-layout: fixed; background: #fff; border-radius: 2mm; }
+  /* Columnas fijas: con «overflow-wrap» el ancho mínimo de la descripción es casi cero y el navegador la angostaba. */
+  table.lineas { width: 100%; border-collapse: collapse; table-layout: fixed; }
   table.lineas thead { display: table-header-group; }
-  table.lineas thead th { background: ${c.acento}; color: #fff; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.07em; padding: 2.4mm 2.5mm; text-align: left; }
+  table.lineas thead th { background: #1b1814; color: #fff; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.07em; padding: 2.4mm 2.5mm; text-align: left; }
   table.lineas thead th.n, table.lineas td.n { text-align: right; white-space: nowrap; }
-  table.lineas tbody td { padding: 1.9mm 2.5mm; border-bottom: 1px solid ${c.borde}; vertical-align: top; font-size: 9pt; overflow-wrap: anywhere; }
+  table.lineas tbody td { padding: 1.9mm 2.5mm; border-bottom: 1px solid #ece6dc; vertical-align: top; font-size: 9pt; overflow-wrap: anywhere; }
+  table.lineas tbody tr:nth-child(even) td { background: #faf8f4; }
   table.lineas tr { break-inside: avoid; page-break-inside: avoid; }
   table.lineas .num { color: #9a9086; white-space: nowrap; }
   table.lineas .sub { display: block; font-size: 7.5pt; color: #8a8176; margin-top: 0.6mm; }
+  /* El detalle opcional del ítem: sale bajo la descripción. */
   table.lineas .nota { display: block; font-size: 8pt; line-height: 1.35; color: #6b6258; margin-top: 1mm; }
 
   .totales { display: flex; justify-content: flex-end; margin-top: 3mm; break-inside: avoid; page-break-inside: avoid; }
-  .totales table { width: 84mm; border-collapse: collapse; background: #fff; border-radius: 2mm; }
+  .totales table { width: 84mm; border-collapse: collapse; }
   .totales td { padding: 1.2mm 3mm; font-size: 9.5pt; }
   .totales td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .totales tr.total td { background: ${c.acento}; color: #fff; font-weight: 800; font-size: 12pt; padding: 2.4mm 3mm; }
-  .totales tr.pesos td { color: #6b6258; font-size: 8.5pt; border-top: 1px solid ${c.borde}; }
+  .totales tr.pesos td { color: #6b6258; font-size: 8.5pt; border-top: 1px solid #e3ddd3; }
 
-  .bloque { margin-bottom: 3.5mm; break-inside: avoid; page-break-inside: avoid; }
-  .bloque h2 { margin: 0 0 1.8mm; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: ${c.acento}; border-bottom: 1px solid ${c.borde}; padding-bottom: 1.2mm; }
-  .bloque ul.cond { margin: 0; padding: 0; list-style: none; }
-  .bloque ul.cond li { margin: 0 0 1mm; font-size: 9pt; display: flex; gap: 3mm; }
-  .bloque ul.cond li b { flex: 0 0 30mm; color: #3d362f; }
+  .bloque { margin-bottom: 4mm; break-inside: avoid; page-break-inside: avoid; }
+  .bloque h2 { margin: 0 0 2mm; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: ${c.acento}; border-bottom: 1px solid #e3ddd3; padding-bottom: 1.2mm; }
+  .bloque ul { margin: 0; padding: 0; list-style: none; }
+  .bloque li { margin: 0 0 1mm; font-size: 9pt; display: flex; gap: 3mm; }
+  .bloque li b { flex: 0 0 34mm; color: #3d362f; }
   .bloque p { margin: 0; font-size: 9pt; }
   .bloque ol { margin: 0; padding-left: 4.5mm; }
-  .bloque ol li { font-size: 8.5pt; color: #4a443d; margin-bottom: 0.8mm; }
+  .bloque ol li { display: list-item; font-size: 8.5pt; color: #4a443d; margin-bottom: 0.8mm; }
 
-  .firmas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; margin-top: 10mm; break-inside: avoid; page-break-inside: avoid; }
-  .firma { font-size: 8.5pt; }
-  .firma .espacio { height: 12mm; }
-  .firma .raya { border-top: 1px solid #1b1814; padding-top: 1.5mm; }
-  .firma .rol { text-transform: uppercase; letter-spacing: 0.08em; font-size: 7pt; color: #7a7167; }
-  .firma b { font-size: 9pt; display: block; }
-  .firma .sin { color: #9a9086; font-style: italic; }
+  /* Abajo de todo: lo de entrega, pago y condiciones, y al final «Facturar a» (chico) con el nombre de quien creó la OC. */
+  .cierre { break-inside: avoid; page-break-inside: avoid; padding-bottom: 2mm; }
+  .final { display: grid; grid-template-columns: 1fr 62mm; gap: 8mm; align-items: end; border-top: 1px solid #e3ddd3; padding-top: 3mm; }
+  .facturar { font-size: 7.5pt; line-height: 1.45; color: #6b6258; }
+  .facturar .et { display: block; text-transform: uppercase; letter-spacing: 0.1em; font-size: 7pt; font-weight: 700; color: ${c.acento}; margin-bottom: 0.8mm; }
+  .facturar b { color: #1b1814; font-size: 8pt; }
+  .firma { font-size: 9pt; }
+  .firma .raya { width: 100%; border-top: 1px solid #1b1814; margin-bottom: 1.5mm; margin-top: 9mm; }
+  .firma b { font-size: 10pt; }
+  .g + .g { margin-top: 4mm; }
+  .g + .g.cierre { margin-top: 6mm; }
+  /* En una sola hoja el cierre va pegado al pie; todo lo demás, arriba y junto. */
+  .pagina.una-hoja .g + .g.cierre { margin-top: auto; }
+
+  /* Espacio justo: antes de achicar las filas de ítems se aprietan los márgenes (la letra no cambia). */
+  body.espacio-justo .cabecera { padding: 4mm 0 2.5mm; }
+  body.espacio-justo .portada { padding-top: 2.5mm; }
+  body.espacio-justo .caja { padding: 2.5mm 4mm; }
+  body.espacio-justo .bloque { margin-bottom: 2.5mm; }
+  body.espacio-justo .bloque li { margin-bottom: 0.6mm; }
+  body.espacio-justo .totales td { padding: 0.8mm 3mm; }
+  body.espacio-justo .totales tr.total td { padding: 1.8mm 3mm; }
+  body.espacio-justo .firma .raya { margin-top: 5mm; }
+  body.espacio-justo .g + .g:not(.cierre) { margin-top: 3mm; }
 `;
 }
 
@@ -157,11 +174,12 @@ export function htmlDeOc(d: DatosOc): string {
   const pago = textoDePago(d);
   const condiciones = (d.condiciones?.trim() || e.condicionesOc?.trim() || CONDICIONES_OC_POR_OMISION).split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
   const entrega = [
-    d.entregaLugar?.trim() && { etiqueta: "Lugar", texto: d.entregaLugar.trim() },
-    d.entregaPlazo?.trim() && { etiqueta: "Plazo", texto: d.entregaPlazo.trim() },
+    d.entregaLugar?.trim() && { etiqueta: "Lugar de entrega", texto: d.entregaLugar.trim() },
+    d.entregaPlazo?.trim() && { etiqueta: "Plazo de entrega", texto: d.entregaPlazo.trim() },
     d.fechaRequerida && { etiqueta: "Se necesita para", texto: fechaCl(d.fechaRequerida) },
     pago && { etiqueta: "Pago", texto: pago },
   ].filter((x): x is { etiqueta: string; texto: string } => Boolean(x));
+  const datosFacturar = [e.rut ? `RUT ${e.rut}` : "", e.giro ?? "", e.direccion ?? ""].filter((x) => x.trim());
 
   const filas = d.lineas
     .map(
@@ -177,47 +195,32 @@ export function htmlDeOc(d: DatosOc): string {
     )
     .join("");
 
-  const firma = (rol: string, f: Firma | null) =>
-    `<div class="firma"><div class="espacio"></div><div class="raya"><span class="rol">${rol}</span>${f ? `<b>${esc(f.nombre)}</b>${f.fecha ? esc(fechaCl(f.fecha)) : ""}` : '<span class="sin">Pendiente</span>'}</div></div>`;
-
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(d.numero ?? "Borrador OC")} ${esc(d.titulo)}</title><style>${css(e.slug)}</style></head>
 <body>
   ${d.numero ? "" : '<div class="marca-agua">BORRADOR</div>'}
   <div class="barra"></div>
-  <div class="hoja">
+  <div class="hoja"><div class="pagina">
     <div class="g">
       <header class="cabecera">
         <div class="marca">${logo ? `<img src="${logo}" alt="${esc(e.nombre)}">` : `<div class="nombre">${esc(e.nombre)}</div>`}</div>
         <div class="emisora"><b>${esc(e.nombre)}${e.rut ? ` · RUT ${esc(e.rut)}` : ""}</b>${filasEmisora.map((f) => `<br>${esc(f)}`).join("")}</div>
       </header>
 
-      <section class="titulo">
+      <section class="portada">
         <div>
           <h1>Orden de compra</h1>
           <p class="sub">${esc(d.titulo)}</p>
+          <div class="meta">
+            <div><span class="et">N° OC</span>${d.numero ? `<b>${esc(d.numero)}</b>` : '<b class="pend">Al visar</b>'}</div>
+            <div><span class="et">Fecha</span><b>${fechaCl(d.fecha)}</b></div>
+            <div><span class="et">Moneda</span><b>${m}</b></div>
+          </div>
         </div>
-        <div class="meta">
-          <div><span class="et">N° OC</span>${d.numero ? `<b>${esc(d.numero)}</b>` : '<b class="pend">Se asigna al visar</b>'}</div>
-          <div><span class="et">Fecha</span><b>${fechaCl(d.fecha)}</b></div>
-          <div><span class="et">Proyecto</span><b>${esc(d.proyecto ?? "General")}</b></div>
-          <div><span class="et">Moneda</span><b>${m}</b></div>
-        </div>
-      </section>
-
-      <section class="dos">
         <div class="caja">
           <h2>Proveedor</h2>
           ${p ? `<p class="grande">${esc(p.nombre)}</p>${[p.rut ? `RUT ${esc(p.rut)}` : "", p.giro ? esc(p.giro) : ""].filter(Boolean).length ? `<p>${[p.rut ? `RUT ${esc(p.rut)}` : "", p.giro ? esc(p.giro) : ""].filter(Boolean).join(" · ")}</p>` : ""}${p.direccion ? `<p class="tenue">${esc(p.direccion)}</p>` : ""}${[p.telefono, p.correo].filter(Boolean).length ? `<p class="tenue">${[p.telefono, p.correo].filter(Boolean).map((x) => esc(x)).join(" · ")}</p>` : ""}` : '<p class="tenue">Sin proveedor asignado</p>'}
           ${d.atencion?.trim() ? `<p class="tenue">Atención: ${esc(d.atencion.trim())}</p>` : ""}
-        </div>
-        <div class="caja">
-          <h2>Facturar a</h2>
-          <p class="grande">${esc(e.nombre)}</p>
-          ${e.rut ? `<p>RUT ${esc(e.rut)}</p>` : ""}
-          ${e.giro ? `<p>${esc(e.giro)}</p>` : ""}
-          ${e.direccion ? `<p class="tenue">${esc(e.direccion)}</p>` : ""}
-          <p class="tenue">Solicita: ${esc(d.solicitante)}</p>
         </div>
       </section>
     </div>
@@ -238,18 +241,16 @@ export function htmlDeOc(d: DatosOc): string {
       </table></div>
     </div>
 
-    <div class="g">
-      ${entrega.length ? `<section class="bloque"><h2>Entrega y pago</h2><ul class="cond">${entrega.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul></section>` : ""}
+    <div class="g cierre">
+      ${entrega.length ? `<section class="bloque"><h2>Entrega y pago</h2><ul>${entrega.map((x) => `<li><b>${esc(x.etiqueta)}</b><span>${esc(x.texto)}</span></li>`).join("")}</ul></section>` : ""}
       ${d.observaciones?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.observaciones.trim())}</p></section>` : ""}
       <section class="bloque"><h2>Condiciones generales</h2><ol>${condiciones.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></section>
+      <div class="final">
+        <div class="facturar"><span class="et">Facturar a</span><b>${esc(e.nombre)}</b>${datosFacturar.length ? `<br>${datosFacturar.map((x) => esc(x)).join(" · ")}` : ""}</div>
+        <div class="firma"><div class="raya"></div><b>${esc(d.creador)}</b></div>
+      </div>
     </div>
-
-    <div class="g firmas">
-      ${firma("Solicitado por", d.firmas.solicitado)}
-      ${firma("Aprobado por", d.firmas.aprobado)}
-      ${firma("Visado por", d.firmas.visado)}
-    </div>
-  </div>
+  </div></div>
 </body></html>`;
 }
 

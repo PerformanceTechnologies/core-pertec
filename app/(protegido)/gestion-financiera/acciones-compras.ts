@@ -834,6 +834,8 @@ export interface PreparacionEnvioOc {
   numero: string;
   total: string;
   para: string;
+  /** Los correos del proveedor registrados en Contactos: el diálogo los ofrece para traerlos a «Con copia». */
+  correosRegistrados: string[];
   asunto: string;
   mensaje: string;
   yaEnviadaA: string | null;
@@ -852,13 +854,15 @@ export async function prepararEnvioOcAction(id: string): Promise<{ ok: true; env
     if (!c.formato_oc) return { ok: false, error: "Esta compra es anterior al formato de OC." };
     if (c.estado_override) return { ok: false, error: "Está anulada." };
     if (!c.oc_numero || !c.fecha_visado) return { ok: false, error: "La OC se envía después de visarla." };
-    const { documento, proveedorCorreos } = await ocParaDocumento(ctx, id);
+    const { documento, correoAtencion, correosRegistrados } = await ocParaDocumento(ctx, id);
+    // Si se escribió el correo de la persona de atención, la OC va SOLO a ese; si no, a los correos registrados del proveedor.
+    const para = correoAtencion ?? correosRegistrados.join(", ");
     const t = totalesOc(documento.lineas, documento.tasaIva, documento.moneda);
     const nombre = ctx.usuario.nombre?.trim() || ctx.usuario.correo.split("@")[0];
     return {
       ok: true,
       envio: {
-        numero: String(c.oc_numero), total: formatoMonto(t.total, documento.moneda), para: proveedorCorreos.join(", "), asunto: asuntoDeOc(documento), mensaje: mensajeDeOc(documento, { nombre }),
+        numero: String(c.oc_numero), total: formatoMonto(t.total, documento.moneda), para, correosRegistrados, asunto: asuntoDeOc(documento), mensaje: mensajeDeOc(documento, { nombre }),
         yaEnviadaA: (c.oc_enviada_a as string | null) ?? null, faltantes: faltantesDelPerfil(await perfilDeEmpresa(ctx.empresa.id)), remitente: ctx.usuario.correo,
       },
     };

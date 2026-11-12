@@ -76,12 +76,12 @@ export const CONDICIONES_OC_POR_OMISION = [
 ].join("\n");
 
 /**
- * Colores del PDF de cada empresa: el acento (títulos, barra, total) y un fondo claro con su tono.
- * Mismos tonos que la marca de cada empresa en el Core (app/globals.css).
+ * El color de acento del PDF de cada empresa (barra de arriba, títulos y barra del total): el de su marca en el Core
+ * (app/globals.css). El resto del PDF es blanco y neutro, como la cotización.
  */
-export const COLORES_OC: Record<string, { acento: string; claro: string; borde: string }> = {
-  pertec: { acento: "#c85217", claro: "#fdf3ec", borde: "#f0d8c7" },
-  zeus: { acento: "#b08419", claro: "#fbf6e6", borde: "#ecdfb8" },
-  "performance-service": { acento: "#3e4650", claro: "#eff1f4", borde: "#d5d9df" },
+export const COLORES_OC: Record<string, { acento: string }> = {
+  pertec: { acento: "#c85217" },
+  zeus: { acento: "#b08419" },
+  "performance-service": { acento: "#d2562f" },
 };
 export const coloresDeEmpresa = (slug: string) => COLORES_OC[slug] ?? COLORES_OC.pertec;

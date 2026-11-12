@@ -234,8 +234,10 @@ export function Pestanas({ base, actual, opciones }: { base: string; actual: str
   );
 }
 
-export const TH = "px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-gris";
-export const TD = "px-3 py-2.5 align-top";
+// Compactas a propósito: menos alto de fila y de encabezado, con la misma información. Los botones de una celda se achican con
+// la regla `td.celda-fin` de globals.css.
+export const TH = "px-2.5 py-1.5 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gris";
+export const TD = "celda-fin px-2.5 py-1.5 align-top text-[13px] leading-snug";
 
 /**
  * La misma banda con lo mismo (cifra grande, cifras de apoyo y proceso), en la mitad de alto: la cifra y su ícono
