@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../supabase-admin";
 import type { EstadoRendicion, GastoRendicion, Rendicion, ResumenRendicion } from "./tipos";
 import { estadoDeGasto, type FilaGastoAdmin, type FilaMiGasto } from "./mis-gastos-modelo";
 import { filtrarPorEmpresaRG, type EmpresaRG } from "./empresa";
+import { idsFondosArchivados } from "./fondos";
 
 // Capa de datos de las rendiciones. Los gastos van como jsonb embebido porque
 // se editan siempre en bloque desde la tabla de revision (el rendidor corrige
@@ -305,7 +306,8 @@ export async function informesAbiertosDe(correo: string, empresa: EmpresaRG): Pr
     empresa,
   ).order("creado_en", { ascending: false });
   if (error) return [];
-  return (data ?? []).map((r) => ({ id: r.id as string, titulo: r.titulo_rendicion as string, fondoId: (r.fondo_id as string | null) ?? null }));
+  const archivados = await idsFondosArchivados(empresa.id);
+  return (data ?? []).filter((r) => !r.fondo_id || !archivados.has(r.fondo_id as string)).map((r) => ({ id: r.id as string, titulo: r.titulo_rendicion as string, fondoId: (r.fondo_id as string | null) ?? null }));
 }
 
 /**
@@ -316,14 +318,15 @@ export async function gastosEnInformesDe(correo: string, empresa: EmpresaRG): Pr
   const { data, error } = await filtrarPorEmpresaRG(
     supabaseAdmin
       .from("rendiciones")
-      .select("id, titulo_rendicion, estado, gastos, creado_en")
+      .select("id, titulo_rendicion, estado, gastos, creado_en, fondo_id")
       .eq("tipo", "informe")
       .eq("rinde_correo", correo.toLowerCase())
       .neq("estado", "anulada"),
     empresa,
   ).order("creado_en", { ascending: false });
   if (error) return [];
-  return (data ?? []).flatMap((r) =>
+  const archivados = await idsFondosArchivados(empresa.id);
+  return (data ?? []).filter((r) => !r.fondo_id || !archivados.has(r.fondo_id as string)).flatMap((r) =>
     ((r.gastos ?? []) as GastoRendicion[]).map((g) => ({
       id: g.id,
       fecha: g.fecha,
@@ -346,17 +349,19 @@ export async function gastosEnInformesDe(correo: string, empresa: EmpresaRG): Pr
  * TODOS los gastos de todas las personas DE LA EMPRESA ACTIVA (sueltos y en informes), para quien administra gastos.
  * El más reciente primero. Solo la usa una pantalla que ya comprobó el rol de administrador.
  */
-export async function todosLosGastos(empresa: EmpresaRG): Promise<FilaGastoAdmin[]> {
+export async function todosLosGastos(empresa: EmpresaRG, fondosArchivados: Set<string> = new Set()): Promise<FilaGastoAdmin[]> {
   const { data, error } = await filtrarPorEmpresaRG(
     supabaseAdmin
       .from("rendiciones")
-      .select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos")
+      .select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos, fondo_id")
       .neq("estado", "anulada"),
     empresa,
   ).limit(3000);
   if (error) return [];
   const filas: FilaGastoAdmin[] = [];
   for (const r of data ?? []) {
+    // Los informes de un fondo archivado no se muestran.
+    if (r.fondo_id && fondosArchivados.has(r.fondo_id as string)) continue;
     const esBolsa = r.tipo === "bolsa";
     for (const g of (r.gastos ?? []) as GastoRendicion[]) {
       filas.push({

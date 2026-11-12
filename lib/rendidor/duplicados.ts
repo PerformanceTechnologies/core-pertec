@@ -4,6 +4,7 @@ import { normalizarRut } from "../contratos/rut";
 import type { EstadoRendicion, GastoRendicion } from "./tipos";
 import { estadoDeGasto, type Repetido } from "./mis-gastos-modelo";
 import { filtrarPorEmpresaRG, type EmpresaRG } from "./empresa";
+import { idsFondosArchivados } from "./fondos";
 
 const plano = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -42,13 +43,16 @@ export async function repetidosDe(rendicionIds: string[], empresa: EmpresaRG): P
   if (!rendicionIds.length) return {};
   // Solo se compara dentro de la misma empresa: un gasto de otra empresa no es un repetido.
   const { data, error } = await filtrarPorEmpresaRG(
-    supabaseAdmin.from("rendiciones").select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos").neq("estado", "anulada"),
+    supabaseAdmin.from("rendiciones").select("id, tipo, titulo_rendicion, estado, nombre_quien_rinde, gastos, fondo_id").neq("estado", "anulada"),
     empresa,
   ).limit(3000);
   if (error) return {};
 
   const entradas: Entrada[] = [];
+  // Los gastos de un fondo archivado (pruebas, fondos que ya no se usan) no cuentan como el original.
+  const archivados = await idsFondosArchivados(empresa.id);
   for (const r of data ?? []) {
+    if (r.fondo_id && archivados.has(r.fondo_id as string) && !rendicionIds.includes(r.id as string)) continue;
     for (const g of (r.gastos ?? []) as GastoRendicion[]) {
       if (g.revision?.estado === "rechazada") continue;
       entradas.push({ rid: r.id as string, titulo: r.titulo_rendicion as string, esBolsa: r.tipo === "bolsa", quien: r.nombre_quien_rinde as string, estadoInforme: r.estado as EstadoRendicion, g });

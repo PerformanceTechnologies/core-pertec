@@ -19,7 +19,7 @@ import { listarPersonas, listarRendiciones, todosLosGastos } from "@/lib/rendido
 import { SLUG_POR_OMISION } from "@/lib/empresas-modelo";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { hoyEnSantiago } from "@/lib/graph-calendario";
-import { fondosConSaldoAFavor, leerParametros, listarFondos, listarRoles, movimientosDe, rolesDe } from "@/lib/rendidor/fondos";
+import { fondosConSaldoAFavor, idsFondosArchivados, leerParametros, listarFondos, listarRoles, movimientosDe, rolesDe } from "@/lib/rendidor/fondos";
 import { ETIQUETA_ESTADO_FONDO, ETIQUETA_MOVIMIENTO, pesos, type EstadoFondo, type Fondo, type RolFondos } from "@/lib/rendidor/fondos-modelo";
 import ListaRendiciones from "@/components/rendidor/ListaRendiciones";
 import EnVivo from "@/components/rendidor/EnVivo";
@@ -33,7 +33,7 @@ import {
   anularFondoAction,
   conciliarAction,
   confirmarDevolucionAction,
-  eliminarFondoAction,
+  archivarFondoAction,
   pagarReembolsoAction,
   pedirDevolucionAction,
   reponerFondoAction,
@@ -61,7 +61,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const esAdmin = rol === "admin" || roles.includes("administrador");
 
   // Sin el SQL de Fondos corrido, la página no se cae: avisa qué falta.
-  const [lecturaFondos, rendiciones, parametros] = await Promise.all([
+  const [lecturaFondos, todasLasRendiciones, parametros] = await Promise.all([
     listarFondos(empresaId).then(
       (fs) => ({ fondos: fs, error: null as string | null }),
       (e: unknown) => ({ fondos: [] as Fondo[], error: e instanceof Error ? e.message : "No se pudieron leer los fondos." }),
@@ -69,6 +69,9 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
     listarRendiciones({ usuarioId: usuario.id, correo: usuario.correo, empresa: { id: empresaId, porOmision: activa!.slug === SLUG_POR_OMISION }, verTodas: revisaAntiguas || esAdmin || tiene("revisor") || tiene("tesoreria") }),
     leerParametros(empresaId),
   ]);
+  // Los fondos archivados (y sus informes) no se ven en ninguna lista.
+  const archivados = await idsFondosArchivados(empresaId);
+  const rendiciones = todasLasRendiciones.filter((r) => !r.fondoId || !archivados.has(r.fondoId));
   const fondos = lecturaFondos.fondos;
   const faltaSql = lecturaFondos.error;
   const misFondos = fondos.filter((f) => f.rendidorCorreo === yo);
@@ -105,7 +108,8 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
     .filter((f) => f.estado === "activo")
     .map((f) => ({ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, motivo: f.motivo, esMio: f.rendidorCorreo === yo }));
   const conSaldoAFavor = tiene("asignador") && (actual === "asignar" || actual === "inicio") ? (await fondosConSaldoAFavor(empresaId).catch(() => [])).filter((f) => f.rendidorCorreo !== yo) : [];
-  const gastosTodos = esAdmin && actual === "todos-gastos" ? await todosLosGastos({ id: empresaId, porOmision: activa!.slug === SLUG_POR_OMISION }) : [];
+  const fondosArchivados = esAdmin && actual === "todos-fondos" ? await listarFondos(empresaId, { archivados: "solo" }).catch(() => [] as Fondo[]) : [];
+  const gastosTodos = esAdmin && actual === "todos-gastos" ? await todosLosGastos({ id: empresaId, porOmision: activa!.slug === SLUG_POR_OMISION }, archivados) : [];
   const necesitaPersonas = actual === "asignar" || actual === "config";
   const personas = necesitaPersonas ? await listarPersonas() : [];
 
@@ -219,27 +223,35 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
 
       {esAdmin && actual === "todos-fondos" && (
         <Seccion titulo="Todos los fondos" Icono={IconWallet} accion={<><EnVivo /><ConmutadorTodos activa="todas" mias={{ href: "/rendir-gastos?ver=fondos", texto: "Mis fondos" }} todas={{ href: "/rendir-gastos?ver=todos-fondos", texto: "Todos los fondos" }} /></>}>
-          <div className="mb-3 flex flex-wrap gap-1.5 text-xs font-semibold">
-            {([["", "Todos", fondos.length], ...(Object.keys(ETIQUETA_ESTADO_FONDO) as EstadoFondo[]).map((e) => [e, ETIQUETA_ESTADO_FONDO[e], fondos.filter((f) => f.estado === e).length] as const)] as const)
-              .filter(([e, , n]) => e === "" || n > 0)
-              .map(([e, t, n]) => (
-                <Link key={e || "todos"} href={e ? `/rendir-gastos?ver=todos-fondos&estado=${e}` : "/rendir-gastos?ver=todos-fondos"} scroll={false} className={`rounded-lg border px-2.5 py-1 transition ${(estadoFiltro ?? "") === e ? "border-tinta bg-tinta text-superficie" : "border-borde text-gris hover:text-tinta"}`}>
-                  {t} {n}
-                </Link>
-              ))}
-          </div>
           {(() => {
-            const lista = fondos.filter((f) => !estadoFiltro || f.estado === estadoFiltro);
-            return lista.length === 0 ? <Vacio texto="No hay fondos en este estado." /> : (
-              <ul className="space-y-2.5">
-                {lista.map((f) => (
-                  <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite}>
-                    {usuario.rol === "admin" && (
-                      <BotonAccion accion={eliminarFondoAction.bind(null, f.id)} confirma={`Se elimina para siempre ${f.codigo} con sus movimientos, informes, gastos y documentos. No se puede deshacer.`} pide={`Escribe «${f.codigo}» para confirmar:`} tono="peligro">Eliminar</BotonAccion>
-                    )}
-                  </FilaFondo>
-                ))}
-              </ul>
+            const verArchivados = estadoFiltro === "archivados";
+            const base = verArchivados ? fondosArchivados : fondos;
+            const estados = (Object.keys(ETIQUETA_ESTADO_FONDO) as EstadoFondo[]).map((e) => [e, ETIQUETA_ESTADO_FONDO[e], fondos.filter((f) => f.estado === e).length] as const);
+            const chips: (readonly [string, string, number])[] = [["", "Todos", fondos.length], ...estados.filter(([, , n]) => n > 0), ["archivados", "Archivados", fondosArchivados.length]];
+            const lista = verArchivados ? base : base.filter((f) => !estadoFiltro || f.estado === estadoFiltro);
+            return (
+              <>
+                <div className="mb-3 flex flex-wrap gap-1.5 text-xs font-semibold">
+                  {chips.map(([e, t, n]) => (
+                    <Link key={e || "todos"} href={e ? `/rendir-gastos?ver=todos-fondos&estado=${e}` : "/rendir-gastos?ver=todos-fondos"} scroll={false} className={`rounded-lg border px-2.5 py-1 transition ${(estadoFiltro ?? "") === e ? "border-tinta bg-tinta text-superficie" : "border-borde text-gris hover:text-tinta"}`}>
+                      {t} {n}
+                    </Link>
+                  ))}
+                </div>
+                {lista.length === 0 ? <Vacio texto={verArchivados ? "No hay fondos archivados." : "No hay fondos en este estado."} /> : (
+                  <ul className="space-y-2.5">
+                    {lista.map((f) => (
+                      <FilaFondo key={f.id} f={f} hoy={hoy} umbral={parametros.umbralAvisoLimite}>
+                        {verArchivados ? (
+                          <BotonAccion accion={archivarFondoAction.bind(null, f.id, false)} tono="secundario">Desarchivar</BotonAccion>
+                        ) : (
+                          <BotonAccion accion={archivarFondoAction.bind(null, f.id, true)} confirma={`${f.codigo} deja de verse en las listas y los pendientes. No se borra nada: lo puedes desarchivar desde «Archivados».`} tono="secundario">Archivar</BotonAccion>
+                        )}
+                      </FilaFondo>
+                    ))}
+                  </ul>
+                )}
+              </>
             );
           })()}
         </Seccion>

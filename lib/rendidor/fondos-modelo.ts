@@ -101,6 +101,8 @@ export interface Fondo {
   devolucionReferencia: string | null;
   ciclo: number;
   creadoEn: string;
+  /** Cuándo se archivó (null = a la vista). Un fondo archivado conserva todo, pero no aparece en las listas. */
+  archivadoEn: string | null;
   /** Calculado del libro. */
   saldo: number;
   /** Lo transferido en total (fondo + reembolsos + reposiciones), del libro. */

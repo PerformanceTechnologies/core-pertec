@@ -20,7 +20,7 @@ import {
   reponerFondoAction,
   transferirFondoAction,
   validarFondoAction,
-  eliminarFondoAction,
+  archivarFondoAction,
 } from "../../acciones-fondos";
 import { eliminarRendicionAction } from "../../acciones";
 
@@ -78,10 +78,14 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
     acciones.push(<BotonAccion key="a" accion={anularFondoAction.bind(null, id)} pide="¿Por qué se anula el fondo?" tono="peligro">Anular</BotonAccion>);
   }
 
-  // Solo el administrador del Core: elimina el fondo con todo lo suyo (para limpiar pruebas).
-  if (usuario.rol === "admin") {
+  // Administración archiva (o desarchiva) el fondo: no se borra nada, solo deja de verse en las listas.
+  if (usuario.rol === "admin" || roles.includes("administrador")) {
     acciones.push(
-      <BotonAccion key="del" accion={eliminarFondoAction.bind(null, id)} irA="/rendir-gastos?ver=fondos" confirma={`Se elimina para siempre ${f.codigo} con sus movimientos, informes, gastos y documentos. No se puede deshacer.`} pide={`Escribe «${f.codigo}» para confirmar:`} tono="peligro">Eliminar fondo</BotonAccion>,
+      f.archivadoEn ? (
+        <BotonAccion key="arch" accion={archivarFondoAction.bind(null, id, false)} tono="secundario">Desarchivar</BotonAccion>
+      ) : (
+        <BotonAccion key="arch" accion={archivarFondoAction.bind(null, id, true)} irA="/rendir-gastos?ver=fondos" confirma={`${f.codigo} deja de verse en las listas y los pendientes. No se borra nada: lo puedes desarchivar cuando quieras.`} tono="secundario">Archivar</BotonAccion>
+      ),
     );
   }
 

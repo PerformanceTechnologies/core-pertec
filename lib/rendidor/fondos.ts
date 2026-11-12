@@ -66,6 +66,7 @@ function aFondo(r: any, libro: { saldo: number; transferido: number; gastado: nu
     devolucionReferencia: r.devolucion_referencia,
     ciclo: Number(r.ciclo ?? 1),
     creadoEn: r.creado_en,
+    archivadoEn: r.archivado_en ?? null,
     ...libro,
   };
 }
@@ -223,14 +224,24 @@ export async function marcarConciliado(empresaId: string, id: string, conciliado
 
 // ---------- Fondos -------------------------------------------------------------------
 
-export async function listarFondos(empresaId: string, filtro: { rendidor?: string; estados?: EstadoFondo[] } = {}): Promise<Fondo[]> {
+export async function listarFondos(empresaId: string, filtro: { rendidor?: string; estados?: EstadoFondo[]; archivados?: "sin" | "con" | "solo" } = {}): Promise<Fondo[]> {
   let q = supabaseAdmin.from("rg_fondos").select("*").eq("empresa_id", empresaId).order("creado_en", { ascending: false }).limit(500);
   if (filtro.rendidor) q = q.eq("rendidor_correo", filtro.rendidor.toLowerCase());
   if (filtro.estados?.length) q = q.in("estado", filtro.estados);
   const { data, error } = await q;
   revienta("leer los fondos", error);
-  const libro = await libroDe((data ?? []).map((r) => r.id));
-  return (data ?? []).map((r) => aFondo(r, libro.get(r.id) ?? { saldo: 0, transferido: 0, gastado: 0 }));
+  // El archivado se filtra acá y no en la consulta: sin el SQL de archivar la columna no existe y la consulta fallaría.
+  const modo = filtro.archivados ?? "sin";
+  const filas = (data ?? []).filter((r) => (modo === "con" ? true : modo === "solo" ? Boolean(r.archivado_en) : !r.archivado_en));
+  const libro = await libroDe(filas.map((r) => r.id));
+  return filas.map((r) => aFondo(r, libro.get(r.id) ?? { saldo: 0, transferido: 0, gastado: 0 }));
+}
+
+/** Los ids de los fondos archivados de la empresa (vacío si todavía no se corrió el SQL de archivar). */
+export async function idsFondosArchivados(empresaId: string): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin.from("rg_fondos").select("id").eq("empresa_id", empresaId).not("archivado_en", "is", null);
+  if (error) return new Set();
+  return new Set((data ?? []).map((r) => r.id as string));
 }
 
 export async function obtenerFondo(id: string): Promise<Fondo | null> {
