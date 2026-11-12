@@ -324,6 +324,7 @@ export async function gastosEnInformesDe(correo: string): Promise<FilaMiGasto[]>
       informeTitulo: r.titulo_rendicion as string,
       proyectoNombre: g.proyectoNombre ?? null,
       conciliado: Boolean(g.conciliacion),
+      respaldo: g.archivoPath ? { nombre: g.archivoNombre, tipo: g.archivoTipo } : null,
     })),
   );
 }

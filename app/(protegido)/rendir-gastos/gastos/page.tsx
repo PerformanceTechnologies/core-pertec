@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { IconArrowLeft, IconReceipt } from "@tabler/icons-react";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
+import { repetidosDe } from "@/lib/rendidor/duplicados";
 import { gastosEnInformesDe, informesAbiertosDe, obtenerOCrearBolsa } from "@/lib/rendidor/datos";
 import { urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import { listarProveedores, listarProyectos } from "@/lib/rendidor/proveedores";
@@ -22,6 +23,7 @@ export default async function MisGastosPage() {
   const enInformes = bolsa ? await gastosEnInformesDe(yo.correo) : [];
   const empresaId = (await contextoDeEmpresa(usuario.id, usuario.rol).catch(() => null))?.activa?.id;
   const proyectos = bolsa && empresaId ? await listarProyectos(empresaId) : [];
+  const repetidos = bolsa ? await repetidosDe([bolsa.id, ...new Set(enInformes.map((f) => f.informeId).filter((x): x is string => Boolean(x)))]) : {};
   const proveedores = bolsa ? await listarProveedores().catch(() => []) : [];
   const urlsRespaldo: Record<string, string> = {};
   if (bolsa) {
@@ -43,7 +45,7 @@ export default async function MisGastosPage() {
         </div>
       </header>
       {error && <p className="rounded-xl border border-rose-300/60 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700">{error}</p>}
-      {bolsa && <MisGastos proyectos={proyectos} enInformes={enInformes} proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
+      {bolsa && <MisGastos repetidosIniciales={repetidos} proyectos={proyectos} enInformes={enInformes} proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
     </div>
   );
 }

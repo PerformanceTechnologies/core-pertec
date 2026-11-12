@@ -19,7 +19,7 @@ import {
   eliminarRendicion,
   obtenerRendicion,
 } from "@/lib/rendidor/datos";
-import { borrarRespaldosDeRendicion } from "@/lib/rendidor/almacenamiento";
+import { borrarRespaldosDeRendicion, urlFirmadaDeRespaldo } from "@/lib/rendidor/almacenamiento";
 import { crearNotificacion } from "@/lib/buzon";
 import type { GastoRendicion, Rendicion } from "@/lib/rendidor/tipos";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -27,6 +27,8 @@ import { contextoDeEmpresa } from "@/lib/empresas";
 import { auditar, aprobacion, correosConRol, leerParametros, obtenerFondo, rolesDe } from "@/lib/rendidor/fondos";
 import { cerrarInformeAprobado } from "@/lib/rendidor/cierre";
 import { crearProveedorRapido, type ProveedorOpcion } from "@/lib/rendidor/proveedores";
+import { repetidosDe } from "@/lib/rendidor/duplicados";
+import type { Repetido } from "@/lib/rendidor/mis-gastos-modelo";
 import type { EstadoBoleta, RolFondos } from "@/lib/rendidor/fondos-modelo";
 
 /** Los roles del módulo de Fondos para un informe con fondo (vacío si es de los antiguos). */
@@ -391,5 +393,38 @@ export async function crearProveedorAction(razonSocial: string, rut: string): Pr
   } catch (e) {
     if (typeof e === "object" && e !== null && String((e as { digest?: unknown }).digest ?? "").startsWith("NEXT_REDIRECT")) throw e;
     return { ok: false, error: e instanceof Error ? e.message.replace(/^\[contactos\]\s*/, "") : "No pudimos crear el proveedor." };
+  }
+}
+
+// ---------- Gastos repetidos ---------------------------------------------------------
+
+/** Los gastos de esta rendición que parecen repetidos (en cualquier estado), para avisar al ingresarlos. */
+export async function repetidosAction(rendicionId: string): Promise<Record<string, Repetido[]>> {
+  try {
+    const { usuario, rol } = await exigirAccesoRendidor();
+    const r = await obtenerRendicion(rendicionId);
+    if (!r || !puedeAbrirRendicion(r.creadoPor, usuario.id, usuario.rol, rol, r.rindeCorreo, usuario.correo)) return {};
+    return await repetidosDe([rendicionId]);
+  } catch {
+    return {};
+  }
+}
+
+// ---------- Ver el documento de un gasto ---------------------------------------------------
+
+/** Un enlace temporal para ver el documento de respaldo de un gasto (de quien puede abrir esa rendición). */
+export async function respaldoDeGastoAction(rendicionId: string, gastoId: string): Promise<{ ok: true; url: string; nombre: string; esPdf: boolean } | { ok: false; error: string }> {
+  try {
+    const { usuario, rol } = await exigirAccesoRendidor();
+    const r = await obtenerRendicion(rendicionId);
+    if (!r || !puedeAbrirRendicion(r.creadoPor, usuario.id, usuario.rol, rol, r.rindeCorreo, usuario.correo)) return { ok: false, error: "No encontramos ese gasto." };
+    const g = r.gastos.find((x) => x.id === gastoId);
+    if (!g?.archivoPath) return { ok: false, error: "Este gasto no tiene documento." };
+    const url = await urlFirmadaDeRespaldo(g.archivoPath);
+    if (!url) return { ok: false, error: "No pudimos abrir el documento." };
+    return { ok: true, url, nombre: g.archivoNombre || "documento", esPdf: g.archivoTipo === "application/pdf" || g.archivoNombre?.toLowerCase().endsWith(".pdf") };
+  } catch (e) {
+    if (typeof e === "object" && e !== null && String((e as { digest?: unknown }).digest ?? "").startsWith("NEXT_REDIRECT")) throw e;
+    return { ok: false, error: "No pudimos abrir el documento." };
   }
 }

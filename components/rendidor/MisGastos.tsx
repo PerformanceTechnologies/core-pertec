@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { IconArrowRight, IconLoader2, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowRight, IconLoader2, IconPaperclip, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import VisorComprobante, { type Comprobante } from "@/components/rendidor/VisorComprobante";
 import PanelRendicion from "@/components/rendidor/PanelRendicion";
 import { CAMPO } from "@/lib/estilos";
-import { moverGastosAction } from "@/app/(protegido)/rendir-gastos/acciones";
+import { moverGastosAction, respaldoDeGastoAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import type { Rendicion } from "@/lib/rendidor/tipos";
 import type { ProveedorOpcion, ProyectoOpcion } from "@/lib/rendidor/proveedores";
+import { textoRepetido, type Repetido } from "@/lib/rendidor/mis-gastos-modelo";
 import { ETIQUETA_ESTADO_GASTO, TONO_ESTADO_GASTO, esFactura, type EstadoGasto, type FilaMiGasto } from "@/lib/rendidor/mis-gastos-modelo";
 import Link from "next/link";
 import { pesos } from "@/lib/rendidor/fondos-modelo";
@@ -27,12 +29,15 @@ export default function MisGastos({
   proveedores = [],
   enInformes = [],
   proyectos = [],
+  repetidosIniciales = {},
 }: {
   bolsa: Rendicion;
   urlsRespaldo: Record<string, string>;
   informes: { id: string; titulo: string }[];
   proveedores?: ProveedorOpcion[];
   proyectos?: ProyectoOpcion[];
+  /** Los gastos que parecen repetidos, calculados al cargar la página. */
+  repetidosIniciales?: Record<string, Repetido[]>;
   /** Los gastos que ya están en un informe (en revisión o cerrados). */
   enInformes?: FilaMiGasto[];
 }) {
@@ -48,7 +53,7 @@ export default function MisGastos({
   const [idsEdicion, setIdsEdicion] = useState<string[]>([]);
   // El portal solo existe en el navegador: useSyncExternalStore da false en el servidor y true acá.
   const montado = useSyncExternalStore(() => () => {}, () => true, () => false);
-  const cerrarPopup = () => { setAbierto(false); setIdsEdicion([]); };
+  const cerrarPopup = () => { setAbierto(false); setIdsEdicion([]); panel.current?.reiniciar(); };
   useEffect(() => {
     if (!abierto) return;
     const previo = document.body.style.overflow;
@@ -61,11 +66,22 @@ export default function MisGastos({
     };
   }, [abierto]);
   // Para quitar un borrador desde el listado: lo hace el panel (que guarda solo).
-  const panel = useRef<{ quitar: (id: string) => void } | null>(null);
+  const panel = useRef<{ quitar: (id: string) => void; reiniciar: () => void } | null>(null);
+  const [repetidos, setRepetidos] = useState(repetidosIniciales);
   const eliminarBorrador = (f: FilaMiGasto) => {
     if (confirm(`¿Eliminar el gasto de ${f.proveedor?.trim() || "este proveedor"} por ${pesos(f.total)}?`)) panel.current?.quitar(f.id);
   };
-  const abrirNuevo = () => { setIdsEdicion([]); setAbierto(true); };
+  // Ver el documento de un gasto en un popup.
+  const [viendo, setViendo] = useState<Comprobante | null>(null);
+  const [abriendoDoc, setAbriendoDoc] = useState<string | null>(null);
+  const verDocumento = async (f: FilaMiGasto) => {
+    setAbriendoDoc(f.id);
+    const r = await respaldoDeGastoAction(f.informeId ?? bolsa.id, f.id);
+    setAbriendoDoc(null);
+    if (!r.ok) return setError(r.error);
+    setViendo({ url: r.url, nombre: r.nombre, esPdf: r.esPdf });
+  };
+  const abrirNuevo = () => { panel.current?.reiniciar(); setIdsEdicion([]); setAbierto(true); };
   const abrirEdicion = (id: string) => { setIdsEdicion([id]); setAbierto(true); };
   const [filtro, setFiltro] = useState<EstadoGasto | "todos">("todos");
   const vigentes = elegidos.filter((id) => gastos.some((g) => g.id === id));
@@ -75,7 +91,7 @@ export default function MisGastos({
   const filas: FilaMiGasto[] = [
     ...gastos.map((g) => ({
       id: g.id, fecha: g.fecha, proveedor: g.proveedor, numeroDocumento: g.numeroDocumento, categoria: g.categoria,
-      tipoDocumento: g.tipoDocumento, total: Number(g.total) || 0, estado: "borrador" as EstadoGasto, informeId: null, informeTitulo: null, proyectoNombre: g.proyectoNombre ?? null, conciliado: false,
+      tipoDocumento: g.tipoDocumento, total: Number(g.total) || 0, estado: "borrador" as EstadoGasto, informeId: null, informeTitulo: null, proyectoNombre: g.proyectoNombre ?? null, conciliado: false, respaldo: g.archivoPath ? { nombre: g.archivoNombre, tipo: g.archivoTipo } : null,
     })),
     ...enInformes,
   ].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? ""));
@@ -100,13 +116,13 @@ export default function MisGastos({
             </div>
           </div>
           <div className="mt-2 overflow-hidden rounded-lg border border-borde">
-            <div className="hidden md:grid-cols-[1.25rem_4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_6.5rem_minmax(0,1fr)_3.75rem] items-center gap-2.5 border-b border-borde bg-tinta/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gris md:grid">
+            <div className="hidden md:grid-cols-[1.25rem_4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_6.5rem_minmax(0,1fr)_5.25rem] items-center gap-2.5 border-b border-borde bg-tinta/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gris md:grid">
               <span /><span>Fecha</span><span>Proveedor</span><span>Categoría</span><span className="text-right">Total</span><span>Estado</span><span>Informe</span><span />
             </div>
             <ul className="divide-y divide-borde bg-superficie">
               {visibles.length === 0 && <li className="px-4 py-4 text-center text-sm text-gris">{filas.length === 0 ? "Aún no tienes gastos. Pulsa «Agregar nuevo gasto»." : "No hay gastos en este estado."}</li>}
               {visibles.map((f) => (
-                <li key={f.id} className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 px-3 py-1 text-[13px] leading-tight md:grid-cols-[1.25rem_4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_6.5rem_minmax(0,1fr)_3.75rem]">
+                <li key={f.id} className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 px-3 py-1 text-[13px] leading-tight md:grid-cols-[1.25rem_4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_6.5rem_minmax(0,1fr)_5.25rem]">
                   {f.estado === "borrador" ? (
                     <input
                       type="checkbox"
@@ -119,6 +135,7 @@ export default function MisGastos({
                   <span className="hidden text-xs tabular-nums text-gris md:block">{fechaCorta(f.fecha)}</span>
                   <span className="flex min-w-0 items-baseline gap-1.5">
                     <span className="truncate font-semibold text-tinta">{f.proveedor?.trim() || "Sin proveedor"}</span>
+                    {(repetidos[f.id]?.length ?? 0) > 0 && <span className="shrink-0 rounded bg-rose-500/12 px-1 text-[10px] font-semibold text-rose-600" title={repetidos[f.id].map(textoRepetido).join("\n")}>Repetido</span>}
                     {esFactura(f.tipoDocumento) && <span className="shrink-0 text-[10px] font-semibold text-sky-700">Fact.{f.numeroDocumento ? ` ${f.numeroDocumento}` : ""}</span>}
                     <span className="shrink-0 text-[11px] text-gris md:hidden">{fechaCorta(f.fecha)}</span>
                   </span>
@@ -133,6 +150,11 @@ export default function MisGastos({
                   </span>
                   <span className="flex items-center justify-end gap-0.5">
                     <span className={`mr-1 rounded px-1.5 py-px text-[10px] font-semibold md:hidden ${TONO_ESTADO_GASTO[f.estado]}`}>{ETIQUETA_ESTADO_GASTO[f.estado]}</span>
+                    {f.respaldo && (
+                      <button type="button" title="Ver documento" aria-label="Ver documento" onClick={() => verDocumento(f)} className="grid h-6 w-6 place-items-center rounded text-gris-suave transition hover:bg-naranjo/10 hover:text-naranjo">
+                        {abriendoDoc === f.id ? <IconLoader2 size={14} className="animate-spin" /> : <IconPaperclip size={14} />}
+                      </button>
+                    )}
                     {f.estado === "borrador" && (
                       <>
                         <button type="button" title="Editar" aria-label="Editar gasto" onClick={() => abrirEdicion(f.id)} className="grid h-6 w-6 place-items-center rounded text-gris-suave transition hover:bg-naranjo/10 hover:text-naranjo"><IconPencil size={14} /></button>
@@ -181,6 +203,8 @@ export default function MisGastos({
         </section>
       )}
 
+      {viendo && <VisorComprobante comprobante={viendo} onCerrar={() => setViendo(null)} />}
+
       {montado && createPortal(
         <div
           className={abierto ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-tinta/50 p-3 sm:p-6" : "hidden"}
@@ -208,6 +232,7 @@ export default function MisGastos({
               modoPopup
               sinExcel
               controlRef={panel}
+              alCambiarRepetidos={(m) => setRepetidos((prev) => ({ ...prev, ...m }))}
               alGuardar={cerrarPopup}
               soloIds={idsEdicion}
               alAgregarIds={(ids) => setIdsEdicion((prev) => [...prev, ...ids])}

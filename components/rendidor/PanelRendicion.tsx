@@ -19,6 +19,8 @@ import ColaDeFotos from "./ColaDeFotos";
 import ComboProveedor from "./ComboProveedor";
 import type { ProveedorOpcion, ProyectoOpcion } from "@/lib/rendidor/proveedores";
 import ConciliarGasto from "./ConciliarGasto";
+import { textoRepetido, type Repetido } from "@/lib/rendidor/mis-gastos-modelo";
+import { repetidosAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import { ETIQUETA_BOLETA, TONO_BOLETA } from "@/lib/rendidor/fondos-modelo";
 import { revisarBoletaAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import {
@@ -295,6 +297,7 @@ export default function PanelRendicion({
   sinExcel = false,
   alGuardar,
   controlRef,
+  alCambiarRepetidos,
 }: {
   rendicionInicial: Rendicion;
   /** Los proveedores que ya existen (Contactos), para elegir en cada gasto. */
@@ -307,7 +310,9 @@ export default function PanelRendicion({
   /** En el popup: «Guardar gasto» guarda al instante y avisa para cerrar la ventana. */
   alGuardar?: () => void;
   /** Para que quien contiene el panel pueda quitar un gasto (desde el listado). */
-  controlRef?: RefObject<{ quitar: (id: string) => void } | null>;
+  controlRef?: RefObject<{ quitar: (id: string) => void; reiniciar: () => void } | null>;
+  /** Avisa qué gastos parecen repetidos (para marcarlos también en el listado). */
+  alCambiarRepetidos?: (m: Record<string, Repetido[]>) => void;
   /** Sin el botón «Descargar Excel» (los gastos sueltos no tienen planilla: va en el informe). */
   sinExcel?: boolean;
   /** Los proyectos de la empresa, para cargarles cada gasto. */
@@ -568,7 +573,38 @@ export default function PanelRendicion({
     actualizarGasto(gastoId, { archivoPath: "", archivoNombre: "", archivoTipo: "" });
   };
 
-  useImperativeHandle(controlRef, () => ({ quitar: quitarGasto }));
+  useImperativeHandle(controlRef, () => ({
+    quitar: quitarGasto,
+    // Al abrir el popup de nuevo: vuelve a mostrar la elección (a mano / subir documentos).
+    reiniciar: () => {
+      setVerSubida(false);
+      setNuevoManualId(null);
+    },
+  }));
+
+  // Gastos repetidos: se revisan al abrir y después de cada guardado, contra TODOS los gastos
+  // (sueltos, en informe o cerrados).
+  const [repetidos, setRepetidos] = useState<Record<string, Repetido[]>>({});
+  const alRepetidosRef = useRef(alCambiarRepetidos);
+  useEffect(() => {
+    alRepetidosRef.current = alCambiarRepetidos;
+  });
+  const revisarRepetidos = useCallback(async () => {
+    const m = await repetidosAction(rendicion.id);
+    setRepetidos(m);
+    alRepetidosRef.current?.(m);
+  }, [rendicion.id]);
+  useEffect(() => {
+    let vigente = true;
+    repetidosAction(rendicion.id).then((m) => {
+      if (!vigente) return;
+      setRepetidos(m);
+      alRepetidosRef.current?.(m);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [rendicion.id]);
 
   // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
   // de Vercel no da para varios), pero VARIOS REQUESTS A LA VEZ: analizar 16
@@ -788,6 +824,7 @@ export default function PanelRendicion({
       });
       await leerRespuesta(resp);
       setEstadoGuardado("guardado");
+      void revisarRepetidos();
       setGuardadoEn(
         new Intl.DateTimeFormat("es-CL", {
           hour: "2-digit",
@@ -805,7 +842,7 @@ export default function PanelRendicion({
         detalle: e instanceof Error ? e.message : undefined,
       });
     }
-  }, [rendicion.id, rendicion.gastos]);
+  }, [rendicion.id, rendicion.gastos, revisarRepetidos]);
 
   /**
    * Autoguardado: cada cambio en los gastos se persiste solo, con un compás de
@@ -1118,6 +1155,11 @@ export default function PanelRendicion({
                               {ETIQUETA_BOLETA[g.revision?.estado ?? "cargada"]}
                             </span>
                           )}
+                          {(repetidos[g.id]?.length ?? 0) > 0 && (
+                            <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 font-semibold text-rose-600" title={repetidos[g.id].map(textoRepetido).join("\n")}>
+                              Gasto repetido
+                            </span>
+                          )}
                           {g.duplicadoDe && (
                             <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 font-semibold text-rose-600" title={`Mismo RUT, folio y monto que en «${g.duplicadoDe.titulo}»`}>
                               Posible duplicado
@@ -1183,6 +1225,19 @@ export default function PanelRendicion({
                               {est === "aceptada" ? "Aceptar" : est === "observada" ? "Observar" : "Rechazar"}
                             </button>
                           ))}
+                        </div>
+                      )}
+                      {(repetidos[g.id]?.length ?? 0) > 0 && (
+                        <div className="mt-3 rounded-lg border border-rose-300/60 bg-rose-500/[0.06] px-3 py-2 text-xs text-rose-700">
+                          <p className="flex items-center gap-1.5 font-bold"><IconAlertCircle size={14} /> Este gasto parece repetido</p>
+                          <ul className="mt-1 space-y-0.5">
+                            {repetidos[g.id].map((r, k) => (
+                              <li key={k}>
+                                {textoRepetido(r)} · {money(r.total)}
+                                {!r.esBolsa && <> · <a href={`/rendir-gastos/${r.enRendicionId}`} className="font-semibold underline">ver informe</a></>}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       )}
                       <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
