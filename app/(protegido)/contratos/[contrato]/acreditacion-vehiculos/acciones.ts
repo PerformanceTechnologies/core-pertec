@@ -1,5 +1,6 @@
 "use server";
 
+import { volverSiEsInvitado } from "@/lib/invitado-sin-microsoft";
 
 
 import { enEsteContrato } from "@/lib/contratos/contrato-actual";
@@ -133,6 +134,7 @@ function refrescarVehiculo(id: string) {
  */
 export async function conectarSharePointAction(): Promise<void> {
   await exigirAccesoApp(APP);
+  await volverSiEsInvitado(await enEsteContrato(RAIZ));
   await signIn("microsoft-entra-id", { redirectTo: await enEsteContrato(RAIZ) }, { scope: SCOPES_SHAREPOINT });
 }
 

@@ -1,3 +1,4 @@
+import { volverSiEsInvitado } from "@/lib/invitado-sin-microsoft";
 import { signIn } from "@/auth";
 import { SCOPES_SHAREPOINT } from "@/lib/contratos/graph-token";
 
@@ -9,5 +10,6 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const volver = new URL(request.url).searchParams.get("volver") ?? "/";
   const destino = volver.startsWith("/") && !volver.startsWith("//") && !volver.startsWith("/\\") ? volver : "/";
+  await volverSiEsInvitado(destino);
   await signIn("microsoft-entra-id", { redirectTo: destino }, { scope: SCOPES_SHAREPOINT });
 }

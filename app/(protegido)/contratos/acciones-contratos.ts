@@ -1,5 +1,6 @@
 "use server";
 
+import { volverSiEsInvitado } from "@/lib/invitado-sin-microsoft";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { signIn } from "@/auth";
@@ -67,6 +68,7 @@ export async function crearContratoAction(_previo: EstadoForm, form: FormData): 
 export async function conectarParaCrearAction(): Promise<void> {
   const usuario = await exigirAdminDeContratos();
   olvidarTokenDe(usuario.correo);
+  await volverSiEsInvitado("/contratos/nuevo");
   await signIn("microsoft-entra-id", { redirectTo: "/contratos/nuevo" }, { scope: SCOPES_SHAREPOINT });
 }
 

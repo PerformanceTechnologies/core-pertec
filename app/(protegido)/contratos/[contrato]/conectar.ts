@@ -1,5 +1,6 @@
 "use server";
 
+import { volverSiEsInvitado } from "@/lib/invitado-sin-microsoft";
 
 import { enEsteContrato } from "@/lib/contratos/contrato-actual";
 import { signIn } from "@/auth";
@@ -20,5 +21,6 @@ import { SCOPES_SHAREPOINT } from "@/lib/contratos/graph-token";
  */
 export async function conectarSharePointAction(): Promise<void> {
   await exigirAccesoApp("contratos");
+  await volverSiEsInvitado(await enEsteContrato("/contratos"));
   await signIn("microsoft-entra-id", { redirectTo: await enEsteContrato("/contratos") }, { scope: SCOPES_SHAREPOINT });
 }

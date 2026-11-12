@@ -1,5 +1,6 @@
 "use server";
 
+import { volverSiEsInvitado } from "@/lib/invitado-sin-microsoft";
 
 
 import { enEsteContrato } from "@/lib/contratos/contrato-actual";
@@ -319,6 +320,7 @@ export async function eliminarArchivoDePartidaAction(
  */
 async function conectar(m: ModuloArranque): Promise<void> {
   await exigirAccesoApp(MODULOS[m].appSlug);
+  await volverSiEsInvitado(await enEsteContrato(MODULOS[m].ruta));
   await signIn("microsoft-entra-id", { redirectTo: await enEsteContrato(MODULOS[m].ruta) }, { scope: SCOPES_SHAREPOINT });
 }
 
