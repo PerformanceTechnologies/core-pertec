@@ -32,6 +32,7 @@ import {
   IconFileSpreadsheet,
   IconGasStation,
   IconPackage,
+  IconPaperclip,
   IconPencilPlus,
   IconRoad,
   IconSend,
@@ -509,6 +510,33 @@ export default function PanelRendicion({
       ],
     }));
     setTimeout(() => irA(`gasto-${id}`), 50);
+  };
+
+  /** El gasto al que se le está subiendo el respaldo. */
+  const [subiendoRespaldo, setSubiendoRespaldo] = useState<string | null>(null);
+
+  // Adjuntar el documento a un gasto ingresado a mano: se guarda y se ve, sin leerlo con IA.
+  const adjuntarRespaldo = async (gastoId: string, origen: File) => {
+    setSubiendoRespaldo(gastoId);
+    try {
+      const { archivo } = await reducirImagen(origen);
+      const fd = new FormData();
+      fd.append("archivo", archivo);
+      fd.append("rendicionId", rendicion.id);
+      const resp = await fetch("/api/rendidor/respaldo", { method: "POST", body: fd });
+      const { archivoPath } = (await leerRespuesta(resp)) as unknown as { archivoPath: string };
+      setVistasLocales((prev) => ({ ...prev, [gastoId]: URL.createObjectURL(archivo) }));
+      actualizarGasto(gastoId, { archivoPath, archivoNombre: archivo.name, archivoTipo: archivo.type });
+    } catch (e) {
+      avisar({ tono: "error", titulo: "No se pudo subir el documento", detalle: e instanceof Error ? e.message : undefined });
+    } finally {
+      setSubiendoRespaldo(null);
+    }
+  };
+
+  const quitarRespaldo = (gastoId: string) => {
+    setVistasLocales((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== gastoId)));
+    actualizarGasto(gastoId, { archivoPath: "", archivoNombre: "", archivoTipo: "" });
   };
 
   // PASO 1 y 2: subir y analizar. Un comprobante por request (el límite de 60s
@@ -1192,6 +1220,53 @@ export default function PanelRendicion({
                               );
                             })}
                           </span>
+                        </Campo>
+
+                        <Campo etiqueta="IVA" ancho="sm:col-span-1 xl:col-span-2">
+                          <SelectInput
+                            value={(g.ivaManual ?? "") as "afecto" | "exento" | ""}
+                            disabled={yaCargada}
+                            onChange={(v) => actualizarGasto(g.id, { ivaManual: (v || null) as "afecto" | "exento" | null })}
+                            options={[
+                              { value: "" as "afecto" | "exento" | "", label: "Según el tipo de documento" },
+                              { value: "afecto" as "afecto" | "exento" | "", label: "Afecto a IVA (19%)" },
+                              { value: "exento" as "afecto" | "exento" | "", label: "Exento / no afecto" },
+                            ]}
+                          />
+                        </Campo>
+
+                        <Campo etiqueta="Documento de respaldo" ancho="sm:col-span-1 xl:col-span-2">
+                          {g.archivoPath ? (
+                            <span className="flex h-8 items-center gap-2 text-xs text-tinta">
+                              <IconPaperclip size={14} className="shrink-0 text-gris" />
+                              <span className="min-w-0 flex-1 truncate" title={g.archivoNombre}>{g.archivoNombre || "Documento adjunto"}</span>
+                              {!yaCargada && (
+                                <button type="button" onClick={() => quitarRespaldo(g.id)} className="shrink-0 font-semibold text-gris underline underline-offset-2 hover:text-rose-600">Quitar</button>
+                              )}
+                            </span>
+                          ) : yaCargada ? (
+                            <span className="flex h-8 items-center text-xs text-gris">Sin documento</span>
+                          ) : (
+                            <span className="flex h-8 items-center">
+                              <span className="relative inline-flex">
+                                <input
+                                  type="file"
+                                  accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
+                                  disabled={subiendoRespaldo === g.id}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    e.target.value = "";
+                                    if (f) adjuntarRespaldo(g.id, f);
+                                  }}
+                                  className="absolute inset-0 cursor-pointer opacity-0"
+                                />
+                                <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-borde bg-superficie px-3 text-xs font-semibold text-tinta">
+                                  {subiendoRespaldo === g.id ? <RuedaCarga /> : <IconPaperclip size={14} />}
+                                  {subiendoRespaldo === g.id ? "Subiendo…" : "Adjuntar documento"}
+                                </span>
+                              </span>
+                            </span>
+                          )}
                         </Campo>
 
                         <Campo etiqueta="Detalle" ancho="sm:col-span-2 xl:col-span-3">

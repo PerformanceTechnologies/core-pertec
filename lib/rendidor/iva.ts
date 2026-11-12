@@ -165,9 +165,14 @@ export function calcularDesglose(
  * si eso es un error o una advertencia en pantalla.
  */
 export function desgloseDeGasto(
-  gasto: Pick<GastoRendicion, "total" | "tipoDocumento" | "neto" | "iva" | "ivaDesglosado">,
+  gasto: Pick<GastoRendicion, "total" | "tipoDocumento" | "neto" | "iva" | "ivaDesglosado" | "ivaManual">,
 ): DesgloseIva | null {
   if (!gasto.tipoDocumento || gasto.total <= 0) return null;
+
+  // Lo que se marcó a mano manda sobre todo: es quien ingresa el gasto, con el documento en la
+  // mano, el que sabe si es exento. Sin advertencias: no hay nada que revisar, se decidió.
+  if (gasto.ivaManual === "exento") return { neto: gasto.total, iva: 0, total: gasto.total, afecto: false, advertencias: [] };
+  if (gasto.ivaManual === "afecto") return calcularDesglose(gasto.total, gasto.tipoDocumento, null, null, true);
 
   const tratamiento = TRATAMIENTO_DOCUMENTO[gasto.tipoDocumento];
 

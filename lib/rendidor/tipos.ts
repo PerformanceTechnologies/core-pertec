@@ -146,6 +146,12 @@ export interface GastoRendicion {
    * (iva > 0).
    */
   ivaDesglosado?: boolean;
+  /**
+   * Lo que decidió quien ingresó el gasto a mano sobre el IVA, por sobre el default del tipo de
+   * documento: «exento» (sin IVA, neto = total) o «afecto» (19% incluido en el total). Vacío =
+   * según el tipo de documento.
+   */
+  ivaManual?: "afecto" | "exento" | null;
   // Marca los campos que el modelo no pudo leer y que hay que confirmar a mano
   // antes de cargar. La skill es explícita: no inventar datos ilegibles.
   pendientes: string[];
