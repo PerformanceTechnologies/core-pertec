@@ -94,7 +94,9 @@ export default async function FondoPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const fondosParaInforme = f.estado === "activo" && (mio || rol === "admin" || usuario.rol === "admin")
+  // Un fondo con un informe abierto (borrador, en revisión u observado) no admite otro: el máximo es 1 por omisión.
+  const hayAbierto = informes.filter((r) => ["borrador", "enviada", "rechazada"].includes(r.estado)).length >= parametros.maxInformesAbiertos;
+  const fondosParaInforme = f.estado === "activo" && !hayAbierto && (mio || rol === "admin" || usuario.rol === "admin")
     ? [{ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, motivo: f.motivo, esMio: mio }]
     : [];
 

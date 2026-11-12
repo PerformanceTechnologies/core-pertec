@@ -105,9 +105,13 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const actual: Pestana = pestanas.some((p) => p.id === ver) || (esAdmin && ver && ver in TODOS) ? (ver as Pestana) : "inicio";
   const pestanaMarcada: Pestana = TODOS[actual] ?? actual;
 
-  const fondosParaInforme = (revisaAntiguas ? fondos : misFondos)
-    .filter((f) => f.estado === "activo")
-    .map((f) => ({ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, motivo: f.motivo, esMio: f.rendidorCorreo === yo }));
+  // «Nuevo informe» ofrece SOLO mis fondos activos (también a quien administra: a nombre de otra persona se crea desde
+  // la página de ese fondo), y no los que ya llegaron al máximo de informes abiertos (por ejemplo uno en revisión).
+  const abiertosPorFondo = new Map<string, number>();
+  for (const r of todasLasRendiciones) if (r.fondoId && ["borrador", "enviada", "rechazada"].includes(r.estado)) abiertosPorFondo.set(r.fondoId, (abiertosPorFondo.get(r.fondoId) ?? 0) + 1);
+  const fondosParaInforme = misFondos
+    .filter((f) => f.estado === "activo" && (abiertosPorFondo.get(f.id) ?? 0) < parametros.maxInformesAbiertos)
+    .map((f) => ({ id: f.id, codigo: f.codigo, rendidorNombre: f.rendidorNombre, saldo: f.saldo, motivo: f.motivo, esMio: true }));
   const conSaldoAFavor = tiene("asignador") && (actual === "asignar" || actual === "inicio") ? (await fondosConSaldoAFavor(empresaId).catch(() => [])).filter((f) => f.rendidorCorreo !== yo) : [];
   const fondosArchivados = esAdmin && actual === "todos-fondos" ? await listarFondos(empresaId, { archivados: "solo" }).catch(() => [] as Fondo[]) : [];
   const gastosTodos = esAdmin && actual === "todos-gastos" ? await todosLosGastos({ id: empresaId, porOmision: activa!.slug === SLUG_POR_OMISION }, archivados) : [];
