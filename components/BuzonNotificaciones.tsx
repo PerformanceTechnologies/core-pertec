@@ -55,7 +55,7 @@ export default function BuzonNotificaciones({ activa = null, empresas = [] }: { 
       vigente = false;
       clearInterval(t);
     };
-  }, []);
+  }, [activa?.id]);
 
   useEffect(() => {
     if (!abierto) return;
