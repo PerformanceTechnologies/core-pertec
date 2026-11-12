@@ -99,8 +99,8 @@ export default function SolicitarCotizacion({ contactos, correos, empresa, yo, l
           <span className="mb-1.5 block text-[11px] font-semibold text-tinta/70">¿Qué necesitas que te coticen? *</span>
           <ul className="space-y-2">
             {items.map((it, i) => (
-              <li key={i} className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_2rem] items-center gap-2">
-                <input value={it.descripcion} onChange={(e) => cambiar(i, { descripcion: e.target.value })} placeholder="Producto o servicio" aria-label={`Descripción del ítem ${i + 1}`} className={CAMPO} />
+              <li key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-2 rounded-xl border border-borde/50 p-2 sm:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_2rem] sm:border-0 sm:p-0">
+                <input value={it.descripcion} onChange={(e) => cambiar(i, { descripcion: e.target.value })} placeholder="Producto o servicio" aria-label={`Descripción del ítem ${i + 1}`} className={`${CAMPO} col-span-3 sm:col-span-1`} />
                 <input value={it.cantidad} onChange={(e) => cambiar(i, { cantidad: e.target.value })} inputMode="decimal" aria-label="Cantidad" className={`${CAMPO} text-right`} />
                 <input value={it.unidad} onChange={(e) => cambiar(i, { unidad: e.target.value })} aria-label="Unidad" className={CAMPO} />
                 <button type="button" onClick={() => setItems((ls) => (ls.length === 1 ? [{ ...ITEM }] : ls.filter((_, j) => j !== i)))} aria-label="Quitar ítem" className="grid h-9 w-8 place-items-center rounded-lg text-gris hover:bg-rose-500/10 hover:text-alerta"><IconTrash size={15} /></button>
