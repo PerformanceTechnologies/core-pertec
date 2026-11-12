@@ -49,15 +49,15 @@ export default function ListaRendiciones({
   const cuenta = (k: Filtro) => (k === "todas" ? base.length : base.filter((r) => r.estado === k).length);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2.5">
         <div className="flex flex-wrap gap-1.5">
           {FILTROS.filter((f) => f.k === "todas" || cuenta(f.k) > 0 || f.k === filtro).map((f) => (
             <button
               key={f.k}
               type="button"
               onClick={() => setFiltro(f.k)}
-              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                 filtro === f.k ? "border-tinta bg-tinta text-superficie" : "border-borde bg-superficie text-gris hover:border-naranjo/50 hover:text-tinta"
               }`}
             >
@@ -72,24 +72,29 @@ export default function ListaRendiciones({
               Solo mías
             </label>
           )}
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-56">
             <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris" />
-            <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar por título o persona" className={`${CAMPO} pl-9`} />
+            <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar por título o persona" className={`${CAMPO} !h-9 pl-9`} />
           </div>
         </div>
       </div>
 
       {visibles.length === 0 ? (
-        <div className={`${TARJETA} flex flex-col items-center gap-2 px-6 py-12 text-center`}>
-          <IconReceipt2 size={32} stroke={1.5} className="text-gris-suave" />
+        <div className={`${TARJETA} flex flex-col items-center gap-2 px-6 py-8 text-center`}>
+          <IconReceipt2 size={28} stroke={1.5} className="text-gris-suave" />
           <p className="text-sm text-gris">{rendiciones.length === 0 ? "Todavía no hay rendiciones. Crea la primera con «Nueva rendición»." : "Ninguna rendición en este filtro."}</p>
         </div>
       ) : (
-        <ul className={`${TARJETA} divide-y divide-borde overflow-hidden`}>
-          {visibles.map((r) => (
-            <Fila key={r.id} r={r} revisa={revisa} borrar={borrar} />
-          ))}
-        </ul>
+        <div className="overflow-hidden rounded-lg border border-borde bg-superficie">
+          <div className="hidden md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_7.5rem_6rem_7rem_8.5rem_3.75rem] items-center gap-2.5 border-b border-borde bg-tinta/[0.03] py-1 pl-4 pr-3 text-[10px] font-semibold uppercase tracking-wide text-gris md:grid">
+            <span>Informe</span><span>Persona</span><span>Gastos</span><span>Fecha</span><span className="text-right">Total</span><span>Saldo</span><span>Estado</span><span />
+          </div>
+          <ul className="divide-y divide-borde">
+            {visibles.map((r) => (
+              <Fila key={r.id} r={r} revisa={revisa} borrar={borrar} />
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -116,47 +121,34 @@ function Fila({ r, revisa, borrar }: { r: ResumenRendicion; revisa: boolean; bor
     });
   }
 
+  const salgoTexto = r.montoAsignado > 0 && !r.fondoId ? (saldo > 0 ? `Reembolsar ${money(saldo)}` : saldo < 0 ? `Reintegrar ${money(-saldo)}` : "Cuadra con el fondo") : "";
+  const salgoTono = saldo > 0 ? "text-emerald-600" : saldo < 0 ? "text-amber-700" : "text-gris";
   return (
     <li className={`group relative transition hover:bg-tinta/[0.02] ${pendiente ? "opacity-50" : ""}`}>
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: ESTILO_ESTADO_RENDICION[r.estado].barra }} />
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3.5 pl-5 pr-3">
-        <Link href={`/rendir-gastos/${r.id}`} className="flex min-w-0 flex-1 basis-full items-center gap-3 sm:basis-0">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-naranjo/10 text-naranjo">
-            <IconReceipt2 size={20} stroke={1.75} />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-bold text-tinta group-hover:text-naranjo">{r.tituloRendicion}</span>
-            <span className="block truncate text-xs text-gris">
-              {r.nombreQuienRinde}
-              {" · "}{r.cantidadGastos} {r.cantidadGastos === 1 ? "comprobante" : "comprobantes"} · {queFecha} {fechaCorta(fecha)}
-            </span>
-            {r.estado === "rechazada" && r.motivoRechazo && (
-              <span className="mt-0.5 block truncate text-xs text-rose-600">Motivo: {r.motivoRechazo}</span>
-            )}
-          </span>
+      <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: ESTILO_ESTADO_RENDICION[r.estado].barra }} />
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 py-1.5 pl-4 pr-3 text-[13px] leading-tight md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_5.5rem_7.5rem_6rem_7rem_8.5rem_3.75rem]">
+        <Link href={`/rendir-gastos/${r.id}`} className="min-w-0">
+          <span className="block truncate font-bold text-tinta group-hover:text-naranjo">{r.tituloRendicion}</span>
+          <span className="block truncate text-[11px] text-gris md:hidden">{r.nombreQuienRinde} · {r.cantidadGastos} {r.cantidadGastos === 1 ? "comprobante" : "comprobantes"} · {queFecha} {fechaCorta(fecha)}</span>
+          {r.estado === "rechazada" && r.motivoRechazo && <span className="block truncate text-[11px] text-rose-600">Motivo: {r.motivoRechazo}</span>}
         </Link>
-
-        <div className="flex items-center gap-5 pl-[3.25rem] sm:pl-0">
-          <div className="text-right">
-            <p className="font-condensed text-lg font-bold tabular-nums text-tinta">{money(r.totalGastos)}</p>
-            {r.montoAsignado > 0 && !r.fondoId && (
-              <p className={`text-[11px] tabular-nums ${saldo > 0 ? "text-emerald-600" : saldo < 0 ? "text-amber-700" : "text-gris"}`}>
-                {saldo > 0 ? `Reembolsar ${money(saldo)}` : saldo < 0 ? `Reintegrar ${money(-saldo)}` : "Cuadra con el fondo"}
-              </p>
-            )}
-          </div>
-          <ChipEstadoRendicion estado={r.estado} />
-          <div className="flex w-16 items-center justify-end gap-1">
-            {puedeBorrar && (
-              <button type="button" onClick={() => { setErrorBorrado(null); setConfirmando(true); }} disabled={pendiente} title="Borrar" className="grid h-8 w-8 place-items-center rounded-lg text-gris-suave opacity-0 transition max-lg:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100">
-                <IconTrash size={16} />
-              </button>
-            )}
-            <Link href={`/rendir-gastos/${r.id}`} aria-label="Abrir" className="text-gris-suave group-hover:text-naranjo">
-              <IconChevronRight size={18} />
-            </Link>
-          </div>
-        </div>
+        <span className="hidden truncate text-xs text-tinta md:block">{r.nombreQuienRinde}</span>
+        <span className="hidden text-xs tabular-nums text-gris md:block">{r.cantidadGastos} {r.cantidadGastos === 1 ? "gasto" : "gastos"}</span>
+        <span className="hidden whitespace-nowrap text-xs text-gris md:block">{queFecha} {fechaCorta(fecha)}</span>
+        <span className="text-right font-semibold tabular-nums text-tinta">{money(r.totalGastos)}</span>
+        <span className={`hidden truncate text-[11px] tabular-nums md:block ${salgoTono}`}>{salgoTexto || "—"}</span>
+        <span className="hidden md:block"><ChipEstadoRendicion estado={r.estado} /></span>
+        <span className="col-span-2 flex items-center justify-end gap-1 md:col-span-1">
+          <span className="md:hidden"><ChipEstadoRendicion estado={r.estado} /></span>
+          {puedeBorrar && (
+            <button type="button" onClick={() => { setErrorBorrado(null); setConfirmando(true); }} disabled={pendiente} title="Borrar" className="grid h-6 w-6 place-items-center rounded text-gris-suave opacity-0 transition max-lg:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100">
+              <IconTrash size={14} />
+            </button>
+          )}
+          <Link href={`/rendir-gastos/${r.id}`} aria-label="Abrir" className="text-gris-suave group-hover:text-naranjo">
+            <IconChevronRight size={15} />
+          </Link>
+        </span>
       </div>
       <VentanaModal abierta={confirmando} alCerrar={() => !pendiente && setConfirmando(false)} titulo="Eliminar informe" descripcion={`«${r.tituloRendicion}» se borra con sus ${r.cantidadGastos} ${r.cantidadGastos === 1 ? "comprobante" : "comprobantes"}. No se puede deshacer.`} ancho="max-w-md">
         <div className="space-y-4">
