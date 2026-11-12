@@ -247,11 +247,17 @@ export default function EditorSolicitud({
     }
   }
 
+  // Al cerrar, la ventana devuelve el foco al buscador y este volvía a abrir su lista: se suelta el foco.
+  function cerrarHistorial() {
+    setHistorialDe(null);
+    setTimeout(() => (document.activeElement as HTMLElement | null)?.blur(), 0);
+  }
+
   /** Rellena el formulario con una OC anterior del mismo proveedor (sin tocar proveedor, proyecto ni solicitante). */
   async function copiarHistorica(d: DetalleOcHistorica) {
     const hayItems = lineas.some((l) => l.descripcion.trim());
     if (hayItems && !(await confirmar({ titulo: "¿Copiar esta OC?", ayuda: "Reemplazará los ítems y las condiciones que ya escribiste. Podrás revisar todo antes de guardar.", boton: "Copiar y reemplazar" }))) return;
-    setHistorialDe(null);
+    cerrarHistorial();
     if (d.titulo) setTitulo(d.titulo);
     if (d.atencion) setAtencion(d.atencion);
     if (d.proveedorCorreo) setProveedorCorreo(d.proveedorCorreo);
@@ -363,7 +369,7 @@ export default function EditorSolicitud({
                 Ver historial de este proveedor
               </button>
             )}
-            <HistorialProveedor proveedor={historialDe} alCerrar={() => setHistorialDe(null)} alCopiar={copiarHistorica} />
+            <HistorialProveedor proveedor={historialDe} alCerrar={cerrarHistorial} alCopiar={copiarHistorica} />
             {proveedorSinContacto && !proveedorId && (
               <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] px-2.5 py-1.5 text-xs text-tinta/80">
                 <IconAlertTriangle size={14} className="shrink-0 text-aviso" />
