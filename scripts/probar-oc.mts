@@ -64,10 +64,10 @@ for (const e of EMPRESAS) {
   assert.ok(cuerpo.includes("<h2>Condiciones generales</h2>") && cuerpo.indexOf("Facturar a") > cuerpo.indexOf("<h2>Condiciones generales</h2>"), "«Facturar a» va al final");
   assert.ok(cuerpo.indexOf("Ferretería Industrial Ltda.") < cuerpo.indexOf('<table class="lineas">'), "el proveedor va arriba");
   assert.ok(!cuerpo.includes("<h2>Proveedor</h2>"), "la casilla del proveedor no lleva el rótulo «Proveedor»");
-  // Entrega y pago sigue a la tabla, a la izquierda de los totales y sin hueco: va ANTES de los totales en el mismo bloque y antes de las condiciones.
+  // Bajo la tabla: primero el total (a la derecha) y UNA LÍNEA MÁS ABAJO, a la izquierda, entrega y pago; después las condiciones.
   assert.ok(cuerpo.includes('class="bajo-tabla"') && cuerpo.indexOf('class="bajo-tabla"') > cuerpo.indexOf("</table>"), "hay un bloque justo bajo la tabla");
-  assert.ok(cuerpo.indexOf("<h2>Entrega y pago</h2>") > cuerpo.indexOf('class="bajo-tabla"') && cuerpo.indexOf("<h2>Entrega y pago</h2>") < cuerpo.indexOf('class="totales"'), "entrega y pago, a la izquierda de los totales");
-  assert.ok(cuerpo.indexOf('class="totales"') < cuerpo.indexOf("<h2>Condiciones generales</h2>"), "las condiciones siguen a los totales");
+  assert.ok(cuerpo.indexOf('class="totales"') > cuerpo.indexOf('class="bajo-tabla"') && cuerpo.indexOf("<h2>Entrega y pago</h2>") > cuerpo.indexOf('class="totales"'), "entrega y pago va DEBAJO del total");
+  assert.ok(cuerpo.indexOf("<h2>Entrega y pago</h2>") < cuerpo.indexOf("<h2>Condiciones generales</h2>"), "las condiciones siguen a entrega y pago");
   assert.ok(!html.includes("margin-top: auto"), "nada empuja el cierre al pie: no queda un hueco en blanco");
   assert.ok(!cuerpo.includes("Mantención Planta Norte") && !cuerpo.includes("Proyecto"), "el PDF no lleva el proyecto");
   assert.ok(!cuerpo.includes("Solicitado por") && !cuerpo.includes("Aprobado por") && !cuerpo.includes("Visado por"), "sin las tres firmas");
