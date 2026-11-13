@@ -36,15 +36,15 @@ export default async function LayoutDelContrato({ children }: { children: React.
           </Link>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-            <div className="flex min-w-0 items-center gap-4">
+            <div className="flex min-w-0 flex-[1_1_16rem] flex-wrap items-center gap-3 sm:gap-4">
               <LogoDelContrato
                 slug={contrato.slug}
                 url={urlDelLogo(contrato)}
                 nombre={contrato.nombre}
                 editable={usuario.rol === "admin"}
               />
-              <div className="min-w-0">
-              <h1 className="font-condensed text-2xl font-bold uppercase leading-[0.95] tracking-tight text-tinta [overflow-wrap:anywhere] sm:text-3xl">
+              <div className="min-w-0 flex-[1_1_10rem]">
+              <h1 className="font-condensed text-2xl font-bold uppercase leading-[0.95] tracking-tight text-tinta [overflow-wrap:break-word] sm:text-3xl">
                 {contrato.nombre}
               </h1>
               {(contrato.cliente || contrato.numero) && (
