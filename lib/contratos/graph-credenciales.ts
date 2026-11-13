@@ -13,7 +13,7 @@ import { ClientSecretCredential } from "@azure/identity";
  */
 let credencialApp: ClientSecretCredential | null = null;
 let tokenApp: { token: string; hasta: number } | null = null;
-async function tokenDeAplicacion(): Promise<string> {
+export async function tokenDeAplicacion(): Promise<string> {
   if (tokenApp && tokenApp.hasta > Date.now()) return tokenApp.token;
   const { AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET } = process.env;
   if (!AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {

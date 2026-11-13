@@ -37,9 +37,15 @@ export async function subirRespaldo(
   const extension = mimeType === "application/pdf" ? "pdf" : mimeType.replace("image/", "");
   // En SharePoint: «ARCHIVOS CORE/Rendiciones/<año>/<quién> - <título> (<id>)/». Si falla, al
   // bucket de siempre.
-  const { data: r } = await supabaseAdmin.from("rendiciones").select("nombre_quien_rinde, titulo_rendicion, creado_en").eq("id", rendicionId).maybeSingle();
+  const { data: r } = await supabaseAdmin.from("rendiciones").select("*").eq("id", rendicionId).maybeSingle();
+  // Zeus y Performance Service van en una carpeta con su nombre; PERTEC queda donde siempre.
+  let empresa: string | null = null;
+  if (r?.empresa_id) {
+    const { data: e } = await supabaseAdmin.from("empresas").select("slug, nombre").eq("id", r.empresa_id).maybeSingle();
+    if (e && e.slug !== "pertec") empresa = e.nombre;
+  }
   return guardarArchivo({
-    carpeta: carpetaRendicion({ id: rendicionId, quien: r?.nombre_quien_rinde, titulo: r?.titulo_rendicion, creadoEn: r?.creado_en }),
+    carpeta: carpetaRendicion({ id: rendicionId, quien: r?.nombre_quien_rinde, titulo: r?.titulo_rendicion, creadoEn: r?.creado_en, empresa }),
     nombre: nombreUnico(nombreOriginal ?? "respaldo", extension),
     contenido,
     tipo: mimeType,

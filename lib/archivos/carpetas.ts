@@ -63,8 +63,9 @@ export const carpetaOcProveedor = (empresa: string | null | undefined, proveedor
 export const carpetaVentaCliente = (empresa: string | null | undefined, cliente: string | null | undefined) =>
   `Gestion financiera/${legible(empresa, "Empresa")}/Ventas/${legible(cliente, "Sin cliente")}`;
 
-export const carpetaRendicion = (r: { id: string; quien?: string | null; titulo?: string | null; creadoEn?: string | null }) =>
-  `Rendiciones/${(r.creadoEn ?? new Date().toISOString()).slice(0, 4)}/${legible([r.quien, r.titulo].filter(Boolean).join(" - "), "Rendicion")} (${corto(r.id)})`;
+/** Rendiciones de PERTEC en «Rendiciones/<año>/…»; las de otra empresa en «Rendiciones/<Empresa>/<año>/…». */
+export const carpetaRendicion = (r: { id: string; quien?: string | null; titulo?: string | null; creadoEn?: string | null; empresa?: string | null }) =>
+  `Rendiciones/${r.empresa ? `${legible(r.empresa, "Empresa")}/` : ""}${(r.creadoEn ?? new Date().toISOString()).slice(0, 4)}/${legible([r.quien, r.titulo].filter(Boolean).join(" - "), "Rendicion")} (${corto(r.id)})`;
 
 export const CARPETA_OFERTAS_EMITIDAS = "Ofertas/Emitidas";
 export const CARPETA_OFERTAS_IMAGENES = "Ofertas/Imagenes";

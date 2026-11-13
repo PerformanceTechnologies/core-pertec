@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { auth } from "@/auth";
-import { obtenerAccessToken, SinCredencialesDeGraph } from "@/lib/contratos/graph-credenciales";
+import { obtenerAccessToken, SinCredencialesDeGraph, tokenDeAplicacion } from "@/lib/contratos/graph-credenciales";
 
 // -----------------------------------------------------------------------------
 //  Los documentos del Core viven en SharePoint (sitio COREPERTEC, carpeta «ARCHIVOS CORE»).
@@ -53,6 +53,30 @@ function carpetaRaiz(): string {
  * Graph con el token de SharePoint de la persona que está usando el Core. Lanza
  * SinCredencialesDeGraph si no hay sesión o si su cuenta todavía no dio acceso a SharePoint.
  */
+/** Graph con la aplicación del Core (no depende de que la persona haya dado acceso a SharePoint). */
+async function clienteApp(): Promise<Client> {
+  const token = await tokenDeAplicacion();
+  return Client.init({ authProvider: (done) => done(null, token) });
+}
+
+/**
+ * Corre con la cuenta de la persona y, si eso falla (no dio acceso a SharePoint, no tiene permiso en el
+ * sitio, o no hay sesión), vuelve a intentar con la aplicación del Core. Así un archivo no se queda en
+ * Supabase solo porque quien lo subió nunca conectó SharePoint.
+ */
+async function conRespaldoApp<T>(fn: (graph: Client) => Promise<T>): Promise<T> {
+  try {
+    return await fn(await cliente());
+  } catch (e) {
+    try {
+      return await fn(await clienteApp());
+    } catch (e2) {
+      console.error("[archivos] SharePoint falló con la persona y con la app del Core:", e instanceof Error ? e.message : e, "|", e2 instanceof Error ? e2.message : e2);
+      throw e;
+    }
+  }
+}
+
 async function cliente(): Promise<Client> {
   const correo = (await auth())?.user?.email;
   if (!correo) throw new SinCredencialesDeGraph("Inicia sesión en el Core para usar los archivos de SharePoint.");
@@ -111,8 +135,11 @@ function rutaCompleta(carpeta: string, nombre?: string): string {
  * queda en el historial de versiones del sitio).
  */
 export async function subirASharePoint(carpeta: string, nombre: string, contenido: Buffer, tipo: string, reemplazar = false): Promise<string> {
+  return conRespaldoApp((graph) => subirCon(graph, carpeta, nombre, contenido, tipo, reemplazar));
+}
+
+async function subirCon(graph: Client, carpeta: string, nombre: string, contenido: Buffer, tipo: string, reemplazar: boolean): Promise<string> {
   const conflicto = reemplazar ? "replace" : "rename";
-  const graph = await cliente();
   const s = await sitio(graph);
   const ruta = codificarRuta(rutaCompleta(carpeta, nombre));
 
@@ -162,7 +189,10 @@ export async function bajarDeSharePoint(ref: string): Promise<ArchivoBajado> {
 
 /** La respuesta de descarga sin leerla (para devolverla en streaming), con su tipo y nombre. */
 export async function abrirDeSharePoint(ref: string): Promise<{ respuesta: Response; tipo: string; nombre: string; tamano: number }> {
-  const graph = await cliente();
+  return conRespaldoApp((graph) => abrirCon(graph, ref));
+}
+
+async function abrirCon(graph: Client, ref: string): Promise<{ respuesta: Response; tipo: string; nombre: string; tamano: number }> {
   const s = await sitio(graph);
   // Sin $select: con una lista de campos, Graph deja fuera el enlace de descarga.
   const item = await graph.api(`/sites/${s}/drive/items/${encodeURIComponent(idDeReferencia(ref))}`).get();
