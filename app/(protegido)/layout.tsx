@@ -10,7 +10,6 @@ import NavInferior from "@/components/NavInferior";
 import PanelIndicadores from "@/components/finanzas/PanelIndicadores";
 import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
-import { tieneDatosCargados } from "@/lib/empresas-modelo";
 import { filtrarAppsDelUsuario, subpanelesFinanzasDelMenu } from "@/lib/menu-usuario";
 
 // Sin caché: cada navegación vuelve a consultar Supabase, así que si el
@@ -42,8 +41,8 @@ export default async function LayoutProtegido({ children }: { children: React.Re
     subpanelesFinanzasDelMenu(usuario, apps),
     veContratos ? listarContratosDelMenu() : Promise.resolve([]),
   ]);
-  const conDatos = tieneDatosCargados(empresa.activa);
-  const contratos = conDatos ? contratosDelMenu : [];
+  // Los contratos del menú ya vienen solo de la empresa activa.
+  const contratos = contratosDelMenu;
 
   return (
     <div className="min-h-screen" data-empresa={empresa.activa?.slug ?? "pertec"}>

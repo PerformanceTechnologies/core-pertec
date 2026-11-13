@@ -1,5 +1,4 @@
 import { IconLayoutKanban } from "@tabler/icons-react";
-import FiltroDeEmpresa from "@/components/FiltroDeEmpresa";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { SLUG_APP_TAREAS } from "@/lib/tareas-modelo";
 
@@ -22,7 +21,7 @@ export default async function LayoutTareas({ children }: { children: React.React
           </p>
         </div>
       </header>
-      <FiltroDeEmpresa>{children}</FiltroDeEmpresa>
+      <>{children}</>
     </div>
   );
 }

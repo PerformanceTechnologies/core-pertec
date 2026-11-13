@@ -1,4 +1,5 @@
 import "server-only";
+import { conEmpresa, empresaActivaId, soloDe } from "./empresa-activa";
 import { supabaseAdmin } from "./supabase-admin";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
@@ -97,7 +98,7 @@ export async function crearModelo(d: { marcaId: string; nombre: string; categori
 
 /** Todos los vehículos activos con marca, modelo y su última lectura de odómetro. */
 export async function listarVehiculos(incluirBajas = true): Promise<VehiculoConDatos[]> {
-  let consulta = supabaseAdmin.from(T.vehiculos).select("*").eq("activo", true).order("patente");
+  let consulta = soloDe(supabaseAdmin.from(T.vehiculos).select("*").eq("activo", true), await empresaActivaId()).order("patente");
   if (!incluirBajas) consulta = consulta.neq("estado", "baja");
   const [vehiculos, modelos, marcas, lecturas] = await Promise.all([
     consulta,
@@ -142,7 +143,7 @@ const aFila = (d: Partial<DatosVehiculo>) => {
 };
 
 export async function crearVehiculo(d: DatosVehiculo, creadoPor: string): Promise<string> {
-  const { data, error } = await supabaseAdmin.from(T.vehiculos).insert({ ...aFila(d), creado_por: creadoPor }).select("id").single();
+  const { data, error } = await supabaseAdmin.from(T.vehiculos).insert(await conEmpresa({ ...aFila(d), creado_por: creadoPor })).select("id").single();
   if (error?.code === "23505") throw new Error("[flota] Ya hay un vehículo con esa patente.");
   revienta("crear el vehículo", error);
   if (d.conductor) await abrirAsignacion(data!.id, d.conductor, d.faena, creadoPor);
@@ -237,7 +238,7 @@ export async function eliminarServicio(id: string): Promise<void> {
 // ---------- Contratos --------------------------------------------------------
 
 export async function listarContratos(filtro: { vehiculoId?: string } = {}): Promise<Contrato[]> {
-  let q = supabaseAdmin.from(T.contratos).select("*").order("fin", { ascending: true, nullsFirst: false });
+  let q = soloDe(supabaseAdmin.from(T.contratos).select("*"), await empresaActivaId()).order("fin", { ascending: true, nullsFirst: false });
   if (filtro.vehiculoId) q = q.eq("vehiculo_id", filtro.vehiculoId);
   const { data, error } = await q;
   revienta("listar contratos", error);
@@ -246,6 +247,7 @@ export async function listarContratos(filtro: { vehiculoId?: string } = {}): Pro
 
 export async function crearContrato(d: Omit<Contrato, "id" | "cerrado">, creadoPor: string): Promise<void> {
   const { error } = await supabaseAdmin.from(T.contratos).insert({
+    ...(await conEmpresa({})),
     vehiculo_id: d.vehiculoId, tipo: d.tipo, proveedor: d.proveedor, referencia: d.referencia, inicio: d.inicio,
     fin: d.fin, costo_inicial: d.costoInicial, costo_recurrente: d.costoRecurrente, frecuencia: d.frecuencia,
     notas: d.notas, creado_por: creadoPor,

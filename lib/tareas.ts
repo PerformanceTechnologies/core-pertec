@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { conEmpresa, empresaActivaId, soloDe } from "./empresa-activa";
 import { supabaseAdmin } from "./supabase-admin";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
@@ -52,7 +53,7 @@ function revienta(contexto: string, error: { message: string } | null): void {
 
 /** Las tareas que `correo` puede ver: las de vista general y las privadas donde participa. */
 export async function listarTareas(correo: string): Promise<Tarea[]> {
-  const { data, error } = await supabaseAdmin.from(TABLA).select("*").order("orden");
+  const { data, error } = await soloDe(supabaseAdmin.from(TABLA).select("*"), await empresaActivaId()).order("orden");
   revienta("listar tareas", error);
   return (data ?? []).map(aTarea).filter((t) => puedeVerTarea(t, correo));
 }
@@ -72,10 +73,10 @@ export interface DatosTarea {
 export async function crearTarea(estado: EstadoTarea, d: DatosTarea, creadoPor: string): Promise<string> {
   const { data: ultima } = await supabaseAdmin
     .from(TABLA).select("orden").eq("estado", estado).order("orden", { ascending: false }).limit(1).maybeSingle();
-  const { data, error } = await supabaseAdmin.from(TABLA).insert({
+  const { data, error } = await supabaseAdmin.from(TABLA).insert(await conEmpresa({
     titulo: d.titulo, descripcion: d.descripcion, prioridad: d.prioridad, responsables: d.responsables, asignado_por: d.asignadoPor, visible_general: d.visibleGeneral,
     fecha_inicio: d.fechaInicio, fecha_limite: d.fechaLimite, estado, orden: Number(ultima?.orden ?? 0) + 1000, creado_por: creadoPor,
-  }).select("id").single();
+  })).select("id").single();
   revienta("crear tarea", error);
   return data!.id as string;
 }
@@ -209,7 +210,7 @@ export async function rutasDeTarea(tareaId: string): Promise<string[]> {
 
 /** Las tareas no hechas donde `correo` es responsable (sin importar la visibilidad: son suyas). */
 export async function tareasPendientesDe(correo: string): Promise<Tarea[]> {
-  const { data, error } = await supabaseAdmin.from(TABLA).select("*").neq("estado", "hecho");
+  const { data, error } = await soloDe(supabaseAdmin.from(TABLA).select("*").neq("estado", "hecho"), await empresaActivaId());
   revienta("leer tareas pendientes", error);
   const c = correo.toLowerCase();
   return (data ?? []).map(aTarea).filter((t) => t.responsables.some((r) => r.toLowerCase() === c));
@@ -221,7 +222,7 @@ export async function tareasPendientesDe(correo: string): Promise<Tarea[]> {
  * que se terminó.
  */
 export async function tareasDeMiDia(correo: string): Promise<Tarea[]> {
-  const { data, error } = await supabaseAdmin.from(TABLA).select("*");
+  const { data, error } = await soloDe(supabaseAdmin.from(TABLA).select("*"), await empresaActivaId());
   revienta("leer tareas de Mi Día", error);
   const c = correo.toLowerCase();
   return (data ?? []).map(aTarea).filter((t) => (t.asignadoPor ?? "").toLowerCase() === c || t.responsables.some((r) => r.toLowerCase() === c));

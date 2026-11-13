@@ -1,4 +1,5 @@
 import "server-only";
+import { conEmpresa, empresaActivaId, soloDe } from "./empresa-activa";
 import { supabaseAdmin } from "./supabase-admin";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
@@ -132,13 +133,16 @@ export async function listarCategorias(): Promise<Categoria[]> {
 }
 
 export async function listarAlmacenes(): Promise<Almacen[]> {
-  const { data, error } = await supabaseAdmin.from(T.almacenes).select("*").order("nombre");
+  const { data, error } = await soloDe(supabaseAdmin.from(T.almacenes).select("*"), await empresaActivaId()).order("nombre");
   revienta("listar almacenes", error);
   return (data ?? []).map(aAlmacen);
 }
 
 export async function listarUbicaciones(incluirInactivas = false): Promise<Ubicacion[]> {
+  // Las internas son de cada empresa; las virtuales (proveedor, cliente, ajuste…) se comparten.
+  const emp = await empresaActivaId();
   let q = supabaseAdmin.from(T.ubicaciones).select("*").order("tipo").order("nombre");
+  if (emp) q = q.or(`empresa_id.eq.${emp},tipo.neq.interna`);
   if (!incluirInactivas) q = q.eq("activo", true);
   const { data, error } = await q;
   revienta("listar ubicaciones", error);
@@ -172,7 +176,7 @@ export interface ProductoConStock extends Producto {
 /** Productos con su stock total (solo cuenta ubicaciones internas). */
 export async function listarProductosConStock(): Promise<ProductoConStock[]> {
   const [productos, quants, internas, pendientes] = await Promise.all([
-    supabaseAdmin.from(T.productos).select("*").eq("activo", true).order("nombre"),
+    soloDe(supabaseAdmin.from(T.productos).select("*").eq("activo", true), await empresaActivaId()).order("nombre"),
     supabaseAdmin.from(T.quants).select("producto_id, ubicacion_id, cantidad, reservado"),
     idsInternos(),
     supabaseAdmin
@@ -317,7 +321,7 @@ export interface FiltroTransferencias {
 }
 
 export async function listarTransferencias(filtro: FiltroTransferencias = {}): Promise<Transferencia[]> {
-  let q = supabaseAdmin.from(T.transferencias).select("*").order("creado_en", { ascending: false }).limit(200);
+  let q = soloDe(supabaseAdmin.from(T.transferencias).select("*"), await empresaActivaId()).order("creado_en", { ascending: false }).limit(200);
   if (filtro.clase) q = q.eq("clase", filtro.clase);
   if (filtro.estado) q = q.eq("estado", filtro.estado);
   const { data, error } = await q;
@@ -384,6 +388,7 @@ export async function crearTransferencia(datos: {
   const { data: creada, error: errT } = await supabaseAdmin
     .from(T.transferencias)
     .insert({
+      ...(await conEmpresa({})),
       referencia,
       tipo_operacion_id: tipo.id,
       clase: tipo.clase,
@@ -484,6 +489,7 @@ export async function ajustarInventario(datos: {
   const { data: creada, error } = await supabaseAdmin
     .from(T.transferencias)
     .insert({
+      ...(await conEmpresa({})),
       referencia, tipo_operacion_id: tipo.id, clase: "ajuste",
       ubicacion_origen_id: origen, ubicacion_destino_id: destino,
       nota: "Ajuste de inventario", creado_por: datos.creadoPor ?? null,
@@ -696,6 +702,7 @@ export async function crearProducto(d: {
   estadoOperativo?: string;
 }): Promise<string> {
   const { data, error } = await supabaseAdmin.from(T.productos).insert({
+    ...(await conEmpresa({})),
     nombre: d.nombre, sku: d.sku || null, ...(d.marca ? { marca: d.marca } : {}), descripcion: d.descripcion || null, categoria_id: d.categoriaId || null,
     unidad_id: d.unidadId || null, tipo: d.tipo || "almacenable", seguimiento: d.seguimiento || "ninguno",
     costo: d.costo ?? 0, precio: d.precio ?? 0, metodo_costo: d.metodoCosto || "promedio",
@@ -751,7 +758,7 @@ export async function exigirProductosActivos(ids: string[]): Promise<void> {
 
 /** Productos archivados, los más recientes primero. Los que no tienen fecha (desactivados antes) van al final. */
 export async function listarProductosArchivados(): Promise<Producto[]> {
-  const { data, error } = await supabaseAdmin.from(T.productos).select("*").eq("activo", false).order("nombre");
+  const { data, error } = await soloDe(supabaseAdmin.from(T.productos).select("*").eq("activo", false), await empresaActivaId()).order("nombre");
   revienta("listar productos archivados", error);
   return (data ?? [])
     .map(aProducto)
@@ -865,13 +872,14 @@ export async function crearUnidad(nombre: string, abreviacion: string): Promise<
 
 export async function crearUbicacion(d: { nombre: string; tipo: string; codigo?: string | null; almacenId?: string | null; padreId?: string | null }): Promise<void> {
   const { error } = await supabaseAdmin.from(T.ubicaciones).insert({
+    ...(await conEmpresa({})),
     nombre: d.nombre, tipo: d.tipo, codigo: d.codigo || null, almacen_id: d.almacenId || null, padre_id: d.padreId || null,
   });
   revienta("crear ubicación", error);
 }
 
 export async function crearAlmacen(nombre: string, codigo: string): Promise<void> {
-  const { error } = await supabaseAdmin.from(T.almacenes).insert({ nombre, codigo });
+  const { error } = await supabaseAdmin.from(T.almacenes).insert(await conEmpresa({ nombre, codigo }));
   revienta("crear almacén", error);
 }
 

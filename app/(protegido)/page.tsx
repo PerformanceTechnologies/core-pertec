@@ -7,7 +7,6 @@ import GrillaDeModulos from "@/components/modulos/GrillaDeModulos";
 import WidgetCalendario from "@/components/WidgetCalendario";
 import AvanceDelDia, { puedeVerResumenDelDia } from "@/components/mi-dia/AvanceDelDia";
 import { contextoDeEmpresa } from "@/lib/empresas";
-import { tieneDatosCargados } from "@/lib/empresas-modelo";
 
 const ZONA_HORARIA = "America/Santiago";
 
@@ -37,7 +36,7 @@ export default async function DashboardPage() {
   const primerNombre = usuario.nombre?.split(" ")[0];
   // El resumen del día sale de los datos de PERTEC: en otra empresa no va.
   const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
-  const veResumen = tieneDatosCargados(activa) && (await puedeVerResumenDelDia(usuario));
+  const veResumen = Boolean(activa) && (await puedeVerResumenDelDia(usuario));
 
   return (
     // En el celular el orden es: saludo, resumen, módulos y al final el calendario (max-lg:contents

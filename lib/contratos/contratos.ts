@@ -1,4 +1,5 @@
 import "server-only";
+import { conEmpresa, empresaActivaId, soloDe } from "@/lib/empresa-activa";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { columnasDeContrato, filaAContrato, TABLA_CONTRATOS, urlDelLogo, type Contrato } from "./contrato-actual";
 import { asegurarCarpeta, carpetaRaizDeContratos, obtenerElemento, olvidarEstructura, renombrarElemento, validarNombre, type Seccion } from "./sharepoint";
@@ -14,9 +15,9 @@ import type { UsuarioConAcceso } from "./tipos";
 const SLUGS_RESERVADOS = new Set(["nuevo", "nueva", "reporte", "estructura"]);
 
 export async function listarContratos(): Promise<Contrato[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await soloDe(supabaseAdmin
     .from(TABLA_CONTRATOS)
-    .select(await columnasDeContrato())
+    .select(await columnasDeContrato()), await empresaActivaId())
     .order("activo", { ascending: false })
     .order("creado_en", { ascending: false });
   if (error) {
@@ -81,6 +82,7 @@ export async function crearContrato(
   const { data, error } = await supabaseAdmin
     .from(TABLA_CONTRATOS)
     .insert({
+      ...(await conEmpresa({})),
       slug: await slugLibre(nombre),
       nombre,
       cliente: datos.cliente?.trim() || null,
@@ -158,9 +160,9 @@ export interface ContratoDelMenu {
  * core-pertec, y un problema acá no puede tumbarlas.
  */
 export async function listarContratosDelMenu(): Promise<ContratoDelMenu[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await soloDe(supabaseAdmin
     .from(TABLA_CONTRATOS)
-    .select((await columnasDeContrato()).includes("logo_actualizado") ? "slug, nombre, activo, logo_actualizado" : "slug, nombre, activo")
+    .select((await columnasDeContrato()).includes("logo_actualizado") ? "slug, nombre, activo, logo_actualizado" : "slug, nombre, activo"), await empresaActivaId())
     .order("activo", { ascending: false })
     .order("nombre", { ascending: true });
   if (error) {

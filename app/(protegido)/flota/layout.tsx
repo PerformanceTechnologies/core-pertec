@@ -1,6 +1,5 @@
 import { IconTruck } from "@tabler/icons-react";
 import NavFlota from "@/components/flota/NavFlota";
-import FiltroDeEmpresa from "@/components/FiltroDeEmpresa";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 import { SLUG_APP_FLOTA } from "@/lib/flota-modelo";
 
@@ -20,10 +19,10 @@ export default async function LayoutFlota({ children }: { children: React.ReactN
           <p className="text-sm text-gris">Vehículos, conductores, mantenciones y costos</p>
         </div>
       </header>
-      <FiltroDeEmpresa>
+      <>
         <NavFlota />
         {children}
-      </FiltroDeEmpresa>
+      </>
     </div>
   );
 }

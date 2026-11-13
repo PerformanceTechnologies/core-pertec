@@ -1,5 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
+import { conEmpresa } from "./empresa-activa";
 import { supabaseAdmin } from "./supabase-admin";
 import { sinComentarios } from "./excel-sin-comentarios";
 import { referenciasHistoricas } from "./valorizacion-historica";
@@ -309,7 +310,7 @@ export async function importar(
         r.actualizados++;
       } else {
         const { data, error } = await supabaseAdmin
-          .from("inv_productos").insert({ nombre: f.nombre, tipo: "almacenable", seguimiento: "ninguno", ...campos }).select("id").single();
+          .from("inv_productos").insert(await conEmpresa({ nombre: f.nombre, tipo: "almacenable", seguimiento: "ninguno", ...campos })).select("id").single();
         if (error) throw new Error(`no se pudo crear el producto: ${error.message}`);
         productoId = data.id as string;
         creadosAqui.set(clave, productoId);

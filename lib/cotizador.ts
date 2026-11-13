@@ -1,5 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { conEmpresa, empresaActivaId, soloDe } from "./empresa-activa";
 import { supabaseAdmin } from "./supabase-admin";
 import { obtenerAplicacionPorSlug } from "./aplicaciones";
 import { exigirAccesoApp } from "./autorizacion";
@@ -283,7 +284,7 @@ export async function listarCotizaciones(quien: {
   usuario: UsuarioConAcceso;
   rol: RolCotizador;
 }): Promise<CotizacionResumen[]> {
-  let consulta = supabaseAdmin.from("cotizaciones").select(COLUMNAS_RESUMEN);
+  let consulta = soloDe(supabaseAdmin.from("cotizaciones").select(COLUMNAS_RESUMEN), await empresaActivaId());
 
   if (quien.rol !== "admin") {
     // Las suyas, más las de ejemplo (que son de todos) — misma regla que
@@ -359,6 +360,7 @@ export async function crearCotizacion(
   const { data, error } = await supabaseAdmin
     .from("cotizaciones")
     .insert({
+      ...(await conEmpresa({})),
       // Mismas reglas que en la importación: el listado se lee de un barrido
       // solo si todos los nombres siguen la misma forma.
       nombre: normalizarNombreCotizacion(datos.nombre),
@@ -406,6 +408,7 @@ export async function crearCotizacionImportada(
   const { data, error } = await supabaseAdmin
     .from("cotizaciones")
     .insert({
+      ...(await conEmpresa({})),
       nombre: normalizarNombreCotizacion(datos.nombre),
       empresa: datos.empresa,
       cliente: datos.cliente?.trim() || null,
@@ -501,6 +504,7 @@ export async function crearNuevaVersion(id: string, creadoPor?: string): Promise
   const { data, error } = await supabaseAdmin
     .from("cotizaciones")
     .insert({
+      ...(await conEmpresa({})),
       nombre: original.nombre,
       empresa: original.empresa,
       cliente: original.cliente,

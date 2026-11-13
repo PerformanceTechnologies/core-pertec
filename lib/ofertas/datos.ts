@@ -1,5 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { conEmpresa, empresaActivaId, soloDe } from "@/lib/empresa-activa";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { calcularTotales, detectarInconsistencias } from "./verificar";
@@ -194,7 +195,7 @@ export async function verificarAccesoOfertasApi() {
  * significa mandar por la red ofertas que quien mira no puede ver.
  */
 export async function listarOfertas(usuario: UsuarioConAcceso): Promise<OfertaResumen[]> {
-  let consulta = supabaseAdmin.from("ofertas_documentos").select(COLUMNAS);
+  let consulta = soloDe(supabaseAdmin.from("ofertas_documentos").select(COLUMNAS), await empresaActivaId());
   if (usuario.rol !== "admin") consulta = consulta.eq("creado_por", usuario.id);
 
   const { data } = await consulta.order("actualizado_en", { ascending: false });
@@ -298,6 +299,7 @@ export async function crearOferta(
   const { data, error } = await supabaseAdmin
     .from("ofertas_documentos")
     .insert({
+      ...(await conEmpresa({})),
       nombre: nombreDe(documento),
       numero_oferta: documento.identificacion.numeroOferta,
       cliente: documento.identificacion.cliente,
@@ -562,6 +564,7 @@ export async function duplicarOferta(id: string, creadoPorUsuarioId: string): Pr
   const { data, error } = await supabaseAdmin
     .from("ofertas_documentos")
     .insert({
+      ...(await conEmpresa({})),
       nombre: nombreDe(contenido),
       numero_oferta: contenido.identificacion.numeroOferta,
       cliente: contenido.identificacion.cliente,
