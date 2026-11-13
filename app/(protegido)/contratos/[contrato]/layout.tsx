@@ -36,15 +36,16 @@ export default async function LayoutDelContrato({ children }: { children: React.
           </Link>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-            <div className="flex min-w-0 flex-[1_1_16rem] flex-wrap items-center gap-3 sm:gap-4">
+            <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:flex-1 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <LogoDelContrato
                 slug={contrato.slug}
                 url={urlDelLogo(contrato)}
                 nombre={contrato.nombre}
                 editable={usuario.rol === "admin"}
               />
-              <div className="min-w-0 flex-[1_1_10rem]">
-              <h1 className="font-condensed text-2xl font-bold uppercase leading-[0.95] tracking-tight text-tinta [overflow-wrap:break-word] sm:text-3xl">
+              <div className="min-w-0 flex-1">
+              <h1 className="font-condensed font-bold uppercase leading-[0.95] tracking-tight text-tinta [overflow-wrap:break-word] text-2xl sm:text-3xl">
                 {contrato.nombre}
               </h1>
               {(contrato.cliente || contrato.numero) && (
@@ -53,10 +54,11 @@ export default async function LayoutDelContrato({ children }: { children: React.
                 </p>
               )}
               </div>
+              </div>
               {/* El estado del contrato en una mirada: el Dashboard, que ya no está en el menú. */}
               <Link
                 href={`/contratos/${contrato.slug}/dashboard`}
-                className="boton-status group inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wide text-white"
+                className="boton-status group inline-flex min-h-10 shrink-0 self-start sm:self-auto items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wide text-white"
               >
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white/20">
                   <IconChartBar size={14} />

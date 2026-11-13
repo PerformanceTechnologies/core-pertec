@@ -51,7 +51,7 @@ export default function LogoDelContrato({
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex shrink-0 items-center gap-3">
       <span
         className="flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-borde bg-superficie"
         style={{ width: tamano, height: tamano }}
@@ -79,7 +79,7 @@ export default function LogoDelContrato({
             type="button"
             disabled={pendiente}
             onClick={() => entrada.current?.click()}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gris transition hover:text-naranjo disabled:opacity-50"
+            className="inline-flex whitespace-nowrap items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gris transition hover:text-naranjo disabled:opacity-50"
           >
             <IconPhotoEdit size={14} />
             {url ? "Cambiar logo" : "Agregar logo"}
