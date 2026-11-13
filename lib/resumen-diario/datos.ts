@@ -113,6 +113,28 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
     };
   }
 
+  // Si el correo se cae o no responde, se muestra lo último que funcionó en vez de quedarse cargando.
+  const ultimoQueFunciono = async (motivo: string): Promise<EstadoResumen> => {
+    const { data } = await supabaseAdmin
+      .from("resumen_diario")
+      .select("fecha")
+      .eq("usuario_id", usuarioId)
+      .order("fecha", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const previo = data ? await leerResumenGuardado(usuarioId, data.fecha as string) : null;
+    if (!previo?.vigente) return { estado: "error", motivo };
+    const fecha = previo.fecha.split("-").reverse().join("-");
+    return { estado: "ok", datos: { ...previo, aviso: `El correo de Microsoft no está respondiendo: se muestra el último resumen que funcionó (del ${fecha}).` } };
+  };
+
+  try {
+    return await armarResumenNuevo();
+  } catch (e) {
+    return ultimoQueFunciono(e instanceof Error ? e.message : "No se pudo leer el correo.");
+  }
+
+  async function armarResumenNuevo(): Promise<EstadoResumen> {
   let accessToken = accessTokenSesion;
   if (!accessToken) {
     const resultado = await accessTokenDeUsuario(usuarioId);
@@ -136,7 +158,7 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   // Sin correo no hay resumen que valga la pena: el calendario solo ya lo
   // muestra el widget del dashboard.
   if (correos.estado === "sin_permiso") return { estado: "sin_permiso" };
-  if (correos.estado === "error") return { estado: "error", motivo: correos.motivo };
+  if (correos.estado === "error") return ultimoQueFunciono(correos.motivo);
 
   const listaReuniones = reuniones.estado === "ok" ? reuniones.reuniones : [];
   const delModelo = await generarResumen(
@@ -162,6 +184,7 @@ export async function obtenerResumenDeHoy(opciones: OpcionesResumen): Promise<Es
   };
 
   return { estado: "ok", datos: await guardar(usuarioId, hoy.iso, resumen) };
+  }
 }
 
 /**

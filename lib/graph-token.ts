@@ -48,6 +48,7 @@ export async function canjearRefreshToken(refreshToken: string): Promise<TokensG
   }
 
   const respuesta = await fetch(endpointToken(), {
+    signal: AbortSignal.timeout(8000),
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({

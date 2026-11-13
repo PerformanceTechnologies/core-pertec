@@ -1,4 +1,5 @@
 import "server-only";
+import { conTope } from "./con-tope";
 import { Client } from "@microsoft/microsoft-graph-client";
 
 /**
@@ -147,7 +148,7 @@ export async function obtenerCorreosRecientes(
     const desde = new Date(Date.now() - horas * 60 * 60 * 1000).toISOString();
     const cliente = Client.init({ authProvider: (done) => done(null, accessToken) });
 
-    const respuesta = await cliente
+    const respuesta = await conTope(cliente
       .api("/me/mailFolders/inbox/messages")
       .header("Prefer", `outlook.timezone="${ZONA_HORARIA}"`)
       .filter(`receivedDateTime ge ${desde}`)
@@ -156,7 +157,7 @@ export async function obtenerCorreosRecientes(
       )
       .orderby("receivedDateTime desc")
       .top(TOPE_CORREOS)
-      .get();
+      .get(), 8000, "El correo de Microsoft");
 
     const mensajes: MensajeGraph[] = respuesta.value ?? [];
     const propio = correoPropio.toLowerCase();

@@ -1,4 +1,5 @@
 import "server-only";
+import { conTope } from "./con-tope";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { urlSegura } from "./graph-correo";
 
@@ -104,14 +105,18 @@ export async function obtenerReunionesDelMes(
 
     const cliente = Client.init({ authProvider: (done) => done(null, accessToken) });
 
-    const respuesta = await cliente
+    const respuesta = await conTope(
+      cliente
       .api("/me/calendarView")
       .header("Prefer", `outlook.timezone="${ZONA_HORARIA}"`)
       .query({ startDateTime: inicioUTC.toISOString(), endDateTime: finUTC.toISOString() })
       .select("subject,start,end,location,onlineMeeting,isAllDay")
       .orderby("start/dateTime")
       .top(TOPE_EVENTOS)
-      .get();
+      .get(),
+      8000,
+      "Microsoft",
+    );
 
     const prefijoMes = `${anio}-${String(mes).padStart(2, "0")}`;
     const eventos: EventoGraph[] = respuesta.value ?? [];
@@ -182,14 +187,18 @@ export async function obtenerReunionesProximas(
 
     const cliente = Client.init({ authProvider: (done) => done(null, accessToken) });
 
-    const respuesta = await cliente
+    const respuesta = await conTope(
+      cliente
       .api("/me/calendarView")
       .header("Prefer", `outlook.timezone="${ZONA_HORARIA}"`)
       .query({ startDateTime: inicio, endDateTime: fin })
       .select("subject,start,end,location,onlineMeeting,isAllDay,attendees,organizer,createdDateTime,webLink")
       .orderby("start/dateTime")
       .top(TOPE_EVENTOS)
-      .get();
+      .get(),
+      8000,
+      "Microsoft",
+    );
 
     const eventos: (EventoGraph & {
       attendees?: { emailAddress?: { name?: string; address?: string } }[];

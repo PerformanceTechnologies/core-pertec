@@ -183,6 +183,8 @@ export interface ResumenDiario extends Omit<ResumenModelo, "reuniones" | "correo
 }
 
 export interface ResumenGuardado {
+  /** Se muestra un resumen anterior porque el correo no responde ahora. */
+  aviso?: string;
   fecha: string;
   resumen: ResumenDiario;
   generadoEn: string;

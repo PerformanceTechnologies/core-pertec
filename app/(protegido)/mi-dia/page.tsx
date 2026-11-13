@@ -844,6 +844,9 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
         </aside>
       </div>
 
+      {datos.aviso && (
+        <p className="mt-6 rounded-lg border-l-[3px] border-amber-500 bg-amber-500/[0.08] px-4 py-3 text-xs text-pretty text-amber-800">{datos.aviso}</p>
+      )}
       <footer className="mt-12 border-t border-borde pt-4 text-[11px] text-pretty text-tinta/35">
         Generado a las {horaChile(datos.generadoEn)} · Es un resumen, no un reemplazo: revisa la bandeja antes
         de tomar una decisión importante.
