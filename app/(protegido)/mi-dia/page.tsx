@@ -279,7 +279,7 @@ function Popover({
   return (
     <span
       role="tooltip"
-      className={`pointer-events-none absolute top-full z-30 mt-2 w-56 max-w-[calc(100vw-4rem)] sm:w-64 origin-top translate-y-1 rounded-lg border border-borde bg-superficie p-3 text-left text-[11px] leading-relaxed text-tinta/70 opacity-0 shadow-[0_4px_12px_rgba(23,20,17,0.08),0_16px_40px_-16px_rgba(23,20,17,0.25)] transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
+      className={`pointer-events-none absolute top-full z-30 mt-2 w-56 [@media(hover:none)]:hidden max-w-[calc(100vw-4rem)] sm:w-64 origin-top translate-y-1 rounded-lg border border-borde bg-superficie p-3 text-left text-[11px] leading-relaxed text-tinta/70 opacity-0 shadow-[0_4px_12px_rgba(23,20,17,0.08),0_16px_40px_-16px_rgba(23,20,17,0.25)] transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
         alineado === "derecha" ? "right-0" : "left-0"
       }`}
     >
