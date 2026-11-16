@@ -14,7 +14,7 @@ export default function BuscadorProducto({ catalogo, valor, alElegir, children }
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState(-1);
   const texto = valor.trim().toLowerCase();
-  const sugerencias = !catalogo.length ? [] : catalogo.filter((p) => !texto || p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto && `${p.nombre} [${p.sku}]`.toLowerCase() !== texto).slice(0, 50);
+  const sugerencias = !catalogo.length ? [] : catalogo.filter((p) => !texto || p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto && `[${p.sku}] ${p.nombre}`.toLowerCase() !== texto).slice(0, 50);
   const ver = abierto && sugerencias.length > 0;
   const elegir = (p: ProductoBuscable) => { alElegir(p); setAbierto(false); setActivo(-1); };
   return (
@@ -49,7 +49,7 @@ export default function BuscadorProducto({ catalogo, valor, alElegir, children }
               >
                 <IconPackage size={15} className="shrink-0 text-naranjo" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-tinta">{p.nombre}{p.sku && <span className="font-normal text-gris"> [{p.sku}]</span>}</span>
+                  <span className="block truncate font-medium text-tinta">{p.sku && <span className="font-normal text-gris">[{p.sku}] </span>}{p.nombre}</span>
                   <span className="block truncate text-[11px] text-gris">{[p.tipo === "servicio" ? "Servicio" : null, p.unidad].filter(Boolean).join(" · ") || "Producto"}</span>
                 </span>
                 {p.valor > 0 && <span className="shrink-0 text-xs tabular-nums text-gris">${Math.round(p.valor).toLocaleString("es-CL")}</span>}

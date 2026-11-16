@@ -431,7 +431,7 @@ export default function EditorSolicitud({
               <span className="hidden pt-2 text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
               <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                 <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                <BuscadorProducto catalogo={catalogoBuscable} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { descripcion: p.sku ? `${p.nombre} [${p.sku}]` : p.nombre, unidad: p.unidad ?? l.unidad, precio: p.valor > 0 ? String(p.valor) : l.precio })}>
+                <BuscadorProducto catalogo={catalogoBuscable} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { descripcion: p.sku ? `[${p.sku}] ${p.nombre}` : p.nombre, unidad: p.unidad ?? l.unidad, precio: p.valor > 0 ? String(p.valor) : l.precio })}>
                   <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} w-full resize-none leading-snug`} placeholder={catalogo.length ? "Busca en el inventario o escribe la descripción" : "Descripción del producto o servicio"} />
                 </BuscadorProducto>
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar la nota de este ítem" : "Agregar una nota o detalle a este ítem (marca, código, especificación)"}

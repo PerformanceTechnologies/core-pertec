@@ -248,7 +248,7 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
               <span className="hidden text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
               <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                 <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                <BuscadorProducto catalogo={buscables} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { productoId: p.id, descripcion: p.sku ? `${p.nombre} [${p.sku}]` : p.nombre, unidad: p.unidad ?? l.unidad, precioUnitario: p.valor > 0 ? p.valor : l.precioUnitario })}>
+                <BuscadorProducto catalogo={buscables} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { productoId: p.id, descripcion: p.sku ? `[${p.sku}] ${p.nombre}` : p.nombre, unidad: p.unidad ?? l.unidad, precioUnitario: p.valor > 0 ? p.valor : l.precioUnitario })}>
                   <textarea aria-label={`Descripción de la línea ${i + 1}`} value={l.descripcion} rows={1} onChange={(e) => cambiarLinea(i, { descripcion: e.target.value })} className={`${CAMPO_C} min-h-9 w-full resize-y`} placeholder={buscables.length ? "Busca en el inventario o escribe la descripción" : "Descripción del servicio o producto"} />
                 </BuscadorProducto>
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota?.trim())} title={l.nota?.trim() ? "Editar la nota de esta línea" : "Agregar una nota o descripción larga a esta línea"}
