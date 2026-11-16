@@ -1,6 +1,7 @@
 "use client";
 
 import type { ProductoCatalogo } from "@/lib/fin/oc-editor";
+import BuscadorProducto from "@/components/fin/BuscadorProducto";
 
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -98,62 +99,6 @@ function AreaAuto({ value, onChange, className, ...resto }: { value: string; onC
   return <textarea ref={ref} rows={1} value={value} onChange={(e) => onChange(e.target.value)} className={className} {...resto} />;
 }
 
-/**
- * Envuelve la descripción del ítem: mientras escribes, sugiere productos y servicios del inventario.
- * Al elegir uno se completan la descripción, la unidad y el precio (su costo). Igual se puede escribir libre.
- */
-function BuscadorProducto({ catalogo, valor, alElegir, children }: { catalogo: ProductoCatalogo[]; valor: string; alElegir: (p: ProductoCatalogo) => void; children: React.ReactNode }) {
-  const [abierto, setAbierto] = useState(false);
-  const [activo, setActivo] = useState(-1);
-  const texto = valor.trim().toLowerCase();
-  const sugerencias = !catalogo.length ? [] : catalogo.filter((p) => !texto || p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto && `${p.nombre} [${p.sku}]`.toLowerCase() !== texto).slice(0, 50);
-  const ver = abierto && sugerencias.length > 0;
-  const elegir = (p: ProductoCatalogo) => { alElegir(p); setAbierto(false); setActivo(-1); };
-  return (
-    <div
-      className="relative min-w-0 flex-1"
-      onFocus={() => setAbierto(true)}
-      onClick={() => setAbierto(true)}
-      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setAbierto(false)}
-      onInput={() => { setAbierto(true); setActivo(-1); }}
-      onKeyDown={(e) => {
-        if (!ver) return;
-        if (e.key === "ArrowDown") { e.preventDefault(); setActivo((a) => Math.min(a + 1, sugerencias.length - 1)); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); setActivo((a) => Math.max(a - 1, -1)); }
-        // Enter elige solo si marcaste una con las flechas: si no, sigue escribiendo libre.
-        else if (e.key === "Enter" && activo >= 0) { e.preventDefault(); elegir(sugerencias[activo] ?? sugerencias[0]); }
-        else if (e.key === "Escape") setAbierto(false);
-      }}
-    >
-      {children}
-      {ver && (
-        <ul role="listbox" className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto rounded-xl border border-borde bg-fondo p-1 shadow-lg">
-          <li className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-gris-suave">Del inventario</li>
-          {sugerencias.map((p, j) => (
-            <li key={p.id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={j === activo}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => elegir(p)}
-                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${j === activo ? "bg-naranjo/[0.08]" : "hover:bg-tinta/5"}`}
-              >
-                <IconPackage size={15} className="shrink-0 text-naranjo" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-tinta">{p.nombre}{p.sku && <span className="font-normal text-gris"> [{p.sku}]</span>}</span>
-                  <span className="block truncate text-[11px] text-gris">{[p.tipo === "servicio" ? "Servicio" : null, p.unidad].filter(Boolean).join(" · ") || "Producto"}</span>
-                </span>
-                {p.costo > 0 && <span className="shrink-0 text-xs tabular-nums text-gris">${Math.round(p.costo).toLocaleString("es-CL")}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 /** Una sección compacta: título en una línea y el contenido pegado debajo. */
 function Seccion({ n, titulo, ayuda, derecha, children }: { n: number; titulo: string; ayuda?: string; derecha?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -212,6 +157,7 @@ export default function EditorSolicitud({
   catalogo?: ProductoCatalogo[];
 }) {
   const router = useRouter();
+  const catalogoBuscable = catalogo.map((p) => ({ ...p, valor: p.costo }));
   const [pendiente, iniciar] = useTransition();
   const [titulo, setTitulo] = useState(inicial.titulo);
   const [solicitanteTipo, setSolicitanteTipo] = useState<SolicitanteTipo>(inicial.solicitanteTipo);
@@ -485,7 +431,7 @@ export default function EditorSolicitud({
               <span className="hidden pt-2 text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
               <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                 <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                <BuscadorProducto catalogo={catalogo} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { descripcion: p.sku ? `${p.nombre} [${p.sku}]` : p.nombre, unidad: p.unidad ?? l.unidad, precio: p.costo > 0 ? String(p.costo) : l.precio })}>
+                <BuscadorProducto catalogo={catalogoBuscable} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { descripcion: p.sku ? `${p.nombre} [${p.sku}]` : p.nombre, unidad: p.unidad ?? l.unidad, precio: p.valor > 0 ? String(p.valor) : l.precio })}>
                   <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} w-full resize-none leading-snug`} placeholder={catalogo.length ? "Busca en el inventario o escribe la descripción" : "Descripción del producto o servicio"} />
                 </BuscadorProducto>
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar la nota de este ítem" : "Agregar una nota o detalle a este ítem (marca, código, especificación)"}

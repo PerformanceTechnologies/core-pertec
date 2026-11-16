@@ -1,5 +1,6 @@
 "use client";
 
+import BuscadorProducto from "@/components/fin/BuscadorProducto";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IconCheck, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash } from "@tabler/icons-react";
@@ -113,12 +114,13 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
   inicial: DatosEditor;
   clientes: OpcionContacto[];
   perfiles: Record<string, { condicion: number | null; oc: boolean; edp: boolean; hes: boolean }>;
-  productos: { id: string; nombre: string; precio: number; unidad: string | null }[];
+  productos: { id: string; nombre: string; sku?: string | null; tipo?: string; precio: number; unidad: string | null }[];
   proyectos: { id: string; nombre: string }[];
   oportunidades: { id: string; nombre: string }[];
   tasaIva: number;
 }) {
   const router = useRouter();
+  const buscables = productos.map((p) => ({ id: p.id, nombre: p.nombre, sku: p.sku ?? null, tipo: p.tipo, unidad: p.unidad, valor: p.precio }));
   const [d, setD] = useState(inicial);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
@@ -246,7 +248,9 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
               <span className="hidden text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
               <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                 <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                <textarea aria-label={`Descripción de la línea ${i + 1}`} value={l.descripcion} rows={1} onChange={(e) => cambiarLinea(i, { descripcion: e.target.value })} className={`${CAMPO_C} min-h-9 resize-y`} placeholder="Descripción del servicio o producto" />
+                <BuscadorProducto catalogo={buscables} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { productoId: p.id, descripcion: p.sku ? `${p.nombre} [${p.sku}]` : p.nombre, unidad: p.unidad ?? l.unidad, precioUnitario: p.valor > 0 ? p.valor : l.precioUnitario })}>
+                  <textarea aria-label={`Descripción de la línea ${i + 1}`} value={l.descripcion} rows={1} onChange={(e) => cambiarLinea(i, { descripcion: e.target.value })} className={`${CAMPO_C} min-h-9 w-full resize-y`} placeholder={buscables.length ? "Busca en el inventario o escribe la descripción" : "Descripción del servicio o producto"} />
+                </BuscadorProducto>
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota?.trim())} title={l.nota?.trim() ? "Editar la nota de esta línea" : "Agregar una nota o descripción larga a esta línea"}
                   className={`rounded-lg p-1.5 transition ${l.nota?.trim() ? "bg-naranjo/10 text-naranjo" : notasAbiertas.includes(i) ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Nota de la línea ${i + 1}`}><IconNotes size={16} /></button>
                 <button type="button" onClick={() => quitarLinea(i)} disabled={d.lineas.length === 1} className="rounded-lg p-1.5 text-gris hover:bg-rose-500/10 hover:text-alerta disabled:opacity-30 lg:hidden" aria-label={`Quitar la línea ${i + 1}`}><IconTrash size={16} /></button>

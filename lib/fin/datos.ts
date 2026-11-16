@@ -950,13 +950,14 @@ export async function adjuntosDe(entidadTipo: string, entidadId: string): Promis
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 /** Productos del Inventario (catálogo compartido entre empresas), solo lectura, para líneas de cotización. */
-export async function productosInventario(): Promise<{ id: string; nombre: string; precio: number; unidad: string | null }[]> {
+export async function productosInventario(): Promise<{ id: string; nombre: string; sku: string | null; tipo: string; precio: number; unidad: string | null }[]> {
+  const { empresa } = await contextoLeads();
   const [{ data: ps }, { data: us }] = await Promise.all([
-    supabaseAdmin.from("inv_productos").select("id, nombre, precio, unidad_id").eq("activo", true).order("nombre").limit(2000),
+    supabaseAdmin.from("inv_productos").select("id, nombre, sku, tipo, precio, unidad_id").eq("activo", true).eq("empresa_id", empresa.id).order("nombre").limit(3000),
     supabaseAdmin.from("inv_unidades").select("id, abreviacion"),
   ]);
   const abrev = new Map((us ?? []).map((u) => [u.id as string, u.abreviacion as string]));
-  return (ps ?? []).map((p) => ({ id: p.id as string, nombre: p.nombre as string, precio: Number(p.precio ?? 0), unidad: p.unidad_id ? abrev.get(p.unidad_id as string) ?? null : null }));
+  return (ps ?? []).map((p) => ({ id: p.id as string, nombre: p.nombre as string, sku: (p.sku as string | null) ?? null, tipo: p.tipo as string, precio: Number(p.precio ?? 0), unidad: p.unidad_id ? abrev.get(p.unidad_id as string) ?? null : null }));
 }
 
 /** Asientos ya contabilizados de un rango (con sus líneas) y el estado del período. */
