@@ -54,7 +54,7 @@ export default function FormularioFabricacion({
         }}
         className={
           editar
-            ? "inline-flex items-center gap-1.5 rounded-lg border border-borde px-3 py-2 text-sm font-semibold text-azul transition hover:border-cian"
+            ? "inline-flex h-9 items-center gap-1.5 rounded-lg border border-borde px-3 text-[13px] font-semibold text-azul transition hover:border-cian"
             : "inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-naranjo px-4 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
         }
       >

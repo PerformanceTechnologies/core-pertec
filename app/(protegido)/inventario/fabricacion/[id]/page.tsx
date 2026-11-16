@@ -64,28 +64,28 @@ export default async function FichaFabricacionPage({ params }: { params: Promise
         </div>
       )}
 
-      {/* Cabecera: qué es, su estado y las acciones */}
-      <section className={`${TARJETA} p-4 sm:p-5`}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-2xl font-extrabold tracking-tight text-tinta">{ficha.nombre}</h2>
-            <p className="mt-1 text-sm text-gris">
+      {/* Cabecera: qué es, su estado y las acciones, en poco alto */}
+      <section className={`${TARJETA} px-4 py-3.5`}>
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <h2 className="text-xl font-extrabold leading-tight tracking-tight text-tinta">{ficha.nombre}</h2>
+              <ChipEstadoFabricacion estado={ficha.estado} />
+              {enlazadoCatalogo && (
+                <Link href={`/inventario/productos/${enlazadoCatalogo.id}`} className="rounded-full bg-cian/10 px-2.5 py-0.5 text-[11px] font-semibold text-cian transition hover:bg-cian/20">
+                  En el catálogo: {enlazadoCatalogo.nombre}
+                </Link>
+              )}
+            </div>
+            <p className="mt-0.5 text-[13px] text-gris">
               {ficha.codigo ? <>Código <span className="font-mono text-tinta">{ficha.codigo}</span></> : "Sin código"}
               {" · "}rinde <span className="font-semibold text-tinta">{formatearCantidad(ficha.rendimiento)}{unidadTexto}</span> por receta
             </p>
           </div>
           {!archivada && <FormularioFabricacion unidades={unidades} terminados={terminados} ficha={ficha} />}
         </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <ChipEstadoFabricacion estado={ficha.estado} />
-          {enlazadoCatalogo && (
-            <Link href={`/inventario/productos/${enlazadoCatalogo.id}`} className="rounded-full bg-cian/10 px-2.5 py-0.5 text-[11px] font-semibold text-cian transition hover:bg-cian/20">
-              En el catálogo: {enlazadoCatalogo.nombre}
-            </Link>
-          )}
-        </div>
-        {ficha.descripcion && <p className="mt-3 max-w-2xl text-sm leading-relaxed text-gris">{ficha.descripcion}</p>}
-        <div className="mt-4 border-t border-borde pt-4">
+        {ficha.descripcion && <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-gris">{ficha.descripcion}</p>}
+        <div className="mt-3 border-t border-borde pt-3">
           <AccionesFabricacion id={ficha.id} nombre={ficha.nombre} estado={ficha.estado} hayEnlazados={items.some((i) => i.productoId)} puedeAdministrar={puedeAdministrar} />
         </div>
       </section>
