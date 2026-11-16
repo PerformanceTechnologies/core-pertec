@@ -11,13 +11,14 @@ import { CONDICIONES_OC_POR_OMISION } from "./oc-modelo";
  * poner como solicitante, el valor de hoy de la UF y el dólar, y las condiciones generales de la empresa.
  */
 export async function apoyoDelEditor(ctx: ContextoFin, v: VistaFin) {
-  const [personas, indicadores, empresa, puedeCrearProveedor] = await Promise.all([
+  const [personas, indicadores, empresa, puedeCrearProveedor, catalogo] = await Promise.all([
     candidatosDeFlujo(),
     // Sin red o sin respuesta del proveedor de indicadores: el formulario sigue, pidiendo el valor a mano.
     obtenerIndicadores().then((r) => r.indicadores).catch(() => []),
     supabaseAdmin.from("empresas").select("condiciones_oc").eq("id", ctx.empresa.id).maybeSingle(),
     // Crear un proveedor desde la solicitud pide acceso a Contactos: sin él no se ofrece el botón.
     puedeGestionarContactos(ctx.usuario),
+    catalogoDeCompra(ctx.empresa.id),
   ]);
   const valor = (codigo: string) => indicadores.find((i) => i.codigo === codigo)?.valor ?? null;
   return {
@@ -28,6 +29,19 @@ export async function apoyoDelEditor(ctx: ContextoFin, v: VistaFin) {
     indicadores: { uf: valor("uf"), dolar: valor("dolar") },
     tasaIva: v.p.tasaIva,
     puedeCrearProveedor,
+    catalogo,
     condicionesEmpresa: ((empresa.data as { condiciones_oc?: string | null } | null)?.condiciones_oc ?? "").trim() || CONDICIONES_OC_POR_OMISION,
   };
+}
+
+export type ProductoCatalogo = { id: string; nombre: string; sku: string | null; tipo: string; costo: number; unidad: string | null };
+
+/** Productos y servicios del inventario de la empresa, para elegirlos al armar la compra (con su costo). */
+async function catalogoDeCompra(empresaId: string): Promise<ProductoCatalogo[]> {
+  const [{ data: ps }, { data: us }] = await Promise.all([
+    supabaseAdmin.from("inv_productos").select("id, nombre, sku, tipo, costo, unidad_id").eq("activo", true).eq("empresa_id", empresaId).order("nombre").limit(3000),
+    supabaseAdmin.from("inv_unidades").select("id, abreviacion"),
+  ]);
+  const abrev = new Map((us ?? []).map((u) => [u.id as string, u.abreviacion as string]));
+  return (ps ?? []).map((p) => ({ id: p.id as string, nombre: p.nombre as string, sku: (p.sku as string | null) ?? null, tipo: p.tipo as string, costo: Number(p.costo ?? 0), unidad: p.unidad_id ? abrev.get(p.unidad_id as string) ?? null : null }));
 }

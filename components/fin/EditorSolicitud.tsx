@@ -1,8 +1,10 @@
 "use client";
 
+import type { ProductoCatalogo } from "@/lib/fin/oc-editor";
+
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertTriangle, IconFileTypePdf, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash, IconUserPlus, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconFileTypePdf, IconLoader2, IconNotes, IconPackage, IconPlus, IconSend, IconSparkles, IconTrash, IconUserPlus, IconX } from "@tabler/icons-react";
 import { guardarSolicitudAction } from "@/app/(protegido)/gestion-financiera/acciones-compras";
 import { MONEDAS, formatoMonto, netoLineaOc, aPesos, totalesOc, type LineaOc, type Moneda, type SolicitanteTipo } from "@/lib/fin/oc-modelo";
 import type { DatosLeidos } from "@/lib/fin/oc-ia-datos";
@@ -96,6 +98,60 @@ function AreaAuto({ value, onChange, className, ...resto }: { value: string; onC
   return <textarea ref={ref} rows={1} value={value} onChange={(e) => onChange(e.target.value)} className={className} {...resto} />;
 }
 
+/**
+ * Envuelve la descripción del ítem: mientras escribes, sugiere productos y servicios del inventario.
+ * Al elegir uno se completan la descripción, la unidad y el precio (su costo). Igual se puede escribir libre.
+ */
+function BuscadorProducto({ catalogo, valor, alElegir, children }: { catalogo: ProductoCatalogo[]; valor: string; alElegir: (p: ProductoCatalogo) => void; children: React.ReactNode }) {
+  const [abierto, setAbierto] = useState(false);
+  const [activo, setActivo] = useState(0);
+  const texto = valor.trim().toLowerCase();
+  const sugerencias = !catalogo.length || texto.length < 2 ? [] : catalogo.filter((p) => p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto).slice(0, 8);
+  const ver = abierto && sugerencias.length > 0;
+  const elegir = (p: ProductoCatalogo) => { alElegir(p); setAbierto(false); };
+  return (
+    <div
+      className="relative min-w-0 flex-1"
+      onFocus={() => setAbierto(true)}
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setAbierto(false)}
+      onInput={() => { setAbierto(true); setActivo(0); }}
+      onKeyDown={(e) => {
+        if (!ver) return;
+        if (e.key === "ArrowDown") { e.preventDefault(); setActivo((a) => Math.min(a + 1, sugerencias.length - 1)); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); setActivo((a) => Math.max(a - 1, 0)); }
+        else if (e.key === "Enter") { e.preventDefault(); elegir(sugerencias[activo] ?? sugerencias[0]); }
+        else if (e.key === "Escape") setAbierto(false);
+      }}
+    >
+      {children}
+      {ver && (
+        <ul role="listbox" className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto rounded-xl border border-borde bg-fondo p-1 shadow-lg">
+          <li className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-gris-suave">Del inventario</li>
+          {sugerencias.map((p, j) => (
+            <li key={p.id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={j === activo}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => elegir(p)}
+                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${j === activo ? "bg-naranjo/[0.08]" : "hover:bg-tinta/5"}`}
+              >
+                <IconPackage size={15} className="shrink-0 text-naranjo" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-tinta">{p.nombre}</span>
+                  <span className="block truncate text-[11px] text-gris">{[p.sku, p.tipo === "servicio" ? "Servicio" : null, p.unidad].filter(Boolean).join(" · ") || "Producto"}</span>
+                </span>
+                {p.costo > 0 && <span className="shrink-0 text-xs tabular-nums text-gris">${Math.round(p.costo).toLocaleString("es-CL")}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Una sección compacta: título en una línea y el contenido pegado debajo. */
 function Seccion({ n, titulo, ayuda, derecha, children }: { n: number; titulo: string; ayuda?: string; derecha?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -138,6 +194,7 @@ export default function EditorSolicitud({
   tasaIva,
   condicionesEmpresa,
   puedeCrearProveedor = false,
+  catalogo = [],
 }: {
   inicial: DatosEditorSolicitud;
   proveedores: OpcionContacto[];
@@ -149,6 +206,8 @@ export default function EditorSolicitud({
   condicionesEmpresa: string;
   /** Quien no tiene Contactos no ve el botón (la acción lo sacaría de la pantalla y perdería lo escrito). */
   puedeCrearProveedor?: boolean;
+  /** Productos y servicios del inventario para elegir en cada ítem. */
+  catalogo?: ProductoCatalogo[];
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -424,7 +483,9 @@ export default function EditorSolicitud({
               <span className="hidden pt-2 text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
               <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                 <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} flex-1 resize-none leading-snug`} placeholder="Descripción del producto o servicio" />
+                <BuscadorProducto catalogo={catalogo} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { descripcion: p.nombre, unidad: p.unidad ?? l.unidad, precio: p.costo > 0 ? String(p.costo) : l.precio })}>
+                  <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} w-full resize-none leading-snug`} placeholder={catalogo.length ? "Busca en el inventario o escribe la descripción" : "Descripción del producto o servicio"} />
+                </BuscadorProducto>
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar la nota de este ítem" : "Agregar una nota o detalle a este ítem (marca, código, especificación)"}
                   className={`mt-0.5 shrink-0 rounded-lg p-1.5 transition ${l.nota.trim() ? "bg-naranjo/10 text-naranjo" : notasAbiertas.includes(i) ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Nota del ítem ${i + 1}`}><IconNotes size={16} /></button>
               </div>
