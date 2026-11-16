@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { IconFolders, IconPlus } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, codigoCompuestoProyecto, contactosDeProyecto } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, contactosDeProyecto, infoProyecto } from "@/lib/fin/datos";
 import { clpCorto } from "@/lib/fin/reglas";
 import { etiquetaTipoProyecto } from "@/lib/fin/modelo";
 import { Banda, Monto, Vacio } from "@/components/fin/piezas";
 import { ConVentana } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC } from "@/components/fin/estilos";
 import FormProyecto from "@/components/fin/FormProyecto";
+import CodigoProyecto from "@/components/fin/CodigoProyecto";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,7 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
               <tbody className="divide-y divide-borde/60">
                 {lista.map((p) => {
                   const uso = p.presupuestoCostos ? p.cifras.comprometido / p.presupuestoCostos : null;
-                  const codigo = p.esGeneral ? null : codigoCompuestoProyecto(p, v.contrapartes);
+                  const info = p.esGeneral ? null : infoProyecto(p, v.contrapartes);
                   const sigla = p.mandanteId ? v.contrapartes.find((c) => c.id === p.mandanteId)?.sigla : null;
                   const tono = TONO_TIPO[p.tipo] ?? "bg-tinta/[0.06] text-tinta/70";
                   const cifra = (n: number, fuerte = false) => (
@@ -90,8 +91,8 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
                         </Link>
                       </td>
                       <td className="px-3 py-3.5">
-                        {codigo ? (
-                          <span className="inline-block whitespace-nowrap rounded-lg border border-borde/70 bg-tinta/[0.03] px-2 py-1 font-mono text-[11px] font-bold tracking-wide text-tinta">{codigo}</span>
+                        {info ? (
+                          <CodigoProyecto info={info} />
                         ) : (
                           <span className="text-gris-suave">—</span>
                         )}

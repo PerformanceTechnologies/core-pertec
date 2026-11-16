@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { IconArrowLeft } from "@tabler/icons-react";
-import { RUTA_LEADS, cargarComercial, cargarVistaLeads, productosInventario } from "@/lib/fin/datos";
+import { RUTA_LEADS, cargarComercial, cargarVistaLeads, infoProyecto, productosInventario } from "@/lib/fin/datos";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function NuevaCotizacionPage({ searchParams }: { searchPara
         clientes={v.contrapartes.map((c) => ({ id: c.id, nombre: c.nombre, rut: c.rut }))}
         perfiles={Object.fromEntries([...v.perfiles.values()].map((p) => [p.contactoId, { condicion: p.condicionVentaDias, oc: p.requiereOc, edp: p.requiereEdp, hes: p.requiereHes }]))}
         productos={productos}
-        proyectos={v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => ({ id: p.id, nombre: p.nombre }))}
+        proyectos={v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => ({ id: p.id, nombre: p.nombre, info: infoProyecto(p, v.contrapartes) }))}
         oportunidades={com.oportunidades.filter((o) => !["ganada", "perdida"].includes(o.etapa)).map((o) => ({ id: o.id, nombre: o.nombre }))}
         tasaIva={v.p.tasaIva}
       />

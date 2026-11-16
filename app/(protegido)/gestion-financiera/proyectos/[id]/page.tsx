@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, contextoFin, contactosDeProyecto, codigoCompuestoProyecto, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, contextoFin, contactosDeProyecto, infoProyecto, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { eliminarProyectoAction } from "../../acciones-config";
 import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
+import CodigoProyecto from "@/components/fin/CodigoProyecto";
 import { etiquetaTipoProyecto } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { Chip, Kpi, Monto, Seccion, TD, TH, TONO_ETAPA, tonoPaso } from "@/components/fin/piezas";
@@ -29,7 +30,7 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
       <Link href={`${RUTA_FIN}/proyectos`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris hover:text-naranjo"><IconArrowLeft size={14} /> Proyectos</Link>
       <header className={`${TARJETA} flex flex-wrap items-start gap-4 p-5`}>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gris">{p.esGeneral ? p.codigo : codigoCompuestoProyecto(p, v.contrapartes) || p.codigo} · {etiquetaTipoProyecto(p.tipo)} · {p.estado}</p>
+          <p className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-gris">{p.esGeneral ? p.codigo : <CodigoProyecto info={infoProyecto(p, v.contrapartes)} />} <span>{etiquetaTipoProyecto(p.tipo)} · {p.estado}</span></p>
           <h2 className="text-lg font-extrabold text-tinta">{p.nombre}</h2>
           <p className="text-sm text-gris">{p.esGeneral ? "Interno" : p.mandanteId ? `${v.nombreDe.get(p.mandanteId) ?? ""}${(() => { const m = contactosDeProyecto(v.contrapartes).find((c) => c.id === p.mandanteId)?.mandantes ?? []; return m.length ? ` · Mandante: ${m.join(", ")}` : ""; })()}` : "Sin contacto"}{p.fechaInicio ? ` · ${fechaCl(p.fechaInicio)} → ${fechaCl(p.fechaTermino)}` : ""}</p>
           {p.descripcion && <p className="mt-1 text-sm text-tinta">{p.descripcion}</p>}

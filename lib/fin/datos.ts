@@ -1,4 +1,6 @@
 import "server-only";
+import { armarInfoProyecto, type InfoProyecto } from "@/lib/fin/info-proyecto";
+import { etiquetaTipoProyecto } from "@/lib/fin/modelo";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "../supabase-admin";
@@ -1007,13 +1009,16 @@ export function contactosDeProyecto(cs: Contraparte[]): { id: string; nombre: st
   }));
 }
 
-/**
- * Código de un proyecto: sigla del mandante - sigla del cliente - año de inicio - tipo.
- * Ej.: AAS-FES-2026-CON. Lo que falte se omite (sin mandante: FES-2026-CON).
- */
-export function codigoCompuestoProyecto(p: { mandanteId: string | null; fechaInicio: string | null; tipo: string }, cs: Contraparte[]): string {
+/** Código compuesto (MAND-CLI-AÑO-TIP) y datos de la tarjeta de un proyecto, con los contactos ya cargados. */
+export function infoProyecto(p: { codigo: string; nombre: string; mandanteId: string | null; fechaInicio: string | null; tipo: string; esGeneral?: boolean }, cs: Contraparte[]): InfoProyecto {
   const cliente = p.mandanteId ? cs.find((c) => c.id === p.mandanteId) : undefined;
   const mandante = cliente?.mandanteIds.length ? cs.find((c) => c.id === cliente.mandanteIds[0]) : undefined;
-  const tipo = p.tipo.normalize("NFD").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 3);
-  return [mandante?.sigla, cliente?.sigla, p.fechaInicio?.slice(0, 4), tipo].filter(Boolean).join("-");
+  const parte = (c?: Contraparte) => (c ? { nombre: c.nombre, sigla: c.sigla } : null);
+  return armarInfoProyecto({ codigoInterno: p.codigo, nombre: p.nombre, tipo: p.tipo, tipoTexto: etiquetaTipoProyecto(p.tipo), fechaInicio: p.fechaInicio, cliente: parte(cliente), mandante: parte(mandante), general: p.esGeneral });
+}
+
+/** Solo el código compuesto ("" si no se puede armar). */
+export function codigoCompuestoProyecto(p: { codigo?: string; nombre?: string; mandanteId: string | null; fechaInicio: string | null; tipo: string }, cs: Contraparte[]): string {
+  const i = infoProyecto({ codigo: "", nombre: "", ...p }, cs);
+  return i.codigo;
 }

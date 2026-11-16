@@ -1,4 +1,6 @@
 import "server-only";
+import { infoDeProyectos, type FilaProyecto } from "@/lib/fin/codigo-proyecto";
+import type { InfoProyecto } from "@/lib/fin/info-proyecto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { contactoPorRut, crearContacto } from "@/lib/contactos";
 import { nombrePropio, rutUsable } from "@/lib/contactos-modelo";
@@ -75,19 +77,22 @@ export async function crearProveedorRapido(razonSocial: string, rutCrudo: string
 export interface ProyectoOpcion {
   id: string;
   nombre: string;
+  /** Código compuesto (MAND-CLI-AÑO-TIP) o el PRY-#### si no alcanza. */
   codigo: string;
+  info?: InfoProyecto;
 }
 
 /** Los proyectos activos de la empresa (Finanzas), para cargarles un gasto. */
 export async function listarProyectos(empresaId: string): Promise<ProyectoOpcion[]> {
   const { data, error } = await supabaseAdmin
     .from("fin_proyectos")
-    .select("id, codigo, nombre")
+    .select("id, codigo, nombre, tipo, mandante_id, fecha_inicio, es_general")
     .eq("empresa_id", empresaId)
     .eq("estado", "activo")
     .order("codigo");
   if (error) return [];
-  return (data ?? []).map((p) => ({ id: p.id as string, codigo: p.codigo as string, nombre: p.nombre as string }));
+  const info = await infoDeProyectos((data ?? []) as FilaProyecto[]);
+  return (data ?? []).map((p) => ({ id: p.id as string, codigo: info.get(p.id)?.codigo ?? (p.codigo as string), nombre: p.nombre as string, info: info.get(p.id) }));
 }
 
 export interface FacturaCandidata {

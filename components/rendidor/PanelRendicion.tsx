@@ -17,6 +17,7 @@ import { TextInput, NumInput, SelectInput } from "@/components/cotizador/campos/
 import RuedaCarga from "@/components/RuedaCarga";
 import ColaDeFotos from "./ColaDeFotos";
 import ComboProveedor from "./ComboProveedor";
+import CodigoProyecto from "@/components/fin/CodigoProyecto";
 import type { ProveedorOpcion, ProyectoOpcion } from "@/lib/rendidor/proveedores";
 import ConciliarGasto from "./ConciliarGasto";
 import MenuAgregarGasto, { type BorradorElegible } from "./MenuAgregarGasto";
@@ -1437,6 +1438,7 @@ export default function PanelRendicion({
                                 ...proyectos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.nombre}` })),
                               ]}
                             />
+                            {(() => { const sel = proyectos.find((x) => x.id === g.proyectoId); return sel?.info ? <span className="mt-1.5 block"><CodigoProyecto info={sel.info} /></span> : null; })()}
                           </Campo>
                         )}
 

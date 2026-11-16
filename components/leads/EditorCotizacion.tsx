@@ -1,5 +1,7 @@
 "use client";
 
+import CodigoProyecto from "@/components/fin/CodigoProyecto";
+import type { InfoProyecto } from "@/lib/fin/info-proyecto";
 import BuscadorProducto from "@/components/fin/BuscadorProducto";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -115,7 +117,7 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
   clientes: OpcionContacto[];
   perfiles: Record<string, { condicion: number | null; oc: boolean; edp: boolean; hes: boolean }>;
   productos: { id: string; nombre: string; sku?: string | null; tipo?: string; precio: number; unidad: string | null }[];
-  proyectos: { id: string; nombre: string }[];
+  proyectos: { id: string; nombre: string; info: InfoProyecto }[];
   oportunidades: { id: string; nombre: string }[];
   tasaIva: number;
 }) {
@@ -207,7 +209,8 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
             <select value={d.oportunidadId ?? ""} onChange={(e) => setD({ ...d, oportunidadId: e.target.value || null })} className={CAMPO_C}><option value="">Sin lead</option>{oportunidades.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}</select>
           </Et>
           <Et t="Proyecto (vacío = se crea al aceptar)" className="sm:col-span-2 lg:col-span-5">
-            <select value={d.proyectoId ?? ""} onChange={(e) => setD({ ...d, proyectoId: e.target.value || null })} className={CAMPO_C}><option value="">Crear al aceptar</option>{proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
+            <select value={d.proyectoId ?? ""} onChange={(e) => setD({ ...d, proyectoId: e.target.value || null })} className={CAMPO_C}><option value="">Crear al aceptar</option>{proyectos.map((p) => <option key={p.id} value={p.id} title={p.info.datos.map((x) => `${x.etiqueta}: ${x.valor}`).join("\n")}>{p.info.codigo} · {p.nombre}</option>)}</select>
+            {(() => { const sel = proyectos.find((p) => p.id === d.proyectoId); return sel ? <span className="mt-1.5 block"><CodigoProyecto info={sel.info} /></span> : null; })()}
           </Et>
         </div>
       </Seccion>

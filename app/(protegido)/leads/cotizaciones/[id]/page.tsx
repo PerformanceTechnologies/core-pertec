@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconCheck, IconDownload, IconFileTypePdf, IconTrash } from "@tabler/icons-react";
-import { RUTA_FIN, RUTA_LEADS, adjuntosDe, cargarComercial, cargarVistaLeads, contextoLeads, historialDe, lineasDeCotizacion, productosInventario, RUTA_VENTAS } from "@/lib/fin/datos";
+import { RUTA_FIN, RUTA_LEADS, adjuntosDe, cargarComercial, cargarVistaLeads, contextoLeads, historialDe, infoProyecto, lineasDeCotizacion, productosInventario, RUTA_VENTAS } from "@/lib/fin/datos";
+import CodigoProyecto from "@/components/fin/CodigoProyecto";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA, lineaNeta } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
@@ -57,7 +58,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
                 {!c.proyectoId && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Campo etiqueta="Proyecto">
-                      <select name="proyectoId" className={CAMPO} defaultValue=""><option value="">Crear uno nuevo</option>{v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
+                      <select name="proyectoId" className={CAMPO} defaultValue=""><option value="">Crear uno nuevo</option>{v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => { const i = infoProyecto(p, v.contrapartes); return <option key={p.id} value={p.id} title={i.datos.map((d) => `${d.etiqueta}: ${d.valor}`).join("\n")}>{i.codigo} · {p.nombre}</option>; })}</select>
                     </Campo>
                     <Campo etiqueta="Nombre del proyecto nuevo"><input name="nombreProyecto" defaultValue={c.titulo} className={CAMPO} /></Campo>
                     <Campo etiqueta="Tipo de proyecto"><select name="tipoProyecto" defaultValue={c.tipo === "arriendo" ? "arriendo" : "contrato"} className={CAMPO}><option value="contrato">Contrato</option><option value="spot">Spot</option><option value="arriendo">Arriendo</option></select></Campo>
@@ -101,7 +102,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
       {(c.oportunidadId || hitos.length > 0 || c.proyectoId) && (
         <div className="flex flex-wrap gap-2 text-xs">
           {c.oportunidadId && <Link href={RUTA_LEADS} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">Lead: {com.oportunidades.find((o) => o.id === c.oportunidadId)?.nombre}</Link>}
-          {c.proyectoId && <Link href={`${RUTA_FIN}/proyectos/${c.proyectoId}`} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">Proyecto: {v.proyectos.find((p) => p.id === c.proyectoId)?.nombre}</Link>}
+          {c.proyectoId && (() => { const pr = v.proyectos.find((p) => p.id === c.proyectoId); return pr ? <Link href={`${RUTA_FIN}/proyectos/${c.proyectoId}`} className="inline-flex items-center gap-1.5">Proyecto: <CodigoProyecto info={infoProyecto(pr, v.contrapartes)} /></Link> : null; })()}
           {hitos.length > 0 && <Link href={`${RUTA_VENTAS}`} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">{hitos.length} hito(s): {hitos.map((h) => h.codigo).join(", ")}</Link>}
         </div>
       )}
@@ -112,7 +113,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
           clientes={v.contrapartes.map((x) => ({ id: x.id, nombre: x.nombre, rut: x.rut }))}
           perfiles={Object.fromEntries([...v.perfiles.values()].map((p) => [p.contactoId, { condicion: p.condicionVentaDias, oc: p.requiereOc, edp: p.requiereEdp, hes: p.requiereHes }]))}
           productos={productos}
-          proyectos={v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => ({ id: p.id, nombre: p.nombre }))}
+          proyectos={v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => ({ id: p.id, nombre: p.nombre, info: infoProyecto(p, v.contrapartes) }))}
           oportunidades={com.oportunidades.map((o) => ({ id: o.id, nombre: o.nombre }))}
           tasaIva={v.p.tasaIva}
         />
