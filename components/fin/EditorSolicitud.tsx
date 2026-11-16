@@ -106,7 +106,7 @@ function BuscadorProducto({ catalogo, valor, alElegir, children }: { catalogo: P
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState(0);
   const texto = valor.trim().toLowerCase();
-  const sugerencias = !catalogo.length || texto.length < 2 ? [] : catalogo.filter((p) => p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto).slice(0, 8);
+  const sugerencias = !catalogo.length || texto.length < 2 ? [] : catalogo.filter((p) => p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto && `${p.nombre} [${p.sku}]`.toLowerCase() !== texto).slice(0, 8);
   const ver = abierto && sugerencias.length > 0;
   const elegir = (p: ProductoCatalogo) => { alElegir(p); setAbierto(false); };
   return (
@@ -139,8 +139,8 @@ function BuscadorProducto({ catalogo, valor, alElegir, children }: { catalogo: P
               >
                 <IconPackage size={15} className="shrink-0 text-naranjo" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-tinta">{p.nombre}</span>
-                  <span className="block truncate text-[11px] text-gris">{[p.sku, p.tipo === "servicio" ? "Servicio" : null, p.unidad].filter(Boolean).join(" · ") || "Producto"}</span>
+                  <span className="block truncate font-medium text-tinta">{p.nombre}{p.sku && <span className="font-normal text-gris"> [{p.sku}]</span>}</span>
+                  <span className="block truncate text-[11px] text-gris">{[p.tipo === "servicio" ? "Servicio" : null, p.unidad].filter(Boolean).join(" · ") || "Producto"}</span>
                 </span>
                 {p.costo > 0 && <span className="shrink-0 text-xs tabular-nums text-gris">${Math.round(p.costo).toLocaleString("es-CL")}</span>}
               </button>
@@ -483,7 +483,7 @@ export default function EditorSolicitud({
               <span className="hidden pt-2 text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
               <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                 <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                <BuscadorProducto catalogo={catalogo} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { descripcion: p.nombre, unidad: p.unidad ?? l.unidad, precio: p.costo > 0 ? String(p.costo) : l.precio })}>
+                <BuscadorProducto catalogo={catalogo} valor={l.descripcion} alElegir={(p) => cambiarLinea(i, { descripcion: p.sku ? `${p.nombre} [${p.sku}]` : p.nombre, unidad: p.unidad ?? l.unidad, precio: p.costo > 0 ? String(p.costo) : l.precio })}>
                   <AreaAuto aria-label={`Descripción del ítem ${i + 1}`} value={l.descripcion} maxLength={500} onChange={(v) => cambiarLinea(i, { descripcion: v })} className={`${CAMPO_C} w-full resize-none leading-snug`} placeholder={catalogo.length ? "Busca en el inventario o escribe la descripción" : "Descripción del producto o servicio"} />
                 </BuscadorProducto>
                 <button type="button" onClick={() => alternarNota(i)} aria-pressed={notasAbiertas.includes(i) || Boolean(l.nota.trim())} title={l.nota.trim() ? "Editar la nota de este ítem" : "Agregar una nota o detalle a este ítem (marca, código, especificación)"}
