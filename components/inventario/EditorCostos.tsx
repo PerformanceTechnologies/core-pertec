@@ -85,7 +85,8 @@ export default function EditorCostos({
       ) : (
         <>
           {/* Tabla: tablet y escritorio */}
-          <table className="hidden w-full text-[13px] md:table">
+          <div className="hidden overflow-x-auto md:block">
+          <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-borde bg-tinta/[0.02] text-left text-[10px] font-semibold uppercase tracking-wide text-gris">
                 <th className="px-4 py-2 font-semibold">Ítem</th>
@@ -105,15 +106,15 @@ export default function EditorCostos({
                     onClick={editable ? () => setModal({ grupo: i.grupo, item: i }) : undefined}
                     className={`group border-t border-borde/60 transition ${editable ? "cursor-pointer hover:bg-tinta/[0.03]" : ""}`}
                   >
-                    <td className="max-w-0 px-4 py-2">
+                    <td className="px-4 py-2">
                       <span className="flex items-center gap-2">
-                        <span className="min-w-0 truncate font-semibold text-tinta" title={i.nota ? `${i.descripcion} — ${i.nota}` : i.descripcion}>{i.descripcion}</span>
+                        <span className="max-w-[34ch] truncate font-semibold text-tinta" title={i.nota ? `${i.descripcion} — ${i.nota}` : i.descripcion}>{i.descripcion}</span>
                         {i.productoId && <IconLink size={12} className="shrink-0 text-cian" aria-label="Enlazado al catálogo" />}
                         <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${tono}`}>
                           <Icono size={11} stroke={2} /> {ETIQUETA_GRUPO_SINGULAR[i.grupo]}
                         </span>
                       </span>
-                      {i.nota && <span className="block truncate text-[11px] text-gris">{i.nota}</span>}
+                      {i.nota && <span className="block max-w-[34ch] truncate text-[11px] text-gris">{i.nota}</span>}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gris">{formatearCantidad(i.cantidad)} {i.unidad}</td>
                     <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gris">{formatearMontoFino(i.costoUnitario)}</td>
@@ -132,6 +133,7 @@ export default function EditorCostos({
               </tr>
             </tfoot>
           </table>
+          </div>
 
           {/* Dos líneas por ítem: celular */}
           <ul className="md:hidden">
