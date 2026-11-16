@@ -7,12 +7,13 @@ import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA, lineaNeta } from "@/li
 import { TARJETA } from "@/lib/estilos";
 import { aceptarCotizacionAction, cambiarEstadoCotizacionAction, nuevaVersionCotizacionAction } from "../../../gestion-financiera/acciones-ventas";
 import { Chip, Seccion } from "@/components/fin/piezas";
-import { BotonAccion, Campo, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
+import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
 import { BotonEnviarCotizacion } from "@/components/leads/EnviarCotizacion";
 import { eliminarCotizacionAction, eliminarCotizacionConHitosAction } from "../../acciones";
-import { ListaDocumentacion, OPCIONES_DOCUMENTACION } from "@/components/leads/Documentacion";
+import { ListaDocumentacion } from "@/components/leads/Documentacion";
+import SubirDocumentacion from "@/components/leads/SubirDocumentacion";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
             <IconTrash size={14} /> {hitos.length > 0 ? "Eliminar cotización y sus hitos" : "Eliminar"}
           </BotonAccion>
         )}
-        <SubirAdjunto entidadTipo="cotizacion" entidadId={id} texto="Documentación" opciones={OPCIONES_DOCUMENTACION} />
+        <SubirDocumentacion entidadTipo="cotizacion" entidadId={id} destino={`Gestión financiera / ${ctx.empresa.nombre} / Ventas / ${cliente ?? "Sin cliente"}`} />
       </div>
 
       {/* Cadena: oportunidad · proyecto · hitos */}

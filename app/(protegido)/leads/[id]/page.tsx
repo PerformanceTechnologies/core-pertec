@@ -6,9 +6,9 @@ import { clp } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { Chip } from "@/components/fin/piezas";
-import { SubirAdjunto } from "@/components/fin/ui";
 import { FormLead } from "@/components/leads/FormLead";
-import { ListaDocumentacion, OPCIONES_DOCUMENTACION } from "@/components/leads/Documentacion";
+import { ListaDocumentacion } from "@/components/leads/Documentacion";
+import SubirDocumentacion from "@/components/leads/SubirDocumentacion";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         </div>
         <div className="flex flex-col items-end gap-2">
           <p className="font-condensed text-3xl font-bold tabular-nums text-tinta">{clp(o.montoEstimado)}</p>
-          <SubirAdjunto entidadTipo="oportunidad" entidadId={id} texto="Documentación" opciones={OPCIONES_DOCUMENTACION} />
+          <SubirDocumentacion entidadTipo="oportunidad" entidadId={id} destino={`Gestión financiera / ${ctx.empresa.nombre} / Ventas / ${cliente ?? "Sin cliente"}`} />
         </div>
       </header>
 

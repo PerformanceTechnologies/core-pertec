@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { guardarArchivo } from "@/lib/archivos/almacen";
+import { esReferenciaSharePoint, guardarArchivo } from "@/lib/archivos/almacen";
 import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import { carpetaFinanzas, carpetaOcProveedor, carpetaVentaCliente } from "@/lib/archivos/carpetas";
 import { randomUUID } from "node:crypto";
@@ -42,7 +42,8 @@ export async function POST(request: Request) {
   // Compras quedan en la carpeta de su proveedor; cotizaciones e hitos (ventas), en la de su cliente.
   const fila = dueño as { proveedor_id?: string | null; cliente_id?: string | null };
   const contactoId = entidadTipo === "compra" ? fila.proveedor_id : entidadTipo === "cotizacion" || entidadTipo === "hito" || entidadTipo === "oportunidad" ? fila.cliente_id : null;
-  let carpeta = carpetaFinanzas(ctx.empresa.nombre, entidadTipo, entidadId);
+  const esVenta = ["cotizacion", "hito", "oportunidad"].includes(entidadTipo);
+  let carpeta = esVenta ? carpetaVentaCliente(ctx.empresa.nombre, null) : carpetaFinanzas(ctx.empresa.nombre, entidadTipo, entidadId);
   if (contactoId) {
     const { data: c } = await supabaseAdmin.from("finanzas_contactos").select("razon_social").eq("id", contactoId).maybeSingle();
     if (c?.razon_social) carpeta = entidadTipo === "compra" ? carpetaOcProveedor(ctx.empresa.nombre, c.razon_social) : carpetaVentaCliente(ctx.empresa.nombre, c.razon_social);
@@ -71,5 +72,5 @@ export async function POST(request: Request) {
   await auditar(ctx, tabla, entidadId, "adjuntar", archivo.name);
   revalidatePath(RUTA_FIN, "layout");
   revalidatePath(RUTA_LEADS, "layout");
-  return NextResponse.json({ ok: true, id: data!.id });
+  return NextResponse.json({ ok: true, id: data!.id, sharepoint: esReferenciaSharePoint(ruta) });
 }
