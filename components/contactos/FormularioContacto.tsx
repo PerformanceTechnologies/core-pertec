@@ -9,6 +9,7 @@ import {
   IconBuildingPlus,
   IconBuildingSkyscraper,
   IconCalendarDue,
+  IconChevronDown,
   IconCircleCheck,
   IconCircleDashed,
   IconHome2,
@@ -178,6 +179,7 @@ export default function FormularioContacto({
   const siglaVista = v.siglaTocada ? v.sigla : v.razonSocial.trim() ? siglaPropuesta : "";
   const mandantes = (mandantesDados ?? empresas.filter((e) => e.esMandante)).filter((e) => e.id !== contacto?.id);
   const [buscarMandante, setBuscarMandante] = useState("");
+  const [listaMandantes, setListaMandantes] = useState(false);
   const qMan = buscarMandante.trim().toLowerCase();
   const mandantesVisibles = mandantes.filter((m) => v.mandanteIds.includes(m.id) || !qMan || `${m.sigla ?? ""} ${m.razonSocial}`.toLowerCase().includes(qMan));
   const alternarMandante = (id: string) =>
@@ -246,6 +248,7 @@ export default function FormularioContacto({
     setV(inicial());
     setBuscarEmpresa("");
     setBuscarMandante("");
+    setListaMandantes(false);
     setCreadas([]);
     setNueva(null);
     setErrorEmpresa(null);
@@ -476,31 +479,59 @@ export default function FormularioContacto({
                   {v.mandanteIds.length > 0 && <span className="font-normal text-gris-suave">{v.mandanteIds.length} elegido{v.mandanteIds.length === 1 ? "" : "s"}</span>}
                 </span>
                 {mandantes.length ? (
-                  <div className="overflow-hidden rounded-xl border border-borde/70">
-                    {mandantes.length > 5 && (
-                      <div className="relative border-b border-borde/60">
-                        <IconSearch size={15} stroke={1.75} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris-suave" />
-                        <input
-                          value={buscarMandante}
-                          onChange={(e) => setBuscarMandante(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
-                          placeholder="Buscar mandante"
-                          className="h-9 w-full bg-transparent pl-9 pr-3 text-sm outline-none"
-                        />
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setListaMandantes((x) => !x)}
+                      aria-expanded={listaMandantes}
+                      className={`${CAMPO_C} flex h-auto min-h-10 items-center gap-1.5 py-1.5 text-left`}
+                    >
+                      <span className="flex min-w-0 flex-1 flex-wrap gap-1">
+                        {v.mandanteIds.length ? (
+                          v.mandanteIds.map((id) => {
+                            const m = mandantes.find((x) => x.id === id);
+                            return m ? (
+                              <span key={id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-violet-500/12 px-2 py-0.5 text-xs font-semibold text-tinta">
+                                {m.sigla && <span className="font-mono text-[10px] font-bold text-violet-600">{m.sigla}</span>}
+                                <span className="truncate">{m.razonSocial}</span>
+                              </span>
+                            ) : null;
+                          })
+                        ) : (
+                          <span className="text-sm text-gris-suave">Elige uno o más mandantes</span>
+                        )}
+                      </span>
+                      <IconChevronDown size={16} className={`shrink-0 text-gris transition ${listaMandantes ? "rotate-180" : ""}`} />
+                    </button>
+                    {listaMandantes && (
+                      <div className="mt-1 overflow-hidden rounded-xl border border-borde/70 bg-superficie shadow-sm">
+                        {mandantes.length > 5 && (
+                          <div className="relative border-b border-borde/60">
+                            <IconSearch size={15} stroke={1.75} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris-suave" />
+                            <input
+                              value={buscarMandante}
+                              onChange={(e) => setBuscarMandante(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+                              placeholder="Buscar por nombre o sigla"
+                              className="h-9 w-full bg-transparent pl-9 pr-3 text-sm outline-none"
+                              autoFocus
+                            />
+                          </div>
+                        )}
+                        <ul className="max-h-48 divide-y divide-borde/50 overflow-y-auto">
+                          {mandantesVisibles.map((m) => (
+                            <li key={m.id}>
+                              <label className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-tinta/[0.03] has-[:checked]:bg-violet-500/[0.06]">
+                                <input type="checkbox" checked={v.mandanteIds.includes(m.id)} onChange={() => alternarMandante(m.id)} className="h-4 w-4 shrink-0 cursor-pointer rounded accent-violet-600" />
+                                <span className="w-11 shrink-0 rounded bg-tinta/[0.05] py-px text-center font-mono text-[11px] font-bold text-tinta/70">{m.sigla ?? "—"}</span>
+                                <span className="min-w-0 flex-1 truncate text-tinta">{m.razonSocial}</span>
+                              </label>
+                            </li>
+                          ))}
+                          {mandantesVisibles.length === 0 && <li className="px-3 py-2 text-xs text-gris">Ningún mandante coincide.</li>}
+                        </ul>
                       </div>
                     )}
-                    <ul className="max-h-40 divide-y divide-borde/50 overflow-y-auto">
-                      {mandantesVisibles.map((m) => (
-                        <li key={m.id}>
-                          <label className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-tinta/[0.03] has-[:checked]:bg-violet-500/[0.06]">
-                            <input type="checkbox" checked={v.mandanteIds.includes(m.id)} onChange={() => alternarMandante(m.id)} className="h-4 w-4 shrink-0 cursor-pointer rounded accent-violet-600" />
-                            {m.sigla && <span className="w-11 shrink-0 font-mono text-[11px] font-bold text-gris">{m.sigla}</span>}
-                            <span className="min-w-0 flex-1 truncate text-tinta">{m.razonSocial}</span>
-                          </label>
-                        </li>
-                      ))}
-                      {mandantesVisibles.length === 0 && <li className="px-3 py-2 text-xs text-gris">Ningún mandante coincide.</li>}
-                    </ul>
                   </div>
                 ) : (
                   <p className="rounded-xl bg-tinta/[0.04] px-3 py-2 text-xs text-gris">Aún no hay contactos marcados como mandante. Marca «Mandante» en uno y aparecerá aquí.</p>

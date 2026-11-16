@@ -55,7 +55,8 @@ export default function FichaContacto({
           <div className="min-w-0 flex-1">
             <Rut rut={c.rut} />
             <h2 className="mt-0.5 break-words text-2xl font-extrabold leading-tight tracking-tight text-tinta sm:text-[28px]">{c.razonSocial}</h2>
-            <p className="mt-1 text-sm text-gris">
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gris">
+              {c.sigla && <span title="Nomenclatura del contacto" className="rounded-md bg-naranjo/10 px-1.5 py-px font-mono text-xs font-bold tracking-wider text-naranjo">{c.sigla}</span>}
               {[c.tipoPersona === "empresa" ? "Empresa" : "Persona", ETIQUETA_TIPO_CONTRIBUYENTE[c.tipoContribuyente], c.activo ? null : "Archivado"].filter(Boolean).join(" · ")}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
