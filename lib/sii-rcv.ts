@@ -506,14 +506,32 @@ export async function consultarPeriodo(
   alLeerCsv?: (info: ColumnasDelCsv) => void,
   alMirarVenta?: (info: PantallaDeVenta) => void
 ): Promise<FacturaSii[]> {
-  await page.goto("https://www4.sii.cl/consdcvinternetui/#/index", { timeout: 40000 });
-  // Esta SPA nunca llega a "networkidle" (sigue con llamadas de fondo), asi
-  // que esperamos directo al elemento que necesitamos en vez de quemar el
-  // presupuesto de tiempo de la funcion serverless esperando algo que no va
-  // a pasar.
-  await page.waitForSelector("select[name='rut']", { timeout: 30000 });
+  // A veces el SII carga el selector de empresa pero la lista de RUT nunca llega (sesión lenta,
+  // fines de semana). En vez de fallar toda la sincronización, se recarga la página y se reintenta.
+  const rut = limpiarRut(rutEmpresa);
+  const INTENTOS = 3;
+  for (let intento = 1; ; intento++) {
+    try {
+      await page.goto("https://www4.sii.cl/consdcvinternetui/#/index", { timeout: 40000 });
+      // Esta SPA nunca llega a "networkidle": se espera directo a la opción de la empresa.
+      // Igual que selectOption: la opción puede calzar por su valor o por su texto.
+      await page.waitForFunction(
+        (buscado) =>
+          Array.from(document.querySelectorAll<HTMLOptionElement>("select[name='rut'] option")).some(
+            (o) => o.value === buscado || o.label === buscado || o.text.trim() === buscado,
+          ),
+        rut,
+        { timeout: 30000 },
+      );
+      break;
+    } catch (error) {
+      if (intento >= INTENTOS) throw error;
+      console.warn(`SII: el RUT ${rut} no apareció en el selector (intento ${intento} de ${INTENTOS}), se recarga.`);
+      await page.waitForTimeout(3000 * intento);
+    }
+  }
 
-  await page.locator("select[name='rut']").selectOption(limpiarRut(rutEmpresa));
+  await page.locator("select[name='rut']").selectOption(rut);
   await page.locator("select#periodoMes").selectOption(periodoMes);
   await page.locator("select").nth(2).selectOption(periodoAnio);
 
