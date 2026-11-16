@@ -2,11 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconLink, IconLoader2, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconLink, IconLoader2, IconPlus, IconTrash } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import BotonGuardar from "@/components/inventario/BotonGuardar";
-import { ESTILO_GRUPO, IconoGrupo } from "@/components/inventario/VisualFabricacion";
-import { CAMPO, TARJETA } from "@/lib/estilos";
+import { ESTILO_GRUPO } from "@/components/inventario/VisualFabricacion";
+import { TARJETA } from "@/lib/estilos";
 import {
   AYUDA_GRUPO,
   ETIQUETA_GRUPO,
@@ -23,10 +23,17 @@ import { formatearCantidad } from "@/lib/inventario-modelo";
 import type { ProductoDeCatalogo } from "@/lib/fabricacion";
 import { eliminarItemAction, guardarItemAction } from "@/app/(protegido)/inventario/fabricacion/acciones";
 
+// Campo compacto del editor: 36 px en vez de los 44 del resto del Core. Dentro de una hoja de carga
+// con muchas filas, el alto de siempre hace que cada ítem ocupe media pantalla.
+const CAMPO_COMPACTO =
+  "h-9 w-full rounded-lg border border-borde bg-superficie px-2.5 text-[13px] text-tinta placeholder:text-gris-suave focus:border-cian focus:outline-none focus:ring-2 focus:ring-cian/30";
+const ETIQUETA = "mb-1 block text-[11px] font-semibold text-gris";
+
 /**
- * La receta de costos de la ficha: una sección por tipo de costo (materiales, mano de obra…), cada
- * una con sus ítems, su subtotal y su botón para agregar. En pantalla ancha los ítems van en tabla;
- * en el celular, cada uno es una tarjeta con las mismas cifras (una tabla de siete columnas no cabe).
+ * La receta de costos de la ficha, en UNA hoja: una franja por tipo de costo (materiales, mano de
+ * obra…) con sus filas apretadas debajo. Un tipo sin ítems es solo su franja, sin caja vacía, así la
+ * hoja crece con lo que hay y no con lo que podría haber. En pantalla ancha las filas son una tabla;
+ * en el celular, dos líneas por ítem y toda la fila abre la edición.
  */
 export default function EditorCostos({
   fabricacionId,
@@ -47,20 +54,42 @@ export default function EditorCostos({
     for (const i of items) m.get(i.grupo)?.push(i);
     return m;
   }, [items]);
+  const total = items.reduce((t, i) => t + subtotalItem(i), 0);
 
   return (
-    <div className="space-y-4">
-      {GRUPOS_COSTO.map((g) => (
-        <SeccionGrupo
-          key={g}
-          grupo={g}
-          items={porGrupo.get(g) ?? []}
-          fabricacionId={fabricacionId}
-          editable={editable}
-          alAgregar={() => setModal({ grupo: g, item: null })}
-          alEditar={(item) => setModal({ grupo: g, item })}
-        />
-      ))}
+    <section className={`${TARJETA} overflow-hidden`}>
+      <div className="flex items-center gap-3 border-b border-borde px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-bold text-tinta">Costos de la receta</h3>
+          <p className="text-xs text-gris">
+            {items.length === 0 ? "Aún sin ítems" : `${items.length} ${items.length === 1 ? "ítem" : "ítems"} · costo directo ${formatearMontoFino(total)}`}
+          </p>
+        </div>
+        {editable && (
+          <button
+            type="button"
+            onClick={() => setModal({ grupo: "material", item: null })}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-naranjo px-3 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
+          >
+            <IconPlus size={15} /> Agregar ítem
+          </button>
+        )}
+      </div>
+
+      <div className="divide-y divide-borde">
+        {GRUPOS_COSTO.map((g) => (
+          <Franja
+            key={g}
+            grupo={g}
+            items={porGrupo.get(g) ?? []}
+            fabricacionId={fabricacionId}
+            editable={editable}
+            alAgregar={() => setModal({ grupo: g, item: null })}
+            alEditar={(item) => setModal({ grupo: g, item })}
+          />
+        ))}
+      </div>
+
       {modal && (
         <FormularioItem
           key={modal.item?.id ?? `nuevo-${modal.grupo}`}
@@ -71,11 +100,11 @@ export default function EditorCostos({
           alCerrar={() => setModal(null)}
         />
       )}
-    </div>
+    </section>
   );
 }
 
-function SeccionGrupo({
+function Franja({
   grupo,
   items,
   fabricacionId,
@@ -90,99 +119,90 @@ function SeccionGrupo({
   alAgregar: () => void;
   alEditar: (i: ItemCosto) => void;
 }) {
+  const { Icono, tono } = ESTILO_GRUPO[grupo];
   const subtotal = items.reduce((t, i) => t + subtotalItem(i), 0);
   return (
-    <section className={`${TARJETA} p-4 sm:p-5`}>
-      <div className="flex flex-wrap items-center gap-3">
-        <IconoGrupo grupo={grupo} />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-base font-bold text-tinta">{ETIQUETA_GRUPO[grupo]}</h3>
-          <p className="text-xs text-gris">{AYUDA_GRUPO[grupo]}</p>
-        </div>
-        {items.length > 0 && (
-          <div className="text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gris">Subtotal</p>
-            <p className="text-lg font-extrabold tabular-nums text-tinta">{formatearMontoFino(subtotal)}</p>
-          </div>
-        )}
+    <div>
+      <div className="flex items-center gap-2.5 bg-tinta/[0.02] px-4 py-2">
+        <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${tono}`}><Icono size={14} stroke={1.8} /></span>
+        <h4 className="min-w-0 flex-1 truncate text-[13px] font-bold text-tinta">
+          {ETIQUETA_GRUPO[grupo]}
+          {items.length > 0 && <span className="ml-1.5 font-semibold text-gris">{items.length}</span>}
+        </h4>
+        <span className={`text-[13px] font-bold tabular-nums ${items.length ? "text-tinta" : "text-gris-suave"}`}>{items.length ? formatearMontoFino(subtotal) : "—"}</span>
         {editable && (
-          <button
-            type="button"
-            onClick={alAgregar}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-borde px-3 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50 max-sm:w-full max-sm:justify-center"
-          >
-            <IconPlus size={16} /> Agregar
+          <button type="button" onClick={alAgregar} aria-label={`Agregar ${ETIQUETA_GRUPO_SINGULAR[grupo]}`} title={`Agregar ${ETIQUETA_GRUPO_SINGULAR[grupo]}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
+            <IconPlus size={16} />
           </button>
         )}
       </div>
 
-      {items.length === 0 ? (
-        <p className="mt-4 rounded-xl bg-tinta/[0.03] px-4 py-5 text-center text-sm text-gris">
-          Sin {ETIQUETA_GRUPO[grupo].toLowerCase()} todavía.{editable ? ` Usa «Agregar» para cargar el primero.` : ""}
-        </p>
-      ) : (
+      {items.length > 0 && (
         <>
-          {/* Tabla: desde tablet hacia arriba */}
-          <div className="mt-4 hidden overflow-x-auto rounded-xl border border-borde md:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-borde bg-tinta/[0.02] text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
-                  <th className="px-3 py-2.5">Ítem</th>
-                  <th className="px-3 py-2.5 text-right">Cantidad</th>
-                  <th className="px-3 py-2.5 text-right">Costo unit.</th>
-                  <th className="px-3 py-2.5 text-right">Merma</th>
-                  <th className="px-3 py-2.5 text-right">Subtotal</th>
-                  {editable && <th className="w-24 px-3 py-2.5"><span className="sr-only">Acciones</span></th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-borde">
-                {items.map((i) => (
-                  <tr key={i.id} className="group transition hover:bg-tinta/[0.02]">
-                    <td className="px-3 py-2.5">
-                      <span className="font-semibold text-tinta">{i.descripcion}</span>
-                      {i.productoId && <IconLink size={13} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
-                      {i.nota && <span className="block text-xs text-gris">{i.nota}</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gris">{formatearCantidad(i.cantidad)} {i.unidad}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gris">{formatearMontoFino(i.costoUnitario)}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gris">{i.mermaPct > 0 ? formatearPct(i.mermaPct) : "—"}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-bold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</td>
-                    {editable && (
-                      <td className="px-3 py-1.5">
-                        <div className="flex justify-end gap-1">
-                          <BotonEditar onClick={() => alEditar(i)} nombre={i.descripcion} />
-                          <BotonQuitar fabricacionId={fabricacionId} item={i} />
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Tarjetas: celular */}
-          <ul className="mt-4 space-y-2 md:hidden">
-            {items.map((i) => (
-              <li key={i.id} className="rounded-xl border border-borde p-3">
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold leading-snug text-tinta">
+          {/* Tabla densa: tablet y escritorio */}
+          <table className="hidden w-full text-[13px] md:table">
+            <thead>
+              <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-gris-suave">
+                <th className="px-4 pb-1 pt-1.5 font-semibold">Ítem</th>
+                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Cantidad</th>
+                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Costo unit.</th>
+                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Merma</th>
+                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Subtotal</th>
+                <th className="w-[4.5rem] pb-1 pt-1.5"><span className="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((i) => (
+                <tr
+                  key={i.id}
+                  onClick={editable ? () => alEditar(i) : undefined}
+                  className={`group border-t border-borde/60 transition ${editable ? "cursor-pointer hover:bg-tinta/[0.03]" : ""}`}
+                >
+                  <td className="max-w-0 px-4 py-1.5">
+                    <span className="block truncate font-semibold text-tinta" title={i.nota ? `${i.descripcion} — ${i.nota}` : i.descripcion}>
                       {i.descripcion}
-                      {i.productoId && <IconLink size={13} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
-                    </p>
-                    {i.nota && <p className="mt-0.5 text-xs text-gris">{i.nota}</p>}
-                  </div>
-                  <p className="shrink-0 text-base font-extrabold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</p>
-                </div>
-                <p className="mt-1.5 text-xs tabular-nums text-gris">
-                  {formatearCantidad(i.cantidad)} {i.unidad} × {formatearMontoFino(i.costoUnitario)}
-                  {i.mermaPct > 0 ? ` + ${formatearPct(i.mermaPct)} de merma` : ""}
-                </p>
+                      {i.productoId && <IconLink size={12} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
+                    </span>
+                    {i.nota && <span className="block truncate text-[11px] text-gris">{i.nota}</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-gris">{formatearCantidad(i.cantidad)} {i.unidad}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-gris">{formatearMontoFino(i.costoUnitario)}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-gris">{i.mermaPct > 0 ? formatearPct(i.mermaPct) : "—"}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-bold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</td>
+                  <td className="px-2 py-0.5 text-right">
+                    {editable && <BotonQuitar fabricacionId={fabricacionId} item={i} />}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Dos líneas por ítem: celular */}
+          <ul className="md:hidden">
+            {items.map((i) => (
+              <li key={i.id} className="flex items-stretch border-t border-borde/60">
+                <button
+                  type="button"
+                  disabled={!editable}
+                  onClick={() => alEditar(i)}
+                  className="min-w-0 flex-1 px-4 py-2 text-left transition active:bg-tinta/[0.04] disabled:cursor-default"
+                >
+                  <span className="flex items-baseline gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-tinta">
+                      {i.descripcion}
+                      {i.productoId && <IconLink size={12} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
+                    </span>
+                    <span className="shrink-0 text-[13px] font-bold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</span>
+                  </span>
+                  <span className="block truncate text-[11px] tabular-nums text-gris">
+                    {formatearCantidad(i.cantidad)} {i.unidad} × {formatearMontoFino(i.costoUnitario)}
+                    {i.mermaPct > 0 ? ` · merma ${formatearPct(i.mermaPct)}` : ""}
+                    {i.nota ? ` · ${i.nota}` : ""}
+                  </span>
+                </button>
                 {editable && (
-                  <div className="mt-2 flex justify-end gap-1 border-t border-borde pt-2">
-                    <BotonEditar onClick={() => alEditar(i)} nombre={i.descripcion} conTexto />
-                    <BotonQuitar fabricacionId={fabricacionId} item={i} conTexto />
+                  <div className="grid shrink-0 place-items-center pr-2">
+                    <BotonQuitar fabricacionId={fabricacionId} item={i} />
                   </div>
                 )}
               </li>
@@ -190,40 +210,28 @@ function SeccionGrupo({
           </ul>
         </>
       )}
-    </section>
+    </div>
   );
 }
 
-function BotonEditar({ onClick, nombre, conTexto = false }: { onClick: () => void; nombre: string; conTexto?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} aria-label={`Editar ${nombre}`} className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-gris transition hover:bg-tinta/[0.05] hover:text-tinta">
-      <IconPencil size={16} /> {conTexto && "Editar"}
-    </button>
-  );
-}
-
-function BotonQuitar({ fabricacionId, item, conTexto = false }: { fabricacionId: string; item: ItemCosto; conTexto?: boolean }) {
+function BotonQuitar({ fabricacionId, item }: { fabricacionId: string; item: ItemCosto }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
-  function quitar() {
+  function quitar(e: React.MouseEvent) {
+    e.stopPropagation(); // la fila entera abre la edición: quitar no tiene que abrirla
     if (!confirm(`¿Quitar «${item.descripcion}» de la receta?`)) return;
-    setError(null);
     iniciar(async () => {
       const r = await eliminarItemAction(fabricacionId, item.id);
       if (r.ok) router.refresh();
-      else setError(r.error);
+      else alert(r.error);
     });
   }
 
   return (
-    <>
-      <button type="button" onClick={quitar} disabled={pendiente} aria-label={`Quitar ${item.descripcion}`} className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-gris transition hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50">
-        {pendiente ? <IconLoader2 size={16} className="animate-spin" /> : <IconTrash size={16} />} {conTexto && "Quitar"}
-      </button>
-      {error && <span role="alert" className="sr-only">{error}</span>}
-    </>
+    <button type="button" onClick={quitar} disabled={pendiente} aria-label={`Quitar ${item.descripcion}`} title="Quitar" className="grid h-8 w-8 place-items-center rounded-lg text-gris-suave transition hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50">
+      {pendiente ? <IconLoader2 size={15} className="animate-spin" /> : <IconTrash size={15} />}
+    </button>
   );
 }
 
@@ -287,16 +295,10 @@ function FormularioItem({
   }
 
   return (
-    <VentanaModal
-      abierta
-      alCerrar={alCerrar}
-      titulo={item ? "Editar ítem de costo" : `Agregar ${ETIQUETA_GRUPO_SINGULAR[grupo]}`}
-      descripcion={AYUDA_GRUPO[grupo]}
-      ancho="max-w-xl"
-      completaEnMovil
-    >
-      <form onSubmit={enviar} className="space-y-4">
-        <div role="radiogroup" aria-label="Tipo de costo" className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+    <VentanaModal abierta alCerrar={alCerrar} titulo={item ? "Editar ítem" : "Agregar ítem de costo"} ancho="max-w-lg" completaEnMovil>
+      <form onSubmit={enviar} className="space-y-3.5">
+        {/* Tipo: una sola fila de pastillas, sin cajas altas */}
+        <div role="radiogroup" aria-label="Tipo de costo" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5">
           {GRUPOS_COSTO.map((g) => {
             const { Icono, tono } = ESTILO_GRUPO[g];
             const on = g === grupo;
@@ -307,66 +309,68 @@ function FormularioItem({
                 role="radio"
                 aria-checked={on}
                 onClick={() => cambiarGrupo(g)}
-                className={`flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition ${on ? "border-naranjo bg-naranjo/[0.07] text-tinta" : "border-borde text-gris hover:border-naranjo/40"}`}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition ${on ? "border-naranjo bg-naranjo/[0.08] text-tinta" : "border-borde text-gris hover:border-naranjo/40"}`}
               >
-                <span className={`grid h-6 w-6 place-items-center rounded-lg ${tono}`}><Icono size={14} stroke={1.8} /></span>
+                <span className={`grid h-5 w-5 place-items-center rounded ${tono}`}><Icono size={12} stroke={1.9} /></span>
                 {ETIQUETA_GRUPO[g]}
               </button>
             );
           })}
         </div>
+        <p className="-mt-1.5 text-[11px] text-gris">{AYUDA_GRUPO[grupo]}</p>
 
         {grupo === "material" && catalogo.length > 0 && (
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gris">Traer del catálogo de Inventario (opcional)</span>
-            <select value={productoId} onChange={(e) => elegirProducto(e.target.value)} className={CAMPO}>
+            <span className={ETIQUETA}>Traer del catálogo (opcional)</span>
+            <select value={productoId} onChange={(e) => elegirProducto(e.target.value)} className={CAMPO_COMPACTO}>
               <option value="">Escribirlo a mano</option>
               {catalogo.map((p) => <option key={p.id} value={p.id}>{p.nombre}{p.sku ? ` · ${p.sku}` : ""} — {formatearMontoFino(p.costo)}/{p.unidad}</option>)}
             </select>
-            {enlazado && <span className="mt-1 block text-xs text-gris-suave">Enlazado: desde la ficha puedes actualizar este costo cuando cambie en el catálogo.</span>}
+            {enlazado && <span className="mt-1 block text-[11px] text-gris-suave">Enlazado: puedes actualizar este costo desde la ficha cuando cambie en el catálogo.</span>}
           </label>
         )}
 
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold text-gris">Qué es *</span>
-          <input name="descripcion" required maxLength={160} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className={CAMPO} placeholder={grupo === "mano_obra" ? "Soldador" : grupo === "maquinaria" ? "Corte plasma" : "Perfil de aluminio 40×40"} autoFocus />
+          <span className={ETIQUETA}>Qué es *</span>
+          <input name="descripcion" required maxLength={160} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className={CAMPO_COMPACTO} placeholder={grupo === "mano_obra" ? "Soldador" : grupo === "maquinaria" ? "Corte plasma" : "Perfil de aluminio 40×40"} autoFocus />
         </label>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gris">Cantidad *</span>
-            <input name="cantidad" type="number" required min="0" step="any" inputMode="decimal" value={cantidad} onChange={(e) => setCantidad(e.target.value)} className={CAMPO} />
+            <span className={ETIQUETA}>Cantidad *</span>
+            <input name="cantidad" type="number" required min="0" step="any" inputMode="decimal" value={cantidad} onChange={(e) => setCantidad(e.target.value)} className={CAMPO_COMPACTO} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gris">Unidad</span>
-            <input name="unidad" maxLength={16} value={unidad} onChange={(e) => setUnidad(e.target.value)} className={CAMPO} placeholder="kg, hr, un…" />
+            <span className={ETIQUETA}>Unidad</span>
+            <input name="unidad" maxLength={16} value={unidad} onChange={(e) => setUnidad(e.target.value)} className={CAMPO_COMPACTO} placeholder="kg, hr, un" />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gris">Costo unitario *</span>
-            <input name="costoUnitario" type="number" required min="0" step="any" inputMode="decimal" value={costo} onChange={(e) => setCosto(e.target.value)} className={CAMPO} />
+            <span className={ETIQUETA}>Costo unit. *</span>
+            <input name="costoUnitario" type="number" required min="0" step="any" inputMode="decimal" value={costo} onChange={(e) => setCosto(e.target.value)} className={CAMPO_COMPACTO} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gris">Merma %</span>
-            <input name="mermaPct" type="number" min="0" max="100" step="any" inputMode="decimal" value={merma} onChange={(e) => setMerma(e.target.value)} className={CAMPO} placeholder="0" />
+            <span className={ETIQUETA}>Merma %</span>
+            <input name="mermaPct" type="number" min="0" max="100" step="any" inputMode="decimal" value={merma} onChange={(e) => setMerma(e.target.value)} className={CAMPO_COMPACTO} placeholder="0" />
           </label>
         </div>
 
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold text-gris">Nota (opcional)</span>
-          <input name="nota" maxLength={300} value={nota} onChange={(e) => setNota(e.target.value)} className={CAMPO} placeholder="Proveedor, medida, supuesto…" />
+          <span className={ETIQUETA}>Nota (opcional)</span>
+          <input name="nota" maxLength={300} value={nota} onChange={(e) => setNota(e.target.value)} className={CAMPO_COMPACTO} placeholder="Proveedor, medida, supuesto…" />
         </label>
 
-        <div className="flex items-center justify-between rounded-xl bg-naranjo/[0.07] px-4 py-3">
-          <span className="text-xs font-semibold text-gris">Subtotal de este ítem</span>
-          <span className="text-xl font-extrabold tabular-nums text-tinta" aria-live="polite">{formatearMontoFino(subtotal)}</span>
-        </div>
+        {error && <p role="alert" className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
-        {error && <p role="alert" className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
-        <div className="flex flex-wrap justify-end gap-2 max-lg:sticky max-lg:bottom-0 max-lg:-mx-5 max-lg:border-t max-lg:border-borde max-lg:bg-superficie max-lg:px-5 max-lg:py-3">
-          <button type="button" onClick={alCerrar} className="inline-flex min-h-11 items-center rounded-lg border border-borde px-4 text-xs font-bold uppercase tracking-wide text-gris transition hover:text-tinta">
+        {/* Pie: subtotal a la izquierda, botones a la derecha; fijo abajo en el celular */}
+        <div className="flex items-center gap-2 border-t border-borde pt-3 max-lg:sticky max-lg:bottom-0 max-lg:-mx-5 max-lg:bg-superficie max-lg:px-5 max-lg:pb-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gris">Subtotal</p>
+            <p className="truncate text-lg font-extrabold leading-tight tabular-nums text-tinta" aria-live="polite">{formatearMontoFino(subtotal)}</p>
+          </div>
+          <button type="button" onClick={alCerrar} className="inline-flex h-10 items-center rounded-lg border border-borde px-3.5 text-xs font-bold uppercase tracking-wide text-gris transition hover:text-tinta">
             Cancelar
           </button>
-          <BotonGuardar pendiente={pendiente}>{item ? "Guardar cambios" : "Agregar a la receta"}</BotonGuardar>
+          <BotonGuardar pendiente={pendiente}>{item ? "Guardar" : "Agregar"}</BotonGuardar>
         </div>
       </form>
     </VentanaModal>
