@@ -91,11 +91,7 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
                       </td>
                       <td className="px-3 py-3.5">
                         {codigo ? (
-                          <span className="inline-flex overflow-hidden rounded-lg border border-borde/70 font-mono text-[11px] font-bold tracking-wide">
-                            {codigo.split("-").map((parte, k) => (
-                              <span key={k} className={`px-1.5 py-1 ${k % 2 ? "bg-tinta/[0.04] text-tinta" : "bg-superficie text-tinta/80"} ${k ? "border-l border-borde/70" : ""}`}>{parte}</span>
-                            ))}
-                          </span>
+                          <span className="inline-block whitespace-nowrap rounded-lg border border-borde/70 bg-tinta/[0.03] px-2 py-1 font-mono text-[11px] font-bold tracking-wide text-tinta">{codigo}</span>
                         ) : (
                           <span className="text-gris-suave">—</span>
                         )}
