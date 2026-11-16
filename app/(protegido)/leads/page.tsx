@@ -4,10 +4,8 @@ import { RUTA_LEADS, cargarComercial, cargarVistaLeads, contextoLeads } from "@/
 import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
 import { ETIQUETA_ESTADO_COTIZACION, ETIQUETA_TIPO_VENTA } from "@/lib/fin/modelo";
 import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
-import { ConVentana } from "@/components/fin/ui";
 import { BOTON } from "@/components/fin/estilos";
 import TableroLeads from "@/components/leads/TableroLeads";
-import { FormLead } from "@/components/leads/FormLead";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +51,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         <Pestanas base={RUTA_LEADS} actual={ver} opciones={[{ clave: "tablero", etiqueta: "Tablero", n: com.oportunidades.length }, { clave: "tabla", etiqueta: "Leads" }, { clave: "cotizaciones", etiqueta: "Cotizaciones", n: com.cotizaciones.length }]} />
         <span className="flex-1" />
         <Link href={`${RUTA_LEADS}/cotizaciones/nueva`} className={BOTON}><IconFilePlus size={15} /> Nueva cotización</Link>
-        <ConVentana boton={<><IconPlus size={15} /> Nuevo lead</>} titulo="Nuevo lead">
-          {/* Elemento y no función: una página de servidor no puede pasar funciones a un componente de cliente. El formulario cierra la ventana solo. */}
-          <FormLead clientes={clientes} responsableInicial={ctx.usuario.correo} />
-        </ConVentana>
+        <Link href="/leads/nuevo" className={BOTON}><IconPlus size={15} /> Nuevo lead</Link>
       </div>
 
       {ver !== "cotizaciones" ? (

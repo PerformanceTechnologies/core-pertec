@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { IconFileSearch, IconShoppingCart, IconFileText, IconHistory, IconLoader2, IconNote, IconPhone, IconMail, IconTrash, IconUsers } from "@tabler/icons-react";
 import { guardarOportunidadAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { actividadesDeLeadAction, eliminarOportunidadAction, registrarActividadLeadAction } from "@/app/(protegido)/leads/acciones";
@@ -37,7 +38,8 @@ function NecesitaCompra({ leadId, inicial }: { leadId: string | null; inicial: b
 }
 
 /** Crear o editar un lead: lo que se pide primero es lo mínimo (nombre), lo demás se completa a medida que avanza. */
-export function FormLead({ o, clientes, alOk, etapaInicial, responsableInicial, esAdmin = false }: { o?: Oportunidad; clientes: OpcionContacto[]; alOk?: () => void; etapaInicial?: string; responsableInicial?: string; esAdmin?: boolean }) {
+export function FormLead({ o, clientes, alOk, etapaInicial, responsableInicial, esAdmin = false, abrirAlCrear = false }: { o?: Oportunidad; clientes: OpcionContacto[]; alOk?: () => void; etapaInicial?: string; responsableInicial?: string; esAdmin?: boolean; abrirAlCrear?: boolean }) {
+  const router = useRouter();
   return (
     <div className="space-y-4">
       {o && (
@@ -53,7 +55,7 @@ export function FormLead({ o, clientes, alOk, etapaInicial, responsableInicial, 
         </div>
       )}
       {o && <HistorialLead id={o.id} />}
-      <FormAccion accion={guardarOportunidadAction.bind(null, o?.id ?? null)} textoBoton={o ? "Guardar" : "Crear lead"} alOk={alOk}>
+      <FormAccion accion={guardarOportunidadAction.bind(null, o?.id ?? null)} textoBoton={o ? "Guardar" : "Crear lead"} alOk={(r) => { alOk?.(); if (!o && abrirAlCrear && r.id) router.push(`/leads/${r.id}`); }}>
         <Campo etiqueta="¿Qué se quiere vender? *"><input name="nombre" required defaultValue={o?.nombre} autoFocus={!o} className={CAMPO} placeholder="Mantención anual planta X" /></Campo>
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo etiqueta="Cliente" ayuda="Se elige de Contactos"><ComboContacto name="clienteId" opciones={clientes} inicial={o?.clienteId} /></Campo>

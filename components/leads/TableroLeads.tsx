@@ -9,9 +9,8 @@ import { moverOportunidadAction } from "@/app/(protegido)/gestion-financiera/acc
 import { clpCorto, diaChile, diasEntre, fechaCl } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD } from "@/lib/fin/modelo";
 import type { Oportunidad } from "@/lib/fin/datos";
-import { CAMPO, ConVentana, type OpcionContacto } from "@/components/fin/ui";
+import { CAMPO, type OpcionContacto } from "@/components/fin/ui";
 import { avisar, pedirTexto } from "@/components/fin/dialogos";
-import { FormLead } from "./FormLead";
 
 /** Color de cada etapa: la franja de la columna y la pastilla de la tabla. */
 const TONO: Record<string, { franja: string; chip: string }> = {
@@ -125,9 +124,7 @@ export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo, 
                       <p className="truncate text-[11px] tabular-nums text-gris">{clpCorto(total)}{!cerrada(e.clave) && <> · pond. {clpCorto(pond)}</>}</p>
                     </div>
                     {!cerrada(e.clave) && (
-                      <ConVentana boton={<IconPlus size={15} />} titulo={`Nuevo lead · ${e.etiqueta}`} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
-                        {(cerrar) => <FormLead clientes={clientes} alOk={cerrar} etapaInicial={e.clave} responsableInicial={yo} />}
-                      </ConVentana>
+                      <Link href={`/leads/nuevo?etapa=${e.clave}`} title={`Nuevo lead · ${e.etiqueta}`} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-gris transition hover:bg-naranjo/10 hover:text-naranjo"><IconPlus size={15} /></Link>
                     )}
                   </header>
                   <div className="flex flex-1 flex-col gap-2">
