@@ -46,14 +46,8 @@ const uuidONull = (v: FormDataEntryValue | null): string | null => {
 function leerFicha(fd: FormData): { ok: true; datos: DatosFabricacion } | { ok: false; error: string } {
   const nombre = limpiarTexto(fd.get("nombre"), 120);
   if (!nombre) return { ok: false, error: "El nombre es obligatorio." };
-  const rendimiento = leerNumero(fd.get("rendimiento"));
-  const indirectosPct = leerNumero(fd.get("indirectosPct"));
   const margenPct = leerNumero(fd.get("margenPct"));
-  const precioVenta = leerNumero(fd.get("precioVenta"));
-  if (!Number.isFinite(rendimiento) || rendimiento <= 0) return { ok: false, error: "El rendimiento tiene que ser mayor que 0." };
-  if (!Number.isFinite(indirectosPct) || indirectosPct < 0 || indirectosPct > 1000) return { ok: false, error: "Los gastos indirectos van de 0 % a 1000 %." };
   if (!Number.isFinite(margenPct) || margenPct < 0 || margenPct >= 100) return { ok: false, error: "El margen va de 0 % a menos de 100 %." };
-  if (!Number.isFinite(precioVenta) || precioVenta < 0) return { ok: false, error: "El precio de venta no puede ser negativo." };
   return {
     ok: true,
     datos: {
@@ -61,11 +55,7 @@ function leerFicha(fd: FormData): { ok: true; datos: DatosFabricacion } | { ok: 
       nombre,
       descripcion: limpiarTexto(fd.get("descripcion"), 600) || null,
       unidadId: uuidONull(fd.get("unidadId")),
-      productoId: uuidONull(fd.get("productoId")),
-      rendimiento,
-      indirectosPct,
       margenPct,
-      precioVenta,
       notas: String(fd.get("notas") ?? "").trim().slice(0, 2000) || null,
     },
   };

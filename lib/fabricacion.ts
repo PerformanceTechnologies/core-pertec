@@ -30,10 +30,12 @@ const aItem = (r: any): ItemCosto => ({
   mermaPct: Number(r.merma_pct), orden: Number(r.orden ?? 0), nota: r.nota ?? null,
 });
 
+// Las columnas rendimiento, indirectos_pct, precio_venta y producto_id de inv_fab_productos quedaron sin
+// uso al simplificar el costo a «ítems + un % de margen»: no se leen ni se escriben (sus valores por
+// omisión bastan) y no se borran de la base para no tocar datos que ya existan.
 const aFabricacion = (r: any): ProductoFabricado => ({
   id: r.id, codigo: r.codigo ?? null, nombre: r.nombre, descripcion: r.descripcion ?? null, unidadId: r.unidad_id ?? null,
-  productoId: r.producto_id ?? null, rendimiento: Number(r.rendimiento), indirectosPct: Number(r.indirectos_pct),
-  margenPct: Number(r.margen_pct), precioVenta: Number(r.precio_venta), estado: r.estado, notas: r.notas ?? null,
+  margenPct: Number(r.margen_pct), estado: r.estado, notas: r.notas ?? null,
   creadoPor: r.creado_por ?? null, creadoEn: r.creado_en, actualizadoEn: r.actualizado_en,
 });
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -102,17 +104,12 @@ export type DatosFabricacion = {
   nombre: string;
   descripcion: string | null;
   unidadId: string | null;
-  productoId: string | null;
-  rendimiento: number;
-  indirectosPct: number;
   margenPct: number;
-  precioVenta: number;
   notas: string | null;
 };
 
 const aFila = (d: DatosFabricacion) => ({
-  codigo: d.codigo, nombre: d.nombre, descripcion: d.descripcion, unidad_id: d.unidadId, producto_id: d.productoId,
-  rendimiento: d.rendimiento, indirectos_pct: d.indirectosPct, margen_pct: d.margenPct, precio_venta: d.precioVenta, notas: d.notas,
+  codigo: d.codigo, nombre: d.nombre, descripcion: d.descripcion, unidad_id: d.unidadId, margen_pct: d.margenPct, notas: d.notas,
 });
 
 export async function crearFabricacion(d: DatosFabricacion, porCorreo: string): Promise<string> {
@@ -169,9 +166,7 @@ export async function duplicarFabricacion(id: string, porCorreo: string): Promis
     {
       codigo: null, // el código es único: la copia nace sin él y se le pone el suyo
       nombre: `${ficha.nombre} (copia)`.slice(0, 120),
-      descripcion: ficha.descripcion, unidadId: ficha.unidadId, productoId: null,
-      rendimiento: ficha.rendimiento, indirectosPct: ficha.indirectosPct, margenPct: ficha.margenPct,
-      precioVenta: ficha.precioVenta, notas: ficha.notas,
+      descripcion: ficha.descripcion, unidadId: ficha.unidadId, margenPct: ficha.margenPct, notas: ficha.notas,
     },
     porCorreo,
   );
@@ -292,17 +287,4 @@ export async function productosParaMateriales(): Promise<ProductoDeCatalogo[]> {
   return (productos.data ?? []).map((p) => ({
     id: p.id, nombre: p.nombre, sku: p.sku ?? null, costo: Number(p.costo), unidad: abrev.get(p.unidad_id as string) ?? "un",
   }));
-}
-
-/** Los productos activos del catálogo que aún no están enlazados a una ficha: candidatos a «producto terminado». */
-export async function productosTerminadosDisponibles(incluir?: string | null): Promise<{ id: string; nombre: string; sku: string | null }[]> {
-  const [productos, usados] = await Promise.all([
-    supabaseAdmin.from(T.catalogo).select("id, nombre, sku").eq("activo", true).neq("tipo", "servicio").order("nombre"),
-    supabaseAdmin.from(T.productos).select("producto_id").not("producto_id", "is", null),
-  ]);
-  if (productos.error) throw new Error(`[inventario] leer el catálogo: ${productos.error.message}`);
-  const ocupados = new Set((usados.data ?? []).map((u) => u.producto_id as string));
-  return (productos.data ?? [])
-    .filter((p) => !ocupados.has(p.id) || p.id === incluir)
-    .map((p) => ({ id: p.id, nombre: p.nombre, sku: p.sku ?? null }));
 }

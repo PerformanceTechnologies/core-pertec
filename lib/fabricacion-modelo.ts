@@ -1,22 +1,18 @@
 // Sin "server-only": lo usan el servidor (para armar la ficha y validar) y los componentes cliente
 // (para recalcular en vivo mientras se escribe un ítem). Todo aquí es aritmética pura.
 //
-// FABRICACIÓN — la hoja de costos de un producto que fabricamos.
+// FABRICACIÓN — cuánto cuesta fabricar un producto.
 //
-// Un producto fabricado se describe con una «receta de costos»: una lista de ítems agrupados por
-// naturaleza (materiales, mano de obra, maquinaria, servicios externos, otros). Cada ítem lleva
-// cantidad, costo unitario y, si corresponde, un % de merma. La receta rinde cierta cantidad de
-// unidades terminadas (el «rendimiento»): el costo de UNA unidad es el costo del lote dividido por él.
+// Un producto fabricado se describe con una lista de ítems de costo agrupados por naturaleza
+// (materiales, mano de obra, maquinaria, servicios externos, otros). Cada ítem lleva cantidad, costo
+// unitario y, si corresponde, un % de merma. Eso es todo el cálculo:
 //
-//   subtotal del ítem  = cantidad × costo unitario × (1 + merma / 100)
-//   costo directo      = suma de los subtotales
-//   gastos indirectos  = costo directo × (% indirectos / 100)
-//   costo del lote     = costo directo + gastos indirectos
-//   costo unitario     = costo del lote ÷ rendimiento
-//   precio sugerido    = costo unitario ÷ (1 − margen / 100)      ← margen sobre el PRECIO, no sobre el costo
+//   subtotal del ítem        = cantidad × costo unitario × (1 + merma / 100)
+//   costo de fabricación     = suma de los subtotales        ← lo que se le puede mostrar a un proveedor
+//   precio con margen        = costo ÷ (1 − margen / 100)    ← INTERNO: lo que cobramos si fabricamos nosotros
 //
-// El margen se calcula sobre el precio de venta (lo que se lee en un estado de resultados), no como
-// recargo sobre el costo: un 30 % de margen es un precio de costo ÷ 0,70, no costo × 1,30.
+// El margen es un solo %, sobre el PRECIO (no un recargo sobre el costo): con 30 %, el precio es
+// costo ÷ 0,70, no costo × 1,30. El margen no sale jamás en el PDF.
 
 /** Naturaleza de un ítem de costo. El orden es el orden en que se muestran las secciones. */
 export const GRUPOS_COSTO = ["material", "mano_obra", "maquinaria", "servicio", "otro"] as const;
@@ -96,15 +92,10 @@ export type ProductoFabricado = {
   nombre: string;
   descripcion: string | null;
   unidadId: string | null;
-  /** El producto terminado en el catálogo de Inventario, si ya existe (opcional). */
-  productoId: string | null;
-  /** Cuántas unidades terminadas rinde la receta completa. */
-  rendimiento: number;
-  indirectosPct: number;
+  /** El margen que cobramos cuando fabricamos, en % del precio. Interno: no sale en el PDF. */
   margenPct: number;
-  /** Precio de venta vigente, si ya se definió. 0 = sin definir. */
-  precioVenta: number;
   estado: EstadoFabricacion;
+  /** Notas internas: tampoco salen en el PDF. */
   notas: string | null;
   creadoPor: string | null;
   creadoEn: string;
@@ -136,74 +127,38 @@ export type ResumenCosto = {
   porGrupo: Record<GrupoCosto, number>;
   /** Cuántos ítems hay en cada grupo. */
   itemsPorGrupo: Record<GrupoCosto, number>;
-  costoDirecto: number;
-  indirectos: number;
-  costoLote: number;
-  costoUnitario: number;
-  /** Precio que deja el margen objetivo sobre el precio (null si el margen no tiene solución). */
-  precioSugerido: number | null;
-  /** Utilidad por unidad al precio de venta vigente (null si no hay precio definido). */
-  utilidadUnitaria: number | null;
-  /** Margen real sobre el precio de venta vigente, en % (null si no hay precio definido). */
-  margenReal: number | null;
-  /** Recargo sobre el costo, en % (null si no hay precio definido o el costo es 0). */
-  recargoReal: number | null;
+  /** El costo de fabricar UNA unidad: la suma de todos los ítems. */
+  costo: number;
+  /** El precio que deja el margen (null si el margen no tiene solución: 100 % o más). */
+  precioConMargen: number | null;
+  /** Lo que queda sobre el costo al precio con margen. */
+  utilidad: number | null;
 };
 
 const CEROS = (): Record<GrupoCosto, number> => ({ material: 0, mano_obra: 0, maquinaria: 0, servicio: 0, otro: 0 });
 
 /**
- * El costo completo de un producto fabricado.
- *
- * No lanza con datos raros: un rendimiento 0 o negativo se trata como 1 (la receta rinde una unidad),
- * y un margen de 100 % o más no tiene precio sugerido (dividiría por cero o daría negativo).
+ * El costo de un producto fabricado. No lanza con datos raros: un margen de 100 % o más no tiene
+ * precio (dividiría por cero o daría negativo) y un ítem con números inválidos cuenta como 0.
  */
-export function calcularCosto(
-  items: (ItemEntrada & { grupo: GrupoCosto })[],
-  params: { rendimiento: number; indirectosPct: number; margenPct: number; precioVenta: number },
-): ResumenCosto {
+export function calcularCosto(items: (ItemEntrada & { grupo: GrupoCosto })[], params: { margenPct: number }): ResumenCosto {
   const porGrupo = CEROS();
   const itemsPorGrupo = CEROS();
   for (const i of items) {
     porGrupo[i.grupo] += subtotalItem(i);
     itemsPorGrupo[i.grupo] += 1;
   }
-  const costoDirecto = GRUPOS_COSTO.reduce((t, g) => t + porGrupo[g], 0);
-  const indirectos = costoDirecto * (noNegativo(params.indirectosPct) / 100);
-  const costoLote = costoDirecto + indirectos;
-  const rendimiento = noNegativo(params.rendimiento) || 1;
-  const costoUnitario = costoLote / rendimiento;
-
+  const costo = GRUPOS_COSTO.reduce((t, g) => t + porGrupo[g], 0);
   const margen = noNegativo(params.margenPct);
-  const precioSugerido = margen < 100 ? costoUnitario / (1 - margen / 100) : null;
-
-  const precio = noNegativo(params.precioVenta);
-  const hayPrecio = precio > 0;
-  return {
-    porGrupo,
-    itemsPorGrupo,
-    costoDirecto,
-    indirectos,
-    costoLote,
-    costoUnitario,
-    precioSugerido,
-    utilidadUnitaria: hayPrecio ? precio - costoUnitario : null,
-    margenReal: hayPrecio ? ((precio - costoUnitario) / precio) * 100 : null,
-    recargoReal: hayPrecio && costoUnitario > 0 ? ((precio - costoUnitario) / costoUnitario) * 100 : null,
-  };
+  const precioConMargen = margen < 100 ? costo / (1 - margen / 100) : null;
+  return { porGrupo, itemsPorGrupo, costo, precioConMargen, utilidad: precioConMargen === null ? null : precioConMargen - costo };
 }
 
-/** Qué parte del costo directo es cada grupo, en %, para la barra de composición. Los grupos en 0 salen. */
+/** Qué parte del costo es cada grupo, en %, para la barra de composición. Los grupos en 0 salen. */
 export function composicion(porGrupo: Record<GrupoCosto, number>): { grupo: GrupoCosto; monto: number; pct: number }[] {
   const total = GRUPOS_COSTO.reduce((t, g) => t + porGrupo[g], 0);
   if (total <= 0) return [];
   return GRUPOS_COSTO.filter((g) => porGrupo[g] > 0).map((g) => ({ grupo: g, monto: porGrupo[g], pct: (porGrupo[g] / total) * 100 }));
-}
-
-/** Lo que se sugiere al ver el margen real frente al objetivo: bajo, en meta o sobre. */
-export function lecturaMargen(margenReal: number | null, objetivo: number): "sin_precio" | "bajo" | "en_meta" {
-  if (margenReal === null) return "sin_precio";
-  return margenReal + 1e-9 < objetivo ? "bajo" : "en_meta";
 }
 
 /** Formatea un porcentaje: 12 → "12 %", 12,5 → "12,5 %". */

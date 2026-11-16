@@ -147,6 +147,7 @@ const nextConfig: NextConfig = {
     "/api/ofertas/\\[id\\]/emitir": SIN_VISOR_DE_TRACES,
     "/api/leads/cotizaciones/\\[id\\]/pdf": SIN_VISOR_DE_TRACES,
     "/api/leads/cotizaciones/\\[id\\]/enviar": SIN_VISOR_DE_TRACES,
+    "/api/inventario/fabricacion/\\[id\\]/pdf": SIN_VISOR_DE_TRACES,
     "/finanzas/sii": SIN_VISOR_DE_TRACES,
   },
   outputFileTracingIncludes: {
@@ -177,6 +178,8 @@ const nextConfig: NextConfig = {
     // si no se pide aqui.
     "/api/leads/cotizaciones/\\[id\\]/pdf": [...NAVEGADOR, ...LOGOS_DE_EMPRESAS],
     "/api/leads/cotizaciones/\\[id\\]/enviar": [...NAVEGADOR, ...LOGOS_DE_EMPRESAS],
+    // El PDF del costo de fabricación imprime con el mismo Chromium y lleva el logo de la empresa activa.
+    "/api/inventario/fabricacion/\\[id\\]/pdf": [...NAVEGADOR, ...LOGOS_DE_EMPRESAS],
     // Releer un periodo del SII desde la pantalla usa el MISMO scraper con navegador que
     // el cron, y una Server Action se empaqueta con la RUTA QUE LA IMPORTA, no con una
     // ruta propia: por eso la clave es la pagina. Sin esta entrada la accion falla en
