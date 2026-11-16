@@ -88,8 +88,7 @@ export default function EditorCostos({
           <table className="hidden w-full text-[13px] md:table">
             <thead>
               <tr className="border-b border-borde bg-tinta/[0.02] text-left text-[10px] font-semibold uppercase tracking-wide text-gris">
-                <th className="px-4 py-2 font-semibold">Tipo</th>
-                <th className="px-2 py-2 font-semibold">Ítem</th>
+                <th className="px-4 py-2 font-semibold">Ítem</th>
                 <th className="px-2 py-2 text-right font-semibold">Cantidad</th>
                 <th className="px-2 py-2 text-right font-semibold">Costo unit.</th>
                 <th className="px-2 py-2 text-right font-semibold">Merma</th>
@@ -106,16 +105,13 @@ export default function EditorCostos({
                     onClick={editable ? () => setModal({ grupo: i.grupo, item: i }) : undefined}
                     className={`group border-t border-borde/60 transition ${editable ? "cursor-pointer hover:bg-tinta/[0.03]" : ""}`}
                   >
-                    <td className="whitespace-nowrap px-4 py-2">
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-gris">
-                        <span className={`grid h-6 w-6 place-items-center rounded-md ${tono}`}><Icono size={14} stroke={1.8} /></span>
-                        {ETIQUETA_GRUPO_SINGULAR[i.grupo]}
-                      </span>
-                    </td>
-                    <td className="max-w-0 px-2 py-2">
-                      <span className="block truncate font-semibold text-tinta" title={i.nota ? `${i.descripcion} — ${i.nota}` : i.descripcion}>
-                        {i.descripcion}
-                        {i.productoId && <IconLink size={12} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
+                    <td className="max-w-0 px-4 py-2">
+                      <span className="flex items-center gap-2">
+                        <span className="min-w-0 truncate font-semibold text-tinta" title={i.nota ? `${i.descripcion} — ${i.nota}` : i.descripcion}>{i.descripcion}</span>
+                        {i.productoId && <IconLink size={12} className="shrink-0 text-cian" aria-label="Enlazado al catálogo" />}
+                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${tono}`}>
+                          <Icono size={11} stroke={2} /> {ETIQUETA_GRUPO_SINGULAR[i.grupo]}
+                        </span>
                       </span>
                       {i.nota && <span className="block truncate text-[11px] text-gris">{i.nota}</span>}
                     </td>
@@ -130,7 +126,7 @@ export default function EditorCostos({
             </tbody>
             <tfoot>
               <tr className="border-t border-borde bg-tinta/[0.02]">
-                <td colSpan={5} className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-gris">Costo directo</td>
+                <td colSpan={4} className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-gris">Costo directo</td>
                 <td className="whitespace-nowrap px-2 py-2.5 text-right text-sm font-extrabold tabular-nums text-tinta">{formatearMontoFino(total)}</td>
                 <td />
               </tr>
