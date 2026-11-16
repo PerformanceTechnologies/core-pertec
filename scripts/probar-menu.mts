@@ -27,8 +27,9 @@ const nombres = (g: ReturnType<typeof armarMenu>[number]) => g.items.map((i) => 
   assert.deepEqual(nombres(g[3]), ["Contratos"]);
   // Flota y Valorización histórica cuelgan de Inventario (son otras aplicaciones, con su permiso y
   // sus rutas, pero el mismo módulo).
-  assert.deepEqual(nombres(g[4]), ["Stock y bodegas", "Flota", "Valorización histórica"]);
-  assert.deepEqual(g[4].items.map((i) => (i.tipo === "app" ? i.app.url : "")), ["/inventario", "/flota", "/valorizacion-historica"]);
+  // Fabricación es una pestaña de Inventario (un enlace, no otra app) y va justo debajo de Flota.
+  assert.deepEqual(nombres(g[4]), ["Stock y bodegas", "Flota", "Fabricación", "Valorización histórica"]);
+  assert.deepEqual(g[4].items.map((i) => (i.tipo === "app" ? i.app.url : i.tipo === "enlace" ? i.href : "")), ["/inventario", "/flota", "/inventario/fabricacion", "/valorizacion-historica"]);
   assert.deepEqual(nombres(g[5]), ["Configuración", "Postulaciones"]);
   assert.deepEqual(g[5].items.map((i) => i.tipo), ["app", "app"]);
   // Ocultos: Proyectos, Mi Día (va arriba a la derecha) y Facturas IH.
