@@ -30,10 +30,9 @@ const CAMPO_COMPACTO =
 const ETIQUETA = "mb-1 block text-[11px] font-semibold text-gris";
 
 /**
- * La receta de costos de la ficha, en UNA hoja: una franja por tipo de costo (materiales, mano de
- * obra…) con sus filas apretadas debajo. Un tipo sin ítems es solo su franja, sin caja vacía, así la
- * hoja crece con lo que hay y no con lo que podría haber. En pantalla ancha las filas son una tabla;
- * en el celular, dos líneas por ítem y toda la fila abre la edición.
+ * La receta de costos de la ficha: UN listado con todos los ítems (el tipo va como columna/ícono) y el
+ * costo directo al pie. «Agregar ítem» abre un popup donde se elige el tipo y se cargan los datos; tocar
+ * una fila lo abre para editar. En pantalla ancha es una tabla; en el celular, dos líneas por ítem.
  */
 export default function EditorCostos({
   fabricacionId,
@@ -56,6 +55,9 @@ export default function EditorCostos({
   }, [items]);
   const total = items.reduce((t, i) => t + subtotalItem(i), 0);
 
+  // Un solo listado: se ordena por tipo (el orden de GRUPOS_COSTO) y, dentro del tipo, como se cargaron.
+  const ordenados = GRUPOS_COSTO.flatMap((g) => porGrupo.get(g) ?? []);
+
   return (
     <section className={`${TARJETA} overflow-hidden`}>
       <div className="flex items-center gap-3 border-b border-borde px-4 py-3">
@@ -76,19 +78,108 @@ export default function EditorCostos({
         )}
       </div>
 
-      <div className="divide-y divide-borde">
-        {GRUPOS_COSTO.map((g) => (
-          <Franja
-            key={g}
-            grupo={g}
-            items={porGrupo.get(g) ?? []}
-            fabricacionId={fabricacionId}
-            editable={editable}
-            alAgregar={() => setModal({ grupo: g, item: null })}
-            alEditar={(item) => setModal({ grupo: g, item })}
-          />
-        ))}
-      </div>
+      {ordenados.length === 0 ? (
+        <p className="px-4 py-10 text-center text-sm text-gris">
+          {editable ? "Todavía no hay costos. Usa «Agregar ítem» para cargar materiales, mano de obra, maquinaria, servicios u otros costos." : "Esta ficha no tiene ítems de costo."}
+        </p>
+      ) : (
+        <>
+          {/* Tabla: tablet y escritorio */}
+          <table className="hidden w-full text-[13px] md:table">
+            <thead>
+              <tr className="border-b border-borde bg-tinta/[0.02] text-left text-[10px] font-semibold uppercase tracking-wide text-gris">
+                <th className="px-4 py-2 font-semibold">Tipo</th>
+                <th className="px-2 py-2 font-semibold">Ítem</th>
+                <th className="px-2 py-2 text-right font-semibold">Cantidad</th>
+                <th className="px-2 py-2 text-right font-semibold">Costo unit.</th>
+                <th className="px-2 py-2 text-right font-semibold">Merma</th>
+                <th className="px-2 py-2 text-right font-semibold">Subtotal</th>
+                <th className="w-12 py-2"><span className="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {ordenados.map((i) => {
+                const { Icono, tono } = ESTILO_GRUPO[i.grupo];
+                return (
+                  <tr
+                    key={i.id}
+                    onClick={editable ? () => setModal({ grupo: i.grupo, item: i }) : undefined}
+                    className={`group border-t border-borde/60 transition ${editable ? "cursor-pointer hover:bg-tinta/[0.03]" : ""}`}
+                  >
+                    <td className="whitespace-nowrap px-4 py-2">
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-gris">
+                        <span className={`grid h-6 w-6 place-items-center rounded-md ${tono}`}><Icono size={14} stroke={1.8} /></span>
+                        {ETIQUETA_GRUPO_SINGULAR[i.grupo]}
+                      </span>
+                    </td>
+                    <td className="max-w-0 px-2 py-2">
+                      <span className="block truncate font-semibold text-tinta" title={i.nota ? `${i.descripcion} — ${i.nota}` : i.descripcion}>
+                        {i.descripcion}
+                        {i.productoId && <IconLink size={12} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
+                      </span>
+                      {i.nota && <span className="block truncate text-[11px] text-gris">{i.nota}</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gris">{formatearCantidad(i.cantidad)} {i.unidad}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gris">{formatearMontoFino(i.costoUnitario)}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gris">{i.mermaPct > 0 ? formatearPct(i.mermaPct) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</td>
+                    <td className="px-2 py-0.5 text-right">{editable && <BotonQuitar fabricacionId={fabricacionId} item={i} />}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-borde bg-tinta/[0.02]">
+                <td colSpan={5} className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-gris">Costo directo</td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-right text-sm font-extrabold tabular-nums text-tinta">{formatearMontoFino(total)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* Dos líneas por ítem: celular */}
+          <ul className="md:hidden">
+            {ordenados.map((i) => {
+              const { Icono, tono } = ESTILO_GRUPO[i.grupo];
+              return (
+                <li key={i.id} className="flex items-stretch border-t border-borde/60 first:border-t-0">
+                  <button
+                    type="button"
+                    disabled={!editable}
+                    onClick={() => setModal({ grupo: i.grupo, item: i })}
+                    className="flex min-w-0 flex-1 items-start gap-2.5 px-4 py-2.5 text-left transition active:bg-tinta/[0.04] disabled:cursor-default"
+                  >
+                    <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md ${tono}`} title={ETIQUETA_GRUPO_SINGULAR[i.grupo]}><Icono size={14} stroke={1.8} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline gap-2">
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-tinta">
+                          {i.descripcion}
+                          {i.productoId && <IconLink size={12} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
+                        </span>
+                        <span className="shrink-0 text-[13px] font-bold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</span>
+                      </span>
+                      <span className="block truncate text-[11px] tabular-nums text-gris">
+                        {formatearCantidad(i.cantidad)} {i.unidad} × {formatearMontoFino(i.costoUnitario)}
+                        {i.mermaPct > 0 ? ` · merma ${formatearPct(i.mermaPct)}` : ""}
+                        {i.nota ? ` · ${i.nota}` : ""}
+                      </span>
+                    </span>
+                  </button>
+                  {editable && (
+                    <div className="grid shrink-0 place-items-center pr-2">
+                      <BotonQuitar fabricacionId={fabricacionId} item={i} />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+            <li className="flex items-center justify-between border-t border-borde bg-tinta/[0.02] px-4 py-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gris">Costo directo</span>
+              <span className="text-sm font-extrabold tabular-nums text-tinta">{formatearMontoFino(total)}</span>
+            </li>
+          </ul>
+        </>
+      )}
 
       {modal && (
         <FormularioItem
@@ -101,116 +192,6 @@ export default function EditorCostos({
         />
       )}
     </section>
-  );
-}
-
-function Franja({
-  grupo,
-  items,
-  fabricacionId,
-  editable,
-  alAgregar,
-  alEditar,
-}: {
-  grupo: GrupoCosto;
-  items: ItemCosto[];
-  fabricacionId: string;
-  editable: boolean;
-  alAgregar: () => void;
-  alEditar: (i: ItemCosto) => void;
-}) {
-  const { Icono, tono } = ESTILO_GRUPO[grupo];
-  const subtotal = items.reduce((t, i) => t + subtotalItem(i), 0);
-  return (
-    <div>
-      <div className="flex items-center gap-2.5 bg-tinta/[0.02] px-4 py-2">
-        <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${tono}`}><Icono size={14} stroke={1.8} /></span>
-        <h4 className="min-w-0 flex-1 truncate text-[13px] font-bold text-tinta">
-          {ETIQUETA_GRUPO[grupo]}
-          {items.length > 0 && <span className="ml-1.5 font-semibold text-gris">{items.length}</span>}
-        </h4>
-        <span className={`text-[13px] font-bold tabular-nums ${items.length ? "text-tinta" : "text-gris-suave"}`}>{items.length ? formatearMontoFino(subtotal) : "—"}</span>
-        {editable && (
-          <button type="button" onClick={alAgregar} aria-label={`Agregar ${ETIQUETA_GRUPO_SINGULAR[grupo]}`} title={`Agregar ${ETIQUETA_GRUPO_SINGULAR[grupo]}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-gris transition hover:bg-naranjo/10 hover:text-naranjo">
-            <IconPlus size={16} />
-          </button>
-        )}
-      </div>
-
-      {items.length > 0 && (
-        <>
-          {/* Tabla densa: tablet y escritorio */}
-          <table className="hidden w-full text-[13px] md:table">
-            <thead>
-              <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-gris-suave">
-                <th className="px-4 pb-1 pt-1.5 font-semibold">Ítem</th>
-                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Cantidad</th>
-                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Costo unit.</th>
-                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Merma</th>
-                <th className="px-2 pb-1 pt-1.5 text-right font-semibold">Subtotal</th>
-                <th className="w-[4.5rem] pb-1 pt-1.5"><span className="sr-only">Acciones</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr
-                  key={i.id}
-                  onClick={editable ? () => alEditar(i) : undefined}
-                  className={`group border-t border-borde/60 transition ${editable ? "cursor-pointer hover:bg-tinta/[0.03]" : ""}`}
-                >
-                  <td className="max-w-0 px-4 py-1.5">
-                    <span className="block truncate font-semibold text-tinta" title={i.nota ? `${i.descripcion} — ${i.nota}` : i.descripcion}>
-                      {i.descripcion}
-                      {i.productoId && <IconLink size={12} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
-                    </span>
-                    {i.nota && <span className="block truncate text-[11px] text-gris">{i.nota}</span>}
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-gris">{formatearCantidad(i.cantidad)} {i.unidad}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-gris">{formatearMontoFino(i.costoUnitario)}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-gris">{i.mermaPct > 0 ? formatearPct(i.mermaPct) : "—"}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-bold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</td>
-                  <td className="px-2 py-0.5 text-right">
-                    {editable && <BotonQuitar fabricacionId={fabricacionId} item={i} />}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Dos líneas por ítem: celular */}
-          <ul className="md:hidden">
-            {items.map((i) => (
-              <li key={i.id} className="flex items-stretch border-t border-borde/60">
-                <button
-                  type="button"
-                  disabled={!editable}
-                  onClick={() => alEditar(i)}
-                  className="min-w-0 flex-1 px-4 py-2 text-left transition active:bg-tinta/[0.04] disabled:cursor-default"
-                >
-                  <span className="flex items-baseline gap-2">
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-tinta">
-                      {i.descripcion}
-                      {i.productoId && <IconLink size={12} className="ml-1.5 inline text-cian" aria-label="Enlazado al catálogo" />}
-                    </span>
-                    <span className="shrink-0 text-[13px] font-bold tabular-nums text-tinta">{formatearMontoFino(subtotalItem(i))}</span>
-                  </span>
-                  <span className="block truncate text-[11px] tabular-nums text-gris">
-                    {formatearCantidad(i.cantidad)} {i.unidad} × {formatearMontoFino(i.costoUnitario)}
-                    {i.mermaPct > 0 ? ` · merma ${formatearPct(i.mermaPct)}` : ""}
-                    {i.nota ? ` · ${i.nota}` : ""}
-                  </span>
-                </button>
-                {editable && (
-                  <div className="grid shrink-0 place-items-center pr-2">
-                    <BotonQuitar fabricacionId={fabricacionId} item={i} />
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
   );
 }
 
