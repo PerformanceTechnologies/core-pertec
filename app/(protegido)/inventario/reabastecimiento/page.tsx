@@ -16,7 +16,7 @@ export default async function ReabastecimientoPage() {
   const filas = await reporteReabastecimiento();
 
   const intro = (
-    <IntroSeccion
+    <IntroSeccion compacto
       Icono={IconRefreshAlert}
       tono="bg-rose-500/10 text-rose-600"
       titulo="Reabastecimiento"
@@ -74,12 +74,12 @@ export default async function ReabastecimientoPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-borde text-left text-xs font-semibold uppercase tracking-wide text-gris">
-                <th className="px-4 py-3">Producto</th>
-                <th className="px-4 py-3">Ubicación</th>
-                <th className="px-4 py-3 text-right">Disponible</th>
-                <th className="px-4 py-3 text-right">Mínimo</th>
-                <th className="px-4 py-3 text-right">Máximo</th>
-                <th className="px-4 py-3 text-right">Reponer</th>
+                <th className="px-3 py-2">Producto</th>
+                <th className="px-3 py-2">Ubicación</th>
+                <th className="px-3 py-2 text-right">Disponible</th>
+                <th className="px-3 py-2 text-right">Mínimo</th>
+                <th className="px-3 py-2 text-right">Máximo</th>
+                <th className="px-3 py-2 text-right">Reponer</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-borde">
@@ -88,7 +88,7 @@ export default async function ReabastecimientoPage() {
                   key={`${f.producto.id}-${f.ubicacion?.id ?? "general"}`}
                   className="transition hover:bg-borde/30"
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-1.5">
                     <Link
                       href={`/inventario/productos/${f.producto.id}`}
                       className="font-semibold text-tinta hover:text-cian"
@@ -96,17 +96,17 @@ export default async function ReabastecimientoPage() {
                       {f.producto.nombre}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-gris">{f.ubicacion ? f.ubicacion.nombre : <span>Todas las bodegas <span className="text-xs text-gris-suave">· mínimo general</span></span>}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-amber-600">
+                  <td className="px-3 py-1.5 text-gris">{f.ubicacion ? f.ubicacion.nombre : <span>Todas las bodegas <span className="text-xs text-gris-suave">· mínimo general</span></span>}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums font-semibold text-amber-600">
                     {formatearCantidad(f.disponible)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gris">
+                  <td className="px-3 py-1.5 text-right tabular-nums text-gris">
                     {formatearCantidad(f.minimo)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gris">
+                  <td className="px-3 py-1.5 text-right tabular-nums text-gris">
                     {formatearCantidad(f.maximo)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-bold text-tinta">
+                  <td className="px-3 py-1.5 text-right tabular-nums font-bold text-tinta">
                     {formatearCantidad(f.sugerido)}
                   </td>
                 </tr>
