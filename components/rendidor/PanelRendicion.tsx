@@ -17,7 +17,7 @@ import { TextInput, NumInput, SelectInput } from "@/components/cotizador/campos/
 import RuedaCarga from "@/components/RuedaCarga";
 import ColaDeFotos from "./ColaDeFotos";
 import ComboProveedor from "./ComboProveedor";
-import CodigoProyecto from "@/components/fin/CodigoProyecto";
+import SelectorProyectoCodigo from "@/components/fin/SelectorProyectoCodigo";
 import type { ProveedorOpcion, ProyectoOpcion } from "@/lib/rendidor/proveedores";
 import ConciliarGasto from "./ConciliarGasto";
 import MenuAgregarGasto, { type BorradorElegible } from "./MenuAgregarGasto";
@@ -1425,20 +1425,18 @@ export default function PanelRendicion({
 
                         {(proyectos.length > 0 || g.proyectoId) && (
                           <Campo etiqueta="Proyecto" ancho="sm:col-span-2 xl:col-span-4">
-                            <SelectInput
-                              value={g.proyectoId ?? ""}
-                              disabled={yaCargada}
-                              onChange={(v) => {
+                            <SelectorProyectoCodigo
+                              valor={g.proyectoId ?? null}
+                              deshabilitado={yaCargada}
+                              opciones={[
+                                ...(g.proyectoId && !proyectos.some((p) => p.id === g.proyectoId) ? [{ id: g.proyectoId, codigo: g.proyectoNombre ?? "Proyecto" }] : []),
+                                ...proyectos.map((p) => ({ id: p.id, codigo: p.codigo, info: p.info })),
+                              ]}
+                              alCambiar={(v) => {
                                 const p = proyectos.find((x) => x.id === v);
                                 actualizarGasto(g.id, { proyectoId: p?.id ?? null, proyectoNombre: p ? `${p.codigo} · ${p.nombre}` : null });
                               }}
-                              options={[
-                                { value: "", label: "— sin proyecto —" },
-                                ...(g.proyectoId && !proyectos.some((p) => p.id === g.proyectoId) ? [{ value: g.proyectoId, label: g.proyectoNombre ?? "Proyecto" }] : []),
-                                ...proyectos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.nombre}` })),
-                              ]}
                             />
-                            {(() => { const sel = proyectos.find((x) => x.id === g.proyectoId); return sel?.info ? <span className="mt-1.5 block"><CodigoProyecto info={sel.info} /></span> : null; })()}
                           </Campo>
                         )}
 
