@@ -12,6 +12,7 @@ export default function IntroSeccion({
   titulo,
   bajada,
   accion,
+  compacto = false,
   children,
 }: {
   Icono: Icon;
@@ -19,9 +20,25 @@ export default function IntroSeccion({
   titulo: string;
   bajada: string;
   accion?: { href: string; texto: string; Icono?: Icon };
+  /** Versión baja: icono chico y el contenido extra a la derecha del título, en vez de debajo. */
+  compacto?: boolean;
   /** Contenido extra bajo la bajada: pistas, contadores, filtros. */
   children?: React.ReactNode;
 }) {
+  if (compacto) {
+    return (
+      <header className={`${TARJETA} flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3`}>
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tono}`}>
+          <Icono size={20} stroke={1.75} />
+        </span>
+        <div className="min-w-[16rem] flex-1">
+          <h2 className="text-base font-extrabold leading-tight tracking-tight text-tinta">{titulo}</h2>
+          <p className="text-xs text-gris">{bajada}</p>
+        </div>
+        {children}
+      </header>
+    );
+  }
   return (
     <header className={`${TARJETA} flex flex-wrap items-start gap-4 p-5`}>
       <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${tono}`}>
