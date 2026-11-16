@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { IconFolders, IconPlus } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, contactosDeProyecto } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, codigoCompuestoProyecto, contactosDeProyecto } from "@/lib/fin/datos";
 import { clpCorto } from "@/lib/fin/reglas";
 import { etiquetaTipoProyecto } from "@/lib/fin/modelo";
 import { Banda, Monto, TD, TH, Vacio } from "@/components/fin/piezas";
@@ -18,7 +18,6 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
   const lista = v.proyectos.filter((p) => (sp.estado === "cerrado" ? p.estado === "cerrado" : p.estado === "activo"));
   const t = (k: "vendido" | "facturado" | "porFacturar" | "porCobrar" | "comprometido" | "margen") => lista.reduce((s, p) => s + p.cifras[k], 0);
   const clientes = contactosDeProyecto(v.contrapartes);
-  const mandantesDe = new Map(clientes.map((c) => [c.id, c.mandantes]));
   const tipos = [...new Set(v.proyectos.map((p) => p.tipo))];
   return (
     <div className="space-y-5">
@@ -44,14 +43,14 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
       ) : (
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
           <table className="w-full min-w-[80rem] text-sm">
-            <thead><tr className="border-b border-borde"><th className={TH}>Proyecto</th><th className={TH}>Mandante</th><th className={`${TH} text-right`}>Vendido</th><th className={`${TH} text-right`}>Facturado</th><th className={`${TH} text-right`}>Por facturar</th><th className={`${TH} text-right`}>Por cobrar</th><th className={`${TH} text-right`}>Comprometido</th><th className={TH}>Presupuesto</th><th className={`${TH} text-right`}>Margen</th></tr></thead>
+            <thead><tr className="border-b border-borde"><th className={TH}>Proyecto</th><th className={TH}>Código</th><th className={`${TH} text-right`}>Vendido</th><th className={`${TH} text-right`}>Facturado</th><th className={`${TH} text-right`}>Por facturar</th><th className={`${TH} text-right`}>Por cobrar</th><th className={`${TH} text-right`}>Comprometido</th><th className={TH}>Presupuesto</th><th className={`${TH} text-right`}>Margen</th></tr></thead>
             <tbody className="divide-y divide-borde">
               {lista.map((p) => {
                 const uso = p.presupuestoCostos ? p.cifras.comprometido / p.presupuestoCostos : null;
                 return (
                   <tr key={p.id} className="hover:bg-tinta/[0.02]">
                     <td className={TD}><Link href={`${RUTA_FIN}/proyectos/${p.id}`} className="font-semibold text-tinta hover:text-naranjo">{p.nombre}</Link><span className="block text-[11px] text-gris">{p.codigo} · {etiquetaTipoProyecto(p.tipo)}</span></td>
-                    <td className={`${TD} max-w-[12rem] truncate`}>{p.esGeneral ? "Interno" : (p.mandanteId && mandantesDe.get(p.mandanteId)?.join(", ")) || "—"}</td>
+                    <td className={`${TD} whitespace-nowrap font-mono text-xs font-bold tracking-wide text-tinta`}>{p.esGeneral ? "—" : codigoCompuestoProyecto(p, v.contrapartes) || "—"}</td>
                     <td className={`${TD} text-right`}><Monto valor={p.cifras.vendido} /></td>
                     <td className={`${TD} text-right`}><Monto valor={p.cifras.facturado} /></td>
                     <td className={`${TD} text-right`}><Monto valor={p.cifras.porFacturar} /></td>

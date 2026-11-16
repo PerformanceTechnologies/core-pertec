@@ -1006,3 +1006,14 @@ export function contactosDeProyecto(cs: Contraparte[]): { id: string; nombre: st
     mandantes: c.mandanteIds.map((m) => porId.get(m)).filter(Boolean).map((m) => (m!.sigla ? `[${m!.sigla}] ${m!.nombre}` : m!.nombre)),
   }));
 }
+
+/**
+ * Código de un proyecto: sigla del mandante - sigla del cliente - año de inicio - tipo.
+ * Ej.: AAS-FES-2026-CON. Lo que falte se omite (sin mandante: FES-2026-CON).
+ */
+export function codigoCompuestoProyecto(p: { mandanteId: string | null; fechaInicio: string | null; tipo: string }, cs: Contraparte[]): string {
+  const cliente = p.mandanteId ? cs.find((c) => c.id === p.mandanteId) : undefined;
+  const mandante = cliente?.mandanteIds.length ? cs.find((c) => c.id === cliente.mandanteIds[0]) : undefined;
+  const tipo = p.tipo.normalize("NFD").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 3);
+  return [mandante?.sigla, cliente?.sigla, p.fechaInicio?.slice(0, 4), tipo].filter(Boolean).join("-");
+}
