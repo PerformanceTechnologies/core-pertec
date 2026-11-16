@@ -46,7 +46,7 @@ export function FormLead({ o, clientes, alOk, etapaInicial, responsableInicial, 
           {o.proyectoId && <Link href={`/gestion-financiera/proyectos/${o.proyectoId}`} className={BOTON_SEC}>Ver proyecto</Link>}
           {/* Solo el administrador del sistema (la acción lo vuelve a exigir en el servidor). */}
           {esAdmin && (
-            <BotonAccion accion={eliminarOportunidadAction.bind(null, o.id)} motivo="¿Por qué se elimina este lead?" titulo="Eliminar el lead (solo administrador)" className="ml-auto inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.06] px-3 py-2 text-xs font-semibold text-alerta transition hover:bg-rose-500/[0.12] disabled:opacity-50">
+            <BotonAccion accion={eliminarOportunidadAction.bind(null, o.id)} volverA="/leads?ver=tabla" motivo="¿Por qué se elimina este lead?" titulo="Eliminar el lead (solo administrador)" className="ml-auto inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.06] px-3 py-2 text-xs font-semibold text-alerta transition hover:bg-rose-500/[0.12] disabled:opacity-50">
               <IconTrash size={14} /> Eliminar lead
             </BotonAccion>
           )}

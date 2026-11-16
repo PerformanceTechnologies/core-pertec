@@ -50,7 +50,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         ]}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Pestanas base={RUTA_LEADS} actual={ver} opciones={[{ clave: "tablero", etiqueta: "Tablero", n: com.oportunidades.length }, { clave: "tabla", etiqueta: "Tabla" }, { clave: "cotizaciones", etiqueta: "Cotizaciones", n: com.cotizaciones.length }]} />
+        <Pestanas base={RUTA_LEADS} actual={ver} opciones={[{ clave: "tablero", etiqueta: "Tablero", n: com.oportunidades.length }, { clave: "tabla", etiqueta: "Leads" }, { clave: "cotizaciones", etiqueta: "Cotizaciones", n: com.cotizaciones.length }]} />
         <span className="flex-1" />
         <Link href={`${RUTA_LEADS}/cotizaciones/nueva`} className={BOTON}><IconFilePlus size={15} /> Nueva cotización</Link>
         <ConVentana boton={<><IconPlus size={15} /> Nuevo lead</>} titulo="Nuevo lead">

@@ -12,7 +12,7 @@ import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
 import { BotonEnviarCotizacion } from "@/components/leads/EnviarCotizacion";
 import { eliminarCotizacionAction, eliminarCotizacionConHitosAction } from "../../acciones";
-import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
+import { ListaDocumentacion, OPCIONES_DOCUMENTACION } from "@/components/leads/Documentacion";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +69,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
                   <label className="flex flex-wrap items-center gap-2 text-sm"><input type="radio" name="modo" value="mensual" defaultChecked={c.tipo === "arriendo" && c.arriendoUnidad !== "dia"} /> {c.tipo === "arriendo" ? "Un hito por mes de arriendo" : "EDP mensuales"} del <input name="desde" type="date" defaultValue={v.hoy} className="rounded border border-borde px-1.5 py-0.5" /> al <input name="hasta" type="date" className="rounded border border-borde px-1.5 py-0.5" /></label>
                   <label className="ml-6 flex items-center gap-2 text-xs text-gris">Monto por mes (opcional; vacío = repartir el neto) <input name="montoMensual" className="w-32 rounded border border-borde px-1.5 py-0.5" /></label>
                 </fieldset>
-                <p className="text-[11px] text-gris">Adjunta la evidencia de aceptación (correo o firma del cliente) en «Respaldos» después de aceptar.</p>
+                <p className="text-[11px] text-gris">Adjunta la evidencia de aceptación (correo o firma del cliente) en «Documentación» después de aceptar.</p>
               </FormAccion>
             )}
           </ConVentana>
@@ -93,7 +93,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
             <IconTrash size={14} /> {hitos.length > 0 ? "Eliminar cotización y sus hitos" : "Eliminar"}
           </BotonAccion>
         )}
-        <SubirAdjunto entidadTipo="cotizacion" entidadId={id} tipo="cotizacion_cliente" texto="Adjuntar respaldo" />
+        <SubirAdjunto entidadTipo="cotizacion" entidadId={id} texto="Documentación" opciones={OPCIONES_DOCUMENTACION} />
       </div>
 
       {/* Cadena: oportunidad · proyecto · hitos */}
@@ -125,12 +125,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
       )}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Seccion titulo="Respaldos">
-          <ul className={`${TARJETA} divide-y divide-borde text-sm`}>
-            {adjuntos.map((a) => <li key={a.id} className="px-4 py-2"><EnlaceAdjunto id={a.id} nombre={a.nombre} /></li>)}
-            {adjuntos.length === 0 && <li className="px-4 py-3 text-xs text-gris">Sin respaldos.</li>}
-          </ul>
-        </Seccion>
+        <ListaDocumentacion adjuntos={adjuntos} />
         <Seccion titulo="Historial">
           <ul className={`${TARJETA} max-h-64 divide-y divide-borde overflow-auto text-xs`}>
             {historial.map((x) => <li key={x.id} className="px-4 py-2"><span className="font-semibold text-tinta">{x.detalle ?? x.accion}</span>{x.motivo && <span className="block text-gris">Motivo: {x.motivo}</span>}<span className="block text-gris-suave">{new Date(x.creadoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} · {x.usuario?.split("@")[0]}</span></li>)}

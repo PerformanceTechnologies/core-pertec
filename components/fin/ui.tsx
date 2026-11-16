@@ -328,10 +328,12 @@ export function ComboContacto({ name, opciones, inicial, placeholder = "Buscar p
 }
 
 /** Subir un respaldo a un registro (cotización, OC cliente, EDP, factura, comprobante…). */
-export function SubirAdjunto({ entidadTipo, entidadId, tipo = "otro", texto = "Adjuntar" }: { entidadTipo: string; entidadId: string; tipo?: string; texto?: string }) {
+export function SubirAdjunto({ entidadTipo, entidadId, tipo = "otro", texto = "Adjuntar", opciones }: { entidadTipo: string; entidadId: string; tipo?: string; texto?: string; opciones?: { tipo: string; texto: string }[] }) {
   const router = useRouter();
   const entrada = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const tipoElegido = useRef(tipo);
   return (
     <>
       <input
@@ -347,20 +349,47 @@ export function SubirAdjunto({ entidadTipo, entidadId, tipo = "otro", texto = "A
           fd.set("archivo", f);
           fd.set("entidadTipo", entidadTipo);
           fd.set("entidadId", entidadId);
-          fd.set("tipo", tipo);
+          fd.set("tipo", tipoElegido.current);
           const r = await fetch("/api/gestion-financiera/adjunto", { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "No se pudo subir." }));
           setSubiendo(false);
           if (entrada.current) entrada.current.value = "";
           if (r.error) avisar(r.error);
           else {
-            avisar("Respaldo adjuntado.", "ok");
+            avisar("Documento adjuntado.", "ok");
             router.refresh();
           }
         }}
       />
-      <button type="button" className={BOTON_SEC} disabled={subiendo} onClick={(e) => (e.stopPropagation(), entrada.current?.click())}>
-        {subiendo && <IconLoader2 size={14} className="animate-spin" />} {texto}
-      </button>
+      {opciones?.length ? (
+        <span className="relative inline-block">
+          <button type="button" className={BOTON_SEC} disabled={subiendo} aria-expanded={menu} onClick={(e) => (e.stopPropagation(), setMenu((m) => !m))}>
+            {subiendo && <IconLoader2 size={14} className="animate-spin" />} {texto}
+          </button>
+          {menu && (
+            <span className="absolute right-0 z-40 mt-1 flex w-56 flex-col overflow-hidden rounded-xl border border-borde bg-fondo p-1 shadow-lg">
+              {opciones.map((o) => (
+                <button
+                  key={o.tipo}
+                  type="button"
+                  className="rounded-lg px-3 py-2 text-left text-sm text-tinta transition hover:bg-tinta/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    tipoElegido.current = o.tipo;
+                    setMenu(false);
+                    entrada.current?.click();
+                  }}
+                >
+                  {o.texto}
+                </button>
+              ))}
+            </span>
+          )}
+        </span>
+      ) : (
+        <button type="button" className={BOTON_SEC} disabled={subiendo} onClick={(e) => (e.stopPropagation(), entrada.current?.click())}>
+          {subiendo && <IconLoader2 size={14} className="animate-spin" />} {texto}
+        </button>
+      )}
     </>
   );
 }

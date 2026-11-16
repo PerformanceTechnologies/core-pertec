@@ -158,9 +158,7 @@ export default function TableroLeads({ oportunidades, clientes, hoy, vista, yo, 
                   return (
                     <tr key={o.id} className="hover:bg-tinta/[0.02]">
                       <td className="max-w-[16rem] px-3 py-2.5 align-top">
-                        <ConVentana boton={<span className="block truncate text-left font-semibold text-tinta hover:text-naranjo">{o.nombre}</span>} titulo={`${o.codigo} · ${o.nombre}`} className="w-full">
-                          {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} esAdmin={esAdmin} />}
-                        </ConVentana>
+                        <Link href={`/leads/${o.id}`} className="block w-full truncate text-left font-semibold text-tinta hover:text-naranjo">{o.nombre}</Link>
                         <span className="text-[11px] text-gris">{o.codigo}{quieta && <span className="ml-1.5 inline-flex items-center gap-0.5 text-aviso"><IconAlertTriangle size={11} /> {diasEntre(ref, hoy)} d sin actividad</span>}</span>
                       </td>
                       <td className="max-w-[12rem] truncate px-3 py-2.5 align-top text-xs">{nombre(o.clienteId)}</td>
@@ -288,9 +286,7 @@ function TarjetaLead({ o, cliente, hoy, clientes, esAdmin, arrastrable, arrastra
       className={`rounded-xl border bg-superficie p-2.5 shadow-sm transition-shadow hover:shadow-md ${arrastrable ? "cursor-grab active:cursor-grabbing" : ""} ${arrastrando ? "opacity-40" : ""} ${aviso ? "border-amber-400/60" : "border-borde"}`}
     >
       <div className="flex items-start gap-1.5">
-        <ConVentana boton={<span className="line-clamp-2 text-left text-[13px] font-semibold leading-snug text-tinta hover:text-naranjo">{o.nombre}</span>} titulo={`${o.codigo} · ${o.nombre}`} className="min-w-0 flex-1 text-left">
-          {(cerrar) => <FormLead o={o} clientes={clientes} alOk={cerrar} esAdmin={esAdmin} />}
-        </ConVentana>
+        <Link href={`/leads/${o.id}`} draggable={false} className="line-clamp-2 min-w-0 flex-1 text-left text-[13px] font-semibold leading-snug text-tinta hover:text-naranjo">{o.nombre}</Link>
         {aviso && <span title={aviso} aria-label={aviso} className={`mt-0.5 shrink-0 ${vencido ? "text-alerta" : "text-aviso"}`}><IconAlertTriangle size={14} /></span>}
       </div>
       <p className="mt-0.5 truncate text-[11px] text-gris">{cliente}</p>

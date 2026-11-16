@@ -15,7 +15,7 @@ const TIPOS: Record<string, string> = {
   "text/csv": "csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
 };
 const ENTIDADES: Record<string, string> = {
-  cotizacion: "fin_cotizaciones", hito: "fin_hitos", documento: "fin_documentos", compra: "fin_compras", movimiento: "fin_movimientos",
+  cotizacion: "fin_cotizaciones", oportunidad: "fin_oportunidades", hito: "fin_hitos", documento: "fin_documentos", compra: "fin_compras", movimiento: "fin_movimientos",
   operacion_factoring: "fin_operaciones_factoring", cobro: "fin_cobros", pago: "fin_pagos", proyecto: "fin_proyectos",
 };
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   if (!(archivo instanceof File) || archivo.size === 0) return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
   if (!Object.hasOwn(TIPOS, archivo.type)) return NextResponse.json({ error: "Sube un PDF, una imagen, un XML o una planilla." }, { status: 400 });
   if (archivo.size > LIMITE_SUBIDA) return NextResponse.json({ error: "El archivo pasa el tope de 4 MB." }, { status: 413 });
-  if (!ctxFin && entidadTipo !== "cotizacion") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  if (!ctxFin && entidadTipo !== "cotizacion" && entidadTipo !== "oportunidad") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const tabla = ENTIDADES[entidadTipo];
   if (!tabla || !/^[0-9a-f-]{36}$/.test(entidadId)) return NextResponse.json({ error: "Registro inválido." }, { status: 400 });
   const { data: dueño } = await supabaseAdmin.from(tabla).select("*").eq("id", entidadId).eq("empresa_id", ctx.empresa.id).maybeSingle();
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
   // Compras quedan en la carpeta de su proveedor; cotizaciones e hitos (ventas), en la de su cliente.
   const fila = dueño as { proveedor_id?: string | null; cliente_id?: string | null };
-  const contactoId = entidadTipo === "compra" ? fila.proveedor_id : entidadTipo === "cotizacion" || entidadTipo === "hito" ? fila.cliente_id : null;
+  const contactoId = entidadTipo === "compra" ? fila.proveedor_id : entidadTipo === "cotizacion" || entidadTipo === "hito" || entidadTipo === "oportunidad" ? fila.cliente_id : null;
   let carpeta = carpetaFinanzas(ctx.empresa.nombre, entidadTipo, entidadId);
   if (contactoId) {
     const { data: c } = await supabaseAdmin.from("finanzas_contactos").select("razon_social").eq("id", contactoId).maybeSingle();
