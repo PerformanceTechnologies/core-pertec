@@ -17,7 +17,7 @@ export default async function UbicacionesPage() {
 
   return (
     <div className="space-y-6">
-      <IntroSeccion
+      <IntroSeccion compacto
         Icono={IconMapPin}
         tono="bg-sky-500/10 text-sky-600"
         titulo="Bodegas y ubicaciones"

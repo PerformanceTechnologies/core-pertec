@@ -13,6 +13,7 @@ export default function IntroSeccion({
   bajada,
   accion,
   compacto = false,
+  hijosALaDerecha = false,
   children,
 }: {
   Icono: Icon;
@@ -22,6 +23,8 @@ export default function IntroSeccion({
   accion?: { href: string; texto: string; Icono?: Icon };
   /** Versión baja: icono chico y el contenido extra a la derecha del título, en vez de debajo. */
   compacto?: boolean;
+  /** Solo con `compacto`: el contenido extra va a la derecha del título (botones) en vez de debajo de la bajada (pistas). */
+  hijosALaDerecha?: boolean;
   /** Contenido extra bajo la bajada: pistas, contadores, filtros. */
   children?: React.ReactNode;
 }) {
@@ -34,8 +37,17 @@ export default function IntroSeccion({
         <div className="min-w-[16rem] flex-1">
           <h2 className="text-base font-extrabold leading-tight tracking-tight text-tinta">{titulo}</h2>
           <p className="text-xs text-gris">{bajada}</p>
+          {children && !hijosALaDerecha && <div className="mt-1.5">{children}</div>}
         </div>
-        {children}
+        {children && hijosALaDerecha && children}
+        {accion && (
+          <Link
+            href={accion.href}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-naranjo px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
+          >
+            {accion.Icono && <accion.Icono size={16} />} {accion.texto}
+          </Link>
+        )}
       </header>
     );
   }

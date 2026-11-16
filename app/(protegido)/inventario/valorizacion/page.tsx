@@ -285,7 +285,7 @@ export default async function ValorizacionPage({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-superficie">
                 <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
-                  <th className="px-4 py-3">Producto</th>
+                  <th className="px-3 py-2">Producto</th>
                   <th className="px-3 py-3 text-center">ABC</th>
                   <th className="px-3 py-3">Categoría</th>
                   <th className="px-3 py-3 text-right">A mano</th>
@@ -296,7 +296,7 @@ export default async function ValorizacionPage({
                       {b.nombre.replace(/^Bodega\s+/i, "")}
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-3 py-2 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-borde">
@@ -323,13 +323,13 @@ export default async function ValorizacionPage({
               </tbody>
               <tfoot className="sticky bottom-0 bg-superficie">
                 <tr className="border-t-2 border-borde text-sm font-bold text-tinta">
-                  <td className="px-4 py-3" colSpan={3}>Total</td>
+                  <td className="px-3 py-1.5" colSpan={3}>Total</td>
                   <td className="px-3 py-3 text-right tabular-nums">{formatearCantidad(r.unidades)}</td>
                   <td />
                   {bodegasVisibles.map((b) => (
                     <td key={b.id} className="px-3 py-3 text-right tabular-nums">{formatearMonto(r.porBodega.find((x) => x.id === b.id)?.valor ?? 0)}</td>
                   ))}
-                  <td className="px-4 py-3 text-right tabular-nums">{formatearMonto(r.total)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{formatearMonto(r.total)}</td>
                 </tr>
               </tfoot>
             </table>

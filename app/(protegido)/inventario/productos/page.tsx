@@ -37,6 +37,7 @@ export default async function ProductosPage() {
         tono="bg-naranjo/12 text-naranjo"
         titulo="Productos"
         compacto
+        hijosALaDerecha
         bajada="El catálogo: cada producto con su stock en todas las bodegas. Toca uno para ver su ficha, lotes y movimientos."
       >
         <div className="flex flex-wrap items-center gap-2">

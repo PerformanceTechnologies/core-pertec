@@ -21,7 +21,7 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-4">
-      <IntroSeccion
+      <IntroSeccion compacto
         Icono={IconTools}
         tono="bg-naranjo/12 text-naranjo"
         titulo={archivadas ? "Fabricación · Archivados" : "Fabricación"}
@@ -64,30 +64,30 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
-                    <th className="px-4 py-3">Producto</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3 text-right">Ítems</th>
-                    <th className="px-4 py-3 text-right">Costo de fabricación</th>
-                    <th className="px-4 py-3 text-right" title="Interno: lo que cobramos si fabricamos nosotros">Margen</th>
-                    <th className="px-4 py-3 text-right" title="Interno: costo ÷ (1 − margen)">Precio con margen</th>
-                    <th className="px-4 py-3"><span className="sr-only">Abrir</span></th>
+                    <th className="px-3 py-2">Producto</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2 text-right">Ítems</th>
+                    <th className="px-3 py-2 text-right">Costo de fabricación</th>
+                    <th className="px-3 py-2 text-right" title="Interno: lo que cobramos si fabricamos nosotros">Margen</th>
+                    <th className="px-3 py-2 text-right" title="Interno: costo ÷ (1 − margen)">Precio con margen</th>
+                    <th className="px-3 py-2"><span className="sr-only">Abrir</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-borde">
                   {visibles.map((f) => (
                     <tr key={f.id} className="group transition hover:bg-tinta/[0.02]">
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         <Link href={`/inventario/fabricacion/${f.id}`} className="block">
                           <span className="font-semibold text-tinta group-hover:text-naranjo">{f.nombre}</span>
                           <span className="block text-xs text-gris">{f.codigo ? <span className="font-mono">{f.codigo}</span> : "sin código"}</span>
                         </Link>
                       </td>
-                      <td className="px-4 py-3"><ChipEstadoFabricacion estado={f.estado} /></td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gris">{f.cantidadItems}</td>
+                      <td className="px-3 py-1.5"><ChipEstadoFabricacion estado={f.estado} /></td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-gris">{f.cantidadItems}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-tinta">{formatearMontoFino(f.resumen.costo)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gris">{formatearPct(f.margenPct)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gris">{f.resumen.precioConMargen === null ? "—" : formatearMontoFino(f.resumen.precioConMargen)}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-3 py-1.5 text-right">
                         <Link href={`/inventario/fabricacion/${f.id}`} aria-label={`Abrir ${f.nombre}`} className="inline-grid h-7 w-7 place-items-center rounded-lg text-gris-suave transition group-hover:text-cian">
                           <IconChevronRight size={18} />
                         </Link>
@@ -135,7 +135,7 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
 function AvisoSinActivar() {
   return (
     <div className="space-y-4">
-      <IntroSeccion Icono={IconTools} tono="bg-naranjo/12 text-naranjo" titulo="Fabricación" bajada="Los productos que fabricamos y lo que cuesta hacer cada uno." />
+      <IntroSeccion compacto Icono={IconTools} tono="bg-naranjo/12 text-naranjo" titulo="Fabricación" bajada="Los productos que fabricamos y lo que cuesta hacer cada uno." />
       <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-4 text-sm text-tinta">
         <IconAlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-600" />
         <p>

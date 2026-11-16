@@ -23,7 +23,8 @@ export default async function ProductosArchivadosPage() {
         <IconArrowLeft size={16} /> Volver a productos
       </Link>
 
-      <IntroSeccion
+      <IntroSeccion compacto
+        hijosALaDerecha
         Icono={IconArchive}
         tono="bg-amber-500/10 text-amber-600"
         titulo="Productos archivados"
@@ -46,10 +47,10 @@ export default async function ProductosArchivadosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
-                  <th className="px-4 py-3">Producto</th>
-                  <th className="px-4 py-3">Categoría</th>
-                  <th className="px-4 py-3">Archivado</th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-3 py-2">Producto</th>
+                  <th className="px-3 py-2">Categoría</th>
+                  <th className="px-3 py-2">Archivado</th>
+                  <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-borde">
@@ -57,7 +58,7 @@ export default async function ProductosArchivadosPage() {
                   const categoria = p.categoriaId ? nombreCat.get(p.categoriaId) ?? null : null;
                   return (
                     <tr key={p.id} className="group transition hover:bg-tinta/[0.02]">
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         <Link href={`/inventario/productos/${p.id}`} className="flex items-start gap-3">
                           <FichaProducto nombre={p.nombre} categoria={categoria} />
                           <span className="min-w-0">
@@ -69,18 +70,18 @@ export default async function ProductosArchivadosPage() {
                           </span>
                         </Link>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         {categoria ? (
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tonoDeTexto(categoria)}`}>{categoria}</span>
                         ) : (
                           <span className="text-gris-suave">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gris">
+                      <td className="px-3 py-1.5 text-gris">
                         {p.archivadoEn ? fechaCorta(p.archivadoEn) : "Sin fecha"}
                         {p.archivadoPor && <span className="block text-xs">por {p.archivadoPor}</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-start justify-end gap-2">
                           {puedeRestaurar && <BotonRestaurar productoId={p.id} nombre={p.nombre} chico />}
                           <Link href={`/inventario/productos/${p.id}`} aria-label={`Ver la ficha de ${p.nombre}`} className="inline-grid h-7 w-7 place-items-center rounded-lg text-gris-suave transition group-hover:text-cian">

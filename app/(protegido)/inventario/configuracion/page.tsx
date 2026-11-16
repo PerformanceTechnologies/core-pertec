@@ -16,7 +16,7 @@ export default async function ConfiguracionInventarioPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="lg:col-span-2">
-        <IntroSeccion
+        <IntroSeccion compacto
           Icono={IconSettings}
           tono="bg-slate-500/10 text-slate-600"
           titulo="Configuración"

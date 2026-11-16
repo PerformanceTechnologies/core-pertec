@@ -22,7 +22,7 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-4">
-      <IntroSeccion
+      <IntroSeccion compacto
         Icono={IconArrowsExchange}
         tono="bg-violet-500/10 text-violet-600"
         titulo="Operaciones"
@@ -61,16 +61,16 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
-                  <th className="px-4 py-3">Documento</th>
-                  <th className="px-4 py-3">Contraparte</th>
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-3 py-2">Documento</th>
+                  <th className="px-3 py-2">Contraparte</th>
+                  <th className="px-3 py-2">Fecha</th>
+                  <th className="px-3 py-2">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-borde">
                 {transferencias.map((t) => (
                   <tr key={t.id} className="transition hover:bg-tinta/[0.02]">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-1.5">
                       <Link href={`/inventario/operaciones/${t.id}`} className="flex items-center gap-3">
                         <IconoClase clase={t.clase} chico />
                         <span>
@@ -79,9 +79,9 @@ export default async function OperacionesPage({ searchParams }: { searchParams: 
                         </span>
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-gris">{t.contraparte ?? "—"}</td>
-                    <td className="px-4 py-3 text-gris">{new Date(t.creadoEn).toLocaleDateString("es-CL")}</td>
-                    <td className="px-4 py-3"><ChipEstado estado={t.estado} /></td>
+                    <td className="px-3 py-1.5 text-gris">{t.contraparte ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-gris">{new Date(t.creadoEn).toLocaleDateString("es-CL")}</td>
+                    <td className="px-3 py-1.5"><ChipEstado estado={t.estado} /></td>
                   </tr>
                 ))}
               </tbody>

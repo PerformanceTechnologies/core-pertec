@@ -26,7 +26,7 @@ export default async function AjustesPage() {
 
   return (
     <div className="space-y-5">
-      <IntroSeccion
+      <IntroSeccion compacto
         Icono={IconAdjustmentsHorizontal}
         tono="bg-amber-500/10 text-amber-600"
         titulo="Ajustes de inventario"
