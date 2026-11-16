@@ -76,10 +76,11 @@ export function tonoDeTexto(texto: string): string {
 
 /** La «foto» de un producto: sus iniciales en el color de su categoría. */
 /** La casilla del producto en las listas: su foto (chica y apagada) o, sin foto, sus iniciales. */
-export function FichaProducto({ nombre, categoria, foto }: { nombre: string; categoria: string | null; foto?: string | null }) {
+export function FichaProducto({ nombre, categoria, foto, chica = false }: { nombre: string; categoria: string | null; foto?: string | null; chica?: boolean }) {
+  const lado = chica ? "h-8 w-8" : "h-10 w-10";
   if (foto) {
     return (
-      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-tinta/[0.04] ring-1 ring-borde">
+      <span className={`${lado} shrink-0 overflow-hidden rounded-xl bg-tinta/[0.04] ring-1 ring-borde`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- viene del Core firmada, sin optimizador */}
         <img src={foto} alt="" loading="lazy" className="h-full w-full object-cover opacity-90 saturate-[.85]" />
       </span>
@@ -93,7 +94,7 @@ export function FichaProducto({ nombre, categoria, foto }: { nombre: string; cat
     .join("")
     .toUpperCase();
   return (
-    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xs font-bold ${tonoDeTexto(categoria ?? "—")}`}>
+    <span className={`grid ${lado} shrink-0 place-items-center rounded-xl text-[11px] font-bold ${tonoDeTexto(categoria ?? "—")}`}>
       {iniciales || "?"}
     </span>
   );
