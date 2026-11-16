@@ -3,35 +3,23 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAt,
-  IconBriefcase,
-  IconBuildingCommunity,
   IconBuildingPlus,
   IconBuildingSkyscraper,
-  IconCalendarDue,
   IconChevronDown,
   IconCircleCheck,
   IconCircleDashed,
-  IconHome2,
   IconId,
-  IconLocation,
-  IconMail,
-  IconMap2,
-  IconNotes,
   IconPencil,
-  IconPhone,
   IconPlus,
-  IconReceiptTax,
   IconSearch,
   IconUser,
   IconUserEdit,
   IconUserPlus,
-  IconWorld,
   IconX,
 } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import RuedaCarga from "@/components/RuedaCarga";
-import { BOTON_C, BOTON_SUAVE_C, CAMPO_C, CAMPO_I, ConIcono, ICONO, IconoTile } from "@/components/contactos/Visual";
+import { BOTON_C, BOTON_SUAVE_C, CAMPO_C, CAMPO_I, ConIcono, IconoTile } from "@/components/contactos/Visual";
 import { candidatasDeSigla } from "@/lib/contactos-sigla";
 import { formatearRut, normalizarRut } from "@/lib/contratos/rut";
 import { COMUNAS_POR_REGION, REGIONES } from "@/lib/contratos/chile-comunas";
@@ -88,8 +76,8 @@ function Campo({
 /** Título de un bloque del formulario, a lo ancho. */
 function Seccion({ titulo, ayuda }: { titulo: string; ayuda?: string }) {
   return (
-    <div className="col-span-2 mt-2 flex items-baseline gap-2 border-b border-borde/60 pb-1 first:mt-0 sm:col-span-6">
-      <h3 className="text-[12px] font-bold uppercase tracking-wide text-tinta/70">{titulo}</h3>
+    <div className="col-span-2 mt-4 flex items-baseline gap-2 first:mt-0 sm:col-span-6">
+      <h3 className="text-[13px] font-bold text-tinta">{titulo}</h3>
       {ayuda && <span className="truncate text-[11px] text-gris-suave">{ayuda}</span>}
     </div>
   );
@@ -180,6 +168,7 @@ export default function FormularioContacto({
   const mandantes = (mandantesDados ?? empresas.filter((e) => e.esMandante)).filter((e) => e.id !== contacto?.id);
   const [buscarMandante, setBuscarMandante] = useState("");
   const [listaMandantes, setListaMandantes] = useState(false);
+  const [verNotas, setVerNotas] = useState(Boolean(contacto?.notas));
   const qMan = buscarMandante.trim().toLowerCase();
   const mandantesVisibles = mandantes.filter((m) => v.mandanteIds.includes(m.id) || !qMan || `${m.sigla ?? ""} ${m.razonSocial}`.toLowerCase().includes(qMan));
   const alternarMandante = (id: string) =>
@@ -249,6 +238,7 @@ export default function FormularioContacto({
     setBuscarEmpresa("");
     setBuscarMandante("");
     setListaMandantes(false);
+    setVerNotas(Boolean(contacto?.notas));
     setCreadas([]);
     setNueva(null);
     setErrorEmpresa(null);
@@ -270,7 +260,6 @@ export default function FormularioContacto({
     });
   }
 
-  const IconoTipo = v.tipoPersona === "empresa" ? IconBuildingSkyscraper : IconUser;
 
   return (
     <>
@@ -294,12 +283,12 @@ export default function FormularioContacto({
         titulo={editar ? "Editar contacto" : "Nuevo contacto"}
         icono={<IconoTile Icono={editar ? IconUserEdit : IconUserPlus} tono="marca" />}
         variante="hoja"
-        ancho="max-w-xl"
+        ancho="max-w-2xl"
       >
         <form action={enviar} className="space-y-3.5">
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-6">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-6">
             {/* ── Qué es y qué relación tenemos ── */}
-            <Seccion titulo="Tipo y relación" />
+            <Seccion titulo="¿Qué es?" />
             <div className="col-span-2 sm:col-span-6">
               <input type="hidden" name="tipoPersona" value={v.tipoPersona} />
               <div role="radiogroup" aria-label="Tipo de contacto" className="grid h-10 grid-cols-2 gap-1 rounded-xl bg-tinta/[0.06] p-1">
@@ -323,7 +312,7 @@ export default function FormularioContacto({
                 })}
               </div>
             </div>
-            <fieldset className="col-span-2 grid grid-cols-1 gap-1.5 sm:col-span-6 sm:grid-cols-3">
+            <fieldset className="col-span-2 grid grid-cols-3 gap-1.5 sm:col-span-6">
               <legend className="sr-only">Relación con nosotros</legend>
               {(
                 [
@@ -334,13 +323,11 @@ export default function FormularioContacto({
               ).map((r) => (
                 <label
                   key={r.name}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-borde/70 bg-superficie px-3 py-2 transition hover:border-naranjo/40 has-[:checked]:border-naranjo/50 has-[:checked]:bg-naranjo/[0.05] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-cian/15"
+                  title={r.detalle}
+                  className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-borde/70 bg-superficie px-3 transition hover:border-naranjo/40 has-[:checked]:border-naranjo/50 has-[:checked]:bg-naranjo/[0.05] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-cian/15"
                 >
                   <input type="checkbox" name={r.name} checked={v[r.clave]} onChange={(e) => poner(r.clave, e.target.checked)} className={`h-4 w-4 shrink-0 cursor-pointer rounded ${r.tono}`} />
-                  <span className="min-w-0 leading-tight">
-                    <span className="block text-[13px] font-semibold text-tinta">{r.texto}</span>
-                    <span className="block text-[11px] text-gris">{r.detalle}</span>
-                  </span>
+                  <span className="text-[13px] font-semibold text-tinta">{r.texto}</span>
                 </label>
               ))}
             </fieldset>
@@ -467,14 +454,14 @@ export default function FormularioContacto({
             )}
 
             {/* Si no es mandante: con qué mandantes trabaja (de los contactos marcados como mandante). */}
-            {!v.esMandante && (
+            {v.esCliente && !v.esMandante && (
               <div className="col-span-2 sm:col-span-6">
                 {v.mandanteIds.map((id) => (
                   <input key={id} type="hidden" name="mandanteIds" value={id} />
                 ))}
                 <span className="mb-1 flex items-baseline justify-between gap-2 text-[11px] font-semibold text-gris">
                   <span>
-                    Trabaja para los mandantes <span className="font-normal text-gris-suave">· opcional</span>
+                    Mandantes <span className="font-normal text-gris-suave">· opcional</span>
                   </span>
                   {v.mandanteIds.length > 0 && <span className="font-normal text-gris-suave">{v.mandanteIds.length} elegido{v.mandanteIds.length === 1 ? "" : "s"}</span>}
                 </span>
@@ -542,7 +529,6 @@ export default function FormularioContacto({
             {/* ── Identificación y datos tributarios ── */}
             <Seccion titulo="Datos tributarios" />
             <Campo ancho="grande" etiqueta={v.tipoPersona === "empresa" ? "Razón social" : "Nombre completo"} obligatorio extra={<Contador valor={v.razonSocial} max={LARGO.razonSocial} />}>
-              <ConIcono Icono={IconoTipo}>
                 <input
                   name="razonSocial"
                   required
@@ -550,11 +536,10 @@ export default function FormularioContacto({
                   onChange={(e) => poner("razonSocial", e.target.value)}
                   onBlur={ordenar("razonSocial")}
                   maxLength={LARGO.razonSocial + 20}
-                  className={CAMPO_I}
+                  className={CAMPO_C}
                   placeholder={v.tipoPersona === "empresa" ? "Ej: Minera Los Andes SpA" : "Ej: Juan Pérez Soto"}
                   autoFocus={v.tipoPersona === "empresa"}
                 />
-              </ConIcono>
             </Campo>
             <Campo ancho="chico" etiqueta="Sigla" extra={!v.siglaTocada && siglaVista ? <span className="font-normal text-gris-suave">auto</span> : null}>
               <input type="hidden" name="siglaManual" value={v.siglaTocada && v.sigla !== (contacto?.sigla ?? "") ? "si" : "no"} />
@@ -581,7 +566,6 @@ export default function FormularioContacto({
                   ) : null
                 }
               >
-                <ConIcono Icono={IconId}>
                   <input
                     name="rut"
                     value={v.rut}
@@ -594,88 +578,71 @@ export default function FormularioContacto({
                     }}
                     onBlur={() => rutOk && poner("rut", formatearRut(rutNormal))}
                     maxLength={12}
-                    className={`${CAMPO_I} font-mono ${rutOk === false && v.rut.length >= 8 ? "border-rose-500/60" : ""}`}
+                    className={`${CAMPO_C} font-mono ${rutOk === false && v.rut.length >= 8 ? "border-rose-500/60" : ""}`}
                     placeholder="76.123.456-7"
                     aria-invalid={rutOk === false}
                   />
-                </ConIcono>
               </Campo>
             )}
             <Campo etiqueta="Contribuyente" ancho={extranjero ? "completo" : "mitad"}>
-              <ConIcono Icono={IconReceiptTax}>
                 <select
                   name="tipoContribuyente"
                   value={v.tipoContribuyente}
                   onChange={(e) => poner("tipoContribuyente", e.target.value as TipoContribuyente)}
                   title={AYUDA_TIPO_CONTRIBUYENTE[v.tipoContribuyente]}
-                  className={CAMPO_I}
+                  className={CAMPO_C}
                 >
                   {(Object.keys(ETIQUETA_TIPO_CONTRIBUYENTE) as TipoContribuyente[]).map((t) => (
                     <option key={t} value={t}>{ETIQUETA_TIPO_CONTRIBUYENTE[t]}</option>
                   ))}
                 </select>
-              </ConIcono>
             </Campo>
             <Campo etiqueta="Giro" extra={<Contador valor={v.giro} max={LARGO.giro} />}>
-              <ConIcono Icono={IconBriefcase}>
-                <input name="giro" value={v.giro} onChange={(e) => poner("giro", e.target.value)} onBlur={ordenar("giro")} maxLength={200} className={CAMPO_I} placeholder="Ej: Servicios de ingeniería" />
-              </ConIcono>
+                <input name="giro" value={v.giro} onChange={(e) => poner("giro", e.target.value)} onBlur={ordenar("giro")} maxLength={200} className={CAMPO_C} placeholder="Ej: Servicios de ingeniería" />
             </Campo>
 
             {/* ── Ubicación ── */}
             <Seccion titulo="Ubicación" />
             <Campo etiqueta="Dirección" extra={<Contador valor={v.direccion} max={LARGO.direccion} />}>
-              <ConIcono Icono={IconHome2}>
-                <input name="direccion" value={v.direccion} onChange={(e) => poner("direccion", e.target.value)} onBlur={ordenar("direccion")} maxLength={200} className={CAMPO_I} placeholder="Calle, número, oficina" />
-              </ConIcono>
+                <input name="direccion" value={v.direccion} onChange={(e) => poner("direccion", e.target.value)} onBlur={ordenar("direccion")} maxLength={200} className={CAMPO_C} placeholder="Calle, número, oficina" />
             </Campo>
             {extranjero ? (
               <>
                 <Campo etiqueta="País" ancho="mitad">
-                  <ConIcono Icono={IconWorld}>
-                    <input name="pais" value={v.pais} onChange={(e) => poner("pais", e.target.value)} onBlur={ordenar("pais")} className={CAMPO_I} placeholder="Ej: Perú" />
-                  </ConIcono>
+                    <input name="pais" value={v.pais} onChange={(e) => poner("pais", e.target.value)} onBlur={ordenar("pais")} className={CAMPO_C} placeholder="Ej: Perú" />
                 </Campo>
                 <Campo etiqueta="Ciudad" ancho="mitad">
-                  <ConIcono Icono={IconBuildingCommunity}>
-                    <input name="ciudad" value={v.ciudad} onChange={(e) => poner("ciudad", e.target.value)} onBlur={ordenar("ciudad")} maxLength={LARGO.ciudad} className={CAMPO_I} />
-                  </ConIcono>
+                    <input name="ciudad" value={v.ciudad} onChange={(e) => poner("ciudad", e.target.value)} onBlur={ordenar("ciudad")} maxLength={LARGO.ciudad} className={CAMPO_C} />
                 </Campo>
               </>
             ) : (
               <>
                 <Campo etiqueta="Región" ancho="tercio">
-                  <ConIcono Icono={IconMap2}>
-                    <select value={v.region} onChange={(e) => setV((x) => ({ ...x, region: e.target.value, comuna: "", ciudad: "" }))} className={CAMPO_I}>
+                    <select value={v.region} onChange={(e) => setV((x) => ({ ...x, region: e.target.value, comuna: "", ciudad: "" }))} className={CAMPO_C}>
                       <option value="">Elige</option>
                       {REGIONES.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
-                  </ConIcono>
                 </Campo>
                 <Campo etiqueta="Comuna" ancho="tercio" extra={v.comuna && !comuna ? <span className="tono-aviso font-semibold">No oficial</span> : null}>
-                  <ConIcono Icono={IconLocation}>
                     <select
                       name="comuna"
                       value={comuna ?? v.comuna}
                       disabled={!v.region && !v.comuna}
                       // La ciudad parte igual a la comuna (es lo habitual en la factura) y se puede cambiar.
                       onChange={(e) => setV((x) => ({ ...x, comuna: e.target.value, ciudad: !x.ciudad || x.ciudad === x.comuna ? e.target.value : x.ciudad }))}
-                      className={CAMPO_I}
+                      className={CAMPO_C}
                     >
                       <option value="">{v.region ? "Elige" : "Primero la región"}</option>
                       {v.comuna && !comuna && <option value={v.comuna}>{v.comuna} (no oficial)</option>}
                       {comunasDeRegion.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  </ConIcono>
                 </Campo>
                 <Campo etiqueta="Ciudad" ancho="tercio">
-                  <ConIcono Icono={IconBuildingCommunity}>
-                    <select name="ciudad" value={v.ciudad} disabled={!v.region} onChange={(e) => poner("ciudad", e.target.value)} className={CAMPO_I}>
+                    <select name="ciudad" value={v.ciudad} disabled={!v.region} onChange={(e) => poner("ciudad", e.target.value)} className={CAMPO_C}>
                       <option value="">{v.region ? "Elige" : "Primero la región"}</option>
                       {v.ciudad && !comunasDeRegion.includes(v.ciudad) && <option value={v.ciudad}>{v.ciudad}</option>}
                       {comunasDeRegion.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  </ConIcono>
                 </Campo>
               </>
             )}
@@ -683,35 +650,31 @@ export default function FormularioContacto({
             {/* ── Envío y cobro ── */}
             <Seccion titulo="Contacto y cobro" />
             <Campo etiqueta="Correo para facturas (DTE)" ancho="mitad">
-              <ConIcono Icono={IconMail}>
-                <input name="correoDte" type="email" defaultValue={contacto?.correoDte ?? ""} maxLength={LARGO.correo} className={CAMPO_I} placeholder="dte@empresa.cl" />
-              </ConIcono>
+                <input name="correoDte" type="email" defaultValue={contacto?.correoDte ?? ""} maxLength={LARGO.correo} className={CAMPO_C} placeholder="dte@empresa.cl" />
             </Campo>
             <Campo etiqueta="Correo de contacto" ancho="mitad">
-              <ConIcono Icono={IconAt}>
-                <input name="correo" type="email" defaultValue={base?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO_I} placeholder="contacto@empresa.cl" />
-              </ConIcono>
+                <input name="correo" type="email" defaultValue={base?.correo ?? ""} maxLength={LARGO.correo} className={CAMPO_C} placeholder="contacto@empresa.cl" />
             </Campo>
             <Campo etiqueta="Teléfono" ancho="mitad">
-              <ConIcono Icono={IconPhone}>
-                <input name="telefono" type="tel" defaultValue={base?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO_I} placeholder="+56 9 1234 5678" />
-              </ConIcono>
+                <input name="telefono" type="tel" defaultValue={base?.telefono ?? ""} maxLength={LARGO.telefono} className={CAMPO_C} placeholder="+56 9 1234 5678" />
             </Campo>
             <Campo etiqueta="Plazo de pago" ancho="mitad">
-              <ConIcono Icono={IconCalendarDue}>
-                <select name="plazoPagoDias" defaultValue={contacto?.plazoPagoDias ?? ""} className={CAMPO_I}>
+                <select name="plazoPagoDias" defaultValue={contacto?.plazoPagoDias ?? ""} className={CAMPO_C}>
                   <option value="">Sin definir</option>
                   {[...new Set([...PLAZOS, ...(contacto?.plazoPagoDias != null ? [contacto.plazoPagoDias] : [])])]
                     .sort((a, b) => a - b)
                     .map((d) => <option key={d} value={d}>{d === 0 ? "Contado" : `${d} días`}</option>)}
                 </select>
-              </ConIcono>
             </Campo>
+            {!verNotas ? (
+              <button type="button" onClick={() => setVerNotas(true)} className="col-span-2 justify-self-start text-[13px] font-semibold text-naranjo hover:underline sm:col-span-6">
+                + Agregar notas
+              </button>
+            ) : (
             <Campo etiqueta="Notas">
-              <ConIcono Icono={IconNotes} arriba>
-                <textarea name="notas" rows={2} defaultValue={contacto?.notas ?? ""} className={`${CAMPO_I} resize-none`} placeholder="Condiciones especiales, orden de compra obligatoria…" />
-              </ConIcono>
+                <textarea name="notas" rows={2} defaultValue={contacto?.notas ?? ""} className={`${CAMPO_C} resize-none`} placeholder="Condiciones especiales, orden de compra obligatoria…" autoFocus={!contacto?.notas} />
             </Campo>
+            )}
           </div>
 
           {error && <p className="tono-alerta fondo-tono rounded-xl px-3 py-2 text-sm font-semibold">{error}</p>}
