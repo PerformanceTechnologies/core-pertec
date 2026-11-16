@@ -13,12 +13,14 @@ import {
   IconRefreshAlert,
   IconSettings,
   IconTableImport,
+  IconTools,
   type Icon,
 } from "@tabler/icons-react";
 
 const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean }[] = [
   { href: "/inventario", etiqueta: "Tablero", Icono: IconLayoutDashboard, exacto: true },
   { href: "/inventario/productos", etiqueta: "Productos", Icono: IconPackage },
+  { href: "/inventario/fabricacion", etiqueta: "Fabricación", Icono: IconTools },
   { href: "/inventario/operaciones", etiqueta: "Operaciones", Icono: IconArrowsExchange },
   { href: "/inventario/ajustes", etiqueta: "Ajustes", Icono: IconAdjustmentsHorizontal },
   { href: "/inventario/reabastecimiento", etiqueta: "Reabastecimiento", Icono: IconRefreshAlert },

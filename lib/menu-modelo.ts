@@ -96,11 +96,20 @@ const SUBMODULOS_DE_GESTION = {
   compras: { href: "/finanzas/compras", nombre: "Compras y pagos", icono: "shopping-cart", descripcion: "De la solicitud de compra al pago al proveedor." },
 } as const;
 
+/**
+ * Fabricación: submódulo de Inventario que por dentro es una pestaña de la aplicación «Inventario»
+ * (mismo permiso, mismas tablas). Aparece si la persona tiene Inventario.
+ */
+const SUBMODULOS_DE_INVENTARIO = {
+  fabricacion: { href: "/inventario/fabricacion", nombre: "Fabricación", icono: "tool", descripcion: "Productos que fabricamos y su costo desglosado por ítem." },
+} as const;
+
 type Plan = { slug: string; titulo: string; descripcion: string; items: Paso[]; directo?: boolean };
 type Paso =
   | { ruta: string; nombre?: string }
   | { subpanel: string }
   | { gestion: keyof typeof SUBMODULOS_DE_GESTION }
+  | { inventario: keyof typeof SUBMODULOS_DE_INVENTARIO }
   | { pronto: string; icono: string };
 
 const PLAN: Plan[] = [
@@ -141,8 +150,9 @@ const PLAN: Plan[] = [
   {
     slug: "inventario",
     titulo: "Inventario",
-    descripcion: "Stock y bodegas, la flota de vehículos y la valorización histórica de lo comprado.",
-    items: [{ ruta: "/inventario", nombre: "Stock y bodegas" }, { ruta: "/flota" }, { ruta: "/valorizacion-historica", nombre: "Valorización histórica" }],
+    descripcion: "Stock y bodegas, la flota de vehículos, la fabricación de productos con su costo y la valorización histórica de lo comprado.",
+    // Fabricación va justo debajo de Flota.
+    items: [{ ruta: "/inventario", nombre: "Stock y bodegas" }, { ruta: "/flota" }, { inventario: "fabricacion" }, { ruta: "/valorizacion-historica", nombre: "Valorización histórica" }],
   },
 ];
 
@@ -221,6 +231,9 @@ export function armarMenu(
       } else if ("gestion" in paso) {
         const g = SUBMODULOS_DE_GESTION[paso.gestion];
         if (porRuta.has("/gestion-financiera")) items.push({ tipo: "enlace", href: g.href, nombre: g.nombre, icono: g.icono, descripcion: g.descripcion });
+      } else if ("inventario" in paso) {
+        const s = SUBMODULOS_DE_INVENTARIO[paso.inventario];
+        if (porRuta.has("/inventario")) items.push({ tipo: "enlace", href: s.href, nombre: s.nombre, icono: s.icono, descripcion: s.descripcion });
       } else if ("subpanel" in paso) {
         const sp = SUBPANELES_EN_MENU.find((s) => s.slug === paso.subpanel);
         if (sp && tieneFinanzas && subpanelesFinanzas.includes(sp.slug)) {
