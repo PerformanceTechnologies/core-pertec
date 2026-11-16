@@ -104,22 +104,24 @@ function AreaAuto({ value, onChange, className, ...resto }: { value: string; onC
  */
 function BuscadorProducto({ catalogo, valor, alElegir, children }: { catalogo: ProductoCatalogo[]; valor: string; alElegir: (p: ProductoCatalogo) => void; children: React.ReactNode }) {
   const [abierto, setAbierto] = useState(false);
-  const [activo, setActivo] = useState(0);
+  const [activo, setActivo] = useState(-1);
   const texto = valor.trim().toLowerCase();
-  const sugerencias = !catalogo.length || texto.length < 2 ? [] : catalogo.filter((p) => p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto && `${p.nombre} [${p.sku}]`.toLowerCase() !== texto).slice(0, 8);
+  const sugerencias = !catalogo.length ? [] : catalogo.filter((p) => !texto || p.nombre.toLowerCase().includes(texto) || (p.sku ?? "").toLowerCase().includes(texto)).filter((p) => p.nombre.toLowerCase() !== texto && `${p.nombre} [${p.sku}]`.toLowerCase() !== texto).slice(0, 50);
   const ver = abierto && sugerencias.length > 0;
-  const elegir = (p: ProductoCatalogo) => { alElegir(p); setAbierto(false); };
+  const elegir = (p: ProductoCatalogo) => { alElegir(p); setAbierto(false); setActivo(-1); };
   return (
     <div
       className="relative min-w-0 flex-1"
       onFocus={() => setAbierto(true)}
+      onClick={() => setAbierto(true)}
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setAbierto(false)}
-      onInput={() => { setAbierto(true); setActivo(0); }}
+      onInput={() => { setAbierto(true); setActivo(-1); }}
       onKeyDown={(e) => {
         if (!ver) return;
         if (e.key === "ArrowDown") { e.preventDefault(); setActivo((a) => Math.min(a + 1, sugerencias.length - 1)); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); setActivo((a) => Math.max(a - 1, 0)); }
-        else if (e.key === "Enter") { e.preventDefault(); elegir(sugerencias[activo] ?? sugerencias[0]); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); setActivo((a) => Math.max(a - 1, -1)); }
+        // Enter elige solo si marcaste una con las flechas: si no, sigue escribiendo libre.
+        else if (e.key === "Enter" && activo >= 0) { e.preventDefault(); elegir(sugerencias[activo] ?? sugerencias[0]); }
         else if (e.key === "Escape") setAbierto(false);
       }}
     >
