@@ -7,6 +7,7 @@ import {
   archivarContacto,
   contactoPorRut,
   duenoDeSigla,
+  siglasUsadas,
   crearContacto,
   crearPersona,
   eliminarPersona,
@@ -15,6 +16,7 @@ import {
   obtenerContacto,
   type ResultadoImportacion,
 } from "@/lib/contactos";
+import { siglaLibre } from "@/lib/contactos-sigla";
 import {
   LARGO,
   comunaOficial,
@@ -181,6 +183,11 @@ export async function actualizarContactoAction(id: string, fd: FormData): Promis
     const u = await exigirAccesoContactos();
     const d = leerContacto(fd);
     if (typeof d === "string") return { ok: false, error: d };
+    // La sigla propuesta sola que choca con otra se reemplaza por una libre; la escrita a mano avisa.
+    if (d.sigla && fd.get("siglaManual") !== "si" && (await duenoDeSigla(d.sigla, id))) {
+      const usadas = await siglasUsadas(id);
+      d.sigla = usadas ? siglaLibre(d.razonSocial, usadas) : null;
+    }
     const duplicado = (await rutLibre(d.rut, id)) ?? (await empresaValida(d, id)) ?? (d.sigla ? await siglaLibreDe(d.sigla, id) : null);
     if (duplicado) return { ok: false, error: duplicado };
     await actualizarContacto(id, d, u.correo);

@@ -47,6 +47,10 @@ export async function puedeGestionarContactos(usuario: UsuarioConAcceso): Promis
 
 const T = { contactos: "finanzas_contactos", personas: "finanzas_contacto_personas" } as const;
 
+/** El error es porque la base aún no tiene las columnas nuevas (SQL sin correr o caché de esquema vieja). */
+const faltaColumna = (e: { message: string; code?: string }) =>
+  (e.code === "PGRST204" || e.code === "42703") && /es_mandante|mandante_ids|sigla/.test(e.message);
+
 function revienta(que: string, error: { message: string; code?: string } | null): void {
   if (!error) return;
   if (error.code === "23505" && /rut/i.test(error.message)) throw new Error("[contactos] Ya existe un contacto con ese RUT.");
@@ -133,7 +137,7 @@ export async function contactoPorRut(rut: string): Promise<{ id: string; razonSo
 }
 
 /** Las siglas ya tomadas (null si la columna aún no existe). */
-async function siglasUsadas(salvo?: string): Promise<Set<string> | null> {
+export async function siglasUsadas(salvo?: string): Promise<Set<string> | null> {
   const { data, error } = await supabaseAdmin.from(T.contactos).select("id, sigla").not("sigla", "is", null);
   if (error) return null;
   return new Set((data ?? []).filter((r) => r.id !== salvo).map((r) => r.sigla as string));
@@ -151,7 +155,7 @@ export async function crearContacto(d: DatosContacto, quien: string): Promise<st
   const conSigla = usadas ? { ...fila, sigla: d.sigla && !usadas.has(d.sigla) ? d.sigla : siglaLibre(d.razonSocial, usadas) } : fila;
   let { data, error } = await supabaseAdmin.from(T.contactos).insert(conSigla).select("id").single();
   // Sin el SQL 0004 corrido, se crea igual (sin mandante ni sigla).
-  if (error && /es_mandante|mandante_ids|sigla/.test(error.message)) {
+  if (error && faltaColumna(error)) {
     const { es_mandante: _a, mandante_ids: _b, sigla: _c, ...resto } = conSigla as Record<string, unknown>;
     void _a; void _b; void _c;
     ({ data, error } = await supabaseAdmin.from(T.contactos).insert(resto).select("id").single());
@@ -163,7 +167,7 @@ export async function crearContacto(d: DatosContacto, quien: string): Promise<st
 export async function actualizarContacto(id: string, d: DatosContacto, quien: string): Promise<void> {
   const fila: Record<string, unknown> = { ...aFila(d), actualizado_por: quien, actualizado_en: new Date().toISOString() };
   let { error } = await supabaseAdmin.from(T.contactos).update(fila).eq("id", id);
-  if (error && /es_mandante|mandante_ids|sigla/.test(error.message)) {
+  if (error && faltaColumna(error)) {
     delete fila.es_mandante; delete fila.mandante_ids; delete fila.sigla;
     ({ error } = await supabaseAdmin.from(T.contactos).update(fila).eq("id", id));
   }

@@ -38,6 +38,7 @@ export default function ListaContactos({
     return s ? `/finanzas/contactos?${s}` : "/finanzas/contactos";
   };
 
+  const mandantes = activos.filter((c) => c.esMandante).map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut, esMandante: true, sigla: c.sigla }));
   const empresas = activos.filter((c) => c.tipoPersona === "empresa").map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut, esMandante: c.esMandante, sigla: c.sigla }));
   // Solo cuántos hay: cada cifra lleva al filtro correspondiente.
   const cifras = [
@@ -90,7 +91,7 @@ export default function ListaContactos({
           ))}
         </div>
         <div className="ml-auto">
-          <FormularioContacto empresas={empresas} />
+          <FormularioContacto empresas={empresas} mandantes={mandantes} />
         </div>
       </div>
 

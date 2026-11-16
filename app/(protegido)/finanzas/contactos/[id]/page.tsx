@@ -7,6 +7,7 @@ export default async function FichaContactoPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const [contacto, todos] = await Promise.all([obtenerContacto(id), listarContactos()]);
   if (!contacto) notFound();
+  const mandantes = todos.filter((c) => c.activo).filter((c) => c.esMandante).map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut, esMandante: true, sigla: c.sigla }));
   const empresas = todos.filter((c) => c.tipoPersona === "empresa" && c.activo).map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut, esMandante: c.esMandante, sigla: c.sigla }));
   // La empresa de esta persona, o las personas que dicen ser contacto de esta empresa.
   const empresa = contacto.empresaId ? todos.find((c) => c.id === contacto.empresaId) ?? null : null;
@@ -15,6 +16,7 @@ export default async function FichaContactoPage({ params }: { params: Promise<{ 
     <FichaContacto
       contacto={contacto}
       empresas={empresas}
+      mandantes={mandantes}
       empresa={empresa ? { id: empresa.id, razonSocial: empresa.razonSocial } : null}
       vinculados={vinculados}
     />

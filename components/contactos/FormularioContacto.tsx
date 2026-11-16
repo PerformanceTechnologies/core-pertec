@@ -11,8 +11,6 @@ import {
   IconCalendarDue,
   IconCircleCheck,
   IconCircleDashed,
-  IconCheck,
-  IconCrown,
   IconHome2,
   IconId,
   IconLocation,
@@ -86,6 +84,16 @@ function Campo({
   );
 }
 
+/** Título de un bloque del formulario, a lo ancho. */
+function Seccion({ titulo, ayuda }: { titulo: string; ayuda?: string }) {
+  return (
+    <div className="col-span-2 mt-2 flex items-baseline gap-2 border-b border-borde/60 pb-1 first:mt-0 sm:col-span-6">
+      <h3 className="text-[12px] font-bold uppercase tracking-wide text-tinta/70">{titulo}</h3>
+      {ayuda && <span className="truncate text-[11px] text-gris-suave">{ayuda}</span>}
+    </div>
+  );
+}
+
 /** El largo usado y el máximo del SII; se pone en rojo al pasarse. */
 function Contador({ valor, max }: { valor: string; max: number }) {
   const pasado = valor.length > max;
@@ -102,6 +110,7 @@ export default function FormularioContacto({
   contacto,
   completar = false,
   empresas = [],
+  mandantes: mandantesDados,
   precarga,
   abiertaExterna,
   alCerrar,
@@ -120,6 +129,8 @@ export default function FormularioContacto({
   completar?: boolean;
   /** Las empresas de la libreta, para marcar a una persona como contacto de una de ellas. */
   empresas?: EmpresaMin[];
+  /** Todos los contactos marcados como mandante (empresas o personas). Si no viene, se sacan de `empresas`. */
+  mandantes?: EmpresaMin[];
 }) {
   const editar = Boolean(contacto);
   const externo = abiertaExterna !== undefined;
@@ -165,7 +176,10 @@ export default function FormularioContacto({
   // Sigla: se propone sola desde el nombre hasta que alguien la escribe a mano.
   const siglaPropuesta = candidatasDeSigla(v.razonSocial)[0] ?? "";
   const siglaVista = v.siglaTocada ? v.sigla : v.razonSocial.trim() ? siglaPropuesta : "";
-  const mandantes = empresas.filter((e) => e.esMandante && e.id !== contacto?.id);
+  const mandantes = (mandantesDados ?? empresas.filter((e) => e.esMandante)).filter((e) => e.id !== contacto?.id);
+  const [buscarMandante, setBuscarMandante] = useState("");
+  const qMan = buscarMandante.trim().toLowerCase();
+  const mandantesVisibles = mandantes.filter((m) => v.mandanteIds.includes(m.id) || !qMan || `${m.sigla ?? ""} ${m.razonSocial}`.toLowerCase().includes(qMan));
   const alternarMandante = (id: string) =>
     poner("mandanteIds", v.mandanteIds.includes(id) ? v.mandanteIds.filter((x) => x !== id) : [...v.mandanteIds, id]);
   const rutNormal = v.rut ? normalizarRut(v.rut) : "";
@@ -231,6 +245,7 @@ export default function FormularioContacto({
   function abrir() {
     setV(inicial());
     setBuscarEmpresa("");
+    setBuscarMandante("");
     setCreadas([]);
     setNueva(null);
     setErrorEmpresa(null);
@@ -281,7 +296,8 @@ export default function FormularioContacto({
         <form action={enviar} className="space-y-3.5">
           <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-6">
             {/* ── Qué es y qué relación tenemos ── */}
-            <div className="col-span-2 sm:col-span-3">
+            <Seccion titulo="Tipo y relación" />
+            <div className="col-span-2 sm:col-span-6">
               <input type="hidden" name="tipoPersona" value={v.tipoPersona} />
               <div role="radiogroup" aria-label="Tipo de contacto" className="grid h-10 grid-cols-2 gap-1 rounded-xl bg-tinta/[0.06] p-1">
                 {(["empresa", "persona"] as const).map((t) => {
@@ -304,23 +320,27 @@ export default function FormularioContacto({
                 })}
               </div>
             </div>
-            <div className="col-span-2 grid grid-cols-3 gap-1.5 sm:col-span-3">
+            <fieldset className="col-span-2 grid grid-cols-1 gap-1.5 sm:col-span-6 sm:grid-cols-3">
+              <legend className="sr-only">Relación con nosotros</legend>
               {(
                 [
-                  { name: "esCliente", clave: "esCliente", Icono: ICONO.clientes, texto: "Cliente", color: "has-[:checked]:bg-emerald-500/15 has-[:checked]:text-tinta has-[:checked]:[&>svg]:text-emerald-500" },
-                  { name: "esProveedor", clave: "esProveedor", Icono: ICONO.proveedores, texto: "Proveedor", color: "has-[:checked]:bg-amber-500/15 has-[:checked]:text-tinta has-[:checked]:[&>svg]:text-amber-500" },
-                  { name: "esMandante", clave: "esMandante", Icono: IconCrown, texto: "Mandante", color: "has-[:checked]:bg-violet-500/15 has-[:checked]:text-tinta has-[:checked]:[&>svg]:text-violet-500" },
+                  { name: "esCliente", clave: "esCliente", texto: "Cliente", detalle: "Le vendemos", tono: "accent-emerald-600" },
+                  { name: "esProveedor", clave: "esProveedor", texto: "Proveedor", detalle: "Le compramos", tono: "accent-amber-500" },
+                  { name: "esMandante", clave: "esMandante", texto: "Mandante", detalle: "Dueño de la faena", tono: "accent-violet-600" },
                 ] as const
               ).map((r) => (
                 <label
                   key={r.name}
-                  className={`flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-tinta/[0.05] text-[13px] font-semibold text-gris transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-cian/15 ${r.color}`}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-borde/70 bg-superficie px-3 py-2 transition hover:border-naranjo/40 has-[:checked]:border-naranjo/50 has-[:checked]:bg-naranjo/[0.05] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-cian/15"
                 >
-                  <input type="checkbox" name={r.name} checked={v[r.clave]} onChange={(e) => poner(r.clave, e.target.checked)} className="sr-only" />
-                  <r.Icono size={16} stroke={1.75} aria-hidden /> {r.texto}
+                  <input type="checkbox" name={r.name} checked={v[r.clave]} onChange={(e) => poner(r.clave, e.target.checked)} className={`h-4 w-4 shrink-0 cursor-pointer rounded ${r.tono}`} />
+                  <span className="min-w-0 leading-tight">
+                    <span className="block text-[13px] font-semibold text-tinta">{r.texto}</span>
+                    <span className="block text-[11px] text-gris">{r.detalle}</span>
+                  </span>
                 </label>
               ))}
-            </div>
+            </fieldset>
 
             {/* Una persona puede ser contacto de una empresa de la libreta; si no está, se crea ahí mismo. */}
             {v.tipoPersona === "persona" && (
@@ -449,37 +469,47 @@ export default function FormularioContacto({
                 {v.mandanteIds.map((id) => (
                   <input key={id} type="hidden" name="mandanteIds" value={id} />
                 ))}
-                <span className="mb-1 block text-[11px] font-semibold text-gris">
-                  Mandantes <span className="font-normal text-gris-suave">· opcional</span>
+                <span className="mb-1 flex items-baseline justify-between gap-2 text-[11px] font-semibold text-gris">
+                  <span>
+                    Trabaja para los mandantes <span className="font-normal text-gris-suave">· opcional</span>
+                  </span>
+                  {v.mandanteIds.length > 0 && <span className="font-normal text-gris-suave">{v.mandanteIds.length} elegido{v.mandanteIds.length === 1 ? "" : "s"}</span>}
                 </span>
                 {mandantes.length ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {mandantes.map((m) => {
-                      const sel = v.mandanteIds.includes(m.id);
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          aria-pressed={sel}
-                          onClick={() => alternarMandante(m.id)}
-                          className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
-                            sel ? "bg-violet-500/15 text-tinta" : "bg-tinta/[0.05] text-gris hover:text-tinta"
-                          }`}
-                        >
-                          {sel ? <IconCheck size={14} className="shrink-0 text-violet-500" /> : <IconCrown size={14} stroke={1.75} className="shrink-0" />}
-                          {m.sigla && <span className="font-mono text-[11px] text-gris">[{m.sigla}]</span>}
-                          <span className="truncate">{m.razonSocial}</span>
-                        </button>
-                      );
-                    })}
+                  <div className="overflow-hidden rounded-xl border border-borde/70">
+                    {mandantes.length > 5 && (
+                      <div className="relative border-b border-borde/60">
+                        <IconSearch size={15} stroke={1.75} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris-suave" />
+                        <input
+                          value={buscarMandante}
+                          onChange={(e) => setBuscarMandante(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+                          placeholder="Buscar mandante"
+                          className="h-9 w-full bg-transparent pl-9 pr-3 text-sm outline-none"
+                        />
+                      </div>
+                    )}
+                    <ul className="max-h-40 divide-y divide-borde/50 overflow-y-auto">
+                      {mandantesVisibles.map((m) => (
+                        <li key={m.id}>
+                          <label className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-tinta/[0.03] has-[:checked]:bg-violet-500/[0.06]">
+                            <input type="checkbox" checked={v.mandanteIds.includes(m.id)} onChange={() => alternarMandante(m.id)} className="h-4 w-4 shrink-0 cursor-pointer rounded accent-violet-600" />
+                            {m.sigla && <span className="w-11 shrink-0 font-mono text-[11px] font-bold text-gris">{m.sigla}</span>}
+                            <span className="min-w-0 flex-1 truncate text-tinta">{m.razonSocial}</span>
+                          </label>
+                        </li>
+                      ))}
+                      {mandantesVisibles.length === 0 && <li className="px-3 py-2 text-xs text-gris">Ningún mandante coincide.</li>}
+                    </ul>
                   </div>
                 ) : (
-                  <p className="rounded-xl bg-tinta/[0.04] px-3 py-2 text-xs text-gris">Aún no hay contactos marcados como mandante. Marca «Mandante» en la ficha de uno y aparecerá aquí.</p>
+                  <p className="rounded-xl bg-tinta/[0.04] px-3 py-2 text-xs text-gris">Aún no hay contactos marcados como mandante. Marca «Mandante» en uno y aparecerá aquí.</p>
                 )}
               </div>
             )}
 
             {/* ── Identificación y datos tributarios ── */}
+            <Seccion titulo="Datos tributarios" />
             <Campo ancho="grande" etiqueta={v.tipoPersona === "empresa" ? "Razón social" : "Nombre completo"} obligatorio extra={<Contador valor={v.razonSocial} max={LARGO.razonSocial} />}>
               <ConIcono Icono={IconoTipo}>
                 <input
@@ -496,6 +526,7 @@ export default function FormularioContacto({
               </ConIcono>
             </Campo>
             <Campo ancho="chico" etiqueta="Sigla" extra={!v.siglaTocada && siglaVista ? <span className="font-normal text-gris-suave">auto</span> : null}>
+              <input type="hidden" name="siglaManual" value={v.siglaTocada && v.sigla !== (contacto?.sigla ?? "") ? "si" : "no"} />
               <input
                 name="sigla"
                 value={siglaVista}
@@ -561,6 +592,7 @@ export default function FormularioContacto({
             </Campo>
 
             {/* ── Ubicación ── */}
+            <Seccion titulo="Ubicación" />
             <Campo etiqueta="Dirección" extra={<Contador valor={v.direccion} max={LARGO.direccion} />}>
               <ConIcono Icono={IconHome2}>
                 <input name="direccion" value={v.direccion} onChange={(e) => poner("direccion", e.target.value)} onBlur={ordenar("direccion")} maxLength={200} className={CAMPO_I} placeholder="Calle, número, oficina" />
@@ -618,6 +650,7 @@ export default function FormularioContacto({
             )}
 
             {/* ── Envío y cobro ── */}
+            <Seccion titulo="Contacto y cobro" />
             <Campo etiqueta="Correo para facturas (DTE)" ancho="mitad">
               <ConIcono Icono={IconMail}>
                 <input name="correoDte" type="email" defaultValue={contacto?.correoDte ?? ""} maxLength={LARGO.correo} className={CAMPO_I} placeholder="dte@empresa.cl" />

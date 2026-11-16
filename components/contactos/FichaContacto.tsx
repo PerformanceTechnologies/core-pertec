@@ -22,11 +22,13 @@ const fechaCl = (f: string) => new Date(f).toLocaleDateString("es-CL", { day: "n
 export default function FichaContacto({
   contacto: c,
   empresas = [],
+  mandantes = [],
   empresa = null,
   vinculados = [],
 }: {
   contacto: ContactoConPersonas;
   empresas?: EmpresaMin[];
+  mandantes?: EmpresaMin[];
   /** Si es una persona: la empresa de la que es contacto. */
   empresa?: { id: string; razonSocial: string } | null;
   /** Si es una empresa: las personas de la libreta que son contacto suyo. */
@@ -60,7 +62,7 @@ export default function FichaContacto({
               <ChipsRol cliente={c.esCliente} proveedor={c.esProveedor} />
               {c.esMandante && <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-tinta"><IconCrown size={12} className="text-violet-500" /> Mandante</span>}
               {(c.mandanteIds ?? []).map((id) => {
-                const m = empresas?.find((e) => e.id === id);
+                const m = mandantes.find((e) => e.id === id);
                 return m ? (
                   <Link key={id} href={`/finanzas/contactos/${id}`} className="inline-flex items-center gap-1 rounded-full bg-violet-500/[0.08] px-2.5 py-0.5 text-[11px] font-semibold text-tinta transition hover:bg-violet-500/15">
                     <IconCrown size={12} className="text-violet-500" /> Mandante: {m.sigla ? `[${m.sigla}] ` : ""}{m.razonSocial}
@@ -75,7 +77,7 @@ export default function FichaContacto({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {c.activo && <FormularioContacto contacto={c} empresas={empresas} />}
+            {c.activo && <FormularioContacto contacto={c} empresas={empresas} mandantes={mandantes} />}
             <ArchivarContacto id={c.id} activo={c.activo} />
           </div>
         </div>
@@ -89,7 +91,7 @@ export default function FichaContacto({
             <p className="text-sm font-bold">Todavía no se le puede emitir una factura electrónica</p>
             <p className="mt-0.5 text-xs">{bloquean.map((f) => f.texto).join(" · ")}</p>
           </div>
-          {c.activo && <FormularioContacto contacto={c} empresas={empresas} completar />}
+          {c.activo && <FormularioContacto contacto={c} empresas={empresas} mandantes={mandantes} completar />}
         </section>
       ) : (
         <section className="tono-ok fondo-tono flex items-center gap-3 rounded-2xl px-4 py-3">
