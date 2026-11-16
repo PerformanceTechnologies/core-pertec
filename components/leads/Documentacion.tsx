@@ -1,4 +1,4 @@
-import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
+import VerDocumento from "./VerDocumento";
 import { Seccion } from "@/components/fin/piezas";
 import { TARJETA } from "@/lib/estilos";
 
@@ -17,7 +17,7 @@ export function ListaDocumentacion({ adjuntos }: { adjuntos: { id: string; nombr
         {adjuntos.map((a) => (
           <li key={a.id} className="flex items-center gap-2 px-4 py-2">
             <span className={`shrink-0 rounded-full px-2 py-px text-[10px] font-bold uppercase tracking-wide ${a.tipo === "oc_cliente" ? "bg-naranjo/12 text-naranjo" : "bg-slate-500/10 text-gris"}`}>{ETIQUETA[a.tipo] ?? "Respaldo"}</span>
-            <span className="min-w-0 truncate"><EnlaceAdjunto id={a.id} nombre={a.nombre} /></span>
+            <span className="min-w-0 truncate"><VerDocumento id={a.id} nombre={a.nombre} /></span>
           </li>
         ))}
         {adjuntos.length === 0 && <li className="px-4 py-3 text-xs text-gris">Sin documentación.</li>}

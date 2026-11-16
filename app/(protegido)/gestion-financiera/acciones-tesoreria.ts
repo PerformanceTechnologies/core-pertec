@@ -325,7 +325,7 @@ export async function enlaceAdjuntoAction(id: string): Promise<{ ok: true; url: 
     const ctx = ctxFin ?? (await contextoLeadsApi());
     if (!ctx) return { ok: false, error: "No autorizado." };
     const a = await exigirDeEmpresa("fin_adjuntos", id, ctx.empresa.id);
-    if (!ctxFin && a.entidad_tipo !== "cotizacion") return { ok: false, error: "No autorizado." };
+    if (!ctxFin && a.entidad_tipo !== "cotizacion" && a.entidad_tipo !== "oportunidad") return { ok: false, error: "No autorizado." };
     const url = await enlaceTemporal("finanzas", String(a.ruta), { segundos: 60, descarga: String(a.nombre) });
     if (!url) return { ok: false, error: "No se pudo abrir el archivo." };
     return { ok: true, url };
