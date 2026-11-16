@@ -1,4 +1,5 @@
 import "server-only";
+import { siglaLibre } from "@/lib/contactos-sigla";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "./supabase-admin";
 import { exigirAccesoApp, puedeVerApp } from "./autorizacion";
@@ -57,7 +58,7 @@ const aContacto = (r: any): Contacto => ({
   id: r.id, rut: r.rut, tipoPersona: r.tipo_persona, razonSocial: r.razon_social, giro: r.giro,
   direccion: r.direccion, comuna: r.comuna, ciudad: r.ciudad, pais: r.pais, tipoContribuyente: r.tipo_contribuyente,
   correoDte: r.correo_dte, correo: r.correo, telefono: r.telefono, esCliente: r.es_cliente, esProveedor: r.es_proveedor,
-  plazoPagoDias: r.plazo_pago_dias, notas: r.notas, empresaId: r.empresa_id ?? null, activo: r.activo, odooId: r.odoo_id, odooIds: r.odoo_ids ?? [],
+  plazoPagoDias: r.plazo_pago_dias, notas: r.notas, empresaId: r.empresa_id ?? null, esMandante: r.es_mandante ?? false, mandanteIds: r.mandante_ids ?? [], sigla: r.sigla ?? null, activo: r.activo, odooId: r.odoo_id, odooIds: r.odoo_ids ?? [],
   creadoPor: r.creado_por, actualizadoPor: r.actualizado_por, creadoEn: r.creado_en, actualizadoEn: r.actualizado_en,
 });
 const aPersona = (r: any): Persona => ({
@@ -68,6 +69,9 @@ const aPersona = (r: any): Persona => ({
 const aFila = (d: DatosContacto) => ({
   // La empresa solo se escribe si viene: lo que trae Odoo no la tiene y no debe borrarla.
   ...("empresaId" in d ? { empresa_id: d.tipoPersona === "persona" ? d.empresaId ?? null : null } : {}),
+  ...(d.esMandante !== undefined ? { es_mandante: d.esMandante } : {}),
+  ...(d.mandanteIds !== undefined ? { mandante_ids: d.mandanteIds } : {}),
+  ...(d.sigla ? { sigla: d.sigla } : {}),
   rut: d.rut, tipo_persona: d.tipoPersona, razon_social: d.razonSocial, giro: d.giro, direccion: d.direccion,
   comuna: d.comuna, ciudad: d.ciudad, pais: d.pais, tipo_contribuyente: d.tipoContribuyente, correo_dte: d.correoDte,
   correo: d.correo, telefono: d.telefono, es_cliente: d.esCliente, es_proveedor: d.esProveedor,
@@ -85,7 +89,20 @@ export async function listarContactos(): Promise<(Contacto & { personas: number 
   revienta("contar las personas", personas.error);
   const cuenta = new Map<string, number>();
   for (const p of personas.data ?? []) cuenta.set(p.contacto_id, (cuenta.get(p.contacto_id) ?? 0) + 1);
-  return (data ?? []).map((r) => ({ ...aContacto(r), personas: cuenta.get(r.id) ?? 0 }));
+  const filas = data ?? [];
+  // Los que aún no tienen sigla (anteriores al SQL 0004) la reciben ahora, una sola vez.
+  if (filas.length && "sigla" in filas[0]) {
+    const usadas = new Set(filas.map((r) => r.sigla).filter(Boolean) as string[]);
+    for (const r of filas.filter((x) => !x.sigla)) {
+      const s = siglaLibre(r.razon_social ?? "", usadas);
+      const { error: e } = await supabaseAdmin.from(T.contactos).update({ sigla: s }).eq("id", r.id).is("sigla", null);
+      if (!e) {
+        usadas.add(s);
+        r.sigla = s;
+      }
+    }
+  }
+  return filas.map((r) => ({ ...aContacto(r), personas: cuenta.get(r.id) ?? 0 }));
 }
 
 export async function obtenerContacto(id: string): Promise<ContactoConPersonas | null> {
@@ -106,21 +123,42 @@ export async function contactoPorRut(rut: string): Promise<{ id: string; razonSo
   return data ? { id: data.id, razonSocial: data.razon_social } : null;
 }
 
+/** Las siglas ya tomadas (null si la columna aún no existe). */
+async function siglasUsadas(salvo?: string): Promise<Set<string> | null> {
+  const { data, error } = await supabaseAdmin.from(T.contactos).select("id, sigla").not("sigla", "is", null);
+  if (error) return null;
+  return new Set((data ?? []).filter((r) => r.id !== salvo).map((r) => r.sigla as string));
+}
+
+/** ¿Esa sigla ya es de otro contacto? Devuelve su nombre. */
+export async function duenoDeSigla(sigla: string, salvo?: string): Promise<string | null> {
+  const { data } = await supabaseAdmin.from(T.contactos).select("id, razon_social").eq("sigla", sigla).maybeSingle();
+  return data && data.id !== salvo ? (data.razon_social as string) : null;
+}
+
 export async function crearContacto(d: DatosContacto, quien: string): Promise<string> {
-  const { data, error } = await supabaseAdmin
-    .from(T.contactos)
-    .insert({ ...aFila(d), creado_por: quien, actualizado_por: quien })
-    .select("id")
-    .single();
+  const usadas = await siglasUsadas();
+  const fila = { ...aFila(d), creado_por: quien, actualizado_por: quien };
+  const conSigla = usadas ? { ...fila, sigla: d.sigla && !usadas.has(d.sigla) ? d.sigla : siglaLibre(d.razonSocial, usadas) } : fila;
+  let { data, error } = await supabaseAdmin.from(T.contactos).insert(conSigla).select("id").single();
+  // Sin el SQL 0004 corrido, se crea igual (sin mandante ni sigla).
+  if (error && /es_mandante|mandante_ids|sigla/.test(error.message)) {
+    const { es_mandante: _a, mandante_ids: _b, sigla: _c, ...resto } = conSigla as Record<string, unknown>;
+    void _a; void _b; void _c;
+    ({ data, error } = await supabaseAdmin.from(T.contactos).insert(resto).select("id").single());
+  }
   revienta("crear el contacto", error);
   return data!.id as string;
 }
 
 export async function actualizarContacto(id: string, d: DatosContacto, quien: string): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from(T.contactos)
-    .update({ ...aFila(d), actualizado_por: quien, actualizado_en: new Date().toISOString() })
-    .eq("id", id);
+  const fila: Record<string, unknown> = { ...aFila(d), actualizado_por: quien, actualizado_en: new Date().toISOString() };
+  let { error } = await supabaseAdmin.from(T.contactos).update(fila).eq("id", id);
+  if (error && /es_mandante|mandante_ids|sigla/.test(error.message)) {
+    delete fila.es_mandante; delete fila.mandante_ids; delete fila.sigla;
+    ({ error } = await supabaseAdmin.from(T.contactos).update(fila).eq("id", id));
+  }
+  if (error?.code === "23505" && /sigla/i.test(error.message)) throw new Error("[contactos] Esa sigla ya es de otro contacto.");
   revienta("guardar el contacto", error);
 }
 

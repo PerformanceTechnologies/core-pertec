@@ -6,6 +6,7 @@ import {
   actualizarPersona,
   archivarContacto,
   contactoPorRut,
+  duenoDeSigla,
   crearContacto,
   crearPersona,
   eliminarPersona,
@@ -110,6 +111,9 @@ function leerContacto(fd: FormData): DatosContacto | string {
     notas: String(fd.get("notas") ?? "").trim().slice(0, 4000) || null,
     // Solo una persona es «contacto de» una empresa; el id se comprueba en la acción.
     empresaId: fd.get("tipoPersona") === "persona" && fd.get("esDeEmpresa") === "si" ? texto(fd, "empresaId", 40) : null,
+    esMandante: fd.get("esMandante") === "on",
+    mandanteIds: fd.get("esMandante") === "on" ? [] : [...new Set(fd.getAll("mandanteIds").map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 20),
+    sigla: String(fd.get("sigla") ?? "").normalize("NFD").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 4) || null,
   };
 }
 
@@ -119,6 +123,11 @@ async function empresaValida(d: DatosContacto, salvo?: string): Promise<string |
   if (d.empresaId === salvo) return "Un contacto no puede ser contacto de sí mismo.";
   const e = await obtenerContacto(d.empresaId);
   return e && e.tipoPersona === "empresa" ? null : "La empresa elegida ya no existe.";
+}
+
+async function siglaLibreDe(sigla: string, salvo?: string): Promise<string | null> {
+  const otro = await duenoDeSigla(sigla, salvo);
+  return otro ? `La sigla ${sigla} ya es de «${otro}».` : null;
 }
 
 async function rutLibre(rut: string | null, salvo?: string): Promise<string | null> {
@@ -172,7 +181,7 @@ export async function actualizarContactoAction(id: string, fd: FormData): Promis
     const u = await exigirAccesoContactos();
     const d = leerContacto(fd);
     if (typeof d === "string") return { ok: false, error: d };
-    const duplicado = (await rutLibre(d.rut, id)) ?? (await empresaValida(d, id));
+    const duplicado = (await rutLibre(d.rut, id)) ?? (await empresaValida(d, id)) ?? (d.sigla ? await siglaLibreDe(d.sigla, id) : null);
     if (duplicado) return { ok: false, error: duplicado };
     await actualizarContacto(id, d, u.correo);
     refrescar(id);

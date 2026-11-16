@@ -11,6 +11,8 @@ import {
   IconCalendarDue,
   IconCircleCheck,
   IconCircleDashed,
+  IconCheck,
+  IconCrown,
   IconHome2,
   IconId,
   IconLocation,
@@ -30,7 +32,8 @@ import {
 } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
 import RuedaCarga from "@/components/RuedaCarga";
-import { BOTON_C, BOTON_SUAVE_C, CAMPO_I, ConIcono, ICONO, IconoTile } from "@/components/contactos/Visual";
+import { BOTON_C, BOTON_SUAVE_C, CAMPO_C, CAMPO_I, ConIcono, ICONO, IconoTile } from "@/components/contactos/Visual";
+import { candidatasDeSigla } from "@/lib/contactos-sigla";
 import { formatearRut, normalizarRut } from "@/lib/contratos/rut";
 import { COMUNAS_POR_REGION, REGIONES } from "@/lib/contratos/chile-comunas";
 import {
@@ -52,7 +55,7 @@ import { actualizarContactoAction, crearContactoAction, crearEmpresaRapidaAction
 
 const PLAZOS = [0, 7, 15, 30, 45, 60, 90];
 
-export type EmpresaMin = { id: string; razonSocial: string; rut: string | null };
+export type EmpresaMin = { id: string; razonSocial: string; rut: string | null; esMandante?: boolean; sigla?: string | null };
 
 /** Un campo del formulario: etiqueta chica arriba y, a la derecha, lo que haga falta (contador, aviso). */
 function Campo({
@@ -65,10 +68,10 @@ function Campo({
   etiqueta: string;
   obligatorio?: boolean;
   extra?: React.ReactNode;
-  ancho?: "completo" | "mitad" | "tercio";
+  ancho?: "completo" | "mitad" | "tercio" | "grande" | "chico";
   children: React.ReactNode;
 }) {
-  const cols = { completo: "col-span-2 sm:col-span-6", mitad: "col-span-2 sm:col-span-3", tercio: "col-span-2 sm:col-span-2" }[ancho];
+  const cols = { completo: "col-span-2 sm:col-span-6", mitad: "col-span-2 sm:col-span-3", tercio: "col-span-2 sm:col-span-2", grande: "col-span-2 sm:col-span-5", chico: "col-span-2 sm:col-span-1" }[ancho];
   return (
     <label className={`block min-w-0 ${cols}`}>
       <span className="mb-1 flex items-baseline justify-between gap-2 text-[11px] font-semibold text-gris">
@@ -147,6 +150,10 @@ export default function FormularioContacto({
     pais: contacto?.pais && contacto.pais !== "Chile" ? contacto.pais : "",
     region: (base?.comuna && regionDeComuna(base.comuna)) || "",
     empresaId: contacto?.empresaId ?? "",
+    esMandante: contacto?.esMandante ?? false,
+    mandanteIds: contacto?.mandanteIds ?? ([] as string[]),
+    sigla: contacto?.sigla ?? "",
+    siglaTocada: Boolean(contacto?.sigla),
   });
   type Valores = ReturnType<typeof inicial>;
   const [v, setV] = useState(inicial);
@@ -155,6 +162,12 @@ export default function FormularioContacto({
   const ordenar = (k: "razonSocial" | "giro" | "direccion" | "ciudad" | "pais") => () => poner(k, nombrePropio(v[k], { direccion: k === "direccion" }));
 
   const extranjero = v.tipoContribuyente === "extranjero";
+  // Sigla: se propone sola desde el nombre hasta que alguien la escribe a mano.
+  const siglaPropuesta = candidatasDeSigla(v.razonSocial)[0] ?? "";
+  const siglaVista = v.siglaTocada ? v.sigla : v.razonSocial.trim() ? siglaPropuesta : "";
+  const mandantes = empresas.filter((e) => e.esMandante && e.id !== contacto?.id);
+  const alternarMandante = (id: string) =>
+    poner("mandanteIds", v.mandanteIds.includes(id) ? v.mandanteIds.filter((x) => x !== id) : [...v.mandanteIds, id]);
   const rutNormal = v.rut ? normalizarRut(v.rut) : "";
   const rutOk = rutNormal ? rutUsable(rutNormal) : null;
   const comuna = comunaOficial(v.comuna);
@@ -291,11 +304,12 @@ export default function FormularioContacto({
                 })}
               </div>
             </div>
-            <div className="col-span-2 grid grid-cols-2 gap-1.5 sm:col-span-3">
+            <div className="col-span-2 grid grid-cols-3 gap-1.5 sm:col-span-3">
               {(
                 [
                   { name: "esCliente", clave: "esCliente", Icono: ICONO.clientes, texto: "Cliente", color: "has-[:checked]:bg-emerald-500/15 has-[:checked]:text-tinta has-[:checked]:[&>svg]:text-emerald-500" },
                   { name: "esProveedor", clave: "esProveedor", Icono: ICONO.proveedores, texto: "Proveedor", color: "has-[:checked]:bg-amber-500/15 has-[:checked]:text-tinta has-[:checked]:[&>svg]:text-amber-500" },
+                  { name: "esMandante", clave: "esMandante", Icono: IconCrown, texto: "Mandante", color: "has-[:checked]:bg-violet-500/15 has-[:checked]:text-tinta has-[:checked]:[&>svg]:text-violet-500" },
                 ] as const
               ).map((r) => (
                 <label
@@ -429,8 +443,44 @@ export default function FormularioContacto({
               </div>
             )}
 
+            {/* Si no es mandante: con qué mandantes trabaja (de los contactos marcados como mandante). */}
+            {!v.esMandante && (
+              <div className="col-span-2 sm:col-span-6">
+                {v.mandanteIds.map((id) => (
+                  <input key={id} type="hidden" name="mandanteIds" value={id} />
+                ))}
+                <span className="mb-1 block text-[11px] font-semibold text-gris">
+                  Mandantes <span className="font-normal text-gris-suave">· opcional</span>
+                </span>
+                {mandantes.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {mandantes.map((m) => {
+                      const sel = v.mandanteIds.includes(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          aria-pressed={sel}
+                          onClick={() => alternarMandante(m.id)}
+                          className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
+                            sel ? "bg-violet-500/15 text-tinta" : "bg-tinta/[0.05] text-gris hover:text-tinta"
+                          }`}
+                        >
+                          {sel ? <IconCheck size={14} className="shrink-0 text-violet-500" /> : <IconCrown size={14} stroke={1.75} className="shrink-0" />}
+                          {m.sigla && <span className="font-mono text-[11px] text-gris">[{m.sigla}]</span>}
+                          <span className="truncate">{m.razonSocial}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="rounded-xl bg-tinta/[0.04] px-3 py-2 text-xs text-gris">Aún no hay contactos marcados como mandante. Marca «Mandante» en la ficha de uno y aparecerá aquí.</p>
+                )}
+              </div>
+            )}
+
             {/* ── Identificación y datos tributarios ── */}
-            <Campo etiqueta={v.tipoPersona === "empresa" ? "Razón social" : "Nombre completo"} obligatorio extra={<Contador valor={v.razonSocial} max={LARGO.razonSocial} />}>
+            <Campo ancho="grande" etiqueta={v.tipoPersona === "empresa" ? "Razón social" : "Nombre completo"} obligatorio extra={<Contador valor={v.razonSocial} max={LARGO.razonSocial} />}>
               <ConIcono Icono={IconoTipo}>
                 <input
                   name="razonSocial"
@@ -444,6 +494,18 @@ export default function FormularioContacto({
                   autoFocus={v.tipoPersona === "empresa"}
                 />
               </ConIcono>
+            </Campo>
+            <Campo ancho="chico" etiqueta="Sigla" extra={!v.siglaTocada && siglaVista ? <span className="font-normal text-gris-suave">auto</span> : null}>
+              <input
+                name="sigla"
+                value={siglaVista}
+                onChange={(e) => setV((x) => ({ ...x, sigla: e.target.value.normalize("NFD").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 4), siglaTocada: true }))}
+                onBlur={() => !v.sigla && poner("siglaTocada", false)}
+                maxLength={4}
+                title="Nomenclatura corta del contacto (hasta 4 letras). Se propone sola desde el nombre."
+                className={`${CAMPO_C} text-center font-mono font-bold uppercase tracking-wider`}
+                placeholder="ABC"
+              />
             </Campo>
             {!extranjero && (
               <Campo

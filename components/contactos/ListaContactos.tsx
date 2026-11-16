@@ -38,7 +38,7 @@ export default function ListaContactos({
     return s ? `/finanzas/contactos?${s}` : "/finanzas/contactos";
   };
 
-  const empresas = activos.filter((c) => c.tipoPersona === "empresa").map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut }));
+  const empresas = activos.filter((c) => c.tipoPersona === "empresa").map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut, esMandante: c.esMandante, sigla: c.sigla }));
   // Solo cuántos hay: cada cifra lleva al filtro correspondiente.
   const cifras = [
     { etiqueta: "Contactos", detalle: "en la libreta", Icono: ICONO.contactos, tono: "azul" as TonoIcono, valor: activos.length, f: "todos" as const },

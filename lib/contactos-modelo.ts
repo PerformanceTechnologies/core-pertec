@@ -77,6 +77,12 @@ export interface DatosContacto {
   notas: string | null;
   /** Solo personas: la empresa de la que es contacto. Opcional para lo que viene de Odoo. */
   empresaId?: string | null;
+  /** Es mandante (dueño de las faenas/contratos para los que trabaja un cliente). */
+  esMandante?: boolean;
+  /** Los mandantes (contactos marcados como mandante) con que trabaja este contacto. */
+  mandanteIds?: string[];
+  /** Nomenclatura corta: hasta 4 letras, única. Se pone sola si viene vacía. */
+  sigla?: string | null;
 }
 
 export interface Contacto extends DatosContacto {

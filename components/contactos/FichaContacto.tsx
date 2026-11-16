@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconCrown } from "@tabler/icons-react";
 import { IconAlertTriangle, IconArrowLeft, IconBuilding, IconCircleCheck, IconMail, IconNotes, IconPhone, IconReceipt, IconUsers } from "@tabler/icons-react";
 import FormularioContacto, { type EmpresaMin } from "@/components/contactos/FormularioContacto";
 import { AccionesPersona, ArchivarContacto, FormularioPersona } from "@/components/contactos/Acciones";
@@ -50,13 +51,25 @@ export default function FichaContacto({
         <div className="flex flex-wrap items-start gap-4 sm:gap-5">
           <Avatar nombre={c.razonSocial} tipo={c.tipoPersona} grande />
           <div className="min-w-0 flex-1">
-            <Rut rut={c.rut} />
+            <div className="flex flex-wrap items-center gap-2">
+              {c.sigla && <span title="Sigla del contacto" className="rounded-md bg-naranjo/10 px-1.5 py-0.5 font-mono text-xs font-bold tracking-wider text-naranjo">{c.sigla}</span>}
+              <Rut rut={c.rut} />
+            </div>
             <h2 className="mt-0.5 break-words text-2xl font-extrabold leading-tight tracking-tight text-tinta sm:text-[28px]">{c.razonSocial}</h2>
             <p className="mt-1 text-sm text-gris">
               {[c.tipoPersona === "empresa" ? "Empresa" : "Persona", ETIQUETA_TIPO_CONTRIBUYENTE[c.tipoContribuyente], c.activo ? null : "Archivado"].filter(Boolean).join(" · ")}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <ChipsRol cliente={c.esCliente} proveedor={c.esProveedor} />
+              {c.esMandante && <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-tinta"><IconCrown size={12} className="text-violet-500" /> Mandante</span>}
+              {(c.mandanteIds ?? []).map((id) => {
+                const m = empresas?.find((e) => e.id === id);
+                return m ? (
+                  <Link key={id} href={`/finanzas/contactos/${id}`} className="inline-flex items-center gap-1 rounded-full bg-violet-500/[0.08] px-2.5 py-0.5 text-[11px] font-semibold text-tinta transition hover:bg-violet-500/15">
+                    <IconCrown size={12} className="text-violet-500" /> Mandante: {m.sigla ? `[${m.sigla}] ` : ""}{m.razonSocial}
+                  </Link>
+                ) : null;
+              })}
               {empresa && (
                 <Link href={`/finanzas/contactos/${empresa.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-tinta/[0.06] px-2.5 py-0.5 text-[11px] font-semibold text-tinta transition hover:bg-tinta/[0.1]">
                   <IconBuilding size={12} /> Contacto de {empresa.razonSocial}
