@@ -450,7 +450,7 @@ export interface ProyectoBase {
   codigo: string;
   nombre: string;
   mandanteId: string | null;
-  tipo: "contrato" | "spot" | "arriendo" | "interno";
+  tipo: "contrato" | "spot" | "arriendo" | "interno" | (string & {});
   jefeProyecto: string | null;
   presupuestoCostos: number | null;
   estado: "activo" | "cerrado";

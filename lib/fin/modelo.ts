@@ -14,6 +14,11 @@ export type EtapaOportunidad = (typeof ETAPAS_OPORTUNIDAD)[number]["clave"];
 
 export const ETIQUETA_TIPO_VENTA: Record<string, string> = { servicio: "Servicio", arriendo: "Arriendo", venta: "Venta" };
 export const ETIQUETA_TIPO_PROYECTO: Record<string, string> = { contrato: "Contrato", spot: "Spot", arriendo: "Arriendo", interno: "Interno" };
+/** Nombre visible de un tipo de proyecto, también de los creados a mano («obra_civil» → «Obra civil»). */
+export const etiquetaTipoProyecto = (t: string) => ETIQUETA_TIPO_PROYECTO[t] ?? (t.charAt(0).toUpperCase() + t.slice(1)).replace(/_/g, " ");
+/** Un tipo escrito a mano, como se guarda: minúsculas, sin tildes, con guion bajo. */
+export const claveTipoProyecto = (t: string) =>
+  t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30);
 export const ETIQUETA_TRABAJO: Record<string, string> = { pendiente: "Pendiente", en_curso: "En curso", terminado: "Terminado" };
 export const ETIQUETA_ESTADO_COTIZACION: Record<string, string> = {
   borrador: "Borrador", enviada: "Enviada", aceptada: "Aceptada", rechazada: "Rechazada", vencida: "Vencida", anulada: "Anulada", reemplazada: "Reemplazada",

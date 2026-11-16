@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, contextoFin, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, contextoFin, contactosDeProyecto, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
 import { eliminarProyectoAction } from "../../acciones-config";
 import { clp, clpCorto, fechaCl } from "@/lib/fin/reglas";
-import { ETIQUETA_TIPO_PROYECTO } from "@/lib/fin/modelo";
+import { etiquetaTipoProyecto } from "@/lib/fin/modelo";
 import { TARJETA } from "@/lib/estilos";
 import { Chip, Kpi, Monto, Seccion, TD, TH, TONO_ETAPA, tonoPaso } from "@/components/fin/piezas";
 import { BotonAccion, ConVentana } from "@/components/fin/ui";
@@ -29,9 +29,9 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
       <Link href={`${RUTA_FIN}/proyectos`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris hover:text-naranjo"><IconArrowLeft size={14} /> Proyectos</Link>
       <header className={`${TARJETA} flex flex-wrap items-start gap-4 p-5`}>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gris">{p.codigo} · {ETIQUETA_TIPO_PROYECTO[p.tipo]} · {p.estado}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gris">{p.codigo} · {etiquetaTipoProyecto(p.tipo)} · {p.estado}</p>
           <h2 className="text-lg font-extrabold text-tinta">{p.nombre}</h2>
-          <p className="text-sm text-gris">{p.mandanteId ? v.nombreDe.get(p.mandanteId) : p.esGeneral ? "Interno" : "Sin mandante"}{p.jefeProyecto ? ` · JP ${p.jefeProyecto}` : ""}{p.fechaInicio ? ` · ${fechaCl(p.fechaInicio)} → ${fechaCl(p.fechaTermino)}` : ""}</p>
+          <p className="text-sm text-gris">{p.esGeneral ? "Interno" : p.mandanteId ? `${v.nombreDe.get(p.mandanteId) ?? ""}${(() => { const m = contactosDeProyecto(v.contrapartes).find((c) => c.id === p.mandanteId)?.mandantes ?? []; return m.length ? ` · Mandante: ${m.join(", ")}` : ""; })()}` : "Sin contacto"}{p.fechaInicio ? ` · ${fechaCl(p.fechaInicio)} → ${fechaCl(p.fechaTermino)}` : ""}</p>
           {p.descripcion && <p className="mt-1 text-sm text-tinta">{p.descripcion}</p>}
         </div>
         {/* Solo el administrador del sistema, y solo un proyecto vacío (la acción lo vuelve a exigir). */}
@@ -40,7 +40,7 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
             <IconTrash size={14} /> Eliminar proyecto
           </BotonAccion>
         )}
-        <ConVentana boton="Editar" titulo={`Editar ${p.nombre}`} className={BOTON_SEC}>{<FormProyecto p={p} clientes={v.contrapartes.map((x) => ({ id: x.id, nombre: x.nombre, rut: x.rut }))} />}</ConVentana>
+        <ConVentana boton="Editar" titulo={`Editar ${p.nombre}`} className={BOTON_SEC}>{<FormProyecto p={p} clientes={contactosDeProyecto(v.contrapartes)} tipos={[...new Set(v.proyectos.map((x) => x.tipo))]} />}</ConVentana>
       </header>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <Kpi etiqueta="Vendido" valor={clpCorto(c.vendido)} />

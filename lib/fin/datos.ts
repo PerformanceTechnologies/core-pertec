@@ -141,6 +141,9 @@ export interface Contraparte {
   esCliente: boolean;
   esProveedor: boolean;
   plazoPagoDias: number | null;
+  sigla: string | null;
+  /** Los mandantes con que trabaja (de la libreta de contactos). */
+  mandanteIds: string[];
 }
 
 export interface Perfil {
@@ -426,7 +429,7 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
     porIds("fin_pago_aplicaciones", "pago_id", pagosR.map((p: any) => p.id)),
     supabaseAdmin
       .from("finanzas_contactos")
-      .select("id, razon_social, rut, es_cliente, es_proveedor, plazo_pago_dias, activo")
+      .select("id, razon_social, rut, es_cliente, es_proveedor, plazo_pago_dias, activo, sigla, mandante_ids")
       .order("razon_social")
       .limit(10000)
       .then((r) => (revienta("leer contactos", r.error), r.data ?? [])),
@@ -435,7 +438,7 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
   const { flags, ...p } = aParametros(parametros);
   const contrapartes: Contraparte[] = contactosR
     .filter((c: any) => c.activo)
-    .map((c: any) => ({ id: c.id, nombre: c.razon_social, rut: c.rut, esCliente: c.es_cliente, esProveedor: c.es_proveedor, plazoPagoDias: c.plazo_pago_dias }));
+    .map((c: any) => ({ id: c.id, nombre: c.razon_social, rut: c.rut, esCliente: c.es_cliente, esProveedor: c.es_proveedor, plazoPagoDias: c.plazo_pago_dias, sigla: c.sigla ?? null, mandanteIds: c.mandante_ids ?? [] }));
   const nombreDe = new Map<string, string>(contactosR.map((c: any) => [c.id, c.razon_social]));
   const perfiles = new Map<string, Perfil>(
     perfilesR.map((r: any) => [
@@ -993,4 +996,13 @@ export async function cuentasContables(empresaId: string): Promise<Map<string, s
 export async function rutinasHechas(empresaId: string): Promise<Map<string, { por: string | null; en: string }>> {
   const { data } = await supabaseAdmin.from("fin_rutinas").select("tarea, periodo, hecha_por, hecha_en").eq("empresa_id", empresaId).order("hecha_en", { ascending: false }).limit(500);
   return new Map((data ?? []).map((r) => [`${r.tarea}|${r.periodo}`, { por: r.hecha_por as string | null, en: r.hecha_en as string }]));
+}
+
+/** Contactos para el formulario de proyecto, con sus mandantes en texto. */
+export function contactosDeProyecto(cs: Contraparte[]): { id: string; nombre: string; rut: string | null; mandantes: string[] }[] {
+  const porId = new Map(cs.map((c) => [c.id, c]));
+  return cs.map((c) => ({
+    id: c.id, nombre: c.nombre, rut: c.rut,
+    mandantes: c.mandanteIds.map((m) => porId.get(m)).filter(Boolean).map((m) => (m!.sigla ? `[${m!.sigla}] ${m!.nombre}` : m!.nombre)),
+  }));
 }

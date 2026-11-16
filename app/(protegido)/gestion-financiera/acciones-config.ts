@@ -1,5 +1,6 @@
 "use server";
 
+import { claveTipoProyecto } from "@/lib/fin/modelo";
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { borrarArchivos } from "@/lib/archivos/almacen";
@@ -329,13 +330,18 @@ export async function guardarPerfilAction(contactoId: string, fd: FormData): Pro
 export async function guardarProyectoAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    // El proyecto se nombra por su contacto (cliente).
+    const contactoId = String(fd.get("mandanteId") ?? "") || null;
     let nombre = texto(fd, "nombre", 120);
-    const tipo = String(fd.get("tipo") ?? "contrato");
-    if (!nombre) return { ok: false, error: "El proyecto necesita un nombre." };
-    if (!["contrato", "spot", "arriendo", "interno"].includes(tipo)) return { ok: false, error: "Tipo inválido." };
+    if (contactoId) {
+      const { data: c } = await supabaseAdmin.from("finanzas_contactos").select("razon_social").eq("id", contactoId).maybeSingle();
+      if (c?.razon_social) nombre = String(c.razon_social).slice(0, 120);
+    }
+    const tipo = claveTipoProyecto(String(fd.get("tipo") ?? "contrato")) || "contrato";
+    if (!nombre) return { ok: false, error: "Elige el contacto del proyecto." };
     if (tipo === "spot" && !/^spot\s*-/i.test(nombre)) nombre = `Spot - ${nombre}`;
     const fila = {
-      nombre, tipo, mandante_id: String(fd.get("mandanteId") ?? "") || null, descripcion: texto(fd, "descripcion", 500), jefe_proyecto: texto(fd, "jefeProyecto", 120),
+      nombre, tipo, mandante_id: contactoId, descripcion: texto(fd, "descripcion", 500),
       fecha_inicio: fechaValida(fd.get("fechaInicio")), fecha_termino: fechaValida(fd.get("fechaTermino")), presupuesto_costos: montoDe(fd.get("presupuestoCostos")),
       estado: fd.get("estado") === "cerrado" ? "cerrado" : "activo", actualizado_en: new Date().toISOString(),
     };
