@@ -12,7 +12,7 @@ import {
 } from "@/app/(protegido)/inventario/fabricacion/acciones";
 import type { EstadoFabricacion } from "@/lib/fabricacion-modelo";
 
-const BOTON = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-borde px-3 text-sm font-semibold transition disabled:opacity-50";
+const BOTON = "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-borde px-3 text-[13px] font-semibold transition disabled:opacity-50";
 
 /**
  * Los botones de la ficha: activar, actualizar costos, duplicar, archivar y restaurar. Las pantallas
@@ -50,11 +50,11 @@ export default function AccionesFabricacion({
     });
   }
 
-  const girando = (clave: string, Icono: typeof IconRefresh) => (pendiente && cual === clave ? <IconLoader2 size={16} className="animate-spin" /> : <Icono size={16} />);
+  const girando = (clave: string, Icono: typeof IconRefresh) => (pendiente && cual === clave ? <IconLoader2 size={15} className="animate-spin" /> : <Icono size={15} />);
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {estado === "borrador" && (
           <button type="button" disabled={pendiente} onClick={() => correr("activar", () => cambiarEstadoFabricacionAction(id, "activo"))} className={`${BOTON} border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300`}>
             {girando("activar", IconCircleCheck)} Activar ficha
