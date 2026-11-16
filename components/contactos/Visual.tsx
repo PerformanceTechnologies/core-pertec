@@ -78,7 +78,7 @@ export const BOTON_SUAVE_C = `inline-flex min-h-10 items-center justify-center g
 /** Un tono estable por nombre, para que cada contacto tenga siempre el mismo color de avatar. */
 const TONOS = ["bg-naranjo/12 text-naranjo", "bg-cian/12 text-cian", "bg-sky-500/12 text-sky-500", "bg-violet-500/12 text-violet-500", "bg-amber-500/14 text-amber-500"];
 
-export function Avatar({ nombre, tipo, grande = false }: { nombre: string; tipo: DatosContacto["tipoPersona"]; grande?: boolean }) {
+export function Avatar({ nombre, tipo, grande = false, sigla }: { nombre: string; tipo: DatosContacto["tipoPersona"]; grande?: boolean; sigla?: string | null }) {
   let h = 0;
   for (const ch of nombre) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return (
@@ -86,7 +86,7 @@ export function Avatar({ nombre, tipo, grande = false }: { nombre: string; tipo:
       className={`relative grid shrink-0 place-items-center font-bold ${TONOS[h % TONOS.length]} ${grande ? "h-16 w-16 rounded-[20px] text-xl" : "h-10 w-10 rounded-[14px] text-sm"}`}
       aria-hidden
     >
-      {iniciales(nombre)}
+      <span className={sigla && sigla.length > 3 ? (grande ? "text-base tracking-tight" : "text-[11px] tracking-tight") : undefined}>{sigla || iniciales(nombre)}</span>
       <span className={`absolute -bottom-1 -right-1 grid place-items-center rounded-full border-2 border-superficie bg-superficie text-gris ${grande ? "h-6 w-6" : "h-5 w-5"}`}>
         {tipo === "empresa" ? <IconBuilding size={grande ? 13 : 11} /> : <IconUser size={grande ? 13 : 11} />}
       </span>

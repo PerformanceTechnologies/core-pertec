@@ -113,6 +113,15 @@ export async function obtenerContacto(id: string): Promise<ContactoConPersonas |
   ]);
   revienta("leer el contacto", error);
   revienta("leer las personas", personas.error);
+  // Si aún no tiene sigla (anterior al SQL 0004), se le pone ahora.
+  if (data && "sigla" in data && !data.sigla) {
+    const usadas = await siglasUsadas(id);
+    if (usadas) {
+      const s = siglaLibre(data.razon_social ?? "", usadas);
+      const { error: e } = await supabaseAdmin.from(T.contactos).update({ sigla: s }).eq("id", id).is("sigla", null);
+      if (!e) data.sigla = s;
+    }
+  }
   return data ? { ...aContacto(data), personas: (personas.data ?? []).map(aPersona) } : null;
 }
 

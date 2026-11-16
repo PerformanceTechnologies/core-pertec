@@ -49,12 +49,9 @@ export default function FichaContacto({
       {/* ── Cabecera ── */}
       <header className={`${HOJA} p-5 sm:p-6`}>
         <div className="flex flex-wrap items-start gap-4 sm:gap-5">
-          <Avatar nombre={c.razonSocial} tipo={c.tipoPersona} grande />
+          <Avatar nombre={c.razonSocial} tipo={c.tipoPersona} sigla={c.sigla} grande />
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {c.sigla && <span title="Sigla del contacto" className="rounded-md bg-naranjo/10 px-1.5 py-0.5 font-mono text-xs font-bold tracking-wider text-naranjo">{c.sigla}</span>}
-              <Rut rut={c.rut} />
-            </div>
+            <Rut rut={c.rut} />
             <h2 className="mt-0.5 break-words text-2xl font-extrabold leading-tight tracking-tight text-tinta sm:text-[28px]">{c.razonSocial}</h2>
             <p className="mt-1 text-sm text-gris">
               {[c.tipoPersona === "empresa" ? "Empresa" : "Persona", ETIQUETA_TIPO_CONTRIBUYENTE[c.tipoContribuyente], c.activo ? null : "Archivado"].filter(Boolean).join(" · ")}
