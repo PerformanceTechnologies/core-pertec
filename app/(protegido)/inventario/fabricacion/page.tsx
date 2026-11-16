@@ -3,8 +3,8 @@ import { IconAlertTriangle, IconArchive, IconArrowLeft, IconChevronRight, IconHa
 import IntroSeccion, { Pistas } from "@/components/inventario/IntroSeccion";
 import FormularioFabricacion from "@/components/inventario/FormularioFabricacion";
 import { ChipEstadoFabricacion } from "@/components/inventario/VisualFabricacion";
-import { contarFabricacionesArchivadas, fabricacionDisponible, listarFabricaciones, MIGRACION_FABRICACION, productosTerminadosDisponibles, type FabricacionConCosto } from "@/lib/fabricacion";
-import { formatearMontoFino, formatearPct, lecturaMargen } from "@/lib/fabricacion-modelo";
+import { contarFabricacionesArchivadas, fabricacionDisponible, listarFabricaciones, MIGRACION_FABRICACION } from "@/lib/fabricacion";
+import { formatearMontoFino, formatearPct } from "@/lib/fabricacion-modelo";
 import { listarUnidades } from "@/lib/inventario";
 import { TARJETA } from "@/lib/estilos";
 
@@ -16,15 +16,8 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
 
   if (!(await fabricacionDisponible())) return <AvisoSinActivar />;
 
-  const [fichas, unidades, terminados, cuentaArchivadas] = await Promise.all([
-    listarFabricaciones(archivadas),
-    listarUnidades(),
-    productosTerminadosDisponibles(),
-    contarFabricacionesArchivadas(),
-  ]);
+  const [fichas, unidades, cuentaArchivadas] = await Promise.all([listarFabricaciones(archivadas), listarUnidades(), contarFabricacionesArchivadas()]);
   const visibles = archivadas ? fichas.filter((f) => f.estado === "archivado") : fichas;
-  const activas = visibles.filter((f) => f.estado === "activo").length;
-  const margenBajo = visibles.filter((f) => f.estado !== "archivado" && lecturaMargen(f.resumen.margenReal, f.margenPct) === "bajo").length;
 
   return (
     <div className="space-y-4">
@@ -35,7 +28,7 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
         bajada={
           archivadas
             ? "Productos fabricados que se sacaron de uso. No se borra nada: se pueden restaurar desde su ficha."
-            : "Los productos que fabricamos y lo que cuesta hacer cada uno: materiales, mano de obra, maquinaria y demás, con su costo por unidad y su precio sugerido."
+            : "Lo que cuesta fabricar cada producto, ítem por ítem, y el precio con nuestro margen. Desde la ficha sale el PDF con el costo para enviar a proveedores."
         }
       >
         {archivadas ? (
@@ -44,25 +37,17 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
           </Link>
         ) : (
           <div className="space-y-3">
-            <Pistas items={["Crea el producto y cuánto rinde", "Carga cada ítem de costo", "Revisa el costo y el precio sugerido"]} />
+            <Pistas items={["Crea el producto", "Carga cada ítem de costo", "Descarga el PDF con el costo"]} />
             <div className="flex flex-wrap items-center gap-2">
-              <FormularioFabricacion unidades={unidades} terminados={terminados} />
+              <FormularioFabricacion unidades={unidades} />
               <Link href="/inventario/fabricacion?ver=archivadas" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-borde px-4 text-xs font-bold uppercase tracking-wide text-tinta transition hover:border-naranjo/50">
                 <IconArchive size={16} /> Archivados{cuentaArchivadas > 0 ? ` (${cuentaArchivadas})` : ""}
               </Link>
+              <span className="text-sm text-gris">{visibles.length} {visibles.length === 1 ? "producto" : "productos"}</span>
             </div>
           </div>
         )}
       </IntroSeccion>
-
-      {visibles.length > 0 && !archivadas && (
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <Cifra etiqueta="Productos" valor={String(visibles.length)} />
-          <Cifra etiqueta="Activos" valor={String(activas)} />
-          <Cifra etiqueta="En borrador" valor={String(visibles.length - activas)} />
-          <Cifra etiqueta="Margen bajo la meta" valor={String(margenBajo)} alerta={margenBajo > 0} />
-        </div>
-      )}
 
       {visibles.length === 0 ? (
         <div className={`${TARJETA} p-10 text-center`}>
@@ -82,10 +67,9 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
                     <th className="px-4 py-3">Producto</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3 text-right">Ítems</th>
-                    <th className="px-4 py-3 text-right" title="Costo de la receta completa, con gastos indirectos">Costo receta</th>
-                    <th className="px-4 py-3 text-right">Costo por unidad</th>
-                    <th className="px-4 py-3 text-right">Precio venta</th>
-                    <th className="px-4 py-3 text-right">Margen</th>
+                    <th className="px-4 py-3 text-right">Costo de fabricación</th>
+                    <th className="px-4 py-3 text-right" title="Interno: lo que cobramos si fabricamos nosotros">Margen</th>
+                    <th className="px-4 py-3 text-right" title="Interno: costo ÷ (1 − margen)">Precio con margen</th>
                     <th className="px-4 py-3"><span className="sr-only">Abrir</span></th>
                   </tr>
                 </thead>
@@ -95,17 +79,14 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
                       <td className="px-4 py-3">
                         <Link href={`/inventario/fabricacion/${f.id}`} className="block">
                           <span className="font-semibold text-tinta group-hover:text-naranjo">{f.nombre}</span>
-                          <span className="block text-xs text-gris">
-                            {f.codigo ? <span className="font-mono">{f.codigo}</span> : "sin código"} · rinde {f.rendimiento.toLocaleString("es-CL")}
-                          </span>
+                          <span className="block text-xs text-gris">{f.codigo ? <span className="font-mono">{f.codigo}</span> : "sin código"}</span>
                         </Link>
                       </td>
                       <td className="px-4 py-3"><ChipEstadoFabricacion estado={f.estado} /></td>
                       <td className="px-4 py-3 text-right tabular-nums text-gris">{f.cantidadItems}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gris">{formatearMontoFino(f.resumen.costoLote)}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-tinta">{formatearMontoFino(f.resumen.costoUnitario)}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gris">{f.precioVenta > 0 ? formatearMontoFino(f.precioVenta) : "—"}</td>
-                      <td className="px-4 py-3 text-right"><ChipMargen f={f} /></td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-tinta">{formatearMontoFino(f.resumen.costo)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gris">{formatearPct(f.margenPct)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gris">{f.resumen.precioConMargen === null ? "—" : formatearMontoFino(f.resumen.precioConMargen)}</td>
                       <td className="px-4 py-3 text-right">
                         <Link href={`/inventario/fabricacion/${f.id}`} aria-label={`Abrir ${f.nombre}`} className="inline-grid h-7 w-7 place-items-center rounded-lg text-gris-suave transition group-hover:text-cian">
                           <IconChevronRight size={18} />
@@ -132,18 +113,14 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
                   </div>
                   <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div className="rounded-lg bg-naranjo/[0.07] px-3 py-2">
-                      <dt className="text-[11px] text-gris">Costo por unidad</dt>
-                      <dd className="font-extrabold tabular-nums text-tinta">{formatearMontoFino(f.resumen.costoUnitario)}</dd>
+                      <dt className="text-[11px] text-gris">Costo de fabricación</dt>
+                      <dd className="font-extrabold tabular-nums text-tinta">{formatearMontoFino(f.resumen.costo)}</dd>
                     </div>
                     <div className="rounded-lg bg-tinta/[0.03] px-3 py-2">
-                      <dt className="text-[11px] text-gris">Precio de venta</dt>
-                      <dd className="font-bold tabular-nums text-tinta">{f.precioVenta > 0 ? formatearMontoFino(f.precioVenta) : "—"}</dd>
+                      <dt className="text-[11px] text-gris">Con margen {formatearPct(f.margenPct)}</dt>
+                      <dd className="font-bold tabular-nums text-tinta">{f.resumen.precioConMargen === null ? "—" : formatearMontoFino(f.resumen.precioConMargen)}</dd>
                     </div>
                   </dl>
-                  <div className="mt-2.5 flex items-center justify-between text-xs text-gris">
-                    <span>Receta completa: <span className="font-semibold tabular-nums text-tinta">{formatearMontoFino(f.resumen.costoLote)}</span></span>
-                    <ChipMargen f={f} />
-                  </div>
                 </Link>
               </li>
             ))}
@@ -151,33 +128,6 @@ export default async function FabricacionPage({ searchParams }: { searchParams: 
         </>
       )}
     </div>
-  );
-}
-
-function Cifra({ etiqueta, valor, alerta = false }: { etiqueta: string; valor: string; alerta?: boolean }) {
-  return (
-    <div className={`${TARJETA} px-4 py-3`}>
-      <p className="text-xs text-gris">{etiqueta}</p>
-      <p className={`text-2xl font-extrabold tabular-nums ${alerta ? "text-amber-600" : "text-tinta"}`}>{valor}</p>
-    </div>
-  );
-}
-
-/** El margen real frente a la meta: en verde si la cumple, en ámbar si queda bajo, gris si no hay precio. */
-function ChipMargen({ f }: { f: FabricacionConCosto }) {
-  const lectura = lecturaMargen(f.resumen.margenReal, f.margenPct);
-  if (lectura === "sin_precio") {
-    return <span className="rounded-full bg-tinta/[0.06] px-2 py-0.5 text-[11px] font-semibold text-gris" title="Define un precio de venta para ver el margen real">Sin precio</span>;
-  }
-  const bajo = lectura === "bajo";
-  return (
-    <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${bajo ? "bg-amber-500/12 text-amber-700 dark:text-amber-300" : "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"}`}
-      title={`Meta: ${formatearPct(f.margenPct)}`}
-    >
-      {bajo && <IconAlertTriangle size={12} />}
-      {formatearPct(f.resumen.margenReal!)}
-    </span>
   );
 }
 
