@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import CodigoProyecto from "@/components/fin/CodigoProyecto";
 import type { InfoProyecto } from "@/lib/fin/info-proyecto";
@@ -23,9 +24,32 @@ export default function SelectorProyectoCodigo({
 }) {
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
+  const lista = useRef<HTMLUListElement>(null);
+  // La lista va en un portal con posición fija: así no la corta una tarjeta con overflow oculto.
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; arriba: boolean } | null>(null);
   useEffect(() => {
     if (!abierto) return;
-    const fuera = (e: MouseEvent) => caja.current && !caja.current.contains(e.target as Node) && setAbierto(false);
+    const ubicar = () => {
+      const r = caja.current?.getBoundingClientRect();
+      if (!r) return;
+      const arriba = window.innerHeight - r.bottom < 270 && r.top > window.innerHeight - r.bottom;
+      setPos({ top: arriba ? r.top - 4 : r.bottom + 4, left: r.left, width: r.width, arriba });
+    };
+    ubicar();
+    window.addEventListener("scroll", ubicar, true);
+    window.addEventListener("resize", ubicar);
+    return () => {
+      window.removeEventListener("scroll", ubicar, true);
+      window.removeEventListener("resize", ubicar);
+    };
+  }, [abierto]);
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (caja.current?.contains(t) || lista.current?.contains(t)) return;
+      setAbierto(false);
+    };
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setAbierto(false);
     document.addEventListener("mousedown", fuera);
     document.addEventListener("keydown", esc);
@@ -51,8 +75,13 @@ export default function SelectorProyectoCodigo({
         <span className="min-w-0 flex-1">{elegido ? pastilla(elegido) : <span className="text-gris">{textoVacio}</span>}</span>
         <IconChevronDown size={16} className={`shrink-0 text-gris transition ${abierto ? "rotate-180" : ""}`} />
       </button>
-      {abierto && (
-        <ul role="listbox" className="absolute left-0 right-0 z-40 mt-1 max-h-64 overflow-y-auto rounded-xl border border-borde/70 bg-superficie p-1 shadow-lg">
+      {abierto && pos && createPortal(
+        <ul
+          ref={lista}
+          role="listbox"
+          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, transform: pos.arriba ? "translateY(-100%)" : undefined }}
+          className="z-[90] max-h-64 overflow-y-auto rounded-xl border border-borde/70 bg-superficie p-1 shadow-lg"
+        >
           {[{ id: "", codigo: textoVacio } as OpcionProyectoCodigo, ...opciones].map((o) => {
             const sel = (valor ?? "") === o.id;
             return (
@@ -70,7 +99,8 @@ export default function SelectorProyectoCodigo({
               </li>
             );
           })}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );
