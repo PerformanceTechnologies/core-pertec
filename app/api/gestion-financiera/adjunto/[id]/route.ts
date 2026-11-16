@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { borrarArchivos, leerArchivo } from "@/lib/archivos/almacen";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { esReferenciaSharePoint, vistaPreviaDeSharePoint } from "@/lib/archivos/sharepoint-core";
 import { RUTA_FIN, RUTA_LEADS, auditar, contextoFinApi, contextoLeadsApi } from "@/lib/fin/datos";
 
 export const runtime = "nodejs";
@@ -17,9 +18,14 @@ async function documento(id: string) {
 }
 
 /** El archivo para verlo en la ventana (inline, no como descarga). */
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const d = await documento((await params).id);
   if (!d) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  // ?vista=1: la vista previa de SharePoint (sirve para Word y archivos grandes).
+  if (new URL(request.url).searchParams.get("vista") === "1") {
+    const url = esReferenciaSharePoint(String(d.a.ruta)) ? await vistaPreviaDeSharePoint(String(d.a.ruta)) : null;
+    return NextResponse.json({ url });
+  }
   const contenido = await leerArchivo("finanzas", String(d.a.ruta));
   if (!contenido) return NextResponse.json({ error: "No se pudo leer el archivo." }, { status: 502 });
   return new NextResponse(new Uint8Array(contenido), {

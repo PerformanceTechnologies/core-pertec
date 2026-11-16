@@ -1,76 +1,38 @@
 import { NextResponse } from "next/server";
 import { esReferenciaSharePoint, guardarArchivo } from "@/lib/archivos/almacen";
 import { nombreUnico } from "@/lib/archivos/sharepoint-core";
-import { carpetaFinanzas, carpetaOcProveedor, carpetaVentaCliente } from "@/lib/archivos/carpetas";
 import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { RUTA_FIN, RUTA_LEADS, auditar, contextoFinApi, contextoLeadsApi } from "@/lib/fin/datos";
 import { LIMITE_SUBIDA } from "@/lib/subidas";
+import { TIPOS_ADJUNTO, prepararAdjunto, registrarAdjunto } from "@/lib/fin/adjuntos";
 
 export const runtime = "nodejs";
 
-const TIPOS: Record<string, string> = {
-  "application/pdf": "pdf", "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "text/xml": "xml", "application/xml": "xml",
-  "text/csv": "csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-};
-const ENTIDADES: Record<string, string> = {
-  cotizacion: "fin_cotizaciones", oportunidad: "fin_oportunidades", hito: "fin_hitos", documento: "fin_documentos", compra: "fin_compras", movimiento: "fin_movimientos",
-  operacion_factoring: "fin_operaciones_factoring", cobro: "fin_cobros", pago: "fin_pagos", proyecto: "fin_proyectos",
-};
-
-/** Sube un respaldo al bucket privado «finanzas» bajo la carpeta de la empresa activa. */
+/** Sube un respaldo (hasta ~4 MB, pasa por el servidor): a SharePoint, o al bucket «finanzas» si SharePoint no responde. Los grandes van por /directo. */
 export async function POST(request: Request) {
-  const ctxFin = await contextoFinApi();
-  // Quien solo tiene Leads puede respaldar cotizaciones y nada más de Finanzas.
-  const ctx = ctxFin ?? (await contextoLeadsApi());
-  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const fd = await request.formData().catch(() => null);
   const archivo = fd?.get("archivo");
   const entidadTipo = String(fd?.get("entidadTipo") ?? "");
   const entidadId = String(fd?.get("entidadId") ?? "");
   const tipo = String(fd?.get("tipo") ?? "otro").slice(0, 30);
   if (!(archivo instanceof File) || archivo.size === 0) return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
-  if (!Object.hasOwn(TIPOS, archivo.type)) return NextResponse.json({ error: "Sube un PDF, una imagen, un XML o una planilla." }, { status: 400 });
+  if (!Object.hasOwn(TIPOS_ADJUNTO, archivo.type)) return NextResponse.json({ error: "Sube un PDF, Word, Excel, imagen o XML." }, { status: 400 });
   if (archivo.size > LIMITE_SUBIDA) return NextResponse.json({ error: "El archivo pasa el tope de 4 MB." }, { status: 413 });
-  if (!ctxFin && entidadTipo !== "cotizacion" && entidadTipo !== "oportunidad") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  const tabla = ENTIDADES[entidadTipo];
-  if (!tabla || !/^[0-9a-f-]{36}$/.test(entidadId)) return NextResponse.json({ error: "Registro inválido." }, { status: 400 });
-  const { data: dueño } = await supabaseAdmin.from(tabla).select("*").eq("id", entidadId).eq("empresa_id", ctx.empresa.id).maybeSingle();
-  if (!dueño) return NextResponse.json({ error: "Ese registro no existe o es de otra empresa." }, { status: 404 });
-
-  // Compras quedan en la carpeta de su proveedor; cotizaciones e hitos (ventas), en la de su cliente.
-  const fila = dueño as { proveedor_id?: string | null; cliente_id?: string | null };
-  const contactoId = entidadTipo === "compra" ? fila.proveedor_id : entidadTipo === "cotizacion" || entidadTipo === "hito" || entidadTipo === "oportunidad" ? fila.cliente_id : null;
-  const esVenta = ["cotizacion", "hito", "oportunidad"].includes(entidadTipo);
-  let carpeta = esVenta ? carpetaVentaCliente(ctx.empresa.nombre, null) : carpetaFinanzas(ctx.empresa.nombre, entidadTipo, entidadId);
-  if (contactoId) {
-    const { data: c } = await supabaseAdmin.from("finanzas_contactos").select("razon_social").eq("id", contactoId).maybeSingle();
-    if (c?.razon_social) carpeta = entidadTipo === "compra" ? carpetaOcProveedor(ctx.empresa.nombre, c.razon_social) : carpetaVentaCliente(ctx.empresa.nombre, c.razon_social);
-  }
+  const p = await prepararAdjunto(entidadTipo, entidadId);
+  if (!p.ok) return NextResponse.json({ error: p.error }, { status: p.status });
 
   let ruta: string;
   try {
     ruta = await guardarArchivo({
-      carpeta,
-      nombre: nombreUnico(archivo.name, TIPOS[archivo.type]),
+      carpeta: p.carpeta,
+      nombre: nombreUnico(archivo.name, TIPOS_ADJUNTO[archivo.type]),
       contenido: Buffer.from(await archivo.arrayBuffer()),
       tipo: archivo.type,
-      respaldo: { bucket: "finanzas", ruta: `${ctx.empresa.id}/${entidadTipo}/${entidadId}/${randomUUID()}.${TIPOS[archivo.type]}` },
+      respaldo: { bucket: "finanzas", ruta: `${p.ctx.empresa.id}/${entidadTipo}/${entidadId}/${randomUUID()}.${TIPOS_ADJUNTO[archivo.type]}` },
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo guardar el archivo." }, { status: 500 });
   }
-  const { data, error: e2 } = await supabaseAdmin
-    .from("fin_adjuntos")
-    .insert({ empresa_id: ctx.empresa.id, entidad_tipo: entidadTipo, entidad_id: entidadId, tipo, ruta, nombre: archivo.name.slice(0, 200), mime: archivo.type, tamano: archivo.size, subido_por: ctx.usuario.correo })
-    .select("id")
-    .single();
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
-  // Un movimiento con respaldo adjunto queda con respaldo.
-  if (entidadTipo === "movimiento") await supabaseAdmin.from("fin_movimientos").update({ tiene_respaldo: true }).eq("id", entidadId);
-  await auditar(ctx, tabla, entidadId, "adjuntar", archivo.name);
-  revalidatePath(RUTA_FIN, "layout");
-  revalidatePath(RUTA_LEADS, "layout");
-  return NextResponse.json({ ok: true, id: data!.id, sharepoint: esReferenciaSharePoint(ruta) });
+  const r = await registrarAdjunto({ ctx: p.ctx, tabla: p.tabla, entidadTipo, entidadId, tipo, ruta, nombre: archivo.name, mime: archivo.type, tamano: archivo.size });
+  if ("error" in r) return NextResponse.json({ error: r.error }, { status: 500 });
+  return NextResponse.json({ ok: true, id: r.id, sharepoint: esReferenciaSharePoint(ruta) });
 }

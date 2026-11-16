@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconExternalLink, IconFile, IconLoader2, IconTrash } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
@@ -16,6 +16,14 @@ export default function VerDocumento({ id, nombre }: { id: string; nombre: strin
   const ext = nombre.split(".").pop()?.toLowerCase() ?? "";
   const esImagen = ["png", "jpg", "jpeg", "webp"].includes(ext);
   const esPdf = ext === "pdf";
+  // Vista previa de SharePoint (Word, Excel, PDF grandes). Sin ella, se muestra el archivo directo.
+  const [vista, setVista] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!abierto || vista !== undefined || esImagen) return;
+    let vigente = true;
+    fetch(`${url}?vista=1`).then((r) => r.json()).then((r) => vigente && setVista(r.url ?? null)).catch(() => vigente && setVista(null));
+    return () => { vigente = false; };
+  }, [abierto, vista, esImagen, url]);
 
   const quitar = async () => {
     if (!(await confirmar({ titulo: `¿Eliminar «${nombre}»?`, ayuda: "Se borra también de SharePoint. No se puede deshacer.", boton: "Eliminar", peligro: true }))) return;
@@ -40,6 +48,10 @@ export default function VerDocumento({ id, nombre }: { id: string; nombre: strin
               {esImagen ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={url} alt={nombre} className="mx-auto max-h-[70vh] object-contain" />
+              ) : vista === undefined ? (
+                <p className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-gris"><IconLoader2 size={16} className="animate-spin" /> Cargando vista previa…</p>
+              ) : vista ? (
+                <iframe src={vista} title={nombre} className="h-[70vh] w-full bg-white" />
               ) : esPdf ? (
                 <iframe src={url} title={nombre} className="h-[70vh] w-full" />
               ) : (

@@ -274,3 +274,49 @@ export async function probarSharePoint(): Promise<string | null> {
     if (ref) await borrarDeSharePoint([ref]).catch(() => {});
   }
 }
+
+/**
+ * Abre una sesión de carga para que el navegador suba el archivo directo a SharePoint
+ * (sin pasar por el servidor, que tiene tope de ~4 MB por petición). Devuelve la URL
+ * de la sesión, que ya viene autorizada y dura unos minutos.
+ */
+export async function abrirSesionDeSubida(carpeta: string, nombre: string): Promise<string> {
+  return conRespaldoApp(async (graph) => {
+    const s = await sitio(graph);
+    const ruta = codificarRuta(rutaCompleta(carpeta, nombre));
+    const sesion = await graph.api(`/sites/${s}/drive/root:/${ruta}:/createUploadSession`).post({ item: { "@microsoft.graph.conflictBehavior": "rename" } });
+    const url = sesion?.uploadUrl as string | undefined;
+    if (!url) throw new Error("SharePoint no abrió la sesión de carga.");
+    return url;
+  });
+}
+
+/** Datos de un archivo ya subido (para confirmar una subida directa). null si no existe. */
+export async function datosEnSharePoint(ref: string): Promise<{ nombre: string; tamano: number; tipo: string; ruta: string } | null> {
+  try {
+    return await conRespaldoApp(async (graph) => {
+      const s = await sitio(graph);
+      const item = await graph.api(`/sites/${s}/drive/items/${encodeURIComponent(idDeReferencia(ref))}`).get();
+      if (!item?.id || !item?.file) return null;
+      return { nombre: String(item.name ?? ""), tamano: Number(item.size ?? 0), tipo: String(item.file.mimeType ?? ""), ruta: decodeURIComponent(String(item.parentReference?.path ?? "")) };
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** La ruta completa de una carpeta del Core dentro del sitio (para comparar con la de un archivo subido). */
+export const rutaDeCarpeta = (carpeta: string) => rutaCompleta(carpeta);
+
+/** URL de vista previa incrustable de SharePoint (PDF, Word, Excel, imágenes…), o null si no se pudo. */
+export async function vistaPreviaDeSharePoint(ref: string): Promise<string | null> {
+  try {
+    return await conRespaldoApp(async (graph) => {
+      const s = await sitio(graph);
+      const r = await graph.api(`/sites/${s}/drive/items/${encodeURIComponent(idDeReferencia(ref))}/preview`).post({});
+      return (r?.getUrl as string | undefined) ?? null;
+    });
+  } catch {
+    return null;
+  }
+}

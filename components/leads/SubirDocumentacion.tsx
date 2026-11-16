@@ -11,7 +11,44 @@ const TIPOS = [
   { tipo: "respaldo", titulo: "Archivo de respaldo", detalle: "Correo, ficha técnica, plano, foto…", Icono: IconFileText },
   { tipo: "oc_cliente", titulo: "Orden de compra", detalle: "La OC que mandó el cliente", Icono: IconShoppingCart },
 ];
-const ACEPTA = ".pdf,.png,.jpg,.jpeg,.webp,.xml,.csv,.xlsx";
+const ACEPTA = ".pdf,.png,.jpg,.jpeg,.webp,.xml,.csv,.xlsx,.xls,.doc,.docx";
+const TOPE = 100 * 1024 * 1024;
+const MIME: Record<string, string> = {
+  pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", xml: "application/xml", csv: "text/csv",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xls: "application/vnd.ms-excel",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", doc: "application/msword",
+};
+type Resultado = { error?: string; sharepoint?: boolean };
+
+/**
+ * Sube un archivo directo a SharePoint en trozos (así no hay tope de 4 MB del servidor).
+ * Si SharePoint no abre la sesión y el archivo es chico, se sube por el camino de siempre.
+ */
+async function subirUno(f: File, d: { entidadTipo: string; entidadId: string; tipo: string }, alAvanzar: (pct: number) => void): Promise<Resultado> {
+  const mime = MIME[f.name.split(".").pop()?.toLowerCase() ?? ""] ?? f.type;
+  if (f.size > TOPE) return { error: "pasa el tope de 100 MB." };
+  const base = { ...d, nombre: f.name, mime, tamano: f.size };
+  const pedir = (cuerpo: object) => fetch("/api/gestion-financiera/adjunto/directo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) }).then((x) => x.json()).catch(() => ({ error: "No se pudo conectar." }));
+  const sesion = await pedir({ ...base, paso: "abrir" });
+  if (sesion.error || !sesion.url) {
+    if (f.size > 4 * 1024 * 1024) return { error: sesion.error ?? "SharePoint no respondió." };
+    const fd = new FormData();
+    fd.set("archivo", new File([f], f.name, { type: mime }));
+    Object.entries(d).forEach(([k, v]) => fd.set(k, v));
+    return fetch("/api/gestion-financiera/adjunto", { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "No se pudo subir." }));
+  }
+  const TROZO = 16 * 320 * 1024;
+  let item: { id?: string } | null = null;
+  for (let desde = 0; desde < f.size; desde += TROZO) {
+    const hasta = Math.min(desde + TROZO, f.size);
+    const r = await fetch(sesion.url, { method: "PUT", headers: { "Content-Range": `bytes ${desde}-${hasta - 1}/${f.size}` }, body: f.slice(desde, hasta) }).catch(() => null);
+    if (!r || (!r.ok && r.status !== 202)) return { error: `SharePoint cortó la subida${r ? ` (HTTP ${r.status})` : ""}.` };
+    if (r.status === 200 || r.status === 201) item = await r.json();
+    alAvanzar(Math.round((hasta / f.size) * 100));
+  }
+  if (!item?.id) return { error: "SharePoint no confirmó el archivo." };
+  return pedir({ ...base, paso: "confirmar", itemId: item.id });
+}
 
 /** Ventana para subir documentación (respaldo u OC) a SharePoint, con arrastrar y soltar. */
 function Formulario({ entidadTipo, entidadId, destino, cerrar }: { entidadTipo: string; entidadId: string; destino: string; cerrar: () => void }) {
@@ -21,26 +58,25 @@ function Formulario({ entidadTipo, entidadId, destino, cerrar }: { entidadTipo: 
   const [archivos, setArchivos] = useState<File[]>([]);
   const [encima, setEncima] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
+  const [progreso, setProgreso] = useState<{ nombre: string; pct: number } | null>(null);
 
   const subir = async () => {
     if (!archivos.length) return;
     setSubiendo(true);
     let enSharePoint = 0;
     for (const f of archivos) {
-      const fd = new FormData();
-      fd.set("archivo", f);
-      fd.set("entidadTipo", entidadTipo);
-      fd.set("entidadId", entidadId);
-      fd.set("tipo", tipo);
-      const r = await fetch("/api/gestion-financiera/adjunto", { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "No se pudo subir." }));
+      setProgreso({ nombre: f.name, pct: 0 });
+      const r = await subirUno(f, { entidadTipo, entidadId, tipo }, (pct) => setProgreso({ nombre: f.name, pct }));
       if (r.error) {
         setSubiendo(false);
+        setProgreso(null);
         avisar(`${f.name}: ${r.error}`);
         return;
       }
       if (r.sharepoint) enSharePoint++;
     }
     setSubiendo(false);
+    setProgreso(null);
     avisar(enSharePoint === archivos.length ? "Guardado en SharePoint." : "Guardado. SharePoint no respondió y quedó en el respaldo del Core.", "ok");
     cerrar();
     router.refresh();
@@ -81,7 +117,7 @@ function Formulario({ entidadTipo, entidadId, destino, cerrar }: { entidadTipo: 
         >
           <IconCloudUpload size={30} className="text-naranjo" />
           <span className="text-sm font-semibold text-tinta">Toca para elegir o arrastra aquí</span>
-          <span className="text-xs text-gris">PDF, imagen, XML o planilla · hasta 4 MB cada uno</span>
+          <span className="text-xs text-gris">PDF, Word, Excel, imagen o XML · hasta 100 MB cada uno</span>
         </button>
         {archivos.length > 0 && (
           <ul className="mt-2 space-y-1">
@@ -105,7 +141,7 @@ function Formulario({ entidadTipo, entidadId, destino, cerrar }: { entidadTipo: 
         <button type="button" onClick={cerrar} className={BOTON_SEC}>Cancelar</button>
         <button type="button" onClick={subir} disabled={!archivos.length || subiendo} className={BOTON}>
           {subiendo ? <IconLoader2 size={15} className="animate-spin" /> : <IconFileCheck size={15} />}
-          {subiendo ? "Subiendo…" : `Subir${archivos.length > 1 ? ` ${archivos.length} archivos` : ""}`}
+          {subiendo ? (progreso ? `Subiendo ${progreso.pct}%` : "Subiendo…") : `Subir${archivos.length > 1 ? ` ${archivos.length} archivos` : ""}`}
         </button>
       </div>
     </div>
