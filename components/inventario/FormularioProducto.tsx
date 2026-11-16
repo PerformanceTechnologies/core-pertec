@@ -247,8 +247,8 @@ export default function FormularioProducto({
                     maximo={80}
                   />
                 </Campo>
-                <Campo etiqueta="SKU / código" ayuda="Para buscarlo rápido">
-                  <input name="sku" value={sku} onChange={(e) => setSku(e.target.value)} className={CAMPO} placeholder="EPP-001" />
+                <Campo etiqueta="SKU / código" ayuda={producto ? "Para buscarlo rápido" : "Déjalo vacío y se asigna solo (PER-000001…)"}>
+                  <input name="sku" value={sku} onChange={(e) => setSku(e.target.value)} className={CAMPO} placeholder={producto ? "" : "Se asigna solo"} />
                 </Campo>
               </div>
               <div>

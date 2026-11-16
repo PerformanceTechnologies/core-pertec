@@ -21,7 +21,7 @@ export type ClaveColumna =
   | "bodega" | "cantidad" | "lote" | "vencimiento" | "minimo" | "maximo" | "descripcion";
 
 export const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
-  { clave: "sku", titulo: "SKU / Código", ayuda: "Código interno. Si existe, se actualiza ese producto; si no, se busca por nombre.", ejemplo: "VUL-001", alias: ["sku", "codigo", "código", "cod", "referencia interna", "codigo interno"] },
+  { clave: "sku", titulo: "SKU / Código", ayuda: "Código interno. Si existe, se actualiza ese producto; si no, se busca por nombre. En productos nuevos, déjalo vacío y se asigna solo.", ejemplo: "PER-000001", alias: ["sku", "codigo", "código", "cod", "referencia interna", "codigo interno"] },
   { clave: "nombre", titulo: "Nombre", obligatoria: true, ayuda: "Nombre del producto. La lista trae cómo están escritos en el histórico de compras, como referencia; si es nuevo, se escribe igual.", ejemplo: "Parche radial 120x180", alias: ["nombre", "producto", "nombre producto", "descripcion corta"] },
   { clave: "marca", titulo: "Marca", ayuda: "Texto libre. La lista trae las marcas del histórico de compras para usar el mismo formato; si es nueva, se escribe igual.", ejemplo: "3M", alias: ["marca", "fabricante", "brand"] },
   { clave: "categoria", titulo: "Categoría", obligatoria: true, ayuda: "Si no existe, se crea (o queda con error, según la opción).", ejemplo: "Insumos de vulcanización", alias: ["categoria", "familia", "grupo"] },
