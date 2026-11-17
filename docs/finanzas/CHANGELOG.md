@@ -1,5 +1,13 @@
 # Gestión financiera · Cambios
 
+## 2026-11-17 · Remuneraciones (solo Performance Technologies)
+
+- Pestaña **Remuneraciones** con el libro de BUK por mes: líquido a pagar, Previred (por AFP, salud, cesantía, mutual y caja), impuesto único, costo empresa y detalle por centro de costo. Solo totales por concepto: no se muestran nombres ni RUT de las personas.
+- **Estado de pago** de sueldos y de Previred, cruzando BUK con los movimientos del banco de Tesorería: Pagado, Parcial, Por pagar, Pendiente o Sin cartola (cuando el banco cargado no cubre la fecha, no se afirma que falte).
+- **Para el flujo de caja**: sugiere lo que sale por remuneraciones en cada mes del flujo (sueldos al pagarse, Previred al vencer; lo ya pagado no se suma) y lo carga en la fila «Remuneraciones» con confirmación y auditoría.
+- **Acceso cerrado por defecto**: admin del Core o personas con el nuevo permiso «Ver remuneraciones» (en Permisos de flujos). Se exige en la pestaña, la página y cada acción.
+- Requiere la migración `supabase/fin/0011_remuneraciones_permiso.sql` y las variables `BUK_URL` y `BUK_API_TOKEN`.
+
 ## 2026-11-04 · Primera entrega
 
 **Base**

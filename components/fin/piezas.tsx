@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconBuildingBank, IconCalculator, IconChevronRight, IconFolders, IconInbox, IconLayoutDashboard, IconReceipt, IconShoppingCart, IconTargetArrow, type Icon } from "@tabler/icons-react";
+import { IconBuildingBank, IconCalculator, IconChevronRight, IconFolders, IconInbox, IconLayoutDashboard, IconReceipt, IconShoppingCart, IconTargetArrow, IconUserDollar, type Icon } from "@tabler/icons-react";
 import { IconoTile, type TonoIcono } from "@/components/contactos/Visual";
 import { TARJETA } from "@/lib/estilos";
 import { clp, clpCorto, type EtapaHito, type PasoCompra, type EstadoFactoring } from "@/lib/fin/reglas";
@@ -137,6 +137,7 @@ const ICONO_BANDA: [RegExp, Icon, TonoIcono][] = [
   [/comercial|oportunidad/i, IconTargetArrow, "marca"],
   [/proyecto/i, IconFolders, "marca"],
   [/contab/i, IconCalculator, "azul"],
+  [/remuner|sueldo/i, IconUserDollar, "verde"],
 ];
 
 /** La banda de arriba de cada pantalla: una cifra grande, las de apoyo y (opcional) el proceso paso a paso. */

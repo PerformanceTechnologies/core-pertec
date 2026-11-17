@@ -84,6 +84,7 @@ next.config.ts       empaquetado y archivos incluidos por ruta: crítico (ver §
 - **Microsoft Graph**, de dos formas: con permisos de **aplicación** (leer listas y carpetas, guardar PDF) y con el
   token **delegado** de cada persona (Contratos, resumen diario, envío de ofertas). Los tokens de refresco se
   guardan cifrados (`lib/cifrado.ts`).
+- **BUK** (remuneraciones, solo lectura, `lib/fin/buk.ts`): alimenta Gestión financiera › Remuneraciones, solo de Performance Technologies. Lee la centralización contable por mes (no el detalle por persona). Variables `BUK_URL` y `BUK_API_TOKEN`, solo en el servidor.
 - **Odoo** por JSON-RPC (`lib/odoo/cliente.ts`): casi todo lectura; escribe gastos y contactos (Rendir Gastos y Cotizador).
 - **SII**: scraping con Playwright. El SII invalida sesiones, así que las corridas son secuenciales.
 - **Anthropic**: lectura de documentos (Rendir Gastos, Ofertas, Cotizador), resumen diario y buscador.
@@ -111,6 +112,7 @@ Todos con `Authorization: Bearer <secreto>`.
   la URL y borra cualquier cabecera igual que mande el cliente.
 - **Inventario**: el stock no se edita; solo transferencias mediante las funciones SQL (son atómicas).
 - **Leads / Gestión financiera**: todo lleva `empresa_id` de la empresa activa y toda escritura pasa por `contextoLeads()` / `contextoFin()`. El correlativo de cotizaciones es por empresa (`fin_siguiente_numero`) con el prefijo de `empresas.prefijo_cotizacion`. Los datos que salen en el PDF (dirección, giro, banco…) se editan en Gestión financiera › Configuración › Datos de la empresa. Rutas que imprimen: `/api/leads/cotizaciones/[id]/pdf` y `/enviar` (tienen su entrada en `next.config.ts`, con los logos de `public/empresas`).
+- **Remuneraciones** (`/gestion-financiera/remuneraciones`, solo `pertec`): son sueldos, así que el acceso es **cerrado por defecto**. Lo decide `lib/fin/remuneraciones-acceso.ts`: admin del Core o personas con el permiso «Ver remuneraciones» (rol `remuneraciones_ver` de «Permisos de flujos», migración `0011`); sin nadie asignado solo entra el admin, al revés que los demás roles de flujos. Se vuelve a exigir en la página y en cada Server Action, y los datos de BUK nunca llegan al navegador con RUT de personas. El estado de pago cruza el libro con los movimientos del banco de Tesorería (`lib/fin/remuneraciones-modelo.ts`, se prueba con `npm run probar-remuneraciones`).
 - **Multiempresa**: el resto de los módulos no tiene `empresa_id`; `FiltroDeEmpresa` solo oculta lo que no es de PERTEC.
 - **`next.config.ts`**: toda ruta nueva que lance Chromium o use `pdf-parse` necesita su entrada en
   `outputFileTracingIncludes` (las claves son globs: escapa `[id]` como `\\[id\\]`). Depende de detalles internos de
