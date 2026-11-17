@@ -1,11 +1,13 @@
 import { IconBuilding, IconCash } from "@tabler/icons-react";
 import NavFin from "@/components/fin/NavFin";
 import { contextoFin } from "@/lib/fin/datos";
+import { puedeVerRemuneraciones } from "@/lib/fin/remuneraciones-acceso";
 
 export const dynamic = "force-dynamic";
 
 export default async function LayoutFinanzas({ children }: { children: React.ReactNode }) {
-  const { empresa, usuario } = await contextoFin();
+  const ctx = await contextoFin();
+  const { empresa, usuario } = ctx;
   return (
     <div className="animar-entrada">
       <header className="mb-5 flex flex-wrap items-center gap-3">
@@ -21,7 +23,7 @@ export default async function LayoutFinanzas({ children }: { children: React.Rea
           <IconBuilding size={14} /> {empresa.nombre}
         </span>
       </header>
-      <NavFin esAdmin={usuario.rol === "admin"} />
+      <NavFin esAdmin={usuario.rol === "admin"} verRemuneraciones={await puedeVerRemuneraciones(ctx)} />
       <div className="escalonar">{children}</div>
     </div>
   );

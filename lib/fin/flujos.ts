@@ -4,7 +4,7 @@ import { supabaseAdmin } from "../supabase-admin";
 import { listarUsuarios } from "../usuarios";
 import { obtenerAplicacionPorSlug } from "../aplicaciones";
 import { SLUG_APP_FIN, type ContextoFin } from "./datos";
-import { ROLES_FLUJO, type PuedeFlujo, type RolFlujo } from "./flujos-modelo";
+import { ROLES_FLUJO, type PuedeFlujo, type RolAsignable, type RolFlujo } from "./flujos-modelo";
 
 // -----------------------------------------------------------------------------
 //  Permisos de flujos.
@@ -21,14 +21,14 @@ export interface PersonaFlujo {
 }
 
 /** usuario_id asignados por rol, de la empresa. Una vez por pedido. */
-export const asignacionesDeEmpresa = cache(async (empresaId: string): Promise<Map<RolFlujo, string[]>> => {
-  const salida = new Map<RolFlujo, string[]>();
+export const asignacionesDeEmpresa = cache(async (empresaId: string): Promise<Map<RolAsignable, string[]>> => {
+  const salida = new Map<RolAsignable, string[]>();
   const { data, error } = await supabaseAdmin.from("fin_flujo_personas").select("rol, usuario_id").eq("empresa_id", empresaId).order("creado_en", { ascending: true });
   if (error) {
     console.error(`[fin] No se pudo leer fin_flujo_personas (¿se corrió supabase/fin/0007_flujo_personas.sql?): ${error.message}`);
     return salida;
   }
-  for (const f of (data ?? []) as { rol: RolFlujo; usuario_id: string }[]) salida.set(f.rol, [...(salida.get(f.rol) ?? []), f.usuario_id]);
+  for (const f of (data ?? []) as { rol: RolAsignable; usuario_id: string }[]) salida.set(f.rol, [...(salida.get(f.rol) ?? []), f.usuario_id]);
   return salida;
 });
 

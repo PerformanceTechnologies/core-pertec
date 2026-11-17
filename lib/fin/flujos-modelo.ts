@@ -34,6 +34,17 @@ export type RolFlujo = (typeof FLUJOS)[number]["roles"][number]["rol"];
 export const ROLES_FLUJO: readonly RolFlujo[] = FLUJOS.flatMap((f) => f.roles.map((r) => r.rol));
 export const esRolFlujo = (x: unknown): x is RolFlujo => typeof x === "string" && (ROLES_FLUJO as readonly string[]).includes(x);
 
+/**
+ * El permiso para ver Remuneraciones (solo Performance Technologies). Vive aparte de FLUJOS a propósito: los roles de
+ * FLUJOS dicen «sin nadie asignado = cualquiera puede», y para sueldos esa regla sería la contraria de la correcta.
+ * Acá es al revés: sin nadie asignado solo entra el administrador del Core (ver lib/fin/remuneraciones-acceso.ts).
+ * Se asigna desde la misma pantalla de «Permisos de flujos».
+ */
+export const ROL_REMUNERACIONES = "remuneraciones_ver" as const;
+export type RolAsignable = RolFlujo | typeof ROL_REMUNERACIONES;
+/** Lo que se puede asignar a personas: los roles de los flujos y el de Remuneraciones. */
+export const esRolAsignable = (x: unknown): x is RolAsignable => esRolFlujo(x) || x === ROL_REMUNERACIONES;
+
 /** Qué puede hacer el usuario actual en cada rol (para mostrar u ocultar botones; la validación real es del servidor). */
 export type PuedeFlujo = Record<RolFlujo, boolean>;
 export const TODO_PERMITIDO: PuedeFlujo = Object.fromEntries(ROLES_FLUJO.map((r) => [r, true])) as PuedeFlujo;

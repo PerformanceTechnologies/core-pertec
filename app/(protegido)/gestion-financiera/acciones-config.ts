@@ -7,7 +7,8 @@ import { borrarArchivos } from "@/lib/archivos/almacen";
 import { RUTA_FIN, auditar, contextoFin, exigirDeEmpresa, fechaValida, montoDe, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES } from "@/lib/fin/reglas";
 import { candidatosDeFlujo } from "@/lib/fin/flujos";
-import { esRolFlujo } from "@/lib/fin/flujos-modelo";
+import { ROL_REMUNERACIONES, esRolAsignable } from "@/lib/fin/flujos-modelo";
+import { SLUG_EMPRESA_REMUNERACIONES } from "@/lib/fin/remuneraciones-modelo";
 import { formatearRut, normalizarRut, rutEsValido } from "@/lib/contratos/rut";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
@@ -78,13 +79,14 @@ export async function eliminarProyectoAction(id: string, motivo: string): Promis
 
 // ---------- Permisos de flujos (solo el administrador global) -----------------------------
 
-/** Deja exactamente a estas personas en el rol. Vacío = rol libre (cualquiera con la app puede). */
+/** Deja exactamente a estas personas en el rol. Vacío = rol libre (cualquiera con la app puede), salvo «Ver remuneraciones»: vacío = solo el admin. */
 export async function guardarFlujoPersonasAction(rol: string, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
     // Solo el rol «admin» del Core, y se exige acá: ocultar la pestaña no protege nada.
     if (ctx.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del sistema asigna personas a los flujos." };
-    if (!esRolFlujo(rol)) return { ok: false, error: "Ese rol no existe." };
+    if (!esRolAsignable(rol)) return { ok: false, error: "Ese rol no existe." };
+    if (rol === ROL_REMUNERACIONES && ctx.empresa.slug !== SLUG_EMPRESA_REMUNERACIONES) return { ok: false, error: "Remuneraciones solo existe en Performance Technologies." };
     const elegidos = [...new Set(fd.getAll("personas").map(String))];
     const validos = new Set((await candidatosDeFlujo()).map((c) => c.id));
     if (elegidos.some((id) => !validos.has(id))) return { ok: false, error: "Alguna de las personas elegidas ya no está disponible." };
