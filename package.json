@@ -41,6 +41,7 @@
     "probar-valorizacion-historica": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-valorizacion-historica.mts",
     "probar-cotizacion-pdf": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-cotizacion-pdf.mts",
     "probar-remuneraciones": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-remuneraciones.mts",
+    "probar-banco-emisso": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-banco-emisso.mts",
     "probar-fin": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-fin.mts && npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-fin-contable.mts"
   },
   "dependencies": {
