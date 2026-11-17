@@ -45,7 +45,7 @@ export default function TareasPedidas({ resumen: r, hoyIso, nombres }: { resumen
         )}
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="mt-4 grilla-mi-dia grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <GrupoTareas titulo="Atrasadas" tareas={r.vencidas} tono="rojo" hoyIso={hoyIso} detalle={quienes} />
           <GrupoTareas titulo="En marcha" tareas={r.pendientes.slice(0, 6)} tono="normal" hoyIso={hoyIso} detalle={quienes} />

@@ -104,7 +104,7 @@ export default function MisTareas({ resumen: r, hoyIso, nombres }: { resumen: Re
             )}
             .
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="mt-4 grilla-mi-dia grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="flex flex-col gap-6">
               <GrupoTareas titulo="Vencidas" tareas={r.vencidas} tono="rojo" hoyIso={hoyIso} detalle={pidio} />
               <GrupoTareas titulo="Vencen hoy" tareas={r.hoy} tono="naranjo" hoyIso={hoyIso} detalle={pidio} />

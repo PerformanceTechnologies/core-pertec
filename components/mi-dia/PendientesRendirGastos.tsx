@@ -39,7 +39,7 @@ export default function PendientesRendirGastos({ pendientes, titulo = "Pendiente
         Tienes <strong className="text-tinta">{total}</strong> {total === 1 ? "cosa pendiente" : "cosas pendientes"}
         {pendientes.length > 1 ? ` en ${pendientes.length} empresas` : ` en ${pendientes[0]?.empresa}`}.
       </p>
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="mt-4 grilla-mi-dia grid grid-cols-1 gap-4 lg:grid-cols-2">
         {pendientes.map((p) => (
           <div key={p.empresaSlug} className={`rounded-lg border border-borde bg-superficie p-4 ${SOMBRA_CALIDA}`}>
             <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-naranjo">

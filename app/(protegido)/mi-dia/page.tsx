@@ -393,29 +393,47 @@ export default async function MiDiaPage() {
         </div>
       </header>
 
-      {/* Lo que espera una decisión suya va primero: las aprobaciones de compras, en vivo y sin esperar al modelo. */}
+      {/* Arriba, a todo lo ancho: avisos, el panorama y las prioridades (del resumen). */}
       <Suspense fallback={null}>
-        <SeccionAprobaciones usuario={usuario} />
+        <CuerpoResumen datos={datos} parte="arriba" />
       </Suspense>
 
-      <Suspense fallback={null}>
-        <SeccionRendirGastos usuario={usuario} />
-      </Suspense>
+      {/* Dos columnas: a la izquierda lo que pide una acción; a la derecha la agenda y lo pendiente en los
+          módulos (en vivo, no espera al resumen). En celular queda todo en una columna, la acción primero. */}
+      <div className="mt-10 grid grid-cols-1 gap-x-10 gap-y-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="min-w-0 [&>*:first-child]:mt-0">
+          <Suspense fallback={null}>
+            <SeccionAprobaciones usuario={usuario} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <CuerpoResumen datos={datos} parte="accion" />
+          </Suspense>
+        </div>
+        <aside className="min-w-0 [&>*:first-child]:mt-0 [&_.grilla-mi-dia]:lg:grid-cols-1">
+          <Suspense fallback={null}>
+            <CuerpoResumen datos={datos} parte="agenda" />
+          </Suspense>
+          <Suspense fallback={null}>
+            <SeccionTareas usuario={usuario} hoyIso={hoy.iso} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <SeccionRendirGastos usuario={usuario} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <SeccionFinanzas usuario={usuario} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <SeccionContratos usuario={usuario} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <CuerpoResumen datos={datos} parte="informativo" />
+          </Suspense>
+        </aside>
+      </div>
 
       <Suspense fallback={null}>
-        <SeccionFinanzas usuario={usuario} />
+        <CuerpoResumen datos={datos} parte="pie" />
       </Suspense>
-
-      <Suspense fallback={null}>
-        <SeccionContratos usuario={usuario} />
-      </Suspense>
-
-      {/* Las tareas van en vivo y aparte del resumen: no esperan al modelo. */}
-      <Suspense fallback={null}>
-        <SeccionTareas usuario={usuario} hoyIso={hoy.iso} />
-      </Suspense>
-
-      <CuerpoResumen datos={datos} />
     </div>
   );
 }
@@ -563,8 +581,11 @@ async function Cifras({ datos }: { datos: Promise<DatosResumen> }) {
 }
 
 /** Hueco del mismo tamaño que las cifras, para que al llegar no salte nada. */
-async function CuerpoResumen({ datos }: { datos: Promise<DatosResumen> }) {
+type Parte = "arriba" | "accion" | "agenda" | "informativo" | "pie";
+
+async function CuerpoResumen({ datos, parte }: { datos: Promise<DatosResumen>; parte: Parte }) {
   const { estado, credencialGuardada } = await datos;
+  if (parte !== "arriba") return estado.estado === "ok" ? <ResumenCompleto datos={estado.datos} parte={parte} /> : null;
 
   return (
     <>
@@ -603,23 +624,24 @@ async function CuerpoResumen({ datos }: { datos: Promise<DatosResumen> }) {
         </p>
       )}
 
-      {estado.estado === "ok" && <ResumenCompleto datos={estado.datos} />}
+      {estado.estado === "ok" && <ResumenCompleto datos={estado.datos} parte="arriba" />}
     </>
   );
 }
 
-function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
+function ResumenCompleto({ datos, parte }: { datos: ResumenGuardado; parte: Parte }) {
   const r = datos.resumen;
 
-  return (
+  if (parte === "arriba") return (
     <>
       {/* El panorama, como una cita: regla al costado y nada más. Antes era una
           tarjeta naranja que competía por atención con las prioridades de justo
           abajo, y las dos quedaban al mismo nivel siendo cosas distintas: esto es
           contexto, eso es la lista de qué hacer. */}
-      <blockquote className="mt-10 border-l-2 border-naranjo pl-5">
-        <p className="max-w-[70ch] text-[17px] leading-relaxed text-pretty text-tinta">{r.panorama}</p>
-      </blockquote>
+      <section className="mt-8 rounded-2xl border border-borde/70 bg-superficie px-6 py-5 shadow-sm">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">Resumen</h2>
+        <p className="mt-2 max-w-[90ch] text-[15px] leading-relaxed text-pretty text-tinta">{r.panorama}</p>
+      </section>
 
       <Seccion titulo="Prioridades del día" cuenta={r.prioridades.length}>
         {/* Tres tarjetas en fila en vez de una lista numerada: en fila se leen como
@@ -635,12 +657,11 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
         </ol>
       </Seccion>
 
-      {/* Dos columnas: a la izquierda lo que requiere una acción, a la derecha la
-          agenda y el contexto. Antes era una sola columna de listas apiladas, que
-          en un monitor ancho dejaba media pantalla vacía y obligaba a bajar hasta
-          el final para ver a qué hora es la primera reunión. */}
-      <div className="mt-10 grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <div>
+    </>
+  );
+
+  if (parte === "accion") return (
+        <>
           <Seccion titulo="Requieren tu respuesta" cuenta={r.correosDestacados.length}>
             {r.correosDestacados.length === 0 ? (
               <Vacio>Ningún correo del período requiere una respuesta tuya.</Vacio>
@@ -709,10 +730,9 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
             )}
           </Seccion>
 
+          {r.compromisos.length > 0 && (
           <Seccion titulo="Compromisos abiertos" cuenta={r.compromisos.length}>
-            {r.compromisos.length === 0 ? (
-              <Vacio>Sin compromisos propios pendientes en el correo del período.</Vacio>
-            ) : (
+            {(
               <ul className="flex flex-col gap-2">
                 {r.compromisos.map((c, i) => (
                   <Fila key={i}>
@@ -728,6 +748,7 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
               </ul>
             )}
           </Seccion>
+          )}
 
           {r.temas.length > 0 && (
             <Seccion titulo="Estado de los temas" cuenta={r.temas.length}>
@@ -758,11 +779,10 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
               </ul>
             </Seccion>
           )}
-        </div>
+        </>
+  );
 
-        {/* La agenda es material de referencia, no de acción: <aside> es el
-            elemento correcto y además lo hace saltable con un lector de pantalla. */}
-        <aside>
+  if (parte === "agenda") return (
           <Seccion titulo="Agenda" cuenta={r.reuniones.length}>
             {r.reuniones.length === 0 ? (
               <Vacio>Sin reuniones agendadas en los próximos días.</Vacio>
@@ -825,8 +845,10 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
               </ol>
             )}
           </Seccion>
+  );
 
-          {r.enCopia.length > 0 && (
+  if (parte === "informativo") return (
+          r.enCopia.length > 0 && (
             <Seccion titulo="Informativo" cuenta={r.enCopia.length}>
               <ul className="flex flex-col gap-2">
                 {r.enCopia.map((c, i) => (
@@ -840,10 +862,11 @@ function ResumenCompleto({ datos }: { datos: ResumenGuardado }) {
                 ))}
               </ul>
             </Seccion>
-          )}
-        </aside>
-      </div>
+          )
+  );
 
+  return (
+    <>
       {datos.aviso && (
         <p className="mt-6 rounded-lg border-l-[3px] border-amber-500 bg-amber-500/[0.08] px-4 py-3 text-xs text-pretty text-amber-800">{datos.aviso}</p>
       )}
