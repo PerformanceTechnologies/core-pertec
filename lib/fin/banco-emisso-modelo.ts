@@ -1,0 +1,193 @@
+// -----------------------------------------------------------------------------
+//  Banco automático (Emisso Connect → Tesorería): la parte PURA, sin red ni base.
+//
+//  Emisso lee el portal Itaú Corporate con el usuario consultivo y guarda saldos y los últimos 100 movimientos de
+//  cada cuenta. Aquí se traducen al formato del Core. Las trampas, verificadas con datos reales (17-11-2026):
+//
+//  · 'type' va según el LIBRO DEL BANCO: 'debit' es plata que ENTRA (abono) y 'credit' plata que SALE (cargo).
+//    Al revés de la lectura intuitiva. En el Core un abono es positivo y un cargo negativo.
+//  · 'monto' viene SIN signo. null en 'monto' o en 'type' = el portal no trajo la celda: la fila no se adivina.
+//  · El 'id' de Emisso incluye los primeros 28 caracteres de la glosa: si el banco la corrige, cambia. La
+//    identidad del Core es cuenta + 'documento' (el número de movimiento correlativo de Itaú en «últimos
+//    movimientos»), que no depende de la glosa. Sin documento se cae al id de Emisso.
+//  · Tesorería es en pesos (numeric(18,0)): de la cuenta dólar solo se guardan los saldos, no los movimientos.
+// -----------------------------------------------------------------------------
+
+export type Iso = string;
+
+export interface ContraparteEmisso {
+  rut: string | null;
+  nombre: string | null;
+  banco: string | null;
+}
+
+export interface MovimientoEmisso {
+  id: string;
+  numeroCuenta: string;
+  currency: string;
+  periodo: string;
+  fecha: string | null;
+  descripcion: string | null;
+  documento: string | null;
+  monto: number | null;
+  type: "credit" | "debit" | null;
+  saldo: number | null;
+  oficina?: string | null;
+  contraparte: ContraparteEmisso | null;
+  superficie?: string | null;
+  syncedAt: string;
+}
+
+export interface SaldoEmisso {
+  numeroCuenta: string;
+  currency: string;
+  observedDay: string;
+  observedAt: string;
+  saldoTotal: number | null;
+  retenciones: number | null;
+  saldoDisponible: number | null;
+  saldoDisponibleLineaCredito: number | null;
+  syncedAt: string;
+}
+
+/** Sistema de Emisso que alimenta esto. Itaú Empresas (otro portal) tendría su propio origen. */
+export const SISTEMA_ITAU = "itau_corporate";
+
+/** El vínculo guardado en fin_cuentas.origen_externo y en fin_saldos_diarios.origen. */
+export function origenDe(sistema: string, numeroCuenta: string): string {
+  return `emisso:${sistema}:${numeroCuenta}`;
+}
+
+/** Abono positivo, cargo negativo. null si el banco no informó monto o sentido. */
+export function montoConSigno(m: Pick<MovimientoEmisso, "monto" | "type">): number | null {
+  if (m.monto === null || m.monto === undefined || !Number.isFinite(m.monto)) return null;
+  if (m.type === "debit") return Math.abs(m.monto);
+  if (m.type === "credit") return -Math.abs(m.monto);
+  return null;
+}
+
+/** Identidad del movimiento en el banco, estable aunque cambie la glosa. */
+export function claveExterna(sistema: string, m: Pick<MovimientoEmisso, "numeroCuenta" | "documento" | "id">): string {
+  const doc = (m.documento ?? "").trim();
+  return doc ? `${sistema}:${m.numeroCuenta}:${doc}` : `${sistema}:${m.numeroCuenta}:id:${m.id}`;
+}
+
+/** RUT en el formato del Core (cuerpo-DV, sin puntos, DV en mayúscula), o null. */
+export function rutNormalizado(rut: string | null | undefined): string | null {
+  const limpio = (rut ?? "").replace(/[^0-9kK]/g, "").toUpperCase();
+  if (limpio.length < 2) return null;
+  return `${limpio.slice(0, -1)}-${limpio.slice(-1)}`;
+}
+
+export interface FilaBanco {
+  clave: string;
+  numeroCuenta: string;
+  fecha: Iso;
+  glosa: string;
+  monto: number;
+  documento: string | null;
+  contraparteRut: string | null;
+}
+
+export type Traduccion = { ok: true; fila: FilaBanco } | { ok: false; motivo: string };
+
+/** Un movimiento de Emisso → una fila de Tesorería, o el motivo por el que no entra. */
+export function traducirMovimiento(sistema: string, m: MovimientoEmisso): Traduccion {
+  if (m.currency !== "CLP") return { ok: false, motivo: `moneda ${m.currency}` };
+  if (!m.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(m.fecha)) return { ok: false, motivo: "sin fecha" };
+  const monto = montoConSigno(m);
+  if (monto === null) return { ok: false, motivo: "sin monto o sin sentido" };
+  if (monto === 0) return { ok: false, motivo: "monto cero" };
+  const glosa = (m.descripcion ?? "").replace(/\s+/g, " ").trim() || "(sin glosa)";
+  return {
+    ok: true,
+    fila: {
+      clave: claveExterna(sistema, m),
+      numeroCuenta: m.numeroCuenta,
+      fecha: m.fecha,
+      glosa,
+      monto: Math.round(monto),
+      documento: m.documento?.trim() || null,
+      contraparteRut: rutNormalizado(m.contraparte?.rut),
+    },
+  };
+}
+
+export interface Traducidos {
+  filas: FilaBanco[];
+  omitidos: { motivo: string; cantidad: number }[];
+}
+
+/** Traduce el lote. Una clave repetida en el mismo lote se queda con la primera (la más reciente). */
+export function traducirMovimientos(sistema: string, movs: MovimientoEmisso[]): Traducidos {
+  const filas = new Map<string, FilaBanco>();
+  const omitidos = new Map<string, number>();
+  for (const m of movs) {
+    const t = traducirMovimiento(sistema, m);
+    if (!t.ok) omitidos.set(t.motivo, (omitidos.get(t.motivo) ?? 0) + 1);
+    else if (!filas.has(t.fila.clave)) filas.set(t.fila.clave, t.fila);
+  }
+  return { filas: [...filas.values()], omitidos: [...omitidos].map(([motivo, cantidad]) => ({ motivo, cantidad })) };
+}
+
+/** Las cuentas en pesos con movimientos: las que pasan a ser cuentas de Tesorería. La línea de crédito no tiene. */
+export function cuentasConMovimientos(filas: FilaBanco[]): string[] {
+  return [...new Set(filas.map((f) => f.numeroCuenta))].sort();
+}
+
+/** Nombre con que se crea la cuenta la primera vez (después se puede cambiar en Configuración). */
+export function nombreCuenta(banco: string, numeroCuenta: string): string {
+  return `${banco} CC ${numeroCuenta.slice(-4)}`;
+}
+
+export function numeroEnmascarado(numeroCuenta: string): string {
+  return `•••${numeroCuenta.slice(-4)}`;
+}
+
+/** La foto más reciente por cuenta y moneda (Emisso las entrega de la más nueva a la más vieja, pero no se confía en el orden). */
+export function saldosVigentes(saldos: SaldoEmisso[]): SaldoEmisso[] {
+  const ultimo = new Map<string, SaldoEmisso>();
+  for (const s of saldos) {
+    const k = `${s.numeroCuenta}|${s.currency}`;
+    const prev = ultimo.get(k);
+    if (!prev || s.observedAt > prev.observedAt) ultimo.set(k, s);
+  }
+  return [...ultimo.values()].sort((a, b) => a.numeroCuenta.localeCompare(b.numeroCuenta) || a.currency.localeCompare(b.currency));
+}
+
+/** Lo que cambió de una fila ya guardada: solo glosa, documento y RUT. El monto y la fecha no se tocan (podría estar conciliada). */
+export function cambiosDeFila(
+  guardada: { glosa: string; numero_documento: string | null; contraparte_rut: string | null },
+  nueva: FilaBanco,
+): Partial<{ glosa: string; numero_documento: string | null; contraparte_rut: string | null }> | null {
+  const c: Partial<{ glosa: string; numero_documento: string | null; contraparte_rut: string | null }> = {};
+  if (guardada.glosa !== nueva.glosa) c.glosa = nueva.glosa;
+  if ((guardada.numero_documento ?? null) !== nueva.documento) c.numero_documento = nueva.documento;
+  if ((guardada.contraparte_rut ?? null) !== nueva.contraparteRut && nueva.contraparteRut) c.contraparte_rut = nueva.contraparteRut;
+  return Object.keys(c).length ? c : null;
+}
+
+/** Motivos de Emisso que exigen que una persona actúe (y por eso NO se reintenta: Itaú bloquea la clave). */
+const MOTIVOS_DE_PERSONA = ["credencial_rechazada", "clave_bloqueada", "connection_credential_required", "credencial", "bloque"];
+
+export function requierePersona(codigoOMotivo: string | null | undefined): boolean {
+  const t = (codigoOMotivo ?? "").toLowerCase();
+  return MOTIVOS_DE_PERSONA.some((m) => t.includes(m));
+}
+
+/** Horas desde la última lectura del banco. Más de 30 = Emisso dejó de sincronizar (pausa por fallos, por ejemplo). */
+export function horasDesde(marca: string | null | undefined, ahora: Date): number | null {
+  if (!marca) return null;
+  const t = Date.parse(marca);
+  return Number.isFinite(t) ? (ahora.getTime() - t) / 3_600_000 : null;
+}
+
+export const HORAS_DATO_VIEJO = 30;
+
+/** Hoy y el mes anterior en calendario chileno (AAAA-MM). */
+export function periodosRecientes(ahora: Date): string[] {
+  const dia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" }).format(ahora);
+  const [a, m] = dia.split("-").map(Number);
+  const anterior = m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, "0")}`;
+  return [anterior, `${a}-${String(m).padStart(2, "0")}`];
+}
