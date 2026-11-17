@@ -28,8 +28,9 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
   const clientes = contactosDeProyecto(v.contrapartes);
   const tipos = [...new Set(v.proyectos.map((p) => p.tipo))];
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <Banda
+        compacta
         etiqueta="Proyectos"
         valor={clpCorto(t("vendido"))}
         bajada="Vendido neto (cotizaciones aceptadas). Todo lo de la derecha se calcula desde los hitos y las compras de cada proyecto; el presupuesto es opcional."

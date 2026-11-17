@@ -38,8 +38,9 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
   const cuentasActivas = v.cuentas.filter((c) => c.activa);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <Banda
+        compacta
         etiqueta="Tesorería"
         valor={clp(v.cajaBancos)}
         bajada="Caja en bancos según la última cartola. Cada día: carga la cartola de ayer y deja cada movimiento explicado."

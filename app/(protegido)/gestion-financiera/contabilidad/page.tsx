@@ -38,8 +38,9 @@ export default async function ContabilidadPage({ searchParams }: { searchParams:
   const nombre = (c: string) => nombres.get(c) ?? c;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <Banda
+        compacta
         etiqueta={`Contabilidad · ${mesLargo(desde)}`}
         valor={clp(er.resultado)}
         bajada={activa ? "Contabilidad integrada: cada documento propone su asiento; al contabilizar el mes quedan guardados." : "Modo contador externo: aquí ves los libros de compra y venta, el IVA del mes y los asientos propuestos para el contador. Se activa la contabilidad integrada en Configuración."}
