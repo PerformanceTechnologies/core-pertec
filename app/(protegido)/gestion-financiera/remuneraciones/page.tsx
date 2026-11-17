@@ -55,8 +55,9 @@ export default async function RemuneracionesPage({ searchParams }: { searchParam
   const nombreMes = mesLargo(`${sel.periodo}-01`);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <Banda
+        compacta
         etiqueta="Remuneraciones"
         valor={clp(r.liquido)}
         bajada={

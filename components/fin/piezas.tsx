@@ -267,9 +267,10 @@ function BandaCompacta({ etiqueta, valor, bajada, cifras, pasos, Icono, tono, ch
             {cifras.map((c) => (
               <div key={c.etiqueta} className={`min-w-0 rounded-xl px-3 py-1.5 ${c.alerta ? "bg-naranjo/[0.09] ring-1 ring-naranjo/25" : "bg-tinta/[0.035]"}`}>
                 <dt className={`truncate text-[11px] font-semibold ${c.alerta ? "text-naranjo" : "text-gris"}`}>{c.etiqueta}</dt>
-                <dd className="flex items-baseline gap-1.5">
-                  <span className="font-condensed text-lg font-bold leading-tight tabular-nums text-tinta">{c.valor}</span>
-                  {c.detalle && <span className="truncate text-[10px] text-gris">{c.detalle}</span>}
+                {/* El valor nunca se parte; un detalle largo baja a su propia línea en vez de cortarse con «…». */}
+                <dd className="flex flex-wrap items-baseline gap-x-1.5">
+                  <span className="whitespace-nowrap font-condensed text-lg font-bold leading-tight tabular-nums text-tinta">{c.valor}</span>
+                  {c.detalle && <span className="text-[10px] leading-tight text-gris">{c.detalle}</span>}
                 </dd>
               </div>
             ))}
