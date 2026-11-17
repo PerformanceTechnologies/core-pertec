@@ -1,5 +1,11 @@
 # Gestión financiera · Cambios
 
+## 2026-11-17 · Remuneraciones: desglose por persona y libro en Excel
+
+- **Ver desglose por persona** (`/gestion-financiera/remuneraciones/desglose`): nombre, RUT, cargo y centro de costo de cada persona, y cómo se llega de su sueldo a su líquido (haberes, descuentos, aportes del empleador y costo empresa). Avisa si el libro sigue abierto, si no se pudo leer el nombre de alguien o si los haberes de alguien no cuadran con descuentos + líquido.
+- **Libro en Excel** para Contabilidad, con tres hojas: *Libro* (una fila por persona, con totales), *Resumen* (del sueldo al líquido, costo empresa, Previred por institución y control) y *Centralización* (cuenta, glosa, centro de costo, debe y haber). Los montos son números, no texto. Un mes abierto en BUK sale marcado como PROVISORIO.
+- Mismo permiso que la pestaña, verificado en la página y en la ruta de descarga; cada vez que se abre el desglose o se baja el Excel queda en la auditoría con quién y cuándo. Los botones no precargan nada: los datos por persona solo se piden al abrirlos.
+
 ## 2026-11-17 · Remuneraciones (solo Performance Technologies)
 
 - Pestaña **Remuneraciones** con el libro de BUK por mes: líquido a pagar, Previred (por AFP, salud, cesantía, mutual y caja), impuesto único, costo empresa y detalle por centro de costo. Solo totales por concepto: no se muestran nombres ni RUT de las personas.

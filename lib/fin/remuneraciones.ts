@@ -1,7 +1,10 @@
 import "server-only";
-import { bukConfigurado, empresaBuk, libroDeMes, procesosDeMes, type ProcesoBuk } from "./buk";
+import { bukConfigurado, empresaBuk, fichasDePersonas, libroDeMes, procesosDeMes, type ProcesoBuk } from "./buk";
 import type { ContextoFin, VistaFin } from "./datos";
 import {
+  centralizar,
+  conFichas,
+  desglosarPorPersona,
   movimientosDePrevired,
   movimientosDeSueldos,
   plazoPrevired,
@@ -12,6 +15,9 @@ import {
   ultimoDiaDelMes,
   type CoberturaCartola,
   type FilaMes,
+  type LineaCentralizacion,
+  type PersonaLibro,
+  type ResumenMes,
   type MovimientoBanco,
   type SugerenciaFlujo,
 } from "./remuneraciones-modelo";
@@ -112,6 +118,64 @@ export async function cargarRemuneraciones(ctx: ContextoFin, v: VistaFin): Promi
     };
   } catch (e) {
     // El mensaje de BUK ya viene sin datos de personas (ver buk.ts); queda en el log del servidor para quien lo revise.
+    const mensaje = e instanceof Error ? e.message.replace(/^\[buk\]\s*/, "") : "No se pudo leer BUK.";
+    console.error(`[remuneraciones] ${mensaje}`);
+    return { estado: "error", mensaje };
+  }
+}
+
+// -----------------------------------------------------------------------------
+//  El libro de UN mes, persona por persona (para el desglose y el Excel de Contabilidad).
+//  Es lo más sensible del módulo: nombre, RUT y sueldo de cada persona. Solo se pide desde la página de desglose y la
+//  ruta de descarga, y las dos verifican el permiso y dejan constancia de quién lo miró o lo bajó.
+// -----------------------------------------------------------------------------
+
+export interface LibroDelMes {
+  periodo: string;
+  empresaBuk: string;
+  cerrado: boolean;
+  fechaPago: string;
+  plazoPrevired: string;
+  resumen: ResumenMes;
+  personas: PersonaLibro[];
+  centralizacion: LineaCentralizacion[];
+  /** Personas cuya ficha (nombre y cargo) no se pudo leer en BUK: salen solo con el RUT. */
+  fichasFaltantes: number;
+  leidoEn: number;
+}
+
+export type ResultadoLibro =
+  | { estado: "sin-configurar" }
+  | { estado: "error"; mensaje: string }
+  | { estado: "vacio"; empresaBuk: string }
+  | { estado: "ok"; libro: LibroDelMes };
+
+export async function cargarLibroDelMes(ctx: ContextoFin, periodo: string): Promise<ResultadoLibro> {
+  if (!bukConfigurado()) return { estado: "sin-configurar" };
+  try {
+    const empresa = await empresaBuk(ctx.empresa.rut);
+    const reciente = periodo >= sumarMeses(ctx.hoy.slice(0, 7), -2);
+    const [libro, procesos] = await Promise.all([libroDeMes(periodo, empresa.id, reciente), procesosDeMes(periodo, reciente)]);
+    if (libro.bloques.every((b) => b.items.length === 0)) return { estado: "vacio", empresaBuk: empresa.name };
+    const proceso = fechaYEstadoDelProceso(periodo, procesos);
+    const sinNombre = desglosarPorPersona(libro.bloques);
+    const { fichas, faltan } = await fichasDePersonas(sinNombre.map((p) => p.rut));
+    return {
+      estado: "ok",
+      libro: {
+        periodo,
+        empresaBuk: empresa.name,
+        cerrado: proceso.cerrado,
+        fechaPago: proceso.fechaPago,
+        plazoPrevired: plazoPrevired(periodo),
+        resumen: resumirCentralizacion(periodo, libro.bloques),
+        personas: conFichas(sinNombre, fichas),
+        centralizacion: centralizar(libro.bloques),
+        fichasFaltantes: faltan,
+        leidoEn: libro.leidoEn,
+      },
+    };
+  } catch (e) {
     const mensaje = e instanceof Error ? e.message.replace(/^\[buk\]\s*/, "") : "No se pudo leer BUK.";
     console.error(`[remuneraciones] ${mensaje}`);
     return { estado: "error", mensaje };

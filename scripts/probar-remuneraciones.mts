@@ -2,9 +2,16 @@
 // Datos INVENTADOS (el repositorio es público: acá no hay sueldos, nombres ni RUT reales).
 //   npm run probar-remuneraciones
 import assert from "node:assert/strict";
+import ExcelJS from "exceljs";
+import { generarLibroExcel, nombreDelArchivo } from "../lib/fin/remuneraciones-excel";
 import {
+  centralizar,
   clasificarHaber,
+  conFichas,
+  desglosarPorPersona,
   esAporteEmpleador,
+  periodoValido,
+  tipoDescuento,
   movimientosDePrevired,
   movimientosDeSueldos,
   plazoPrevired,
@@ -22,6 +29,11 @@ import {
 let n = 0;
 const prueba = (nombre: string, f: () => void) => {
   f();
+  n++;
+  console.log(`  ok  ${nombre}`);
+};
+const pruebaAsync = async (nombre: string, f: () => Promise<void>) => {
+  await f();
   n++;
   console.log(`  ok  ${nombre}`);
 };
@@ -241,6 +253,181 @@ prueba("un pago pendiente de hace más de 45 días no se arrastra al flujo (suel
 prueba("sin libros no hay nada que sugerir, y sin meses tampoco", () => {
   assert.equal(sugerirFlujo(MESES, [], HOY)[0].monto, 0);
   assert.deepEqual(sugerirFlujo([], filas, HOY), []);
+});
+
+console.log("Libro por persona");
+// Dos personas con el libro CUADRADO (haberes = descuentos + líquido). X aparece en dos bloques de BUK, como pasa en
+// la realidad (se parten por AFP e isapre): sus líneas se juntan por RUT.
+const RUT_X = "33.333.333-3";
+const RUT_Y = "44.444.444-4";
+const libro: BloqueContable[] = [
+  {
+    id: 11,
+    items: [
+      item("Sueldo Base", 1_000_000, "debit", "8210001", RUT_X, "CC-A"),
+      item("Gratificación", 100_000, "debit", "8210002", RUT_X, "CC-A"),
+      item("Mutual", 9_000, "debit", "8210004", RUT_X, "CC-A"),
+      item("Cesantía Empleador", 24_000, "debit", "8210004", RUT_X, "CC-A"),
+      item("Seguro Invalidez", 10_000, "debit", "8210004", RUT_X, "CC-A"),
+      item("Prevision (Uno)", 110_000, "credit", "2110016", RUT_X),
+      item("Isapre (Salud Sa)", 90_000, "credit", "2110016", RUT_X),
+      item("Salud Voluntaria (Salud Sa)", 0, "credit", "2110016", RUT_X),
+      // Lo del empleador también está en el haber, pero NO es un descuento de la persona:
+      item("Mutual", 9_000, "credit", "2110016", RUT_X),
+      item("Cesantía Empleador", 24_000, "credit", "2110016", RUT_X),
+      item("Seguro Invalidez (Uno)", 10_000, "credit", "2110016", RUT_X),
+    ],
+  },
+  {
+    id: 12,
+    items: [
+      item("Líquido a Recibir", 800_000, "credit", "2110018", RUT_X),
+      item("Cesantía", 6_000, "credit", "2110016", RUT_X),
+      item("Impuesto", 94_000, "credit", "2120004", RUT_X),
+      item("Sueldo Base", 500_000, "debit", "8210001", RUT_Y, "CC-B"),
+      item("Colación", 50_000, "debit", "8210007", RUT_Y, "CC-B"),
+      item("Líquido a Recibir", 440_000, "credit", "2110018", RUT_Y),
+      item("Prevision (Dos)", 55_000, "credit", "2110016", RUT_Y),
+      item("Fonasa (2.8%)", 40_000, "credit", "2110016", RUT_Y),
+      item("Valor a pagar caja (4.2%)", 15_000, "credit", "2110016", RUT_Y),
+    ],
+  },
+];
+const personas = desglosarPorPersona(libro);
+const X = personas.find((p) => p.rut === RUT_X)!;
+const Y = personas.find((p) => p.rut === RUT_Y)!;
+prueba("reconoce a qué descuento va cada línea del haber", () => {
+  assert.equal(tipoDescuento({ description: "Prevision (Uno)", account: "2110016" }), "afp");
+  assert.equal(tipoDescuento({ description: "Isapre (Salud Sa)", account: "2110016" }), "salud");
+  assert.equal(tipoDescuento({ description: "Fonasa (2.8%)", account: "2110016" }), "salud");
+  assert.equal(tipoDescuento({ description: "Valor a pagar caja (4.2%)", account: null }), "salud");
+  assert.equal(tipoDescuento({ description: "Cesantía", account: "2110016" }), "cesantia");
+  assert.equal(tipoDescuento({ description: "Impuesto", account: "2120004" }), "impuesto");
+  assert.equal(tipoDescuento({ description: "Anticipo", account: null }), "otros");
+});
+prueba("junta en una sola fila a la persona repartida en varios bloques de BUK", () => {
+  assert.equal(personas.length, 2);
+  assert.equal(X.totalHaberes, 1_100_000);
+  assert.equal(X.liquido, 800_000);
+  assert.deepEqual(X.centros, ["CC-A"]);
+});
+prueba("haberes = descuentos + líquido en cada persona (control en 0)", () => {
+  for (const p of [X, Y]) assert.equal(p.diferencia, 0, `no cuadra ${p.rut}`);
+  assert.deepEqual(X.descuentos, { afp: 110_000, salud: 90_000, cesantia: 6_000, impuesto: 94_000, otros: 0 });
+  assert.deepEqual(Y.descuentos, { afp: 55_000, salud: 55_000, cesantia: 0, impuesto: 0, otros: 0 });
+});
+prueba("los aportes del empleador no se cuentan como descuentos ni como haberes; sí en el costo empresa", () => {
+  assert.deepEqual(X.aportes, { Mutual: 9_000, "Cesantía Empleador": 24_000, "Seguro Invalidez": 10_000 });
+  assert.equal(X.totalAportes, 43_000);
+  assert.equal(X.costoEmpresa, 1_143_000);
+  assert.deepEqual(Object.keys(X.haberes).sort(), ["Gratificación", "Sueldo Base"]);
+});
+prueba("nombra la AFP y la salud de cada persona (isapre, o Fonasa)", () => {
+  assert.equal(X.afp, "Uno");
+  assert.equal(X.salud, "Salud Sa");
+  assert.equal(Y.afp, "Dos");
+  assert.equal(Y.salud, "Fonasa");
+});
+prueba("los totales del desglose calzan con el resumen del mes", () => {
+  const r2 = resumirCentralizacion("2026-10", libro);
+  assert.equal(personas.reduce((s, p) => s + p.liquido, 0), r2.liquido);
+  assert.equal(personas.reduce((s, p) => s + p.costoEmpresa, 0), r2.costoEmpresa);
+});
+prueba("agrega nombre y cargo y ordena alfabéticamente (sin nombre, al final)", () => {
+  const f = new Map([[RUT_Y, { nombre: "Ana Ejemplo", cargo: "Analista" }], [RUT_X, { nombre: "Zoe Ejemplo", cargo: null }]]);
+  const con = conFichas(personas, f);
+  assert.deepEqual(con.map((p) => p.nombre), ["Ana Ejemplo", "Zoe Ejemplo"]);
+  assert.equal(con[0].cargo, "Analista");
+  const sin = conFichas(personas, new Map([[RUT_Y, { nombre: "Ana Ejemplo", cargo: null }]]));
+  assert.deepEqual(sin.map((p) => p.rut), [RUT_Y, RUT_X]);
+});
+prueba("un concepto que no se sabe clasificar se ve en el control, no se pierde", () => {
+  const raro: BloqueContable[] = [{ id: 1, items: [item("Sueldo Base", 100, "debit", null, RUT_X), item("Líquido a Recibir", 90, "credit", null, RUT_X)] }];
+  assert.equal(desglosarPorPersona(raro)[0].diferencia, 10);
+});
+prueba("el mes pedido por la URL se valida antes de consultar BUK", () => {
+  assert.equal(periodoValido("2026-10", "2026-11-17"), true);
+  assert.equal(periodoValido("2026-11", "2026-11-17"), true);
+  assert.equal(periodoValido("2026-12", "2026-11-17"), false); // futuro
+  assert.equal(periodoValido("2019-12", "2026-11-17"), false);
+  assert.equal(periodoValido("2026-13", "2026-11-17"), false);
+  assert.equal(periodoValido("2026-1", "2026-11-17"), false);
+  assert.equal(periodoValido("2026-10/../x", "2026-11-17"), false);
+  assert.equal(periodoValido(null, "2026-11-17"), false);
+});
+
+console.log("Centralización contable");
+const asiento = centralizar(libro);
+prueba("el debe y el haber del asiento cuadran y suman lo mismo que el libro", () => {
+  assert.equal(asiento.reduce((s, l) => s + l.debe, 0), asiento.reduce((s, l) => s + l.haber, 0));
+  assert.equal(asiento.reduce((s, l) => s + l.debe, 0), 1_100_000 + 43_000 + 550_000);
+});
+prueba("se suma por cuenta, glosa y centro de costo, con el debe primero", () => {
+  const sueldo = asiento.filter((l) => l.glosa === "Sueldo Base");
+  assert.deepEqual(sueldo.map((l) => [l.centro, l.debe]).sort(), [["CC-A", 1_000_000], ["CC-B", 500_000]]);
+  assert.ok(asiento[0].debe > 0 && asiento[asiento.length - 1].haber > 0);
+});
+
+console.log("Excel del libro");
+const personasConNombre = conFichas(personas, new Map([[RUT_X, { nombre: "Zoe Ejemplo", cargo: "Jefa" }], [RUT_Y, { nombre: "Ana Ejemplo", cargo: "Analista" }]]));
+const entradaExcel = {
+  empresa: "Empresa de Ejemplo", periodo: "2026-10", cerrado: true, fechaPago: "2026-10-31", plazoPrevired: "2026-11-13", hoy: "2026-11-17",
+  resumen: resumirCentralizacion("2026-10", libro), personas: personasConNombre, centralizacion: asiento,
+};
+const leer = async (buf: Buffer) => {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf as unknown as ArrayBuffer);
+  return wb;
+};
+await pruebaAsync("el Excel tiene las tres hojas y es un xlsx válido", async () => {
+  const buf = await generarLibroExcel(entradaExcel);
+  assert.equal(buf.subarray(0, 2).toString(), "PK");
+  const wb = await leer(buf);
+  assert.deepEqual(wb.worksheets.map((h) => h.name), ["Libro", "Resumen", "Centralización"]);
+});
+await pruebaAsync("el libro tiene una fila por persona, en orden alfabético, y una de totales", async () => {
+  const hoja = (await leer(await generarLibroExcel(entradaExcel))).getWorksheet("Libro")!;
+  const titulos = (hoja.getRow(1).values as unknown[]).slice(1).map(String);
+  const col = (t: string) => titulos.indexOf(t) + 1;
+  assert.ok(col("RUT") > 0 && col("Nombre") > 0 && col("LÍQUIDO A PAGAR") > 0 && col("COSTO EMPRESA") > 0 && col("Total haberes") > 0);
+  assert.equal(hoja.getRow(2).getCell(col("Nombre")).value, "Ana Ejemplo");
+  assert.equal(hoja.getRow(3).getCell(col("Nombre")).value, "Zoe Ejemplo");
+  assert.equal(hoja.rowCount, 4); // encabezado + 2 personas + total
+  assert.equal(String(hoja.getRow(4).getCell(3).value).startsWith("TOTAL (2"), true);
+});
+await pruebaAsync("los montos son NÚMEROS (se pueden sumar) y los totales calzan", async () => {
+  const hoja = (await leer(await generarLibroExcel(entradaExcel))).getWorksheet("Libro")!;
+  const titulos = (hoja.getRow(1).values as unknown[]).slice(1).map(String);
+  const col = (t: string) => titulos.indexOf(t) + 1;
+  const liquido = [2, 3].map((f) => hoja.getRow(f).getCell(col("LÍQUIDO A PAGAR")).value);
+  assert.ok(liquido.every((v) => typeof v === "number"));
+  assert.deepEqual([...(liquido as number[])].sort((a, b) => a - b), [440_000, 800_000]);
+  assert.equal(hoja.getRow(4).getCell(col("LÍQUIDO A PAGAR")).value, 1_240_000);
+  assert.equal(hoja.getRow(4).getCell(col("COSTO EMPRESA")).value, 1_143_000 + 550_000);
+  // La columna de control solo aparece si algo no cuadra:
+  assert.equal(titulos.includes("Control (debe ser 0)"), false);
+});
+await pruebaAsync("si algo no cuadra, aparece la columna de control", async () => {
+  const roto = personasConNombre.map((p, i) => (i === 0 ? { ...p, diferencia: 5_000 } : p));
+  const hoja = (await leer(await generarLibroExcel({ ...entradaExcel, personas: roto }))).getWorksheet("Libro")!;
+  assert.ok((hoja.getRow(1).values as unknown[]).map(String).includes("Control (debe ser 0)"));
+});
+await pruebaAsync("el resumen avisa si el libro está abierto, y el archivo se nombra PROVISORIO", async () => {
+  const abierto = await leer(await generarLibroExcel({ ...entradaExcel, cerrado: false }));
+  const textos: string[] = [];
+  abierto.getWorksheet("Resumen")!.eachRow((fila) => fila.eachCell((c) => textos.push(String(c.value))));
+  assert.ok(textos.some((t) => t.startsWith("PROVISORIO")));
+  assert.equal(nombreDelArchivo("2026-10", false), "Libro-de-remuneraciones-2026-10-PROVISORIO");
+  assert.equal(nombreDelArchivo("2026-10", true), "Libro-de-remuneraciones-2026-10");
+  const cerrado: string[] = [];
+  (await leer(await generarLibroExcel(entradaExcel))).getWorksheet("Resumen")!.eachRow((fila) => fila.eachCell((c) => cerrado.push(String(c.value))));
+  assert.equal(cerrado.some((t) => t.startsWith("PROVISORIO")), false);
+});
+await pruebaAsync("la hoja de centralización suma debe = haber", async () => {
+  const hoja = (await leer(await generarLibroExcel(entradaExcel))).getWorksheet("Centralización")!;
+  const ultima = hoja.getRow(hoja.rowCount);
+  assert.equal(ultima.getCell(4).value, ultima.getCell(5).value);
+  assert.equal(ultima.getCell(4).value, 1_693_000);
 });
 
 console.log(`\n${n} pruebas de Remuneraciones: todo bien.`);
