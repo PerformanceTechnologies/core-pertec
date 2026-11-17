@@ -80,7 +80,7 @@ export default function MisTareas({ resumen: r, hoyIso, nombres }: { resumen: Re
   // Al responsable le sirve saber quién se la pidió (si no fue él mismo).
   const pidio = (t: Tarea) => (t.asignadoPor && !t.responsables.some((x) => x.toLowerCase() === t.asignadoPor!.toLowerCase()) ? `pedida por ${nombreDe(nombres, t.asignadoPor)}` : undefined);
   return (
-    <section className="mt-10">
+    <section className="mt-7 sm:mt-10">
       <div className="flex items-center gap-4">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-tinta/50">Mis tareas</h2>
         <span className="h-px flex-1 bg-borde" />
@@ -90,7 +90,7 @@ export default function MisTareas({ resumen: r, hoyIso, nombres }: { resumen: Re
       </div>
 
       {r.total === 0 ? (
-        <p className="mt-4 rounded-xl border border-dashed border-borde px-4 py-6 text-center text-sm text-tinta/45">
+        <p className="mt-4 rounded-xl border border-dashed border-borde px-4 py-3 text-center sm:py-6 text-sm text-tinta/45">
           No tienes tareas pendientes. 🎉
         </p>
       ) : (

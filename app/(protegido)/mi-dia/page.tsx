@@ -159,7 +159,7 @@ function Seccion({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-10 first:mt-0">
+    <section className="mt-7 first:mt-0 sm:mt-10">
       {/* Rótulo, una regla que ocupa lo que sobra, y el conteo al final. La regla
           es lo que hace que el rótulo se lea como un título de sección sin
           necesidad de tamaño ni de peso. */}
@@ -172,14 +172,14 @@ function Seccion({
           </span>
         )}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-3 sm:mt-4">{children}</div>
     </section>
   );
 }
 
 function Vacio({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-xl border border-dashed border-borde px-4 py-6 text-center text-sm text-pretty text-tinta/45">
+    <p className="rounded-xl border border-dashed border-borde px-4 py-3 text-center text-sm text-pretty text-tinta/45 sm:py-6">
       {children}
     </p>
   );
@@ -371,19 +371,19 @@ export default async function MiDiaPage() {
           banda pasaba a ser una placa casi blanca del ancho de la pantalla —lo
           más brillante de la interfaz, justo donde se entra—. En oscuro el
           degradado sube desde la superficie y el texto acompaña. */}
-      <header className="banda-contraste rounded-2xl px-6 py-7 sm:px-8 sm:py-9">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+      <header className="banda-contraste rounded-2xl px-5 py-6 sm:px-8 sm:py-9">
+        <div className="flex flex-col gap-5 sm:gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
               <span className="h-px w-6 bg-naranjo" />
               Mi día
             </span>
-            <h1 className="texto-banda mt-3 font-condensed text-4xl font-bold uppercase leading-[0.95] tracking-tight sm:text-5xl">
+            <h1 className="texto-banda mt-3 font-condensed text-[34px] font-bold uppercase leading-[0.95] tracking-tight sm:text-5xl">
               {diaSemana},
               <br />
               {resto.join(", ")}
             </h1>
-            <p className="texto-banda-65 mt-4 max-w-[52ch] text-sm text-pretty">
+            <p className="texto-banda-65 mt-4 hidden max-w-[52ch] text-sm text-pretty sm:block">
               Resumen de tu correo de los últimos días y de las reuniones de hoy y los próximos. Cada fila
               abre el mensaje o la cita en Outlook.
             </p>
@@ -400,7 +400,7 @@ export default async function MiDiaPage() {
 
       {/* Dos columnas: a la izquierda lo que pide una acción; a la derecha la agenda y lo pendiente en los
           módulos (en vivo, no espera al resumen). En celular queda todo en una columna, la acción primero. */}
-      <div className="mt-10 grid grid-cols-1 gap-x-10 gap-y-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="mt-7 grid grid-cols-1 gap-x-10 gap-y-7 sm:mt-10 sm:gap-y-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="min-w-0 [&>*:first-child]:mt-0">
           <Suspense fallback={null}>
             <SeccionAprobaciones usuario={usuario} />
@@ -502,7 +502,7 @@ async function Cifras({ datos }: { datos: Promise<DatosResumen> }) {
   const r = estado.datos.resumen;
 
   return (
-    <dl className="borde-banda grid shrink-0 grid-cols-2 gap-y-5 rounded-xl border px-5 py-4 sm:grid-cols-4 sm:gap-y-0 lg:min-w-[30rem]">
+    <dl className="borde-banda grid shrink-0 grid-cols-4 rounded-xl border px-3 py-3 sm:px-5 sm:py-4 lg:min-w-[30rem]">
       <Cifra
         etiqueta="Correos"
         valor={r.conteos.total}
@@ -638,16 +638,16 @@ function ResumenCompleto({ datos, parte }: { datos: ResumenGuardado; parte: Part
           tarjeta naranja que competía por atención con las prioridades de justo
           abajo, y las dos quedaban al mismo nivel siendo cosas distintas: esto es
           contexto, eso es la lista de qué hacer. */}
-      <section className="mt-8 rounded-2xl border border-borde/70 bg-superficie px-6 py-5 shadow-sm">
+      <section className="mt-5 rounded-2xl border border-borde/70 bg-superficie px-4 py-4 shadow-sm sm:mt-8 sm:px-6 sm:py-5">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">Resumen</h2>
-        <p className="mt-2 max-w-[90ch] text-[15px] leading-relaxed text-pretty text-tinta">{r.panorama}</p>
+        <p className="mt-2 max-w-[90ch] text-sm leading-relaxed text-pretty text-tinta sm:text-[15px]">{r.panorama}</p>
       </section>
 
       <Seccion titulo="Prioridades del día" cuenta={r.prioridades.length}>
         {/* Tres tarjetas en fila en vez de una lista numerada: en fila se leen como
             tres cosas del día y no como un ranking del que solo importa la primera.
             El número grande da el orden sin necesidad de la lista. */}
-        <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <ol className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
           {r.prioridades.map((prioridad, i) => (
             // key por TEXTO y no por índice: al tachar una, la lista se recorta en
             // la próxima carga y con índices React reusaría el estado de la tarjeta
@@ -909,15 +909,15 @@ function Cifra({
   return (
     <div
       tabIndex={detalle ? 0 : undefined}
-      className={`group relative px-4 outline-none first:pl-0 last:pr-0 focus-visible:ring-1 focus-visible:ring-naranjo/60 ${
-        ultima ? "" : "borde-banda sm:border-r"
+      className={`group relative px-2 outline-none first:pl-0 last:pr-0 focus-visible:ring-1 focus-visible:ring-naranjo/60 sm:px-4 ${
+        ultima ? "" : "borde-banda border-r"
       }`}
     >
-      <dd className={`font-condensed text-3xl font-bold leading-none tracking-tight tabular-nums ${color}`}>
+      <dd className={`font-condensed text-2xl font-bold leading-none tracking-tight tabular-nums sm:text-3xl ${color}`}>
         {valor}
       </dd>
-      <dt className="texto-banda-45 mt-2 text-[10px] font-semibold uppercase tracking-[0.12em]">{etiqueta}</dt>
-      <dd className="texto-banda-30 mt-1 text-[10px] leading-tight">{pie}</dd>
+      <dt className="texto-banda-45 mt-1.5 truncate text-[9px] font-semibold uppercase tracking-[0.08em] sm:mt-2 sm:text-[10px] sm:tracking-[0.12em]">{etiqueta}</dt>
+      <dd className="texto-banda-30 mt-1 hidden text-[10px] leading-tight sm:block">{pie}</dd>
       {detalle && <Popover alineado={detalleAlineado}>{detalle}</Popover>}
     </div>
   );

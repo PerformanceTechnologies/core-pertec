@@ -29,7 +29,7 @@ export default function PendientesRendirGastos({ pendientes, titulo = "Pendiente
   };
 
   return (
-    <section className="mt-10">
+    <section className="mt-7 sm:mt-10">
       <div className="flex items-center gap-4">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-tinta/50">{titulo}</h2>
         <span className="h-px flex-1 bg-borde" />

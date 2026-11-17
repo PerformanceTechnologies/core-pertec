@@ -42,13 +42,13 @@ export default function PrioridadDelDia({
 
   return (
     <li
-      className={`rounded-xl border border-borde bg-superficie p-5 transition ${SOMBRA_CALIDA} ${
+      className={`flex items-start gap-3 rounded-xl border border-borde bg-superficie p-3.5 transition sm:block sm:p-5 ${SOMBRA_CALIDA} ${
         hecha ? "opacity-55" : ""
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex shrink-0 items-start justify-between gap-3 sm:shrink">
         <span
-          className={`font-condensed text-2xl font-bold leading-none tabular-nums ${
+          className={`font-condensed text-xl font-bold sm:text-2xl leading-none tabular-nums ${
             hecha ? "text-tinta/30" : "text-naranjo"
           }`}
         >
@@ -75,7 +75,7 @@ export default function PrioridadDelDia({
       </div>
 
       <p
-        className={`mt-4 text-[15px] leading-relaxed text-pretty transition ${
+        className={`min-w-0 flex-1 text-sm leading-relaxed sm:mt-4 sm:text-[15px] text-pretty transition ${
           hecha ? "text-tinta/45 line-through decoration-tinta/30" : "text-tinta"
         }`}
       >
