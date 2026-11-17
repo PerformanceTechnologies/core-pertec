@@ -55,7 +55,7 @@ export default async function CorreoEmpresaPage({ searchParams }: { searchParams
         <div>
           <h1 className="text-xl font-bold tracking-tight text-tinta sm:text-2xl">Correo por empresa</h1>
           <p className="mt-1 text-sm text-gris">
-            Los correos a clientes y proveedores de estas empresas salen desde tu cuenta de la empresa, no desde {usuario.correo}. La conectas una sola vez.
+            En las empresas que lo exigen, los correos a clientes y proveedores salen desde tu cuenta de esa empresa, no desde {usuario.correo}. La conectas una sola vez.
           </p>
         </div>
       </header>
@@ -129,7 +129,9 @@ export default async function CorreoEmpresaPage({ searchParams }: { searchParams
       <div className="mt-6 space-y-2 text-xs text-gris">
         <p className="flex items-start gap-2">
           <IconLock size={14} className="mt-px shrink-0" />
-          El Core solo pide permiso para <b className="font-semibold">enviar</b> desde esa cuenta. No puede leer tu bandeja, tu calendario ni tus archivos. Lo enviado queda en los «Elementos enviados» de esa cuenta.
+          <span>
+            El Core solo pide permiso para <b className="font-semibold">enviar</b> desde esa cuenta. No puede leer tu bandeja, tu calendario ni tus archivos. Lo enviado queda en los «Elementos enviados» de esa cuenta.
+          </span>
         </p>
         {restantes.length > 0 && <p className="pl-[22px]">En {restantes.join(", ")}, los correos siguen saliendo desde {usuario.correo}.</p>}
         <p className="pl-[22px]">
