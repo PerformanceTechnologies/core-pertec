@@ -33,8 +33,9 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
     .filter((h) => !q || `${h.codigo} ${h.descripcion} ${h.periodo ?? ""} ${h.clienteNombre ?? ""} ${h.proyectoNombre ?? ""} ${h.factura?.folio ?? ""}`.toLowerCase().includes(q));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <Banda
+        compacta
         etiqueta="Ventas y cobranza"
         valor={clp(v.dashboard.porCobrar)}
         bajada="Por cobrar con IVA: facturas emitidas que el cliente aún no paga. Cada fila de abajo es algo que se factura: un EDP, un hito, un mes de arriendo o un spot."

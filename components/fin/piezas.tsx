@@ -94,33 +94,38 @@ export type PasoRecorrido = { titulo: string; ayuda?: string; n?: number; href?:
  * El proceso de la pantalla, paso a paso, al pie de la banda: se entiende de un vistazo por dónde
  * pasa cada cosa y en qué paso hay algo pendiente (el número naranjo).
  */
-export function Recorrido({ pasos, titulo = "Cómo avanza" }: { pasos: PasoRecorrido[]; titulo?: string }) {
+export function Recorrido({ pasos, titulo = "Cómo avanza", compacto = false }: { pasos: PasoRecorrido[]; titulo?: string; compacto?: boolean }) {
   return (
-    <div className="mt-6 border-t border-borde/60 pt-4">
-      <p className="mb-2 px-2 text-xs font-semibold text-gris">{titulo}</p>
-      <ol className="grid grid-cols-2 gap-y-1 sm:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col lg:grid-cols-none">
+    <div className={compacto ? "relative mt-3 border-t border-borde/60 pt-2" : "mt-6 border-t border-borde/60 pt-4"}>
+      {/* Compacto: el título se apoya sobre la línea divisoria en vez de ocupar una fila propia. */}
+      {compacto ? (
+        <p className="absolute left-1 top-0 -translate-y-1/2 bg-superficie px-1.5 text-[10px] font-semibold uppercase tracking-wider text-gris-suave">{titulo}</p>
+      ) : (
+        <p className="mb-2 px-2 text-xs font-semibold text-gris">{titulo}</p>
+      )}
+      <ol className="grid grid-cols-2 gap-y-1 sm:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col lg:grid-cols-none" aria-label={titulo}>
         {pasos.map((p, i) => {
           const pendiente = p.n !== undefined && p.n > 0;
           const cuerpo = (
             <>
-              <span className={`mt-px grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums transition ${p.alerta && pendiente ? "bg-naranjo text-white shadow-[0_4px_10px_-3px_rgba(200,82,23,0.55)]" : pendiente ? "bg-naranjo/12 text-naranjo" : "bg-tinta/[0.05] text-gris"}`}>{i + 1}</span>
+              <span className={`mt-px grid shrink-0 place-items-center rounded-full font-bold tabular-nums transition ${compacto ? "h-5 w-5 text-[10px]" : "h-6 w-6 text-[11px]"} ${p.alerta && pendiente ? `bg-naranjo text-white ${compacto ? "" : "shadow-[0_4px_10px_-3px_rgba(200,82,23,0.55)]"}` : pendiente ? "bg-naranjo/12 text-naranjo" : "bg-tinta/[0.05] text-gris"}`}>{i + 1}</span>
               <span className="min-w-0">
-                <span className="flex items-center gap-1.5 text-[13px] font-semibold leading-tight text-tinta">
+                <span className={`flex items-center gap-1.5 font-semibold leading-tight text-tinta ${compacto ? "text-xs" : "text-[13px]"}`}>
                   {p.titulo}
                   {pendiente && <span className="rounded-full bg-naranjo px-1.5 text-[10px] font-bold leading-4 text-white tabular-nums">{p.n}</span>}
                 </span>
-                {p.ayuda && <span className="block text-[11px] leading-snug text-gris">{p.ayuda}</span>}
+                {p.ayuda && <span className={`block text-gris ${compacto ? "text-[10.5px] leading-tight" : "text-[11px] leading-snug"}`}>{p.ayuda}</span>}
               </span>
             </>
           );
           return (
             <li key={p.titulo} className="flex min-w-0 items-center">
               {p.href ? (
-                <Link href={p.href} scroll={false} className="flex min-w-0 flex-1 items-start gap-2 rounded-xl px-2 py-1.5 transition duration-200 hover:bg-tinta/[0.04]">{cuerpo}</Link>
+                <Link href={p.href} scroll={false} className={`flex min-w-0 flex-1 items-start transition duration-200 hover:bg-tinta/[0.04] ${compacto ? "gap-1.5 rounded-lg px-1.5 py-1" : "gap-2 rounded-xl px-2 py-1.5"}`}>{cuerpo}</Link>
               ) : (
-                <div className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5">{cuerpo}</div>
+                <div className={`flex min-w-0 flex-1 items-start ${compacto ? "gap-1.5 px-1.5 py-1" : "gap-2 px-2 py-1.5"}`}>{cuerpo}</div>
               )}
-              {i < pasos.length - 1 && <IconChevronRight size={14} className="mx-0.5 hidden shrink-0 text-gris-suave lg:block" aria-hidden />}
+              {i < pasos.length - 1 && <IconChevronRight size={compacto ? 12 : 14} className="mx-0.5 hidden shrink-0 text-gris-suave lg:block" aria-hidden />}
             </li>
           );
         })}
@@ -241,15 +246,16 @@ export const TH = "px-2.5 py-1.5 text-left text-[10.5px] font-semibold uppercase
 export const TD = "celda-fin px-2.5 py-1.5 align-top text-[13px] leading-snug";
 
 /**
- * La misma banda con lo mismo (cifra grande, cifras de apoyo y proceso), en la mitad de alto: la cifra y su ícono
- * a la izquierda, las cifras de apoyo en una fila y el proceso en una línea. En el celular las cifras van de a dos.
+ * La misma banda con lo mismo (cifra grande, descripción, cifras de apoyo y proceso) en una fracción del alto: la cifra
+ * y su ícono a la izquierda con las cifras de apoyo al lado, la descripción en una línea y el proceso en columnas
+ * parejas. En el celular las cifras y los pasos van de a dos.
  */
 function BandaCompacta({ etiqueta, valor, bajada, cifras, pasos, Icono, tono, children }: { etiqueta: string; valor: string; bajada?: React.ReactNode; cifras?: { etiqueta: string; valor: string; detalle?: string; alerta?: boolean }[]; pasos?: PasoRecorrido[]; Icono: Icon; tono: TonoIcono; children?: React.ReactNode }) {
   return (
     <section className="relative overflow-hidden rounded-2xl border border-borde/60 bg-superficie px-3.5 py-3 shadow-[0_1px_2px_rgba(23,20,17,0.04),0_10px_26px_-18px_rgba(23,20,17,0.16)] sm:px-4">
       <span aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-naranjo/[0.06] blur-3xl" />
       <div className="relative flex flex-wrap items-center gap-x-5 gap-y-2.5">
-        <div className="flex min-w-0 items-center gap-3" title={typeof bajada === "string" ? bajada : undefined}>
+        <div className="flex min-w-0 items-center gap-3">
           <IconoTile Icono={Icono} tono={tono} />
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-gris">{etiqueta}</p>
@@ -270,31 +276,8 @@ function BandaCompacta({ etiqueta, valor, bajada, cifras, pasos, Icono, tono, ch
           </dl>
         )}
       </div>
-      {pasos && pasos.length > 0 && (
-        <ol className="relative mt-2.5 flex flex-wrap items-center gap-x-0.5 gap-y-1 border-t border-borde/60 pt-2" aria-label="Cómo avanza">
-          {pasos.map((p, i) => {
-            const pendiente = p.n !== undefined && p.n > 0;
-            const cuerpo = (
-              <>
-                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold tabular-nums ${p.alerta && pendiente ? "bg-naranjo text-white" : pendiente ? "bg-naranjo/12 text-naranjo" : "bg-tinta/[0.05] text-gris"}`}>{i + 1}</span>
-                <span className="text-xs font-semibold text-tinta">{p.titulo}</span>
-                {pendiente && <span className="rounded-full bg-naranjo px-1.5 text-[10px] font-bold leading-4 text-white tabular-nums">{p.n}</span>}
-                {p.ayuda && <span className="hidden text-[11px] text-gris xl:inline">· {p.ayuda}</span>}
-              </>
-            );
-            return (
-              <li key={p.titulo} className="flex items-center">
-                {p.href ? (
-                  <Link href={p.href} scroll={false} title={p.ayuda} className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition hover:bg-tinta/[0.04]">{cuerpo}</Link>
-                ) : (
-                  <span title={p.ayuda} className="flex items-center gap-1.5 px-1.5 py-1">{cuerpo}</span>
-                )}
-                {i < pasos.length - 1 && <IconChevronRight size={12} className="mx-0.5 shrink-0 text-gris-suave" aria-hidden />}
-              </li>
-            );
-          })}
-        </ol>
-      )}
+      {bajada && <p className="relative mt-2 text-[11.5px] leading-snug text-gris">{bajada}</p>}
+      {pasos && pasos.length > 0 && <Recorrido pasos={pasos} compacto />}
       {children}
     </section>
   );

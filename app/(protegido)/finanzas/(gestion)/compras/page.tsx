@@ -71,8 +71,9 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
   const esperandoFactura = vivas.filter((c) => c.paso === "Esperar factura del proveedor");
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <Banda
+        compacta
         etiqueta="Compras y pagos"
         valor={clp(v.dashboard.porPagar)}
         bajada="Por pagar: facturas de proveedores recibidas que aún no se pagan."
