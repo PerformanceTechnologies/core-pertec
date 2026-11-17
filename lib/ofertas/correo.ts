@@ -70,7 +70,21 @@ export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeO
   }
 
   // Adjunto grande: borrador, sesión de subida, y recién ahí enviar.
-  const borrador = await cliente.api("/me/messages").post(mensaje);
+  //
+  // Armar un borrador pide permiso de escritura en el buzón (Mail.ReadWrite), que no
+  // tienen todas las cuentas: la de otra empresa conectada para enviar (Zeus) tiene SOLO
+  // Mail.Send. Ahí Graph contesta 403 y se dice por qué, en vez de un «Access denied».
+  let borrador: { id: string };
+  try {
+    borrador = await cliente.api("/me/messages").post(mensaje);
+  } catch (e) {
+    const estado = (e as { statusCode?: number })?.statusCode;
+    if (estado === 403) {
+      const mb = (envio.pdf.length / 1024 / 1024).toFixed(1).replace(".", ",");
+      throw new Error(`El PDF pesa ${mb} MB y esta cuenta solo puede adjuntar hasta 3 MB (para más hace falta permiso de borradores). Achica el PDF —por ejemplo, con menos fotos— y vuelve a enviar.`);
+    }
+    throw e;
+  }
   const sesion = await cliente.api(`/me/messages/${borrador.id}/attachments/createUploadSession`).post({
     AttachmentItem: {
       attachmentType: "file",

@@ -9,6 +9,7 @@ import type { SolicitudCotizacion } from "@/lib/fin/solicitud-cotizacion";
 import { ComboContacto, type OpcionContacto } from "./ui";
 import { BOTON, BOTON_SEC, CAMPO } from "./estilos";
 import { avisar } from "./dialogos";
+import RemitenteCorreo from "@/components/correo/RemitenteCorreo";
 
 interface Item { descripcion: string; cantidad: string; unidad: string }
 const ITEM: Item = { descripcion: "", cantidad: "1", unidad: "un" };
@@ -40,6 +41,8 @@ export default function SolicitarCotizacion({ contactos, correos, empresa, yo, l
   const [asunto, setAsunto] = useState(lead ? `Solicitud de cotización · ${lead.nombre}` : "Solicitud de cotización");
   const [mensaje, setMensaje] = useState(mensajeBase(null, empresa, yo));
   const [mensajeTocado, setMensajeTocado] = useState(false);
+  // Si el correo de la empresa no está conectado, no se puede enviar (lo dice RemitenteCorreo).
+  const [remitenteListo, setRemitenteListo] = useState(true);
   const [items, setItems] = useState<Item[]>([lead ? { ...ITEM, descripcion: lead.nombre } : { ...ITEM }]);
   const [responderAntes, setResponderAntes] = useState("");
 
@@ -115,9 +118,9 @@ export default function SolicitarCotizacion({ contactos, correos, empresa, yo, l
           <textarea value={mensaje} onChange={(e) => { setMensaje(e.target.value); setMensajeTocado(true); }} rows={8} className={CAMPO} />
         </label>
 
+        <RemitenteCorreo quien="el proveedor" alCambiar={setRemitenteListo} />
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <span className="text-xs text-gris">Sale desde tu correo y queda en tus enviados.</span>
-          <button type="button" onClick={enviar} disabled={pendiente} className={BOTON}>
+          <button type="button" onClick={enviar} disabled={pendiente || !remitenteListo} className={BOTON}>
             {pendiente ? <IconLoader2 size={15} className="animate-spin" /> : <IconSend size={15} />} Enviar solicitud
           </button>
         </div>

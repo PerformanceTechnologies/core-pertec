@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconAlertTriangle, IconExternalLink, IconLoader2, IconMail, IconPaperclip, IconSend } from "@tabler/icons-react";
 import VentanaModal from "@/components/inventario/VentanaModal";
+import RemitenteCorreo from "@/components/correo/RemitenteCorreo";
 import { IconoTile } from "@/components/contactos/Visual";
 import { prepararEnvioCotizacionAction, type PreparacionEnvio } from "@/app/(protegido)/leads/acciones";
 import { BOTON, CAMPO, Campo } from "@/components/fin/ui";
@@ -33,6 +34,8 @@ function ContenidoEnvio({ id, alCerrar, alEnviar }: { id: string; alCerrar: () =
   const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Si el correo de la empresa no está conectado, no se puede enviar (lo dice RemitenteCorreo).
+  const [remitenteListo, setRemitenteListo] = useState(true);
 
   useEffect(() => {
     let vigente = true;
@@ -92,11 +95,11 @@ function ContenidoEnvio({ id, alCerrar, alEnviar }: { id: string; alCerrar: () =
             <span className="inline-flex items-center gap-1.5"><IconPaperclip size={14} /> Se adjunta el PDF de la cotización {prep.numero} · {prep.total}</span>
             <a href={`/api/leads/cotizaciones/${id}/pdf`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-semibold text-naranjo hover:underline">Ver vista previa <IconExternalLink size={12} /></a>
           </div>
-          <p className="text-[11px] text-gris">Remitente: {prep.remitente}. Quedará en tus enviados y, si el cliente responde, te llegará a ti.</p>
+          <RemitenteCorreo quien="el cliente" alCambiar={setRemitenteListo} />
           {error && <p role="alert" className="flex items-start gap-2 rounded-xl bg-rose-500/[0.08] px-3 py-2.5 text-[13px] font-medium text-alerta"><IconAlertTriangle size={16} className="mt-px shrink-0" /> {error}</p>}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button type="button" onClick={alCerrar} className={BOTON_VENTANA_SUAVE}>Ahora no</button>
-            <button type="button" onClick={enviar} disabled={enviando || !para.trim() || !asunto.trim() || !mensaje.trim()} className={BOTON_VENTANA}>
+            <button type="button" onClick={enviar} disabled={enviando || !remitenteListo || !para.trim() || !asunto.trim() || !mensaje.trim()} className={BOTON_VENTANA}>
               {enviando ? <IconLoader2 size={16} className="animate-spin" /> : <IconSend size={16} />} {enviando ? "Generando y enviando…" : "Enviar al cliente"}
             </button>
           </div>

@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { RUTA_FIN, RUTA_LEADS, auditar, contextoLeadsApi } from "@/lib/fin/datos";
 import { cotizacionParaDocumento } from "@/lib/fin/cotizacion-datos";
 import { cotizacionAPdf, nombreArchivoCotizacion } from "@/lib/fin/cotizacion-pdf";
-import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
+import { remitenteParaEnviar } from "@/lib/correo-empresa";
 import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { correosValidos } from "@/lib/ofertas/emision";
 import { guardarArchivo } from "@/lib/archivos/almacen";
@@ -48,8 +48,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (!["borrador", "enviada"].includes(datos.estado)) return NextResponse.json({ error: "Solo se envía una cotización en borrador o ya enviada. Crea una nueva versión." }, { status: 409 });
 
-  const token = await accessTokenDeUsuario(ctx.usuario.id);
-  if (token.estado !== "ok") return NextResponse.json({ error: "Tu cuenta de Microsoft no está conectada. Entra a Mi Día y vuelve a iniciar sesión." }, { status: 409 });
+  // Desde la cuenta de quien envía; en una empresa con correo propio (Zeus), desde su cuenta de esa empresa.
+  const token = await remitenteParaEnviar(ctx.usuario, ctx.empresa.id);
+  if (token.estado !== "ok") return NextResponse.json({ error: token.error }, { status: 409 });
 
   let pdf: Buffer;
   try {

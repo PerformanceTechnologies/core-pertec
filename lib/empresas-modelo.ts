@@ -24,6 +24,14 @@ export interface Empresa {
   logo: string | null;
   orden: number;
   activa: boolean;
+  /**
+   * Los correos a clientes y proveedores salen desde la cuenta de ESTA empresa que cada
+   * persona conecta (lib/correo-empresa.ts), no desde su cuenta de PERTEC. Opcional
+   * porque la columna llegó después: sin ella, false.
+   */
+  correoPropio?: boolean;
+  /** Si está, la cuenta conectada tiene que ser de este dominio (sin @). */
+  correoDominio?: string | null;
 }
 
 /** El nombre de la cookie que lleva el slug de la empresa activa. */

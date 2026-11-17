@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { auditar, contextoFin, fechaValida, revienta, siguienteNumero } from "@/lib/fin/datos";
-import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
+import { remitenteParaEnviar } from "@/lib/correo-empresa";
 import { correosValidos } from "@/lib/ofertas/emision";
 import type { ItemSolicitud } from "@/lib/fin/solicitud-cotizacion";
 
@@ -51,8 +51,9 @@ export async function enviarSolicitudCotizacionAction(json: string): Promise<Res
     const prueba = await supabaseAdmin.from("fin_solicitudes_cotizacion").select("id").limit(1);
     if (prueba.error) return { ok: false, error: "Falta correr el SQL supabase/fin/0009_solicitud_cotizacion.sql." };
 
-    const token = await accessTokenDeUsuario(ctx.usuario.id);
-    if (token.estado !== "ok") return { ok: false, error: "Tu cuenta de Microsoft no está conectada. Cierra sesión y vuelve a entrar al Core." };
+    // Desde la cuenta de quien pide; en una empresa con correo propio (Zeus), desde su cuenta de esa empresa.
+    const token = await remitenteParaEnviar(ctx.usuario, ctx.empresa.id);
+    if (token.estado !== "ok") return { ok: false, error: token.error };
     try {
       const graph = Client.init({ authProvider: (done) => done(null, token.accessToken) });
       await graph.api("/me/sendMail").post({

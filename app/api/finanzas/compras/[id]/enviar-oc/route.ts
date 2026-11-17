@@ -7,7 +7,7 @@ import { exigirRol } from "@/lib/fin/flujos";
 import { ocParaDocumento } from "@/lib/fin/oc-datos";
 import { ocAPdf } from "@/lib/fin/oc-pdf";
 import { nombreArchivoOc } from "@/lib/fin/oc-documento";
-import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
+import { remitenteParaEnviar } from "@/lib/correo-empresa";
 import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { correosValidos } from "@/lib/ofertas/emision";
 import { guardarArchivo } from "@/lib/archivos/almacen";
@@ -58,8 +58,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (compra.estado_override) return NextResponse.json({ error: "La solicitud está anulada." }, { status: 409 });
   if (!compra.oc_numero || !compra.fecha_visado) return NextResponse.json({ error: "La OC se envía después de visarla." }, { status: 409 });
 
-  const token = await accessTokenDeUsuario(ctx.usuario.id);
-  if (token.estado !== "ok") return NextResponse.json({ error: "Tu cuenta de Microsoft no está conectada. Entra a Mi Día y vuelve a iniciar sesión." }, { status: 409 });
+  // Desde la cuenta de quien envía; en una empresa con correo propio (Zeus), desde su cuenta de esa empresa.
+  const token = await remitenteParaEnviar(ctx.usuario, ctx.empresa.id);
+  if (token.estado !== "ok") return NextResponse.json({ error: token.error }, { status: 409 });
 
   let pdf: Buffer;
   try {

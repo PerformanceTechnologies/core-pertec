@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import RuedaCarga from "@/components/RuedaCarga";
+import RemitenteCorreo from "@/components/correo/RemitenteCorreo";
 import { BOTON_PRIMARIO } from "@/lib/estilos";
 import { leerRespuesta } from "@/lib/subidas";
 import type { RegistroEmision } from "@/lib/ofertas/datos";
@@ -211,9 +212,8 @@ Saludos cordiales.`,
               <p className="text-[11px] font-semibold uppercase tracking-wide text-tinta/45">
                 Enviar por correo
               </p>
-              <p className="text-[11px] text-pretty text-tinta/45">
-                Sale desde tu cuenta y queda en tus enviados. Déjalo vacío para no enviar nada.
-              </p>
+              <p className="text-[11px] text-pretty text-tinta/45">Déjalo vacío para no enviar nada.</p>
+              <RemitenteCorreo quien="el cliente" />
               <Campo
                 rotulo="Para"
                 valor={destinatarios}

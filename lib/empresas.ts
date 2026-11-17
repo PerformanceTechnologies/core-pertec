@@ -26,6 +26,8 @@ function aEmpresa(r: Record<string, unknown>): Empresa {
     logo: (r.logo as string) ?? null,
     orden: Number(r.orden ?? 0),
     activa: r.activa !== false,
+    correoPropio: r.correo_propio === true,
+    correoDominio: typeof r.correo_dominio === "string" && r.correo_dominio.trim() ? r.correo_dominio.trim().toLowerCase().replace(/^@/, "") : null,
   };
 }
 

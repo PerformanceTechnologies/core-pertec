@@ -5,7 +5,8 @@ import {
   type RegistroEmision,
 } from "@/lib/ofertas/datos";
 import { ofertaAPdf } from "@/lib/ofertas/pdf";
-import { accessTokenDeUsuario } from "@/lib/graph-credenciales";
+import { remitenteParaEnviar } from "@/lib/correo-empresa";
+import { empresaActivaId } from "@/lib/empresa-activa";
 import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { guardarOfertaEnWorkspace } from "@/lib/ofertas/workspace";
 import { guardarPdfEmitido } from "@/lib/ofertas/pdf-archivo";
@@ -98,11 +99,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (quiereCorreo) {
     // Delegado: sale de la cuenta de quien emite, no de un buzón de sistema. Sin
     // cuenta conectada no se manda y se dice por qué, en vez de fallar con un 500.
-    const token = await accessTokenDeUsuario(usuario.id);
+    // En una empresa con correo propio (Zeus), sale desde la cuenta de esa empresa que la persona conectó.
+    const token = await remitenteParaEnviar(usuario, await empresaActivaId());
     if (token.estado !== "ok") {
-      problemas.push(
-        "El correo no se envió: tu cuenta de Microsoft no está conectada. Entra a Mi Día y vuelve a iniciar sesión.",
-      );
+      problemas.push(`El correo no se envió: ${token.error}`);
     } else {
       try {
         await enviarOfertaPorCorreo(token.accessToken, {
