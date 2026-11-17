@@ -14,7 +14,7 @@ export default function TareasPedidas({ resumen: r, hoyIso, nombres }: { resumen
     return `${verbo} ${ns.length > 2 ? `${ns.slice(0, 2).join(", ")} y ${ns.length - 2} más` : ns.join(" y ")}`;
   };
   return (
-    <section className="mt-10">
+    <section className="mt-7 sm:mt-10">
       <div className="flex items-center gap-4">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-tinta/50">Tareas que pediste</h2>
         <span className="h-px flex-1 bg-borde" />
@@ -45,7 +45,7 @@ export default function TareasPedidas({ resumen: r, hoyIso, nombres }: { resumen
         )}
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="mt-4 grilla-mi-dia grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <GrupoTareas titulo="Atrasadas" tareas={r.vencidas} tono="rojo" hoyIso={hoyIso} detalle={quienes} />
           <GrupoTareas titulo="En marcha" tareas={r.pendientes.slice(0, 6)} tono="normal" hoyIso={hoyIso} detalle={quienes} />

@@ -42,13 +42,13 @@ export default function PrioridadDelDia({
 
   return (
     <li
-      className={`rounded-xl border border-borde bg-superficie p-5 transition ${SOMBRA_CALIDA} ${
+      className={`flex items-start gap-3 rounded-xl border border-borde bg-superficie p-3.5 transition sm:block sm:p-5 ${SOMBRA_CALIDA} ${
         hecha ? "opacity-55" : ""
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="contents sm:flex sm:items-start sm:justify-between sm:gap-3">
         <span
-          className={`font-condensed text-2xl font-bold leading-none tabular-nums ${
+          className={`font-condensed text-xl font-bold sm:text-2xl leading-none tabular-nums ${
             hecha ? "text-tinta/30" : "text-naranjo"
           }`}
         >
@@ -64,7 +64,7 @@ export default function PrioridadDelDia({
           aria-pressed={hecha}
           aria-label={hecha ? `Marcar "${texto}" como pendiente` : `Dar "${texto}" por hecha`}
           title={hecha ? "Volver a dejarla pendiente" : "Darla por hecha: no vuelve a aparecer"}
-          className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border transition disabled:opacity-40 ${
+          className={`order-last grid h-6 w-6 shrink-0 place-items-center rounded-md border transition sm:order-none disabled:opacity-40 ${
             hecha
               ? "border-teal bg-teal text-white"
               : "border-borde text-transparent hover:border-teal hover:text-teal/40"
@@ -75,7 +75,7 @@ export default function PrioridadDelDia({
       </div>
 
       <p
-        className={`mt-4 text-[15px] leading-relaxed text-pretty transition ${
+        className={`min-w-0 flex-1 text-sm leading-relaxed sm:mt-4 sm:text-[15px] text-pretty transition ${
           hecha ? "text-tinta/45 line-through decoration-tinta/30" : "text-tinta"
         }`}
       >

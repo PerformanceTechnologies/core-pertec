@@ -73,7 +73,7 @@ export default function AprobacionesPendientes({ pendientes }: { pendientes: Pen
   // Una tarjeta del popup que ya se resolvió (aprobada, devuelta…) deja de estar aquí al refrescar la página.
   const cerrar = () => setAbierta(null);
   return (
-    <section className="mt-10">
+    <section className="mt-7 sm:mt-10">
       <DialogosFin />
       <div className="flex items-center gap-4">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-tinta/50">Aprobaciones de compras</h2>
