@@ -1,5 +1,5 @@
 import "server-only";
-import type { BloqueContable, ItemContable } from "./remuneraciones-modelo";
+import type { BloqueContable, FichaPersona, ItemContable } from "./remuneraciones-modelo";
 
 // -----------------------------------------------------------------------------
 //  BUK (remuneraciones): cliente de SOLO LECTURA de su API.
@@ -159,4 +159,49 @@ export async function libroDeMes(periodo: string, empresaId: number, reciente: b
     }));
   });
   return { bloques: valor, leidoEn };
+}
+
+/**
+ * Nombre y cargo de las personas del libro, por RUT. La centralización solo trae el RUT.
+ *
+ * La ficha de BUK trae MUCHO más (dirección, banco, cuenta, familia…) y nada de eso se necesita: se toman solo el nombre
+ * y el cargo y el resto se descarta en el acto, sin guardarlo ni registrarlo. Una ficha que no se pueda leer no tumba el
+ * libro: esa persona sale solo con su RUT y se cuenta en `faltan`.
+ */
+export async function fichasDePersonas(ruts: string[]): Promise<{ fichas: Map<string, FichaPersona>; faltan: number }> {
+  const cfg = configuracion();
+  if (!cfg) throw new Error("[buk] Falta configurar BUK_URL y BUK_API_TOKEN.");
+  const unicos = [...new Set(ruts)];
+  const fichas = new Map<string, FichaPersona>();
+  let faltan = 0;
+
+  const leer = async (rut: string): Promise<FichaPersona | null> => {
+    const limpio = rutLimpio(rut);
+    // El RUT va en la ruta: solo dígitos y K, nada que pueda alterar la dirección.
+    if (!/^[0-9]{6,9}[0-9K]$/.test(limpio)) return null;
+    try {
+      const { valor } = await conCache(`ficha:${limpio}`, TTL_ANTIGUO, async () => {
+        const r = await pedir<{ data?: Record<string, unknown> } & Record<string, unknown>>(construir(cfg, `employees/${limpio}`, {}), cfg);
+        const f = (r.data ?? r) as { full_name?: unknown; current_job?: { role?: { name?: unknown } } };
+        const nombre = typeof f.full_name === "string" ? f.full_name.trim() : "";
+        const cargo = typeof f.current_job?.role?.name === "string" ? f.current_job.role.name.trim() : "";
+        return nombre ? ({ nombre, cargo: cargo || null } satisfies FichaPersona) : null;
+      });
+      return valor;
+    } catch {
+      return null;
+    }
+  };
+
+  // De a cuatro, por la misma razón que el resto de las consultas a BUK.
+  for (let i = 0; i < unicos.length; i += 4) {
+    const lote = unicos.slice(i, i + 4);
+    const filas = await Promise.all(lote.map(leer));
+    lote.forEach((rut, j) => {
+      const f = filas[j];
+      if (f) fichas.set(rut, f);
+      else faltan++;
+    });
+  }
+  return { fichas, faltan };
 }

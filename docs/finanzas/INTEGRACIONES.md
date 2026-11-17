@@ -10,6 +10,6 @@ Todas de **solo lectura**. Gestión financiera no escribe en tablas de otros mó
 | Inventario | `inv_productos` (`id, nombre, precio, unidad_id, activo`), `inv_unidades` | Productos en las líneas de cotización y compra | No (sin movimientos de stock) |
 | Menú del Core | `lib/menu-modelo.ts`, `lib/modulos-resumen.ts` | Ítem en Finanzas y cartilla con caja, por cobrar, por pagar y avisos | Código, no datos |
 | Storage | Bucket privado `finanzas` (nuevo) | Cartolas y respaldos: `finanzas/{empresa}/{entidad}/{id}/{uuid}.{ext}` | Solo en su bucket |
-| BUK (externo) | API REST de BUK, solo `GET`: `companies`, `process` y `accounting` (`lib/fin/buk.ts`) | Pestaña Remuneraciones de Performance Technologies: líquido, Previred, impuesto único y costo empresa por mes | No: no escribe en BUK. Sí escribe, con confirmación, la fila «Remuneraciones» del flujo de caja (`fin_flujo_partidas`) |
+| BUK (externo) | API REST de BUK, solo `GET`: `companies`, `process`, `accounting` y `employees/{rut}` (`lib/fin/buk.ts`; de la ficha del empleado solo se usan nombre y cargo) | Pestaña Remuneraciones de Performance Technologies: líquido, Previred, impuesto único y costo empresa por mes | No: no escribe en BUK. Sí escribe, con confirmación, la fila «Remuneraciones» del flujo de caja (`fin_flujo_partidas`) |
 | Rendición de gastos | — | Sin integración todavía | No |
 | Cotizador, Ofertas, Proyectos, Contratos | — | Independientes por decisión del usuario | No |

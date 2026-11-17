@@ -191,7 +191,152 @@ export function resumirCentralizacion(periodo: string, bloques: BloqueContable[]
   };
 }
 
+// ---------- Libro por persona (el que se le entrega a Contabilidad) -------------------
+
+/** Los descuentos que se le hacen a la persona: lo que separa el total de haberes de su líquido. */
+export interface DescuentosPersona {
+  afp: number;
+  salud: number;
+  /** Seguro de cesantía de cargo del trabajador (el del empleador va en los aportes). */
+  cesantia: number;
+  impuesto: number;
+  /** Lo que no calza en lo demás (anticipos, préstamos…). */
+  otros: number;
+}
+
+export interface PersonaLibro {
+  rut: string;
+  nombre: string | null;
+  cargo: string | null;
+  centros: string[];
+  /** Institución de AFP e isapre (o «Fonasa»), tal como las nombra BUK. */
+  afp: string | null;
+  salud: string | null;
+  /** Sueldo base, gratificación, bonos, colación… por concepto. */
+  haberes: Record<string, number>;
+  /** Mutual, cesantía del empleador, SIS… por concepto: lo que paga la empresa además del sueldo. */
+  aportes: Record<string, number>;
+  descuentos: DescuentosPersona;
+  totalHaberes: number;
+  totalDescuentos: number;
+  liquido: number;
+  totalAportes: number;
+  /** Total haberes + aportes del empleador. */
+  costoEmpresa: number;
+  /** haberes − descuentos − líquido: tiene que dar 0. Si no, algo del libro de BUK no se supo clasificar. */
+  diferencia: number;
+}
+
+export type TipoDescuento = keyof DescuentosPersona;
+
+/** A qué descuento de la persona corresponde una línea del haber que NO es líquido ni aporte del empleador. */
+export function tipoDescuento(it: Pick<ItemContable, "description" | "account">): TipoDescuento {
+  if (clasificarHaber(it) === "impuesto") return "impuesto";
+  if (/(prevision|previsi[oó]n|afp)/i.test(it.description)) return "afp";
+  if (/(isapre|fonasa|salud|caja)/i.test(it.description)) return "salud";
+  if (/cesant/i.test(it.description)) return "cesantia";
+  return "otros";
+}
+
+const sumaDe = (r: Record<string, number>) => Object.values(r).reduce((s, v) => s + v, 0);
+
+/**
+ * El libro de un mes persona por persona. Una persona puede aparecer en varios bloques de BUK (se parten por AFP e
+ * isapre): aquí se juntan por RUT. El nombre y el cargo no vienen en la centralización: se agregan con `conFichas`.
+ */
+export function desglosarPorPersona(bloques: BloqueContable[]): PersonaLibro[] {
+  const porRut = new Map<string, PersonaLibro>();
+  const persona = (rut: string): PersonaLibro => {
+    let p = porRut.get(rut);
+    if (!p) {
+      p = {
+        rut, nombre: null, cargo: null, centros: [], afp: null, salud: null, haberes: {}, aportes: {},
+        descuentos: { afp: 0, salud: 0, cesantia: 0, impuesto: 0, otros: 0 },
+        totalHaberes: 0, totalDescuentos: 0, liquido: 0, totalAportes: 0, costoEmpresa: 0, diferencia: 0,
+      };
+      porRut.set(rut, p);
+    }
+    return p;
+  };
+
+  for (const it of bloques.flatMap((b) => b.items)) {
+    if (!it.employee_rut) continue;
+    const p = persona(it.employee_rut);
+    if (it.entry_type === "debit") {
+      const destino = esAporteEmpleador(it) ? p.aportes : p.haberes;
+      destino[it.description] = (destino[it.description] ?? 0) + it.amount;
+      const centro = it.cost_center?.trim();
+      if (centro && !p.centros.includes(centro)) p.centros.push(centro);
+    } else if (it.entry_type === "credit") {
+      if (clasificarHaber(it) === "liquido") p.liquido += it.amount;
+      else if (!esAporteEmpleador(it)) {
+        const t = tipoDescuento(it);
+        p.descuentos[t] += it.amount;
+        if (t === "afp" && !p.afp) p.afp = institucion(it.description);
+        // La isapre manda sobre «Fonasa» y sobre la salud voluntaria, que se descuenta además de la obligatoria.
+        if (t === "salud" && /isapre/i.test(it.description)) p.salud = institucion(it.description);
+        else if (t === "salud" && /fonasa/i.test(it.description) && !p.salud) p.salud = "Fonasa";
+      }
+    }
+  }
+
+  for (const p of porRut.values()) {
+    p.totalHaberes = sumaDe(p.haberes);
+    p.totalAportes = sumaDe(p.aportes);
+    p.totalDescuentos = sumaDe(p.descuentos as unknown as Record<string, number>);
+    p.costoEmpresa = p.totalHaberes + p.totalAportes;
+    p.diferencia = p.totalHaberes - p.totalDescuentos - p.liquido;
+    p.centros.sort();
+  }
+  return ordenarPersonas([...porRut.values()]);
+}
+
+/** Alfabético por nombre; las que no tienen nombre, al final y por RUT. */
+export function ordenarPersonas(ps: PersonaLibro[]): PersonaLibro[] {
+  return [...ps].sort((a, b) => (a.nombre && b.nombre ? a.nombre.localeCompare(b.nombre, "es") : a.nombre ? -1 : b.nombre ? 1 : a.rut.localeCompare(b.rut)));
+}
+
+export interface FichaPersona {
+  nombre: string;
+  cargo: string | null;
+}
+
+/** Agrega nombre y cargo (de la ficha de BUK, por RUT) y deja la lista en orden alfabético. */
+export function conFichas(personas: PersonaLibro[], fichas: Map<string, FichaPersona>): PersonaLibro[] {
+  return ordenarPersonas(personas.map((p) => ({ ...p, nombre: fichas.get(p.rut)?.nombre ?? p.nombre, cargo: fichas.get(p.rut)?.cargo ?? p.cargo })));
+}
+
+/** Una línea del asiento de centralización: lo que Contabilidad registra. */
+export interface LineaCentralizacion {
+  cuenta: string;
+  glosa: string;
+  centro: string;
+  debe: number;
+  haber: number;
+}
+
+/** El asiento del mes, sumado por cuenta, concepto y centro de costo (sin personas). Primero el debe y después el haber. */
+export function centralizar(bloques: BloqueContable[]): LineaCentralizacion[] {
+  const m = new Map<string, LineaCentralizacion>();
+  for (const it of bloques.flatMap((b) => b.items)) {
+    if (it.entry_type !== "debit" && it.entry_type !== "credit") continue;
+    const cuenta = it.account ?? "";
+    const centro = it.cost_center?.trim() ?? "";
+    const k = `${it.entry_type}|${cuenta}|${it.description}|${centro}`;
+    const l = m.get(k) ?? { cuenta, glosa: it.description, centro, debe: 0, haber: 0 };
+    if (it.entry_type === "debit") l.debe += it.amount;
+    else l.haber += it.amount;
+    m.set(k, l);
+  }
+  return [...m.values()].sort((a, b) => Number(b.debe > 0) - Number(a.debe > 0) || a.cuenta.localeCompare(b.cuenta) || a.glosa.localeCompare(b.glosa, "es") || a.centro.localeCompare(b.centro));
+}
+
 // ---------- Fechas ------------------------------------------------------------------
+
+/** Un mes pedido por la URL: «YYYY-MM», de 2020 en adelante y no futuro. Todo lo demás se rechaza antes de consultar BUK. */
+export function periodoValido(p: unknown, hoy: Iso): p is string {
+  return typeof p === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(p) && p >= "2020-01" && p <= hoy.slice(0, 7);
+}
 
 /** «2026-10» + n meses. */
 export function sumarMeses(periodo: string, n: number): string {

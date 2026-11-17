@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IconCalendarEvent, IconLock, IconPlugConnected, IconRefresh, IconScale, IconUsers } from "@tabler/icons-react";
+import { IconCalendarEvent, IconFileSpreadsheet, IconListDetails, IconLock, IconPlugConnected, IconRefresh, IconScale, IconUsers } from "@tabler/icons-react";
 import { RUTA_FIN, cargarVista, contextoFin } from "@/lib/fin/datos";
 import { clp, clpCorto, fechaCl, mesLargo } from "@/lib/fin/reglas";
 import { cargarRemuneraciones, MESES_EN_PANTALLA } from "@/lib/fin/remuneraciones";
@@ -9,7 +9,7 @@ import type { CoberturaCartola, EstadoPago, GrupoPrevisional, LineaResumen, Resu
 import { TARJETA } from "@/lib/estilos";
 import { Banda, Chip, Seccion, TD, TH, Vacio } from "@/components/fin/piezas";
 import { BotonAccion } from "@/components/fin/ui";
-import { BOTON_SEC } from "@/components/fin/estilos";
+import { BOTON, BOTON_SEC } from "@/components/fin/estilos";
 import { actualizarDesdeBukAction, usarSugerenciaEnFlujoAction } from "../acciones-remuneraciones";
 
 export const dynamic = "force-dynamic";
@@ -73,19 +73,26 @@ export default async function RemuneracionesPage({ searchParams }: { searchParam
         ]}
       />
 
-      <nav aria-label="Mes" className="flex flex-wrap items-center gap-1.5">
-        {filas.map((f) => (
-          <Link
-            key={f.periodo}
-            href={`${RUTA_FIN}/remuneraciones?mes=${f.periodo}`}
-            scroll={false}
-            aria-current={f.periodo === sel.periodo ? "page" : undefined}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition ${f.periodo === sel.periodo ? "bg-tinta text-superficie" : "border border-borde bg-superficie text-gris hover:text-tinta"}`}
-          >
-            {mesLargo(`${f.periodo}-01`)}
-          </Link>
-        ))}
-      </nav>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Mes" className="flex flex-wrap items-center gap-1.5">
+          {filas.map((f) => (
+            <Link
+              key={f.periodo}
+              href={`${RUTA_FIN}/remuneraciones?mes=${f.periodo}`}
+              scroll={false}
+              aria-current={f.periodo === sel.periodo ? "page" : undefined}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition ${f.periodo === sel.periodo ? "bg-tinta text-superficie" : "border border-borde bg-superficie text-gris hover:text-tinta"}`}
+            >
+              {mesLargo(`${f.periodo}-01`)}
+            </Link>
+          ))}
+        </nav>
+        {/* Lo más sensible (nombre, RUT y sueldo por persona) va aparte: se pide solo al abrirlo y queda registrado. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`${RUTA_FIN}/remuneraciones/desglose?mes=${sel.periodo}`} prefetch={false} className={BOTON_SEC}><IconListDetails size={14} /> Ver desglose por persona</Link>
+          <a href={`/api/gestion-financiera/remuneraciones/libro?mes=${sel.periodo}`} className={BOTON} title="El libro de remuneraciones del mes en Excel, para Contabilidad"><IconFileSpreadsheet size={15} /> Libro en Excel</a>
+        </div>
+      </div>
 
       {!r.cuadra && (
         <p role="alert" className="flex items-start gap-2 rounded-xl bg-rose-500/[0.08] px-3 py-2.5 text-[13px] font-medium text-alerta">
