@@ -47,4 +47,4 @@ export function Tarjeta({ Icono, titulo, ayuda, extra, children }: { Icono: Icon
 }
 
 /** Las pastillas de estado de la cabecera y de la lista. */
-export const CHIP = "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold";
+export const CHIP = "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold";

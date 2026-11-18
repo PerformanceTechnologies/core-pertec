@@ -48,7 +48,7 @@ export default async function EditarUsuarioPage({ params, searchParams }: { para
         <div className="flex flex-wrap items-start gap-4 sm:gap-5">
           <AvatarUsuario nombre={usuario.nombre} correo={usuario.correo} tipo={esAdmin ? "admin" : invitado ? "invitado" : "usuario"} grande />
           <div className="min-w-0 flex-1">
-            {usuario.nombre && <span className="text-xs text-gris">{usuario.correo}</span>}
+            {usuario.nombre && <span className="break-all text-xs text-gris">{usuario.correo}</span>}
             <h2 className="mt-0.5 break-words text-2xl font-extrabold leading-tight tracking-tight text-tinta sm:text-[28px]">{usuario.nombre || usuario.correo}</h2>
             <p className="mt-1 text-sm text-gris">{[invitado ? "Invitado externo" : "De PERTEC", ingreso].join(" · ")}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -68,7 +68,12 @@ export default async function EditarUsuarioPage({ params, searchParams }: { para
                 ))}
             </div>
           </div>
-          {usuario.id !== admin.id && <EliminarUsuario accion={eliminarUsuarioAction} id={usuario.id} correo={usuario.correo} />}
+          {/* En celular va en su propia línea, para no apretar el nombre. */}
+          {usuario.id !== admin.id && (
+            <div className="w-full sm:w-auto">
+              <EliminarUsuario accion={eliminarUsuarioAction} id={usuario.id} correo={usuario.correo} />
+            </div>
+          )}
         </div>
       </header>
 
