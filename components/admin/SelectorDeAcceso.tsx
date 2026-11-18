@@ -40,7 +40,9 @@ export interface RolInterno {
   opciones: { valor: string; etiqueta: string }[];
 }
 
-const CAJA = "h-4 w-4 shrink-0 rounded border-borde accent-[var(--color-naranjo)]";
+/** Una opción que se marca con un clic: igual a las de aplicaciones, pero sin estado (defaultChecked). */
+const PASTILLA =
+  "group inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-borde bg-superficie px-3 py-1 text-[13px] text-tinta/70 transition hover:border-naranjo/40 hover:text-tinta has-[:checked]:border-naranjo has-[:checked]:bg-naranjo has-[:checked]:font-semibold has-[:checked]:text-white has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-naranjo";
 const BOTON_TEXTO = "rounded-md px-2 py-1 text-xs font-semibold text-naranjo transition hover:bg-naranjo/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-naranjo";
 
 export default function SelectorDeAcceso({
@@ -205,10 +207,11 @@ export default function SelectorDeAcceso({
                         <p className="mb-1.5 text-xs leading-snug text-tinta/55">
                           Sin marcar ninguno ve Facturas de Compra y Venta e Históricas. «SII Documentos IH - IL» es sensible: solo lo ve quien lo tenga marcado.
                         </p>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {subpaneles.map((sp) => (
-                            <label key={sp.slug} className="flex min-h-9 cursor-pointer items-center gap-2 text-xs text-tinta/80">
-                              <input type="checkbox" name="subpaneles_finanzas" value={sp.slug} defaultChecked={subpanelesAsignados.includes(sp.slug)} className={CAJA} />
+                            <label key={sp.slug} className={PASTILLA}>
+                              <input type="checkbox" name="subpaneles_finanzas" value={sp.slug} defaultChecked={subpanelesAsignados.includes(sp.slug)} className="sr-only" />
+                              <IconCheck size={13} stroke={2.6} className="hidden group-has-[:checked]:block" aria-hidden />
                               {sp.nombre}
                             </label>
                           ))}
@@ -229,11 +232,14 @@ export default function SelectorDeAcceso({
               {empresas.map((e) => (
                 <label
                   key={e.id}
-                  className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-borde bg-superficie py-1.5 pl-2 pr-3.5 text-sm text-tinta/70 transition hover:border-naranjo/40 has-[:checked]:border-naranjo has-[:checked]:bg-naranjo/[0.07] has-[:checked]:font-semibold has-[:checked]:text-tinta has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-naranjo"
+                  className="group inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-borde bg-superficie py-1.5 pl-2 pr-3 text-sm text-tinta/70 transition hover:border-naranjo/40 has-[:checked]:border-naranjo has-[:checked]:bg-naranjo/[0.07] has-[:checked]:font-semibold has-[:checked]:text-tinta has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-naranjo"
                 >
-                  <input type="checkbox" name="empresas" value={e.id} defaultChecked={empresasAsignadas.includes(e.id)} className={CAJA} />
+                  <input type="checkbox" name="empresas" value={e.id} defaultChecked={empresasAsignadas.includes(e.id)} className="sr-only" />
                   <DistintivoEmpresa empresa={e} />
                   {e.nombre}
+                  <span className="grid h-5 w-5 place-items-center rounded-full border border-borde text-transparent group-has-[:checked]:border-naranjo group-has-[:checked]:bg-naranjo group-has-[:checked]:text-white" aria-hidden>
+                    <IconCheck size={12} stroke={3} />
+                  </span>
                 </label>
               ))}
             </div>
