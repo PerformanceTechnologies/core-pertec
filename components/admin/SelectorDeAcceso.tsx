@@ -126,22 +126,24 @@ export default function SelectorDeAcceso({
           {todas.length === 0 ? (
             <p className="rounded-xl border border-dashed border-borde px-4 py-6 text-center text-xs text-tinta/60">Todavía no hay aplicaciones en el catálogo.</p>
           ) : (
-            <div className="space-y-4">
+            // Un renglón por módulo: su nombre a la izquierda y sus aplicaciones como pastillas que
+            // se marcan con un clic. Tocar el nombre del módulo marca (o quita) todas las suyas.
+            <div className="divide-y divide-borde/70 rounded-xl border border-borde">
               {grupos.map((grupo) => {
                 const ids = grupo.apps.map((a) => a.id);
-                const delGrupo = ids.filter((id) => marcadas.has(id)).length;
-                const completo = delGrupo === ids.length;
+                const completo = ids.every((id) => marcadas.has(id));
                 return (
-                  <fieldset key={grupo.slug}>
-                    <div className="mb-1.5 flex items-center justify-between gap-2">
-                      <legend className="text-[11px] font-bold uppercase tracking-[0.1em] text-tinta/60">{grupo.titulo}</legend>
-                      {ids.length > 1 && (
-                        <button type="button" onClick={() => poner(ids, !completo)} className={BOTON_TEXTO}>
-                          {completo ? "Quitar" : "Marcar"} {grupo.titulo.toLowerCase()}
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  <fieldset key={grupo.slug} className="grid gap-2 px-3.5 py-3 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:items-start sm:gap-3">
+                    <legend className="sr-only">{grupo.titulo}</legend>
+                    <button
+                      type="button"
+                      onClick={() => poner(ids, !completo)}
+                      title={completo ? `Quitar todas las de ${grupo.titulo}` : `Marcar todas las de ${grupo.titulo}`}
+                      className="justify-self-start pt-1.5 text-left text-[11px] font-bold uppercase tracking-[0.1em] text-tinta/55 transition hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-naranjo"
+                    >
+                      {grupo.titulo}
+                    </button>
+                    <div className="flex flex-wrap gap-1.5">
                       {grupo.apps.map((app) => {
                         const Icono = obtenerIcono(app.icono);
                         const marcada = marcadas.has(app.id);
@@ -149,17 +151,16 @@ export default function SelectorDeAcceso({
                           <label
                             key={app.id}
                             title={app.descripcion ?? undefined}
-                            className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 transition has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-naranjo ${
-                              marcada ? "border-naranjo/60 bg-naranjo/[0.06]" : "border-borde bg-superficie hover:border-naranjo/30"
+                            className={`inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border py-1 pl-2.5 pr-3 text-[13px] transition has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-naranjo ${
+                              marcada
+                                ? "border-naranjo bg-naranjo font-semibold text-white shadow-sm hover:bg-naranjo-suave"
+                                : "border-borde bg-superficie text-tinta/70 hover:border-naranjo/40 hover:text-tinta"
                             }`}
                           >
                             <input type="checkbox" name="aplicaciones" value={app.id} checked={marcada} onChange={(e) => poner([app.id], e.target.checked)} className="sr-only" />
-                            <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${marcada ? "bg-naranjo text-white" : "bg-tinta/[0.06] text-tinta/50"}`}>
-                              <Icono size={15} stroke={1.9} aria-hidden />
-                            </span>
-                            <span className={`min-w-0 flex-1 truncate text-sm ${marcada ? "font-semibold text-tinta" : "text-tinta/75"}`}>{app.nombre}</span>
-                            {app.pausada && <IconPlayerPause size={13} className="shrink-0 text-tinta/40" aria-label="En pausa" />}
-                            {marcada && <IconCheck size={15} stroke={2.4} className="shrink-0 text-naranjo" aria-hidden />}
+                            {marcada ? <IconCheck size={14} stroke={2.6} aria-hidden /> : <Icono size={14} stroke={1.9} className="text-tinta/45" aria-hidden />}
+                            {app.nombre}
+                            {app.pausada && <IconPlayerPause size={12} className={marcada ? "text-white/70" : "text-tinta/40"} aria-label="En pausa" />}
                           </label>
                         );
                       })}
@@ -224,15 +225,15 @@ export default function SelectorDeAcceso({
 
         {empresas.length > 1 && (
           <Bloque titulo="Empresas" ayuda={`En cuáles se puede parar desde el selector de arriba. Sin marcar ninguna, ve ${nombrePorOmision}.`}>
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <div className="flex flex-wrap gap-2">
               {empresas.map((e) => (
                 <label
                   key={e.id}
-                  className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-borde bg-superficie px-3 py-2 text-sm text-tinta/75 transition hover:border-naranjo/30 has-[:checked]:border-naranjo/60 has-[:checked]:bg-naranjo/[0.06] has-[:checked]:font-semibold has-[:checked]:text-tinta has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-naranjo"
+                  className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-borde bg-superficie py-1.5 pl-2 pr-3.5 text-sm text-tinta/70 transition hover:border-naranjo/40 has-[:checked]:border-naranjo has-[:checked]:bg-naranjo/[0.07] has-[:checked]:font-semibold has-[:checked]:text-tinta has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-naranjo"
                 >
                   <input type="checkbox" name="empresas" value={e.id} defaultChecked={empresasAsignadas.includes(e.id)} className={CAJA} />
                   <DistintivoEmpresa empresa={e} />
-                  <span className="truncate">{e.nombre}</span>
+                  {e.nombre}
                 </label>
               ))}
             </div>

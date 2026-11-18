@@ -9,7 +9,7 @@ import type { Icon } from "@tabler/icons-react";
  */
 export function Bloque({ titulo, ayuda, extra, primero = false, children }: { titulo: string; ayuda: string; extra?: React.ReactNode; primero?: boolean; children: React.ReactNode }) {
   return (
-    <section className={`grid gap-3 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8 ${primero ? "pb-6" : "border-t border-borde py-6"}`}>
+    <section className={`grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8 ${primero ? "pb-6" : "border-t border-borde py-6"}`}>
       <div>
         <div className="flex items-center justify-between gap-2 lg:block">
           <h2 className="text-sm font-semibold text-tinta">{titulo}</h2>

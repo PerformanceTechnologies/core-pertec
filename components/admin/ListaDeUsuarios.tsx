@@ -66,8 +66,8 @@ export default function ListaDeUsuarios({
   const pastillas = FILTROS.map((f) => ({ ...f, n: filas.filter(f.cumple).length })).filter((f) => f.clave === "todos" || f.n > 0 || f.clave === filtro);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <div className="overflow-hidden rounded-2xl border border-borde bg-superficie shadow-[0_1px_2px_rgba(23,20,17,0.04),0_14px_36px_-22px_rgba(23,20,17,0.18)]">
+      <div className="flex flex-col gap-3 border-b border-borde px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <label className="relative min-w-0 sm:w-72">
           <span className="sr-only">Buscar por nombre o correo</span>
           <IconSearch size={16} stroke={1.9} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta/45" />
@@ -77,7 +77,7 @@ export default function ListaDeUsuarios({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar por nombre o correo"
             autoComplete="off"
-            className="min-h-10 w-full rounded-xl border border-borde bg-superficie py-2 pl-9 pr-9 text-sm text-tinta placeholder:text-tinta/45 focus:border-naranjo/50 focus:outline-none focus:ring-2 focus:ring-naranjo/20"
+            className="min-h-10 w-full rounded-xl border border-transparent bg-tinta/[0.04] py-2 pl-9 pr-9 text-sm text-tinta placeholder:text-tinta/45 focus:border-naranjo/50 focus:bg-superficie focus:outline-none focus:ring-2 focus:ring-naranjo/20"
           />
           {q && (
             <button type="button" onClick={() => setQ("")} aria-label="Borrar búsqueda" className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-tinta/50 hover:bg-tinta/5 hover:text-tinta">
@@ -105,8 +105,19 @@ export default function ListaDeUsuarios({
         </div>
       </div>
 
+      {/* Los títulos de las columnas, alineados con las de cada fila (mismos anchos y separaciones). */}
+      {visibles.length > 0 && (
+        <div aria-hidden className="hidden items-center gap-4 border-b border-borde bg-crema/40 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-tinta/50 md:flex">
+          <span className="min-w-0 flex-1 pl-14">Persona</span>
+          <span className="w-36 shrink-0">Acceso</span>
+          <span className="hidden w-28 shrink-0 lg:block">Empresas</span>
+          <span className="w-24 shrink-0">Último ingreso</span>
+          <span className="w-4 shrink-0" />
+        </div>
+      )}
+
       {visibles.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-borde px-4 py-10 text-center text-sm text-tinta/60">
+        <div className="px-4 py-12 text-center text-sm text-tinta/60">
           {filas.length === 0 ? "Todavía no hay usuarios." : "Nadie calza con la búsqueda."}
           {(q || filtro !== "todos") && filas.length > 0 && (
             <button type="button" onClick={() => { setQ(""); setFiltro("todos"); }} className="ml-1.5 font-semibold text-naranjo hover:underline">
@@ -115,7 +126,7 @@ export default function ListaDeUsuarios({
           )}
         </div>
       ) : (
-        <ul className="divide-y divide-borde overflow-hidden rounded-2xl border border-borde bg-superficie shadow-[0_1px_2px_rgba(23,20,17,0.04)]">
+        <ul className="divide-y divide-borde/70">
           {visibles.map((f) => (
             <li key={f.id}>
               <Fila f={f} porOmision={porOmision} />

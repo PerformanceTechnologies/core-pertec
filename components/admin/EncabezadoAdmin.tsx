@@ -11,12 +11,15 @@ export default function EncabezadoAdmin({
   descripcion,
   rutaPadre,
   acciones,
+  icono,
 }: {
   titulo: string;
   descripcion: string;
   /** En una pantalla de adentro («Editar»), la lista de la que cuelga: Usuarios / Editar. */
   rutaPadre?: { href: string; nombre: string };
   acciones?: React.ReactNode;
+  /** En vez del escudo de Administración (p. ej. las iniciales de la persona, en su ficha). */
+  icono?: React.ReactNode;
 }) {
   return (
     <header>
@@ -42,9 +45,11 @@ export default function EncabezadoAdmin({
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-start gap-3.5">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-naranjo text-white shadow-sm">
-            <IconShieldCog size={24} stroke={1.7} aria-hidden />
-          </span>
+          {icono ?? (
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-naranjo text-white shadow-sm">
+              <IconShieldCog size={24} stroke={1.7} aria-hidden />
+            </span>
+          )}
           <div className="min-w-0">
             <h1 className="font-condensed text-3xl font-bold uppercase leading-none tracking-tight text-tinta sm:text-4xl">
               {titulo}

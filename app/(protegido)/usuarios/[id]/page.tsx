@@ -9,6 +9,7 @@ import { haceCuanto } from "@/lib/modulos-resumen-modelo";
 import { TARJETA } from "@/lib/estilos";
 import FormularioUsuario from "@/components/FormularioUsuario";
 import EncabezadoAdmin from "@/components/admin/EncabezadoAdmin";
+import Avatar from "@/components/admin/Avatar";
 import BotonEliminar from "@/components/BotonEliminar";
 import { actualizarUsuarioAction, eliminarUsuarioAction } from "../acciones";
 
@@ -40,6 +41,7 @@ export default async function EditarUsuarioPage({
       <EncabezadoAdmin
         titulo={usuario.nombre || usuario.correo}
         rutaPadre={{ href: "/usuarios", nombre: "Usuarios" }}
+        icono={<Avatar nombre={usuario.nombre} correo={usuario.correo} admin={usuario.rol === "admin"} tamano="lg" />}
         descripcion={`${usuario.nombre ? `${usuario.correo} · ` : ""}${ingreso}${usuario.activo ? "" : " · sin acceso"}`}
       />
 
