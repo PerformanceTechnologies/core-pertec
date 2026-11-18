@@ -171,8 +171,9 @@ export default function FormularioUsuario({
       />
 
       {/* Fija abajo: en una ficha larga, guardar no obliga a bajar hasta el final. En celular va
-          sobre la barra de navegación de abajo (h-16, ver NavInferior), no escondida detrás. */}
-      <div className="sticky bottom-16 z-10 lg:bottom-0 -mx-5 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-borde bg-superficie/95 px-5 py-3 backdrop-blur sm:-mx-7 sm:px-7">
+          sobre la barra de navegación de abajo (h-16, ver NavInferior), no escondida detrás, y con
+          aire a la derecha para el botón flotante de «Volver arriba» (BotonSubir). */}
+      <div className="sticky bottom-16 z-10 lg:bottom-0 -mx-5 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-borde bg-superficie/95 py-3 pl-5 pr-[4.5rem] backdrop-blur sm:-mx-7 sm:pl-7 lg:pr-7">
         {cancelar}
         <BotonEnviar
           cargando="Guardando…"
