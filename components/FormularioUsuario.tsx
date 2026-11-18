@@ -170,8 +170,9 @@ export default function FormularioUsuario({
         nombrePorOmision={empresaPorOmision}
       />
 
-      {/* Fija abajo: en una ficha larga, guardar no obliga a bajar hasta el final. */}
-      <div className="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-borde bg-superficie/95 px-5 py-3 backdrop-blur sm:-mx-7 sm:px-7">
+      {/* Fija abajo: en una ficha larga, guardar no obliga a bajar hasta el final. En celular va
+          sobre la barra de navegación de abajo (h-16, ver NavInferior), no escondida detrás. */}
+      <div className="sticky bottom-16 z-10 lg:bottom-0 -mx-5 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-borde bg-superficie/95 px-5 py-3 backdrop-blur sm:-mx-7 sm:px-7">
         {cancelar}
         <BotonEnviar
           cargando="Guardando…"
