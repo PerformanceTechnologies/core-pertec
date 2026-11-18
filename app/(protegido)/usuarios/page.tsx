@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { IconPlus } from "@tabler/icons-react";
 import { exigirAdmin } from "@/lib/autorizacion";
 import { listarUsuarios } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
@@ -7,7 +5,6 @@ import { empresaIdsPorUsuario, listarEmpresas } from "@/lib/empresas";
 import { SLUG_POR_OMISION, type Empresa } from "@/lib/empresas-modelo";
 import { appsAsignadasVigentes } from "@/lib/administracion-modelo";
 import { haceCuanto } from "@/lib/modulos-resumen-modelo";
-import EncabezadoAdmin from "@/components/admin/EncabezadoAdmin";
 import ListaDeUsuarios, { type EmpresaDeFila, type FilaUsuario, type FiltroUsuarios } from "@/components/admin/ListaDeUsuarios";
 
 export const dynamic = "force-dynamic";
@@ -51,26 +48,11 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
   }));
 
   return (
-    <div className="animar-entrada space-y-6">
-      <EncabezadoAdmin
-        titulo="Usuarios"
-        descripcion="Quién entra al Core y a qué. Toca a una persona para cambiar su acceso."
-        acciones={
-          <Link
-            href="/usuarios/nuevo"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-naranjo px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-naranjo-suave focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
-          >
-            <IconPlus size={17} stroke={2.2} aria-hidden /> Nuevo usuario
-          </Link>
-        }
-      />
-
-      <ListaDeUsuarios
-        filas={filas}
-        porOmision={porOmision ? aMini(porOmision) : null}
-        filtroInicial={filtroDeLaDireccion(parametros)}
-        busquedaInicial={typeof parametros.q === "string" ? parametros.q : ""}
-      />
-    </div>
+    <ListaDeUsuarios
+      filas={filas}
+      porOmision={porOmision ? aMini(porOmision) : null}
+      filtroInicial={filtroDeLaDireccion(parametros)}
+      busquedaInicial={typeof parametros.q === "string" ? parametros.q : ""}
+    />
   );
 }

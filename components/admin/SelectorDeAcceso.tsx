@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { IconCheck, IconPlayerPause, IconShieldCheck, IconUser } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconApps, IconBuildingSkyscraper, IconCheck, IconPlayerPause, IconShieldCheck, IconUser } from "@tabler/icons-react";
 import { obtenerIcono } from "@/lib/iconos";
 import DistintivoEmpresa from "@/components/DistintivoEmpresa";
 import type { Empresa } from "@/lib/empresas-modelo";
-import { Bloque, Segmentado } from "@/components/admin/PartesFormulario";
+import { Segmentado } from "@/components/admin/PartesFormulario";
+import { Tarjeta } from "@/components/admin/VisualUsuarios";
 
 // Lo del formulario de usuarios que necesita JavaScript: el rol cambia qué se muestra (un
 // administrador entra a todo, así que no tiene sentido pedirle aplicaciones ni empresas) y marcar
@@ -56,6 +57,7 @@ export default function SelectorDeAcceso({
   empresas,
   empresasAsignadas,
   nombrePorOmision,
+  persona,
 }: {
   grupos: GrupoDeSelector[];
   rolInicial: "admin" | "usuario";
@@ -68,6 +70,8 @@ export default function SelectorDeAcceso({
   empresasAsignadas: string[];
   /** La empresa que ve quien no tiene ninguna marcada. */
   nombrePorOmision: string;
+  /** La tarjeta de quién es (la arma el servidor): va arriba de la columna derecha. */
+  persona: React.ReactNode;
 }) {
   const [rol, setRol] = useState(rolInicial);
   const [marcadas, setMarcadas] = useState<Set<string>>(() => new Set(asignadas));
@@ -90,47 +94,77 @@ export default function SelectorDeAcceso({
   }
 
   return (
-    <>
-      <Bloque titulo="Rol" ayuda={esAdmin ? "Entra a todas las aplicaciones y empresas, y administra el Core." : "Entra solo a las aplicaciones y empresas que marques abajo."}>
-        <Segmentado
-          nombre="rol"
-          valor={rol}
-          alCambiar={(v) => setRol(v as "admin" | "usuario")}
-          opciones={[
-            { valor: "usuario", etiqueta: "Usuario", Icono: IconUser },
-            { valor: "admin", etiqueta: "Administrador", Icono: IconShieldCheck },
-          ]}
-        />
-      </Bloque>
+    // Dos columnas, como la ficha de un contacto: lo grande (aplicaciones) a la izquierda y quién es,
+    // su rol y sus empresas a la derecha. En celular la de la derecha va primero.
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+      <div className="space-y-5 lg:order-2">
+        {persona}
 
-      {esAdmin && (
-        <Bloque titulo="Aplicaciones y empresas" ayuda="">
-          <p className="rounded-xl bg-naranjo/[0.07] px-3.5 py-3 text-sm text-tinta/75">
-            Como administrador entra a <b className="font-semibold text-tinta">todo</b>. Si después lo vuelves a Usuario, se mantiene lo que tenía marcado.
-          </p>
-        </Bloque>
-      )}
+        <Tarjeta Icono={IconShieldCheck} titulo="Rol" ayuda={esAdmin ? "Entra a todas las aplicaciones y empresas, y administra el Core." : "Entra solo a las aplicaciones y empresas que le marques."}>
+          <Segmentado
+            nombre="rol"
+            valor={rol}
+            alCambiar={(v) => setRol(v as "admin" | "usuario")}
+            opciones={[
+              { valor: "usuario", etiqueta: "Usuario", Icono: IconUser },
+              { valor: "admin", etiqueta: "Administrador", Icono: IconShieldCheck },
+            ]}
+          />
+        </Tarjeta>
 
-      {/* Oculto (no desmontado) con el rol en Administrador: así lo marcado se sigue enviando. */}
-      <div className={esAdmin ? "hidden" : "contents"}>
-        <Bloque
-          titulo="Aplicaciones"
-          ayuda={`${cuantas} de ${todas.length} marcadas.`}
-          extra={
-            todas.length > 0 && (
-              <span className="flex gap-1">
-                <button type="button" onClick={() => poner(todas.map((a) => a.id), true)} className={BOTON_TEXTO}>Todas</button>
-                <button type="button" onClick={() => poner(todas.map((a) => a.id), false)} className={BOTON_TEXTO}>Ninguna</button>
-              </span>
-            )
-          }
-        >
+        {/* Oculta (no desmontada) con el rol en Administrador: así lo marcado se sigue enviando. */}
+        {empresas.length > 1 && (
+          <div className={esAdmin ? "hidden" : ""}>
+            <Tarjeta Icono={IconBuildingSkyscraper} titulo="Empresas" ayuda={`En cuáles se puede parar desde el selector de arriba. Sin marcar ninguna, ve ${nombrePorOmision}.`}>
+              <div className="flex flex-col gap-2">
+                {empresas.map((e) => (
+                  <label
+                    key={e.id}
+                    className="group flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-borde bg-superficie py-1.5 pl-2 pr-3 text-sm text-tinta/70 transition hover:border-naranjo/40 has-[:checked]:border-naranjo has-[:checked]:bg-naranjo/[0.07] has-[:checked]:font-semibold has-[:checked]:text-tinta has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-naranjo"
+                  >
+                    <input type="checkbox" name="empresas" value={e.id} defaultChecked={empresasAsignadas.includes(e.id)} className="sr-only" />
+                    <DistintivoEmpresa empresa={e} tamano="medio" />
+                    <span className="min-w-0 flex-1 truncate">{e.nombre}</span>
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-borde text-transparent group-has-[:checked]:border-naranjo group-has-[:checked]:bg-naranjo group-has-[:checked]:text-white" aria-hidden>
+                      <IconCheck size={12} stroke={3} />
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </Tarjeta>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-5 lg:order-1">
+        {esAdmin && (
+          <Tarjeta Icono={IconApps} titulo="Aplicaciones">
+            <p className="rounded-xl bg-naranjo/[0.07] px-3.5 py-3 text-sm text-tinta/75">
+              Como administrador entra a <b className="font-semibold text-tinta">todas</b> las aplicaciones y empresas. Si después lo vuelves a Usuario, se mantiene lo que tenía marcado.
+            </p>
+          </Tarjeta>
+        )}
+
+        <div className={esAdmin ? "hidden" : "space-y-5"}>
+          <Tarjeta
+            Icono={IconApps}
+            titulo="Aplicaciones"
+            ayuda={`${cuantas} de ${todas.length} marcadas. Toca el nombre de un módulo para marcar todas las suyas.`}
+            extra={
+              todas.length > 0 && (
+                <span className="flex gap-1">
+                  <button type="button" onClick={() => poner(todas.map((a) => a.id), true)} className={BOTON_TEXTO}>Todas</button>
+                  <button type="button" onClick={() => poner(todas.map((a) => a.id), false)} className={BOTON_TEXTO}>Ninguna</button>
+                </span>
+              )
+            }
+          >
           {todas.length === 0 ? (
             <p className="rounded-xl border border-dashed border-borde px-4 py-6 text-center text-xs text-tinta/60">Todavía no hay aplicaciones en el catálogo.</p>
           ) : (
             // Un renglón por módulo: su nombre a la izquierda y sus aplicaciones como pastillas que
             // se marcan con un clic. Tocar el nombre del módulo marca (o quita) todas las suyas.
-            <div className="divide-y divide-borde/70 rounded-xl border border-borde">
+            <div className="divide-y divide-borde/60 rounded-2xl bg-tinta/[0.02]">
               {grupos.map((grupo) => {
                 const ids = grupo.apps.map((a) => a.id);
                 const completo = ids.every((id) => marcadas.has(id));
@@ -141,7 +175,7 @@ export default function SelectorDeAcceso({
                       type="button"
                       onClick={() => poner(ids, !completo)}
                       title={completo ? `Quitar todas las de ${grupo.titulo}` : `Marcar todas las de ${grupo.titulo}`}
-                      className="justify-self-start pt-1.5 text-left text-[11px] font-bold uppercase tracking-[0.1em] text-tinta/55 transition hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-naranjo"
+                      className="justify-self-start pt-1.5 text-left text-[11px] font-bold uppercase tracking-[0.1em] text-gris transition hover:text-naranjo focus-visible:outline focus-visible:outline-2 focus-visible:outline-naranjo"
                     >
                       {grupo.titulo}
                     </button>
@@ -172,10 +206,10 @@ export default function SelectorDeAcceso({
               })}
             </div>
           )}
-        </Bloque>
+          </Tarjeta>
 
-        {conAjustes.length > 0 && (
-          <Bloque titulo="Permisos dentro de cada app" ayuda="Solo para las aplicaciones marcadas que tienen niveles propios.">
+          {conAjustes.length > 0 && (
+            <Tarjeta Icono={IconAdjustmentsHorizontal} titulo="Permisos dentro de cada app" ayuda="Solo para las aplicaciones marcadas que tienen niveles propios.">
             {/* Todos montados (los de apps sin marcar, ocultos) para que lo elegido no se pierda al desmarcar y volver a marcar. */}
             <div className="space-y-2">
               {conAjustes.map((app) => {
@@ -223,29 +257,10 @@ export default function SelectorDeAcceso({
               })}
               {conAjustes.every((a) => !marcadas.has(a.id)) && <p className="text-xs text-tinta/50">Ninguna de las aplicaciones marcadas tiene niveles propios.</p>}
             </div>
-          </Bloque>
-        )}
-
-        {empresas.length > 1 && (
-          <Bloque titulo="Empresas" ayuda={`En cuáles se puede parar desde el selector de arriba. Sin marcar ninguna, ve ${nombrePorOmision}.`}>
-            <div className="flex flex-wrap gap-2">
-              {empresas.map((e) => (
-                <label
-                  key={e.id}
-                  className="group inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-borde bg-superficie py-1.5 pl-2 pr-3 text-sm text-tinta/70 transition hover:border-naranjo/40 has-[:checked]:border-naranjo has-[:checked]:bg-naranjo/[0.07] has-[:checked]:font-semibold has-[:checked]:text-tinta has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-naranjo"
-                >
-                  <input type="checkbox" name="empresas" value={e.id} defaultChecked={empresasAsignadas.includes(e.id)} className="sr-only" />
-                  <DistintivoEmpresa empresa={e} />
-                  {e.nombre}
-                  <span className="grid h-5 w-5 place-items-center rounded-full border border-borde text-transparent group-has-[:checked]:border-naranjo group-has-[:checked]:bg-naranjo group-has-[:checked]:text-white" aria-hidden>
-                    <IconCheck size={12} stroke={3} />
-                  </span>
-                </label>
-              ))}
-            </div>
-          </Bloque>
-        )}
+            </Tarjeta>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { IconChevronRight, IconSearch, IconShieldCheck, IconX } from "@tabler/icons-react";
+import { IconChevronRight, IconMailForward, IconPlus, IconSearch, IconShieldCheck, IconUsersGroup, IconX } from "@tabler/icons-react";
 import { normalizar } from "@/lib/administracion-modelo";
 import type { Empresa } from "@/lib/empresas-modelo";
-import Avatar from "@/components/admin/Avatar";
+import { BOTON_C, CAMPO_C, HOJA, IconoTile, type TonoIcono } from "@/components/contactos/Visual";
+import { AvatarUsuario, CHIP } from "@/components/admin/VisualUsuarios";
 import DistintivoEmpresa from "@/components/DistintivoEmpresa";
 
 export type EmpresaDeFila = Pick<Empresa, "id" | "slug" | "logo" | "nombre" | "color">;
@@ -21,7 +22,7 @@ export interface FilaUsuario {
   esYo: boolean;
   /** Aplicaciones del catálogo que tiene asignadas. */
   apps: number;
-  /** Las empresas en que se puede parar. Vacío = la de por omisión (va en `porOmision`). */
+  /** Las empresas en que se puede parar. Vacío = la de por omisión. */
   empresas: EmpresaDeFila[];
   /** «hace 3 días», «Nunca»: calculado en el servidor para que no cambie al hidratar. */
   ultimoIngreso: string;
@@ -29,18 +30,20 @@ export interface FilaUsuario {
 
 export type FiltroUsuarios = "todos" | "admin" | "invitados" | "inactivos" | "sin-apps";
 
+const sinApps = (f: FilaUsuario) => f.activo && !f.esAdmin && f.apps === 0;
+
 const FILTROS: { clave: FiltroUsuarios; etiqueta: string; cumple: (f: FilaUsuario) => boolean }[] = [
   { clave: "todos", etiqueta: "Todos", cumple: () => true },
   { clave: "admin", etiqueta: "Administradores", cumple: (f) => f.esAdmin },
   { clave: "invitados", etiqueta: "Invitados", cumple: (f) => f.invitado },
-  { clave: "inactivos", etiqueta: "Inactivos", cumple: (f) => !f.activo },
-  { clave: "sin-apps", etiqueta: "Sin aplicaciones", cumple: (f) => f.activo && !f.esAdmin && f.apps === 0 },
+  { clave: "inactivos", etiqueta: "Sin acceso", cumple: (f) => !f.activo },
+  { clave: "sin-apps", etiqueta: "Sin aplicaciones", cumple: sinApps },
 ];
 
 /**
- * La lista de Administración › Usuarios: buscar mientras se escribe, unas pastillas para filtrar
- * y una fila por persona. Toda la fila abre su ficha, donde se edita (y, si hace falta, se elimina):
- * la lista no tiene botones de borrar al lado de cada nombre.
+ * La lista de Administración › Usuarios, con la misma forma que la de Contactos: un resumen cuyas
+ * cifras filtran, el buscador y las pastillas, y la tabla. Busca mientras se escribe (son decenas
+ * de personas, no miles). Toda la fila abre la ficha de la persona.
  */
 export default function ListaDeUsuarios({
   filas,
@@ -62,77 +65,99 @@ export default function ListaDeUsuarios({
     return filas.filter((f) => cumple(f) && (!texto || normalizar(`${f.nombre ?? ""} ${f.correo}`).includes(texto)));
   }, [filas, filtro, q]);
 
-  // Solo las pastillas que tienen a alguien (y «Todos», siempre): con 0 no hay nada que mirar.
-  const pastillas = FILTROS.map((f) => ({ ...f, n: filas.filter(f.cumple).length })).filter((f) => f.clave === "todos" || f.n > 0 || f.clave === filtro);
+  const cuantos = (c: FiltroUsuarios) => filas.filter(FILTROS.find((f) => f.clave === c)!.cumple).length;
+  // Las pastillas que no tienen a nadie no aparecen (salvo «Todos» y la que esté elegida).
+  const pastillas = FILTROS.map((f) => ({ ...f, n: cuantos(f.clave) })).filter((f) => f.clave === "todos" || f.n > 0 || f.clave === filtro);
+  const cifras: { clave: FiltroUsuarios; etiqueta: string; detalle: string; Icono: typeof IconUsersGroup; tono: TonoIcono; valor: number }[] = [
+    { clave: "todos", etiqueta: "Personas", detalle: "con cuenta en el Core", Icono: IconUsersGroup, tono: "azul", valor: filas.length },
+    { clave: "admin", etiqueta: "Administradores", detalle: "entran a todo", Icono: IconShieldCheck, tono: "marca", valor: cuantos("admin") },
+    { clave: "invitados", etiqueta: "Invitados", detalle: "de fuera de PERTEC", Icono: IconMailForward, tono: "verde", valor: cuantos("invitados") },
+  ];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-borde bg-superficie shadow-[0_1px_2px_rgba(23,20,17,0.04),0_14px_36px_-22px_rgba(23,20,17,0.18)]">
-      <div className="flex flex-col gap-3 border-b border-borde px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-        <label className="relative min-w-0 sm:w-72">
-          <span className="sr-only">Buscar por nombre o correo</span>
-          <IconSearch size={16} stroke={1.9} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta/45" />
-          <input
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar por nombre o correo"
-            autoComplete="off"
-            className="min-h-10 w-full rounded-xl border border-transparent bg-tinta/[0.04] py-2 pl-9 pr-9 text-sm text-tinta placeholder:text-tinta/45 focus:border-naranjo/50 focus:bg-superficie focus:outline-none focus:ring-2 focus:ring-naranjo/20"
-          />
+    <div className="space-y-3">
+      {/* ── Resumen: cada cifra es también el filtro ── */}
+      <section className={`${HOJA} grid w-full grid-cols-3 gap-1.5 p-1.5`} aria-label="Resumen de usuarios">
+        {cifras.map((m) => (
+          <button
+            key={m.clave}
+            type="button"
+            onClick={() => setFiltro(m.clave)}
+            aria-pressed={filtro === m.clave}
+            className={`group flex min-w-0 flex-col items-start gap-2 rounded-[18px] px-3 py-3 text-left transition hover:bg-tinta/[0.04] active:scale-[0.99] sm:flex-row sm:items-center sm:gap-3.5 sm:px-5 ${filtro === m.clave ? "bg-tinta/[0.05]" : ""}`}
+          >
+            <IconoTile Icono={m.Icono} tono={m.tono} tamano="grande" />
+            <span className="min-w-0">
+              <span className="block font-condensed text-[28px] font-bold leading-none tabular-nums text-tinta transition group-hover:text-naranjo sm:text-4xl">{m.valor}</span>
+              <span className="mt-1 block truncate text-xs font-semibold text-gris">
+                {m.etiqueta}
+                <span className="hidden font-normal text-gris-suave lg:inline"> · {m.detalle}</span>
+              </span>
+            </span>
+          </button>
+        ))}
+      </section>
+
+      {/* ── Buscador a la izquierda, filtros al medio, nuevo usuario a la derecha ── */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <label className="relative w-full sm:w-72">
+          <span className="sr-only">Buscar usuarios</span>
+          <IconSearch size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gris" />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre o correo…" autoComplete="off" className={`${CAMPO_C} rounded-full pl-9 pr-9`} />
           {q && (
-            <button type="button" onClick={() => setQ("")} aria-label="Borrar búsqueda" className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-tinta/50 hover:bg-tinta/5 hover:text-tinta">
+            <button type="button" onClick={() => setQ("")} aria-label="Borrar búsqueda" className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-gris hover:bg-tinta/[0.06] hover:text-tinta">
               <IconX size={14} />
             </button>
           )}
         </label>
-        <div role="group" aria-label="Filtrar" className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {pastillas.map((p) => (
             <button
               key={p.clave}
               type="button"
               onClick={() => setFiltro(p.clave)}
               aria-pressed={filtro === p.clave}
-              className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo ${
-                filtro === p.clave
-                  ? "border-naranjo bg-naranjo text-white"
-                  : `border-borde bg-superficie hover:border-naranjo/40 ${p.clave === "sin-apps" ? "text-amber-700 dark:text-amber-400" : "text-tinta/70 hover:text-tinta"}`
-              }`}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${filtro === p.clave ? "bg-tinta text-superficie" : "bg-tinta/[0.05] text-gris hover:bg-tinta/[0.09] hover:text-tinta"}`}
             >
-              {p.etiqueta}
-              <span className={`tabular-nums ${filtro === p.clave ? "text-white/80" : "text-tinta/45"}`}>{p.n}</span>
+              {p.etiqueta} <span className="opacity-60">{p.n}</span>
             </button>
           ))}
         </div>
+        <Link href="/usuarios/nuevo" className={`${BOTON_C} ml-auto`}>
+          <IconPlus size={17} stroke={2.2} /> Nuevo usuario
+        </Link>
       </div>
 
-      {/* Los títulos de las columnas, alineados con las de cada fila (mismos anchos y separaciones). */}
-      {visibles.length > 0 && (
-        <div aria-hidden className="hidden items-center gap-4 border-b border-borde bg-crema/40 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-tinta/50 md:flex">
-          <span className="min-w-0 flex-1 pl-14">Persona</span>
-          <span className="w-36 shrink-0">Acceso</span>
-          <span className="hidden w-28 shrink-0 lg:block">Empresas</span>
-          <span className="w-24 shrink-0">Último ingreso</span>
-          <span className="w-4 shrink-0" />
-        </div>
-      )}
-
       {visibles.length === 0 ? (
-        <div className="px-4 py-12 text-center text-sm text-tinta/60">
-          {filas.length === 0 ? "Todavía no hay usuarios." : "Nadie calza con la búsqueda."}
-          {(q || filtro !== "todos") && filas.length > 0 && (
+        <div className={`${HOJA} p-10 text-center text-sm text-gris`}>
+          {filas.length === 0 ? "Todavía no hay usuarios. Crea el primero con «Nuevo usuario»." : "Nadie coincide con la búsqueda."}
+          {filas.length > 0 && (q || filtro !== "todos") && (
             <button type="button" onClick={() => { setQ(""); setFiltro("todos"); }} className="ml-1.5 font-semibold text-naranjo hover:underline">
               Ver todos
             </button>
           )}
         </div>
       ) : (
-        <ul className="divide-y divide-borde/70">
-          {visibles.map((f) => (
-            <li key={f.id}>
-              <Fila f={f} porOmision={porOmision} />
-            </li>
-          ))}
-        </ul>
+        <div className={`${HOJA} overflow-hidden`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-borde/60 bg-tinta/[0.02] text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
+                  <th className="px-4 py-2.5">Usuario</th>
+                  <th className="hidden px-4 py-2.5 sm:table-cell">Acceso</th>
+                  <th className="hidden px-4 py-2.5 md:table-cell">Empresas</th>
+                  <th className="hidden px-4 py-2.5 lg:table-cell">Último ingreso</th>
+                  <th className="px-4 py-2.5"><span className="sr-only">Abrir</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-borde/60">
+                {visibles.map((f) => (
+                  <Fila key={f.id} f={f} porOmision={porOmision} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -140,69 +165,67 @@ export default function ListaDeUsuarios({
 
 function Fila({ f, porOmision }: { f: FilaUsuario; porOmision: EmpresaDeFila | null }) {
   const nombre = f.nombre || f.correo;
+  const href = `/usuarios/${f.id}`;
+  // La barra de la izquierda dice de un vistazo si la cuenta está bien: verde entra y ve algo,
+  // ámbar entra pero no ve ninguna aplicación, gris no puede entrar.
+  const barra = !f.activo ? "bg-tinta/20" : sinApps(f) ? "bg-amber-400" : "bg-emerald-500";
+  const empresas = f.empresas.length > 0 ? f.empresas : porOmision ? [porOmision] : [];
   return (
-    <Link
-      href={`/usuarios/${f.id}`}
-      className={`group flex items-center gap-3 px-4 py-3 transition hover:bg-naranjo/[0.04] focus-visible:bg-naranjo/[0.06] focus-visible:outline-none sm:gap-4 ${f.activo ? "" : "opacity-60"}`}
-    >
-      <Avatar nombre={f.nombre} correo={f.correo} admin={f.esAdmin} />
-
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <span className="truncate font-semibold text-tinta">{nombre}</span>
-          {f.esYo && <Etiqueta clase="bg-tinta/10 text-tinta/70">Tú</Etiqueta>}
-          {f.invitado && <Etiqueta clase="bg-violet-500/12 text-violet-700 dark:text-violet-300">Invitado</Etiqueta>}
-          {!f.activo && <Etiqueta clase="border border-borde text-tinta/65">Inactivo</Etiqueta>}
-        </span>
-        {f.nombre && <span className="block truncate text-xs text-tinta/60">{f.correo}</span>}
-        {/* En celular, lo de las columnas va en una línea debajo del nombre. */}
-        <span className="mt-1 block text-[11px] text-tinta/55 md:hidden">
-          {f.esAdmin ? "Administrador" : f.apps === 0 ? "Sin aplicaciones" : `${f.apps} ${f.apps === 1 ? "aplicación" : "aplicaciones"}`} · {f.ultimoIngreso}
-        </span>
-      </span>
-
-      <span className="hidden w-36 shrink-0 md:block">
-        {f.esAdmin ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-naranjo/10 px-2 py-0.5 text-[11px] font-semibold text-naranjo">
-            <IconShieldCheck size={12} stroke={2.2} aria-hidden /> Administrador
+    <tr className={`group transition hover:bg-tinta/[0.025] ${f.activo ? "" : "opacity-60"}`}>
+      <td className="relative px-4 py-2.5">
+        <span className={`absolute inset-y-2 left-0 w-1 rounded-r-full ${barra}`} />
+        <Link href={href} className="flex items-center gap-3">
+          <AvatarUsuario nombre={f.nombre} correo={f.correo} tipo={f.esAdmin ? "admin" : f.invitado ? "invitado" : "usuario"} />
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5">
+              <span className="block max-w-[18rem] truncate font-semibold text-tinta group-hover:text-naranjo">{nombre}</span>
+              {f.esYo && <span className="rounded-full bg-tinta/[0.07] px-1.5 py-px text-[10px] font-semibold text-gris">Tú</span>}
+            </span>
+            {f.nombre && <span className="block max-w-[18rem] truncate text-xs text-gris">{f.correo}</span>}
+            {/* En celular, el acceso va debajo del nombre. */}
+            <span className="mt-0.5 block text-[11px] text-gris sm:hidden">{textoAcceso(f)}</span>
           </span>
-        ) : f.apps === 0 ? (
-          <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Sin aplicaciones</span>
+        </Link>
+      </td>
+      <td className="hidden px-4 py-2.5 sm:table-cell">
+        <span className="flex flex-wrap items-center gap-1">
+          {f.esAdmin ? (
+            <span className={`${CHIP} bg-naranjo/12 text-naranjo`}><IconShieldCheck size={12} /> Administrador</span>
+          ) : sinApps(f) ? (
+            <span className={`${CHIP} tono-aviso fondo-tono`}>Sin aplicaciones</span>
+          ) : (
+            <span className="text-xs text-tinta"><b className="font-semibold">{f.apps}</b> <span className="text-gris">{f.apps === 1 ? "aplicación" : "aplicaciones"}</span></span>
+          )}
+          {f.invitado && <span className={`${CHIP} bg-violet-500/15 text-tinta`}>Invitado</span>}
+          {!f.activo && <span className={`${CHIP} bg-tinta/[0.07] text-gris`}>Sin acceso</span>}
+        </span>
+      </td>
+      <td className="hidden px-4 py-2.5 md:table-cell">
+        {f.esAdmin ? (
+          <span className="text-xs text-gris">Todas</span>
         ) : (
-          <span className="text-xs text-tinta/70">
-            <b className="font-semibold text-tinta">{f.apps}</b> {f.apps === 1 ? "aplicación" : "aplicaciones"}
+          <span className={`flex items-center gap-1 ${f.empresas.length === 0 ? "opacity-50" : ""}`} title={empresas.map((e) => e.nombre).join(", ") + (f.empresas.length === 0 ? " (por omisión)" : "")}>
+            {empresas.map((e) => (
+              <DistintivoEmpresa key={e.id} empresa={e} />
+            ))}
+            <span className="sr-only">{empresas.map((e) => e.nombre).join(", ")}</span>
           </span>
         )}
-      </span>
-
-      <span className="hidden w-28 shrink-0 lg:block">
-        {f.esAdmin ? (
-          <span className="text-xs text-tinta/55">Todas</span>
-        ) : (
-          <Empresas empresas={f.empresas.length > 0 ? f.empresas : porOmision ? [porOmision] : []} porOmision={f.empresas.length === 0} />
-        )}
-      </span>
-
-      <span className="hidden w-24 shrink-0 text-xs text-tinta/60 md:block">{f.ultimoIngreso}</span>
-
-      <IconChevronRight size={16} className="shrink-0 text-tinta/30 transition group-hover:translate-x-0.5 group-hover:text-naranjo" aria-hidden />
-    </Link>
+      </td>
+      <td className="hidden px-4 py-2.5 text-xs text-gris lg:table-cell">{f.ultimoIngreso}</td>
+      <td className="px-4 py-2.5 text-right">
+        <Link href={href} className="inline-grid h-9 w-9 place-items-center text-gris-suave group-hover:text-naranjo" aria-label={`Abrir la ficha de ${nombre}`}>
+          <IconChevronRight size={18} />
+        </Link>
+      </td>
+    </tr>
   );
 }
 
-function Etiqueta({ clase, children }: { clase: string; children: React.ReactNode }) {
-  return <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${clase}`}>{children}</span>;
-}
-
-/** Los logos de sus empresas, uno al lado del otro; el nombre completo va en el texto para lectores y en el title. */
-function Empresas({ empresas, porOmision }: { empresas: EmpresaDeFila[]; porOmision: boolean }) {
-  const nombres = empresas.map((e) => e.nombre).join(", ") + (porOmision ? " (por omisión)" : "");
-  return (
-    <span className={`flex items-center gap-1 ${porOmision ? "opacity-50" : ""}`} title={nombres}>
-      {empresas.map((e) => (
-        <DistintivoEmpresa key={e.id} empresa={e} />
-      ))}
-      <span className="sr-only">{nombres}</span>
-    </span>
-  );
+function textoAcceso(f: FilaUsuario): string {
+  const partes = [f.esAdmin ? "Administrador" : sinApps(f) ? "Sin aplicaciones" : `${f.apps} ${f.apps === 1 ? "aplicación" : "aplicaciones"}`];
+  if (f.invitado) partes.push("Invitado");
+  if (!f.activo) partes.push("Sin acceso");
+  partes.push(f.ultimoIngreso);
+  return partes.join(" · ");
 }

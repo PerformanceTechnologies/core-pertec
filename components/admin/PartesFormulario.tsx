@@ -4,25 +4,6 @@ import type { Icon } from "@tabler/icons-react";
 // igual la parte de servidor del formulario (FormularioUsuario) y la de cliente (SelectorDeAcceso).
 
 /**
- * Un bloque del formulario: a la izquierda qué es y una línea de ayuda; a la derecha los campos.
- * En celular, uno debajo del otro.
- */
-export function Bloque({ titulo, ayuda, extra, primero = false, children }: { titulo: string; ayuda: string; extra?: React.ReactNode; primero?: boolean; children: React.ReactNode }) {
-  return (
-    <section className={`grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8 ${primero ? "pb-6" : "border-t border-borde py-6"}`}>
-      <div>
-        <div className="flex items-center justify-between gap-2 lg:block">
-          <h2 className="text-sm font-semibold text-tinta">{titulo}</h2>
-          {extra && <div className="lg:mt-2 lg:-ml-2">{extra}</div>}
-        </div>
-        {ayuda && <p className="mt-1 text-xs leading-snug text-tinta/60">{ayuda}</p>}
-      </div>
-      <div className="min-w-0">{children}</div>
-    </section>
-  );
-}
-
-/**
  * Elegir una de pocas opciones: un control segmentado hecho con radios de verdad (se envían con el
  * formulario y se manejan con el teclado). Con `valor` y `alCambiar` es controlado; sin ellos,
  * `inicial` marca la opción de partida.
