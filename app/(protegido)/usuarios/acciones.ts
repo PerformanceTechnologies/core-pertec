@@ -48,9 +48,10 @@ export async function crearUsuarioAction(form: FormData) {
   try {
     await crearUsuarioYAccesos(form);
   } catch (e) {
-    redirect(`/usuarios?error=${encodeURIComponent(motivo(e))}`);
+    redirect(`/usuarios/nuevo?error=${encodeURIComponent(motivo(e))}`);
   }
   revalidatePath("/usuarios");
+  redirect("/usuarios");
 }
 
 async function crearUsuarioYAccesos(form: FormData) {
@@ -96,4 +97,6 @@ export async function eliminarUsuarioAction(form: FormData) {
   if (id === admin.id) return; // nadie se puede autoeliminar por accidente
   await eliminarUsuario(id);
   revalidatePath("/usuarios");
+  // Se elimina desde la ficha de la persona: quedarse ahí sería mirar a alguien que ya no existe.
+  redirect("/usuarios");
 }

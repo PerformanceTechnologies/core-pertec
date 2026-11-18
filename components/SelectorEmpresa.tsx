@@ -4,14 +4,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { IconCheck, IconSelector } from "@tabler/icons-react";
 import { cambiarEmpresaAction } from "@/app/(protegido)/cambiar-empresa";
 import { pendientesOtrasEmpresasAction } from "@/app/(protegido)/buzon/acciones";
-import { inicialesDe, logoDe, mostrarSelector, type Empresa } from "@/lib/empresas-modelo";
+import { mostrarSelector, type Empresa } from "@/lib/empresas-modelo";
+import Distintivo from "@/components/DistintivoEmpresa";
 
-// El chip de cada empresa: PERTEC naranjo, Zeus dorado, Performance Service gris.
-const TONO: Record<string, string> = {
-  naranjo: "bg-[#c85217]/15 text-[#c85217]",
-  dorado: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  gris: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
-};
 
 /**
  * El cambio de empresa, arriba a la derecha de la página.
@@ -130,26 +125,5 @@ export default function SelectorEmpresa({
         </div>
       )}
     </div>
-  );
-}
-
-/** El logo de la empresa; si no tiene, sus iniciales en su color. */
-function Distintivo({ empresa }: { empresa: Empresa }) {
-  const logo = logoDe(empresa);
-  if (logo) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- ícono de 22 px servido por el propio core
-      <img src={logo} alt="" className="h-[22px] w-[22px] shrink-0 object-contain" aria-hidden />
-    );
-  }
-  return (
-    <span
-      className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-tight ${
-        TONO[empresa.color] ?? TONO.gris
-      }`}
-      aria-hidden
-    >
-      {inicialesDe(empresa.nombre)}
-    </span>
   );
 }

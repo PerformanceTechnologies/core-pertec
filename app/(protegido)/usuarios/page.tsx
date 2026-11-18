@@ -1,121 +1,76 @@
+import Link from "next/link";
+import { IconPlus } from "@tabler/icons-react";
 import { exigirAdmin } from "@/lib/autorizacion";
 import { listarUsuarios } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import { empresaIdsPorUsuario, listarEmpresas } from "@/lib/empresas";
-import { SLUG_POR_OMISION } from "@/lib/empresas-modelo";
-import {
-  appsAsignadasVigentes,
-  filtrarUsuarios,
-  hayFiltrosDeUsuarios,
-  hrefConFiltros,
-  leerFiltrosDeUsuarios,
-  parametrosDeUsuarios,
-} from "@/lib/administracion-modelo";
-import FormularioUsuario from "@/components/FormularioUsuario";
+import { SLUG_POR_OMISION, type Empresa } from "@/lib/empresas-modelo";
+import { appsAsignadasVigentes } from "@/lib/administracion-modelo";
+import { haceCuanto } from "@/lib/modulos-resumen-modelo";
 import EncabezadoAdmin from "@/components/admin/EncabezadoAdmin";
-import PanelDeCreacion from "@/components/admin/PanelDeCreacion";
-import TablaDeUsuarios from "@/components/admin/TablaDeUsuarios";
-import { Buscador, CifrasQueFiltran, ResultadoDeFiltros, SinResultados } from "@/components/admin/Filtros";
-import { crearUsuarioAction, eliminarUsuarioAction } from "./acciones";
+import ListaDeUsuarios, { type EmpresaDeFila, type FilaUsuario, type FiltroUsuarios } from "@/components/admin/ListaDeUsuarios";
 
 export const dynamic = "force-dynamic";
 
+const aMini = (e: Empresa): EmpresaDeFila => ({ id: e.id, slug: e.slug, logo: e.logo, nombre: e.nombre, color: e.color });
+
+/** Los enlaces de antes (?rol=admin, ?estado=inactivos, ?acceso=sin-apps) siguen abriendo el filtro que pedían. */
+function filtroDeLaDireccion(p: Record<string, string | string[] | undefined>): FiltroUsuarios {
+  const v = (clave: string) => (Array.isArray(p[clave]) ? p[clave]?.[0] : p[clave]);
+  if (v("acceso") === "sin-apps") return "sin-apps";
+  if (v("rol") === "admin") return "admin";
+  if (v("estado") === "inactivos") return "inactivos";
+  if (v("tipo") === "invitados") return "invitados";
+  return "todos";
+}
+
 /**
- * Administración > Usuarios: quién entra al Core, con qué rol, a qué aplicaciones y en qué
- * empresas. Los filtros viajan en la dirección (?estado=…&rol=…&q=…): se pueden compartir y el
- * botón «atrás» los respeta.
+ * Administración › Usuarios: quién entra al Core. La lista busca y filtra en el navegador (son
+ * decenas de personas, no miles); crear y editar viven en su propia pantalla.
  */
-export default async function UsuariosPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function UsuariosPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const admin = await exigirAdmin();
   const parametros = await searchParams;
-  const filtros = leerFiltrosDeUsuarios(parametros);
-  const errorAlCrear = typeof parametros.error === "string" ? parametros.error : null;
-  const [usuarios, apps, empresas, empresasPorUsuario] = await Promise.all([
-    listarUsuarios(),
-    listarAplicaciones(),
-    listarEmpresas(),
-    empresaIdsPorUsuario(),
-  ]);
+  const [usuarios, apps, empresas, empresasPorUsuario] = await Promise.all([listarUsuarios(), listarAplicaciones(), listarEmpresas(), empresaIdsPorUsuario()]);
 
   const idsDelCatalogo = new Set(apps.map((a) => a.id));
-  const visibles = filtrarUsuarios(usuarios, filtros, idsDelCatalogo);
-  const activos = usuarios.filter((u) => u.activo);
-  const sinApps = activos.filter((u) => u.rol !== "admin" && appsAsignadasVigentes(u, idsDelCatalogo) === 0).length;
+  const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
+  const porOmision = empresas.find((e) => e.slug === SLUG_POR_OMISION);
 
-  // Tocar una cifra pone ESE filtro y quita los demás (menos la búsqueda): se lee como un solo selector.
-  const soloBusqueda: Record<string, string> = filtros.q ? { q: filtros.q } : {};
-  const hrefDe = (extra: Record<string, string>) => hrefConFiltros("/usuarios", soloBusqueda, extra);
-  const sinOtros = !filtros.sinApps && filtros.estado === "todos" && filtros.rol === "todos";
+  const filas: FilaUsuario[] = usuarios.map((u) => ({
+    id: u.id,
+    nombre: u.nombre,
+    correo: u.correo,
+    esAdmin: u.rol === "admin",
+    invitado: u.tipo === "invitado",
+    activo: u.activo,
+    esYo: u.id === admin.id,
+    apps: appsAsignadasVigentes(u, idsDelCatalogo),
+    empresas: (empresasPorUsuario.get(u.id) ?? []).map((id) => empresaPorId.get(id)).filter((e): e is Empresa => Boolean(e)).map(aMini),
+    ultimoIngreso: u.ultimo_ingreso ? haceCuanto(u.ultimo_ingreso) : "Nunca",
+  }));
 
   return (
     <div className="animar-entrada space-y-6">
       <EncabezadoAdmin
         titulo="Usuarios"
-        descripcion="Quién entra al Core, con qué rol, a qué aplicaciones y en qué empresas puede trabajar."
+        descripcion="Quién entra al Core y a qué. Toca a una persona para cambiar su acceso."
+        acciones={
+          <Link
+            href="/usuarios/nuevo"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-naranjo px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-naranjo-suave focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
+          >
+            <IconPlus size={17} stroke={2.2} aria-hidden /> Nuevo usuario
+          </Link>
+        }
       />
 
-      {errorAlCrear && (
-        <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
-          <p className="font-semibold">No se pudo crear el usuario completo.</p>
-          <p className="mt-0.5">{errorAlCrear}</p>
-        </div>
-      )}
-
-      <PanelDeCreacion titulo="Nuevo usuario" ayuda="Dale acceso a una persona de @pertec.cl: su rol, sus aplicaciones y sus empresas.">
-        <FormularioUsuario
-          accion={crearUsuarioAction}
-          todasLasApps={apps}
-          todasLasEmpresas={empresas}
-          textoBoton="Crear usuario"
-        />
-      </PanelDeCreacion>
-
-      <CifrasQueFiltran
-        etiqueta="Filtrar usuarios"
-        cifras={[
-          { clave: "todos", etiqueta: "Todos", valor: usuarios.length, href: hrefDe({}), activa: sinOtros },
-          { clave: "activos", etiqueta: "Activos", valor: activos.length, href: hrefDe({ estado: "activos" }), activa: filtros.estado === "activos" && !filtros.sinApps && filtros.rol === "todos" },
-          { clave: "inactivos", etiqueta: "Inactivos", valor: usuarios.length - activos.length, href: hrefDe({ estado: "inactivos" }), activa: filtros.estado === "inactivos" },
-          { clave: "admin", etiqueta: "Administradores", valor: usuarios.filter((u) => u.rol === "admin").length, href: hrefDe({ rol: "admin" }), activa: filtros.rol === "admin" },
-          { clave: "sin-apps", etiqueta: "Sin aplicaciones", valor: sinApps, href: hrefDe({ acceso: "sin-apps" }), activa: filtros.sinApps, tono: "aviso" },
-        ]}
+      <ListaDeUsuarios
+        filas={filas}
+        porOmision={porOmision ? aMini(porOmision) : null}
+        filtroInicial={filtroDeLaDireccion(parametros)}
+        busquedaInicial={typeof parametros.q === "string" ? parametros.q : ""}
       />
-
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <Buscador
-          accion="/usuarios"
-          placeholder="Buscar por nombre o correo"
-          valor={filtros.q}
-          conservar={parametrosDeUsuarios({ ...filtros, q: "" })}
-        />
-        <ResultadoDeFiltros
-          mostrados={visibles.length}
-          total={usuarios.length}
-          unidad="usuarios"
-          limpiarHref={hayFiltrosDeUsuarios(filtros) ? "/usuarios" : null}
-        />
-      </div>
-
-      {usuarios.length === 0 ? (
-        <SinResultados texto="Todavía no hay usuarios registrados." limpiarHref={null} />
-      ) : visibles.length === 0 ? (
-        <SinResultados texto="Ningún usuario calza con los filtros." limpiarHref="/usuarios" />
-      ) : (
-        <TablaDeUsuarios
-          usuarios={visibles}
-          totalDeApps={apps.length}
-          idsDelCatalogo={idsDelCatalogo}
-          empresaPorId={new Map(empresas.map((e) => [e.id, e]))}
-          empresasPorUsuario={empresasPorUsuario}
-          empresaPorOmision={empresas.find((e) => e.slug === SLUG_POR_OMISION)}
-          usuarioActualId={admin.id}
-          eliminar={eliminarUsuarioAction}
-        />
-      )}
     </div>
   );
 }

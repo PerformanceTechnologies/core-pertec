@@ -8,10 +8,11 @@ import { empresaIdsDeUsuario, listarEmpresas } from "@/lib/empresas";
 import { haceCuanto } from "@/lib/modulos-resumen-modelo";
 import { TARJETA } from "@/lib/estilos";
 import FormularioUsuario from "@/components/FormularioUsuario";
-import Avatar from "@/components/admin/Avatar";
 import EncabezadoAdmin from "@/components/admin/EncabezadoAdmin";
-import { actualizarUsuarioAction } from "../acciones";
+import BotonEliminar from "@/components/BotonEliminar";
+import { actualizarUsuarioAction, eliminarUsuarioAction } from "../acciones";
 
+/** La ficha de una persona: su acceso se cambia acá, y acá (al final, aparte) se elimina. */
 export default async function EditarUsuarioPage({
   params,
   searchParams,
@@ -19,7 +20,7 @@ export default async function EditarUsuarioPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
-  await exigirAdmin();
+  const admin = await exigirAdmin();
   const { id } = await params;
   const { error } = await searchParams;
   const [usuario, apps, subpanelesFinanzasAsignados, empresas, empresasAsignadas] = await Promise.all([
@@ -32,36 +33,24 @@ export default async function EditarUsuarioPage({
   if (!usuario) notFound();
 
   const accionConId = actualizarUsuarioAction.bind(null, id);
-  const esAdmin = usuario.rol === "admin";
+  const ingreso = usuario.ultimo_ingreso ? `Último ingreso ${haceCuanto(usuario.ultimo_ingreso)}` : "Todavía no ha entrado";
 
   return (
     <div className="animar-entrada space-y-6">
       <EncabezadoAdmin
         titulo={usuario.nombre || usuario.correo}
         rutaPadre={{ href: "/usuarios", nombre: "Usuarios" }}
-        descripcion="Cambia el rol, las aplicaciones y las empresas de esta persona. Los cambios valen desde su próxima página."
+        descripcion={`${usuario.nombre ? `${usuario.correo} · ` : ""}${ingreso}${usuario.activo ? "" : " · sin acceso"}`}
       />
 
       {error && (
-        <div role="alert" className="max-w-3xl rounded-xl border border-rose-500/30 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+        <div role="alert" className="max-w-4xl rounded-xl border border-rose-500/30 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
           <p className="font-semibold">No se pudieron guardar todos los cambios.</p>
           <p className="mt-0.5">{error}</p>
         </div>
       )}
 
-      <div className={`${TARJETA} max-w-3xl p-6 sm:p-7`}>
-        <div className="mb-7 flex flex-wrap items-center gap-4 border-b border-borde pb-6">
-          <Avatar nombre={usuario.nombre} correo={usuario.correo} admin={esAdmin} tamano="lg" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-tinta">{usuario.nombre || usuario.correo}</p>
-            {usuario.nombre && <p className="truncate text-sm text-tinta/65">{usuario.correo}</p>}
-            <p className="mt-1 text-xs text-tinta/60">
-              {usuario.activo ? "Cuenta activa" : "Cuenta inactiva"} ·{" "}
-              {usuario.ultimo_ingreso ? `último ingreso ${haceCuanto(usuario.ultimo_ingreso)}` : "todavía no ha entrado"}
-            </p>
-          </div>
-        </div>
-
+      <div className={`${TARJETA} max-w-4xl px-5 pt-6 sm:px-7 sm:pt-7`}>
         <FormularioUsuario
           accion={accionConId}
           todasLasApps={apps}
@@ -74,13 +63,30 @@ export default async function EditarUsuarioPage({
           cancelar={
             <Link
               href="/usuarios"
-              className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-tinta/70 transition hover:bg-tinta/5 hover:text-tinta focus-visible:outline focus-visible:outline-2 focus-visible:outline-naranjo"
+              className="inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-tinta/70 transition hover:bg-tinta/5 hover:text-tinta focus-visible:outline focus-visible:outline-2 focus-visible:outline-naranjo"
             >
               Cancelar
             </Link>
           }
         />
       </div>
+
+      {usuario.id !== admin.id && (
+        <div className="flex max-w-4xl flex-col gap-3 rounded-xl border border-borde px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div>
+            <p className="text-sm font-semibold text-tinta">Eliminar usuario</p>
+            <p className="text-xs leading-snug text-tinta/60">
+              Lo borra junto con sus accesos. Si solo quieres que no entre, apaga «Puede entrar al Core» y guarda.
+            </p>
+          </div>
+          <BotonEliminar
+            accion={eliminarUsuarioAction}
+            id={usuario.id}
+            nombre={usuario.nombre || usuario.correo}
+            mensajeConfirmacion={`¿Eliminar a "${usuario.correo}"? Pierde el acceso de inmediato y no se puede deshacer.`}
+          />
+        </div>
+      )}
     </div>
   );
 }
