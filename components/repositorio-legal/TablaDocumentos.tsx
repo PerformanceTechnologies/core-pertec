@@ -39,6 +39,9 @@ export interface PermisosCliente {
 
 type FiltroEstado = "todos" | "atencion" | Estado;
 
+/** Los selectores de la barra de filtros: el campo del Core, pero de su propio ancho (no toda la fila). */
+const SELECTOR = `${CAMPO.replace("w-full", "")} w-auto min-w-[9.5rem] flex-none`;
+
 /**
  * La tabla de documentos del Repositorio Legal: buscador, filtros (sociedad, categoría, estado,
  * formato), orden por fecha de emisión y las acciones de cada fila. Se usa en la ficha de una
@@ -172,7 +175,7 @@ export default function TablaDocumentos({
           <input className={`${CAMPO} pl-9`} placeholder="Buscar por nombre, tipo o carpeta…" value={texto} onChange={(e) => setTexto(e.target.value)} />
         </label>
         {!sociedadFija && (
-          <select className={`${CAMPO} w-auto`} value={sociedad} onChange={(e) => setSociedad(e.target.value)}>
+          <select className={SELECTOR} value={sociedad} onChange={(e) => setSociedad(e.target.value)}>
             <option value="todas">Todas las sociedades</option>
             {sociedades.map((s) => (
               <option key={s.slug} value={s.slug}>
@@ -182,7 +185,7 @@ export default function TablaDocumentos({
             <option value="sin">Sin sociedad</option>
           </select>
         )}
-        <select className={`${CAMPO} w-auto`} value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)}>
+        <select className={SELECTOR} value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)}>
           <option value="todos">Todos los estados</option>
           <option value="atencion">Vencidos y por vencer</option>
           {(Object.keys(ETIQUETA_ESTADO) as Estado[]).map((e) => (
@@ -191,7 +194,7 @@ export default function TablaDocumentos({
             </option>
           ))}
         </select>
-        <select className={`${CAMPO} w-auto`} value={formato} onChange={(e) => setFormato(e.target.value)}>
+        <select className={SELECTOR} value={formato} onChange={(e) => setFormato(e.target.value)}>
           <option value="todos">Todo formato</option>
           {formatos.map((f) => (
             <option key={f} value={f}>
@@ -199,7 +202,7 @@ export default function TablaDocumentos({
             </option>
           ))}
         </select>
-        <select className={`${CAMPO} w-auto`} value={orden} onChange={(e) => setOrden(e.target.value as typeof orden)}>
+        <select className={SELECTOR} value={orden} onChange={(e) => setOrden(e.target.value as typeof orden)}>
           <option value="emision">Más recientes primero</option>
           <option value="estado">Lo urgente primero</option>
           <option value="nombre">Por nombre</option>
@@ -223,7 +226,7 @@ export default function TablaDocumentos({
             <input key={id} type="hidden" name="id" value={id} />
           ))}
           <span className="text-sm font-semibold text-tinta">{elegidos.size} elegidos</span>
-          <input name="titulo" className={`${CAMPO} w-auto flex-1`} placeholder="Nombre del paquete (ej. Antecedentes Banco - nov 2026)" />
+          <input name="titulo" className={`${CAMPO.replace("w-full", "")} min-w-[14rem] flex-1`} placeholder="Nombre del paquete (ej. Antecedentes Banco - nov 2026)" />
           <button type="submit" className={BOTON_PRIMARIO}>
             <IconPackageExport size={17} stroke={1.75} /> Descargar ZIP
           </button>
