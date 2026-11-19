@@ -32,6 +32,6 @@ export async function guardarFirmaAction(_previo: EstadoFirma, form: FormData): 
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "No se pudo guardar la firma." };
   }
-  revalidatePath("/firma-correo");
+  revalidatePath("/mi-perfil");
   return { ok: true };
 }

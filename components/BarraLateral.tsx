@@ -315,12 +315,14 @@ export function BarraLateralVista({
             >
               {tema === "dark" ? <IconSun size={16} stroke={1.75} /> : <IconMoon size={16} stroke={1.75} />}
             </button>
-            <div
-              title={correo}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo"
+            <Link
+              href="/mi-perfil"
+              title={`${correo} · Mi perfil`}
+              aria-label="Mi perfil"
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo hover:bg-naranjo/25 ${FOCO}`}
             >
               {iniciales(correo)}
-            </div>
+            </Link>
             <form action={cerrarSesionAction}>
               <button
                 type="submit"
@@ -358,6 +360,8 @@ export function BarraLateralVista({
             </div>
 
             <div className="flex items-center gap-2.5 rounded-xl px-1 py-1">
+              {/* Tocar el nombre abre Mi perfil (por ahora, la firma de correo). */}
+              <Link href="/mi-perfil" title="Mi perfil" className={`-m-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-1 hover:bg-naranjo/10 ${TRANSICION} ${FOCO}`}>
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-naranjo/15 text-xs font-bold uppercase text-naranjo">
                 {iniciales(correo)}
               </div>
@@ -369,6 +373,7 @@ export function BarraLateralVista({
                   {esAdmin ? "Administrador" : "Usuario"}
                 </span>
               </div>
+              </Link>
               <form action={cerrarSesionAction}>
                 <button
                   type="submit"

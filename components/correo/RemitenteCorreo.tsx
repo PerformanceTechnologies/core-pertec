@@ -61,7 +61,7 @@ function LineaDeFirma() {
           {!firma.conFirma && <p className="text-xs text-gris">Agrega una imagen con tu nombre, cargo y datos: se pone sola al final de cada correo.</p>}
         </div>
         <a
-          href="/firma-correo"
+          href="/mi-perfil"
           target="_blank"
           rel="noopener"
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-tinta/[0.06] px-3.5 text-xs font-semibold text-tinta transition hover:bg-naranjo/10 hover:text-naranjo"
