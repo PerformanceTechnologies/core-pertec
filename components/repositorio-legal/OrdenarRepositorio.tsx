@@ -72,7 +72,8 @@ export default function OrdenarRepositorio({ sociedades, porOmisionInicial, opsI
     setError(null);
     setMensaje(null);
     iniciar(async () => {
-      const fin = await terminarOrden([]);
+      // Se pasan las carpetas de las sociedades para que nunca se borre una vacía a propósito (una recién creada).
+      const fin = await terminarOrden(sociedades.map((s) => s.carpeta));
       if (!fin.ok) return setError(fin.error);
       setMensaje(`${fin.carpetasBorradas} carpetas vacías eliminadas.`);
       router.refresh();
