@@ -344,7 +344,9 @@ export async function crearCarpeta(relativa: string): Promise<void> {
 export async function borrarCarpetasVacias(conservar: string[] = []): Promise<number> {
   const arbol = await leerArbol({ fresco: true });
   const conArchivos = new Set<string>();
-  for (const a of arbol.archivos) {
+  // Los archivos de sistema que dejan Mac y Windows (.DS_Store, Thumbs.db) no cuentan: una carpeta que
+  // solo tiene eso está vacía. Al borrarla, se van con ella a la papelera.
+  for (const a of arbol.archivos.filter((x) => !/^(\.ds_store|thumbs\.db|desktop\.ini)$/i.test(x.nombre))) {
     const partes = a.ruta.split("/");
     for (let i = 1; i < partes.length; i++) conArchivos.add(partes.slice(0, i).join("/"));
   }

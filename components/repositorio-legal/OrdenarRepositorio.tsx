@@ -67,6 +67,18 @@ export default function OrdenarRepositorio({ sociedades, porOmisionInicial, opsI
     };
   }
 
+  /** Solo la limpieza final: borra las carpetas que quedaron vacías (o con solo archivos de sistema). */
+  function limpiarCarpetas() {
+    setError(null);
+    setMensaje(null);
+    iniciar(async () => {
+      const fin = await terminarOrden([]);
+      if (!fin.ok) return setError(fin.error);
+      setMensaje(`${fin.carpetasBorradas} carpetas vacías eliminadas.`);
+      router.refresh();
+    });
+  }
+
   /** Primero se confirma en una ventana de la página (no la nativa del navegador, que algunos bloquean). */
   function pedirConfirmacion() {
     if (desactualizado) return setError("Cambiaste opciones: vuelve a calcular el plan antes de aplicarlo.");
@@ -193,7 +205,10 @@ export default function OrdenarRepositorio({ sociedades, porOmisionInicial, opsI
             <input type="checkbox" checked={versiones} onChange={(e) => cambiar<boolean>(setVersiones)(e.target.checked)} />
             También eliminar las <span className="font-semibold">versiones anteriores</span> de un mismo documento (por ejemplo, certificados de vigencia viejos cuando hay uno más nuevo).
           </label>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={limpiarCarpetas} disabled={calculando || Boolean(avance)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-tinta/[0.06] px-4 text-sm font-semibold text-tinta hover:bg-tinta/[0.1] disabled:opacity-50">
+              <IconTrash size={16} /> Borrar carpetas vacías
+            </button>
             <button type="button" onClick={recalcular} disabled={calculando} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-tinta/[0.06] px-4 text-sm font-semibold text-tinta hover:bg-tinta/[0.1] disabled:opacity-50">
               <IconRefresh size={16} className={calculando ? "animate-spin" : ""} /> {calculando ? "Calculando…" : "Calcular plan"}
             </button>
