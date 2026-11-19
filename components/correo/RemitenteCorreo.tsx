@@ -51,27 +51,29 @@ function LineaDeFirma() {
   // Una tarjeta y no una línea suelta: la firma es lo que más se ve del correo después del mensaje,
   // y quien envía tiene que poder ver cuál va antes de mandarlo.
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-superficie px-3 py-2.5">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-naranjo/10 text-naranjo">
-        <IconSignature size={19} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-tinta">{firma.conFirma ? "Va con tu firma de correo" : "Sin firma de correo"}</p>
-        {firma.conFirma ? (
-          // eslint-disable-next-line @next/next/no-img-element -- la firma propia, servida por el Core
-          <img src={`/api/firma-correo?v=${firma.version}`} alt="Tu firma" className="mt-1.5 block h-auto max-h-20 max-w-full rounded border border-borde/60 bg-white" />
-        ) : (
-          <p className="text-xs text-gris">Agrega una imagen con tu nombre, cargo y datos: se pone sola al final de cada correo.</p>
-        )}
+    <div className="rounded-xl border border-borde bg-superficie p-3">
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-naranjo/10 text-naranjo">
+          <IconSignature size={19} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-tinta">{firma.conFirma ? "Va con tu firma de correo" : "Sin firma de correo"}</p>
+          {!firma.conFirma && <p className="text-xs text-gris">Agrega una imagen con tu nombre, cargo y datos: se pone sola al final de cada correo.</p>}
+        </div>
+        <a
+          href="/firma-correo"
+          target="_blank"
+          rel="noopener"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-tinta/[0.06] px-3.5 text-xs font-semibold text-tinta transition hover:bg-naranjo/10 hover:text-naranjo"
+        >
+          {firma.conFirma ? "Cambiar" : "Agregar firma"}
+        </a>
       </div>
-      <a
-        href="/firma-correo"
-        target="_blank"
-        rel="noopener"
-        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-tinta/[0.06] px-3.5 text-xs font-semibold text-tinta transition hover:bg-naranjo/10 hover:text-naranjo"
-      >
-        {firma.conFirma ? "Cambiar firma" : "Agregar firma"}
-      </a>
+      {firma.conFirma && (
+        // La imagen a su tamaño (hasta el ancho de la tarjeta): es como la va a ver el destinatario.
+        // eslint-disable-next-line @next/next/no-img-element -- la firma propia, servida por el Core
+        <img src={`/api/firma-correo?v=${firma.version}`} alt="Tu firma" className="mt-3 block h-auto w-full max-w-[600px] rounded-lg border border-borde/60 bg-white" />
+      )}
     </div>
   );
 }
