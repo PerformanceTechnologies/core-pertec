@@ -1,5 +1,6 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerAccessToken, SinCredencialesDeGraph, tokenDeAplicacion } from "@/lib/contratos/graph-credenciales";
 import type { ArchivoCrudo } from "./modelo";
@@ -169,13 +170,46 @@ async function recorrer(g: Client): Promise<Arbol> {
 let memoria: { arbol: Arbol; en: number } | null = null;
 const VIDA_MS = 60_000;
 
+const ETIQUETA_ARBOL = "repositorio-legal-arbol";
+
 export function olvidarArbol(): void {
   memoria = null;
+  // También el caché compartido entre servidores: vence al tiro, para que lo recién subido o
+  // movido se vea en la página siguiente. Solo vale en acciones y rutas (desde donde se llama).
+  try {
+    revalidateTag(ETIQUETA_ARBOL, { expire: 0 });
+  } catch (e) {
+    console.warn("[repositorio-legal] No se pudo vaciar el caché del árbol:", e instanceof Error ? e.message : e);
+  }
 }
+
+/**
+ * El árbol en el caché de datos de Next: el MISMO para todos los servidores de Vercel. La memoria de
+ * arriba es de cada instancia, y Vercel reparte las visitas entre muchas que nacen y mueren, así que
+ * la primera carga en cada una recorría todo SharePoint (unos 3 s).
+ *
+ * Se lee con la app y no con la persona: adentro del caché no hay sesión. No cambia lo que se ve: el
+ * árbol ya era uno solo para todos (la memoria no distingue persona) y lo que cada uno puede ver lo
+ * filtra después puedeVerDocumento. Si la app no puede leer, se cae al camino de siempre.
+ */
+const arbolCompartido = unstable_cache(async () => conGraph(recorrer, true), [ETIQUETA_ARBOL, "v1"], {
+  revalidate: VIDA_MS / 1000,
+  tags: [ETIQUETA_ARBOL],
+});
 
 export async function leerArbol(opciones: { soloApp?: boolean; fresco?: boolean } = {}): Promise<Arbol> {
   if (!opciones.fresco && memoria && Date.now() - memoria.en < VIDA_MS) return memoria.arbol;
-  const arbol = await conGraph(recorrer, opciones.soloApp);
+  let arbol: Arbol;
+  if (opciones.fresco) {
+    arbol = await conGraph(recorrer, opciones.soloApp);
+  } else {
+    try {
+      arbol = await arbolCompartido();
+    } catch (e) {
+      console.warn("[repositorio-legal] El caché compartido no pudo leer SharePoint con la app; se lee como siempre:", e instanceof Error ? e.message : e);
+      arbol = await conGraph(recorrer, opciones.soloApp);
+    }
+  }
   memoria = { arbol, en: Date.now() };
   return arbol;
 }

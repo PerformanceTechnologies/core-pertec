@@ -4,7 +4,8 @@ import { exigirAccesoApp } from "@/lib/autorizacion";
 import { permisosDe } from "@/lib/repositorio-legal/datos";
 import { SLUG_REPOSITORIO_LEGAL } from "@/lib/repositorio-legal/modelo";
 
-export const dynamic = "force-dynamic";
+// Sin `dynamic = "force-dynamic"`: la sesión ya hace dinámica la página, y esa marca apagaba el
+// caché compartido del árbol de SharePoint (ver leerArbol en lib/repositorio-legal/sharepoint.ts).
 
 export default async function LayoutRepositorioLegal({ children }: { children: React.ReactNode }) {
   const usuario = await exigirAccesoApp(SLUG_REPOSITORIO_LEGAL);
