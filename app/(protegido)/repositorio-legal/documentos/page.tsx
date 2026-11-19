@@ -24,7 +24,7 @@ export default async function DocumentosLegales({ searchParams }: { searchParams
       <TablaDocumentos
         // La key reinicia los filtros cuando se llega con otros por la URL.
         key={`${estadoInicial}|${sociedadInicial}|${categoriaInicial}`}
-        documentos={repo.documentos}
+        documentos={repo.documentos.filter((d) => d.area !== "revisar")}
         sociedades={repo.sociedades}
         carpetas={repo.carpetas}
         permisos={{ subir: permisos.subir, editar: permisos.editar }}

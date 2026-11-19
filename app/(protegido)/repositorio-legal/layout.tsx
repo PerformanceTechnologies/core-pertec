@@ -1,12 +1,14 @@
 import { IconBrandOnedrive, IconScale } from "@tabler/icons-react";
 import NavRepositorio from "@/components/repositorio-legal/NavRepositorio";
 import { exigirAccesoApp } from "@/lib/autorizacion";
+import { permisosDe } from "@/lib/repositorio-legal/datos";
 import { SLUG_REPOSITORIO_LEGAL } from "@/lib/repositorio-legal/modelo";
 
 export const dynamic = "force-dynamic";
 
 export default async function LayoutRepositorioLegal({ children }: { children: React.ReactNode }) {
-  await exigirAccesoApp(SLUG_REPOSITORIO_LEGAL);
+  const usuario = await exigirAccesoApp(SLUG_REPOSITORIO_LEGAL);
+  const { confidencial: esAdmin } = await permisosDe(usuario);
   return (
     <div className="animar-entrada">
       <header className="mb-5 flex flex-wrap items-center gap-3">
@@ -22,7 +24,7 @@ export default async function LayoutRepositorioLegal({ children }: { children: R
           <IconBrandOnedrive size={14} /> SharePoint · Antecedentes legales
         </span>
       </header>
-      <NavRepositorio />
+      <NavRepositorio esAdmin={esAdmin} />
       <div className="escalonar">{children}</div>
     </div>
   );

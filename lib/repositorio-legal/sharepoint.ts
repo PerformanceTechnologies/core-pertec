@@ -314,3 +314,66 @@ export async function eliminar(id: string): Promise<void> {
   });
   olvidarArbol();
 }
+
+// ---------- Ordenar el repositorio ------------------------------------------------
+
+/** Mueve y renombra en un solo paso (crea la carpeta de destino si falta). */
+export async function moverYRenombrar(id: string, carpetaDestino: string, nombre: string): Promise<void> {
+  await conGraph(async (g) => {
+    const s = await sitio(g);
+    await exigirDentro(g, s, id);
+    const destino = await asegurarCarpeta(g, s, carpetaDestino);
+    await g.api(`/sites/${s}/drive/items/${encodeURIComponent(id)}`).patch({ parentReference: { id: destino }, name: rutaSegura(nombre).replace(/\//g, "_"), "@microsoft.graph.conflictBehavior": "rename" });
+  });
+}
+
+/** Crea una carpeta (y las que falten antes) dentro del repositorio. */
+export async function crearCarpeta(relativa: string): Promise<void> {
+  await conGraph(async (g) => {
+    const s = await sitio(g);
+    await asegurarCarpeta(g, s, relativa);
+  });
+  olvidarArbol();
+}
+
+/**
+ * Borra (a la papelera) las carpetas que quedaron sin archivos después de ordenar, de abajo hacia arriba.
+ * Nunca toca la raíz de SOCIEDADES, la de POR REVISAR ni la de la malla, ni las de `conservar` (las
+ * sociedades recién creadas, que están vacías a propósito).
+ */
+export async function borrarCarpetasVacias(conservar: string[] = []): Promise<number> {
+  const arbol = await leerArbol({ fresco: true });
+  const conArchivos = new Set<string>();
+  for (const a of arbol.archivos) {
+    const partes = a.ruta.split("/");
+    for (let i = 1; i < partes.length; i++) conArchivos.add(partes.slice(0, i).join("/"));
+  }
+  const protegidas = new Set(conservar.map((c) => c.toLowerCase()));
+  const esProtegida = (c: string) => {
+    const p = c.split("/");
+    const raiz = p[0].toLowerCase();
+    if (p.length === 1 && (raiz === "sociedades" || raiz === "por revisar" || raiz === "malla societaria")) return true;
+    // La carpeta vacía de una sociedad se borra (quedó vacía porque se renombró), salvo las recién creadas.
+    return protegidas.has(c.toLowerCase());
+  };
+  // Las más profundas primero; si se borra una carpeta, sus hijas se van con ella.
+  const vacias = arbol.carpetas.filter((c) => !conArchivos.has(c) && !esProtegida(c)).sort((a, b) => b.split("/").length - a.split("/").length);
+  const borradas: string[] = [];
+  await conGraph(async (g) => {
+    const s = await sitio(g);
+    for (const c of vacias) {
+      if (borradas.some((b) => c.startsWith(`${b}/`))) continue;
+      // Una carpeta vacía cuyo padre también queda vacío: basta con borrar el padre.
+      const padre = c.split("/").slice(0, -1).join("/");
+      if (padre && vacias.includes(padre)) continue;
+      try {
+        await g.api(`/sites/${s}/drive/root:/${codificar(`${carpetaRaiz()}/${c}`)}`).delete();
+        borradas.push(c);
+      } catch (e) {
+        if ((e as { statusCode?: number })?.statusCode !== 404) throw e;
+      }
+    }
+  });
+  olvidarArbol();
+  return borradas.length;
+}

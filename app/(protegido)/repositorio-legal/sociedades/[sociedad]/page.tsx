@@ -62,7 +62,7 @@ export default async function FichaDeSociedad({ params }: { params: Promise<{ so
       </Seccion>
 
       <Seccion titulo={`Documentos · ${r.documentos}`} icono={<IconFiles size={15} />}>
-        <TablaDocumentos documentos={repo.documentos.filter((d) => d.sociedad === s.slug)} sociedades={repo.sociedades} carpetas={repo.carpetas} permisos={{ subir: permisos.subir, editar: permisos.editar }} sociedadFija={s.slug} />
+        <TablaDocumentos documentos={repo.documentos.filter((d) => d.sociedad === s.slug && d.area !== "revisar")} sociedades={repo.sociedades} carpetas={repo.carpetas} permisos={{ subir: permisos.subir, editar: permisos.editar }} sociedadFija={s.slug} />
       </Seccion>
     </div>
   );

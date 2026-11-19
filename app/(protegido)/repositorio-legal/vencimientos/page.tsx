@@ -14,7 +14,7 @@ export default async function VencimientosLegales() {
       <p className="mb-4 text-sm text-gris">
         La vigencia se calcula desde la <span className="font-semibold text-tinta">fecha de emisión</span> según el tipo de documento (por ejemplo, un certificado de vigencia vale 60 días). «Por vencer» es a {DIAS_AVISO_LEGAL} días o menos. Solo cuenta el documento más reciente de cada tipo: los anteriores quedan como «Reemplazado».
       </p>
-      <TablaDocumentos documentos={repo.documentos} sociedades={repo.sociedades} carpetas={repo.carpetas} permisos={{ subir: permisos.subir, editar: permisos.editar }} estadoInicial="atencion" />
+      <TablaDocumentos documentos={repo.documentos.filter((d) => d.area !== "revisar")} sociedades={repo.sociedades} carpetas={repo.carpetas} permisos={{ subir: permisos.subir, editar: permisos.editar }} estadoInicial="atencion" />
     </Seccion>
   );
 }

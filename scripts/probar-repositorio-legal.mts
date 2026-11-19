@@ -19,6 +19,7 @@ import {
   tituloSinFechas,
   type ArchivoCrudo,
 } from "../lib/repositorio-legal/modelo";
+import { cortarEnPalabra, limpiarNombre, planDeOrden, resumirPlan } from "../lib/repositorio-legal/orden";
 
 const hoy = new Date("2026-11-19T12:00:00");
 
@@ -112,5 +113,39 @@ assert.equal(c.vencidos, requierenAtencion(conHuerfano).filter((d) => d.estado =
 assert.equal(ocultoEnElCore({ tipo: "malla", ruta: "Malla Societaria/Malla.png" }), true);
 assert.equal(ocultoEnElCore({ tipo: "otro", ruta: "SOLICITUDES DE ANTECEDENTES/X/Malla Societaria/Estructura.docx" }), true);
 assert.equal(ocultoEnElCore({ tipo: "constitucion", ruta: "SOCIEDADES/Legales X/Estatutos.pdf" }), false);
+
+// Fecha ISO (no se lee «25-10-08» como 2008)
+assert.equal(fechasDelNombre("Imagen de WhatsApp 2025-10-08 a las 16.33.33.jpg").emision, "2025-10-08");
+
+// Ordenar: copias, vacíos, no legal, nombre desde la copia mejor descrita, renombrar sociedad y estabilidad
+const crudos: ArchivoCrudo[] = [
+  a("o1", "SOCIEDADES/Legales EJEMPLO UNO SPA/MOD. Inscripcion. EU.pdf", "m1"),
+  a("o2", "SOLICITUDES DE ANTECEDENTES/ABOGADO/Copia Inscripcion Registro de Comercio - Modificacion Estatutos - 15-06-2022.pdf", "m1"),
+  a("o3", "SOLICITUDES DE ANTECEDENTES/BANCO/Formulario 29 IVA - Agosto 2025.pdf", "f1"),
+  a("o4", "SOCIEDADES/Legales EJEMPLO UNO SPA/vacio.txt", "e"),
+  a("o5", "SOCIEDADES/Legales OTRA COSA LIMITADA/vacio.txt", "e"),
+  a("o6", "SOLICITUDES DE ANTECEDENTES/BANCO/Cotizacion 123 Cliente.pdf", "c1"),
+  a("o7", "Malla Societaria/Malla.png", "mm"),
+  a("o8", "SOLICITUDES DE ANTECEDENTES/X/Malla Societaria/Organigrama.png", "mm"),
+];
+crudos.find((x) => x.id === "o4")!.tamano = 0;
+crudos.find((x) => x.id === "o5")!.tamano = 0;
+const docsOrden = armarDocumentos(crudos, soc, hoy, "ejemplo-uno-spa");
+const plan = planDeOrden(docsOrden, soc, { carpetas: { "ejemplo-uno-spa": "Ejemplo Nuevo SpA" } });
+const op = Object.fromEntries(plan.map((o) => [o.id, o]));
+assert.equal(op.o2.accion, "eliminar");
+assert.equal(op.o1.accion, "mover");
+assert.equal(op.o1.destino, "SOCIEDADES/Ejemplo Nuevo SpA/Constitución y estatutos", "renombrar la sociedad = otra carpeta");
+assert.match(op.o1.nombre!, /Emitido 15-06-2022\.pdf$/, "la fecha sale de la copia mejor descrita");
+assert.equal(op.o3.nombre, "F29 IVA - Agosto 2025.pdf");
+assert.equal(op.o3.destino, "SOCIEDADES/Ejemplo Nuevo SpA/SII y tributario");
+assert.equal(op.o4.accion, "eliminar");
+assert.match(op.o4.motivo, /vacío/);
+assert.equal(op.o6.accion, "revisar");
+assert.equal(op.o7.accion, "mantener");
+assert.equal(op.o8.accion, "eliminar", "la copia de la malla se va");
+assert.equal(resumirPlan(plan).eliminar, 4);
+assert.equal(cortarEnPalabra("Liquidaciones de Remuneracion - Persona - Marzo 2024 a Marzo 2025", 60), "Liquidaciones de Remuneracion - Persona - Marzo 2024 a Marzo");
+assert.equal(limpiarNombre("Certificado E-RUT EJEMPLO UNO SPA - Emitido 26-09-2024 (copia 2)", soc[0]), "Certificado E-RUT");
 
 console.log("probar-repositorio-legal: todo OK");

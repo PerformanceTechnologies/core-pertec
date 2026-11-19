@@ -77,6 +77,8 @@ export class SinPermisoLegal extends Error {
 }
 
 export interface Repositorio {
+  /** La sociedad a la que se asignó lo que no dice de quién es (null: a ninguna). */
+  porOmision: string | null;
   sociedades: SociedadBase[];
   documentos: Documento[];
   /** Carpetas existentes (para mover y para elegir dónde subir). */
@@ -86,7 +88,7 @@ export interface Repositorio {
 }
 
 /** Todo el repositorio, sin filtrar por persona (para el cron, con la app del Core). */
-export async function cargarRepositorioCompleto(opciones: { soloApp?: boolean; fresco?: boolean } = {}): Promise<Repositorio> {
+export async function cargarRepositorioCompleto(opciones: { soloApp?: boolean; fresco?: boolean; incluirOcultos?: boolean; porOmision?: string | null } = {}): Promise<Repositorio> {
   const arbol = await leerArbol(opciones);
   const carpetasDeSociedades = arbol.carpetas.filter((c) => {
     const p = c.split("/");
@@ -95,9 +97,10 @@ export async function cargarRepositorioCompleto(opciones: { soloApp?: boolean; f
   const sociedades = sociedadesDe(carpetasDeSociedades.map((c) => c.split("/")[1]));
   // Lo que no dice de qué sociedad es (las solicitudes armadas para PERTEC, por ejemplo) va a la
   // sociedad por omisión, si está configurada. El slug va en una variable y no en el código: el repo es público.
-  const porOmision = (process.env.REPOSITORIO_LEGAL_SOCIEDAD_POR_OMISION || "").trim() || null;
+  const porOmision = opciones.porOmision !== undefined ? opciones.porOmision : (process.env.REPOSITORIO_LEGAL_SOCIEDAD_POR_OMISION || "").trim() || null;
   // La malla societaria se queda en SharePoint: el Core no la muestra.
-  const documentos = armarDocumentos(arbol.archivos, sociedades, new Date(), porOmision).filter((d) => !ocultoEnElCore(d));
+  const todos = armarDocumentos(arbol.archivos, sociedades, new Date(), porOmision);
+  const documentos = opciones.incluirOcultos ? todos : todos.filter((d) => !ocultoEnElCore(d));
 
   const paquetesMap = new Map<string, { nombre: string; carpeta: string; documentos: number; ultimo: string | null }>();
   for (const d of documentos) {
@@ -109,7 +112,7 @@ export async function cargarRepositorioCompleto(opciones: { soloApp?: boolean; f
     paquetesMap.set(carpeta, p);
   }
 
-  return { sociedades, documentos, carpetas: arbol.carpetas, paquetes: [...paquetesMap.values()].sort((a, b) => a.carpeta.localeCompare(b.carpeta, "es")) };
+  return { porOmision, sociedades, documentos, carpetas: arbol.carpetas, paquetes: [...paquetesMap.values()].sort((a, b) => a.carpeta.localeCompare(b.carpeta, "es")) };
 }
 
 /** El repositorio tal como lo ve esta persona (sin lo confidencial o restringido que no le toca). */

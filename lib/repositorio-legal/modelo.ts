@@ -171,7 +171,10 @@ function ultimoDiaDelMes(a: number, m: number): string {
 
 /** «dd-mm-aaaa», «d.m.aa», «ddmmaaaa» → aaaa-mm-dd. */
 function leerFecha(texto: string): string | null {
-  let m = texto.match(/(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})/);
+  // ISO primero (aaaa-mm-dd, como en «Imagen de WhatsApp 2025-10-08»): si no, «25-10-08» se leería como 2008.
+  let m = texto.match(/(?<!\d)(20\d{2})-(\d{2})-(\d{2})(?!\d)/);
+  if (m) return iso(+m[1], +m[2], +m[3]);
+  m = texto.match(/(?<!\d)(\d{1,2})[-./](\d{1,2})[-./](\d{4}|\d{2})(?!\d)/);
   if (m) return iso(+m[3], +m[2], +m[1]);
   m = texto.match(/\b(\d{2})(\d{2})(20\d{2})\b/);
   if (m) return iso(+m[3], +m[2], +m[1]);
@@ -304,6 +307,12 @@ export function esCarpetaDeSolicitudes(primerNivel: string): boolean {
   return /solicitud|pedido/i.test(normalizar(primerNivel));
 }
 
+/** La carpeta de primer nivel con lo que hay que revisar (no es documentación legal, o no se sabe de quién es). */
+export function esCarpetaDePorRevisar(primerNivel: string): boolean {
+  return /^por revisar$/.test(normalizar(primerNivel));
+}
+export const esCarpetaPorRevisar = esCarpetaDePorRevisar;
+
 /** La carpeta de primer nivel donde viven las sociedades. */
 export function esCarpetaDeSociedades(primerNivel: string): boolean {
   return /^sociedades?$/.test(normalizar(primerNivel));
@@ -389,7 +398,7 @@ export interface ArchivoCrudo {
 
 export interface Documento extends ArchivoCrudo {
   carpeta: string;
-  area: "sociedades" | "solicitudes" | "otros";
+  area: "sociedades" | "solicitudes" | "revisar" | "otros";
   /** El paquete al que pertenece (solo en solicitudes): «BANCOCHILE», «IST»… */
   paquete: string | null;
   sociedad: string | null;
@@ -450,7 +459,7 @@ export function armarDocumentos(
       const partes = a.ruta.split("/");
       const primer = partes[0] ?? "";
       const carpeta = partes.slice(0, -1).join("/");
-      const area: Documento["area"] = esCarpetaDeSociedades(primer) ? "sociedades" : esCarpetaDeSolicitudes(primer) ? "solicitudes" : "otros";
+      const area: Documento["area"] = esCarpetaDeSociedades(primer) ? "sociedades" : esCarpetaDeSolicitudes(primer) ? "solicitudes" : esCarpetaPorRevisar(primer) ? "revisar" : "otros";
       let sociedad: SociedadBase | null = null;
       if (area === "sociedades" && partes.length > 2) sociedad = porCarpeta.get(normalizar(partes[1])) ?? null;
       if (!sociedad) {
@@ -469,7 +478,10 @@ export function armarDocumentos(
       const tipo = reconocerTipo(a.nombre, carpeta);
       const { emision, vence: venceExplicito } = fechasDelNombre(a.nombre);
       const vence = calcularVencimiento(tipo, emision, venceExplicito);
-      const categoria: Categoria = /malla/i.test(primer) ? "grupo" : tipo.categoria;
+      // La subcarpeta de la sociedad dice la categoría («SOCIEDADES/X/SII y tributario/…»): así un archivo que
+      // alguien movió a mano en SharePoint queda donde lo dejó.
+      const deCarpeta = area === "sociedades" && partes.length > 3 ? CATEGORIAS.find((c) => normalizar(c.nombre) === normalizar(partes[2]))?.id : undefined;
+      const categoria: Categoria = /malla/i.test(primer) ? "grupo" : deCarpeta ?? tipo.categoria;
 
       let copiaDe: string | null = null;
       if (a.hash) {
@@ -524,8 +536,8 @@ export function ocultoEnElCore(d: Pick<Documento, "tipo" | "ruta">): boolean {
 }
 
 /** Lo que cuenta en las cifras y alertas: sin copias y con sociedad (lo demás no tiene a quién avisarle). */
-export function cuentaParaCifras(d: Pick<Documento, "copiaDe" | "sociedad">): boolean {
-  return !d.copiaDe && Boolean(d.sociedad);
+export function cuentaParaCifras(d: Pick<Documento, "copiaDe" | "sociedad" | "area">): boolean {
+  return !d.copiaDe && Boolean(d.sociedad) && d.area !== "revisar";
 }
 
 export interface Cifras {
@@ -567,7 +579,7 @@ export interface DocumentoClave {
 
 /** Los documentos clave de una sociedad: cuál está, cuál falta y cuál venció. */
 export function documentosClave(docs: Documento[], sociedad: string): DocumentoClave[] {
-  const propios = docs.filter((d) => d.sociedad === sociedad && !d.copiaDe);
+  const propios = docs.filter((d) => d.sociedad === sociedad && !d.copiaDe && d.area !== "revisar");
   return DOCUMENTOS_CLAVE.map((id) => {
     const tipo = TIPO_POR_ID[id];
     // Inscripción: sirve tanto la simple como la que trae vigencia.
@@ -592,7 +604,7 @@ export interface ResumenSociedad {
 }
 
 export function resumirSociedad(docs: Documento[], sociedad: string): ResumenSociedad {
-  const propios = docs.filter((d) => d.sociedad === sociedad && !d.copiaDe);
+  const propios = docs.filter((d) => d.sociedad === sociedad && !d.copiaDe && d.area !== "revisar");
   const clave = documentosClave(docs, sociedad);
   return {
     documentos: propios.length,

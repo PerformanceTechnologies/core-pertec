@@ -7,6 +7,7 @@ import VentanaModal from "@/components/contratos/VentanaModal";
 import { BOTON_PRIMARIO, CAMPO } from "@/lib/estilos";
 import {
   CATEGORIAS,
+  NOMBRE_CATEGORIA,
   describirRegla,
   extension,
   fechasDelNombre,
@@ -89,7 +90,7 @@ export default function SubirDocumento({
         .catch(() => ({ error: "No se pudo conectar con el Core." }));
 
     setAvance(0);
-    const sesion = await pedir({ paso: "abrir", carpeta: soc ? `SOCIEDADES/${soc.carpeta}` : "", nombre: nombreFinal, reemplazaId: reemplaza?.id ?? null });
+    const sesion = await pedir({ paso: "abrir", carpeta: soc ? `SOCIEDADES/${soc.carpeta}/${NOMBRE_CATEGORIA[tipo.categoria]}` : "", nombre: nombreFinal, reemplazaId: reemplaza?.id ?? null });
     if (!sesion?.url) {
       setAvance(null);
       return setError(sesion?.error ?? "SharePoint no abrió la subida.");
