@@ -53,12 +53,12 @@ export default function EditorDeFirma({
 
       <div>
         <span className="mb-1 block text-xs font-semibold text-gris">Así se ve al final de tus correos</span>
-        <div className="rounded-2xl border border-borde bg-white p-4 text-[14px] leading-relaxed text-[#171411]">
+        <div className="overflow-hidden rounded-2xl border border-borde bg-white p-4 text-[14px] leading-relaxed text-[#171411]">
           <p className="mb-3">Estimado/a, adjunto la cotización solicitada.</p>
           <p className="mb-1 text-[#8c8578]">…</p>
           {mostrada ? (
             // eslint-disable-next-line @next/next/no-img-element -- vista previa de un data URL o un blob local
-            <img src={mostrada} alt="Tu firma" className="mt-2 block h-auto max-w-full" style={{ maxWidth: 600 }} />
+            <img src={mostrada} alt="Tu firma" className="mt-2 block h-auto w-full max-w-[600px] object-contain object-left" />
           ) : (
             <p className="mt-2 text-[13px] italic text-[#8c8578]">Sin firma</p>
           )}
