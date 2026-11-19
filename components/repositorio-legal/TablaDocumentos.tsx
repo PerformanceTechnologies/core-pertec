@@ -98,6 +98,9 @@ export default function TablaDocumentos({
       if (sociedad !== "todas" && (sociedad === "sin" ? d.sociedad : d.sociedad !== sociedad)) return false;
       if (categoria !== "todas" && d.categoria !== categoria) return false;
       if (estado === "atencion" ? !(d.estado === "vencido" || d.estado === "por_vencer") : estado !== "todos" && d.estado !== estado) return false;
+      // Vencidos y por vencer con la MISMA regla que las cifras y las alertas: solo lo que tiene sociedad.
+      // Un F29 viejo de una solicitud sin dueño no es algo que haya que renovar.
+      if ((estado === "atencion" || estado === "vencido" || estado === "por_vencer") && !d.sociedad) return false;
       if (formato !== "todos" && d.extension !== formato) return false;
       if (q) {
         const hay = `${d.nombre} ${d.tipoNombre} ${d.ruta}`
