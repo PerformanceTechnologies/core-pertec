@@ -1,7 +1,9 @@
 import Link from "next/link";
 import ErrorSharePoint from "@/components/repositorio-legal/ErrorSharePoint";
 import { pesoLegible } from "@/components/repositorio-legal/Visual";
-import { TARJETA } from "@/lib/estilos";
+import { IconPackageExport } from "@tabler/icons-react";
+import { Seccion, Vacio } from "@/components/fin/piezas";
+import { HOJA } from "@/components/repositorio-legal/Resumen";
 import { datosDePagina } from "@/lib/repositorio-legal/pagina";
 import { formatearFecha, RUTA_REPOSITORIO_LEGAL } from "@/lib/repositorio-legal/modelo";
 
@@ -14,19 +16,20 @@ export default async function SolicitudesLegales() {
   const { repo, error } = await datosDePagina();
   if (!repo) return <ErrorSharePoint mensaje={error ?? ""} volver={`${RUTA_REPOSITORIO_LEGAL}/solicitudes`} />;
   return (
-    <div className="space-y-4">
-      <div className={`${TARJETA} p-4 text-sm text-gris`}>
+    <Seccion titulo={`Paquetes enviados · ${repo.paquetes.length}`} icono={<IconPackageExport size={15} />}>
+      <div className="space-y-4">
+      <div className={`${HOJA} border-naranjo/30 bg-naranjo/[0.04] p-4 text-sm text-gris`}>
         ¿Te pidieron antecedentes? Ve a{" "}
         <Link href={`${RUTA_REPOSITORIO_LEGAL}/documentos`} className="font-semibold text-naranjo hover:underline">
           Documentos
         </Link>
         , marca los que necesitas (de una o varias sociedades) y descarga el paquete en ZIP, ordenado por sociedad.
       </div>
-      {repo.paquetes.length === 0 && <p className="text-sm text-gris">No hay paquetes históricos.</p>}
+      {repo.paquetes.length === 0 && <Vacio titulo="No hay paquetes enviados" texto="Los paquetes que armes y envíes quedan en la carpeta SOLICITUDES DE ANTECEDENTES de SharePoint." />}
       {repo.paquetes.map((p) => {
         const docs = repo.documentos.filter((d) => d.ruta.startsWith(`${p.carpeta}/`));
         return (
-          <details key={p.carpeta} className={`${TARJETA} group p-4`}>
+          <details key={p.carpeta} className={`${HOJA} group p-4`}>
             <summary className="flex cursor-pointer list-none items-center gap-3">
               <span className="font-condensed text-lg font-bold uppercase text-tinta">{p.nombre}</span>
               <span className="text-xs text-gris">
@@ -49,6 +52,7 @@ export default async function SolicitudesLegales() {
           </details>
         );
       })}
-    </div>
+      </div>
+    </Seccion>
   );
 }

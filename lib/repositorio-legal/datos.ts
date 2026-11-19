@@ -8,6 +8,7 @@ import {
   armarDocumentos,
   esCarpetaDeSociedades,
   esRolRepositorio,
+  ocultoEnElCore,
   puedeEnRepositorio,
   puedeVerDocumento,
   sociedadesDe,
@@ -95,7 +96,8 @@ export async function cargarRepositorioCompleto(opciones: { soloApp?: boolean; f
   // Lo que no dice de qué sociedad es (las solicitudes armadas para PERTEC, por ejemplo) va a la
   // sociedad por omisión, si está configurada. El slug va en una variable y no en el código: el repo es público.
   const porOmision = (process.env.REPOSITORIO_LEGAL_SOCIEDAD_POR_OMISION || "").trim() || null;
-  const documentos = armarDocumentos(arbol.archivos, sociedades, new Date(), porOmision);
+  // La malla societaria se queda en SharePoint: el Core no la muestra.
+  const documentos = armarDocumentos(arbol.archivos, sociedades, new Date(), porOmision).filter((d) => !ocultoEnElCore(d));
 
   const paquetesMap = new Map<string, { nombre: string; carpeta: string; documentos: number; ultimo: string | null }>();
   for (const d of documentos) {

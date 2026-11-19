@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import {
   armarDocumentos,
   calcularEstado,
+  cifrasDe,
+  ocultoEnElCore,
+  requierenAtencion,
   documentosClave,
   fechasDelNombre,
   nombreAlSubir,
@@ -89,5 +92,25 @@ assert.equal(puedeEnRepositorio("admin", "visualizador", "confidencial"), true);
 assert.equal(puedeVerDocumento({ confidencial: true, restringido: false }, "usuario", "especial"), false);
 assert.equal(puedeVerDocumento({ confidencial: true, restringido: false }, "usuario", "admin"), true);
 assert.equal(puedeVerDocumento({ confidencial: false, restringido: true }, "usuario", "admin"), false);
+
+// Cifras con la misma regla que las alertas: sin copias, con sociedad y sin reemplazados.
+const conHuerfano = armarDocumentos(
+  [
+    a("10", "SOCIEDADES/Legales EJEMPLO UNO SPA/Certificado de Vigencia Sociedad - Emitido 01-01-2025.pdf", "x1"),
+    a("11", "SOLICITUDES DE ANTECEDENTES/BANCO/Certificado de Vigencia Sociedad - Emitido 01-01-2025.pdf", "x1"),
+    a("12", "SOLICITUDES DE ANTECEDENTES/OTRO/Formulario 29 IVA - Enero 2023.pdf"),
+    a("13", "SOLICITUDES DE ANTECEDENTES/OTRO/Formulario 29 IVA - Febrero 2023.pdf"),
+  ],
+  soc,
+  hoy,
+);
+const c = cifrasDe(conHuerfano);
+assert.equal(c.vencidos, 1, "los F29 sin sociedad y la copia no cuentan");
+assert.equal(c.vencidos, requierenAtencion(conHuerfano).filter((d) => d.estado === "vencido").length, "la cifra calza con la lista de alertas");
+
+// La malla societaria no se muestra en el Core.
+assert.equal(ocultoEnElCore({ tipo: "malla", ruta: "Malla Societaria/Malla.png" }), true);
+assert.equal(ocultoEnElCore({ tipo: "otro", ruta: "SOLICITUDES DE ANTECEDENTES/X/Malla Societaria/Estructura.docx" }), true);
+assert.equal(ocultoEnElCore({ tipo: "constitucion", ruta: "SOCIEDADES/Legales X/Estatutos.pdf" }), false);
 
 console.log("probar-repositorio-legal: todo OK");

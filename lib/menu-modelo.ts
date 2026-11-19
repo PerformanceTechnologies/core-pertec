@@ -143,13 +143,6 @@ const PLAN: Plan[] = [
     descripcion: "Acreditación, logística y gastos de arranque de cada contrato.",
     items: [{ ruta: "/contratos" }],
   },
-  // Repositorio Legal: los antecedentes legales de las sociedades del grupo (vive en SharePoint).
-  {
-    slug: "legal",
-    titulo: "Legal",
-    descripcion: "Repositorio de antecedentes legales por sociedad, con fechas de emisión y alertas de vencimiento.",
-    items: [{ ruta: "/repositorio-legal" }],
-  },
   // Flota y Valorización histórica cuelgan de Inventario: son aplicaciones aparte (su propio
   // permiso y sus propias rutas), pero para la gente es parte de lo mismo: lo que la empresa tiene,
   // mueve y compró. La de stock se llama «Stock y bodegas» para que el módulo no tenga un
@@ -176,6 +169,17 @@ const PAGINA_WEB: Plan = {
     { ruta: "/pagina-web", nombre: "Configuración" },
     { ruta: "/reclutamiento", nombre: "Postulaciones" },
   ],
+};
+
+/**
+ * «Legal» va justo debajo de «Página web» (y antes de «Administración»). Igual que Página web, no
+ * está en PLAN: armarMenu lo agrega al cierre, en ese orden.
+ */
+const LEGAL: Plan = {
+  slug: "legal",
+  titulo: "Legal",
+  descripcion: "Repositorio de antecedentes legales por sociedad, con fechas de emisión y alertas de vencimiento.",
+  items: [{ ruta: "/repositorio-legal" }],
 };
 
 /** Solo para el administrador del Core: va al final de todo. */
@@ -268,6 +272,7 @@ export function armarMenu(
   }
   // Se arma ANTES de calcular «Otras» (marca sus rutas como usadas) pero se agrega DESPUÉS: va al cierre.
   const paginaWeb = armarGrupo(PAGINA_WEB);
+  const legal = armarGrupo(LEGAL);
 
   const otras = apps.filter((a) => !usadas.has(a.url));
   if (otras.length > 0) {
@@ -279,6 +284,7 @@ export function armarMenu(
     });
   }
   if (paginaWeb) grupos.push(paginaWeb);
+  if (legal) grupos.push(legal);
   if (opciones.admin) grupos.push(ADMINISTRACION);
   return grupos;
 }

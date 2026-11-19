@@ -147,7 +147,7 @@ export default function SubirDocumento({
           <span className="etiqueta-seccion">Tipo de documento</span>
           <select className={`${CAMPO} mt-1`} value={tipoId} onChange={(e) => elegirTipo(e.target.value)}>
             {CATEGORIAS.map((c) => {
-              const tipos = [...TIPOS, OTRO].filter((t) => t.categoria === c.id && !t.restringido);
+              const tipos = [...TIPOS, OTRO].filter((t) => t.categoria === c.id && !t.restringido && t.categoria !== "grupo");
               if (!tipos.length) return null;
               return (
                 <optgroup key={c.id} label={c.nombre}>

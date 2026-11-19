@@ -515,10 +515,45 @@ export function armarDocumentos(
   return docs;
 }
 
+/**
+ * Lo que el Core NO muestra: la malla societaria (carpeta «Malla Societaria» y sus copias). Sigue en
+ * SharePoint; simplemente no es parte del repositorio que se consulta desde el Core.
+ */
+export function ocultoEnElCore(d: Pick<Documento, "tipo" | "ruta">): boolean {
+  return d.tipo === "malla" || /(^|\/)malla societaria(\/|$)/i.test(d.ruta.replace(/\?\?/g, ""));
+}
+
+/** Lo que cuenta en las cifras y alertas: sin copias y con sociedad (lo demás no tiene a quién avisarle). */
+export function cuentaParaCifras(d: Pick<Documento, "copiaDe" | "sociedad">): boolean {
+  return !d.copiaDe && Boolean(d.sociedad);
+}
+
+export interface Cifras {
+  documentos: number;
+  vencidos: number;
+  porVencer: number;
+  sinFecha: number;
+}
+
+/**
+ * Las cifras de arriba, con la MISMA regla que la lista de alertas: sin copias, con sociedad y sin
+ * los reemplazados. Antes «Vencidos» contaba también los F29 viejos de una solicitud sin sociedad, y
+ * el número no calzaba con la lista que tenía justo debajo.
+ */
+export function cifrasDe(docs: Documento[]): Cifras {
+  const base = docs.filter(cuentaParaCifras);
+  return {
+    documentos: base.length,
+    vencidos: base.filter((d) => d.estado === "vencido").length,
+    porVencer: base.filter((d) => d.estado === "por_vencer").length,
+    sinFecha: base.filter((d) => d.estado === "sin_fecha").length,
+  };
+}
+
 /** Los documentos que necesitan atención (vencidos, por vencer, sin fecha), sin copias. */
 export function requierenAtencion(docs: Documento[]): Documento[] {
   return docs
-    .filter((d) => !d.copiaDe && d.sociedad && (d.estado === "vencido" || d.estado === "por_vencer"))
+    .filter((d) => cuentaParaCifras(d) && (d.estado === "vencido" || d.estado === "por_vencer"))
     .sort((a, b) => PESO_ESTADO[a.estado] - PESO_ESTADO[b.estado] || (a.vence ?? "").localeCompare(b.vence ?? ""));
 }
 

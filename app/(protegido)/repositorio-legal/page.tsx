@@ -1,102 +1,119 @@
 import Link from "next/link";
-import { IconAlertTriangle, IconChevronRight } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBuildingBank, IconCalendarClock, IconCalendarQuestion, IconChevronRight } from "@tabler/icons-react";
+import { Seccion } from "@/components/fin/piezas";
 import ErrorSharePoint from "@/components/repositorio-legal/ErrorSharePoint";
-import { ChipEstado, Cifra, claseClave, ETIQUETA_CLAVE } from "@/components/repositorio-legal/Visual";
-import { TARJETA } from "@/lib/estilos";
+import { HOJA, IconoEnTile, ParaHoy, SaludDelGrupo, TarjetaGrupo, type ItemAtencion, type Linea } from "@/components/repositorio-legal/Resumen";
 import { datosDePagina } from "@/lib/repositorio-legal/pagina";
-import { antiguedad, documentosClave, formatearFecha, requierenAtencion, resumirSociedad, RUTA_REPOSITORIO_LEGAL } from "@/lib/repositorio-legal/modelo";
+import { antiguedad, cifrasDe, cuentaParaCifras, documentosClave, formatearFecha, requierenAtencion, resumirSociedad, RUTA_REPOSITORIO_LEGAL } from "@/lib/repositorio-legal/modelo";
 
-export default async function InicioRepositorioLegal() {
+const R = RUTA_REPOSITORIO_LEGAL;
+const rutaSociedad = (slug: string) => `${R}/sociedades/${slug}`;
+const rutaDocumentos = (filtros: Record<string, string>) => `${R}/documentos?${new URLSearchParams(filtros).toString()}`;
+
+export default async function ResumenRepositorioLegal() {
   const { repo, error } = await datosDePagina();
-  if (!repo) return <ErrorSharePoint mensaje={error ?? ""} volver={RUTA_REPOSITORIO_LEGAL} />;
+  if (!repo) return <ErrorSharePoint mensaje={error ?? ""} volver={R} />;
 
   const docs = repo.documentos;
+  const cifras = cifrasDe(docs);
   const atencion = requierenAtencion(docs);
-  const sinCopias = docs.filter((d) => !d.copiaDe);
-  const malla = docs.find((d) => d.tipo === "malla" && /^(png|jpe?g|webp)$/.test(d.extension));
-  const nombre = new Map(repo.sociedades.map((s) => [s.slug, s.nombre]));
 
-  // Las sociedades con más problemas, primero.
-  const tarjetas = repo.sociedades
-    .map((s) => ({ s, r: resumirSociedad(docs, s.slug), clave: documentosClave(docs, s.slug) }))
-    .sort((a, b) => b.r.vencidos * 3 + b.r.faltantes * 2 + b.r.porVencer - (a.r.vencidos * 3 + a.r.faltantes * 2 + a.r.porVencer) || a.s.nombre.localeCompare(b.s.nombre, "es"));
+  const porSociedad = repo.sociedades.map((s) => ({ s, r: resumirSociedad(docs, s.slug), clave: documentosClave(docs, s.slug) }));
+  // La más complicada primero: vencidos pesan más que lo que falta, y eso más que lo por vencer.
+  const orden = [...porSociedad].sort((a, b) => b.r.vencidos * 3 + b.r.faltantes * 2 + b.r.porVencer - (a.r.vencidos * 3 + a.r.faltantes * 2 + a.r.porVencer) || a.s.nombre.localeCompare(b.s.nombre, "es"));
+
+  const claveOk = porSociedad.reduce((n, x) => n + x.clave.filter((c) => c.estado === "ok").length, 0);
+  const claveTotal = porSociedad.reduce((n, x) => n + x.clave.length, 0);
+  const ultimaModificacion = docs.reduce<string | null>((m, d) => (d.modificado && (!m || d.modificado > m) ? d.modificado : m), null);
+
+  // Las líneas de cada tarjeta: las sociedades con más de ese estado, con enlace al filtro exacto.
+  const lineasDe = (estado: "vencido" | "por_vencer" | "sin_fecha", destacar: Linea["destacar"]): Linea[] =>
+    repo.sociedades
+      .map((s) => ({ s, n: docs.filter((d) => cuentaParaCifras(d) && d.sociedad === s.slug && d.estado === estado).length }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 3)
+      .map((x) => ({ etiqueta: x.s.nombre, valor: String(x.n), href: rutaDocumentos({ estado, sociedad: x.s.slug }), destacar }));
+
+  const proximo = atencion.find((d) => d.estado === "por_vencer");
+
+  // «Para hoy»: por sociedad, lo vencido, lo por vencer y los documentos clave que faltan.
+  const items: ItemAtencion[] = [];
+  for (const { s, r, clave } of orden) {
+    if (r.vencidos) {
+      const ej = atencion.filter((d) => d.sociedad === s.slug && d.estado === "vencido").map((d) => d.tipoNombre);
+      items.push({ n: r.vencidos, texto: `${r.vencidos === 1 ? "documento vencido" : "documentos vencidos"} de ${s.nombre}`, detalle: [...new Set(ej)].join(" · "), href: rutaDocumentos({ estado: "vencido", sociedad: s.slug }), tono: "alerta" });
+    }
+    if (r.porVencer) {
+      const ej = atencion.filter((d) => d.sociedad === s.slug && d.estado === "por_vencer").map((d) => `${d.tipoNombre} (${formatearFecha(d.vence)})`);
+      items.push({ n: r.porVencer, texto: `por vencer en 30 días en ${s.nombre}`, detalle: ej.join(" · "), href: rutaDocumentos({ estado: "por_vencer", sociedad: s.slug }), tono: "aviso" });
+    }
+    const faltan = clave.filter((c) => c.estado === "falta");
+    if (faltan.length) items.push({ n: faltan.length, texto: `${faltan.length === 1 ? "documento clave falta" : "documentos clave faltan"} en ${s.nombre}`, detalle: faltan.map((c) => c.tipo.nombre).join(" · "), href: rutaSociedad(s.slug), tono: "gris" });
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Cifra valor={repo.sociedades.length} etiqueta="Sociedades" />
-        <Cifra valor={sinCopias.length} etiqueta="Documentos (sin copias)" />
-        <Cifra valor={sinCopias.filter((d) => d.estado === "vencido").length} etiqueta="Vencidos" tono="alerta" />
-        <Cifra valor={sinCopias.filter((d) => d.estado === "por_vencer").length} etiqueta="Por vencer (30 días)" tono="aviso" />
-        <Cifra valor={sinCopias.filter((d) => d.estado === "sin_fecha").length} etiqueta="Sin fecha de emisión" tono="naranjo" />
+    <div className="space-y-7">
+      <SaludDelGrupo
+        ok={claveOk}
+        total={claveTotal}
+        actualizado={ultimaModificacion ? formatearFecha(ultimaModificacion.slice(0, 10)) : null}
+        sociedades={orden.map(({ s, r, clave }) => ({ slug: s.slug, nombre: s.nombre, ok: clave.filter((c) => c.estado === "ok").length, total: clave.length, vencidos: r.vencidos, porVencer: r.porVencer }))}
+        rutaSociedad={rutaSociedad}
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <TarjetaGrupo titulo="Vencidos" Icono={IconAlertTriangle} tono="alerta" principal={String(cifras.vencidos)} nota="El último de su tipo y ya pasó su vigencia" href={rutaDocumentos({ estado: "vencido" })} lineas={lineasDe("vencido", "alerta")} />
+        <TarjetaGrupo
+          titulo="Por vencer"
+          Icono={IconCalendarClock}
+          tono="aviso"
+          principal={String(cifras.porVencer)}
+          nota={proximo ? `El próximo: ${proximo.tipoNombre}, el ${formatearFecha(proximo.vence)}` : "Nada vence en los próximos 30 días"}
+          href={rutaDocumentos({ estado: "por_vencer" })}
+          lineas={lineasDe("por_vencer", "aviso")}
+        />
+        <TarjetaGrupo titulo="Sin fecha de emisión" Icono={IconCalendarQuestion} tono="naranjo" principal={String(cifras.sinFecha)} nota={`De ${cifras.documentos} documentos: complétala renombrando el archivo`} href={rutaDocumentos({ estado: "sin_fecha" })} lineas={lineasDe("sin_fecha", true)} />
       </div>
 
-      {atencion.length > 0 && (
-        <section className={`${TARJETA} border-alerta/30 p-4`}>
-          <div className="mb-3 flex items-center gap-2">
-            <IconAlertTriangle size={18} className="text-alerta" />
-            <h2 className="font-condensed text-lg font-bold uppercase text-tinta">Requiere atención</h2>
-            <Link href={`${RUTA_REPOSITORIO_LEGAL}/vencimientos`} className="ml-auto text-sm font-semibold text-naranjo hover:underline">
-              Ver todo →
-            </Link>
-          </div>
-          <ul className="divide-y divide-borde/70">
-            {atencion.slice(0, 8).map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
-                <ChipEstado estado={d.estado} />
-                <Link href={`${RUTA_REPOSITORIO_LEGAL}/sociedades/${d.sociedad}`} className="font-semibold text-tinta hover:text-naranjo">
-                  {d.tipoNombre}
-                </Link>
-                <span className="text-gris">{d.sociedad ? nombre.get(d.sociedad) : ""}</span>
-                <span className="ml-auto text-xs text-gris">
-                  Emitido {formatearFecha(d.emision)} · {d.estado === "vencido" ? "venció" : "vence"} {formatearFecha(d.vence)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <ParaHoy items={items} />
 
-      <section>
-        <h2 className="etiqueta-seccion mb-3">Sociedades del grupo</h2>
+      <Seccion titulo={`Sociedades · ${repo.sociedades.length}`} icono={<IconBuildingBank size={15} />}>
         <div className="escalonar grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {tarjetas.map(({ s, r, clave }) => (
-            <Link key={s.slug} href={`${RUTA_REPOSITORIO_LEGAL}/sociedades/${s.slug}`} className={`${TARJETA} group block p-4 transition hover:border-naranjo/40`}>
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-condensed text-lg font-bold uppercase leading-tight text-tinta">{s.nombre}</p>
-                  <p className="text-xs text-gris">
-                    {r.documentos} documentos · última emisión {r.ultimaEmision ? `${formatearFecha(r.ultimaEmision)} (${antiguedad(r.ultimaEmision)})` : "—"}
-                  </p>
-                </div>
-                <IconChevronRight size={18} className="text-gris-suave transition group-hover:text-naranjo" />
+          {orden.map(({ s, r, clave }) => (
+            <Link key={s.slug} href={rutaSociedad(s.slug)} className={`${HOJA} group flex flex-col p-5 transition duration-300 hover:-translate-y-1 hover:border-naranjo/40`}>
+              <div className="flex items-center gap-3">
+                <IconoEnTile Icono={IconBuildingBank} tono={r.vencidos ? "alerta" : r.porVencer ? "aviso" : r.faltantes ? "naranjo" : "cian"} chico />
+                <p className="min-w-0 flex-1 truncate font-semibold text-tinta">{s.nombre}</p>
+                <IconChevronRight size={16} className="text-gris-suave transition group-hover:translate-x-0.5 group-hover:text-naranjo" />
               </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {r.vencidos > 0 && <span className="rounded-full bg-alerta/12 px-2 py-0.5 text-[11px] font-semibold text-alerta">{r.vencidos} vencidos</span>}
-                {r.porVencer > 0 && <span className="rounded-full bg-aviso/15 px-2 py-0.5 text-[11px] font-semibold text-aviso">{r.porVencer} por vencer</span>}
-                {r.faltantes > 0 && <span className="rounded-full bg-tinta/[0.06] px-2 py-0.5 text-[11px] font-semibold text-gris">{r.faltantes} faltan</span>}
-                {r.vencidos + r.porVencer + r.faltantes === 0 && <span className="rounded-full bg-ok/12 px-2 py-0.5 text-[11px] font-semibold text-ok">Al día</span>}
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-1">
-                {clave.map((c) => (
-                  <span key={c.tipo.id} title={`${c.tipo.nombre}: ${ETIQUETA_CLAVE[c.estado]}`} className={`truncate rounded-md border px-1.5 py-1 text-[10px] font-semibold ${claseClave(c.estado)}`}>
-                    {c.tipo.nombre.replace(/ \/.*$/, "").replace("Publicación en ", "")}
-                  </span>
-                ))}
-              </div>
+              <p className="mt-3 font-condensed text-3xl font-bold leading-none tabular-nums text-tinta">
+                {clave.filter((c) => c.estado === "ok").length}
+                <span className="text-lg text-gris">/{clave.length}</span>
+              </p>
+              <p className="mt-1 text-xs text-gris">documentos clave al día · {r.documentos} en total</p>
+              <ul className="mt-4 space-y-1 border-t border-borde/60 pt-3 text-[13px]">
+                <li className="flex items-center gap-2">
+                  <span className="flex-1 text-gris">Vencidos</span>
+                  <span className={`font-semibold tabular-nums ${r.vencidos ? "text-alerta" : "text-tinta"}`}>{r.vencidos}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="flex-1 text-gris">Por vencer</span>
+                  <span className={`font-semibold tabular-nums ${r.porVencer ? "text-aviso" : "text-tinta"}`}>{r.porVencer}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="flex-1 text-gris">Faltan</span>
+                  <span className={`font-semibold tabular-nums ${r.faltantes ? "text-naranjo" : "text-tinta"}`}>{r.faltantes}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="flex-1 text-gris">Última emisión</span>
+                  <span className="font-semibold tabular-nums text-tinta">{r.ultimaEmision ? `${formatearFecha(r.ultimaEmision)} · ${antiguedad(r.ultimaEmision)}` : "—"}</span>
+                </li>
+              </ul>
             </Link>
           ))}
         </div>
-      </section>
-
-      {malla && (
-        <section className={`${TARJETA} p-4`}>
-          <h2 className="etiqueta-seccion mb-3">Malla societaria</h2>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/repositorio-legal/archivo/${malla.id}`} alt="Malla societaria del grupo" className="mx-auto max-h-[420px] w-auto rounded-lg" />
-          <p className="mt-2 text-center text-xs text-gris">Desde SharePoint: {malla.ruta}</p>
-        </section>
-      )}
+      </Seccion>
     </div>
   );
 }

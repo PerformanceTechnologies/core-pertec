@@ -14,7 +14,9 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import VentanaModal from "@/components/contratos/VentanaModal";
-import { BOTON_PRIMARIO, CAMPO, CELDA_SIN_CORTE, TARJETA } from "@/lib/estilos";
+import { BOTON_PRIMARIO, CAMPO, CELDA_SIN_CORTE } from "@/lib/estilos";
+import { TD, TH, Vacio } from "@/components/fin/piezas";
+import { HOJA } from "./Resumen";
 import {
   antiguedad,
   CATEGORIAS,
@@ -49,6 +51,8 @@ export default function TablaDocumentos({
   permisos,
   sociedadFija,
   estadoInicial = "todos",
+  sociedadInicial,
+  categoriaInicial,
 }: {
   documentos: Documento[];
   sociedades: SociedadBase[];
@@ -56,12 +60,15 @@ export default function TablaDocumentos({
   permisos: PermisosCliente;
   sociedadFija?: string | null;
   estadoInicial?: FiltroEstado;
+  /** Filtros que llegan por la URL (desde las tarjetas del Resumen: «vencidos de tal sociedad»). */
+  sociedadInicial?: string | null;
+  categoriaInicial?: Categoria | null;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [texto, setTexto] = useState("");
-  const [sociedad, setSociedad] = useState<string>(sociedadFija ?? "todas");
-  const [categoria, setCategoria] = useState<Categoria | "todas">("todas");
+  const [sociedad, setSociedad] = useState<string>(sociedadFija ?? sociedadInicial ?? "todas");
+  const [categoria, setCategoria] = useState<Categoria | "todas">(categoriaInicial ?? "todas");
   const [estado, setEstado] = useState<FiltroEstado>(estadoInicial);
   const [formato, setFormato] = useState("todos");
   const [conCopias, setConCopias] = useState(false);
@@ -148,22 +155,18 @@ export default function TablaDocumentos({
 
   return (
     <div className="space-y-4">
-      {/* Categorías como pestañas cortas */}
-      <div className="desliza -mx-1 overflow-x-auto px-1 pb-1">
-        <div className="inline-flex gap-1">
-          <button type="button" onClick={() => setCategoria("todas")} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${categoria === "todas" ? "bg-tinta text-crema" : "bg-tinta/[0.04] text-gris hover:text-tinta"}`}>
-            Todas
+      {/* Categorías: el mismo selector de pestañas que Gestión financiera */}
+      <div className="inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-borde bg-superficie p-1">
+        {[{ id: "todas" as const, corto: "Todas", n: [...porCategoria.values()].reduce((a, b) => a + b, 0) }, ...CATEGORIAS.filter((c) => porCategoria.get(c.id)).map((c) => ({ id: c.id, corto: c.corto, n: porCategoria.get(c.id) ?? 0 }))].map((c) => (
+          <button key={c.id} type="button" onClick={() => setCategoria(c.id)} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${categoria === c.id ? "bg-tinta text-superficie" : "text-gris hover:text-tinta"}`}>
+            {c.corto}
+            <span className="tabular-nums opacity-70">{c.n}</span>
           </button>
-          {CATEGORIAS.filter((c) => porCategoria.get(c.id)).map((c) => (
-            <button key={c.id} type="button" onClick={() => setCategoria(c.id)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${categoria === c.id ? "bg-tinta text-crema" : "bg-tinta/[0.04] text-gris hover:text-tinta"}`}>
-              {c.corto} <span className="opacity-60">{porCategoria.get(c.id)}</span>
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
 
       {/* Filtros */}
-      <div className={`${TARJETA} flex flex-wrap items-center gap-2 p-3`}>
+      <div className={`${HOJA} flex flex-wrap items-center gap-2 p-3`}>
         <label className="relative min-w-[220px] flex-1">
           <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gris-suave" />
           <input className={`${CAMPO} pl-9`} placeholder="Buscar por nombre, tipo o carpeta…" value={texto} onChange={(e) => setTexto(e.target.value)} />
@@ -215,7 +218,7 @@ export default function TablaDocumentos({
 
       {/* Paquete */}
       {elegidos.size > 0 && (
-        <form method="post" action="/api/repositorio-legal/paquete" className={`${TARJETA} flex flex-wrap items-center gap-3 p-3`}>
+        <form method="post" action="/api/repositorio-legal/paquete" className={`${HOJA} flex flex-wrap items-center gap-3 border-naranjo/40 p-3`}>
           {[...elegidos].map((id) => (
             <input key={id} type="hidden" name="id" value={id} />
           ))}
@@ -231,33 +234,29 @@ export default function TablaDocumentos({
       )}
 
       {/* Tabla */}
-      <div className={`${TARJETA} overflow-x-auto`}>
+      {filas.length === 0 ? (
+        <Vacio titulo="No hay documentos con estos filtros" texto="Prueba con otra categoría, otro estado o «Todas las sociedades»." />
+      ) : (
+      <div className={`${HOJA} overflow-x-auto p-1.5`}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-borde text-left text-[11px] uppercase tracking-wide text-gris">
-              <th className="w-8 px-3 py-2" />
-              <th className="px-3 py-2">Documento</th>
-              {!sociedadFija && <th className="px-3 py-2">Sociedad</th>}
-              <th className="px-3 py-2">Emisión</th>
-              <th className="px-3 py-2">Vigencia</th>
-              <th className="px-3 py-2">Estado</th>
-              <th className="px-3 py-2 text-right">Acciones</th>
+            <tr className="border-b border-borde">
+              <th className={`${TH} w-8`} />
+              <th className={TH}>Documento</th>
+              {!sociedadFija && <th className={TH}>Sociedad</th>}
+              <th className={TH}>Emisión</th>
+              <th className={TH}>Vigencia</th>
+              <th className={TH}>Estado</th>
+              <th className={`${TH} text-right`}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-3 py-10 text-center text-gris">
-                  No hay documentos con estos filtros.
-                </td>
-              </tr>
-            )}
             {filas.map((d) => (
-              <tr key={d.id} className={`border-b border-borde/60 last:border-0 hover:bg-tinta/[0.02] ${d.estado === "historico" ? "opacity-60" : ""}`}>
-                <td className="px-3 py-2 align-top">
+              <tr key={d.id} className={`border-b border-borde/50 last:border-0 transition hover:bg-tinta/[0.025] ${d.estado === "historico" ? "opacity-60" : ""}`}>
+                <td className={TD}>
                   <input type="checkbox" aria-label="Elegir para el paquete" checked={elegidos.has(d.id)} onChange={() => alternar(d.id)} />
                 </td>
-                <td className="max-w-[420px] px-3 py-2 align-top">
+                <td className={`${TD} max-w-[420px]`}>
                   <button type="button" onClick={() => ver(d)} className="text-left font-semibold text-tinta hover:text-naranjo">
                     {d.nombre}
                   </button>
@@ -269,16 +268,16 @@ export default function TablaDocumentos({
                   </p>
                   {d.area !== "sociedades" && <p className="truncate text-[11px] text-gris-suave">{d.carpeta}</p>}
                 </td>
-                {!sociedadFija && <td className={`${CELDA_SIN_CORTE} px-3 py-2 align-top text-gris`}>{d.sociedad ? nombreSociedad.get(d.sociedad) : "—"}</td>}
-                <td className={`${CELDA_SIN_CORTE} px-3 py-2 align-top`}>
+                {!sociedadFija && <td className={`${TD} ${CELDA_SIN_CORTE} text-gris`}>{d.sociedad ? nombreSociedad.get(d.sociedad) : "—"}</td>}
+                <td className={`${TD} ${CELDA_SIN_CORTE}`}>
                   <span className={d.emision ? "font-semibold text-tinta" : "text-naranjo"}>{formatearFecha(d.emision)}</span>
                   {d.emision && <p className="text-[11px] text-gris">{antiguedad(d.emision)}</p>}
                 </td>
-                <td className={`${CELDA_SIN_CORTE} px-3 py-2 align-top text-gris`}>{d.vence ? `Hasta ${formatearFecha(d.vence)}` : "—"}</td>
-                <td className="px-3 py-2 align-top">
+                <td className={`${TD} ${CELDA_SIN_CORTE} text-gris`}>{d.vence ? `Hasta ${formatearFecha(d.vence)}` : "—"}</td>
+                <td className={TD}>
                   <ChipEstado estado={d.estado} />
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className={TD}>
                   <div className="flex justify-end gap-1">
                     <BotonIcono titulo="Ver" onClick={() => ver(d)}>
                       <IconEye size={17} stroke={1.75} />
@@ -315,6 +314,7 @@ export default function TablaDocumentos({
           </tbody>
         </table>
       </div>
+      )}
       <p className="text-xs text-gris">{filas.length} documentos{!conCopias ? " (sin contar copias repetidas)" : ""}.</p>
 
       {subir && <SubirDocumento abierta alCerrar={() => setSubir(false)} sociedades={sociedades} sociedadInicial={sociedadFija ?? (sociedad !== "todas" && sociedad !== "sin" ? sociedad : null)} />}
