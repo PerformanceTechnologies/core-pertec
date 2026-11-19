@@ -8,6 +8,7 @@ import { aplicarLote, calcularPlan, terminarOrden, type OpcionesDelFormulario } 
 import { BOTON_PRIMARIO, CAMPO } from "@/lib/estilos";
 import type { SociedadBase } from "@/lib/repositorio-legal/modelo";
 import type { Accion, Operacion, ResumenPlan } from "@/lib/repositorio-legal/orden";
+import VentanaModal from "@/components/contratos/VentanaModal";
 import { HOJA } from "./Resumen";
 import { pesoLegible } from "./Visual";
 
@@ -41,6 +42,7 @@ export default function OrdenarRepositorio({ sociedades, porOmisionInicial, opsI
   const [errores, setErrores] = useState<{ ruta: string; error: string }[]>([]);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
 
   const opciones: OpcionesDelFormulario = { eliminarVersionesAnteriores: versiones, carpetas, porOmision: porOmision || null };
   const nombreSociedad = useMemo(() => new Map(sociedades.map((s) => [s.slug, s.nombre])), [sociedades]);
@@ -65,16 +67,15 @@ export default function OrdenarRepositorio({ sociedades, porOmisionInicial, opsI
     };
   }
 
-  async function aplicar() {
+  /** Primero se confirma en una ventana de la página (no la nativa del navegador, que algunos bloquean). */
+  function pedirConfirmacion() {
     if (desactualizado) return setError("Cambiaste opciones: vuelve a calcular el plan antes de aplicarlo.");
-    const texto =
-      `Se va a ordenar SharePoint:\n\n` +
-      `· ${resumen.mover} documentos a su sociedad y categoría, con nombre nuevo\n` +
-      `· ${resumen.revisar} a «POR REVISAR»\n` +
-      `· ${resumen.eliminar} a la papelera (${pesoLegible(resumen.bytesLiberados)})\n` +
-      (nuevas.length ? `· Sociedades nuevas: ${nuevas.join(", ")}\n` : "") +
-      `\nLo eliminado se puede recuperar desde la papelera del sitio durante 93 días. ¿Aplicar?`;
-    if (!window.confirm(texto)) return;
+    setError(null);
+    setConfirmando(true);
+  }
+
+  async function aplicar() {
+    setConfirmando(false);
     setError(null);
     setMensaje(null);
     setErrores([]);
@@ -116,6 +117,29 @@ export default function OrdenarRepositorio({ sociedades, porOmisionInicial, opsI
           </p>
         </div>
       </section>
+
+      <VentanaModal abierta={confirmando} alCerrar={() => setConfirmando(false)} titulo="¿Aplicar el plan en SharePoint?" descripcion="Lo eliminado se puede recuperar desde la papelera del sitio durante 93 días.">
+        <ul className="space-y-1.5 text-sm text-tinta">
+          <li>
+            <span className="font-semibold tabular-nums">{resumen.mover}</span> documentos a su sociedad y categoría, con nombre nuevo
+          </li>
+          <li>
+            <span className="font-semibold tabular-nums">{resumen.revisar}</span> a «POR REVISAR»
+          </li>
+          <li>
+            <span className="font-semibold tabular-nums text-alerta">{resumen.eliminar}</span> a la papelera ({pesoLegible(resumen.bytesLiberados)})
+          </li>
+          {nuevas.length > 0 && <li>Sociedades nuevas: {nuevas.join(", ")}</li>}
+        </ul>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={() => setConfirmando(false)} className="inline-flex min-h-10 items-center rounded-lg bg-tinta/[0.06] px-4 text-sm font-semibold text-tinta hover:bg-tinta/[0.1]">
+            Cancelar
+          </button>
+          <button type="button" onClick={aplicar} className={BOTON_PRIMARIO}>
+            <IconWand size={17} stroke={1.75} /> Sí, aplicar
+          </button>
+        </div>
+      </VentanaModal>
 
       <Seccion titulo="Sociedades" icono={<IconBuildingBank size={15} />}>
         <div className={`${HOJA} p-4`}>
@@ -193,7 +217,7 @@ export default function OrdenarRepositorio({ sociedades, porOmisionInicial, opsI
               </button>
             ))}
           </div>
-          <button type="button" onClick={aplicar} disabled={Boolean(avance) || calculando || (pendientes.length === 0 && nuevas.length === 0)} className={`${BOTON_PRIMARIO} ml-auto`}>
+          <button type="button" onClick={pedirConfirmacion} disabled={Boolean(avance) || calculando || (pendientes.length === 0 && nuevas.length === 0)} className={`${BOTON_PRIMARIO} ml-auto`}>
             <IconWand size={17} stroke={1.75} /> {avance ? `Aplicando… ${avance.hechos}/${avance.total}` : `Aplicar plan (${pendientes.length})`}
           </button>
         </div>
