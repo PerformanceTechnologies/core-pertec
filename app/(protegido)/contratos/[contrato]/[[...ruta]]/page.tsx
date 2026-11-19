@@ -1,3 +1,4 @@
+import { medir, registroDeMedicion, TablaDeMedicion } from "@/lib/contratos/medicion";
 import { Suspense } from "react";
 import Link from "@/components/contratos/Enlace";
 import { notFound } from "next/navigation";
@@ -82,13 +83,16 @@ export const dynamic = "force-dynamic";
 // encabezado del layout, así que acá no se repite como título.
 const TITULO = "Resumen";
 
-export default async function ContratosPage({ params }: { params: Promise<{ ruta?: string[] }> }) {
-  const usuario = await exigirAccesoApp("contratos");
+export default async function ContratosPage({ params, searchParams }: { params: Promise<{ ruta?: string[] }>; searchParams: Promise<{ medir?: string }> }) {
+  registroDeMedicion(); // marca el inicio de la página
+  const usuario = await medir("sesión y acceso", exigirAccesoApp("contratos"));
+  // Medición temporal: solo para un administrador que la pide con ?medir=1.
+  const conMedicion = usuario.rol === "admin" && (await searchParams).medir === "1";
 
   // Antes de hablar con Graph: si esta persona todavía no le dio al core acceso
   // a SharePoint, pedírselo es un paso, no un error. Llamar igual devolvería un
   // mensaje de Microsoft sobre un consentimiento que nadie le pidió.
-  const conectado = await tieneAccesoASharePoint(usuario.correo);
+  const conectado = await medir("token de SharePoint", tieneAccesoASharePoint(usuario.correo));
 
   const { ruta: segmentos = [] } = await params;
   // Los segmentos vienen codificados en la URL: estos nombres tienen espacios,
@@ -98,7 +102,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ ruta
 
   // El módulo es la carpeta de arranque: lo que va en la URL es la ruta dentro
   // de ella, sin ningún tramo extra que atravesar antes de llegar al contenido.
-  const seccion = (await secciones())[0];
+  const seccion = (await medir("contrato actual", secciones()))[0];
 
   // Esconder las carpetas excluidas de la lista no alcanza: la URL sigue siendo
   // adivinable, y una carpeta que el módulo dice no tener pero que abre igual es
@@ -109,7 +113,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ ruta
   let error: string | null = null;
 
   try {
-    if (conectado) elementos = await listar(seccion, rutaRelativa);
+    if (conectado) elementos = await medir("listar carpeta (Graph)", listar(seccion, rutaRelativa));
   } catch (e) {
     error = e instanceof Error ? e.message : "No se pudo leer la carpeta en SharePoint.";
   }
@@ -129,7 +133,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ ruta
           <p className="mt-1.5 text-xs leading-relaxed text-amber-700/90">{error}</p>
         </div>
       ) : resto.length === 0 ? (
-        <PortadaDeSeccion seccion={seccion} elementos={elementos} />
+        <PortadaDeSeccion seccion={seccion} elementos={elementos} conMedicion={conMedicion} />
       ) : (
         <>
           {resto.length === 1 && esDocumentosGenerales(resto[0]) && (
@@ -137,7 +141,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ ruta
               <PlazoDeCabecera modulo="documentos-generales" />
             </div>
           )}
-          <Carpeta seccion={seccion} rutaRelativa={rutaRelativa} elementos={elementos} />
+          <Carpeta seccion={seccion} rutaRelativa={rutaRelativa} elementos={elementos} conMedicion={conMedicion} />
         </>
       )}
     </div>
@@ -328,18 +332,20 @@ function responsableDe(
 async function PortadaDeSeccion({
   seccion,
   elementos,
+  conMedicion = false,
 }: {
   seccion: Seccion;
   elementos: ElementoSharePoint[];
+  conMedicion?: boolean;
 }) {
   const carpetas = elementos.filter((e) => e.esCarpeta);
 
   // Ya no se piden las personas asignables acá: el selector de responsable vive en
   // las filas de dentro de cada carpeta, no en las tarjetas de la portada.
   const [porCarpeta, accesos, plazos] = await Promise.all([
-    tarjetasDeCarpetas(seccion, carpetas),
-    accesosDeLaPortada(),
-    listarPlazos(),
+    medir("tarjetas (árbol + estados)", tarjetasDeCarpetas(seccion, carpetas)),
+    medir("accesos a módulos", accesosDeLaPortada()),
+    medir("plazos", listarPlazos()),
   ]);
   const plazoDeDocumentosGenerales = leerPlazo(plazos["documentos-generales"], hoyEnChile());
 
@@ -455,6 +461,7 @@ async function PortadaDeSeccion({
         </>
       )}
 
+      {conMedicion && <TablaDeMedicion />}
     </>
   );
 }
@@ -508,10 +515,12 @@ async function Carpeta({
   seccion,
   rutaRelativa,
   elementos,
+  conMedicion = false,
 }: {
   seccion: Seccion;
   rutaRelativa: string;
   elementos: ElementoSharePoint[];
+  conMedicion?: boolean;
 }) {
   // La carpeta de Acreditación y lo que cuelga de ella es un VISOR: se ven los archivos, pero se
   // cargan y se actualizan desde Acreditación, y su avance es el que dice ese módulo.
@@ -570,21 +579,21 @@ async function Carpeta({
   }));
 
   const [porSubcarpeta, responsables, { hojas, estadosHojas }, comentarios, { propia, propio }, revision] = await Promise.all([
-    tarjetasDeCarpetas(seccion, subcarpetas, true),
-    listarResponsables(),
-    cargaDeHojas,
-    comentariosDe(archivos.map((e) => e.id)),
-    cargaDePropia,
-    estadosDeArchivos(archivos.map((e) => e.id)),
-    cargaDeAcreditacion,
+    medir("tarjetas (árbol + estados)", tarjetasDeCarpetas(seccion, subcarpetas, true)),
+    medir("responsables", listarResponsables()),
+    medir("hojas (árbol) + sus estados", cargaDeHojas),
+    medir("comentarios", comentariosDe(archivos.map((e) => e.id))),
+    medir("estado propio", cargaDePropia),
+    medir("revisión de archivos", estadosDeArchivos(archivos.map((e) => e.id))),
+    medir("Acreditación", cargaDeAcreditacion),
   ]);
 
-  const requisitos = await aplicarEstadoDeAcreditacion(
+  const requisitos = await medir("aplicar Acreditación", () => aplicarEstadoDeAcreditacion(
     hojas.map((h): RequisitoLeido => ({
       estado: estadoEfectivo(estadosHojas.get(h.id)?.estado, tieneDocumentos(h)),
       carpeta: h,
     })),
-  );
+  ));
   const avance = calcularAvance(requisitos.map((r) => r.estado));
 
   // La barra de arriba, partida por etapa. Sale de las MISMAS hojas que el avance, así que
@@ -592,7 +601,7 @@ async function Carpeta({
   // carpetas que agrupan; un requisito no tiene barra.
   const etapasDeLaCarpeta = esRequisito
     ? undefined
-    : (await revisionDeGrupos(seccion, [requisitos]))[0]?.etapas;
+    : (await medir("etapas de revisión", revisionDeGrupos(seccion, [requisitos])))[0]?.etapas;
 
   const base = "/contratos";
 
@@ -770,6 +779,7 @@ async function Carpeta({
       )}
 
       <HerramientasDeCarpeta seccion={seccion} rutaRelativa={rutaRelativa} />
+      {conMedicion && <TablaDeMedicion />}
     </>
   );
 }
