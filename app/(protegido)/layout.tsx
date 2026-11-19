@@ -12,10 +12,15 @@ import { listarContratosDelMenu } from "@/lib/contratos/contratos";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import { filtrarAppsDelUsuario, subpanelesFinanzasDelMenu } from "@/lib/menu-usuario";
 
-// Sin caché: cada navegación vuelve a consultar Supabase, así que si el
-// admin borra o desactiva a alguien, esa persona queda fuera en la
-// siguiente página que cargue, no cuando expire su sesión.
-export const dynamic = "force-dynamic";
+// Sin caché de página: cada navegación vuelve a consultar Supabase, así que si el admin borra o
+// desactiva a alguien, esa persona queda fuera en la siguiente página que cargue. Eso lo garantiza
+// leer la sesión (auth() usa cookies, y eso ya hace dinámica toda página que cuelga de acá).
+//
+// Ya NO lleva `dynamic = "force-dynamic"`: además de lo anterior, esa marca fuerza
+// `fetchCache: force-no-store` en todo el Core, y apagaba los cachés de datos que sí se quieren:
+// los indicadores de la barra (dólar, UF), que se volvían a pedir afuera en cada página, y la
+// estructura de SharePoint de Contratos. Los fetch sin opción siguen sin cachearse (es el
+// comportamiento por omisión de Next desde la 15).
 
 export default async function LayoutProtegido({ children }: { children: React.ReactNode }) {
   const session = await auth();
