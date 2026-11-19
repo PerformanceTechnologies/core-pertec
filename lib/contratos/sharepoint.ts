@@ -1,6 +1,6 @@
 import "server-only";
 import { revalidateTag, unstable_cache } from "next/cache";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { contarListado, contarLlamadaGraph } from "./medicion";
 import { obtenerAccessToken, SinCredencialesDeGraph } from "./graph-credenciales";
 import { olvidarDashboard } from "./memoria-dashboard";
@@ -373,7 +373,7 @@ export class ErrorDeGraph extends Error {
 async function graph<T>(ruta: string, opciones: RequestInit = {}, correoExplicito?: string): Promise<T> {
   // Dentro del caché compartido (ver listarEstructura) no hay petición ni cookies: ahí llega el
   // correo ya resuelto afuera. En todo lo demás sale de la sesión, como siempre.
-  const session = correoExplicito ? { user: { email: correoExplicito } } : await auth();
+  const session = correoExplicito ? { user: { email: correoExplicito } } : await sesionDeLaPeticion();
   if (!session?.user?.email) {
     throw new ErrorDeGraph("No hay sesión. Vuelve a entrar.", 401);
   }
@@ -802,7 +802,7 @@ async function listarEstructura(
   seccion: Seccion,
   rutaRelativa: string,
 ): Promise<ElementoSharePoint[]> {
-  const session = await auth();
+  const session = await sesionDeLaPeticion();
   // La carpeta de la sección y no su slug: el slug es "arranque" en todos los contratos.
   const clave = `${session?.user?.email?.toLowerCase() ?? ""}|${seccion.carpeta}|${rutaRelativa}`;
 

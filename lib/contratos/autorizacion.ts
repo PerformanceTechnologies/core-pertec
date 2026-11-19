@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "./usuarios";
 import { SinPermiso, puede, type Capacidad } from "./permisos";
 import type { UsuarioConAcceso } from "./tipos";
@@ -18,7 +18,7 @@ import { enEsteContrato } from "./contrato-actual";
 
 /** La sesión resuelta contra la base, o afuera. */
 export async function exigirSesion(): Promise<UsuarioConAcceso> {
-  const session = await auth();
+  const session = await sesionDeLaPeticion();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) redirect("/ingresar");
   return usuario;
