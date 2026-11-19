@@ -16,7 +16,25 @@ interface Marca {
 }
 
 /** Uno por petición (cache() de React): cada página tiene su propia lista. */
-export const registroDeMedicion = cache(() => ({ inicio: performance.now(), marcas: [] as Marca[] }));
+export const registroDeMedicion = cache(() => ({ inicio: performance.now(), marcas: [] as Marca[], llamadasGraph: 0, listadosPedidos: 0 }));
+
+/** Cuenta una llamada real a Microsoft Graph (para saber si el caché acierta). */
+export function contarLlamadaGraph(): void {
+  try {
+    registroDeMedicion().llamadasGraph++;
+  } catch {
+    /* fuera de una petición */
+  }
+}
+
+/** Cuenta un listado pedido para bajar el árbol (acierte o no el caché). */
+export function contarListado(): void {
+  try {
+    registroDeMedicion().listadosPedidos++;
+  } catch {
+    /* fuera de una petición */
+  }
+}
 
 export async function medir<T>(nombre: string, trabajo: Promise<T> | (() => Promise<T>)): Promise<T> {
   const registro = registroDeMedicion();
@@ -30,13 +48,13 @@ export async function medir<T>(nombre: string, trabajo: Promise<T> | (() => Prom
 
 /** La tabla, al pie de la página. Se dibuja al final, cuando todo lo medido ya terminó. */
 export function TablaDeMedicion() {
-  const { inicio, marcas } = registroDeMedicion();
+  const { inicio, marcas, llamadasGraph, listadosPedidos } = registroDeMedicion();
   // eslint-disable-next-line react-hooks/purity -- medición temporal: leer el reloj es justamente lo que se quiere
   const total = Math.round(performance.now() - inicio);
   const filas = [...marcas].sort((a, b) => a.desde - b.desde);
   return (
     <details open className="mt-8 rounded-xl border border-dashed border-borde p-4 text-xs text-gris">
-      <summary className="cursor-pointer font-semibold text-tinta">Medición (solo administradores) · total en el servidor: {total} ms</summary>
+      <summary className="cursor-pointer font-semibold text-tinta">Medición (solo administradores) · total en el servidor: {total} ms · {listadosPedidos} listados del árbol · {llamadasGraph} llamadas reales a Graph</summary>
       <table className="mt-3 w-full font-mono">
         <thead>
           <tr className="text-left"><th className="pr-4">Parte</th><th className="pr-4 text-right">Parte en (ms)</th><th className="text-right">Duró (ms)</th></tr>

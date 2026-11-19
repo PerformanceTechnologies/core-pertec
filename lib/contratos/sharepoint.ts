@@ -1,6 +1,7 @@
 import "server-only";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { auth } from "@/auth";
+import { contarListado, contarLlamadaGraph } from "./medicion";
 import { obtenerAccessToken, SinCredencialesDeGraph } from "./graph-credenciales";
 import { olvidarDashboard } from "./memoria-dashboard";
 import { contratoActual } from "./contrato-actual";
@@ -392,6 +393,7 @@ async function graph<T>(ruta: string, opciones: RequestInit = {}, correoExplicit
     );
   }
 
+  contarLlamadaGraph();
   const respuesta = await fetch(`https://graph.microsoft.com/v1.0${ruta}`, {
     ...opciones,
     headers: {
@@ -816,6 +818,7 @@ async function listarEstructura(
   // El sitio se resuelve ACÁ, con sesión: adentro del caché no la hay, y sitio() la necesitaría
   // la primera vez en cada servidor. Resuelto, queda en memoria y adentro ya no la pide.
   const correo = session?.user?.email?.toLowerCase();
+  contarListado();
   const hijos = correo
     ? sitio().then(() => listarEnCache(correo, seccion, rutaRelativa))
     : listar(seccion, rutaRelativa);
