@@ -9,7 +9,10 @@ import LogoDelContrato from "@/components/contratos/LogoDelContrato";
 import EditarContrato from "@/components/contratos/EditarContrato";
 import BotonPrepararCarpetas from "@/components/contratos/BotonPrepararCarpetas";
 
-export const dynamic = "force-dynamic";
+// Sin `dynamic = "force-dynamic"`: la página ya es dinámica por la sesión (cookies), y esa marca
+// además apaga el caché de datos de Next (`fetchCache: force-no-store`), que es donde vive el caché
+// compartido de la estructura de SharePoint (ver listarEstructura en lib/contratos/sharepoint.ts).
+// Con la marca puesta, ese caché nunca se usaba.
 
 /**
  * Un contrato: su logo y su nombre arriba, y todo lo de core-ih adentro. Sus módulos se recorren

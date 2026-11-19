@@ -578,30 +578,31 @@ async function Carpeta({
     propio: propia ? (await estadosDe([propia.id])).get(propia.id) : undefined,
   }));
 
-  const [porSubcarpeta, responsables, { hojas, estadosHojas }, comentarios, { propia, propio }, revision] = await Promise.all([
+  // El avance y sus etapas dependen SOLO de las hojas: se calculan apenas llegan, en paralelo con
+  // las tarjetas, en vez de esperar a que terminen las tarjetas (que bajan su propio árbol).
+  const cargaDelAvance = cargaDeHojas.then(async ({ hojas, estadosHojas }) => {
+    const requisitos = await aplicarEstadoDeAcreditacion(
+      hojas.map((h): RequisitoLeido => ({
+        estado: estadoEfectivo(estadosHojas.get(h.id)?.estado, tieneDocumentos(h)),
+        carpeta: h,
+      })),
+    );
+    // La barra de arriba, partida por etapa. Sale de las MISMAS hojas que el avance, así que
+    // «subidos» y la suma de validado + en revisión + borrador no pueden discrepar. Solo en las
+    // carpetas que agrupan; un requisito no tiene barra.
+    const etapas = esRequisito ? undefined : (await medir("etapas de revisión", revisionDeGrupos(seccion, [requisitos])))[0]?.etapas;
+    return { avance: calcularAvance(requisitos.map((r) => r.estado)), etapasDeLaCarpeta: etapas };
+  });
+
+  const [porSubcarpeta, responsables, { avance, etapasDeLaCarpeta }, comentarios, { propia, propio }, revision] = await Promise.all([
     medir("tarjetas (árbol + estados)", tarjetasDeCarpetas(seccion, subcarpetas, true)),
     medir("responsables", listarResponsables()),
-    medir("hojas (árbol) + sus estados", cargaDeHojas),
+    medir("hojas + avance + etapas", cargaDelAvance),
     medir("comentarios", comentariosDe(archivos.map((e) => e.id))),
     medir("estado propio", cargaDePropia),
     medir("revisión de archivos", estadosDeArchivos(archivos.map((e) => e.id))),
     medir("Acreditación", cargaDeAcreditacion),
   ]);
-
-  const requisitos = await medir("aplicar Acreditación", () => aplicarEstadoDeAcreditacion(
-    hojas.map((h): RequisitoLeido => ({
-      estado: estadoEfectivo(estadosHojas.get(h.id)?.estado, tieneDocumentos(h)),
-      carpeta: h,
-    })),
-  ));
-  const avance = calcularAvance(requisitos.map((r) => r.estado));
-
-  // La barra de arriba, partida por etapa. Sale de las MISMAS hojas que el avance, así que
-  // «subidos» y la suma de validado + en revisión + borrador no pueden discrepar. Solo en las
-  // carpetas que agrupan; un requisito no tiene barra.
-  const etapasDeLaCarpeta = esRequisito
-    ? undefined
-    : (await medir("etapas de revisión", revisionDeGrupos(seccion, [requisitos])))[0]?.etapas;
 
   const base = "/contratos";
 
