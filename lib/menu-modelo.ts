@@ -143,6 +143,13 @@ const PLAN: Plan[] = [
     descripcion: "Acreditación, logística y gastos de arranque de cada contrato.",
     items: [{ ruta: "/contratos" }],
   },
+  // Repositorio Legal: los antecedentes legales de las sociedades del grupo (vive en SharePoint).
+  {
+    slug: "legal",
+    titulo: "Legal",
+    descripcion: "Repositorio de antecedentes legales por sociedad, con fechas de emisión y alertas de vencimiento.",
+    items: [{ ruta: "/repositorio-legal" }],
+  },
   // Flota y Valorización histórica cuelgan de Inventario: son aplicaciones aparte (su propio
   // permiso y sus propias rutas), pero para la gente es parte de lo mismo: lo que la empresa tiene,
   // mueve y compró. La de stock se llama «Stock y bodegas» para que el módulo no tenga un

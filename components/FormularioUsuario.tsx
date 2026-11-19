@@ -1,4 +1,5 @@
 import type { Aplicacion, UsuarioConAcceso } from "@/lib/tipos";
+import { ROLES_REPOSITORIO } from "@/lib/repositorio-legal/modelo";
 import { SLUG_POR_OMISION, type Empresa } from "@/lib/empresas-modelo";
 import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
 import { agruparCatalogo } from "@/lib/menu-modelo";
@@ -20,6 +21,12 @@ const ETIQUETA = "block text-xs font-semibold text-gris";
  * migrar lo guardado: solo las etiquetas son libres.
  */
 const ROLES_INTERNOS: Record<string, RolInterno> = {
+  "repositorio-legal": {
+    titulo: "Rol en el Repositorio Legal",
+    porOmision: "usuario",
+    ayuda: "Visualizador: ve y descarga. Normal: además sube. Especial: además renueva, renombra, mueve y elimina. Administrador: todo, incluidos los confidenciales.",
+    opciones: ROLES_REPOSITORIO.map((r) => ({ valor: r.valor, etiqueta: r.etiqueta })),
+  },
   proyectos: {
     titulo: "Rol en Proyectos",
     porOmision: "visualizador",

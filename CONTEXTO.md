@@ -143,3 +143,11 @@ npm run dev                  # http://localhost:3010
 
 Actualízalo cuando agregues un módulo, un cron o una convención que otra persona deba conocer. Mantenlo sin
 identificadores, cuentas ni detalles de seguridad.
+
+## Repositorio Legal (`/repositorio-legal`)
+
+- **SharePoint es la base**: lee y escribe directo en «ARCHIVOS CORE/ANTECEDENTES LEGALES» (`lib/repositorio-legal/sharepoint.ts`). No hay tablas: el SQL solo registra la app. Toda operación sobre un id verifica que el archivo esté dentro de esa carpeta.
+- La **sociedad** sale de la carpeta (`SOCIEDADES/<carpeta>`), y el **tipo, la fecha de emisión y el vencimiento** del nombre del archivo (`lib/repositorio-legal/modelo.ts`). Al subir desde el Core el nombre se arma como «<Tipo> - Emitido dd-mm-aaaa[ - Vence dd-mm-aaaa]». Nada de nombres ni RUTs de sociedades en el código (repo público).
+- Vigencia por tipo (no vence / N días desde la emisión / fecha explícita). Solo el más reciente de cada tipo y sociedad alerta; los anteriores quedan «Reemplazado». Las copias se detectan por hash de contenido.
+- Roles en `rol_extra`: visualizador (ve), usuario (sube), especial (renueva, renombra, mueve, elimina), admin (además confidenciales). Lo restringido (claves) solo lo ve el admin del Core.
+- Avisos al Buzón desde `/api/cron/repositorio-legal` (30 días, 7 días y al vencer). Pruebas: `npm run probar-repositorio-legal`.

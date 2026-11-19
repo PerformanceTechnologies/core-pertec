@@ -3,6 +3,7 @@
 // usan la barra lateral (cliente) y la página de cada módulo (servidor).
 
 import {
+  IconScale,
   IconApps,
   IconBuildingWarehouse,
   IconTruck,
@@ -23,6 +24,7 @@ const ICONOS_DE_MODULO: Record<string, Icon> = {
   crm: IconHeartHandshake,
   tareas: IconLayoutKanban,
   contratos: IconContract,
+  legal: IconScale,
   inventario: IconBuildingWarehouse,
   flota: IconTruck,
   "pagina-web": IconWorld,
