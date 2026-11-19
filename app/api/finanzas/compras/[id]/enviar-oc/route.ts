@@ -8,6 +8,7 @@ import { ocParaDocumento } from "@/lib/fin/oc-datos";
 import { ocAPdf } from "@/lib/fin/oc-pdf";
 import { nombreArchivoOc } from "@/lib/fin/oc-documento";
 import { remitenteParaEnviar } from "@/lib/correo-empresa";
+import { firmaDe } from "@/lib/firma-correo";
 import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { correosValidos } from "@/lib/ofertas/emision";
 import { guardarArchivo } from "@/lib/archivos/almacen";
@@ -72,7 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const nombreArchivo = nombreArchivoOc(datos.documento);
 
   try {
-    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, nombreArchivo, pdf });
+    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, firma: await firmaDe(ctx.usuario), nombreArchivo, pdf });
   } catch (e) {
     console.error("[compras] no se pudo enviar la OC:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "No se pudo enviar el correo. Revisa los destinatarios y vuelve a intentarlo." }, { status: 502 });

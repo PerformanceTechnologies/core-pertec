@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconAlertTriangle, IconBuilding, IconLoader2, IconPlugConnected } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBuilding, IconLoader2, IconPlugConnected, IconSignature } from "@tabler/icons-react";
 import type { EstadoRemitente } from "@/lib/correo-empresa";
 
 /**
@@ -14,7 +14,52 @@ import type { EstadoRemitente } from "@/lib/correo-empresa";
  *
  * `alCambiar(listo)` le avisa a la ventana si se puede enviar, para apagar el botón.
  */
-export default function RemitenteCorreo({ quien = "el destinatario", alCambiar }: { quien?: string; alCambiar?: (listo: boolean) => void }) {
+export default function RemitenteCorreo(props: { quien?: string; alCambiar?: (listo: boolean) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <Remitente {...props} />
+      <LineaDeFirma />
+    </div>
+  );
+}
+
+/**
+ * «Con tu firma · Editar» o «Sin firma · Agregar»: la firma se agrega sola al enviar (ver
+ * lib/firma-correo.ts). Se edita en otra pestaña para no perder lo escrito, y al volver se pregunta
+ * de nuevo. Los invitados no tienen firma, así que a ellos no se les muestra.
+ */
+function LineaDeFirma() {
+  const [firma, setFirma] = useState<{ conFirma: boolean; invitado: boolean } | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    const consultar = () => {
+      fetch("/api/correo-empresa/remitente", { cache: "no-store" })
+        .then((x) => (x.ok ? x.json() : null))
+        .catch(() => null)
+        .then((r) => {
+          if (vigente && r) setFirma({ conFirma: Boolean(r.conFirma), invitado: Boolean(r.invitado) });
+        });
+    };
+    consultar();
+    window.addEventListener("focus", consultar);
+    return () => {
+      vigente = false;
+      window.removeEventListener("focus", consultar);
+    };
+  }, []);
+  if (!firma || firma.invitado) return null;
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] text-gris">
+      <IconSignature size={13} className="shrink-0" />
+      {firma.conFirma ? "Va con tu firma de correo." : "Sin firma de correo."}
+      <a href="/firma-correo" target="_blank" rel="noopener" className="font-semibold text-naranjo hover:underline">
+        {firma.conFirma ? "Editar" : "Agregar firma"}
+      </a>
+    </p>
+  );
+}
+
+function Remitente({ quien = "el destinatario", alCambiar }: { quien?: string; alCambiar?: (listo: boolean) => void }) {
   const [estado, setEstado] = useState<EstadoRemitente | null>(null);
   const [esperando, setEsperando] = useState(false);
 

@@ -6,6 +6,7 @@ import {
 } from "@/lib/ofertas/datos";
 import { ofertaAPdf } from "@/lib/ofertas/pdf";
 import { remitenteParaEnviar } from "@/lib/correo-empresa";
+import { firmaDe } from "@/lib/firma-correo";
 import { empresaActivaId } from "@/lib/empresa-activa";
 import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { guardarOfertaEnWorkspace } from "@/lib/ofertas/workspace";
@@ -110,6 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           copias,
           asunto: (cuerpo?.asunto ?? "").trim() || `Oferta ${oferta.numeroOferta ?? ""}`.trim(),
           cuerpo: cuerpo?.mensaje ?? "",
+          firma: await firmaDe(usuario),
           nombreArchivo,
           pdf,
         });

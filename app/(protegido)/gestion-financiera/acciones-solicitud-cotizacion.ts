@@ -5,6 +5,8 @@ import { Client } from "@microsoft/microsoft-graph-client";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { auditar, contextoFin, fechaValida, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { remitenteParaEnviar } from "@/lib/correo-empresa";
+import { firmaDe } from "@/lib/firma-correo";
+import { firmaHtml } from "@/lib/ofertas/correo-html";
 import { correosValidos } from "@/lib/ofertas/emision";
 import type { ItemSolicitud } from "@/lib/fin/solicitud-cotizacion";
 
@@ -59,7 +61,7 @@ export async function enviarSolicitudCotizacionAction(json: string): Promise<Res
       await graph.api("/me/sendMail").post({
         message: {
           subject: asunto,
-          body: { contentType: "HTML", content: cuerpoHtml(mensaje, items, responderAntes) },
+          body: { contentType: "HTML", content: cuerpoHtml(mensaje, items, responderAntes) + firmaHtml(await firmaDe(ctx.usuario)) },
           toRecipients: destinatarios.map((address) => ({ emailAddress: { address } })),
           ccRecipients: copias.map((address) => ({ emailAddress: { address } })),
         },

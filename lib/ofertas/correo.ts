@@ -1,6 +1,6 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { cuerpoHtml } from "./correo-html";
+import { cuerpoHtml, firmaHtml } from "./correo-html";
 
 /**
  * Mandar la oferta por correo, desde la cuenta de quien la emite.
@@ -34,6 +34,8 @@ export interface EnvioDeOferta {
   asunto: string;
   /** Texto plano; se convierte a HTML respetando los saltos de línea. */
   cuerpo: string;
+  /** La firma de quien envía (texto plano), al final del mensaje. Ver lib/firma-correo.ts. */
+  firma?: string | null;
   nombreArchivo: string;
   pdf: Buffer;
 }
@@ -44,7 +46,7 @@ export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeO
 
   const mensaje = {
     subject: envio.asunto,
-    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) },
+    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) + firmaHtml(envio.firma) },
     toRecipients: envio.destinatarios.map((address) => ({ emailAddress: { address } })),
     ccRecipients: (envio.copias ?? []).map((address) => ({ emailAddress: { address } })),
   };

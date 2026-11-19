@@ -6,6 +6,7 @@ import { RUTA_FIN, RUTA_LEADS, auditar, contextoLeadsApi } from "@/lib/fin/datos
 import { cotizacionParaDocumento } from "@/lib/fin/cotizacion-datos";
 import { cotizacionAPdf, nombreArchivoCotizacion } from "@/lib/fin/cotizacion-pdf";
 import { remitenteParaEnviar } from "@/lib/correo-empresa";
+import { firmaDe } from "@/lib/firma-correo";
 import { enviarOfertaPorCorreo } from "@/lib/ofertas/correo";
 import { correosValidos } from "@/lib/ofertas/emision";
 import { guardarArchivo } from "@/lib/archivos/almacen";
@@ -63,7 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const nombreArchivo = nombreArchivoCotizacion(d.numero, d.version, d.cliente?.nombre ?? null);
 
   try {
-    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, nombreArchivo, pdf });
+    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, firma: await firmaDe(ctx.usuario), nombreArchivo, pdf });
   } catch (e) {
     console.error("[leads] no se pudo enviar la cotización:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "No se pudo enviar el correo. Revisa los destinatarios y vuelve a intentarlo." }, { status: 502 });
