@@ -1,4 +1,5 @@
 import "server-only";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { auth } from "@/auth";
 import { obtenerAccessToken, SinCredencialesDeGraph } from "./graph-credenciales";
 import { olvidarDashboard } from "./memoria-dashboard";
@@ -368,8 +369,10 @@ export class ErrorDeGraph extends Error {
  * tiene forma de pasar por encima. No hay una identidad de aplicación que pueda
  * ver más que la persona.
  */
-async function graph<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
-  const session = await auth();
+async function graph<T>(ruta: string, opciones: RequestInit = {}, correoExplicito?: string): Promise<T> {
+  // Dentro del caché compartido (ver listarEstructura) no hay petición ni cookies: ahí llega el
+  // correo ya resuelto afuera. En todo lo demás sale de la sesión, como siempre.
+  const session = correoExplicito ? { user: { email: correoExplicito } } : await auth();
   if (!session?.user?.email) {
     throw new ErrorDeGraph("No hay sesión. Vuelve a entrar.", 401);
   }
@@ -519,12 +522,16 @@ interface ItemGraph {
 export async function listar(
   seccion: Seccion,
   rutaRelativa: string,
+  /** Solo para el caché compartido de la estructura: ahí no hay sesión de donde sacarlo. */
+  correo?: string,
 ): Promise<ElementoSharePoint[]> {
   const ruta = rutaCompleta(seccion, rutaRelativa);
   const datos = await graph<{ value: ItemGraph[] }>(
     `/sites/${await sitio()}/drive/root:/${ruta}:/children` +
       "?$select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy," +
       "createdBy,createdDateTime,folder,file&$top=500",
+    {},
+    correo,
   );
 
   const enLaRaiz = rutaRelativa === "";
@@ -758,7 +765,36 @@ const estructuraRecordada = new Map<
 export function olvidarEstructura(): void {
   estructuraRecordada.clear();
   olvidarDashboard();
+  // El caché compartido entre servidores (ver listarEstructura). Vence al tiro, no «stale
+  // mientras se revalida»: quien acaba de subir tiene que ver el avance ya movido. Solo se puede
+  // en acciones y rutas, que es desde donde se llama; si algún día se llamara al pintar una
+  // página, no rompe: queda la vigencia de 60 s.
+  try {
+    revalidateTag(ETIQUETA_ESTRUCTURA, { expire: 0 });
+  } catch (e) {
+    console.warn("[contratos] No se pudo vaciar el caché de la estructura:", e instanceof Error ? e.message : e);
+  }
 }
+
+/** La etiqueta del caché compartido de la estructura de carpetas. */
+const ETIQUETA_ESTRUCTURA = "contratos-estructura";
+
+/**
+ * El listado de una carpeta para bajar el árbol, guardado en el caché de datos de Next: el MISMO
+ * para todos los servidores de Vercel, no solo para el que atendió la página.
+ *
+ * La memoria de abajo (estructuraRecordada) es de cada instancia, y Vercel reparte las visitas
+ * entre muchas que nacen y mueren: casi nunca acertaba. Esto sí.
+ *
+ * La clave lleva el correo (es un argumento): cada persona ve lo que SharePoint le deja ver a ELLA,
+ * y lo guardado es exactamente lo que Graph le respondió. Un error no se guarda (un 403 o una caída
+ * no quedan pegados). Dura 60 s, igual que antes, y se vacía con olvidarEstructura().
+ */
+const listarEnCache = unstable_cache(
+  async (correo: string, seccion: Seccion, rutaRelativa: string) => listar(seccion, rutaRelativa, correo),
+  [ETIQUETA_ESTRUCTURA, "v1"],
+  { revalidate: 60, tags: [ETIQUETA_ESTRUCTURA] },
+);
 
 async function listarEstructura(
   seccion: Seccion,
@@ -777,7 +813,12 @@ async function listarEstructura(
   // memoria de apoyo, no una fuente de verdad.
   if (estructuraRecordada.size >= MAXIMO_DE_ENTRADAS) estructuraRecordada.clear();
 
-  const hijos = listar(seccion, rutaRelativa);
+  // El sitio se resuelve ACÁ, con sesión: adentro del caché no la hay, y sitio() la necesitaría
+  // la primera vez en cada servidor. Resuelto, queda en memoria y adentro ya no la pide.
+  const correo = session?.user?.email?.toLowerCase();
+  const hijos = correo
+    ? sitio().then(() => listarEnCache(correo, seccion, rutaRelativa))
+    : listar(seccion, rutaRelativa);
   estructuraRecordada.set(clave, { hijos, hasta: ahora + VIGENCIA_ESTRUCTURA_MS });
   // Un fallo NO se recuerda: un 403 o una caída de red pasajera no pueden quedar
   // pegados un minuto. Se descarta solo si la entrada sigue siendo esta.
