@@ -215,11 +215,16 @@ async function tarjetasDeCarpetas(
    */
   conRevision = false,
 ): Promise<TarjetaDeCarpetaDatos[]> {
-  const propios = await estadosDe(carpetas.map((c) => c.id));
+  // Los estados guardados y el árbol de SharePoint no dependen uno del otro: se piden a la vez.
+  const cargaDePropios = estadosDe(carpetas.map((c) => c.id));
 
   const leidas = await Promise.all(
     carpetas.map(async (carpeta) => {
-      const propio = propios.get(carpeta.id);
+      // Bajar el árbol parte ya, sin esperar a la base. El fallo se recoge más abajo.
+      const cargaDeHojas: Promise<ElementoSharePoint[] | null> = esCarpetaDeAcreditacion(carpeta.ruta)
+        ? Promise.resolve([])
+        : hojasBajo(seccion, carpeta.ruta).catch(() => null);
+      const propio = (await cargaDePropios).get(carpeta.id);
       const vacio = {
         carpeta,
         avance: calcularAvance([]),
@@ -241,10 +246,8 @@ async function tarjetasDeCarpetas(
         };
       }
 
-      let hojas: ElementoSharePoint[];
-      try {
-        hojas = await hojasBajo(seccion, carpeta.ruta);
-      } catch {
+      const hojas = await cargaDeHojas;
+      if (hojas === null) {
         // Una carpeta a la que esta persona no tiene acceso no puede tumbar la
         // pantalla entera: se muestra sin avance y el resto sigue. Y se muestra
         // SIN avance, no como hoja pendiente: no haber podido mirar adentro no
@@ -524,17 +527,56 @@ async function Carpeta({
   // Las hojas que cuelgan de acá, para la barra de arriba. Se le pasan los hijos
   // ya listados para que no vuelva a pedirlos: con subcarpetas vacías —el caso
   // normal de una carpeta de requisitos— no cuesta ninguna llamada extra.
-  const hojas = await hojasBajo(seccion, rutaRelativa, 4, elementos);
-
   const archivos = elementos.filter((e) => !e.esCarpeta);
 
-  const [porSubcarpeta, responsables, estadosHojas, comentarios, propia, revision] = await Promise.all([
+  // Todo lo que NO depende de las hojas parte de inmediato, en paralelo con bajar el árbol
+  // (que es lo lento: un viaje a Microsoft por nivel). Antes iba en cadena —primero el
+  // árbol, después lo demás, después Acreditación, después el estado propio— y la página
+  // esperaba la suma de todo. Los datos que se piden son exactamente los mismos.
+  //
+  // Los tipos de Acreditación salen de las subcarpetas, que ya están listadas: no hace falta
+  // esperar las tarjetas para saber cuáles cargar.
+  const tiposDeAcreditacion = new Set<TipoDeAcreditacion>();
+  for (const c of subcarpetas) {
+    const tipo = tipoDeCarpetaDeAcreditacion(c.ruta);
+    if (tipo) tiposDeAcreditacion.add(tipo);
+  }
+  const acreditacion = new Map<TipoDeAcreditacion, AcreditacionParaDocumentos | null>();
+  const cargaDeAcreditacion = Promise.all(
+    [...tiposDeAcreditacion].map(async (tipo) =>
+      acreditacion.set(tipo, await cargarAcreditacionParaDocumentos(tipo).catch(() => null)),
+    ),
+  );
+
+  // Las hojas que cuelgan de acá, para la barra de arriba. Se le pasan los hijos
+  // ya listados para que no vuelva a pedirlos: con subcarpetas vacías —el caso
+  // normal de una carpeta de requisitos— no cuesta ninguna llamada extra.
+  const cargaDeHojas = hojasBajo(seccion, rutaRelativa, 4, elementos).then(async (hojas) => ({
+    hojas,
+    estadosHojas: await estadosDe(hojas.map((h) => h.id)),
+  }));
+
+  // El estado de ESTA carpeta se pide aparte, y no se busca en `estadosHojas`.
+  //
+  // Parecía estar ahí, pero no: `hojas` son las que cuelgan de acá, y una
+  // carpeta de requisito no tiene ninguna —hojasBajo devuelve [] para una hoja—,
+  // así que ese mapa está vacío justo en el único caso en que hace falta. El
+  // resultado era que el selector mostraba "Pendiente" siempre, aunque estuviera
+  // guardado como subido, mientras la tarjeta del nivel de arriba sí lo decía
+  // bien. Una consulta de más, solo en la página de un requisito.
+  const cargaDePropia = (esRequisito ? obtenerCarpeta(seccion, rutaRelativa) : Promise.resolve(null)).then(async (propia) => ({
+    propia,
+    propio: propia ? (await estadosDe([propia.id])).get(propia.id) : undefined,
+  }));
+
+  const [porSubcarpeta, responsables, { hojas, estadosHojas }, comentarios, { propia, propio }, revision] = await Promise.all([
     tarjetasDeCarpetas(seccion, subcarpetas, true),
     listarResponsables(),
-    estadosDe(hojas.map((h) => h.id)),
+    cargaDeHojas,
     comentariosDe(archivos.map((e) => e.id)),
-    esRequisito ? obtenerCarpeta(seccion, rutaRelativa) : Promise.resolve(null),
+    cargaDePropia,
     estadosDeArchivos(archivos.map((e) => e.id)),
+    cargaDeAcreditacion,
   ]);
 
   const requisitos = await aplicarEstadoDeAcreditacion(
@@ -545,36 +587,12 @@ async function Carpeta({
   );
   const avance = calcularAvance(requisitos.map((r) => r.estado));
 
-  // La fila de una carpeta de Acreditación (1.3 personas, 1.4 vehículos) muestra su avance REAL
-  // (documentos cargados y vigentes sobre los exigidos), no el de un requisito que se entrega o no.
-  const tiposDeAcreditacion = new Set<TipoDeAcreditacion>();
-  for (const d of porSubcarpeta) {
-    const tipo = tipoDeCarpetaDeAcreditacion(d.carpeta.ruta);
-    if (tipo) tiposDeAcreditacion.add(tipo);
-  }
-  const acreditacion = new Map<TipoDeAcreditacion, AcreditacionParaDocumentos | null>();
-  await Promise.all(
-    [...tiposDeAcreditacion].map(async (tipo) =>
-      acreditacion.set(tipo, await cargarAcreditacionParaDocumentos(tipo).catch(() => null)),
-    ),
-  );
-
   // La barra de arriba, partida por etapa. Sale de las MISMAS hojas que el avance, así que
   // «subidos» y la suma de validado + en revisión + borrador no pueden discrepar. Solo en las
   // carpetas que agrupan; un requisito no tiene barra.
   const etapasDeLaCarpeta = esRequisito
     ? undefined
     : (await revisionDeGrupos(seccion, [requisitos]))[0]?.etapas;
-
-  // El estado de ESTA carpeta se pide aparte, y no se busca en `estadosHojas`.
-  //
-  // Parecía estar ahí, pero no: `hojas` son las que cuelgan de acá, y una
-  // carpeta de requisito no tiene ninguna —hojasBajo devuelve [] para una hoja—,
-  // así que ese mapa está vacío justo en el único caso en que hace falta. El
-  // resultado era que el selector mostraba "Pendiente" siempre, aunque estuviera
-  // guardado como subido, mientras la tarjeta del nivel de arriba sí lo decía
-  // bien. Una consulta de más, solo en la página de un requisito.
-  const propio = propia ? (await estadosDe([propia.id])).get(propia.id) : undefined;
 
   const base = "/contratos";
 

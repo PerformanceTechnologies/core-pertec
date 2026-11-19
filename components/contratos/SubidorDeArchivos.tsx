@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconCloudUpload } from "@tabler/icons-react";
 import RuedaCarga from "./RuedaCarga";
-import { subirPorTrozos } from "@/lib/contratos/subida-por-trozos";
+import { enParalelo, subirPorTrozos } from "@/lib/contratos/subida-por-trozos";
 import { CAMPO } from "@/lib/contratos/estilos";
 import { mensajeDeError } from "@/lib/contratos/errores-cliente";
 
@@ -68,10 +68,9 @@ export default function SubidorDeArchivos({
     const lista = Array.from(archivos);
     setEstados(lista.map((a) => ({ nombre: a.name, estado: "subiendo" as const, avance: 0 })));
 
-    // De a uno y no en paralelo: con varios a la vez el ancho de subida se
-    // reparte y ninguno parece avanzar. En serie, cada archivo termina y se ve.
-    for (let i = 0; i < lista.length; i++) {
-      const archivo = lista[i];
+    // Tres a la vez (ver enParalelo): con varios PDFs chicos, lo que demoraba eran las esperas
+    // de cada uno sumadas en fila, no el ancho de subida. Cada fila sigue mostrando su avance.
+    await enParalelo(lista, 3, async (archivo, i) => {
       try {
         const { url } = await prepararSubida(seccion, rutaCarpeta, archivo.name);
         const creado = await subirPorTrozos(url, archivo, (avance) => actualizar(i, { avance }));
@@ -95,7 +94,7 @@ export default function SubidorDeArchivos({
           detalle: mensajeDeError(e, "No se pudo subir"),
         });
       }
-    }
+    });
 
     if (entrada.current) entrada.current.value = "";
     setComentario("");

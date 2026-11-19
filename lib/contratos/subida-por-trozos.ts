@@ -69,3 +69,22 @@ export async function subirPorTrozos(
 
   throw new Error("La subida terminó sin que SharePoint confirmara el archivo.");
 }
+
+/**
+ * Corre `tarea` sobre cada elemento, con a lo más `limite` a la vez.
+ *
+ * Para subir varios archivos: con PDFs chicos (lo normal en Contratos) lo que demora no es
+ * el ancho de banda sino las idas y vueltas de cada uno —preparar la sesión, subir,
+ * registrar—, y de a uno esas esperas se suman. Tres a la vez las superpone sin repartir
+ * tanto el ancho como para que ninguno avance. Cada tarea maneja sus propios errores.
+ */
+export async function enParalelo<T>(elementos: T[], limite: number, tarea: (elemento: T, indice: number) => Promise<void>): Promise<void> {
+  let siguiente = 0;
+  const trabajador = async () => {
+    while (siguiente < elementos.length) {
+      const i = siguiente++;
+      await tarea(elementos[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limite, elementos.length) }, trabajador));
+}
