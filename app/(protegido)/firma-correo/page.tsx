@@ -2,10 +2,15 @@ import { redirect } from "next/navigation";
 import { IconSignature } from "@tabler/icons-react";
 import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { firmaDe, LARGO_FIRMA } from "@/lib/firma-correo";
+import { firmaDe } from "@/lib/firma-correo";
 import { HOJA, IconoTile } from "@/components/contactos/Visual";
 import EditorDeFirma from "@/components/correo/EditorDeFirma";
 import { guardarFirmaAction } from "./acciones";
+
+async function firmaComoImagen(usuario: { id: string; tipo?: string | null }): Promise<string | null> {
+  const png = await firmaDe(usuario);
+  return png ? `data:image/png;base64,${png}` : null;
+}
 
 /** Tu firma de correo: la que el Core agrega al final de lo que envías a clientes y proveedores. */
 export default async function FirmaCorreoPage() {
@@ -28,7 +33,7 @@ export default async function FirmaCorreoPage() {
         {usuario.tipo === "invitado" ? (
           <p className="text-sm text-gris">Los invitados no tienen firma de correo: no envían correos a clientes ni proveedores desde el Core.</p>
         ) : (
-          <EditorDeFirma inicial={(await firmaDe(usuario)) ?? ""} maximo={LARGO_FIRMA} guardar={guardarFirmaAction} />
+          <EditorDeFirma actual={await firmaComoImagen(usuario)} guardar={guardarFirmaAction} />
         )}
       </section>
     </div>

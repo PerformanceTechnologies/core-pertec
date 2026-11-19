@@ -1,6 +1,7 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { cuerpoHtml, firmaHtml } from "./correo-html";
+import { adjuntoDeFirma } from "@/lib/firma-correo";
 
 /**
  * Mandar la oferta por correo, desde la cuenta de quien la emite.
@@ -34,7 +35,7 @@ export interface EnvioDeOferta {
   asunto: string;
   /** Texto plano; se convierte a HTML respetando los saltos de línea. */
   cuerpo: string;
-  /** La firma de quien envía (texto plano), al final del mensaje. Ver lib/firma-correo.ts. */
+  /** La firma de quien envía: PNG en base64, incrustado al final del mensaje. Ver lib/firma-correo.ts. */
   firma?: string | null;
   nombreArchivo: string;
   pdf: Buffer;
@@ -46,7 +47,9 @@ export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeO
 
   const mensaje = {
     subject: envio.asunto,
-    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) + firmaHtml(envio.firma) },
+    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) + firmaHtml(Boolean(envio.firma)) },
+    // La firma va como adjunto incrustado (cid): tanto en el envío directo como en el borrador.
+    ...(envio.firma ? { attachments: [adjuntoDeFirma(envio.firma)] } : {}),
     toRecipients: envio.destinatarios.map((address) => ({ emailAddress: { address } })),
     ccRecipients: (envio.copias ?? []).map((address) => ({ emailAddress: { address } })),
   };
@@ -56,6 +59,8 @@ export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeO
       message: {
         ...mensaje,
         attachments: [
+          // La firma (si hay) va primero; el PDF, después.
+          ...(envio.firma ? [adjuntoDeFirma(envio.firma)] : []),
           {
             "@odata.type": "#microsoft.graph.fileAttachment",
             name: envio.nombreArchivo,

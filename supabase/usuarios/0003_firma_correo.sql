@@ -1,7 +1,7 @@
--- Firma de correo de cada persona: se agrega al final de los correos que manda desde el Core
--- (cotizaciones, OC, solicitudes de cotización y ofertas). Texto plano, hasta 1000 caracteres.
--- Los invitados no tienen firma. Se puede correr más de una vez.
-alter table public.usuarios add column if not exists firma_correo text;
+-- Firma de correo de cada persona, como IMAGEN: se incrusta al final de los correos que manda desde
+-- el Core (cotizaciones, OC, solicitudes de cotización y ofertas). Se guarda el PNG ya achicado por
+-- el servidor (máx. 600 × 240 px), en base64. Los invitados no tienen firma. Se puede correr más de una vez.
+alter table public.usuarios add column if not exists firma_imagen text;
 
-comment on column public.usuarios.firma_correo is
-  'Firma que el Core agrega al final de los correos que esta persona envía. Texto plano. NULL = sin firma.';
+comment on column public.usuarios.firma_imagen is
+  'Firma de correo: PNG en base64 (lo normaliza el Core). NULL = sin firma.';
