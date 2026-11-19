@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "./usuarios";
 import { obtenerAplicacionPorSlug } from "./aplicaciones";
 import { estaPausada } from "./apps-pausadas";
@@ -21,7 +21,7 @@ export interface AccesoApiConcedido {
 // de esas páginas: oculta la navegación no alcanza, porque una Server Action
 // se puede invocar directo sin pasar por la UI.
 export async function exigirAdmin(): Promise<UsuarioConAcceso> {
-  const session = await auth();
+  const session = await sesionDeLaPeticion();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario || usuario.rol !== "admin") redirect("/");
   return usuario;
@@ -50,7 +50,7 @@ export async function puedeVerApp(usuario: UsuarioConAcceso, slug: string): Prom
 // mismo catálogo de aplicaciones: el admin siempre entra, un usuario normal
 // solo si tiene esa app asignada — igual que las cartillas del catálogo.
 export async function exigirAccesoApp(slug: string): Promise<UsuarioConAcceso> {
-  const session = await auth();
+  const session = await sesionDeLaPeticion();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) redirect("/ingresar");
   if (estaPausada(slug)) redirect("/"); // en pausa: nadie, ni el admin (ver lib/apps-pausadas.ts)
@@ -64,7 +64,7 @@ export async function exigirAccesoApp(slug: string): Promise<UsuarioConAcceso> {
 // Misma verificación que exigirAccesoApp, pero para Route Handlers: en vez
 // de redirigir devuelve un resultado que la ruta traduce a un status HTTP.
 export async function verificarAccesoAppApi(slug: string): Promise<AccesoApiDenegado | AccesoApiConcedido> {
-  const session = await auth();
+  const session = await sesionDeLaPeticion();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) return { usuario: null, status: 401, error: "No autorizado" };
   if (estaPausada(slug)) return { usuario: null, status: 403, error: "No autorizado" }; // ver lib/apps-pausadas.ts

@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "../usuarios";
 import { obtenerAplicacionPorSlug } from "../aplicaciones";
 import type { UsuarioConAcceso } from "../tipos";
@@ -13,7 +13,7 @@ import { usuarioPuedeVerSubpanelFinanzas } from "../finanzas-subpaneles-usuario"
 // defecto sin fila explicita, porque es informacion tributaria sensible de
 // ambas empresas. El admin siempre pasa, igual que el resto del core.
 async function tieneAcceso(): Promise<UsuarioConAcceso | null> {
-  const session = await auth();
+  const session = await sesionDeLaPeticion();
   const usuario = await obtenerUsuarioActivo(session?.user?.email);
   if (!usuario) return null;
   if (usuario.rol === "admin") return usuario;

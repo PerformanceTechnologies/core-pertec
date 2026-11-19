@@ -1,5 +1,5 @@
 import "server-only";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerAplicacionPorSlug } from "@/lib/aplicaciones";
 import { exigirAccesoApp, verificarAccesoAppApi } from "@/lib/autorizacion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
@@ -132,6 +132,6 @@ export async function exigirVerDocumento(id: string): Promise<Documento | null> 
 }
 
 export async function usuarioDeSesion(): Promise<UsuarioConAcceso | null> {
-  const correo = (await auth())?.user?.email;
+  const correo = (await sesionDeLaPeticion())?.user?.email;
   return correo ? obtenerUsuarioActivo(correo) : null;
 }

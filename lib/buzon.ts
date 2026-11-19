@@ -38,10 +38,10 @@ export interface NuevaNotificacion {
 /** La empresa activa de quien está usando el Core ahora (null en un cron o sin sesión). */
 async function empresaDeQuienAvisa(): Promise<string | null> {
   try {
-    const { auth } = await import("@/auth");
+    const { sesionDeLaPeticion } = await import("./sesion-de-la-peticion");
     const { obtenerUsuarioActivo } = await import("./usuarios");
     const { contextoDeEmpresa } = await import("./empresas");
-    const correo = (await auth())?.user?.email;
+    const correo = (await sesionDeLaPeticion())?.user?.email;
     const u = correo ? await obtenerUsuarioActivo(correo) : null;
     return u ? (await contextoDeEmpresa(u.id, u.rol)).activa?.id ?? null : null;
   } catch {

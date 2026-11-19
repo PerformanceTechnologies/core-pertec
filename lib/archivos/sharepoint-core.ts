@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerAccessToken, SinCredencialesDeGraph, tokenDeAplicacion } from "@/lib/contratos/graph-credenciales";
 
 // -----------------------------------------------------------------------------
@@ -78,7 +78,7 @@ async function conRespaldoApp<T>(fn: (graph: Client) => Promise<T>): Promise<T> 
 }
 
 async function cliente(): Promise<Client> {
-  const correo = (await auth())?.user?.email;
+  const correo = (await sesionDeLaPeticion())?.user?.email;
   if (!correo) throw new SinCredencialesDeGraph("Inicia sesión en el Core para usar los archivos de SharePoint.");
   const token = await obtenerAccessToken(correo);
   return Client.init({ authProvider: (done) => done(null, token) });

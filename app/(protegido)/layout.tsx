@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { listarAplicaciones } from "@/lib/aplicaciones";
 import BarraLateral from "@/components/BarraLateral";
@@ -23,7 +23,7 @@ import { filtrarAppsDelUsuario, subpanelesFinanzasDelMenu } from "@/lib/menu-usu
 // comportamiento por omisión de Next desde la 15).
 
 export default async function LayoutProtegido({ children }: { children: React.ReactNode }) {
-  const session = await auth();
+  const session = await sesionDeLaPeticion();
   if (!session?.user?.email) redirect("/ingresar");
 
   // El catalogo de aplicaciones no depende de quien sea el usuario: se pide al

@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 
 /**
@@ -9,7 +9,7 @@ import { obtenerUsuarioActivo } from "@/lib/usuarios";
  * Para un invitado SharePoint pasa por la app del Core, así que no hay nada que conectar: se vuelve.
  */
 export async function volverSiEsInvitado(destino: string): Promise<void> {
-  const correo = (await auth())?.user?.email;
+  const correo = (await sesionDeLaPeticion())?.user?.email;
   const u = correo ? await obtenerUsuarioActivo(correo) : null;
   if (u?.tipo === "invitado") redirect(destino);
 }

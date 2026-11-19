@@ -1,6 +1,6 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerAccessToken, SinCredencialesDeGraph, tokenDeAplicacion } from "@/lib/contratos/graph-credenciales";
 import type { ArchivoCrudo } from "./modelo";
 
@@ -31,7 +31,7 @@ export function carpetaRaiz(): string {
 }
 
 async function clientePersona(): Promise<Client> {
-  const correo = (await auth())?.user?.email;
+  const correo = (await sesionDeLaPeticion())?.user?.email;
   if (!correo) throw new SinCredencialesDeGraph("Inicia sesión en el Core para usar SharePoint.");
   const token = await obtenerAccessToken(correo);
   return Client.init({ authProvider: (done) => done(null, token) });

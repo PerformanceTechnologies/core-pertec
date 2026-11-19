@@ -1,5 +1,5 @@
 import "server-only";
-import { auth } from "@/auth";
+import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
 import { contextoDeEmpresa } from "@/lib/empresas";
 
@@ -8,7 +8,7 @@ import { contextoDeEmpresa } from "@/lib/empresas";
  * separados por empresa lo usan para guardar y para filtrar. null sin sesión (crons).
  */
 export async function empresaActivaId(): Promise<string | null> {
-  const correo = (await auth())?.user?.email;
+  const correo = (await sesionDeLaPeticion())?.user?.email;
   const u = correo ? await obtenerUsuarioActivo(correo) : null;
   if (!u) return null;
   return (await contextoDeEmpresa(u.id, u.rol)).activa?.id ?? null;
