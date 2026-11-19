@@ -29,7 +29,7 @@ export default function RemitenteCorreo(props: { quien?: string; alCambiar?: (li
  * de nuevo. Los invitados no tienen firma, así que a ellos no se les muestra.
  */
 function LineaDeFirma() {
-  const [firma, setFirma] = useState<{ conFirma: boolean; invitado: boolean } | null>(null);
+  const [firma, setFirma] = useState<{ conFirma: boolean; invitado: boolean; version: number } | null>(null);
   useEffect(() => {
     let vigente = true;
     const consultar = () => {
@@ -37,7 +37,7 @@ function LineaDeFirma() {
         .then((x) => (x.ok ? x.json() : null))
         .catch(() => null)
         .then((r) => {
-          if (vigente && r) setFirma({ conFirma: Boolean(r.conFirma), invitado: Boolean(r.invitado) });
+          if (vigente && r) setFirma({ conFirma: Boolean(r.conFirma), invitado: Boolean(r.invitado), version: Date.now() });
         });
     };
     consultar();
@@ -48,14 +48,31 @@ function LineaDeFirma() {
     };
   }, []);
   if (!firma || firma.invitado) return null;
+  // Una tarjeta y no una línea suelta: la firma es lo que más se ve del correo después del mensaje,
+  // y quien envía tiene que poder ver cuál va antes de mandarlo.
   return (
-    <p className="flex items-center gap-1.5 text-[11px] text-gris">
-      <IconSignature size={13} className="shrink-0" />
-      {firma.conFirma ? "Va con tu firma de correo." : "Sin firma de correo."}
-      <a href="/firma-correo" target="_blank" rel="noopener" className="font-semibold text-naranjo hover:underline">
-        {firma.conFirma ? "Editar" : "Agregar firma"}
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-superficie px-3 py-2.5">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-naranjo/10 text-naranjo">
+        <IconSignature size={19} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-tinta">{firma.conFirma ? "Va con tu firma de correo" : "Sin firma de correo"}</p>
+        {firma.conFirma ? (
+          // eslint-disable-next-line @next/next/no-img-element -- la firma propia, servida por el Core
+          <img src={`/api/firma-correo?v=${firma.version}`} alt="Tu firma" className="mt-1.5 block h-auto max-h-20 max-w-full rounded border border-borde/60 bg-white" />
+        ) : (
+          <p className="text-xs text-gris">Agrega una imagen con tu nombre, cargo y datos: se pone sola al final de cada correo.</p>
+        )}
+      </div>
+      <a
+        href="/firma-correo"
+        target="_blank"
+        rel="noopener"
+        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-tinta/[0.06] px-3.5 text-xs font-semibold text-tinta transition hover:bg-naranjo/10 hover:text-naranjo"
+      >
+        {firma.conFirma ? "Cambiar firma" : "Agregar firma"}
       </a>
-    </p>
+    </div>
   );
 }
 
