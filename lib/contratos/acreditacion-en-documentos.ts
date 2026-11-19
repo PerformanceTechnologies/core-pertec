@@ -1,3 +1,4 @@
+import { medir } from "./medicion";
 import "server-only";
 import { recordar } from "./memoria-dashboard";
 import { cargarNomina } from "./acreditacion";
@@ -194,7 +195,7 @@ export async function aplicarEstadoDeAcreditacion(requisitos: RequisitoLeido[]):
   await Promise.all(
     [...tipos].map(async (tipo) => {
       try {
-        reales.set(tipo, estadoDeLaCarpetaDeAcreditacion(await cargarAcreditacionParaDocumentos(tipo)));
+        reales.set(tipo, estadoDeLaCarpetaDeAcreditacion(await medir(`cargar Acreditación ${tipo}`, cargarAcreditacionParaDocumentos(tipo))));
       } catch (e) {
         console.error(
           `[contratos] No se pudo leer Acreditación (${tipo}) para su carpeta: ${e instanceof Error ? e.message : e}`,

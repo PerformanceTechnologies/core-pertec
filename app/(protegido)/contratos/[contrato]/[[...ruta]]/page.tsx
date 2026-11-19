@@ -228,7 +228,7 @@ async function tarjetasDeCarpetas(
       const cargaDeHojas: Promise<ElementoSharePoint[] | null> = esCarpetaDeAcreditacion(carpeta.ruta)
         ? Promise.resolve([])
         : hojasBajo(seccion, carpeta.ruta).catch(() => null);
-      const propio = (await cargaDePropios).get(carpeta.id);
+      const propio = (await medir("estados propios (tarjetas)", cargaDePropios)).get(carpeta.id);
       const vacio = {
         carpeta,
         avance: calcularAvance([]),
@@ -269,7 +269,7 @@ async function tarjetasDeCarpetas(
         };
       }
 
-      const estados = await estadosDe(hojas.map((h) => h.id));
+      const estados = await medir(`estados de ${carpeta.nombre}`, estadosDe(hojas.map((h) => h.id)));
       // Si entre las hojas está la carpeta de Acreditación, su estado es el que dice ese módulo.
       const requisitos = await aplicarEstadoDeAcreditacion(
         hojas.map((h): RequisitoLeido => ({
@@ -289,10 +289,10 @@ async function tarjetasDeCarpetas(
   // Las etapas de TODAS las carpetas de una vez: una sola consulta a la base. Las que no se
   // pudieron leer se quedan sin revisión (la fila muestra solo su estado).
   const conDatos = leidas.filter((l): l is typeof l & { requisitos: RequisitoLeido[] } => l.requisitos !== null);
-  const revisiones = await revisionDeGrupos(
+  const revisiones = await medir("revisión de tarjetas", revisionDeGrupos(
     seccion,
     conDatos.map((l) => l.requisitos),
-  );
+  ));
   const porCarpeta = new Map(conDatos.map((l, i) => [l.datos.carpeta.id, revisiones[i]]));
 
   return leidas.map((l) => ({ ...l.datos, revision: porCarpeta.get(l.datos.carpeta.id) }));
