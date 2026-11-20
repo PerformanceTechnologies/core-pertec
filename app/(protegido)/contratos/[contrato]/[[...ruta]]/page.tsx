@@ -88,6 +88,26 @@ const TITULO = "Resumen";
 
 export default async function ContratosPage({ params, searchParams }: { params: Promise<{ ruta?: string[] }>; searchParams: Promise<{ medir?: string }> }) {
   registroDeMedicion(); // marca el inicio de la página
+
+  const { ruta: segmentos = [] } = await params;
+  // Los segmentos vienen codificados en la URL: estos nombres tienen espacios,
+  // puntos y paréntesis.
+  const resto = segmentos.map(decodeURIComponent);
+  const rutaRelativa = resto.join("/");
+
+  // La lectura de la carpeta en SharePoint parte YA, en paralelo con revisar la sesión y el
+  // acceso (unos 300-500 ms que antes se esperaban antes de recién pedirle la carpeta a
+  // Microsoft). No se adelanta nada que no corresponda: va con el token de la propia persona —
+  // SharePoint aplica sus permisos— y lo leído solo se usa si pasa el control de acceso de abajo.
+  // Si falla (sin conexión a SharePoint, sin permiso), el error se guarda y se trata más abajo.
+  const cargaDeSeccion = medir("contrato actual", secciones()).then((s) => s[0]);
+  const cargaDeLaCarpeta = cargaDeSeccion
+    .then((seccion) => medir("listar carpeta (Graph)", listar(seccion, rutaRelativa)))
+    .then(
+      (elementos) => ({ elementos, error: null as unknown }),
+      (error: unknown) => ({ elementos: [] as ElementoSharePoint[], error }),
+    );
+
   const usuario = await medir("sesión y acceso", exigirAccesoApp("contratos"));
   // Medición temporal: solo para un administrador que la pide con ?medir=1.
   const conMedicion = usuario.rol === "admin" && (await searchParams).medir === "1";
@@ -97,15 +117,9 @@ export default async function ContratosPage({ params, searchParams }: { params: 
   // mensaje de Microsoft sobre un consentimiento que nadie le pidió.
   const conectado = await medir("token de SharePoint", tieneAccesoASharePoint(usuario.correo));
 
-  const { ruta: segmentos = [] } = await params;
-  // Los segmentos vienen codificados en la URL: estos nombres tienen espacios,
-  // puntos y paréntesis.
-  const resto = segmentos.map(decodeURIComponent);
-  const rutaRelativa = resto.join("/");
-
   // El módulo es la carpeta de arranque: lo que va en la URL es la ruta dentro
   // de ella, sin ningún tramo extra que atravesar antes de llegar al contenido.
-  const seccion = (await medir("contrato actual", secciones()))[0];
+  const seccion = await cargaDeSeccion;
 
   // Esconder las carpetas excluidas de la lista no alcanza: la URL sigue siendo
   // adivinable, y una carpeta que el módulo dice no tener pero que abre igual es
@@ -115,10 +129,13 @@ export default async function ContratosPage({ params, searchParams }: { params: 
   let elementos: ElementoSharePoint[] = [];
   let error: string | null = null;
 
-  try {
-    if (conectado) elementos = await medir("listar carpeta (Graph)", listar(seccion, rutaRelativa));
-  } catch (e) {
-    error = e instanceof Error ? e.message : "No se pudo leer la carpeta en SharePoint.";
+  if (conectado) {
+    const leida = await cargaDeLaCarpeta;
+    if (leida.error) {
+      error = leida.error instanceof Error ? leida.error.message : "No se pudo leer la carpeta en SharePoint.";
+    } else {
+      elementos = leida.elementos;
+    }
   }
 
   return (
