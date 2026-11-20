@@ -160,7 +160,7 @@ export default async function ValorizacionPage({
 
       {/* ── Por bodega ── */}
       <Seccion titulo="Por bodega" icono={<IconBuildingWarehouse size={15} />}>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`grid gap-3 ${r.porBodega.length >= 3 ? "sm:grid-cols-2 xl:grid-cols-3" : r.porBodega.length === 2 ? "sm:grid-cols-2" : ""}`}>
           {r.porBodega.map((b) => (
             <TarjetaBodega
               key={b.id}
@@ -177,10 +177,13 @@ export default async function ValorizacionPage({
       {/* ── Categorías y ABC ── */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <Seccion titulo="Por categoría" icono={<IconCategory size={15} />}>
-          <div className={`${TARJETA} grid items-center gap-4 p-4 sm:grid-cols-[160px_minmax(0,1fr)]`}>
-            <Dona grupos={r.porCategoria} colores={colorCategoria} total={r.total} />
+          <div className={`${TARJETA} grid items-start gap-4 p-4 sm:grid-cols-[150px_minmax(0,1fr)]`}>
+            <div className="sm:sticky sm:top-4">
+              <Dona grupos={r.porCategoria} colores={colorCategoria} total={r.total} />
+            </div>
+            <div>
             <ul className="space-y-1.5">
-              {r.porCategoria.map((c) => (
+              {r.porCategoria.filter((c) => c.valor > 0).map((c) => (
                 <li key={c.id}>
                   <Link href={enlace({ categoria: categoria === c.id ? null : c.id })} className="group block">
                     <div className="flex items-center gap-2 text-sm">
@@ -196,9 +199,25 @@ export default async function ValorizacionPage({
                 </li>
               ))}
             </ul>
+            {/* Las que valen $0 no ocupan una fila cada una: van juntas, y se puede filtrar por ellas igual. */}
+            {r.porCategoria.some((c) => c.valor <= 0) && (
+              <p className="mt-3 border-t border-borde pt-2.5 text-xs leading-relaxed text-gris">
+                <span className="font-semibold text-tinta">Sin valor ($0):</span>{" "}
+                {r.porCategoria
+                  .filter((c) => c.valor <= 0)
+                  .map((c, i, l) => (
+                    <span key={c.id}>
+                      <Link href={enlace({ categoria: categoria === c.id ? null : c.id })} className="hover:text-naranjo hover:underline">{c.nombre}</Link>
+                      {i < l.length - 1 ? " · " : ""}
+                    </span>
+                  ))}
+              </p>
+            )}
+            </div>
           </div>
         </Seccion>
 
+        <div className="space-y-4">
         <Seccion titulo="Concentración ABC" icono={<IconStack2 size={15} />}>
           <div className={`${TARJETA} p-4`}>
             <p className="mb-3 text-xs leading-relaxed text-gris">
@@ -235,36 +254,35 @@ export default async function ValorizacionPage({
             </div>
           </div>
         </Seccion>
-      </div>
-
-      {/* ── Top 10 ── */}
-      <Seccion titulo="Productos que más valen" icono={<IconTrophy size={15} />}>
-        <div className={`${TARJETA} p-4`}>
-          <ol className="space-y-2">
-            {top.map((p, i) => (
-              <li key={p.productoId} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
-                <span className="text-right font-condensed text-lg font-bold tabular-nums text-gris-suave">{i + 1}</span>
-                <div className="min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <Link href={`/inventario/productos/${p.productoId}`} className="truncate text-sm font-semibold text-tinta hover:text-naranjo">{p.nombre}</Link>
-                    <span className="shrink-0 text-[11px] text-gris">{formatearCantidad(p.cantidad)} × {formatearMonto(p.costo)}</span>
+        {/* ── Top 10 ── */}
+        <Seccion titulo="Productos que más valen" icono={<IconTrophy size={15} />}>
+          <div className={`${TARJETA} p-4`}>
+            <ol className="space-y-1.5">
+              {top.map((p, i) => (
+                <li key={p.productoId} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
+                  <span className="text-right font-condensed text-base font-bold tabular-nums text-gris-suave">{i + 1}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <Link href={`/inventario/productos/${p.productoId}`} className="truncate text-sm font-semibold text-tinta hover:text-naranjo">{p.nombre}</Link>
+                      <span className="shrink-0 text-[11px] text-gris">{formatearCantidad(p.cantidad)} × {formatearMonto(p.costo)}</span>
+                    </div>
+                    {/* La barra se parte por bodega, con su color. */}
+                    <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-tinta/[0.05]" style={{ width: `${Math.max((p.valor / maxTop) * 100, 2)}%` }}>
+                      {Object.entries(p.porBodega).map(([id, v]) => (
+                        <div key={id} style={{ width: `${(v / (p.valor || 1)) * 100}%`, background: colorBodega.get(id) }} />
+                      ))}
+                    </div>
                   </div>
-                  {/* La barra se parte por bodega, con su color. */}
-                  <div className="mt-1.5 flex h-2 overflow-hidden rounded-full bg-tinta/[0.05]" style={{ width: `${Math.max((p.valor / maxTop) * 100, 2)}%` }}>
-                    {Object.entries(p.porBodega).map(([id, v]) => (
-                      <div key={id} style={{ width: `${(v / (p.valor || 1)) * 100}%`, background: colorBodega.get(id) }} />
-                    ))}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold tabular-nums text-tinta">{formatearMonto(p.valor)}</p>
-                  <p className="text-[11px] tabular-nums text-gris">{pct(p.participacion)}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+                  <p className="text-right text-sm font-bold tabular-nums text-tinta">
+                    {montoCorto(p.valor)} <span className="ml-1 text-[11px] font-normal text-gris">{pct(p.participacion)}</span>
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </Seccion>
         </div>
-      </Seccion>
+      </div>
 
       {/* ── Detalle ── */}
       <Seccion
