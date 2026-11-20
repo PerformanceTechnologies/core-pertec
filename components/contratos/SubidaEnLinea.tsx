@@ -24,11 +24,15 @@ export default function SubidaEnLinea({
   prepararSubida,
   registrarSubida,
   refrescar,
+  conComentario = true,
 }: {
   seccion: string;
   nombre: string;
   ruta: string;
-  itemId: string;
+  /** El requisito que pasa a «subido». Null cuando lo que se sube no es un requisito. */
+  itemId: string | null;
+  /** Si el diálogo pide un comentario. Ver SubidorDeArchivos. */
+  conComentario?: boolean;
   prepararSubida: (seccion: string, rutaCarpeta: string, nombre: string) => Promise<{ url: string }>;
   registrarSubida: (datos: {
     seccion: string;
@@ -108,6 +112,7 @@ export default function SubidaEnLinea({
                   seccion={seccion}
                   rutaCarpeta={ruta}
                   itemIdCarpeta={itemId}
+                  conComentario={conComentario}
                   prepararSubida={prepararSubida}
                   registrarSubida={registrarSubida}
                   refrescar={refrescar}

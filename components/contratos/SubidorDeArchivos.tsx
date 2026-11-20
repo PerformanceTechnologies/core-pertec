@@ -36,11 +36,14 @@ export default function SubidorDeArchivos({
   prepararSubida,
   registrarSubida,
   refrescar,
+  conComentario = true,
 }: {
   seccion: string;
   rutaCarpeta: string;
   /** La carpeta de requisito, si esta lo es: la que pasa a "subido". */
   itemIdCarpeta: string | null;
+  /** Si pide un comentario al subir. El repositorio de apoyo no lo usa: no hay requisito que comentar. */
+  conComentario?: boolean;
   prepararSubida: (seccion: string, rutaCarpeta: string, nombre: string) => Promise<{ url: string }>;
   registrarSubida: (datos: {
     seccion: string;
@@ -111,19 +114,21 @@ export default function SubidorDeArchivos({
           aparece al terminar se queda vacío siempre. Acá está a la vista
           mientras se elige qué subir, que es cuando uno tiene en la cabeza por
           qué lo está subiendo. */}
-      <label className="mb-3 block">
-        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gris">
-          Comentario <span className="font-normal normal-case text-gris-suave">(opcional)</span>
-        </span>
-        <input
-          type="text"
-          value={comentario}
-          onChange={(e) => setComentario(e.target.value)}
-          maxLength={300}
-          placeholder="Por ejemplo: reemplaza la versión de mayo, falta la firma del mandante…"
-          className={CAMPO}
-        />
-      </label>
+      {conComentario && (
+        <label className="mb-3 block">
+          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gris">
+            Comentario <span className="font-normal normal-case text-gris-suave">(opcional)</span>
+          </span>
+          <input
+            type="text"
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            maxLength={300}
+            placeholder="Por ejemplo: reemplaza la versión de mayo, falta la firma del mandante…"
+            className={CAMPO}
+          />
+        </label>
+      )}
 
       <label
         // La marca que mira GuardiaDeArrastre: acá soltar SÍ carga.

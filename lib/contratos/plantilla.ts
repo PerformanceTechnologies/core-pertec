@@ -1,5 +1,7 @@
 // La estructura de carpetas con la que parte cada contrato nuevo en SharePoint.
 
+import { CARPETA_DEL_REPOSITORIO } from "./repositorio-modelo";
+
 export interface CarpetaDePlantilla {
   nombre: string;
   carpetas?: CarpetaDePlantilla[];
@@ -25,4 +27,6 @@ export const PLANTILLA_DE_CONTRATO: CarpetaDePlantilla[] = [
   },
   { nombre: "LOGISTICA" },
   { nombre: "GASTOS ARRANQUE" },
+  // Material de consulta: no es un requisito y no cuenta en el avance (ver repositorio-modelo.ts).
+  { nombre: CARPETA_DEL_REPOSITORIO },
 ];

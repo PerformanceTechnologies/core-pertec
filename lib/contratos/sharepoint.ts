@@ -5,6 +5,7 @@ import { contarListado, contarLlamadaGraph } from "./medicion";
 import { obtenerAccessToken, SinCredencialesDeGraph } from "./graph-credenciales";
 import { olvidarDashboard } from "./memoria-dashboard";
 import { contratoActual } from "./contrato-actual";
+import { CARPETA_DEL_REPOSITORIO } from "./repositorio-modelo";
 
 /**
  * El sitio de SharePoint y la carpeta donde vive el módulo.
@@ -193,8 +194,12 @@ export function carpetaDeGastos(): string {
   return process.env.SHAREPOINT_CARPETA_GASTOS || "GASTOS ARRANQUE";
 }
 
+/**
+ * Las carpetas de primer nivel que NO son requisitos: el archivo de los submódulos (Logística y
+ * Gastos) y el repositorio de apoyo. Ninguna cuenta en el avance ni aparece en la portada.
+ */
 function carpetasDeSubmodulos(): string[] {
-  return [carpetaDeLogistica(), carpetaDeGastos()];
+  return [carpetaDeLogistica(), carpetaDeGastos(), CARPETA_DEL_REPOSITORIO];
 }
 
 /**
