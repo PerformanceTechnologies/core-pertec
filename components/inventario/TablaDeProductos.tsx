@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { IconChevronRight, IconSearch, IconX } from "@tabler/icons-react";
+import { IconArchive, IconChevronRight, IconSearch, IconX } from "@tabler/icons-react";
 import { ChipEstadoOperativo, FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
 import {
   ETIQUETA_CERTIFICADO,
@@ -16,7 +16,7 @@ import {
 import { TARJETA } from "@/lib/estilos";
 import type { ProductoConStock } from "@/lib/inventario";
 
-const SELECT = "min-h-9 rounded-lg border border-borde bg-superficie px-2.5 text-xs text-tinta focus:border-naranjo/50 focus:outline-none";
+const SELECT = "min-h-8 rounded-lg border border-borde bg-superficie px-2.5 text-xs text-tinta focus:border-naranjo/50 focus:outline-none";
 
 /**
  * La lista de Productos con una línea de filtros arriba: buscar (nombre, SKU o marca), categoría,
@@ -30,6 +30,8 @@ export default function TablaDeProductos({
   miniaturas,
   bodegas,
   bodegasPorProducto,
+  archivados,
+  nuevo,
 }: {
   productos: ProductoConStock[];
   categorias: { id: string; nombre: string }[];
@@ -38,6 +40,10 @@ export default function TablaDeProductos({
   miniaturas: Record<string, string>;
   bodegas: { id: string; nombre: string }[];
   bodegasPorProducto: Record<string, string[]>;
+  /** Cuántos productos archivados hay (para el enlace). */
+  archivados: number;
+  /** El botón «Nuevo producto» (lo arma la página, que tiene los catálogos). */
+  nuevo: React.ReactNode;
 }) {
   const [q, setQ] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -45,6 +51,7 @@ export default function TablaDeProductos({
   const [tipo, setTipo] = useState("");
   const [estado, setEstado] = useState("");
   const [stock, setStock] = useState("");
+  const [masFiltros, setMasFiltros] = useState(false);
   const nombreCat = useMemo(() => new Map(categorias.map((c) => [c.id, c.nombre])), [categorias]);
 
   const visibles = useMemo(() => {
@@ -69,43 +76,66 @@ export default function TablaDeProductos({
 
   return (
     <div className="space-y-3">
-      <div className={`${TARJETA} flex flex-wrap items-center gap-2 px-3 py-2.5`}>
-        <label className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-          <span className="sr-only">Buscar productos</span>
-          <IconSearch size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gris" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre, SKU o marca…" className={`${SELECT} w-full pl-8`} />
-        </label>
-        <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className={SELECT} aria-label="Categoría">
-          <option value="">Todas las categorías</option>
-          {[...categorias].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </select>
-        {bodegas.length > 1 && (
-          <select value={bodega} onChange={(e) => setBodega(e.target.value)} className={SELECT} aria-label="Bodega">
-            <option value="">Todas las bodegas</option>
-            {bodegas.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+      {/* Una sola cartilla: arriba el título, cuántos hay y las acciones; abajo buscar y filtrar.
+          Lo que se usa menos (tipo y estado) queda en «Más filtros». */}
+      <div className={`${TARJETA} divide-y divide-borde/70`}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-2">
+          <h1 className="text-sm font-bold text-tinta">Productos</h1>
+          <span className="text-xs text-gris">
+            {hayFiltros ? `${visibles.length} de ${productos.length}` : productos.length} {productos.length === 1 ? "producto" : "productos"}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <Link href="/inventario/productos/archivados" className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-gris transition hover:bg-tinta/[0.04] hover:text-tinta">
+              <IconArchive size={14} /> Archivados{archivados > 0 ? ` (${archivados})` : ""}
+            </Link>
+            {nuevo}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 px-3.5 py-2">
+          <label className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+            <span className="sr-only">Buscar productos</span>
+            <IconSearch size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gris" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, SKU o marca…" className={`${SELECT} w-full pl-8`} />
+          </label>
+          <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className={SELECT} aria-label="Categoría">
+            <option value="">Categoría</option>
+            {[...categorias].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
-        )}
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={SELECT} aria-label="Tipo">
-          <option value="">Todo tipo</option>
-          {Object.entries(ETIQUETA_TIPO_PRODUCTO).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-        </select>
-        <select value={estado} onChange={(e) => setEstado(e.target.value)} className={SELECT} aria-label="Estado">
-          <option value="">Todo estado</option>
-          <option value="operativo">Operativo</option>
-          <option value="no_operativo">No operativo</option>
-        </select>
-        <select value={stock} onChange={(e) => setStock(e.target.value)} className={SELECT} aria-label="Stock">
-          <option value="">Con y sin stock</option>
-          <option value="con">Con stock</option>
-          <option value="sin">Sin stock</option>
-          <option value="sin-costo">Con stock y costo $0</option>
-        </select>
-        <span className="ml-auto text-xs text-gris">{visibles.length} de {productos.length}</span>
-        {hayFiltros && (
-          <button type="button" onClick={limpiar} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-naranjo hover:bg-naranjo/10">
-            <IconX size={13} /> Limpiar
-          </button>
-        )}
+          {bodegas.length > 1 && (
+            <select value={bodega} onChange={(e) => setBodega(e.target.value)} className={SELECT} aria-label="Bodega">
+              <option value="">Bodega</option>
+              {bodegas.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </select>
+          )}
+          <select value={stock} onChange={(e) => setStock(e.target.value)} className={SELECT} aria-label="Stock">
+            <option value="">Stock</option>
+            <option value="con">Con stock</option>
+            <option value="sin">Sin stock</option>
+            <option value="sin-costo">Con stock y costo $0</option>
+          </select>
+          {masFiltros || tipo || estado ? (
+            <>
+              <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={SELECT} aria-label="Tipo">
+                <option value="">Tipo</option>
+                {Object.entries(ETIQUETA_TIPO_PRODUCTO).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+              </select>
+              <select value={estado} onChange={(e) => setEstado(e.target.value)} className={SELECT} aria-label="Estado">
+                <option value="">Estado</option>
+                <option value="operativo">Operativo</option>
+                <option value="no_operativo">No operativo</option>
+              </select>
+            </>
+          ) : (
+            <button type="button" onClick={() => setMasFiltros(true)} className="rounded-lg px-2 py-1.5 text-xs font-semibold text-gris transition hover:bg-tinta/[0.04] hover:text-tinta">
+              Más filtros
+            </button>
+          )}
+          {hayFiltros && (
+            <button type="button" onClick={limpiar} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-naranjo hover:bg-naranjo/10">
+              <IconX size={13} /> Limpiar
+            </button>
+          )}
+        </div>
       </div>
 
       {visibles.length === 0 ? (

@@ -46,12 +46,15 @@ export default function FormularioProducto({
   unidades,
   ubicaciones,
   producto,
+  chico = false,
 }: {
   categorias: Categoria[];
   unidades: Unidad[];
   /** Para elegir la bodega: se muestran solo las internas. */
   ubicaciones: Ubicacion[];
   producto?: Producto;
+  /** El botón «Nuevo producto» en tamaño de barra (la cartilla de la lista). */
+  chico?: boolean;
 }) {
   const editar = Boolean(producto);
   const [abierta, setAbierta] = useState(false);
@@ -182,10 +185,12 @@ export default function FormularioProducto({
         className={
           editar
             ? "inline-flex items-center gap-1.5 rounded-lg border border-borde px-3 py-2 text-sm font-semibold text-azul transition hover:border-cian"
-            : "inline-flex items-center gap-1.5 rounded-lg bg-naranjo px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
+            : chico
+              ? "inline-flex items-center gap-1 rounded-lg bg-naranjo px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-naranjo-suave"
+              : "inline-flex items-center gap-1.5 rounded-lg bg-naranjo px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-naranjo-suave"
         }
       >
-        {editar ? <IconPencil size={16} /> : <IconPlus size={16} />}
+        {editar ? <IconPencil size={16} /> : <IconPlus size={chico ? 14 : 16} />}
         {editar ? "Editar datos" : "Nuevo producto"}
       </button>
 
