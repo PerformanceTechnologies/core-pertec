@@ -7,33 +7,45 @@ import {
   ErrorDeGraph,
   asegurarCarpeta,
   buscarSeccion,
-  sesionDeSubidaEnCarpeta,
+  segmentosDeRuta,
+  sesionDeSubida,
 } from "@/lib/contratos/sharepoint";
 
 // Las acciones del repositorio de apoyo: lo que se sube a la carpeta REPOSITORIO DE APOYO del
 // contrato. Verlo es para todos los que tienen Contratos (lo hace la página y enlaceDeArchivoAction);
 // subir es solo para quien puede configurar el módulo (Administrador y Usuario Especial).
 //
-// Archivo aparte de acciones.ts a propósito: esas acciones suben a una carpeta que manda el navegador
-// y marcan el requisito como «subido». Acá la carpeta es SIEMPRE la misma y no hay requisito: un
-// archivo del repositorio no mueve el avance de nada.
+// Archivo aparte de acciones.ts a propósito: esas acciones marcan el requisito como «subido». Acá
+// no hay requisito: un archivo del repositorio no mueve el avance de nada, y la carpeta de destino
+// solo puede ser el repositorio o algo que cuelgue de él.
 
 const APP = "contratos";
 
 /**
- * Abre la sesión de subida en la carpeta del repositorio, creándola si todavía no existe.
+ * Abre la sesión de subida en la carpeta del repositorio donde está quien sube: la raíz o una de
+ * sus subcarpetas. La raíz se crea si todavía no existe.
  *
- * La carpeta NO viene del navegador: la ruta que llega se ignora (existe solo porque el subidor la
- * manda siempre) y se sube por el id de la carpeta que resuelve el servidor. Así esta acción no
- * puede apuntarse a ninguna otra carpeta del sitio.
+ * La ruta viene del navegador, así que no se le cree: se valida (sin `..` ni caracteres que
+ * SharePoint no admite) y tiene que empezar por la carpeta del repositorio. Una ruta que apunte a
+ * cualquier otra parte del sitio se rechaza. Sin esto, esta acción serviría para subir un archivo
+ * a CUALQUIER carpeta del contrato —también a las de los requisitos—, saltándose lo que hacen las
+ * demás acciones (marcar el requisito, no escribir en Acreditación).
  */
-export async function prepararSubidaAlRepositorioAction(slug: string, _rutaCarpeta: string, nombre: string) {
+export async function prepararSubidaAlRepositorioAction(slug: string, rutaCarpeta: string, nombre: string) {
   await exigirCapacidad(APP, "configurar");
   const seccion = await buscarSeccion(slug);
   if (!seccion) throw new ErrorDeGraph(`Sección desconocida: ${slug}`, 400);
 
-  const carpeta = await asegurarCarpeta(seccion, "", CARPETA_DEL_REPOSITORIO);
-  return await sesionDeSubidaEnCarpeta(carpeta.id, nombre);
+  const partes = segmentosDeRuta(rutaCarpeta);
+  if (partes[0]?.toLowerCase() !== CARPETA_DEL_REPOSITORIO.toLowerCase()) {
+    throw new ErrorDeGraph("Esa carpeta no es del repositorio de apoyo.", 400);
+  }
+
+  // En la raíz se asegura que exista (la primera subida la crea). Una subcarpeta ya existe: quien
+  // sube llegó a ella navegando, y subir a una inventada solo la crearía dentro del repositorio.
+  if (partes.length === 1) await asegurarCarpeta(seccion, "", CARPETA_DEL_REPOSITORIO);
+
+  return await sesionDeSubida(seccion, partes.join("/"), nombre);
 }
 
 /**
