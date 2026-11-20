@@ -13,14 +13,12 @@ import {
   IconRefreshAlert,
   IconSettings,
   IconTableImport,
-  IconTools,
   type Icon,
 } from "@tabler/icons-react";
 
 const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean }[] = [
   { href: "/inventario", etiqueta: "Tablero", Icono: IconLayoutDashboard, exacto: true },
   { href: "/inventario/productos", etiqueta: "Productos", Icono: IconPackage },
-  { href: "/inventario/fabricacion", etiqueta: "Fabricación", Icono: IconTools },
   { href: "/inventario/operaciones", etiqueta: "Operaciones", Icono: IconArrowsExchange },
   { href: "/inventario/ajustes", etiqueta: "Ajustes", Icono: IconAdjustmentsHorizontal },
   { href: "/inventario/reabastecimiento", etiqueta: "Reabastecimiento", Icono: IconRefreshAlert },
@@ -34,7 +32,12 @@ const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean 
 export default function NavInventario() {
   const ruta = usePathname();
   const fila = usePestanaALaVista<HTMLElement>(ruta);
+  // Fabricación es su propio submódulo en el menú lateral, no una pestaña de Stock y bodegas: ahí
+  // estas pestañas no van.
+  const enFabricacion = ruta.startsWith("/inventario/fabricacion");
   const activa = (href: string, exacto?: boolean) => (exacto ? ruta === href : ruta === href || ruta.startsWith(href + "/"));
+
+  if (enFabricacion) return null;
 
   return (
     <nav ref={fila} className="desliza mb-6 -mx-1 overflow-x-auto px-1 pb-1">
