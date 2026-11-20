@@ -22,7 +22,8 @@ import { SOMBRA_CALIDA, TARJETA } from "@/lib/estilos";
 export const dynamic = "force-dynamic";
 
 // Un color fijo por bodega (en el orden en que aparecen por valor) y otro juego para categorías.
-const COLORES = ["#c85217", "#0f766e", "#b08419", "#4f46e5", "#0284c7", "#be185d", "#475569", "#65a30d"];
+// 12 tonos: con 8 se repetían (la 9.ª categoría salía del mismo color que la 1.ª).
+const COLORES = ["#c85217", "#0f766e", "#b08419", "#4f46e5", "#0284c7", "#be185d", "#475569", "#65a30d", "#9333ea", "#0891b2", "#e11d48", "#a16207"];
 const COLOR_ABC = { A: "#c85217", B: "#b08419", C: "#94a3b8" } as const;
 
 const pct = (x: number) => `${(x * 100).toLocaleString("es-CL", { maximumFractionDigits: 1 })}%`;
@@ -177,7 +178,7 @@ export default async function ValorizacionPage({
       {/* ── Categorías y ABC ── */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <Seccion titulo="Por categoría" icono={<IconCategory size={15} />}>
-          <div className={`${TARJETA} grid items-start gap-4 p-4 sm:grid-cols-[150px_minmax(0,1fr)]`}>
+          <div className={`${TARJETA} grid items-start gap-4 p-4 sm:grid-cols-[170px_minmax(0,1fr)]`}>
             <div className="sm:sticky sm:top-4">
               <Dona grupos={r.porCategoria} colores={colorCategoria} total={r.total} />
             </div>
@@ -476,7 +477,7 @@ function Dona({ grupos, colores, total }: { grupos: GrupoValor[]; colores: Map<s
   // Dónde empieza cada arco: la suma de los anteriores.
   const inicios = grupos.map((_, i) => grupos.slice(0, i).reduce((t, g) => t + g.participacion * C, 0));
   return (
-    <div className="relative mx-auto h-[200px] w-[200px]">
+    <div className="relative mx-auto aspect-square w-full max-w-[170px]">
       <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
         <circle cx="100" cy="100" r={R} fill="none" stroke="currentColor" strokeWidth="26" className="text-tinta/[0.05]" />
         {grupos.map((g, i) => {
