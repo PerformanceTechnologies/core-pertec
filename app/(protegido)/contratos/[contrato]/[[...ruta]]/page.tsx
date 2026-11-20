@@ -19,6 +19,7 @@ import SelectorDeEstado from "@/components/contratos/SelectorDeEstado";
 import SelectorDeResponsable from "@/components/contratos/SelectorDeResponsable";
 import SubidaEnLinea from "@/components/contratos/SubidaEnLinea";
 import FilaDeCarpeta from "@/components/contratos/FilaDeCarpeta";
+import FilaDeRepositorio from "@/components/contratos/FilaDeRepositorio";
 import PlazoDeCabecera from "@/components/contratos/PlazoDeCabecera";
 import TarjetaDeCarpeta from "@/components/contratos/TarjetaDeCarpeta";
 import TarjetaDeAcreditacion from "@/components/contratos/TarjetaDeAcreditacion";
@@ -538,6 +539,11 @@ async function Carpeta({
   // Las que agrupan no se entregan, así que no llevan estado.
   const esRequisito = subcarpetas.length === 0;
 
+  // El repositorio de apoyo cierra la lista de DOCUMENTOS GENERALES (solo la de primer nivel: la
+  // ruta no lleva barras). No es una subcarpeta de SharePoint ni cuenta en nada de lo de arriba:
+  // es una fila aparte que lleva a su propia página.
+  const conRepositorio = esDocumentosGenerales(rutaRelativa);
+
   // Las hojas que cuelgan de acá, para la barra de arriba. Se le pasan los hijos
   // ya listados para que no vuelva a pedirlos: con subcarpetas vacías —el caso
   // normal de una carpeta de requisitos— no cuesta ninguna llamada extra.
@@ -715,7 +721,7 @@ async function Carpeta({
           donde las tarjetas obligaban a desplazarse. Conserva lo que ofrecían: el
           responsable, subir sin entrar y el enlace a SharePoint. Las tarjetas
           quedan para la portada, donde son pocas y cada una es un módulo. */}
-      {porSubcarpeta.length > 0 && (
+      {(porSubcarpeta.length > 0 || conRepositorio) && (
         <ul className="mt-6 divide-y divide-borde overflow-hidden rounded-xl border border-borde bg-superficie shadow-[var(--sombra-tarjeta)]">
           {porSubcarpeta.map((datos) => {
             const carpeta = datos.carpeta;
@@ -770,6 +776,7 @@ async function Carpeta({
               />
             );
           })}
+          {conRepositorio && <FilaDeRepositorio />}
         </ul>
       )}
 

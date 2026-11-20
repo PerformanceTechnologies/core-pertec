@@ -91,6 +91,12 @@
   --estado-1: #10b981;
   --estado-2: #34d399;
 }
+/* El repositorio de apoyo no es un requisito y no tiene avance: su franja no usa los colores del
+   estado, para que no se lea como una carpeta «sin iniciar» más. */
+[data-estado="repositorio"] {
+  --estado-1: var(--color-azul);
+  --estado-2: var(--color-cian);
+}
 
 .tarjeta-estado {
   box-shadow: var(--sombra-tarjeta);
