@@ -75,6 +75,7 @@ export default function FilaDeCarpeta({
   href,
   avance,
   esRequisito,
+  detalle,
   revision,
   responsable,
   accion,
@@ -85,6 +86,11 @@ export default function FilaDeCarpeta({
   avance: Avance;
   /** Una hoja: recibe documentos, y no tiene carpetas debajo que contar. */
   esRequisito: boolean;
+  /**
+   * El detalle del documento que pide el requisito, escrito en su tarjeta. Se muestra bajo el
+   * nombre, en negrita y recortado a dos líneas: el texto entero se lee entrando al requisito.
+   */
+  detalle?: string | null;
   /**
    * En qué etapa de revisión va lo que hay dentro. Sin esto, la fila muestra solo el estado
    * (pendiente / subido): es lo que pasa cuando la carpeta no se pudo leer.
@@ -158,6 +164,11 @@ export default function FilaDeCarpeta({
                   </span>
                 </>
               )}
+            </p>
+          )}
+          {detalle?.trim() && (
+            <p className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-snug text-gris [overflow-wrap:anywhere]">
+              {detalle.trim()}
             </p>
           )}
           {acreditacion ? (

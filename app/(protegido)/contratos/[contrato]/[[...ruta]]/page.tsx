@@ -195,6 +195,8 @@ interface TarjetaDeCarpetaDatos {
   responsableExternoId: string | null;
   /** Solo las hojas se asignan: una carpeta que agrupa no la entrega nadie. */
   esRequisito: boolean;
+  /** El detalle del documento que pide el requisito, si alguien lo escribió. */
+  detalle: string | null;
   /** En qué etapa de revisión va lo de adentro. Solo si se pidió (ver `conRevision`). */
   revision?: RevisionDeCarpeta;
 }
@@ -228,6 +230,7 @@ async function tarjetasDeCarpetas(
         responsableId: propio?.responsableId ?? null,
         responsableExternoId: propio?.responsableExternoId ?? null,
         esRequisito: false,
+        detalle: propio?.nota ?? null,
       };
 
       // La carpeta de Acreditación (1.3) es UN requisito cuyo cumplimiento mide el submódulo
@@ -695,6 +698,8 @@ async function Carpeta({
                 href={`${base}/${carpeta.ruta.split("/").map(encodeURIComponent).join("/")}`}
                 avance={datos.avance}
                 esRequisito={datos.esRequisito}
+                // Solo en un requisito: es lo que ayuda a quien va a subir el documento sin entrar.
+                detalle={datos.esRequisito ? datos.detalle : null}
                 revision={datos.revision}
                 responsable={responsableDe(seccion, datos, responsables)}
                 acreditacion={filaDeAcreditacion(carpeta.ruta, acreditacion)}
