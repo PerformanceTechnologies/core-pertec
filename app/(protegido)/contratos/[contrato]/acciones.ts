@@ -23,11 +23,16 @@ import {
   vistaPreviaDeArchivo,
   type Seccion,
 } from "@/lib/contratos/sharepoint";
-import { estadosDe, guardarEstado, guardarResponsable } from "@/lib/contratos/contratos-seguimiento";
+import {
+  estadosDe,
+  guardarDetalle,
+  guardarEstado,
+  guardarResponsable,
+} from "@/lib/contratos/contratos-seguimiento";
 import { guardarComentario, olvidarComentario } from "@/lib/contratos/contratos-comentarios";
 import { guardarEstadoDeArchivo } from "@/lib/contratos/contratos-archivo-estados";
 import { esEstadoDeArchivo, type EstadoDeArchivo } from "@/lib/contratos/documento-estado";
-import type { EstadoRequisito } from "@/lib/contratos/contratos-estado";
+import { LARGO_MAXIMO_DE_DETALLE, type EstadoRequisito } from "@/lib/contratos/contratos-estado";
 
 // exigirAccesoApp() se repite en CADA acción, no solo en la página. Una Server
 // Action es un endpoint: se puede invocar sin pasar por la interfaz que la
@@ -242,6 +247,39 @@ export async function cambiarEstadoDeArchivoAction(
   for (let hasta = carpetas.length; hasta >= 1; hasta--) {
     refrescarRutas(carpetas.slice(0, hasta).join("/"));
   }
+}
+
+/**
+ * Guarda el detalle del documento que pide un requisito: la indicación que ayuda a quien lo
+ * tiene que subir (qué es, de qué fecha, firmado o no). Texto vacío lo borra.
+ *
+ * No toca el estado ni el avance de la carpeta: es una nota sobre el requisito, no una
+ * entrega. Por eso tampoco hay que recalcular la portada.
+ */
+export async function guardarDetalleAction(
+  slug: string,
+  itemId: string,
+  ruta: string,
+  detalle: string,
+) {
+  const usuario = await exigirCapacidad(APP, "editar");
+  await seccionValida(slug);
+  // La carpeta de Acreditación y lo que cuelga de ella es de solo lectura desde acá.
+  exigirEscribible(ruta);
+
+  const id = String(itemId ?? "");
+  if (!id || id.length > 200) throw new Error("Requisito inválido.");
+  // Rechaza `..` como cualquier otra ruta que llega del navegador.
+  segmentosDeRuta(ruta);
+
+  const texto = String(detalle ?? "");
+  if (texto.length > LARGO_MAXIMO_DE_DETALLE) {
+    throw new Error(`El detalle admite hasta ${LARGO_MAXIMO_DE_DETALLE} caracteres.`);
+  }
+
+  await guardarDetalle({ itemId: id, ruta, detalle: texto, usuarioId: usuario.id });
+
+  refrescarRutas(ruta);
 }
 
 /** Asigna —o quita, con null— el responsable de un requisito. */

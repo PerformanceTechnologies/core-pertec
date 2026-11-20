@@ -14,6 +14,13 @@ export const ETIQUETAS: Record<EstadoRequisito, string> = {
   no_aplica: "No aplica",
 };
 
+/**
+ * El largo máximo del detalle que se escribe en un requisito. Es una indicación para quien
+ * sube el documento, no un documento. Está acá y no junto a quien lo guarda porque lo usan el
+ * servidor (para rechazar) y la caja de texto (para limitar lo que se escribe).
+ */
+export const LARGO_MAXIMO_DE_DETALLE = 1000;
+
 export interface Avance {
   /** Requisitos que cuentan: el total menos los marcados como "no aplica". */
   total: number;

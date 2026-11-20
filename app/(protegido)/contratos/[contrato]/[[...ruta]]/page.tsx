@@ -11,6 +11,7 @@ import {
 import BarraDeAvance from "@/components/contratos/BarraDeAvance";
 import BotonRenombrarCarpeta from "@/components/contratos/BotonRenombrarCarpeta";
 import ConectarSharePoint from "@/components/contratos/ConectarSharePoint";
+import DetalleDelRequisito from "@/components/contratos/DetalleDelRequisito";
 import ExploradorDeArchivos, { type ElementoDeLista } from "@/components/contratos/ExploradorDeArchivos";
 import FormularioCarpeta from "@/components/contratos/FormularioCarpeta";
 import ResumenDeArranque, { type ResumenGlobal } from "@/components/contratos/ResumenDeArranque";
@@ -70,6 +71,7 @@ import {
   asignarResponsableAction,
   cambiarEstadoAction,
   crearCarpetaAction,
+  guardarDetalleAction,
   prepararSubidaAction,
   refrescarAction,
   registrarSubidaAction,
@@ -197,6 +199,8 @@ interface TarjetaDeCarpetaDatos {
   responsableExternoId: string | null;
   /** Solo las hojas se asignan: una carpeta que agrupa no la entrega nadie. */
   esRequisito: boolean;
+  /** El detalle del documento que pide el requisito, si alguien lo escribió. */
+  detalle: string | null;
   /** En qué etapa de revisión va lo de adentro. Solo si se pidió (ver `conRevision`). */
   revision?: RevisionDeCarpeta;
 }
@@ -235,6 +239,7 @@ async function tarjetasDeCarpetas(
         responsableId: propio?.responsableId ?? null,
         responsableExternoId: propio?.responsableExternoId ?? null,
         esRequisito: false,
+        detalle: propio?.nota ?? null,
       };
 
       // La carpeta de Acreditación (1.3) es UN requisito cuyo cumplimiento mide el submódulo
@@ -688,6 +693,20 @@ async function Carpeta({
               No se pudo leer esta carpeta en SharePoint para guardar su estado.
             </p>
           )}
+
+          {/* El detalle del documento que se pide, a todo el ancho y bajo el estado: va
+              en su propia fila (basis-full) para que no compita con los botones. */}
+          {propia && (
+            <div className="basis-full border-t border-borde pt-4">
+              <DetalleDelRequisito
+                seccion={seccion.slug}
+                itemId={propia.id}
+                ruta={rutaRelativa}
+                detalleInicial={propio?.nota ?? null}
+                guardar={guardarDetalleAction}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -707,6 +726,8 @@ async function Carpeta({
                 href={`${base}/${carpeta.ruta.split("/").map(encodeURIComponent).join("/")}`}
                 avance={datos.avance}
                 esRequisito={datos.esRequisito}
+                // Solo en un requisito: es lo que ayuda a quien va a subir el documento sin entrar.
+                detalle={datos.esRequisito ? datos.detalle : null}
                 revision={datos.revision}
                 responsable={responsableDe(seccion, datos, responsables)}
                 acreditacion={filaDeAcreditacion(carpeta.ruta, acreditacion)}

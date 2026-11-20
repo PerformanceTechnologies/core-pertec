@@ -73,6 +73,33 @@ export async function guardarEstado(datos: {
 }
 
 /**
+ * Guarda —o borra, con texto vacío— el detalle del documento que pide un requisito.
+ *
+ * Usa la columna `nota` de la misma fila del estado, que existía y nadie escribía. Es un
+ * upsert por la misma razón que `guardarResponsable`: un requisito al que nadie le ha tocado
+ * el estado todavía no tiene fila. No toca `estado` ni el responsable: escribir una
+ * indicación no es motivo para moverlos.
+ */
+export async function guardarDetalle(datos: {
+  itemId: string;
+  ruta: string;
+  detalle: string;
+  usuarioId: string;
+}): Promise<void> {
+  const { error } = await supabaseAdmin.from(TABLA).upsert(
+    {
+      item_id: datos.itemId,
+      ruta: datos.ruta,
+      nota: datos.detalle.trim() || null,
+      actualizado_por: datos.usuarioId,
+      actualizado_en: new Date().toISOString(),
+    },
+    { onConflict: "item_id" },
+  );
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Asigna —o quita— el responsable de un requisito.
  *
  * Es un upsert y no un update porque un requisito al que nadie le ha tocado el
