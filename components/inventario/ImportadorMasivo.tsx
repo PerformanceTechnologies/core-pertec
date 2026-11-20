@@ -7,6 +7,7 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconCheck,
+  IconChevronRight,
   IconChevronDown,
   IconCircleCheck,
   IconCloudUpload,
@@ -132,7 +133,6 @@ export default function ImportadorMasivo() {
   const visibles = soloErrores ? conError : previa?.filas ?? [];
 
   const pasoActual = resultado ? 4 : previa ? 4 : columnas ? 3 : archivo ? 2 : 1;
-  const compacto = pasoActual >= 3;
 
   // Cada paso reemplaza al anterior en vez de apilarse: al cambiar, se vuelve arriba.
   const vista = resultado ? "resultado" : previa ? "prueba" : columnas ? "columnas" : "inicio";
@@ -153,56 +153,40 @@ export default function ImportadorMasivo() {
 
   return (
     <div className="space-y-4">
-      {/* ── Banda con los pasos ── */}
-      <header className={`banda-contraste overflow-hidden rounded-2xl px-5 sm:px-6 ${compacto ? "py-3" : "py-4"}`}>
-        {/* Pasado el archivo, la banda se achica a solo los pasos: lo que importa está abajo. */}
-        {!compacto && (
-          <>
-            <h2 className="texto-banda flex flex-wrap items-baseline gap-x-3 font-condensed text-2xl font-bold uppercase leading-tight tracking-tight">
-              Sube tu inventario de una vez
-              <span className="font-sans text-[11px] font-semibold normal-case tracking-[0.16em] text-naranjo">CARGA MASIVA</span>
-            </h2>
-            <p className="texto-banda-65 mt-1 max-w-3xl text-xs">
-              Productos, bodegas, cantidades, lotes y mínimos desde un Excel o CSV. Igual que en Odoo: eliges a qué campo va cada
-              columna, lo pruebas y recién ahí se guarda.
-            </p>
-          </>
-        )}
-        <ol className={`grid gap-2 sm:grid-cols-4 ${compacto ? "" : "mt-3"}`}>
-          {[
-            { n: 1, t: "Plantilla", d: "Opcional" },
-            { n: 2, t: "Archivo", d: ".xlsx o .csv" },
-            { n: 3, t: "Columnas", d: "Archivo → Core" },
-            { n: 4, t: "Probar e importar", d: "Revisa y confirma" },
-          ].map((p) => {
-            const hecho = pasoActual > p.n || (p.n === 4 && Boolean(resultado));
-            const actual = pasoActual === p.n && !resultado;
-            const volver = hecho && (p.n <= 2 || (p.n === 3 && Boolean(previa)));
-            return (
-              <li
-                key={p.n}
+      {/* ── Los pasos, en una franja clara: solo el número y el nombre ── */}
+      <ol className={`${TARJETA} flex flex-wrap items-center gap-1 p-1.5`}>
+        {[
+          { n: 1, t: "Plantilla" },
+          { n: 2, t: "Archivo" },
+          { n: 3, t: "Columnas" },
+          { n: 4, t: "Probar e importar" },
+        ].map((p, i) => {
+          const hecho = pasoActual > p.n || (p.n === 4 && Boolean(resultado));
+          const actual = pasoActual === p.n && !resultado;
+          const volver = hecho && (p.n <= 2 || (p.n === 3 && Boolean(previa)));
+          return (
+            <li key={p.n} className="flex items-center gap-1">
+              {i > 0 && <IconChevronRight size={14} className="text-gris-suave" />}
+              <span
                 onClick={volver ? () => irAPaso(p.n) : undefined}
                 title={volver ? "Volver a este paso" : undefined}
-                className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 transition ${
-                  actual ? "border-naranjo bg-naranjo/15" : "borde-banda"
-                } ${volver ? "cursor-pointer hover:border-naranjo/60" : ""}`}
+                className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition ${
+                  actual ? "bg-naranjo/10 text-naranjo" : hecho ? "text-tinta" : "text-gris"
+                } ${volver ? "cursor-pointer hover:bg-tinta/[0.04]" : ""}`}
               >
                 <span
-                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${
-                    hecho ? "bg-emerald-500 text-white" : actual ? "bg-naranjo text-white" : "texto-banda-45 border borde-banda"
+                  className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold ${
+                    hecho ? "bg-emerald-500 text-white" : actual ? "bg-naranjo text-white" : "border border-borde text-gris"
                   }`}
                 >
-                  {hecho ? <IconCheck size={15} /> : p.n}
+                  {hecho ? <IconCheck size={12} /> : p.n}
                 </span>
-                <span className="min-w-0">
-                  <span className={`block text-sm font-bold ${actual || hecho ? "texto-banda" : "texto-banda-65"}`}>{p.t}</span>
-                  <span className="texto-banda-45 block text-[11px]">{p.d}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      </header>
+                {p.t}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
 
       {/* Ya elegido el archivo: una barra con él, en vez de los pasos 1 y 2 completos. */}
       {columnas && !resultado && archivo && (
@@ -229,29 +213,26 @@ export default function ImportadorMasivo() {
 
       {/* ── Paso 1 y 2 ── */}
       {!columnas && !resultado && (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-          <section className={`${TARJETA} flex flex-col p-4`}>
-            <Paso n={1} titulo="Descarga la plantilla" />
-            <p className="mt-1.5 text-xs text-gris">
-              Trae las columnas con su explicación, listas desplegables con <strong className="text-tinta">tus bodegas</strong> y una hoja de
-              instrucciones. Si ya tienes tu propio Excel, sáltate este paso.
-            </p>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <section className={`${TARJETA} flex flex-col p-3.5`}>
+            <Paso n={1} titulo="Plantilla (opcional)" />
+            <p className="mt-1 text-xs text-gris">Con las columnas explicadas y tus bodegas en una lista.</p>
             <a
               href="/api/inventario/plantilla"
-              className="group mt-3 flex items-center gap-3 rounded-xl border border-borde bg-tinta/[0.02] p-3 transition hover:border-naranjo/50 hover:bg-naranjo/[0.04]"
+              className="group mt-3 flex items-center gap-2.5 rounded-xl border border-borde bg-tinta/[0.02] px-3 py-2 transition hover:border-naranjo/50 hover:bg-naranjo/[0.04]"
             >
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white">
-                <IconFileSpreadsheet size={22} />
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-600 text-white">
+                <IconFileSpreadsheet size={17} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold text-tinta">plantilla-inventario.xlsx</span>
+                <span className="block text-[13px] font-semibold text-tinta">plantilla-inventario.xlsx</span>
                 <span className="block text-[11px] text-gris">{COLUMNAS_IMPORTACION.length} columnas · {COLUMNAS_IMPORTACION.filter((c) => c.obligatoria).length} obligatorias (*)</span>
               </span>
-              <IconDownload size={18} className="text-gris transition group-hover:translate-y-0.5 group-hover:text-naranjo" />
+              <IconDownload size={16} className="text-gris transition group-hover:translate-y-0.5 group-hover:text-naranjo" />
             </a>
 
             <details className="group mt-3 rounded-xl border border-borde">
-              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold uppercase tracking-[0.08em] text-gris">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-semibold text-gris">
                 Qué va en cada columna
                 <IconChevronDown size={15} className="transition group-open:rotate-180" />
               </summary>
@@ -269,7 +250,7 @@ export default function ImportadorMasivo() {
             </details>
           </section>
 
-          <section className={`${TARJETA} flex flex-col p-4`}>
+          <section className={`${TARJETA} flex flex-col p-3.5`}>
             <Paso n={2} titulo="Sube tu archivo" />
             <label
               onDragOver={(e) => {
@@ -282,37 +263,32 @@ export default function ImportadorMasivo() {
                 setSobre(false);
                 elegir(e.dataTransfer.files[0]);
               }}
-              className={`mt-4 flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-5 py-6 text-center transition ${
+              className={`mt-3 flex flex-1 cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed px-4 py-5 text-left transition ${
                 sobre ? "scale-[1.01] border-naranjo bg-naranjo/[0.06]" : "border-borde hover:border-naranjo/50 hover:bg-naranjo/[0.03]"
               }`}
             >
-              <span className={`grid h-11 w-11 place-items-center rounded-xl transition ${archivo ? "bg-emerald-500/10 text-emerald-600" : "bg-naranjo/10 text-naranjo"}`}>
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition ${archivo ? "bg-emerald-500/10 text-emerald-600" : "bg-naranjo/10 text-naranjo"}`}>
                 {cargando === "leyendo" ? (
-                  <IconLoader2 size={22} className="animate-spin" />
+                  <IconLoader2 size={18} className="animate-spin" />
                 ) : archivo ? (
-                  <IconFileCheck size={22} stroke={1.6} />
+                  <IconFileCheck size={18} stroke={1.7} />
                 ) : (
-                  <IconCloudUpload size={22} stroke={1.6} />
+                  <IconCloudUpload size={18} stroke={1.7} />
                 )}
               </span>
               {archivo ? (
-                <span>
-                  <span className="block text-sm font-bold text-tinta">{archivo.name}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold text-tinta">{archivo.name}</span>
                   <span className="block text-xs text-gris">
                     {(archivo.size / 1024).toLocaleString("es-CL", { maximumFractionDigits: 0 })} KB · haz clic para cambiarlo
                   </span>
                 </span>
               ) : (
-                <span>
-                  <span className="block text-base font-bold text-tinta">Arrastra tu Excel aquí</span>
-                  <span className="block text-sm text-gris">o haz clic para elegirlo</span>
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-tinta">Arrastra tu Excel o haz clic para elegirlo</span>
+                  <span className="block text-xs text-gris">.xlsx o .csv · hasta 4 MB · {MAX_FILAS_IMPORTACION} filas</span>
                 </span>
               )}
-              <span className="flex flex-wrap justify-center gap-1.5">
-                {[".xlsx", ".csv", "hasta 4 MB", `${MAX_FILAS_IMPORTACION} filas`].map((t) => (
-                  <span key={t} className="rounded-full bg-tinta/[0.05] px-2.5 py-0.5 text-[11px] font-semibold text-gris">{t}</span>
-                ))}
-              </span>
               <input
                 ref={entrada}
                 type="file"
@@ -322,8 +298,8 @@ export default function ImportadorMasivo() {
               />
             </label>
             {error && <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{error}</p>}
-            <p className="mt-3 flex items-center gap-1.5 text-xs text-gris">
-              <IconShieldCheck size={14} className="text-emerald-600" /> Nada se guarda hasta que confirmes la importación.
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-gris">
+              <IconShieldCheck size={13} className="text-emerald-600" /> Nada se guarda hasta que confirmes la importación.
             </p>
           </section>
         </div>
@@ -591,8 +567,8 @@ export default function ImportadorMasivo() {
 function Paso({ n, titulo }: { n: number; titulo: string }) {
   // El número va en el mismo naranjo que el paso activo de la banda.
   return (
-    <h2 className="flex items-center gap-2.5 text-sm font-bold text-tinta">
-      <span className="grid h-6 w-6 place-items-center rounded-full bg-naranjo text-xs font-bold text-white">{n}</span>
+    <h2 className="flex items-center gap-2 text-[13px] font-bold text-tinta">
+      <span className="grid h-5 w-5 place-items-center rounded-full bg-naranjo text-[11px] font-bold text-white">{n}</span>
       {titulo}
     </h2>
   );
