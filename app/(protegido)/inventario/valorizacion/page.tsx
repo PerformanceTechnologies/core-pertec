@@ -86,7 +86,7 @@ export default async function ValorizacionPage({
   const nombreCategoria = categoria ? general.porCategoria.find((c) => c.id === categoria)?.nombre ?? categoria : null;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* ── Filtro: la bodega. La categoría se elige tocándola en «Por categoría». ── */}
       <div className="flex flex-wrap items-center gap-2">
         <Filtros
@@ -115,8 +115,8 @@ export default async function ValorizacionPage({
       </section>
 
       {r.sinCosto > 0 && (
-        <p className="flex items-center gap-2 rounded-xl border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-4 py-2.5 text-sm text-amber-800 dark:text-amber-300">
-          <IconAlertTriangle size={17} className="shrink-0" />
+        <p className="flex items-center gap-2 rounded-xl border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-4 py-2 text-[13px] text-amber-800 dark:text-amber-300">
+          <IconAlertTriangle size={16} className="shrink-0" />
           <span>
             <strong>{r.sinCosto} {r.sinCosto === 1 ? "producto tiene" : "productos tienen"} stock con costo $0</strong> y no suman al valor.
           </span>
@@ -135,16 +135,16 @@ export default async function ValorizacionPage({
       )}
 
       {/* ── Por categoría | Los que más valen y ABC ── */}
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <Seccion titulo="Por categoría" icono={<IconCategory size={15} />}>
-          <div className={`${HOJA} grid items-center gap-5 p-5 sm:grid-cols-[140px_minmax(0,1fr)]`}>
+          <div className={`${HOJA} grid items-center gap-4 p-4 sm:grid-cols-[120px_minmax(0,1fr)]`}>
             <Dona grupos={r.porCategoria} colores={colorCategoria} total={r.total} />
             <ul className="divide-y divide-borde/60">
               {conValor.map((c) => (
                 <li key={c.id}>
                   <Link
                     href={enlace({ categoria: categoria === c.id ? null : c.id })}
-                    className="group flex items-center gap-2.5 py-2 text-sm"
+                    className="group flex items-center gap-2.5 py-1.5 text-[13px]"
                     title={categoria === c.id ? "Quitar el filtro" : `Ver solo ${c.nombre}`}
                   >
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colorCategoria.get(c.id) }} />
@@ -158,11 +158,11 @@ export default async function ValorizacionPage({
           </div>
         </Seccion>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <Seccion titulo="Los que más valen" icono={<IconTrophy size={15} />}>
-            <ol className={`${HOJA} divide-y divide-borde/60 px-5 py-1`}>
+            <ol className={`${HOJA} divide-y divide-borde/60 px-4 py-0.5`}>
               {top.map((p, i) => (
-                <li key={p.productoId} className="flex items-center gap-3 py-2.5 text-sm">
+                <li key={p.productoId} className="flex items-center gap-3 py-2 text-[13px]">
                   <span className="w-4 text-right font-condensed font-bold tabular-nums text-gris-suave">{i + 1}</span>
                   <Link href={`/inventario/productos/${p.productoId}`} className="min-w-0 flex-1 truncate font-medium text-tinta hover:text-naranjo" title={p.nombre}>
                     {p.nombre}
@@ -175,22 +175,22 @@ export default async function ValorizacionPage({
           </Seccion>
 
           <Seccion titulo="Concentración ABC" icono={<IconStack2 size={15} />}>
-            <div className={`${HOJA} p-5`}>
-              <p className="text-sm text-gris">
+            <div className={`${HOJA} p-4`}>
+              <p className="text-[13px] text-gris">
                 Los <strong className="text-tinta">A</strong> juntan el 80% del valor: conviene contarlos más seguido.
               </p>
-              <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-tinta/[0.06]">
+              <div className="mt-2.5 flex h-2 overflow-hidden rounded-full bg-tinta/[0.06]">
                 {(["A", "B", "C"] as const).map((k) =>
                   r.abc[k].valor > 0 ? <div key={k} style={{ width: `${(r.abc[k].valor / (r.total || 1)) * 100}%`, background: COLOR_ABC[k] }} /> : null,
                 )}
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+              <div className="mt-2.5 grid grid-cols-3 gap-3 text-[13px]">
                 {(["A", "B", "C"] as const).map((k) => (
                   <div key={k}>
                     <p className="flex items-center gap-1.5 font-semibold text-tinta">
                       <span className="h-2.5 w-2.5 rounded-full" style={{ background: COLOR_ABC[k] }} /> {k}
                     </p>
-                    <p className="text-xs text-gris">
+                    <p className="text-[11px] text-gris">
                       {r.abc[k].productos} {r.abc[k].productos === 1 ? "producto" : "productos"} · {montoCorto(r.abc[k].valor)}
                     </p>
                   </div>
@@ -292,7 +292,7 @@ function Filtros({
   enlace: (id: string | null) => string;
 }) {
   const chip = (on: boolean) =>
-    `inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+    `inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
       on ? "border-tinta bg-tinta text-superficie" : "border-borde bg-superficie text-gris hover:border-naranjo/50 hover:text-tinta"
     }`;
   return (
@@ -313,11 +313,11 @@ function Filtros({
 
 function Cifra({ Icono, tono, valor, etiqueta }: { Icono: Icon; tono: TonoIcono; valor: string; etiqueta: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-3.5 rounded-[18px] px-4 py-3">
-      <IconoTile Icono={Icono} tono={tono} tamano="grande" />
+    <div className="flex min-w-0 items-center gap-3 rounded-[18px] px-3.5 py-2.5">
+      <IconoTile Icono={Icono} tono={tono} />
       <div className="min-w-0">
-        <p className="truncate font-condensed text-3xl font-bold leading-none tabular-nums text-tinta">{valor}</p>
-        <p className="mt-1 text-xs font-semibold text-gris">{etiqueta}</p>
+        <p className="truncate font-condensed text-2xl font-bold leading-none tabular-nums text-tinta">{valor}</p>
+        <p className="mt-0.5 text-[11px] font-semibold text-gris">{etiqueta}</p>
       </div>
     </div>
   );
@@ -340,9 +340,9 @@ function Seccion({ titulo, icono, accion, children }: { titulo: string; icono: R
 
 function TarjetaBodega({ bodega: b, color, href }: { bodega: GrupoValor; color: string; href: string }) {
   return (
-    <Link href={href} className={`${HOJA} group block p-5 transition hover:border-naranjo/40`} title="Ver solo esta bodega">
+    <Link href={href} className={`${HOJA} group block p-4 transition hover:border-naranjo/40`} title="Ver solo esta bodega">
       <div className="flex items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2 font-semibold text-tinta group-hover:text-naranjo">
+        <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-tinta group-hover:text-naranjo">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
           <span className="truncate">{b.nombre}</span>
         </span>
@@ -350,11 +350,11 @@ function TarjetaBodega({ bodega: b, color, href }: { bodega: GrupoValor; color: 
           {pct(b.participacion)}
         </span>
       </div>
-      <p className="mt-2 font-condensed text-3xl font-bold tabular-nums tracking-tight text-tinta">{formatearMonto(b.valor)}</p>
+      <p className="mt-1.5 font-condensed text-2xl font-bold tabular-nums tracking-tight text-tinta">{formatearMonto(b.valor)}</p>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-tinta/[0.06]">
         <div className="h-full rounded-full" style={{ width: `${b.participacion * 100}%`, background: color }} />
       </div>
-      <p className="mt-2 text-xs text-gris">
+      <p className="mt-1.5 text-[11px] text-gris">
         {b.productos} {b.productos === 1 ? "producto" : "productos"} · {formatearCantidad(b.unidades)} un.
       </p>
     </Link>
@@ -368,7 +368,7 @@ function Dona({ grupos, colores, total }: { grupos: GrupoValor[]; colores: Map<s
   // Dónde empieza cada arco: la suma de los anteriores.
   const inicios = grupos.map((_, i) => grupos.slice(0, i).reduce((t, g) => t + g.participacion * C, 0));
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-[140px]">
+    <div className="relative mx-auto aspect-square w-full max-w-[120px]">
       <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
         <circle cx="100" cy="100" r={R} fill="none" stroke="currentColor" strokeWidth="26" className="text-tinta/[0.05]" />
         {grupos.map((g, i) => {
@@ -392,7 +392,7 @@ function Dona({ grupos, colores, total }: { grupos: GrupoValor[]; colores: Map<s
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <p className="font-condensed text-xl font-bold tabular-nums text-tinta">{montoCorto(total)}</p>
+          <p className="font-condensed text-lg font-bold tabular-nums text-tinta">{montoCorto(total)}</p>
           <p className="text-[10px] uppercase tracking-wide text-gris">{grupos.filter((g) => g.valor > 0).length} categorías</p>
         </div>
       </div>
