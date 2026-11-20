@@ -10,6 +10,7 @@ import {
 import BarraDeAvance from "@/components/contratos/BarraDeAvance";
 import BotonRenombrarCarpeta from "@/components/contratos/BotonRenombrarCarpeta";
 import ConectarSharePoint from "@/components/contratos/ConectarSharePoint";
+import DetalleDelRequisito from "@/components/contratos/DetalleDelRequisito";
 import ExploradorDeArchivos, { type ElementoDeLista } from "@/components/contratos/ExploradorDeArchivos";
 import FormularioCarpeta from "@/components/contratos/FormularioCarpeta";
 import ResumenDeArranque, { type ResumenGlobal } from "@/components/contratos/ResumenDeArranque";
@@ -69,6 +70,7 @@ import {
   asignarResponsableAction,
   cambiarEstadoAction,
   crearCarpetaAction,
+  guardarDetalleAction,
   prepararSubidaAction,
   refrescarAction,
   registrarSubidaAction,
@@ -659,6 +661,20 @@ async function Carpeta({
             <p className="text-xs text-gris-suave">
               No se pudo leer esta carpeta en SharePoint para guardar su estado.
             </p>
+          )}
+
+          {/* El detalle del documento que se pide, a todo el ancho y bajo el estado: va
+              en su propia fila (basis-full) para que no compita con los botones. */}
+          {propia && (
+            <div className="basis-full border-t border-borde pt-4">
+              <DetalleDelRequisito
+                seccion={seccion.slug}
+                itemId={propia.id}
+                ruta={rutaRelativa}
+                detalleInicial={propio?.nota ?? null}
+                guardar={guardarDetalleAction}
+              />
+            </div>
           )}
         </div>
       )}
