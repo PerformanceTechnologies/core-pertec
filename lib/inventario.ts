@@ -246,6 +246,27 @@ export async function mapaDeStock(): Promise<Record<string, { aMano: number; dis
 }
 
 /** Conjunto de ids de ubicaciones internas (las que cuentan como stock propio). */
+/**
+ * En qué bodegas (almacenes) tiene stock cada producto: para filtrar la lista de Productos por
+ * bodega. Solo cuenta ubicaciones internas con cantidad mayor que cero.
+ */
+export async function bodegasConStockPorProducto(): Promise<Map<string, string[]>> {
+  const [{ data: quants }, { data: ubis }] = await Promise.all([
+    supabaseAdmin.from(T.quants).select("producto_id, ubicacion_id, cantidad").gt("cantidad", 0),
+    supabaseAdmin.from(T.ubicaciones).select("id, almacen_id").eq("tipo", "interna"),
+  ]);
+  const almacenDe = new Map((ubis ?? []).map((u) => [u.id as string, (u.almacen_id as string) ?? null]));
+  const mapa = new Map<string, Set<string>>();
+  for (const q of quants ?? []) {
+    const almacen = almacenDe.get(q.ubicacion_id as string);
+    if (!almacen) continue;
+    const set = mapa.get(q.producto_id as string) ?? new Set<string>();
+    set.add(almacen);
+    mapa.set(q.producto_id as string, set);
+  }
+  return new Map([...mapa].map(([k, v]) => [k, [...v]]));
+}
+
 async function idsInternos(): Promise<Set<string>> {
   const { data } = await supabaseAdmin.from(T.ubicaciones).select("id").eq("tipo", "interna");
   return new Set((data ?? []).map((u) => u.id as string));

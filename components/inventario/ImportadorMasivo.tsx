@@ -152,25 +152,23 @@ export default function ImportadorMasivo() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── Banda con los pasos ── */}
-      <header className={`banda-contraste overflow-hidden rounded-2xl px-6 sm:px-8 ${compacto ? "py-4" : "py-7"}`}>
+      <header className={`banda-contraste overflow-hidden rounded-2xl px-5 sm:px-6 ${compacto ? "py-3" : "py-4"}`}>
         {/* Pasado el archivo, la banda se achica a solo los pasos: lo que importa está abajo. */}
         {!compacto && (
           <>
-            <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
-              <span className="h-px w-6 bg-naranjo" /> Carga masiva
-            </span>
-            <h2 className="texto-banda mt-3 font-condensed text-3xl font-bold uppercase leading-tight tracking-tight sm:text-4xl">
+            <h2 className="texto-banda flex flex-wrap items-baseline gap-x-3 font-condensed text-2xl font-bold uppercase leading-tight tracking-tight">
               Sube tu inventario de una vez
+              <span className="font-sans text-[11px] font-semibold normal-case tracking-[0.16em] text-naranjo">CARGA MASIVA</span>
             </h2>
-            <p className="texto-banda-65 mt-2 max-w-2xl text-sm">
+            <p className="texto-banda-65 mt-1 max-w-3xl text-xs">
               Productos, bodegas, cantidades, lotes y mínimos desde un Excel o CSV. Igual que en Odoo: eliges a qué campo va cada
               columna, lo pruebas y recién ahí se guarda.
             </p>
           </>
         )}
-        <ol className={`grid gap-2 sm:grid-cols-4 ${compacto ? "" : "mt-6"}`}>
+        <ol className={`grid gap-2 sm:grid-cols-4 ${compacto ? "" : "mt-3"}`}>
           {[
             { n: 1, t: "Plantilla", d: "Opcional" },
             { n: 2, t: "Archivo", d: ".xlsx o .csv" },
@@ -185,7 +183,7 @@ export default function ImportadorMasivo() {
                 key={p.n}
                 onClick={volver ? () => irAPaso(p.n) : undefined}
                 title={volver ? "Volver a este paso" : undefined}
-                className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
+                className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 transition ${
                   actual ? "border-naranjo bg-naranjo/15" : "borde-banda"
                 } ${volver ? "cursor-pointer hover:border-naranjo/60" : ""}`}
               >
@@ -231,16 +229,16 @@ export default function ImportadorMasivo() {
 
       {/* ── Paso 1 y 2 ── */}
       {!columnas && !resultado && (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-          <section className={`${TARJETA} flex flex-col p-5`}>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <section className={`${TARJETA} flex flex-col p-4`}>
             <Paso n={1} titulo="Descarga la plantilla" />
-            <p className="mt-2 text-sm text-gris">
+            <p className="mt-1.5 text-xs text-gris">
               Trae las columnas con su explicación, listas desplegables con <strong className="text-tinta">tus bodegas</strong> y una hoja de
               instrucciones. Si ya tienes tu propio Excel, sáltate este paso.
             </p>
             <a
               href="/api/inventario/plantilla"
-              className="group mt-4 flex items-center gap-3 rounded-xl border border-borde bg-tinta/[0.02] p-3 transition hover:border-naranjo/50 hover:bg-naranjo/[0.04]"
+              className="group mt-3 flex items-center gap-3 rounded-xl border border-borde bg-tinta/[0.02] p-3 transition hover:border-naranjo/50 hover:bg-naranjo/[0.04]"
             >
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white">
                 <IconFileSpreadsheet size={22} />
@@ -252,7 +250,7 @@ export default function ImportadorMasivo() {
               <IconDownload size={18} className="text-gris transition group-hover:translate-y-0.5 group-hover:text-naranjo" />
             </a>
 
-            <details className="group mt-4 rounded-xl border border-borde">
+            <details className="group mt-3 rounded-xl border border-borde">
               <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold uppercase tracking-[0.08em] text-gris">
                 Qué va en cada columna
                 <IconChevronDown size={15} className="transition group-open:rotate-180" />
@@ -271,7 +269,7 @@ export default function ImportadorMasivo() {
             </details>
           </section>
 
-          <section className={`${TARJETA} flex flex-col p-5`}>
+          <section className={`${TARJETA} flex flex-col p-4`}>
             <Paso n={2} titulo="Sube tu archivo" />
             <label
               onDragOver={(e) => {
@@ -284,17 +282,17 @@ export default function ImportadorMasivo() {
                 setSobre(false);
                 elegir(e.dataTransfer.files[0]);
               }}
-              className={`mt-4 flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition ${
+              className={`mt-4 flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-5 py-6 text-center transition ${
                 sobre ? "scale-[1.01] border-naranjo bg-naranjo/[0.06]" : "border-borde hover:border-naranjo/50 hover:bg-naranjo/[0.03]"
               }`}
             >
-              <span className={`grid h-16 w-16 place-items-center rounded-2xl transition ${archivo ? "bg-emerald-500/10 text-emerald-600" : "bg-naranjo/10 text-naranjo"}`}>
+              <span className={`grid h-11 w-11 place-items-center rounded-xl transition ${archivo ? "bg-emerald-500/10 text-emerald-600" : "bg-naranjo/10 text-naranjo"}`}>
                 {cargando === "leyendo" ? (
-                  <IconLoader2 size={30} className="animate-spin" />
+                  <IconLoader2 size={22} className="animate-spin" />
                 ) : archivo ? (
-                  <IconFileCheck size={30} stroke={1.5} />
+                  <IconFileCheck size={22} stroke={1.6} />
                 ) : (
-                  <IconCloudUpload size={30} stroke={1.5} />
+                  <IconCloudUpload size={22} stroke={1.6} />
                 )}
               </span>
               {archivo ? (

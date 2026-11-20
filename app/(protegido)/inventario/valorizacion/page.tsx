@@ -80,7 +80,7 @@ export default async function ValorizacionPage({
   const maxTop = top[0]?.valor || 1;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── Filtros ── */}
       <div className="space-y-2.5">
         <Filtros
@@ -100,24 +100,24 @@ export default async function ValorizacionPage({
       </div>
 
       {/* ── Banda principal ── */}
-      <header className="banda-contraste overflow-hidden rounded-2xl px-6 py-7 sm:px-8">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+      <header className="banda-contraste overflow-hidden rounded-2xl px-5 py-4 sm:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <span className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-naranjo">
               <span className="h-px w-6 bg-naranjo" />
               Valor del inventario
               {(bodega || categoria) && <span className="texto-banda-45 normal-case tracking-normal">· filtrado</span>}
             </span>
-            <p className="texto-banda mt-3 font-condensed text-5xl font-bold leading-none tracking-tight tabular-nums sm:text-6xl">
+            <p className="texto-banda mt-1.5 font-condensed text-4xl font-bold leading-none tracking-tight tabular-nums">
               {formatearMonto(r.total)}
             </p>
-            <p className="texto-banda-65 mt-3 text-sm">
+            <p className="texto-banda-65 mt-1.5 text-xs">
               {bodega ? bodegasVisibles[0]?.nombre : "Todas las bodegas"}
               {categoria ? ` · ${categoria}` : ""}
               {!bodega && !categoria ? " · a costo de cada producto" : ` · ${pct(general.total ? r.total / general.total : 0)} del total`}
             </p>
           </div>
-          <dl className="borde-banda grid grid-cols-3 gap-6 rounded-xl border px-5 py-4 lg:min-w-[26rem]">
+          <dl className="borde-banda grid grid-cols-3 gap-5 rounded-xl border px-4 py-2.5 lg:min-w-[22rem]">
             <Cifra etiqueta="Productos" valor={r.productos.length.toLocaleString("es-CL")} />
             <Cifra etiqueta="Unidades" valor={formatearCantidad(r.unidades)} />
             <Cifra etiqueta="Bodegas" valor={String(r.porBodega.length)} />
@@ -126,8 +126,8 @@ export default async function ValorizacionPage({
 
         {/* Reparto entre bodegas en una sola barra */}
         {r.porBodega.length > 0 && (
-          <div className="mt-8">
-            <div className="flex h-3 overflow-hidden rounded-full bg-white/10">
+          <div className="mt-4">
+            <div className="flex h-2 overflow-hidden rounded-full bg-white/10">
               {r.porBodega.map((b) => (
                 <div
                   key={b.id}
@@ -137,7 +137,7 @@ export default async function ValorizacionPage({
                 />
               ))}
             </div>
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
               {r.porBodega.map((b) => (
                 <span key={b.id} className="texto-banda-65 inline-flex items-center gap-2 text-xs">
                   <span className="h-2 w-2 rounded-full" style={{ background: colorBodega.get(b.id) }} />
@@ -150,7 +150,7 @@ export default async function ValorizacionPage({
       </header>
 
       {r.sinCosto > 0 && (
-        <p className="flex items-center gap-2 rounded-xl border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+        <p className="flex items-center gap-2 rounded-xl border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-3.5 py-2 text-xs text-amber-800 dark:text-amber-300">
           <IconAlertTriangle size={17} className="shrink-0" />
           <span>
             <strong>{r.sinCosto} {r.sinCosto === 1 ? "producto tiene" : "productos tienen"} stock con costo $0</strong> y no suman al valor. Revisa su costo en Productos.
@@ -160,7 +160,7 @@ export default async function ValorizacionPage({
 
       {/* ── Por bodega ── */}
       <Seccion titulo="Por bodega" icono={<IconBuildingWarehouse size={15} />}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {r.porBodega.map((b) => (
             <TarjetaBodega
               key={b.id}
@@ -175,11 +175,11 @@ export default async function ValorizacionPage({
       </Seccion>
 
       {/* ── Categorías y ABC ── */}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <Seccion titulo="Por categoría" icono={<IconCategory size={15} />}>
-          <div className={`${TARJETA} grid items-center gap-6 p-5 sm:grid-cols-[200px_minmax(0,1fr)]`}>
+          <div className={`${TARJETA} grid items-center gap-4 p-4 sm:grid-cols-[160px_minmax(0,1fr)]`}>
             <Dona grupos={r.porCategoria} colores={colorCategoria} total={r.total} />
-            <ul className="space-y-2.5">
+            <ul className="space-y-1.5">
               {r.porCategoria.map((c) => (
                 <li key={c.id}>
                   <Link href={enlace({ categoria: categoria === c.id ? null : c.id })} className="group block">
@@ -200,12 +200,12 @@ export default async function ValorizacionPage({
         </Seccion>
 
         <Seccion titulo="Concentración ABC" icono={<IconStack2 size={15} />}>
-          <div className={`${TARJETA} p-5`}>
-            <p className="mb-4 text-xs leading-relaxed text-gris">
+          <div className={`${TARJETA} p-4`}>
+            <p className="mb-3 text-xs leading-relaxed text-gris">
               Pocos productos suelen concentrar casi todo el valor. Los <strong className="text-tinta">A</strong> son los que juntan el primer 80%: los que
               conviene contar más seguido y cuidar más.
             </p>
-            <div className="flex h-9 overflow-hidden rounded-lg">
+            <div className="flex h-7 overflow-hidden rounded-lg">
               {(["A", "B", "C"] as const).map((k) =>
                 r.abc[k].valor > 0 ? (
                   <div
@@ -218,14 +218,14 @@ export default async function ValorizacionPage({
                 ) : null,
               )}
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="mt-3 grid grid-cols-3 gap-2">
               {(["A", "B", "C"] as const).map((k) => (
-                <div key={k} className="rounded-xl border border-borde p-3">
+                <div key={k} className="rounded-xl border border-borde p-2.5">
                   <div className="flex items-center gap-2">
                     <span className="grid h-6 w-6 place-items-center rounded-md text-xs font-bold text-white" style={{ background: COLOR_ABC[k] }}>{k}</span>
                     <span className="text-xs text-gris">{k === "A" ? "80% del valor" : k === "B" ? "siguiente 15%" : "último 5%"}</span>
                   </div>
-                  <p className="mt-2 font-condensed text-2xl font-bold tabular-nums text-tinta">{r.abc[k].productos}</p>
+                  <p className="mt-1 font-condensed text-xl font-bold tabular-nums text-tinta">{r.abc[k].productos}</p>
                   <p className="text-[11px] text-gris">
                     {r.abc[k].productos === 1 ? "producto" : "productos"} · {pct(r.productos.length ? r.abc[k].productos / r.productos.length : 0)} del catálogo
                   </p>
@@ -239,8 +239,8 @@ export default async function ValorizacionPage({
 
       {/* ── Top 10 ── */}
       <Seccion titulo="Productos que más valen" icono={<IconTrophy size={15} />}>
-        <div className={`${TARJETA} p-5`}>
-          <ol className="space-y-3">
+        <div className={`${TARJETA} p-4`}>
+          <ol className="space-y-2">
             {top.map((p, i) => (
               <li key={p.productoId} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
                 <span className="text-right font-condensed text-lg font-bold tabular-nums text-gris-suave">{i + 1}</span>
@@ -286,12 +286,12 @@ export default async function ValorizacionPage({
               <thead className="sticky top-0 z-10 bg-superficie">
                 <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
                   <th className="px-3 py-2">Producto</th>
-                  <th className="px-3 py-3 text-center">ABC</th>
-                  <th className="px-3 py-3">Categoría</th>
-                  <th className="px-3 py-3 text-right">A mano</th>
-                  <th className="px-3 py-3 text-right">Costo</th>
+                  <th className="px-3 py-2 text-center">ABC</th>
+                  <th className="px-3 py-2">Categoría</th>
+                  <th className="px-3 py-2 text-right">A mano</th>
+                  <th className="px-3 py-2 text-right">Costo</th>
                   {bodegasVisibles.map((b) => (
-                    <th key={b.id} className="whitespace-nowrap px-3 py-3 text-right">
+                    <th key={b.id} className="whitespace-nowrap px-3 py-2 text-right">
                       <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: colorBodega.get(b.id) }} />
                       {b.nombre.replace(/^Bodega\s+/i, "")}
                     </th>
@@ -302,18 +302,18 @@ export default async function ValorizacionPage({
               <tbody className="divide-y divide-borde">
                 {r.productos.map((p) => (
                   <tr key={p.productoId} className="transition hover:bg-tinta/[0.02]">
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-1.5">
                       <Link href={`/inventario/productos/${p.productoId}`} className="font-semibold text-tinta hover:text-naranjo">{p.nombre}</Link>
                       {p.sku && <span className="ml-1.5 font-mono text-[11px] text-gris">{p.sku}</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-3 py-1.5 text-center">
                       <span className="inline-grid h-5 w-5 place-items-center rounded text-[10px] font-bold text-white" style={{ background: COLOR_ABC[p.clase] }}>{p.clase}</span>
                     </td>
-                    <td className="px-3 py-2.5 text-gris">{p.categoria}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gris">{formatearCantidad(p.cantidad)}</td>
-                    <td className={`px-3 py-2.5 text-right tabular-nums ${p.costo <= 0 ? "font-semibold text-amber-600" : "text-gris"}`}>{formatearMonto(p.costo)}</td>
+                    <td className="px-3 py-1.5 text-gris">{p.categoria}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-gris">{formatearCantidad(p.cantidad)}</td>
+                    <td className={`px-3 py-1.5 text-right tabular-nums ${p.costo <= 0 ? "font-semibold text-amber-600" : "text-gris"}`}>{formatearMonto(p.costo)}</td>
                     {bodegasVisibles.map((b) => (
-                      <td key={b.id} className="px-3 py-2.5 text-right tabular-nums text-gris">
+                      <td key={b.id} className="px-3 py-1.5 text-right tabular-nums text-gris">
                         {p.porBodega[b.id] ? formatearMonto(p.porBodega[b.id]) : <span className="text-gris-suave">—</span>}
                       </td>
                     ))}
@@ -388,7 +388,7 @@ function Cifra({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 function Seccion({ titulo, icono, accion, children }: { titulo: string; icono: React.ReactNode; accion?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section>
-      <div className="mb-3 flex items-center gap-3">
+      <div className="mb-2 flex items-center gap-3">
         <h2 className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-tinta/60">
           {icono} {titulo}
         </h2>
@@ -416,7 +416,7 @@ function TarjetaBodega({
   return (
     <Link
       href={href}
-      className={`group relative block overflow-hidden rounded-2xl border bg-superficie p-5 transition hover:-translate-y-0.5 ${SOMBRA_CALIDA} ${
+      className={`group relative block overflow-hidden rounded-2xl border bg-superficie px-4 py-3.5 transition hover:-translate-y-0.5 ${SOMBRA_CALIDA} ${
         activa ? "border-tinta" : "border-borde hover:border-naranjo/40"
       }`}
     >
@@ -432,12 +432,12 @@ function TarjetaBodega({
           {pct(b.participacion)}
         </span>
       </div>
-      <p className="mt-4 font-condensed text-3xl font-bold tabular-nums tracking-tight text-tinta">{formatearMonto(b.valor)}</p>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-tinta/[0.06]">
+      <p className="mt-2 font-condensed text-2xl font-bold tabular-nums tracking-tight text-tinta">{formatearMonto(b.valor)}</p>
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-tinta/[0.06]">
         <div className="h-full rounded-full" style={{ width: `${b.participacion * 100}%`, background: color }} />
       </div>
       {top.length > 0 && (
-        <ul className="mt-4 space-y-1.5 border-t border-borde pt-3">
+        <ul className="mt-2.5 space-y-1 border-t border-borde pt-2">
           {top.map((p) => (
             <li key={p.productoId} className="flex items-center justify-between gap-2 text-xs">
               <span className="truncate text-gris">{p.nombre}</span>
@@ -446,7 +446,7 @@ function TarjetaBodega({
           ))}
         </ul>
       )}
-      <p className="mt-3 text-[11px] font-semibold text-gris-suave group-hover:text-naranjo">{activa ? "Quitar filtro" : "Ver solo esta bodega →"}</p>
+      <p className="mt-2 text-[11px] font-semibold text-gris-suave group-hover:text-naranjo">{activa ? "Quitar filtro" : "Ver solo esta bodega →"}</p>
     </Link>
   );
 }
