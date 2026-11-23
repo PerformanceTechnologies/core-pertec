@@ -184,3 +184,16 @@ export async function descargarCompraDteSii(rutaRelativa: string): Promise<Buffe
   if (!item?.id) throw new Error("No se encontró el PDF en SharePoint");
   return descargarBuffer(item.id);
 }
+
+// ─── Escritura (solo para traer documentos de Odoo, ver lib/migracion-odoo-facturas.ts) ───
+
+/** El token de la app sobre el sitio de Finanzas, para escribir con fetch. */
+export async function tokenAppFacturas(): Promise<string> {
+  const token = await obtenerCredencial().getToken(GRAPH_SCOPE);
+  if (!token) throw new Error("No fue posible autenticar contra Microsoft Graph");
+  return token.token;
+}
+
+export function rutaBaseFacturas(tipo: "ventas" | "compras"): { sitio: string; ruta: string } {
+  return { sitio: SITE_ID(), ruta: tipo === "ventas" ? CARPETA_VENTAS : CARPETA_COMPRAS };
+}

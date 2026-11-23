@@ -12,6 +12,11 @@ import {
   type ArchivoCompraAIndexar,
 } from "./facturas-historicas";
 import { extraerDatosFacturaCompra } from "./extraer-datos-factura-compra";
+import { parsearXmlDte } from "./xml-dte";
+
+/** Las mismas etiquetas que saca extraerDatosFacturaCompra de un PDF. */
+const ETIQUETA_TIPO_DTE: Record<number, string> = { 33: "Factura", 34: "Factura", 46: "Factura", 56: "Nota de Débito", 61: "Nota de Crédito", 52: "Guía de Despacho", 39: "Boleta", 41: "Boleta" };
+const normalizar = (rut: string | null | undefined) => (rut ?? "").replace(/[^0-9kK]/g, "").toUpperCase();
 
 const RUT_PROPIO = process.env.SII_RUT_EMPRESA ?? "77590967-6";
 
@@ -60,10 +65,34 @@ export async function indexarFacturasCompra(
 
   for (const carpeta of carpetas) {
     const archivos = await listarArchivosDeCarpeta(carpeta.itemId);
-    const nuevosDeEstaCarpeta = archivos.filter((a) => a.nombre.toLowerCase().endsWith(".pdf") && !yaIndexados.has(a.id));
+    const nuevosDeEstaCarpeta = archivos.filter((a) => /\.(pdf|xml)$/i.test(a.nombre) && !yaIndexados.has(a.id));
 
     for (const archivo of nuevosDeEstaCarpeta) {
       procesados++;
+      // Los XML son los DTE que se traen de Odoo (lib/migracion-odoo-facturas.ts): ahí los datos
+      // vienen exactos del documento, sin adivinarlos desde el texto de un PDF.
+      if (archivo.nombre.toLowerCase().endsWith(".xml")) {
+        const dtes = parsearXmlDte((await descargarBinarioArchivo(archivo.id)).toString("latin1"));
+        const dte = dtes.find((d) => normalizar(d.rutReceptor) === normalizar(RUT_PROPIO)) ?? dtes[0];
+        if (!dte) continue;
+        porIndexar.push({
+          driveItemId: archivo.id,
+          nombreArchivo: archivo.nombre,
+          anio: carpeta.anio,
+          mes: carpeta.mes,
+          webUrl: archivo.webUrl,
+          textoExtraido: [dte.datos.emisor.razonSocial, dte.datos.emisor.rut, dte.folio, ...dte.datos.detalle.map((d) => d.nombre)].filter(Boolean).join(" "),
+          datos: {
+            folio: dte.folio,
+            tipoDocumentoDetectado: ETIQUETA_TIPO_DTE[dte.tipoDte ?? 0] ?? "Factura",
+            rutEmisor: dte.datos.emisor.rut,
+            razonSocialEmisor: dte.datos.emisor.razonSocial,
+            fechaEmision: dte.fechaEmision,
+            montoTotal: dte.montoTotal,
+          },
+        });
+        continue;
+      }
       const buffer = await descargarBinarioArchivo(archivo.id);
       let texto = "";
       try {

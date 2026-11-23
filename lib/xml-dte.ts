@@ -56,7 +56,9 @@ function textoONull(valor: unknown): string | null {
 // parsean todos por si acaso -- ignorar los de mas seria peor que sobrar.
 export function parsearXmlDte(contenidoXml: string): DteParseado[] {
   const xml = parser.parse(contenidoXml);
-  const setDte = xml?.EnvioDTE?.SetDTE;
+  // Un EnvioDTE (lo que se descarga del SII) o un <DTE> suelto, que es como Odoo guarda el
+  // documento firmado de cada factura (ver lib/migracion-odoo-facturas.ts).
+  const setDte = xml?.EnvioDTE?.SetDTE ?? (xml?.DTE ? { DTE: xml.DTE } : null);
   if (!setDte) return [];
 
   const bloquesDte = Array.isArray(setDte.DTE) ? setDte.DTE : setDte.DTE ? [setDte.DTE] : [];
