@@ -38,6 +38,17 @@ export interface ResultadoMigracion {
   errores: string[];
   /** Los meses que recibieron archivos (para indexarlos después). */
   meses: { anio: number; mes: number }[];
+  /** Los que quedaron sin revisar porque se acabó el tiempo: se sigue abriendo el enlace de nuevo. */
+  pendientes: number;
+}
+
+/** Un aviso de avance por documento, para mostrarlo mientras corre. */
+export interface AvanceMigracion {
+  n: number;
+  total: number;
+  nombre: string;
+  estado: "subido" | "ya estaba" | "sin XML" | "error";
+  detalle?: string;
 }
 
 /** Escribe con el token de la app; si el sitio no le da permiso de escritura, con el de quien lo pidió. */
@@ -111,7 +122,16 @@ async function subirSiNoEsta(token: string, sitio: string, carpetaId: string, no
   throw Object.assign(new Error(`HTTP ${r.status} ${detalle.slice(0, 160)}`), { status: r.status });
 }
 
-export async function migrarDesdeOdoo(opciones: { tipo: TipoMigracion; desde: string; correo: string; limite?: number }): Promise<ResultadoMigracion> {
+export async function migrarDesdeOdoo(opciones: {
+  tipo: TipoMigracion;
+  desde: string;
+  correo: string;
+  limite?: number;
+  /** Se llama después de cada documento. */
+  alAvanzar?: (a: AvanceMigracion) => void;
+  /** Hora (ms) en que hay que dejar de subir para alcanzar a indexar antes del límite de la función. */
+  hasta?: number;
+}): Promise<ResultadoMigracion> {
   const { tipo, desde, correo } = opciones;
   const dominio =
     tipo === "ventas"
@@ -124,7 +144,9 @@ export async function migrarDesdeOdoo(opciones: { tipo: TipoMigracion; desde: st
     { order: "invoice_date asc, id asc", limit: opciones.limite },
   );
 
-  const resultado: ResultadoMigracion = { tipo, encontrados: total.length, subidos: 0, yaEstaban: 0, sinXml: 0, errores: [], meses: [] };
+  const resultado: ResultadoMigracion = { tipo, encontrados: total.length, subidos: 0, yaEstaban: 0, sinXml: 0, errores: [], meses: [], pendientes: 0 };
+  const avisar = (nombre: string, estado: AvanceMigracion["estado"], detalle?: string) =>
+    opciones.alAvanzar?.({ n: resultado.subidos + resultado.yaEstaban + resultado.sinXml + resultado.errores.length, total: total.length, nombre, estado, detalle });
   const { sitio } = rutaBaseFacturas(tipo);
   const memo = new Map<string, string>();
   const meses = new Set<string>();
@@ -133,6 +155,10 @@ export async function migrarDesdeOdoo(opciones: { tipo: TipoMigracion; desde: st
 
   // De a 20: el contenido de los adjuntos viene en base64 y no conviene pedirlos todos juntos.
   for (let i = 0; i < total.length; i += 20) {
+    if (opciones.hasta && Date.now() > opciones.hasta) {
+      resultado.pendientes = total.length - i;
+      break;
+    }
     const lote = total.slice(i, i + 20);
     const ids = lote.map((m) => (m.l10n_cl_dte_file ? m.l10n_cl_dte_file[0] : 0)).filter(Boolean);
     const adjuntos = await odooSearchRead<{ id: number; datas: string | false }>("ir.attachment", [["id", "in", ids]], ["datas"]);
@@ -142,6 +168,7 @@ export async function migrarDesdeOdoo(opciones: { tipo: TipoMigracion; desde: st
       const datas = m.l10n_cl_dte_file ? datosDe.get(m.l10n_cl_dte_file[0]) : false;
       if (!datas || !m.invoice_date) {
         resultado.sinXml++;
+        avisar(`#${m.id}`, "sin XML");
         continue;
       }
       const [anio, mes] = m.invoice_date.split("-").map(Number);
@@ -157,6 +184,7 @@ export async function migrarDesdeOdoo(opciones: { tipo: TipoMigracion; desde: st
           const subido = await subirSiNoEsta(token, sitio, carpeta, nombre, Buffer.from(datas, "base64"));
           if (subido) resultado.subidos++;
           else resultado.yaEstaban++;
+          avisar(nombre, subido ? "subido" : "ya estaba");
           meses.add(`${anio}-${mes}`);
           break;
         } catch (e) {
@@ -170,6 +198,7 @@ export async function migrarDesdeOdoo(opciones: { tipo: TipoMigracion; desde: st
             continue;
           }
           resultado.errores.push(`${nombre}: ${msg}`);
+          avisar(nombre, "error", msg);
           break;
         }
       }
