@@ -8,6 +8,7 @@ import { puedeVerRemuneraciones } from "@/lib/fin/remuneraciones-acceso";
 import type { CoberturaCartola, EstadoPago, GrupoPrevisional, LineaResumen, ResultadoPago } from "@/lib/fin/remuneraciones-modelo";
 import { TARJETA } from "@/lib/estilos";
 import { Banda, Chip, Seccion, TD, TH, Vacio } from "@/components/fin/piezas";
+import { TONO_VALIDACION, TarjetaValidacion } from "@/components/fin/ValidacionNomina";
 import { BotonAccion } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC } from "@/components/fin/estilos";
 import { actualizarDesdeBukAction, usarSugerenciaEnFlujoAction } from "../acciones-remuneraciones";
@@ -120,9 +121,15 @@ export default async function RemuneracionesPage({ searchParams }: { searchParam
         </p>
       </Seccion>
 
+      {sel.nominas && (
+        <Seccion titulo={`Validación contra la nómina del banco · ${nombreMes}`} icono={<IconScale size={15} />}>
+          <TarjetaValidacion v={sel.nominas} periodo={sel.periodo} fechaPago={sel.sueldos.fecha} />
+        </Seccion>
+      )}
+
       <Seccion titulo="Últimos meses" icono={<IconUsers size={15} />}>
         <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
-          <table className="w-full min-w-[52rem]">
+          <table className="w-full min-w-[60rem]">
             <thead>
               <tr className="border-b border-borde">
                 <th className={TH}>Mes</th>
@@ -134,6 +141,7 @@ export default async function RemuneracionesPage({ searchParams }: { searchParam
                 <th className={`${TH} text-right`}>Costo empresa</th>
                 <th className={TH}>Sueldos</th>
                 <th className={TH}>Previred</th>
+                <th className={TH}>Nómina del banco</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-borde">
@@ -148,6 +156,7 @@ export default async function RemuneracionesPage({ searchParams }: { searchParam
                   <td className={`${TD} text-right tabular-nums`}>{clp(f.resumen.costoEmpresa)}</td>
                   <td className={TD}><Chip texto={f.sueldos.estado} tono={TONO_PAGO[f.sueldos.estado]} /></td>
                   <td className={TD}><Chip texto={f.previred.estado} tono={TONO_PAGO[f.previred.estado]} /></td>
+                  <td className={TD}>{f.nominas ? <Chip texto={f.nominas.estado} tono={TONO_VALIDACION[f.nominas.estado]} /> : <span className="text-gris">—</span>}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,6 +1,8 @@
 import "server-only";
 import { bukConfigurado, empresaBuk, fichasDePersonas, libroDeMes, procesosDeMes, type ProcesoBuk } from "./buk";
 import type { ContextoFin, VistaFin } from "./datos";
+import { cargarNominasBanco } from "./nominas-banco";
+import { resumenDeValidacion, validarMes, type ValidacionMes } from "./nominas-modelo";
 import {
   centralizar,
   conFichas,
@@ -76,6 +78,9 @@ export async function cargarRemuneraciones(ctx: ContextoFin, v: VistaFin): Promi
     const hoyPeriodo = ctx.hoy.slice(0, 7);
     const periodos = Array.from({ length: MESES_EN_PANTALLA }, (_, i) => sumarMeses(hoyPeriodo, -i));
 
+    // Las nóminas que el banco pagó (cron de Emisso), para validar el líquido de cada mes persona por persona.
+    const nominas = await cargarNominasBanco(ctx.empresa.id, `${sumarMeses(hoyPeriodo, -MESES_EN_PANTALLA)}-01`);
+
     // Solo cuentas de banco: la tarjeta de crédito no paga sueldos ni Previred.
     const bancos = new Set(v.cuentas.filter((c) => c.tipo === "banco").map((c) => c.id));
     const movimientos: MovimientoBanco[] = v.movimientos
@@ -104,6 +109,13 @@ export async function cargarRemuneraciones(ctx: ContextoFin, v: VistaFin): Promi
         nombreProceso: proceso.nombre,
         sueldos: resultadoPago({ esperado: resumen.liquido, fecha: proceso.fechaPago, hoy: ctx.hoy, movimientos: movimientosDeSueldos(movimientos, proceso.fechaPago), cobertura }),
         previred: resultadoPago({ esperado: resumen.previred, fecha: plazo, hoy: ctx.hoy, movimientos: movimientosDePrevired(movimientos, periodo), cobertura }),
+        // Sin el detalle por persona: acá no llegan RUT (eso vive en el desglose, con permiso y registro).
+        nominas: resumenDeValidacion(
+          validarMes({
+            periodo, fechaPagoBuk: proceso.fechaPago, cerrado: proceso.cerrado, hoy: ctx.hoy, nominas,
+            personas: desglosarPorPersona(libro.bloques).map((p) => ({ rut: p.rut, liquido: p.liquido })),
+          }),
+        ),
       });
     }
 
@@ -141,6 +153,8 @@ export interface LibroDelMes {
   centralizacion: LineaCentralizacion[];
   /** Personas cuya ficha (nombre y cargo) no se pudo leer en BUK: salen solo con el RUT. */
   fichasFaltantes: number;
+  /** El líquido de cada persona contra lo que pagó la nómina del banco (con el detalle por persona). */
+  validacion: ValidacionMes;
   leidoEn: number;
 }
 
@@ -160,6 +174,7 @@ export async function cargarLibroDelMes(ctx: ContextoFin, periodo: string): Prom
     const proceso = fechaYEstadoDelProceso(periodo, procesos);
     const sinNombre = desglosarPorPersona(libro.bloques);
     const { fichas, faltan } = await fichasDePersonas(sinNombre.map((p) => p.rut));
+    const nominas = await cargarNominasBanco(ctx.empresa.id, `${sumarMeses(periodo, -1)}-01`);
     return {
       estado: "ok",
       libro: {
@@ -172,6 +187,10 @@ export async function cargarLibroDelMes(ctx: ContextoFin, periodo: string): Prom
         personas: conFichas(sinNombre, fichas),
         centralizacion: centralizar(libro.bloques),
         fichasFaltantes: faltan,
+        validacion: validarMes({
+          periodo, fechaPagoBuk: proceso.fechaPago, cerrado: proceso.cerrado, hoy: ctx.hoy, nominas,
+          personas: sinNombre.map((p) => ({ rut: p.rut, liquido: p.liquido })),
+        }),
         leidoEn: libro.leidoEn,
       },
     };

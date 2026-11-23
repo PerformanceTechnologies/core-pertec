@@ -1,5 +1,5 @@
 import "server-only";
-import type { MovimientoEmisso, SaldoEmisso } from "./banco-emisso-modelo";
+import type { MovimientoEmisso, NominaEmisso, SaldoEmisso } from "./banco-emisso-modelo";
 
 // -----------------------------------------------------------------------------
 //  Emisso Connect: cliente de SOLO LECTURA.
@@ -71,11 +71,11 @@ async function ejecutar<T>(herramienta: string, input: Record<string, unknown>, 
 }
 
 /** Recorre todas las páginas (Emisso pagina con un cursor opaco). Tope de páginas por si el cursor no termina. */
-async function todasLasPaginas<T>(herramienta: string, clave: "movimientos" | "saldos", input: Record<string, unknown>): Promise<T[]> {
+async function todasLasPaginas<T>(herramienta: string, clave: "movimientos" | "saldos" | "nominas", input: Record<string, unknown>, limite = 500): Promise<T[]> {
   const filas: T[] = [];
   let cursor: string | null = null;
   for (let pagina = 0; pagina < 20; pagina++) {
-    const data: Record<string, unknown> = await ejecutar(herramienta, { ...input, limit: 500, ...(cursor ? { cursor } : {}) });
+    const data: Record<string, unknown> = await ejecutar(herramienta, { ...input, limit: limite, ...(cursor ? { cursor } : {}) });
     filas.push(...((data[clave] as T[]) ?? []));
     cursor = (data.cursor as string | null) ?? null;
     if (!cursor) return filas;
@@ -119,4 +119,13 @@ export async function movimientosItau(periodo?: string): Promise<MovimientoEmiss
 export async function saldosItau(): Promise<SaldoEmisso[]> {
   const data = await ejecutar<{ saldos: SaldoEmisso[] }>("itau_corporate.saldos.consultar", { limit: 50 });
   return data.saldos ?? [];
+}
+
+/**
+ * Todas las nóminas de pago masivo guardadas en Emisso, con sus pagos (no contacta al banco). Se piden todas y no solo
+ * las del mes: una nómina cambia de estado después («En proceso» → «Pagada») y Emisso la actualiza hasta 90 días. Son
+ * pocas (unas 15 al mes) y la herramienta admite 50 por página.
+ */
+export async function nominasItau(): Promise<NominaEmisso[]> {
+  return todasLasPaginas<NominaEmisso>("itau_corporate.nominas.consultar", "nominas", {}, 50);
 }

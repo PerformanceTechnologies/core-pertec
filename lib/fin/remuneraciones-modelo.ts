@@ -1,4 +1,5 @@
 import { sumarDias, type Iso } from "./reglas";
+import type { ResumenValidacion } from "./nominas-modelo";
 
 // -----------------------------------------------------------------------------
 //  Remuneraciones: el libro de BUK convertido en lo que Finanzas necesita ver, y cruzado con el banco.
@@ -448,6 +449,8 @@ export interface FilaMes {
   nombreProceso: string | null;
   sueldos: ResultadoPago;
   previred: ResultadoPago;
+  /** El líquido de BUK contra la nómina que el banco pagó (sin RUT de personas). Ausente si no se pudo calcular. */
+  nominas?: ResumenValidacion | null;
 }
 
 /** Hasta cuántos días atrás se arrastra un pago que venció y no aparece en el banco. */
