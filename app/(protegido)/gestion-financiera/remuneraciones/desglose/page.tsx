@@ -8,6 +8,8 @@ import { puedeVerRemuneraciones } from "@/lib/fin/remuneraciones-acceso";
 import { periodoValido, sumarMeses, type PersonaLibro } from "@/lib/fin/remuneraciones-modelo";
 import { TARJETA } from "@/lib/estilos";
 import { Chip, Vacio } from "@/components/fin/piezas";
+import { DetallePersonas } from "@/components/fin/ValidacionNomina";
+import { claveRut } from "@/lib/fin/nominas-modelo";
 import { BOTON, BOTON_SEC } from "@/components/fin/estilos";
 
 export const dynamic = "force-dynamic";
@@ -91,6 +93,8 @@ export default async function DesglosePage({ searchParams }: { searchParams: Pro
           <IconAlertTriangle size={16} className="mt-px shrink-0" /> En {conControl.length} {conControl.length === 1 ? "persona" : "personas"} los haberes no cuadran con descuentos + líquido (aparecen marcadas): hay un concepto de BUK que no se supo clasificar. Revisa su centralización antes de enviar el libro.
         </p>
       )}
+
+      <DetallePersonas v={libro.validacion} fechaPago={libro.fechaPago} nombres={new Map(ps.map((p) => [claveRut(p.rut), p.nombre ?? p.rut]))} />
 
       <div className={`${TARJETA} overflow-hidden`}>
         <div className="hidden grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_repeat(4,minmax(0,1fr))] gap-3 border-b border-borde bg-tinta/[0.03] px-3 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-gris md:grid">

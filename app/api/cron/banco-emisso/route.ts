@@ -15,8 +15,8 @@ import { RUTA_FIN } from "@/lib/fin/datos";
  *  · Esta ruta NO entra al banco: solo consulta lo que Emisso guardó. Emisso sincroniza Itaú solo (cadencia de
  *    4 h al 17-11-2026), así que a las 05:00 los datos tienen a lo más unas horas. Itaú publica los movimientos
  *    posteriores a las 14:00 recién al día hábil siguiente, de modo que de madrugada no se pierde nada.
- *  · Cada corrida gasta 4 llamadas de la cuota de Emisso (2.000 al mes): estado, movimientos de este mes y del
- *    anterior, y saldos.
+ *  · Cada corrida gasta 5 o 6 llamadas de la cuota de Emisso (2.000 al mes): estado, movimientos de este mes y del
+ *    anterior, saldos y las nóminas de pago masivo (50 por página: una o dos llamadas, más con el tiempo).
  *  · Si Itaú rechaza o bloquea la clave, NO se reintenta (Itaú bloquea tras varios intentos): se avisa a soporte.
  *
  * Protegido por CRON_SECRET, como los demás crons. A mano, con el mismo header:
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       r.requierePersona
         ? "\nLa clave del usuario consultivo de Itaú necesita atención: entra a connect.emisso.ai › Conexiones y vuelve a vincularla. El Core no reintenta para no bloquearla."
         : "",
-      `\nNuevos: ${r.nuevos} · actualizados: ${r.actualizados} · saldos: ${r.saldos} · datos de Emisso al: ${r.datosAl ?? "—"}`,
+      `\nNuevos: ${r.nuevos} · actualizados: ${r.actualizados} · saldos: ${r.saldos} · nóminas: ${r.nominas} (ligadas ahora: ${r.nominasLigadas}) · datos de Emisso al: ${r.datosAl ?? "—"}`,
     ];
     await enviarCorreoSoporte("Core: revisar la sincronización del banco Itaú (Emisso)", lineas.filter(Boolean).join("\n")).catch((e) =>
       console.error("[cron banco-emisso] no se pudo avisar a soporte:", e),

@@ -50,6 +50,26 @@ export interface SaldoEmisso {
   syncedAt: string;
 }
 
+export interface LineaNominaEmisso {
+  idLinea: string;
+  beneficiario: string;
+  beneficiarioRut: string;
+  monto: number;
+  moneda: string;
+  estado: string;
+}
+
+export interface NominaEmisso {
+  idNomina: string;
+  fechaPago: string | null;
+  fechaCreacion: string;
+  descripcion: string;
+  estado: string;
+  moneda: string;
+  monto: number;
+  lineas: LineaNominaEmisso[];
+}
+
 /** Sistema de Emisso que alimenta esto. Itaú Empresas (otro portal) tendría su propio origen. */
 export const SISTEMA_ITAU = "itau_corporate";
 
@@ -190,4 +210,43 @@ export function periodosRecientes(ahora: Date): string[] {
   const [a, m] = dia.split("-").map(Number);
   const anterior = m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, "0")}`;
   return [anterior, `${a}-${String(m).padStart(2, "0")}`];
+}
+
+export interface FilaNomina {
+  idNomina: string;
+  fechaPago: Iso | null;
+  fechaCreacion: Iso;
+  descripcion: string | null;
+  estado: string;
+  moneda: string;
+  monto: number;
+  lineas: { idLinea: string; rut: string; nombre: string | null; monto: number; moneda: string; estado: string }[];
+}
+
+/**
+ * Las nóminas de Emisso → filas de Tesorería. Una nómina sin identificador o sin fecha de creación válida no entra
+ * (no hay forma de reconocerla después); un identificador repetido se queda con la primera. El RUT se guarda en el
+ * formato del Core (cuerpo-DV): la comparación con BUK ignora puntos y guion de todos modos.
+ */
+export function traducirNominas(noms: NominaEmisso[]): { filas: FilaNomina[]; omitidas: number } {
+  const filas = new Map<string, FilaNomina>();
+  let omitidas = 0;
+  const iso = (s: string | null | undefined) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null);
+  for (const n of noms) {
+    const creada = iso(n.fechaCreacion);
+    if (!n.idNomina || !creada || filas.has(n.idNomina)) {
+      omitidas++;
+      continue;
+    }
+    const lineas = new Map<string, FilaNomina["lineas"][number]>();
+    for (const l of n.lineas ?? []) {
+      if (!l.idLinea || lineas.has(l.idLinea)) continue;
+      lineas.set(l.idLinea, { idLinea: l.idLinea, rut: rutNormalizado(l.beneficiarioRut) ?? "", nombre: l.beneficiario?.replace(/\s+/g, " ").trim() || null, monto: l.monto, moneda: l.moneda || "CLP", estado: l.estado });
+    }
+    filas.set(n.idNomina, {
+      idNomina: n.idNomina, fechaPago: iso(n.fechaPago), fechaCreacion: creada, descripcion: n.descripcion?.trim() || null,
+      estado: n.estado, moneda: n.moneda || "CLP", monto: n.monto, lineas: [...lineas.values()],
+    });
+  }
+  return { filas: [...filas.values()], omitidas };
 }

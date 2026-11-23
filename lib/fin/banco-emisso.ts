@@ -1,7 +1,8 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { reglaQueCalza, type ReglaCategoria } from "./reglas";
-import { ErrorEmisso, estadoConexionItau, movimientosItau, saldosItau } from "./emisso";
+import { ErrorEmisso, estadoConexionItau, movimientosItau, nominasItau, saldosItau } from "./emisso";
+import { ligarNominas, type NominaBanco } from "./nominas-modelo";
 import {
   HORAS_DATO_VIEJO,
   SISTEMA_ITAU,
@@ -16,7 +17,9 @@ import {
   rutNormalizado,
   saldosVigentes,
   traducirMovimientos,
+  traducirNominas,
   type FilaBanco,
+  type FilaNomina,
 } from "./banco-emisso-modelo";
 
 // -----------------------------------------------------------------------------
@@ -27,6 +30,8 @@ import {
 //  · Una fila ya guardada solo se actualiza en glosa, N° y RUT. Fecha y monto no se tocan: podría estar conciliada.
 //  · La empresa se resuelve por el RUT de la conexión en Emisso, no por configuración: una clave de otra empresa no
 //    puede escribir en ésta.
+//  · Las nóminas de pago masivo (proveedores y remuneraciones) se guardan con cada pago y su beneficiario, y se ligan
+//    al cargo que las pagó. Si leerlas falla, el resto de la corrida sigue: solo queda como advertencia.
 // -----------------------------------------------------------------------------
 
 const BANCO = "Itaú";
@@ -39,6 +44,9 @@ export interface ResultadoSincronizacion {
   actualizados: number;
   omitidos: number;
   saldos: number;
+  /** Nóminas del banco que se leyeron en esta corrida, y cuántas se ligaron por primera vez a su cargo. */
+  nominas: number;
+  nominasLigadas: number;
   /** Cuándo leyó Emisso el banco por última vez (no cuándo corrió el Core). */
   datosAl: string | null;
   advertencias: string[];
@@ -179,22 +187,86 @@ async function guardarSaldos(empresaId: string, cuentas: Map<string, string>): P
   return { n: vigentes.length, datosAl };
 }
 
+/**
+ * Guarda todas las nóminas que Emisso tiene (con sus pagos) y liga a su cargo en Tesorería las pagadas que aún no lo
+ * tienen. Una nómina ya guardada se actualiza (cambia de estado), pero su cargo ligado no se toca.
+ */
+async function guardarNominas(empresaId: string): Promise<{ leidas: number; ligadas: number; ambiguas: string[]; omitidas: number }> {
+  const { filas, omitidas } = traducirNominas(await nominasItau());
+  const origen = `emisso:${SISTEMA_ITAU}`;
+  const ahora = new Date().toISOString();
+  if (!filas.length) return { leidas: 0, ligadas: 0, ambiguas: [], omitidas };
+
+  const { data: guardadas, error } = await supabaseAdmin
+    .from("fin_banco_nominas")
+    .upsert(
+      filas.map((n: FilaNomina) => ({
+        empresa_id: empresaId, origen, id_nomina: n.idNomina, fecha_pago: n.fechaPago, fecha_creacion: n.fechaCreacion, descripcion: n.descripcion,
+        estado: n.estado, moneda: n.moneda, monto: n.monto, leida_en: ahora,
+      })),
+      { onConflict: "empresa_id,origen,id_nomina" },
+    )
+    .select("id, id_nomina");
+  if (error) throw new Error(`No se pudieron guardar las nóminas: ${error.message}`);
+  const idDe = new Map((guardadas ?? []).map((g: { id: string; id_nomina: string }) => [g.id_nomina, g.id]));
+
+  const lineas = filas.flatMap((n) =>
+    n.lineas.map((l) => ({ empresa_id: empresaId, nomina_id: idDe.get(n.idNomina), id_linea: l.idLinea, beneficiario: l.nombre, beneficiario_rut: l.rut, monto: l.monto, moneda: l.moneda, estado: l.estado })),
+  );
+  for (let i = 0; i < lineas.length; i += 200) {
+    const { error: eL } = await supabaseAdmin.from("fin_banco_nomina_lineas").upsert(lineas.slice(i, i + 200), { onConflict: "nomina_id,id_linea" });
+    if (eL) throw new Error(`No se pudieron guardar los pagos de las nóminas: ${eL.message}`);
+  }
+
+  // Ligar al cargo: nóminas pagadas sin cargo ↔ salidas del banco Itaú con el mismo monto (ver nominas-modelo.ts).
+  const { data: todas, error: eT } = await supabaseAdmin
+    .from("fin_banco_nominas")
+    .select("id, id_nomina, fecha_pago, monto, estado, movimiento_id")
+    .eq("empresa_id", empresaId)
+    .eq("origen", origen);
+  if (eT) throw new Error(`No se pudieron leer las nóminas: ${eT.message}`);
+  type Fila = { id: string; id_nomina: string; fecha_pago: string | null; monto: number | string; estado: string; movimiento_id: string | null };
+  const nominas = ((todas ?? []) as Fila[]).map((f) => ({ idNomina: f.id_nomina, fechaPago: f.fecha_pago, monto: Number(f.monto), estado: f.estado, movimientoId: f.movimiento_id }));
+  const desde = nominas.filter((n) => n.fechaPago && !n.movimientoId).map((n) => n.fechaPago as string).sort()[0];
+  let ligadas = 0;
+  let ambiguas: string[] = [];
+  if (desde) {
+    const { data: cargos, error: eC } = await supabaseAdmin
+      .from("fin_movimientos")
+      .select("id, fecha, monto")
+      .eq("empresa_id", empresaId)
+      .like("clave_externa", `${SISTEMA_ITAU}:%`)
+      .lt("monto", 0)
+      .gte("fecha", desde);
+    if (eC) throw new Error(`No se pudieron leer los cargos del banco: ${eC.message}`);
+    const res = ligarNominas(nominas as Pick<NominaBanco, "idNomina" | "fechaPago" | "monto" | "estado" | "movimientoId">[], (cargos ?? []).map((c: { id: string; fecha: string; monto: number | string }) => ({ id: c.id, fecha: c.fecha, monto: Number(c.monto) })));
+    const filaDe = new Map(((todas ?? []) as Fila[]).map((f) => [f.id_nomina, f.id]));
+    for (const [idNomina, movimientoId] of res.ligas) {
+      const { error: eU } = await supabaseAdmin.from("fin_banco_nominas").update({ movimiento_id: movimientoId }).eq("id", filaDe.get(idNomina) as string).eq("empresa_id", empresaId);
+      if (eU) throw new Error(`No se pudo ligar la nómina ${idNomina} a su cargo: ${eU.message}`);
+      ligadas++;
+    }
+    ambiguas = res.ambiguas;
+  }
+  return { leidas: filas.length, ligadas, ambiguas, omitidas };
+}
+
 async function registrar(empresaId: string | null, r: ResultadoSincronizacion): Promise<void> {
   if (!empresaId) return;
   const { error } = await supabaseAdmin.from("fin_banco_sincronizaciones").insert({
     empresa_id: empresaId, origen: `emisso:${SISTEMA_ITAU}`, ok: r.ok, nuevos: r.nuevos, actualizados: r.actualizados, omitidos: r.omitidos,
-    saldos: r.saldos, datos_al: r.datosAl, mensaje: [r.mensaje, ...r.advertencias].filter(Boolean).join(" · ").slice(0, 1000) || null,
+    saldos: r.saldos, nominas: r.nominas, datos_al: r.datosAl, mensaje: [r.mensaje, ...r.advertencias].filter(Boolean).join(" · ").slice(0, 1000) || null,
   });
   if (error) console.error("[banco-emisso] no se pudo registrar la corrida:", error.message);
 }
 
 /**
- * Una corrida: estado de la conexión → movimientos del mes y el anterior (o todos, con `todo`) → saldos.
+ * Una corrida: estado de la conexión → movimientos del mes y el anterior (o todos, con `todo`) → saldos → nóminas.
  * No lanza: devuelve el resultado con ok=false y el motivo, y lo deja registrado.
  */
 export async function sincronizarBancoItau(opciones: { todo?: boolean; ahora?: Date } = {}): Promise<ResultadoSincronizacion> {
   const ahora = opciones.ahora ?? new Date();
-  const r: ResultadoSincronizacion = { ok: false, empresaId: null, nuevos: 0, actualizados: 0, omitidos: 0, saldos: 0, datosAl: null, advertencias: [], requierePersona: false };
+  const r: ResultadoSincronizacion = { ok: false, empresaId: null, nuevos: 0, actualizados: 0, omitidos: 0, saldos: 0, nominas: 0, nominasLigadas: 0, datosAl: null, advertencias: [], requierePersona: false };
   try {
     const estado = await estadoConexionItau();
     if (!estado) throw new ErrorEmisso("La conexión de EMISSO_ITAU_CONEXION no aparece en Emisso (¿se borró o la clave no la ve?).", "connection_not_found", 404);
@@ -241,6 +313,14 @@ export async function sincronizarBancoItau(opciones: { todo?: boolean; ahora?: D
     const horas = horasDesde(r.datosAl, ahora);
     if (horas === null) r.advertencias.push("Emisso todavía no tiene datos de Itaú guardados.");
     else if (horas > HORAS_DATO_VIEJO) r.advertencias.push(`Los datos de Itaú tienen ${Math.round(horas)} horas: Emisso dejó de sincronizar.`);
+    try {
+      const n = await guardarNominas(r.empresaId);
+      r.nominas = n.leidas;
+      r.nominasLigadas = n.ligadas;
+      if (n.ambiguas.length) r.advertencias.push(`${n.ambiguas.length} ${n.ambiguas.length === 1 ? "nómina pagada calza" : "nóminas pagadas calzan"} con más de un cargo del mismo monto y no se ligaron (${n.ambiguas.join(", ")}).`);
+    } catch (e) {
+      r.advertencias.push(`No se pudieron leer las nóminas de pago masivo: ${e instanceof Error ? e.message : String(e)}`);
+    }
     r.ok = true;
   } catch (e) {
     r.mensaje = e instanceof Error ? e.message : String(e);

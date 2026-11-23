@@ -18,7 +18,9 @@ import {
   saldosVigentes,
   traducirMovimiento,
   traducirMovimientos,
+  traducirNominas,
   type MovimientoEmisso,
+  type NominaEmisso,
   type SaldoEmisso,
 } from "../lib/fin/banco-emisso-modelo";
 
@@ -150,6 +152,38 @@ prueba("este mes y el anterior, en calendario chileno", () => {
   // 1 de diciembre 02:00 UTC = 30 de noviembre 23:00 en Chile (verano, UTC-3).
   assert.deepEqual(periodosRecientes(new Date("2026-12-01T02:00:00.000Z")), ["2026-10", "2026-11"]);
   assert.deepEqual(periodosRecientes(new Date("2027-01-15T12:00:00.000Z")), ["2026-12", "2027-01"]);
+});
+
+console.log("Nóminas de pago masivo");
+const nom = (p: Partial<NominaEmisso> = {}): NominaEmisso => ({
+  idNomina: "460000001", fechaPago: "2026-10-30", fechaCreacion: "2026-10-30", descripcion: "", estado: "Pagada", moneda: "CLP", monto: 300000,
+  lineas: [
+    { idLinea: "1", beneficiario: "  PERSONA   UNO ", beneficiarioRut: "11111111K", monto: 100000, moneda: "CLP", estado: "Pagado" },
+    { idLinea: "2", beneficiario: "PERSONA DOS", beneficiarioRut: "22222222-2", monto: 200000, moneda: "CLP", estado: "Pagado" },
+  ],
+  ...p,
+});
+prueba("una nómina se traduce con sus pagos, el RUT en formato del Core y el nombre limpio", () => {
+  const { filas, omitidas } = traducirNominas([nom()]);
+  assert.equal(omitidas, 0);
+  assert.equal(filas.length, 1);
+  assert.deepEqual(filas[0].lineas.map((l) => [l.rut, l.nombre, l.monto, l.estado]), [["11111111-K", "PERSONA UNO", 100000, "Pagado"], ["22222222-2", "PERSONA DOS", 200000, "Pagado"]]);
+  assert.equal(filas[0].descripcion, null);
+  assert.equal(filas[0].fechaPago, "2026-10-30");
+});
+prueba("una rechazada llega sin fecha de pago", () => {
+  const { filas } = traducirNominas([nom({ idNomina: "460000002", fechaPago: null, estado: "Rechazada Sin Autorización" })]);
+  assert.equal(filas[0].fechaPago, null);
+});
+prueba("sin identificador o con fecha de creación inválida no entra; un id repetido se queda con el primero", () => {
+  const { filas, omitidas } = traducirNominas([nom({ idNomina: "" }), nom({ idNomina: "X", fechaCreacion: "30-10-2026" }), nom({ idNomina: "A", monto: 1 }), nom({ idNomina: "A", monto: 2 })]);
+  assert.equal(omitidas, 3);
+  assert.deepEqual(filas.map((f) => [f.idNomina, f.monto]), [["A", 1]]);
+});
+prueba("un pago repetido dentro de la nómina se descarta; un RUT ilegible queda vacío y no calza con nadie", () => {
+  const { filas } = traducirNominas([nom({ lineas: [{ idLinea: "1", beneficiario: "A", beneficiarioRut: "11111111-1", monto: 1, moneda: "CLP", estado: "Pagado" }, { idLinea: "1", beneficiario: "A", beneficiarioRut: "11111111-1", monto: 1, moneda: "CLP", estado: "Pagado" }, { idLinea: "2", beneficiario: "B", beneficiarioRut: "", monto: 2, moneda: "CLP", estado: "Pagado" }] })]);
+  assert.equal(filas[0].lineas.length, 2);
+  assert.equal(filas[0].lineas[1].rut, "");
 });
 
 console.log(`\n${n} pruebas ok`);
