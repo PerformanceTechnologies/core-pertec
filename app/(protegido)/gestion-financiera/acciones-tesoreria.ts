@@ -453,3 +453,89 @@ export async function enlaceAdjuntoAction(id: string): Promise<{ ok: true; url: 
     return { ok: false, error: r.ok ? "" : r.error };
   }
 }
+
+/**
+ * Concilia a mano un movimiento del banco con documentos «pagados, por conciliar» (carga histórica o SII): nace el
+ * cobro (abono ↔ emitidos) o el pago (cargo ↔ recibidos) real, ligado al movimiento, por lo que a cada documento le
+ * quedaba (total menos sus notas de crédito), y los documentos dejan de estar «por conciliar».
+ */
+export async function conciliarDocumentosAction(movimientoId: string, documentoIds: string[]): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "conciliar el movimiento" });
+    const ids = [...new Set(documentoIds.filter((x) => uuid(x)))].slice(0, 60);
+    if (!ids.length) return { ok: false, error: "Elige al menos un documento." };
+    const vista = await cargarVista();
+    const m = vista.movimientos.find((x) => x.id === movimientoId);
+    if (!m) return { ok: false, error: "Ese movimiento no existe." };
+    const direccion = m.monto > 0 ? "emitido" : "recibido";
+    const docs = ids.map((id) => vista.documentos.find((d) => d.id === id)).filter((d): d is NonNullable<typeof d> => Boolean(d));
+    if (docs.length !== ids.length) return { ok: false, error: "Uno de los documentos ya no existe." };
+    for (const d of docs) {
+      if (d.direccion !== direccion) return { ok: false, error: m.monto > 0 ? "Un abono se concilia con documentos emitidos (cobros)." : "Un cargo se concilia con documentos recibidos (pagos)." };
+      if (!d.porConciliar) return { ok: false, error: `El documento ${d.folio} no está «por conciliar».` };
+    }
+    const cerrado = await periodoCerrado(ctx.empresa.id, m.fecha);
+    if (cerrado) return { ok: false, error: cerrado };
+    const quedaba = (d: (typeof docs)[number]) => Math.max(0, d.total - d.aplicado);
+    const total = docs.reduce((s, d) => s + quedaba(d), 0);
+    const contraparte = new Set(docs.map((d) => d.contraparteId)).size === 1 ? docs[0].contraparteId : null;
+    const referencia = `Conciliado desde Tesorería: ${docs.map((d) => d.folio).join(", ")}`.slice(0, 200);
+    if (direccion === "emitido") {
+      const numero = await siguienteNumero(ctx.empresa.id, "cobro", "COB");
+      const { data, error } = await supabaseAdmin
+        .from("fin_cobros")
+        .insert({ empresa_id: ctx.empresa.id, numero, cliente_id: contraparte, fecha: m.fecha, monto: total, medio: "transferencia", cuenta_id: m.cuentaId, movimiento_id: m.id, referencia, creado_por: ctx.usuario.correo })
+        .select("id")
+        .single();
+      revienta("registrar el cobro", error);
+      const { error: e2 } = await supabaseAdmin.from("fin_cobro_aplicaciones").insert(docs.map((d) => ({ cobro_id: data!.id, documento_id: d.id, monto: quedaba(d) })));
+      revienta("aplicar el cobro", e2);
+      await conciliarConMovimiento(ctx.empresa.id, m.id, "cobro", data!.id, Math.abs(m.monto), clasificacionHeredada(vista, "cobro", data!.id));
+      await auditar(ctx, "fin_cobros", data!.id, "conciliar_documentos", `${numero}: ${referencia}`);
+    } else {
+      const numero = await siguienteNumero(ctx.empresa.id, "pago", "PAG");
+      const { data, error } = await supabaseAdmin
+        .from("fin_pagos")
+        .insert({
+          empresa_id: ctx.empresa.id, numero, proveedor_id: contraparte, fecha_programada: m.fecha, fecha_pago: m.fecha, monto: total, estado: "pagado",
+          cuenta_id: m.cuentaId, movimiento_id: m.id, medio: "transferencia", referencia, creado_por: ctx.usuario.correo,
+        })
+        .select("id")
+        .single();
+      revienta("registrar el pago", error);
+      const { error: e2 } = await supabaseAdmin.from("fin_pago_aplicaciones").insert(docs.map((d) => ({ pago_id: data!.id, documento_id: d.id, monto: quedaba(d) })));
+      revienta("aplicar el pago", e2);
+      await conciliarConMovimiento(ctx.empresa.id, m.id, "pago", data!.id, Math.abs(m.monto), clasificacionHeredada(vista, "pago", data!.id));
+      await auditar(ctx, "fin_pagos", data!.id, "conciliar_documentos", `${numero}: ${referencia}`);
+    }
+    const { error: e3 } = await supabaseAdmin.from("fin_documentos").update({ por_conciliar: false }).in("id", ids).eq("empresa_id", ctx.empresa.id);
+    revienta("quitar «por conciliar»", e3);
+    refrescar();
+    const dif = Math.abs(m.monto) - total;
+    const difTexto = Math.abs(dif).toLocaleString("es-CL");
+    return { ok: true, mensaje: dif === 0 ? "Conciliado." : `Conciliado. Diferencia con el banco: ${dif > 0 ? "sobran" : "faltan"} ${difTexto} pesos.` };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** «Marcar pendiente» (vuelve a deber su total) o «Pagado, por conciliar» (saldo 0, sin ligar al banco). */
+export async function marcarPorConciliarAction(documentoId: string, porConciliar: boolean): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "cambiar el estado de pago del documento" });
+    const vista = await cargarVista();
+    const d = vista.documentos.find((x) => x.id === documentoId);
+    if (!d) return { ok: false, error: "Ese documento no existe." };
+    if (porConciliar && d.aplicado > 0 && d.total - d.aplicado <= 0) return { ok: false, error: "Ese documento ya está pagado y conciliado." };
+    const { error } = await supabaseAdmin.from("fin_documentos").update({ por_conciliar: porConciliar }).eq("id", documentoId).eq("empresa_id", ctx.empresa.id);
+    revienta("cambiar el estado", error);
+    await auditar(ctx, "fin_documentos", documentoId, porConciliar ? "marcar_por_conciliar" : "marcar_pendiente", `Documento ${d.folio}: ${porConciliar ? "pagado, por conciliar" : "pendiente de pago"}`);
+    refrescar();
+    revalidatePath("/finanzas/facturacion");
+    return { ok: true, mensaje: porConciliar ? "Marcado como pagado, por conciliar." : "Marcado como pendiente." };
+  } catch (e) {
+    return fallo(e);
+  }
+}

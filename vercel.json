@@ -37,14 +37,6 @@
       "schedule": "0 21 * * *"
     },
     {
-      "path": "/api/cron/finanzas-historico",
-      "schedule": "15 9 * * *"
-    },
-    {
-      "path": "/api/cron/finanzas-historico?tipo=compra",
-      "schedule": "20 9 * * *"
-    },
-    {
       "path": "/api/cron/resumen-diario",
       "schedule": "15 10 * * *"
     },

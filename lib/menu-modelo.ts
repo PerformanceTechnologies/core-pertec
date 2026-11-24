@@ -128,7 +128,7 @@ const PLAN: Plan[] = [
     descripcion: "Contactos para facturar, gestión financiera (ventas, compras, banco y flujo), facturas del SII, rendición de gastos y facturas históricas.",
     // «Gestión financiera» va justo después de Contactos (que sigue encabezando: es la base de la
     // facturación). Es su propia aplicación, con su propio permiso.
-    items: [{ subpanel: "contactos" }, { ruta: "/gestion-financiera", nombre: "Gestión financiera" }, { gestion: "ventas" }, { gestion: "facturacion" }, { gestion: "compras" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
+    items: [{ subpanel: "contactos" }, { ruta: "/gestion-financiera", nombre: "Gestión financiera" }, { gestion: "ventas" }, { gestion: "facturacion" }, { gestion: "compras" }, { ruta: "/rendir-gastos" }],
   },
   {
     slug: "crm",

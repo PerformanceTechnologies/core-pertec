@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 const RUTA = "/finanzas/facturacion";
 
-type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string };
+type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string; vista?: string };
 
 export default async function FacturacionPage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
@@ -90,7 +90,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
             { clave: "guias", etiqueta: "Guías de despacho", n: guias.length },
             { clave: "recibidos", etiqueta: "Recibidos", n: bandeja.length },
             { clave: "cesiones", etiqueta: "Cesiones", n: cesiones.length },
-            { clave: "archivo", etiqueta: "Archivo (PDF/XML)" },
+            { clave: "archivo", etiqueta: "Archivo y consultas" },
             { clave: "configuracion", etiqueta: "Configuración" },
           ]}
         />
@@ -158,7 +158,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           <div className={`${TARJETA} flex flex-wrap items-end gap-3 p-4`}>
             <div className="min-w-[16rem] flex-1">
               <p className="text-sm font-bold text-tinta">Bandeja del SII</p>
-              <p className="text-[12px] text-gris">Lo que otros te facturaron. Tienes <strong>{v.p.plazoReclamoFacturaDias} días corridos</strong> desde la recepción en el SII para aceptar o reclamar; después, queda aceptada por ley y con mérito ejecutivo. Registrarla en Compras la liga a su OC y la deja lista para programar el pago.</p>
+              <p className="text-[12px] text-gris">Lo que otros te facturaron. Se actualiza solo desde el Registro de Compras del SII cuatro veces al día; con SimpleFactura conectado, «Traer del SII» trae además el PDF y permite responder. Tienes <strong>{v.p.plazoReclamoFacturaDias} días corridos</strong> desde la recepción en el SII para aceptar o reclamar; después, queda aceptada por ley y con mérito ejecutivo. Registrarla en Compras la liga a su OC y la deja lista para programar el pago.</p>
             </div>
             <FormAccion accion={sincronizarRecibidosAction} textoBoton="Traer del SII" className="flex flex-wrap items-end gap-2" limpiar={false}>
               <Campo etiqueta="Desde"><input type="date" name="desde" defaultValue={new Date(Date.parse(`${v.hoy}T12:00:00Z`) - 30 * 86_400_000).toISOString().slice(0, 10)} className={CAMPO} /></Campo>
@@ -166,7 +166,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
             </FormAccion>
           </div>
           {bandeja.length === 0 ? (
-            <Vacio titulo="La bandeja está vacía" texto="Usa «Traer del SII» para cargar lo recibido en un rango de fechas." icono={<IconInbox size={24} stroke={1.6} />} />
+            <Vacio titulo="La bandeja está vacía" texto="Lo recibido llega solo desde el Registro de Compras del SII (cuatro veces al día)." icono={<IconInbox size={24} stroke={1.6} />} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
               <table className="w-full min-w-[72rem] text-sm">
@@ -299,6 +299,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           anio={Number(sp.anio) || null}
           mes={Number(sp.mes) >= 1 && Number(sp.mes) <= 12 ? Number(sp.mes) : null}
           q={(sp.q ?? "").slice(0, 80)}
+          vista={sp.vista === "resumen" ? "resumen" : "lista"}
         />
       )}
 

@@ -241,6 +241,8 @@ export interface Documento {
   /** Cobrado o pagado (aplicaciones) + notas de crédito que lo rebajan. */
   aplicado: number;
   saldo: number;
+  /** Pagado o cobrado fuera del Core, aún sin ligar al banco: saldo 0 hasta conciliarlo en Tesorería. */
+  porConciliar: boolean;
   cedido: boolean;
   hitoIds: string[];
   compraIds: string[];
@@ -516,7 +518,8 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
       contraparteId: d.contraparte_id, rutContraparte: d.rut_contraparte, razonSocial: d.razon_social ?? (d.contraparte_id ? nombreDe.get(d.contraparte_id) ?? null : null),
       neto: n(d.neto), exento: n(d.exento), iva: n(d.iva), otrosImpuestos: n(d.otros_impuestos), total, fechaVencimiento: d.fecha_vencimiento, referencias: d.referencias,
       documentoReferenciadoId: d.documento_referenciado_id, origen: d.origen, estado: d.estado, aplicado,
-      saldo: d.estado === "anulado" || !esCargo ? 0 : total - aplicado,
+      saldo: d.estado === "anulado" || !esCargo || d.por_conciliar === true ? 0 : total - aplicado,
+      porConciliar: d.por_conciliar === true && d.estado !== "anulado",
       cedido: cedidos.has(d.id),
       hitoIds: (hitosDeDoc.get(d.id) ?? []).map((x) => x.hito_id),
       compraIds: (comprasDeDoc.get(d.id) ?? []).map((x) => x.compra_id),
@@ -978,7 +981,8 @@ export function entradaContable(v: VistaFin): import("./contabilidad").EntradaCo
   const cuentaDeCategoria = new Map(v.categorias.map((c) => [c.id, c.cuentaContable]));
   const cuentaDeSubcategoria = new Map(v.subcategorias.map((s) => [s.id, s.cuentaContable]));
   return {
-    documentos: v.documentos.map((d) => {
+    // Lo pagado fuera del Core y aún sin conciliar no entra: se contabiliza cuando se liga al banco (documento y pago juntos).
+    documentos: v.documentos.filter((d) => !d.porConciliar).map((d) => {
       const hito = v.hitos.find((h) => d.hitoIds.includes(h.id));
       const compra = v.compras.find((c) => d.compraIds.includes(c.id));
       const proyectoId = hito?.proyectoId ?? compra?.proyectoId ?? null;

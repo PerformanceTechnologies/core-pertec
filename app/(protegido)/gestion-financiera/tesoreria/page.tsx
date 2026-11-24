@@ -1,3 +1,4 @@
+import { DTE_CORTO } from "@/lib/fin/modelo";
 import Link from "next/link";
 import { IconBuildingBank, IconCreditCard, IconPlus } from "@tabler/icons-react";
 import { RUTA_FIN, cargarVista, RUTA_VENTAS, RUTA_COMPRAS, gastosRendidos, ultimoLoteAceptado } from "@/lib/fin/datos";
@@ -39,6 +40,9 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     .filter((c) => c.estado !== "anulado" && !c.movimientoId)
     .map((c) => ({ id: c.id, numero: c.numero, monto: c.monto, cliente: c.clienteId ? v.nombreDe.get(c.clienteId) ?? null : null, fecha: c.fecha }));
   const cuentasActivas = v.cuentas.filter((c) => c.activa);
+  const porConciliar = v.documentos
+    .filter((d) => d.porConciliar && ![61, 52].includes(d.tipoDte))
+    .map((d) => ({ id: d.id, direccion: d.direccion, tipo: DTE_CORTO[d.tipoDte] ?? String(d.tipoDte), folio: d.folio, fecha: d.fechaEmision, nombre: d.razonSocial, rut: d.rutContraparte, monto: Math.max(0, d.total - d.aplicado) }));
 
   return (
     <div className="space-y-3">
@@ -138,6 +142,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
               facturas={facturasAbiertas}
               pagos={pagosProgramados}
               cobros={cobrosSinBanco}
+              porConciliar={porConciliar}
               cuentasBanco={cuentasActivas.filter((c) => c.tipo === "banco").map((c) => ({ id: c.id, nombre: c.nombre }))}
               hoy={v.hoy}
               paraIa={v.movimientos.filter((m) => !m.categoriaId && !m.sugerencia && !m.iaRevisado && !/^\s*n[oó]mina/i.test(m.glosa)).length}

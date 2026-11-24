@@ -2,6 +2,9 @@ import Link from "next/link";
 import { exigirAccesoApp, puedeVerApp } from "@/lib/autorizacion";
 import { obtenerIcono } from "@/lib/iconos";
 import { SUBPANELES_FINANZAS } from "@/lib/finanzas-subpaneles";
+
+/** Ya no se muestran: sus consultas viven en Finanzas › Facturación (Recibidos y Archivo). facturas-ih tiene su propio acceso. */
+const OCULTOS = new Set(["facturas-ih", "sii", "facturas-historicas"]);
 import { obtenerSubpanelesFinanzasGuardados, subpanelFinanzasPermitido } from "@/lib/finanzas-subpaneles-usuario";
 
 const SLUG_APP = "finanzas";
@@ -15,7 +18,7 @@ export default async function FinanzasPage() {
   const guardados = usuario.rol === "admin" ? [] : await obtenerSubpanelesFinanzasGuardados(usuario.id);
   // Facturas IH no se ofrece: se pidió ocultarla. La ruta sigue existiendo, con su permiso.
   const subpaneles = SUBPANELES_FINANZAS.filter(
-    (sp) => sp.slug !== "facturas-ih" && (usuario.rol === "admin" || subpanelFinanzasPermitido(sp.slug, guardados)),
+    (sp) => !OCULTOS.has(sp.slug) && (usuario.rol === "admin" || subpanelFinanzasPermitido(sp.slug, guardados)),
   );
 
   // Ventas y cobranza y Compras y pagos: de Gestión financiera por dentro (su propio permiso).

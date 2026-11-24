@@ -65,6 +65,21 @@ Leads: cotización aceptada ─► Ventas: hitos ─► «Lista para facturar»
   `AAAA-MM-DD_Tipo folio_Contraparte` (los recibidos llevan además el RUT). Una fila por documento en `fin_dte_archivo`,
   ligada a `fin_documentos` cuando existe (para conciliar). Se ve en Facturación › Archivo. La carpeta se cambia en Integraciones.
 
+## Único lugar de consulta (desde 0017)
+
+- Facturación reemplaza a «Facturas compra y venta» e «Históricos facturas» (ocultos; sus direcciones redirigen aquí).
+  El cron del SII (`/api/cron/finanzas-sii`) sigue leyendo el Registro de Compras y Ventas y, al final de cada
+  corrida, lo integra (`lib/fin/dte/sii-rcv.ts`): compras a la bandeja de Recibidos, todo al Archivo y, desde el
+  corte, a los libros. Los crons del módulo histórico se apagaron.
+- **Corte 01-01-2026** (`lib/fin/dte/libros.ts`): solo desde esa fecha y solo tipos con dinero (33, 34, 46, 56, 61)
+  entran a `fin_documentos`. Lo anterior y las guías quedan en el Archivo para consulta.
+- **«Pagado, por conciliar»** (`fin_documentos.por_conciliar`): lo cargado con fecha anterior a
+  `flags.dte_pendientes_desde` no cuenta como deuda (saldo 0) ni entra a la contabilidad. Se concilia a mano en
+  Tesorería («Paga/Cobra facturas por conciliar…»): nace el pago o cobro real ligado al movimiento. Desde el Archivo se
+  puede «Marcar pendiente» (vuelve a deber) o «Ya está pagado».
+- Archivo: lista o resumen por periodo y contraparte, Excel con el mismo filtro y «Subir documento» (XML y/o PDF;
+  ruta `/api/finanzas/dte/archivo/subir`, no Server Action, porque los PDF pasan de 1 MB).
+
 ## Archivos
 
 | Archivo | Qué |
