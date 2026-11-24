@@ -2,9 +2,12 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { pertecWebSupabase } from "@/lib/pertec-web-supabase";
+import { TABLA_CONTRATOS } from "@/lib/contratos/contrato-actual";
 import { enlacePermanente, esReferenciaSharePoint, leerArchivo } from "./almacen";
 import { borrarDeSharePoint, listarCarpetaDeSharePoint, nombreUnico, subirASharePoint } from "./sharepoint-core";
 import {
+  CARPETA_FIRMAS,
+  CARPETA_LOGOS_CONTRATOS,
   CARPETA_MANTENCION,
   CARPETA_OFERTAS_EMITIDAS,
   CARPETA_OFERTAS_IMAGENES,
@@ -441,7 +444,56 @@ const gastosProyectos: Modulo = (() => {
   };
 })();
 
-export const MODULOS_TRASPASO: Modulo[] = [tareas, flota, inventario, finanzas, rendiciones, ofertas, maestros, logosEmpresas, mantencion, gastosProyectos];
+/** Las firmas de correo que quedaron guardadas en la base (base64) en vez de SharePoint. */
+const firmasCorreo: Modulo = (() => {
+  const t = { tabla: "usuarios", columnas: "id, correo, firma_imagen", filtro: (q: any) => q.not("firma_imagen", "is", null).not("firma_imagen", "like", "sp:%") };
+  return {
+    clave: "firmas",
+    nombre: "Firmas de correo",
+    contar: () => contarFilas(t, (f) => (viejo(f.firma_imagen) ? 1 : 0)),
+    lote: (cursor, hasta) =>
+      recorrer(t, cursor, hasta, async (f, errores) => {
+        try {
+          const ref = await subirASharePoint(CARPETA_FIRMAS, `${f.id}.png`, Buffer.from(f.firma_imagen, "base64"), "image/png", true);
+          const { error } = await supabaseAdmin.from(t.tabla).update({ firma_imagen: ref }).eq("id", f.id);
+          if (error) throw new Error(error.message);
+          return 1;
+        } catch (e) {
+          errores.push(`Firma de ${f.correo}: ${motivo(e)}`);
+          return 0;
+        }
+      }),
+  };
+})();
+
+/** Los logos de contratos que quedaron guardados en la base (data URI) en vez de SharePoint. */
+const logosContratos: Modulo = (() => {
+  const t = { tabla: TABLA_CONTRATOS, columnas: "id, slug, nombre, logo", filtro: (q: any) => q.not("logo", "is", null).not("logo", "like", "sp:%") };
+  return {
+    clave: "logos-contratos",
+    nombre: "Contratos (logos)",
+    contar: () => contarFilas(t, (f) => (viejo(f.logo) ? 1 : 0)),
+    lote: (cursor, hasta) =>
+      recorrer(t, cursor, hasta, async (f, errores) => {
+        try {
+          const m = /^data:(image\/(png|jpeg));base64,(.+)$/.exec(f.logo);
+          if (!m) throw new Error("el logo guardado no es una imagen PNG o JPG");
+          const ref = await subirASharePoint(CARPETA_LOGOS_CONTRATOS, `${f.slug}.${m[2] === "png" ? "png" : "jpg"}`, Buffer.from(m[3], "base64"), m[1], true);
+          const { error } = await supabaseAdmin.from(t.tabla).update({ logo: ref }).eq("id", f.id);
+          if (error) throw new Error(error.message);
+          return 1;
+        } catch (e) {
+          errores.push(`Logo del contrato ${f.nombre ?? f.slug}: ${motivo(e)}`);
+          return 0;
+        }
+      }),
+  };
+})();
+
+// Los comprobantes de fondos (rg_movimientos.comprobante) NO van acá: el libro de movimientos no se
+// edita nunca, así que su referencia no se puede cambiar. Desde que guardarArchivo dejó de caer a
+// Supabase, todos los nuevos van a SharePoint.
+export const MODULOS_TRASPASO: Modulo[] = [tareas, flota, inventario, finanzas, rendiciones, ofertas, maestros, logosEmpresas, mantencion, gastosProyectos, firmasCorreo, logosContratos];
 
 /**
  * Archivos en «Rendiciones» que ninguna rendición nombra: copias que quedaron de una tanda

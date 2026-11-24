@@ -12,7 +12,7 @@ const TIPOS = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const MAX_MB = 4;
 
 // Tesorería sube el comprobante de una transferencia o depósito (antes de registrarla). Va a
-// SharePoint («Rendiciones/Fondos/<año>/<código>») y, si falla, al bucket de respaldos. Devuelve
+// SharePoint («Rendiciones/Fondos/<año>/<código>»); si SharePoint falla, no se guarda en otro lado. Devuelve
 // la referencia que se anota en el movimiento del libro.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const acceso = await verificarAccesoRendidorApi();

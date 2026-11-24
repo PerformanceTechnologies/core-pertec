@@ -11,6 +11,7 @@
 //     Ofertas/Emitidas/ · Ofertas/Imagenes/ · Ofertas/Logos/ · Ofertas/Maestros/
 //     Mantencion/Fotos/
 //     Proyectos/<proyecto>/Gastos/
+//     Firmas de correo/ · Contratos/Logos/
 //
 // El (<id>) son los primeros 8 caracteres del registro: dos tareas pueden llamarse igual.
 
@@ -72,6 +73,8 @@ export const CARPETA_OFERTAS_IMAGENES = "Ofertas/Imagenes";
 export const CARPETA_OFERTAS_LOGOS = "Ofertas/Logos";
 export const CARPETA_OFERTAS_MAESTROS = "Ofertas/Maestros";
 export const CARPETA_MANTENCION = "Mantencion/Fotos";
+export const CARPETA_FIRMAS = "Firmas de correo";
+export const CARPETA_LOGOS_CONTRATOS = "Contratos/Logos";
 
 export const carpetaGastosProyecto = (p?: { nombre?: string | null } | null) =>
   p?.nombre ? `Proyectos/${legible(p.nombre, "Proyecto")}/Gastos` : "Proyectos/Gastos";

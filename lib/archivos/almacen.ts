@@ -19,9 +19,10 @@ import {
 //  función mira la referencia y va al lugar que corresponde. Nada se migra ni se borra solo.
 //
 //  Se sube con la cuenta de quien está usando el Core, igual que Contratos. Si SharePoint
-//  falla (su cuenta no dio acceso a SharePoint, o no tiene permiso en el sitio), el archivo
-//  se guarda en el bucket de antes para que su trabajo no se pierda, y queda en el log.
-//  /api/archivos/estado dice si SharePoint anda con la cuenta de quien lo abre.
+//  falla (su cuenta no dio acceso a SharePoint, o no tiene permiso en el sitio), la subida
+//  FALLA con un mensaje claro: todos los archivos van a SharePoint, y antes se iban callados a
+//  un bucket de Supabase donde nadie los veía. /api/archivos/estado dice si SharePoint anda
+//  con la cuenta de quien lo abre.
 // -----------------------------------------------------------------------------
 
 export { esReferenciaSharePoint } from "./sharepoint-core";
@@ -35,30 +36,29 @@ interface Respaldo {
 }
 
 /**
- * Guarda un archivo en SharePoint («ARCHIVOS CORE/<carpeta>/<nombre>») y devuelve lo que
- * se anota en la base. Si SharePoint falla, lo deja en el bucket de antes y devuelve esa ruta.
+ * Guarda un archivo en SharePoint («ARCHIVOS CORE/<carpeta>/<nombre>») y devuelve lo que se
+ * anota en la base («sp:<id>»). Si SharePoint falla, lanza un error que se le puede mostrar a la
+ * persona: el archivo NO se guarda en otro lado.
+ *
+ * `respaldo` ya no se usa para subir (queda por los módulos que lo pasan y para leer lo antiguo).
  */
 export async function guardarArchivo(o: {
   carpeta: string;
   nombre: string;
   contenido: Buffer;
   tipo: string;
-  respaldo: Respaldo;
+  respaldo?: Respaldo;
   /** Si ya hay uno con ese nombre en la carpeta, se reemplaza en vez de sumar otro. */
   reemplazar?: boolean;
 }): Promise<string> {
   try {
     return await subirASharePoint(o.carpeta, o.nombre, o.contenido, o.tipo, o.reemplazar);
   } catch (e) {
-    console.error(
-      `[archivos] SharePoint no recibió «${o.carpeta}/${o.nombre}»; queda en Supabase (${o.respaldo.bucket}). Motivo:`,
-      e instanceof Error ? e.message : e,
+    const motivo = e instanceof Error ? e.message : String(e);
+    console.error(`[archivos] SharePoint no recibió «${o.carpeta}/${o.nombre}». Motivo:`, motivo);
+    throw new Error(
+      `No se pudo guardar «${o.nombre}» en SharePoint. Revisa que tu cuenta tenga acceso al sitio de archivos del Core (o pídeselo a un administrador) y vuelve a intentarlo. Detalle: ${motivo}`,
     );
-    const { error } = await (o.respaldo.cliente ?? supabaseAdmin).storage
-      .from(o.respaldo.bucket)
-      .upload(o.respaldo.ruta, o.contenido, { contentType: o.tipo, upsert: Boolean(o.reemplazar) });
-    if (error) throw new Error(`No se pudo guardar el archivo: ${error.message}`);
-    return o.respaldo.ruta;
   }
 }
 

@@ -1,4 +1,7 @@
 import "server-only";
+import { guardarArchivo } from "@/lib/archivos/almacen";
+import { bajarDeSharePoint, borrarDeSharePoint, esReferenciaSharePoint } from "@/lib/archivos/sharepoint-core";
+import { CARPETA_LOGOS_CONTRATOS } from "@/lib/archivos/carpetas";
 import { conEmpresa, empresaActivaId, soloDe } from "@/lib/empresa-activa";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { columnasDeContrato, filaAContrato, TABLA_CONTRATOS, urlDelLogo, type Contrato } from "./contrato-actual";
@@ -185,23 +188,51 @@ const LOGO_VALIDO = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
 /** ~300 KB de imagen: la del navegador sale de unos 200 px y pesa mucho menos. */
 const LOGO_MAXIMO = 400_000;
 
-/** Guarda (o quita, con null) el logo de un contrato. */
+/**
+ * Guarda (o quita, con null) el logo de un contrato. La imagen va a SharePoint («ARCHIVOS
+ * CORE/Contratos/Logos/<slug>.png|jpg») y en la base queda su referencia («sp:<id>»).
+ */
 export async function guardarLogo(contratoId: string, logo: string | null): Promise<void> {
   if (logo !== null) {
     if (!LOGO_VALIDO.test(logo)) throw new Error("El logo tiene que ser una imagen PNG o JPG.");
     if (logo.length > LOGO_MAXIMO) throw new Error("La imagen es demasiado grande. Prueba con una más chica.");
   }
+  const { data: antes } = await supabaseAdmin.from(TABLA_CONTRATOS).select("slug, logo").eq("id", contratoId).maybeSingle();
+  const anterior = typeof antes?.logo === "string" ? antes.logo : null;
+
+  let valor: string | null = null;
+  if (logo) {
+    const m = /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(logo)!; // ya validado arriba con LOGO_VALIDO
+    const [tipo, base64] = [m[1], m[2]];
+    const extension = tipo === "image/png" ? "png" : "jpg";
+    valor = await guardarArchivo({
+      carpeta: CARPETA_LOGOS_CONTRATOS,
+      nombre: `${(antes?.slug as string | undefined) ?? contratoId}.${extension}`,
+      contenido: Buffer.from(base64, "base64"),
+      tipo,
+      reemplazar: true,
+    });
+  }
+
   const { error } = await supabaseAdmin
     .from(TABLA_CONTRATOS)
-    .update({ logo, logo_actualizado: logo ? new Date().toISOString() : null, actualizado_en: new Date().toISOString() })
+    .update({ logo: valor, logo_actualizado: valor ? new Date().toISOString() : null, actualizado_en: new Date().toISOString() })
     .eq("id", contratoId);
   if (error) throw new Error(error.message);
+  // El logo anterior a la papelera del sitio si se quitó, o si se cambió por otro de distinto formato (otro nombre).
+  if (anterior && esReferenciaSharePoint(anterior) && anterior !== valor) {
+    await borrarDeSharePoint([anterior]).catch((e) => console.error("[contratos] No se pudo borrar el logo anterior:", e instanceof Error ? e.message : e));
+  }
 }
 
-/** La imagen del logo, para servirla. */
+/** La imagen del logo, para servirla: de SharePoint, o de la base si es uno antiguo todavía sin traspasar. */
 export async function leerLogo(slug: string): Promise<{ tipo: string; bytes: Buffer } | null> {
   const { data } = await supabaseAdmin.from(TABLA_CONTRATOS).select("logo").eq("slug", slug).maybeSingle();
   const logo = (data?.logo as string | null) ?? null;
+  if (logo && esReferenciaSharePoint(logo)) {
+    const archivo = await bajarDeSharePoint(logo);
+    return { tipo: archivo.tipo || "image/png", bytes: archivo.contenido };
+  }
   const partes = logo ? /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(logo) : null;
   return partes ? { tipo: partes[1], bytes: Buffer.from(partes[2], "base64") } : null;
 }
