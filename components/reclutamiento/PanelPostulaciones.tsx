@@ -496,6 +496,13 @@ function Cifra({
   );
 }
 
+/** Cuántas filas se ven de entrada; el resto queda detrás de «Ver N más». */
+const FILAS_VISIBLES = 5;
+
+/**
+ * Un desglose compacto: cada fila en una sola línea (nombre, barra y cantidad), los primeros cinco
+ * a la vista y el resto plegado, para que las dos tarjetas queden cortas y parejas.
+ */
 function BarrasDesglose({
   titulo,
   datos,
@@ -505,26 +512,31 @@ function BarrasDesglose({
   datos: { etiqueta: string; total: number }[];
   maximo: number;
 }) {
+  const [abierto, setAbierto] = useState(false);
+  const visibles = abierto ? datos : datos.slice(0, FILAS_VISIBLES);
+  const ocultos = datos.length - FILAS_VISIBLES;
   return (
-    <div className={`p-5 ${TARJETA}`}>
-      <h3 className="mb-4 font-condensed text-sm font-bold uppercase text-tinta/70">{titulo}</h3>
-      <div className="flex flex-col gap-3">
-        {datos.length === 0 && <p className="text-sm text-tinta/40">Sin datos aún.</p>}
-        {datos.map((d) => (
-          <div key={d.etiqueta}>
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-medium text-tinta/75">{d.etiqueta}</span>
-              <span className="tabular-nums text-tinta/45">{d.total}</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-crema">
-              <div
-                className="h-full rounded-full bg-teal"
-                style={{ width: `${Math.max(6, (d.total / maximo) * 100)}%` }}
-              />
-            </div>
-          </div>
+    <div className={`px-5 py-4 ${TARJETA}`}>
+      <h3 className="mb-3 font-condensed text-sm font-bold uppercase text-tinta/70">{titulo}</h3>
+      {datos.length === 0 && <p className="text-sm text-tinta/40">Sin datos aún.</p>}
+      <ul className="space-y-2">
+        {visibles.map((d) => (
+          <li key={d.etiqueta} className="grid grid-cols-[minmax(0,10rem)_1fr_1.5rem] items-center gap-3 text-xs">
+            <span className="truncate font-medium text-tinta/75" title={d.etiqueta}>
+              {d.etiqueta}
+            </span>
+            <span className="h-1.5 overflow-hidden rounded-full bg-crema">
+              <span className="block h-full rounded-full bg-teal" style={{ width: `${Math.max(6, (d.total / maximo) * 100)}%` }} />
+            </span>
+            <span className="text-right font-semibold tabular-nums text-tinta/60">{d.total}</span>
+          </li>
         ))}
-      </div>
+      </ul>
+      {ocultos > 0 && (
+        <button type="button" onClick={() => setAbierto((v) => !v)} className="mt-2.5 text-xs font-semibold text-naranjo hover:underline">
+          {abierto ? "Ver menos" : `Ver ${ocultos} más`}
+        </button>
+      )}
     </div>
   );
 }
