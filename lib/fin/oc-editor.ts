@@ -24,6 +24,12 @@ export async function apoyoDelEditor(ctx: ContextoFin, v: VistaFin) {
   return {
     proveedores: v.contrapartes.filter((c) => c.esProveedor || !c.esCliente).map((c) => ({ id: c.id, nombre: c.nombre, rut: c.rut })),
     proyectos: v.proyectos.filter((p) => !p.esGeneral && p.estado === "activo").map((p) => ({ id: p.id, nombre: p.nombre })),
+    // La lista maestra de gastos de Finanzas, agrupada por categoría (solo egresos que son gasto).
+    tiposGasto: v.categorias
+      .filter((c) => c.activa && c.sentido === "egreso")
+      .sort((a, b) => a.orden - b.orden)
+      .map((c) => ({ categoria: c.nombre, opciones: v.subcategorias.filter((s) => s.activa && s.categoriaId === c.id).map((s) => ({ id: s.id, nombre: s.nombre })) }))
+      .filter((g) => g.opciones.length > 0),
     personas,
     yo: { id: ctx.usuario.id, nombre: ctx.usuario.nombre?.trim() || ctx.usuario.correo.split("@")[0] },
     indicadores: { uf: valor("uf"), dolar: valor("dolar") },

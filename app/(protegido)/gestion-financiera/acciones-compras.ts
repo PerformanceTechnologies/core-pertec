@@ -7,6 +7,7 @@ import {
   RUTA_FIN,
   auditar,
   cargarVista,
+  clasificacionHeredada,
   conciliarConMovimiento,
   contextoFin,
   exigirDeEmpresa,
@@ -389,7 +390,7 @@ export async function registrarPagoAction(pagoId: string, fd: FormData): Promise
     revienta("registrar el pago", error);
     if (movimientoId) {
       const vista = await cargarVista();
-      await conciliarConMovimiento(ctx.empresa.id, movimientoId, "pago", pagoId, Number(p.monto), vista.categorias.find((c) => c.nombre === "Pago proveedor")?.id ?? null);
+      await conciliarConMovimiento(ctx.empresa.id, movimientoId, "pago", pagoId, Number(p.monto), clasificacionHeredada(vista, "pago", pagoId));
     }
     await auditar(ctx, "fin_pagos", pagoId, "pagar", `Pago ${p.numero} hecho el ${fecha}`);
     await registrarEvento(ctx, "pago_registrado", "pago", pagoId, { monto: Number(p.monto) });
@@ -568,6 +569,8 @@ interface DatosSolicitud {
   atencion: string | null;
   proveedorCorreo: string | null;
   proyectoId: string | null;
+  /** Qué tipo de gasto es (lista maestra de Finanzas). El pago y el banco lo heredan. */
+  subcategoriaId: string | null;
   solicitanteTipo: "yo" | "usuario" | "otro";
   solicitanteUsuarioId: string | null;
   solicitanteOtro: string | null;
@@ -619,6 +622,7 @@ function leerSolicitud(json: string): DatosSolicitud | string {
   const cond = r?.condicionPagoDias === null || r?.condicionPagoDias === undefined || r?.condicionPagoDias === "" ? null : Math.round(num(r.condicionPagoDias, 0, 365));
   return {
     titulo, proveedorId: uuid(r?.proveedorId), atencion: una(r?.atencion, 120), proveedorCorreo: una(r?.proveedorCorreo, 160), proyectoId: uuid(r?.proyectoId),
+    subcategoriaId: uuid(r?.subcategoriaId),
     solicitanteTipo: tipoSolicitante, solicitanteUsuarioId: uuid(r?.solicitanteUsuarioId), solicitanteOtro: una(r?.solicitanteOtro, 120),
     moneda, tipoCambio: moneda === "CLP" ? 1 : num(r?.tipoCambio, 0, 1e9), lineas, fechaRequerida: fechaValida(typeof r?.fechaRequerida === "string" ? r.fechaRequerida : null),
     entregaLugar: una(r?.entregaLugar, 300), entregaPlazo: una(r?.entregaPlazo, 120), formaPago: una(r?.formaPago, 200), condicionPagoDias: cond,
@@ -684,6 +688,7 @@ export async function guardarSolicitudAction(id: string | null, json: string, en
 
     const proyectoId = d.proyectoId ?? (await proyectoGeneral(ctx.empresa.id));
     if (d.proyectoId) await exigirDeEmpresa("fin_proyectos", d.proyectoId, ctx.empresa.id);
+    if (d.subcategoriaId) await exigirDeEmpresa("fin_subcategorias", d.subcategoriaId, ctx.empresa.id);
     if (d.proveedorId) {
       const { data: prov, error: ep } = await supabaseAdmin.from("finanzas_contactos").select("id").eq("id", d.proveedorId).maybeSingle();
       revienta("leer el proveedor", ep);
@@ -693,7 +698,7 @@ export async function guardarSolicitudAction(id: string | null, json: string, en
     // El flujo de caja lee `neto_cotizado` como NETO EN PESOS y le suma el IVA: se deja de modo que neto × (1 + IVA) = total en pesos.
     const totalPesos = aPesos(t.total, d.moneda, d.tipoCambio);
     const fila = {
-      proyecto_id: proyectoId, proveedor_id: d.proveedorId, descripcion: d.titulo, neto_cotizado: Math.round(totalPesos / (1 + tasa)), fecha_requerida: d.fechaRequerida,
+      proyecto_id: proyectoId, subcategoria_id: d.subcategoriaId, proveedor_id: d.proveedorId, descripcion: d.titulo, neto_cotizado: Math.round(totalPesos / (1 + tasa)), fecha_requerida: d.fechaRequerida,
       solicitante, solicitante_tipo: d.solicitanteTipo, solicitante_nombre: solicitanteNombre, moneda: d.moneda, tipo_cambio: d.moneda === "CLP" ? 1 : d.tipoCambio,
       neto_moneda: t.neto + t.exento, atencion: d.atencion, proveedor_correo: d.proveedorCorreo, entrega_lugar: d.entregaLugar, entrega_plazo: d.entregaPlazo,
       forma_pago: d.formaPago, condicion_pago_dias: d.condicionPagoDias, observaciones_oc: d.observaciones, condiciones_oc: d.condiciones, actualizado_en: ahora(),

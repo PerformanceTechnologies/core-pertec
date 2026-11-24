@@ -1,5 +1,16 @@
 # Gestión financiera · Cambios
 
+## 2026-11-24 · Clasificación con la lista maestra de Finanzas (Categoría → Subcategoría)
+
+- Las 10 categorías genéricas se reemplazan por las **15 categorías y 75 subcategorías** de Finanzas (hoja «Lista» del Excel de cartolas Itaú), con los textos exactos. Financiamiento y Traspasos Internos quedan marcados como «no es ingreso ni gasto» y no suman en los totales.
+- **Tesorería → Banco diario:** se elige categoría y luego subcategoría (solo las de esa categoría, con buscador). Un cargo solo ofrece gastos y un abono solo ingresos. Una categoría con subcategorías no queda conciliada sin elegir una.
+- **Clasificación automática**: reglas por texto o por **RUT** de la contraparte (se aplican solas al importar), y sugerencias aprendidas de movimientos anteriores con la misma glosa o el mismo RUT (se aceptan con un clic). Cada movimiento guarda cómo se clasificó (a mano, regla, RUT, como un anterior, heredado, desde la lista anterior).
+- **Herencia**: el cargo ligado a un pago toma la subcategoría y el proyecto de la compra; el abono ligado a un cobro, el ingreso del hito (Servicios, Arriendos, Ventas o Proyecto Spot); un traspaso, Traspasos Internos › Traspaso entre Cuentas. Lo clasificado a mano no se pisa.
+- **Compras:** la solicitud tiene «Tipo de gasto» (la lista maestra), que hereda el pago.
+- **Tesorería → Por categoría:** el mes por categoría y subcategoría, con Financiamiento y Traspasos aparte y lo que falta clasificar.
+- **Configuración → Categorías y reglas:** la lista agrupada (gastos, ingresos, ni ingreso ni gasto), agregar o desactivar subcategorías, y reglas por texto o RUT. Nuevo permiso «Mantiene las categorías».
+- Migración `supabase/fin/0014_clasificacion_categorias.sql`: tabla `fin_subcategorias`, columnas nuevas en movimientos, reglas y compras, y paso de lo ya clasificado (las equivalencias claras se trasladan; Impuestos, Gasto tarjeta, Crédito o leasing, Otro y cargos de Factoring vuelven a «Por aclarar»). Las cuentas contables por subcategoría son provisorias hasta que las valide el contador.
+
 ## 2026-11-17 · Remuneraciones: desglose por persona y libro en Excel
 
 - **Ver desglose por persona** (`/gestion-financiera/remuneraciones/desglose`): nombre, RUT, cargo y centro de costo de cada persona, y cómo se llega de su sueldo a su líquido (haberes, descuentos, aportes del empleador y costo empresa). Avisa si el libro sigue abierto, si no se pudo leer el nombre de alguien o si los haberes de alguien no cuadran con descuentos + líquido.

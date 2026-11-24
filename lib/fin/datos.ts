@@ -18,7 +18,6 @@ import {
   calcularHito,
   calcularMovimiento,
   cifrasProyecto,
-  reglaQueCalza,
   sumarDias,
   type Cesion,
   type CifrasProyecto,
@@ -34,6 +33,18 @@ import {
   type ProyectoBase,
   type ReglaCategoria,
 } from "./reglas";
+import {
+  LISTA,
+  categoriaDeIngreso,
+  categoriasConSubcategorias,
+  sugerirClasificacion,
+  type Clasificado,
+  type OrigenClasificacion,
+  type Subcategoria,
+  type Sugerencia,
+} from "./clasificacion";
+
+export type { Subcategoria, Sugerencia } from "./clasificacion";
 
 // -----------------------------------------------------------------------------
 //  Gestión financiera: la capa de datos (solo servidor).
@@ -181,6 +192,8 @@ export interface Categoria {
   nombre: string;
   sentido: "ingreso" | "egreso" | "ambos";
   requiereProyecto: boolean;
+  /** false en Financiamiento y Traspasos Internos: no son ingreso ni gasto y no suman en los totales. */
+  afectaResultado: boolean;
   cuentaContable: string | null;
   orden: number;
   activa: boolean;
@@ -265,6 +278,8 @@ export interface Pago {
 }
 
 export interface CompraVista extends Compra {
+  /** Qué tipo de gasto es (lista maestra). El pago y el movimiento del banco lo heredan al conciliar. */
+  subcategoriaId: string | null;
   proveedorNombre: string | null;
   proyectoNombre: string | null;
   solicitante: string | null;
@@ -334,10 +349,15 @@ export interface OperacionFactoring {
 export interface MovimientoVista extends Movimiento {
   cuentaNombre: string;
   categoriaNombre: string | null;
+  subcategoriaNombre: string | null;
+  /** Cómo quedó clasificado (a mano, por regla, heredado…). */
+  clasificadoPor: OrigenClasificacion | null;
+  contraparteRut: string | null;
   proyectoNombre: string | null;
   contactoId: string | null;
   numeroDocumento: string | null;
-  sugerencia: { reglaId: string; categoriaId: string; proyectoId: string | null } | null;
+  /** Lo que el Core propone para un movimiento sin clasificar (regla, RUT o un movimiento anterior igual). */
+  sugerencia: Sugerencia | null;
 }
 
 export interface VistaFin {
@@ -350,6 +370,7 @@ export interface VistaFin {
   perfiles: Map<string, Perfil>;
   cuentas: CuentaFin[];
   categorias: Categoria[];
+  subcategorias: Subcategoria[];
   reglas: ReglaCategoria[];
   factores: Factor[];
   proyectos: Proyecto[];
@@ -402,7 +423,7 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
 
   const [
     parametros, cuentasR, categoriasR, reglasR, factoresR, proyectosR, hitosR, documentosR, cobrosR, comprasR, pagosR,
-    operacionesR, cesionesR, movimientosR, conciliacionesR, partidasR, perfilesR, importacionesR,
+    operacionesR, cesionesR, movimientosR, conciliacionesR, partidasR, perfilesR, importacionesR, subcategoriasR,
   ] = await Promise.all([
     supabaseAdmin.from("fin_parametros").select("*").eq("empresa_id", e).maybeSingle().then((r) => (revienta("leer parámetros", r.error), r.data)),
     tabla("fin_cuentas", e, "orden"),
@@ -422,6 +443,11 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
     tabla("fin_flujo_partidas", e, "mes"),
     tabla("fin_perfiles", e),
     supabaseAdmin.from("fin_importaciones").select("creado_en").eq("empresa_id", e).order("creado_en", { ascending: false }).limit(1).then((r) => r.data ?? []),
+    // Si la migración 0014 aún no corre, el resto de Finanzas sigue funcionando (sin subcategorías).
+    supabaseAdmin.from("fin_subcategorias").select("*").eq("empresa_id", e).order("orden").limit(10000).then((r) => {
+      if (r.error) console.warn("[fin] subcategorías:", r.error.message);
+      return (r.data ?? []) as any[];
+    }),
   ]);
   const docIds = documentosR.map((d: any) => d.id);
   const [docHitos, docCompras, cobroAplic, pagoAplic, contactosR] = await Promise.all([
@@ -569,6 +595,7 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
     );
     return {
       ...calculo,
+      subcategoriaId: r.subcategoria_id ?? null,
       proveedorNombre: r.proveedor_id ? nombreDe.get(r.proveedor_id) ?? null : null, proyectoNombre: r.proyecto_id ? proyNombre.get(r.proyecto_id) ?? null : null,
       solicitante: r.solicitante, fechaRequerida: r.fecha_requerida, prioridad: r.prioridad, visadoPor: r.visado_por, ocFecha: r.oc_fecha, ocEnviadaFecha: r.oc_enviada_fecha,
       recepcionFecha: r.recepcion_fecha, recepcionObs: r.recepcion_obs, diferenciaAprobada: r.diferencia_aprobada, estadoOverride: r.estado_override, motivo: r.motivo,
@@ -613,11 +640,16 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
 
   // ── Banco ──
   const categorias: Categoria[] = categoriasR.map((c: any) => ({
-    id: c.id, nombre: c.nombre, sentido: c.sentido, requiereProyecto: c.requiere_proyecto, cuentaContable: c.cuenta_contable, orden: c.orden, activa: c.activa,
+    id: c.id, nombre: c.nombre, sentido: c.sentido, requiereProyecto: c.requiere_proyecto, afectaResultado: c.afecta_resultado ?? true, cuentaContable: c.cuenta_contable,
+    orden: c.orden, activa: c.activa,
   }));
+  const subcategorias: Subcategoria[] = subcategoriasR.map((x: any) => ({
+    id: x.id, categoriaId: x.categoria_id, nombre: x.nombre, cuentaContable: x.cuenta_contable, orden: x.orden, activa: x.activa,
+  }));
+  const conSubcategorias = categoriasConSubcategorias(subcategorias);
   const reglas: ReglaCategoria[] = reglasR.map((r: any) => ({
-    id: r.id, cuentaId: r.cuenta_id, patron: r.patron, montoMin: nOrNull(r.monto_min), montoMax: nOrNull(r.monto_max), categoriaId: r.categoria_id,
-    proyectoId: r.proyecto_id, prioridad: r.prioridad, activa: r.activa,
+    id: r.id, cuentaId: r.cuenta_id, patron: r.patron ?? "", contraparteRut: r.contraparte_rut ?? null, montoMin: nOrNull(r.monto_min), montoMax: nOrNull(r.monto_max),
+    categoriaId: r.categoria_id, subcategoriaId: r.subcategoria_id ?? null, proyectoId: r.proyecto_id, prioridad: r.prioridad, activa: r.activa,
   }));
   const conciliados = new Map<string, number>();
   // «Conciliar sin documento» (entidad «otro») no liga a nada: no cuenta como documento. Si contara,
@@ -626,21 +658,35 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
   for (const c of conciliacionesR) if (c.entidad_tipo !== "otro") conciliados.set(c.movimiento_id, (conciliados.get(c.movimiento_id) ?? 0) + 1);
   const cuentaNombre = new Map<string, string>(cuentasR.map((c: any) => [c.id, c.nombre]));
   const catNombre = new Map(categorias.map((c) => [c.id, c.nombre]));
+  const subNombre = new Map(subcategorias.map((x) => [x.id, x.nombre]));
+  const categoriaActiva = new Set(categorias.filter((c) => c.activa).map((c) => c.id));
+  // Lo ya clasificado con la lista vigente: de ahí se aprende para sugerir (misma glosa, mismo RUT).
+  const anteriores: Clasificado[] = movimientosR
+    .filter((m: any) => m.categoria_id && categoriaActiva.has(m.categoria_id) && (!conSubcategorias.has(m.categoria_id) || m.subcategoria_id))
+    .map((m: any) => ({
+      id: m.id, fecha: m.fecha, glosa: m.glosa, monto: n(m.monto), contraparteRut: m.contraparte_rut ?? null, categoriaId: m.categoria_id,
+      subcategoriaId: m.subcategoria_id ?? null, proyectoId: m.proyecto_id,
+    }));
   const movimientos: MovimientoVista[] = movimientosR
     .map((m: any) => {
       const calc = calcularMovimiento(
         {
-          id: m.id, cuentaId: m.cuenta_id, fecha: m.fecha, glosa: m.glosa, monto: n(m.monto), categoriaId: m.categoria_id, proyectoId: m.proyecto_id,
+          id: m.id, cuentaId: m.cuenta_id, fecha: m.fecha, glosa: m.glosa, monto: n(m.monto), categoriaId: m.categoria_id, subcategoriaId: m.subcategoria_id ?? null,
+          faltaSubcategoria: Boolean(m.categoria_id && conSubcategorias.has(m.categoria_id) && !m.subcategoria_id), proyectoId: m.proyecto_id,
           responsable: m.responsable, tieneRespaldo: m.tiene_respaldo, documentoRef: m.documento_ref, conciliaciones: conciliados.get(m.id) ?? 0, comentario: m.comentario,
         },
         p,
         hoy,
       );
-      const regla = !m.categoria_id ? reglaQueCalza({ glosa: m.glosa, monto: n(m.monto), cuentaId: m.cuenta_id }, reglas) : null;
+      const sugerencia = !m.categoria_id
+        ? sugerirClasificacion({ id: m.id, glosa: m.glosa, monto: n(m.monto), cuentaId: m.cuenta_id, contraparteRut: m.contraparte_rut ?? null }, reglas, anteriores)
+        : null;
       return {
         ...calc, cuentaNombre: cuentaNombre.get(m.cuenta_id) ?? "Cuenta", categoriaNombre: m.categoria_id ? catNombre.get(m.categoria_id) ?? null : null,
+        subcategoriaNombre: m.subcategoria_id ? subNombre.get(m.subcategoria_id) ?? null : null, clasificadoPor: m.clasificado_por ?? null,
+        contraparteRut: m.contraparte_rut ?? null,
         proyectoNombre: m.proyecto_id ? proyNombre.get(m.proyecto_id) ?? null : null, contactoId: m.contacto_id, numeroDocumento: m.numero_documento,
-        sugerencia: regla ? { reglaId: regla.id, categoriaId: regla.categoriaId, proyectoId: regla.proyectoId } : null,
+        sugerencia,
       };
     })
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -669,7 +715,7 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
   });
 
   return {
-    hoy, empresa, p, flags, contrapartes, nombreDe, perfiles, cuentas, categorias, reglas, factores, proyectos, hitos, documentos, cobros, compras, pagos,
+    hoy, empresa, p, flags, contrapartes, nombreDe, perfiles, cuentas, categorias, subcategorias, reglas, factores, proyectos, hitos, documentos, cobros, compras, pagos,
     operaciones, cesiones, movimientos, partidas, cajaBancos, deudaTarjeta, flujo, dashboard,
     ultimaImportacion: (importacionesR as any[])[0]?.creado_en ?? null,
   };
@@ -779,15 +825,83 @@ export function montoDe(v: FormDataEntryValue | null): number | null {
   return Number.isFinite(x) ? Math.round(x) : null;
 }
 
-/** Liga un movimiento bancario a un cobro/pago: queda «Conciliado con documento». */
-export async function conciliarConMovimiento(empresaId: string, movimientoId: string, tipo: "cobro" | "pago" | "factoring" | "traspaso" | "otro", entidadId: string | null, monto: number, categoriaId: string | null): Promise<void> {
-  const { data: m } = await supabaseAdmin.from("fin_movimientos").select("id, categoria_id").eq("id", movimientoId).eq("empresa_id", empresaId).maybeSingle();
+/** La clasificación que un movimiento hereda de su documento al conciliarlo. */
+export interface Heredada {
+  categoriaId: string;
+  subcategoriaId: string | null;
+  proyectoId: string | null;
+}
+
+/**
+ * Lo que hereda el movimiento del banco de lo que se le liga (el flujo «se clasifica una vez, donde nace»):
+ *   · pago  → la compra de la factura pagada (su subcategoría y proyecto); sin subcategoría, «Proveedores / Subcontratos».
+ *   · cobro → el ingreso según el hito facturado (Servicios, Arriendos, Ventas; Proyecto Spot si el proyecto es spot).
+ *   · traspaso → Traspasos Internos › Traspaso entre Cuentas. · factoring (anticipo) → Financiamiento › Anticipo Factoring.
+ */
+export function clasificacionHeredada(
+  v: VistaFin,
+  tipo: "cobro" | "pago" | "factoring" | "traspaso" | "otro",
+  entidadId: string | null,
+  /** Para un cobro o pago recién creado (aún no está en la vista): a qué facturas se aplicó. */
+  aplicaciones?: { documentoId: string; monto: number }[],
+): Heredada | null {
+  const cat = (nombre: string) => v.categorias.find((c) => c.activa && c.nombre === nombre) ?? null;
+  const sub = (categoriaId: string, nombre: string) => v.subcategorias.find((s) => s.activa && s.categoriaId === categoriaId && s.nombre === nombre)?.id ?? null;
+  const fija = (categoria: string, subcategoria: string | null): Heredada | null => {
+    const c = cat(categoria);
+    return c ? { categoriaId: c.id, subcategoriaId: subcategoria ? sub(c.id, subcategoria) : null, proyectoId: null } : null;
+  };
+  if (tipo === "pago") {
+    const pago = v.pagos.find((x) => x.id === entidadId);
+    // La compra con más monto pagado manda (un pago puede cubrir varias facturas).
+    const compras = [...(aplicaciones ?? pago?.aplicaciones ?? [])]
+      .sort((a, b) => b.monto - a.monto)
+      .flatMap((a) => v.documentos.find((d) => d.id === a.documentoId)?.compraIds ?? [])
+      .map((id) => v.compras.find((c) => c.id === id))
+      .filter((c): c is CompraVista => Boolean(c));
+    const conTipo = compras.find((c) => c.subcategoriaId);
+    const s = conTipo ? v.subcategorias.find((x) => x.id === conTipo.subcategoriaId) : null;
+    if (s) return { categoriaId: s.categoriaId, subcategoriaId: s.id, proyectoId: conTipo!.proyectoId };
+    const base = fija(LISTA.operaciones, LISTA.proveedores);
+    return base ? { ...base, proyectoId: compras[0]?.proyectoId ?? null } : null;
+  }
+  if (tipo === "cobro") {
+    const cobro = v.cobros.find((x) => x.id === entidadId);
+    const doc = [...(aplicaciones ?? cobro?.aplicaciones ?? [])].sort((a, b) => b.monto - a.monto).map((a) => v.documentos.find((d) => d.id === a.documentoId)).find(Boolean);
+    const hito = doc ? v.hitos.find((h) => doc.hitoIds.includes(h.id)) : null;
+    const proyecto = hito?.proyectoId ? v.proyectos.find((x) => x.id === hito.proyectoId) : null;
+    const base = fija(categoriaDeIngreso(hito?.tipo ?? null, proyecto?.tipo ?? null), null);
+    return base ? { ...base, proyectoId: hito?.proyectoId ?? null } : null;
+  }
+  if (tipo === "traspaso") return fija(LISTA.traspasos, LISTA.traspasoEntreCuentas);
+  if (tipo === "factoring") return fija(LISTA.financiamiento, LISTA.anticipoFactoring);
+  return null;
+}
+
+/**
+ * Liga un movimiento bancario a un cobro/pago: queda «Conciliado con documento» y hereda la clasificación del documento.
+ * Lo clasificado a mano no se pisa; lo que vino de una regla o de un movimiento anterior, sí (el documento sabe más).
+ */
+export async function conciliarConMovimiento(
+  empresaId: string,
+  movimientoId: string,
+  tipo: "cobro" | "pago" | "factoring" | "traspaso" | "otro",
+  entidadId: string | null,
+  monto: number,
+  heredada: Heredada | null,
+): Promise<void> {
+  const { data: m } = await supabaseAdmin.from("fin_movimientos").select("id, categoria_id, clasificado_por, proyecto_id").eq("id", movimientoId).eq("empresa_id", empresaId).maybeSingle();
   if (!m) throw new Error("[fin] Ese movimiento no existe o es de otra empresa.");
   await supabaseAdmin.from("fin_conciliaciones").insert({ empresa_id: empresaId, movimiento_id: movimientoId, entidad_tipo: tipo, entidad_id: entidadId, monto });
-  await supabaseAdmin
-    .from("fin_movimientos")
-    .update({ tiene_respaldo: true, categoria_id: m.categoria_id ?? categoriaId, actualizado_en: new Date().toISOString() })
-    .eq("id", movimientoId);
+  const manual = m.categoria_id && m.clasificado_por === "manual";
+  const cambios: Record<string, unknown> = { tiene_respaldo: true, actualizado_en: new Date().toISOString() };
+  if (heredada && !manual) {
+    Object.assign(cambios, {
+      categoria_id: heredada.categoriaId, subcategoria_id: heredada.subcategoriaId, clasificado_por: "heredado", regla_id: null,
+      proyecto_id: heredada.proyectoId ?? m.proyecto_id ?? null,
+    });
+  }
+  await supabaseAdmin.from("fin_movimientos").update(cambios).eq("id", movimientoId);
 }
 
 /** Lo que el motor contable necesita de la vista (lib/fin/contabilidad.ts). */
@@ -795,6 +909,7 @@ export function entradaContable(v: VistaFin): import("./contabilidad").EntradaCo
   const generales = new Set(v.proyectos.filter((p) => p.esGeneral).map((p) => p.id));
   const tarjetas = new Set(v.cuentas.filter((c) => c.tipo === "tarjeta").map((c) => c.id));
   const cuentaDeCategoria = new Map(v.categorias.map((c) => [c.id, c.cuentaContable]));
+  const cuentaDeSubcategoria = new Map(v.subcategorias.map((s) => [s.id, s.cuentaContable]));
   return {
     documentos: v.documentos.map((d) => {
       const hito = v.hitos.find((h) => d.hitoIds.includes(h.id));
@@ -811,7 +926,7 @@ export function entradaContable(v: VistaFin): import("./contabilidad").EntradaCo
     // Lo conciliado CON documento ya entra por su cobro/pago: acá solo lo que no tiene documento.
     movimientos: v.movimientos
       .filter((m) => m.estado === "Conciliado" && m.categoriaId)
-      .map((m) => ({ id: m.id, fecha: m.fecha, glosa: m.glosa, monto: m.monto, cuentaContable: cuentaDeCategoria.get(m.categoriaId!) ?? null, esTarjeta: tarjetas.has(m.cuentaId), proyectoId: m.proyectoId, estado: m.estado })),
+      .map((m) => ({ id: m.id, fecha: m.fecha, glosa: m.glosa, monto: m.monto, cuentaContable: (m.subcategoriaId ? cuentaDeSubcategoria.get(m.subcategoriaId) : null) ?? cuentaDeCategoria.get(m.categoriaId!) ?? null, esTarjeta: tarjetas.has(m.cuentaId), proyectoId: m.proyectoId, estado: m.estado })),
   };
 }
 

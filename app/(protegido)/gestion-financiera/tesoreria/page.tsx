@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { IconBuildingBank, IconCreditCard, IconPlus } from "@tabler/icons-react";
 import { RUTA_FIN, cargarVista, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
-import { CONCEPTOS_MANUALES, clp, clpCorto, fechaCl, finDeMes, mesLargo, type MesFlujo } from "@/lib/fin/reglas";
+import { CONCEPTOS_MANUALES, clp, clpCorto, fechaCl, finDeMes, inicioDeMes, mesLargo, type MesFlujo } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
 import { actualizarSaldoAction, guardarPartidaAction } from "../acciones-config";
 import { actualizarCesionAction, crearMovimientoAction, crearOperacionFactoringAction } from "../acciones-tesoreria";
@@ -9,10 +9,12 @@ import { Banda, Chip, Deshabilitado, Monto, Pestanas, Seccion, TD, TH, Vacio, to
 import { Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import BandejaBanco, { ImportarCartola } from "@/components/fin/BandejaBanco";
+import ResumenCategorias from "@/components/fin/ResumenCategorias";
+import { resumenPorCategoria } from "@/lib/fin/clasificacion";
 
 export const dynamic = "force-dynamic";
 
-export default async function TesoreriaPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
+export default async function TesoreriaPage({ searchParams }: { searchParams: Promise<{ ver?: string; mes?: string }> }) {
   const sp = await searchParams;
   const v = await cargarVista();
   const ver = sp.ver ?? "banco";
@@ -46,8 +48,8 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
         bajada="Caja en bancos según la última cartola. Cada día: carga la cartola de ayer y deja cada movimiento explicado."
         pasos={[
           { titulo: "Importar cartola", ayuda: "CSV o Excel del banco; no se duplica" },
-          { titulo: "Aceptar sugerencias", ayuda: "Las reglas proponen la categoría", n: v.movimientos.filter((m) => m.sugerencia && !m.categoriaId).length, href: `${RUTA_FIN}/tesoreria?ver=sugeridos`, alerta: true },
-          { titulo: "Categorizar y ligar", ayuda: "A un cobro, pago o traspaso", n: porAclarar.length, href: `${RUTA_FIN}/tesoreria` },
+          { titulo: "Aceptar sugerencias", ayuda: "Reglas y movimientos anteriores proponen la clasificación", n: v.movimientos.filter((m) => m.sugerencia && !m.categoriaId).length, href: `${RUTA_FIN}/tesoreria?ver=sugeridos`, alerta: true },
+          { titulo: "Clasificar y ligar", ayuda: "Categoría y subcategoría, o ligar a un cobro o pago", n: porAclarar.length, href: `${RUTA_FIN}/tesoreria` },
           { titulo: "Aclarar lo desconocido", ayuda: "Asigna a quién preguntar", n: v.dashboard.movimientosEscalar, href: `${RUTA_FIN}/tesoreria?ver=escalar`, alerta: true },
         ]}
         cifras={[
@@ -61,7 +63,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       <Pestanas
         base={`${RUTA_FIN}/tesoreria`}
         actual={pestanaBanco ? "banco" : ver}
-        opciones={[{ clave: "banco", etiqueta: "Banco diario", n: porAclarar.length }, { clave: "factoring", etiqueta: "Factoring", n: v.cesiones.filter((c) => c.estado !== "Liquidada").length }, { clave: "flujo", etiqueta: "Flujo de caja" }]}
+        opciones={[{ clave: "banco", etiqueta: "Banco diario", n: porAclarar.length }, { clave: "categorias", etiqueta: "Por categoría" }, { clave: "factoring", etiqueta: "Factoring", n: v.cesiones.filter((c) => c.estado !== "Liquidada").length }, { clave: "flujo", etiqueta: "Flujo de caja" }]}
       />
 
       {pestanaBanco && (
@@ -113,7 +115,8 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
           ) : (
             <BandejaBanco
               movimientos={movs.slice(0, 300)}
-              categorias={v.categorias.filter((c) => c.activa).map((c) => ({ id: c.id, nombre: c.nombre, requiereProyecto: c.requiereProyecto }))}
+              categorias={v.categorias.filter((c) => c.activa).sort((a, b) => a.orden - b.orden).map((c) => ({ id: c.id, nombre: c.nombre, sentido: c.sentido, requiereProyecto: c.requiereProyecto, afectaResultado: c.afectaResultado }))}
+              subcategorias={v.subcategorias.filter((s) => s.activa).map((s) => ({ id: s.id, categoriaId: s.categoriaId, nombre: s.nombre }))}
               proyectos={v.proyectos.filter((p) => p.estado === "activo").map((p) => ({ id: p.id, nombre: p.nombre }))}
               facturas={facturasAbiertas}
               pagos={pagosProgramados}
@@ -125,6 +128,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
         </>
       )}
 
+      {ver === "categorias" && <PorCategoria v={v} mes={sp.mes} />}
       {ver === "factoring" && <Factoring v={v} />}
       {ver === "flujo" && <FlujoCaja v={v} />}
     </div>
@@ -132,6 +136,22 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
 }
 
 type V = Awaited<ReturnType<typeof cargarVista>>;
+
+/** El mes elegido (?mes=AAAA-MM) por categoría; por omisión, el mes en curso. */
+function PorCategoria({ v, mes }: { v: V; mes?: string }) {
+  const actual = inicioDeMes(v.hoy);
+  const desde = mes && /^\d{4}-\d{2}$/.test(mes) && `${mes}-01` <= actual ? `${mes}-01` : actual;
+  const r = resumenPorCategoria(v.movimientos, v.categorias, v.subcategorias, desde, finDeMes(desde));
+  const siguiente = inicioDeMes(desde, 1);
+  return (
+    <ResumenCategorias
+      r={r}
+      base={`${RUTA_FIN}/tesoreria?ver=categorias`}
+      mesAnterior={inicioDeMes(desde, -1).slice(0, 7)}
+      mesSiguiente={siguiente <= actual ? siguiente.slice(0, 7) : null}
+    />
+  );
+}
 
 function Factoring({ v }: { v: V }) {
   const cedibles = v.documentos.filter((d) => d.direccion === "emitido" && d.estado === "vigente" && [33, 34].includes(d.tipoDte) && !d.cedido && d.saldo > 0);

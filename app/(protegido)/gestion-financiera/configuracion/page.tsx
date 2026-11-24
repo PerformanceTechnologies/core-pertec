@@ -1,9 +1,9 @@
 import { IconBuildingBank, IconCalculator, IconCreditCard, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, contextoFin, type Perfil } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, contextoFin, type Categoria, type Perfil, type Subcategoria } from "@/lib/fin/datos";
 import { perfilDeEmpresa } from "@/lib/fin/empresa-perfil";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
-import { eliminarReglaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction } from "../acciones-config";
+import { eliminarReglaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction, guardarSubcategoriaAction } from "../acciones-config";
 import { Pestanas, Seccion, TD, TH } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -108,44 +108,7 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
         </div>
       )}
 
-      {ver === "categorias" && (
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Seccion titulo="Categorías de movimiento" accion={<ConVentana boton={<><IconPlus size={14} /> Categoría</>} titulo="Nueva categoría" className={BOTON_SEC}>{<FormCategoria />}</ConVentana>}>
-            <ul className={`${TARJETA} divide-y divide-borde`}>
-              {v.categorias.map((c) => (
-                <li key={c.id} className={`flex items-center gap-3 px-4 py-2 text-sm ${c.activa ? "" : "opacity-50"}`}>
-                  <span className="flex-1 font-semibold text-tinta">{c.nombre}</span>
-                  <span className="text-xs text-gris">{c.sentido}{c.requiereProyecto ? " · pide proyecto" : ""}{c.cuentaContable ? ` · cta ${c.cuentaContable}` : ""}</span>
-                  <ConVentana boton="Editar" titulo={c.nombre} className="text-xs font-semibold text-naranjo">{<FormCategoria c={c} />}</ConVentana>
-                </li>
-              ))}
-            </ul>
-          </Seccion>
-          <Seccion titulo="Reglas de categorización" accion={<ConVentana boton={<><IconPlus size={14} /> Regla</>} titulo="Nueva regla" className={BOTON_SEC}>{(
-            <FormAccion accion={guardarReglaAction.bind(null, null)} textoBoton="Crear regla">
-              <Campo etiqueta="Si la glosa contiene *"><input name="patron" required className={CAMPO} placeholder="COM MANTENCION" /></Campo>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Campo etiqueta="Asignar categoría *"><select name="categoriaId" className={CAMPO}>{v.categorias.filter((c) => c.activa).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></Campo>
-                <Campo etiqueta="Y proyecto"><select name="proyectoId" className={CAMPO}><option value="">—</option>{v.proyectos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></Campo>
-                <Campo etiqueta="Solo en la cuenta"><select name="cuentaId" className={CAMPO}><option value="">Todas</option>{v.cuentas.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></Campo>
-                <Campo etiqueta="Prioridad" ayuda="Menor = se revisa primero"><input name="prioridad" defaultValue={100} className={CAMPO} /></Campo>
-                <Campo etiqueta="Monto desde"><input name="montoMin" className={CAMPO} /></Campo>
-                <Campo etiqueta="Monto hasta"><input name="montoMax" className={CAMPO} /></Campo>
-              </div>
-            </FormAccion>
-          )}</ConVentana>}>
-            <ul className={`${TARJETA} divide-y divide-borde`}>
-              {v.reglas.filter((r) => r.activa).map((r) => (
-                <li key={r.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                  <span className="flex-1"><span className="font-mono text-xs">«{r.patron}»</span> → <span className="font-semibold">{v.categorias.find((c) => c.id === r.categoriaId)?.nombre}</span></span>
-                  <BotonAccion accion={eliminarReglaAction.bind(null, r.id)} confirmar="¿Desactivar esta regla?" className="text-xs font-semibold text-gris hover:text-alerta">Quitar</BotonAccion>
-                </li>
-              ))}
-              {v.reglas.filter((r) => r.activa).length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin reglas. Créalas aquí o con «Guardar como regla» desde un movimiento del banco.</li>}
-            </ul>
-          </Seccion>
-        </div>
-      )}
+      {ver === "categorias" && <CategoriasYReglas v={v} />}
 
       {ver === "perfiles" && (
         <div className="space-y-3">
@@ -211,16 +174,182 @@ function FormFactor({ f }: { f?: { id: string; nombre: string; recursoDefault: s
   );
 }
 
-function FormCategoria({ c }: { c?: { id: string; nombre: string; sentido: string; requiereProyecto: boolean; cuentaContable: string | null; activa: boolean } }) {
+function FormCategoria({ c }: { c?: Categoria }) {
   return (
     <FormAccion accion={guardarCategoriaAction.bind(null, c?.id ?? null)}>
+      <p className="text-xs text-gris">Escribe el nombre exactamente como lo usa Finanzas (con tildes y símbolos): la clasificación histórica usa esos textos.</p>
       <div className="grid gap-3 sm:grid-cols-3">
         <Campo etiqueta="Nombre *"><input name="nombre" required defaultValue={c?.nombre} className={CAMPO} /></Campo>
-        <Campo etiqueta="Sentido"><select name="sentido" defaultValue={c?.sentido ?? "ambos"} className={CAMPO}><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ambos">Ambos</option></select></Campo>
-        <Campo etiqueta="Cuenta contable"><input name="cuentaContable" defaultValue={c?.cuentaContable ?? ""} className={CAMPO} placeholder="5.3.01" /></Campo>
+        <Campo etiqueta="Es"><select name="sentido" defaultValue={c?.sentido ?? "egreso"} className={CAMPO}><option value="egreso">Gasto (salida)</option><option value="ingreso">Ingreso (entrada)</option><option value="ambos">Entrada o salida</option></select></Campo>
+        <Campo etiqueta="Cuenta contable" ayuda="Provisoria: la valida el contador"><input name="cuentaContable" defaultValue={c?.cuentaContable ?? ""} className={CAMPO} placeholder="5.3.01" /></Campo>
       </div>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="requiereProyecto" defaultChecked={c?.requiereProyecto} /> Pide proyecto (ej. gasto de tarjeta)</label>
-      {c && <Campo etiqueta="Estado"><select name="activa" defaultValue={c.activa ? "on" : "off"} className={CAMPO}><option value="on">Activa</option><option value="off">Inactiva</option></select></Campo>}
+      <Campo etiqueta="¿Suma en ingresos y gastos?">
+        <select name="afectaResultado" defaultValue={c && !c.afectaResultado ? "off" : "on"} className={CAMPO}>
+          <option value="on">Sí: es ingreso o gasto</option>
+          <option value="off">No: mueve caja pero no es ingreso ni gasto (financiamiento, traspasos)</option>
+        </select>
+      </Campo>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="requiereProyecto" defaultChecked={c?.requiereProyecto} /> Pide proyecto al clasificar</label>
+      {c && <Campo etiqueta="Estado"><select name="activa" defaultValue={c.activa ? "on" : "off"} className={CAMPO}><option value="on">Activa</option><option value="off">Inactiva (ya no se ofrece)</option></select></Campo>}
+    </FormAccion>
+  );
+}
+
+function FormSubcategoria({ categoria, s }: { categoria: Categoria; s?: Subcategoria }) {
+  return (
+    <FormAccion accion={guardarSubcategoriaAction.bind(null, s?.id ?? null, categoria.id)}>
+      <p className="text-xs text-gris">Subcategoría de «{categoria.nombre}». Escribe el nombre exactamente como lo usa Finanzas.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Campo etiqueta="Nombre *"><input name="nombre" required defaultValue={s?.nombre} className={CAMPO} maxLength={80} /></Campo>
+        <Campo etiqueta="Cuenta contable" ayuda={`Vacío = la de la categoría${categoria.cuentaContable ? ` (${categoria.cuentaContable})` : ""}`}><input name="cuentaContable" defaultValue={s?.cuentaContable ?? ""} className={CAMPO} /></Campo>
+      </div>
+      {s && <Campo etiqueta="Estado"><select name="activa" defaultValue={s.activa ? "on" : "off"} className={CAMPO}><option value="on">Activa</option><option value="off">Inactiva (ya no se ofrece)</option></select></Campo>}
+    </FormAccion>
+  );
+}
+
+type VistaConfig = Awaited<ReturnType<typeof cargarVista>>;
+
+/**
+ * La lista maestra de Finanzas (Categoría → Subcategoría) y las reglas que clasifican solas los movimientos del banco.
+ * Cambiarla es del rol «Mantiene las categorías» (Permisos de flujos).
+ */
+function CategoriasYReglas({ v }: { v: VistaConfig }) {
+  const activas = v.categorias.filter((c) => c.activa).sort((a, b) => a.orden - b.orden);
+  const inactivas = v.categorias.filter((c) => !c.activa);
+  const grupos = [
+    { titulo: "Gastos", ayuda: "Salidas de caja que son gasto", lista: activas.filter((c) => c.afectaResultado && c.sentido !== "ingreso") },
+    { titulo: "Ingresos", ayuda: "Entradas de caja que son ingreso", lista: activas.filter((c) => c.afectaResultado && c.sentido === "ingreso") },
+    { titulo: "Ni ingreso ni gasto", ayuda: "Mueven caja, pero no suman en el resultado", lista: activas.filter((c) => !c.afectaResultado) },
+  ];
+  const subsDe = (id: string) => v.subcategorias.filter((s) => s.categoriaId === id).sort((a, b) => a.orden - b.orden);
+  const nombreClasif = (categoriaId: string, subcategoriaId?: string | null) => {
+    const c = v.categorias.find((x) => x.id === categoriaId);
+    const s = subcategoriaId ? v.subcategorias.find((x) => x.id === subcategoriaId) : null;
+    return `${c?.nombre ?? "—"}${s ? ` › ${s.nombre}` : ""}${c && !c.activa ? " (categoría antigua)" : ""}`;
+  };
+  const reglasActivas = v.reglas.filter((r) => r.activa);
+  const reglasApagadas = v.reglas.filter((r) => !r.activa).length;
+  const totalSubs = v.subcategorias.filter((s) => s.activa).length;
+
+  return (
+    <div className="space-y-4">
+      <p className="max-w-3xl text-sm text-gris">
+        La lista maestra de Finanzas para clasificar el banco, las compras y los gastos: {activas.length} categorías y {totalSubs} subcategorías. Los textos son los mismos
+        del Excel de Finanzas. Solo quien tiene el permiso «Mantiene las categorías» puede cambiarla; si nadie lo tiene asignado, cualquiera con Finanzas puede.
+      </p>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <Seccion titulo="Lista maestra" accion={<ConVentana boton={<><IconPlus size={14} /> Categoría</>} titulo="Nueva categoría" className={BOTON_SEC}>{<FormCategoria />}</ConVentana>}>
+          <div className="space-y-4">
+            {grupos.map((g) => g.lista.length > 0 && (
+              <div key={g.titulo}>
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-naranjo">{g.titulo} <span className="font-normal normal-case tracking-normal text-gris">· {g.ayuda}</span></p>
+                <ul className={`${TARJETA} divide-y divide-borde`}>
+                  {g.lista.map((c) => {
+                    const subs = subsDe(c.id);
+                    return (
+                      <li key={c.id}>
+                        <details className="group">
+                          <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-2.5 text-sm hover:bg-tinta/[0.02] [&::-webkit-details-marker]:hidden">
+                            <span className="text-gris transition group-open:rotate-90">›</span>
+                            <span className="flex-1 font-semibold text-tinta">{c.nombre}</span>
+                            <span className="text-xs text-gris">
+                              {subs.length > 0 ? `${subs.filter((s) => s.activa).length} subcategorías` : "sin subcategorías"}
+                              {c.requiereProyecto ? " · pide proyecto" : ""}
+                              {c.cuentaContable ? ` · cta ${c.cuentaContable}` : ""}
+                            </span>
+                          </summary>
+                          <div className="space-y-2 border-t border-borde bg-tinta/[0.015] px-4 py-3">
+                            {subs.length > 0 && (
+                              <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                                {subs.map((s) => (
+                                  <li key={s.id} className={`flex items-center gap-2 text-xs ${s.activa ? "" : "opacity-50"}`}>
+                                    <span className="min-w-0 flex-1 truncate text-tinta">{s.nombre}{s.activa ? "" : " (inactiva)"}</span>
+                                    {s.cuentaContable && <span className="tabular-nums text-gris">{s.cuentaContable}</span>}
+                                    <ConVentana boton="Editar" titulo={s.nombre} className="font-semibold text-naranjo">{<FormSubcategoria categoria={c} s={s} />}</ConVentana>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <div className="flex flex-wrap gap-3 pt-1 text-xs">
+                              {c.sentido !== "ingreso" && <ConVentana boton={<><IconPlus size={13} /> Subcategoría</>} titulo={`Nueva subcategoría de ${c.nombre}`} className="inline-flex items-center gap-1 font-semibold text-naranjo">{<FormSubcategoria categoria={c} />}</ConVentana>}
+                              <ConVentana boton="Editar categoría" titulo={c.nombre} className="font-semibold text-gris hover:text-tinta">{<FormCategoria c={c} />}</ConVentana>
+                            </div>
+                          </div>
+                        </details>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+            {inactivas.length > 0 && (
+              <details className="text-xs text-gris">
+                <summary className="cursor-pointer">Categorías que ya no se usan ({inactivas.length})</summary>
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {inactivas.map((c) => (
+                    <li key={c.id} className="rounded-full border border-borde px-2.5 py-0.5">
+                      <ConVentana boton={c.nombre} titulo={c.nombre} className="text-gris hover:text-tinta">{<FormCategoria c={c} />}</ConVentana>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        </Seccion>
+
+        <Seccion titulo="Reglas automáticas" accion={<ConVentana boton={<><IconPlus size={14} /> Regla</>} titulo="Nueva regla" className={BOTON_SEC}>{<FormRegla v={v} />}</ConVentana>}>
+          <p className="mb-2 text-xs text-gris">
+            Cada mañana, lo que calza con una regla llega clasificado. También se crean desde un movimiento del banco con «Regla por texto» o «Regla por RUT».
+          </p>
+          <ul className={`${TARJETA} divide-y divide-borde`}>
+            {reglasActivas.map((r) => (
+              <li key={r.id} className="flex items-start gap-3 px-4 py-2 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="font-mono text-xs">{r.contraparteRut ? `RUT ${r.contraparteRut}` : `«${r.patron}»`}</span>
+                  <span className="block text-xs font-semibold text-tinta">→ {nombreClasif(r.categoriaId, r.subcategoriaId)}</span>
+                </span>
+                <BotonAccion accion={eliminarReglaAction.bind(null, r.id)} confirmar="¿Desactivar esta regla?" className="text-xs font-semibold text-gris hover:text-alerta">Quitar</BotonAccion>
+              </li>
+            ))}
+            {reglasActivas.length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin reglas todavía. Créalas aquí o desde un movimiento del banco.</li>}
+          </ul>
+          {reglasApagadas > 0 && <p className="mt-2 text-[11px] text-gris">{reglasApagadas} regla(s) desactivada(s): apuntaban a categorías antiguas sin equivalencia clara en la lista nueva.</p>}
+        </Seccion>
+      </div>
+    </div>
+  );
+}
+
+function FormRegla({ v }: { v: VistaConfig }) {
+  const activas = v.categorias.filter((c) => c.activa).sort((a, b) => a.orden - b.orden);
+  return (
+    <FormAccion accion={guardarReglaAction.bind(null, null)} textoBoton="Crear regla">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Campo etiqueta="Reconoce el movimiento por">
+          <select name="tipo" defaultValue="texto" className={CAMPO}><option value="texto">Texto de la glosa</option><option value="rut">RUT de la contraparte</option></select>
+        </Campo>
+        <Campo etiqueta="Texto (si es por glosa)"><input name="patron" className={CAMPO} placeholder="COPEC, PREVIRED, UBER…" /></Campo>
+        <Campo etiqueta="RUT (si es por RUT)" ayuda="Solo transferencias que traen el RUT"><input name="rut" className={CAMPO} placeholder="76.123.456-7" /></Campo>
+        <Campo etiqueta="Asigna *">
+          <select name="clasificacion" required defaultValue="" className={CAMPO}>
+            <option value="" disabled>Elige…</option>
+            {activas.map((c) => {
+              const subs = v.subcategorias.filter((s) => s.activa && s.categoriaId === c.id).sort((a, b) => a.orden - b.orden);
+              return subs.length > 0 ? (
+                <optgroup key={c.id} label={c.nombre}>{subs.map((s) => <option key={s.id} value={`${c.id}|${s.id}`}>{s.nombre}</option>)}</optgroup>
+              ) : (
+                <option key={c.id} value={`${c.id}|`}>{c.nombre}</option>
+              );
+            })}
+          </select>
+        </Campo>
+        <Campo etiqueta="Y proyecto"><select name="proyectoId" className={CAMPO}><option value="">—</option>{v.proyectos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></Campo>
+        <Campo etiqueta="Solo en la cuenta"><select name="cuentaId" className={CAMPO}><option value="">Todas</option>{v.cuentas.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></Campo>
+        <Campo etiqueta="Monto desde" ayuda="Cargos en negativo"><input name="montoMin" className={CAMPO} /></Campo>
+        <Campo etiqueta="Monto hasta"><input name="montoMax" className={CAMPO} /></Campo>
+        <Campo etiqueta="Prioridad" ayuda="Menor = se revisa primero"><input name="prioridad" defaultValue={100} className={CAMPO} /></Campo>
+      </div>
     </FormAccion>
   );
 }

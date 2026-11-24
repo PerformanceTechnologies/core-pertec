@@ -25,6 +25,7 @@ export const FLUJOS = [
     roles: [
       { rol: "tesoreria_conciliador", etiqueta: "Concilia el banco", ayuda: "Categoriza y concilia los movimientos del banco." },
       { rol: "tesoreria_factoring", etiqueta: "Maneja el factoring", ayuda: "Crea operaciones de factoring y actualiza sus cesiones." },
+      { rol: "tesoreria_categorias", etiqueta: "Mantiene las categorías", ayuda: "Agrega o desactiva categorías y subcategorías de la lista maestra de Finanzas y sus reglas." },
     ],
   },
 ] as const;
