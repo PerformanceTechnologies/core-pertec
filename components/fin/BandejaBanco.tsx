@@ -7,7 +7,7 @@ import { IconChevronDown, IconSparkles, IconUpload, IconWand } from "@tabler/ico
 import { aceptarSugerenciasAction, categorizarMovimientoAction, conciliarMovimientoAction, pedirSugerenciasIaAction, reglaDesdeMovimientoAction } from "@/app/(protegido)/gestion-financiera/acciones-tesoreria";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { MovimientoVista } from "@/lib/fin/datos";
-import { ETIQUETA_ORIGEN } from "@/lib/fin/clasificacion";
+import { ETIQUETA_ORIGEN, esSegura } from "@/lib/fin/clasificacion";
 import { Chip } from "./piezas";
 import SelectorClasificacion, { type OpcionCategoria, type OpcionSubcategoria } from "./SelectorClasificacion";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion, SubirAdjunto } from "./ui";
@@ -81,6 +81,7 @@ export default function BandejaBanco({ movimientos, categorias, subcategorias, p
   const nombreSub = (id: string | null) => (id ? subcategorias.find((s) => s.id === id)?.nombre ?? null : null);
   // Solo las sugerencias completas se aceptan en bloque (con subcategoría si la categoría las tiene).
   const sugeridos = movimientos.filter((m) => m.sugerencia && !m.categoriaId && (!conSub.has(m.sugerencia.categoriaId) || m.sugerencia.subcategoriaId));
+  const seguros = sugeridos.filter((m) => esSegura(m.sugerencia));
   return (
     <div className="space-y-2">
       {paraIa > 0 && (
@@ -97,10 +98,28 @@ export default function BandejaBanco({ movimientos, categorias, subcategorias, p
       {sugeridos.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/40 bg-violet-500/[0.06] px-4 py-2.5 text-sm">
           <IconWand size={17} className="text-violet-600" />
-          <span className="flex-1 text-tinta">
-            {sugeridos.length} movimiento(s) con clasificación sugerida (por tus reglas, por movimientos anteriores iguales o por la IA). Revisa las sugerencias de la IA antes de aceptarlas todas.
+          <span className="min-w-0 flex-1 text-tinta">
+            {sugeridos.length} movimiento(s) con clasificación sugerida. <b>{seguros.length}</b> son seguras (reglas, movimientos anteriores iguales o IA con 90 % o más); las demás
+            conviene abrirlas y revisarlas una por una.
           </span>
-          <BotonAccion accion={() => aceptarSugerenciasAction(sugeridos.map((m) => m.id))} className={BOTON}>Aceptar todas</BotonAccion>
+          {seguros.length > 0 && (
+            <BotonAccion
+              accion={() => aceptarSugerenciasAction(seguros.map((m) => m.id))}
+              confirmar={`¿Clasificar ${seguros.length} movimiento(s) con su sugerencia? Puedes deshacerlo después.`}
+              className={BOTON}
+            >
+              Aceptar las seguras ({seguros.length})
+            </BotonAccion>
+          )}
+          {sugeridos.length > seguros.length && (
+            <BotonAccion
+              accion={() => aceptarSugerenciasAction(sugeridos.map((m) => m.id))}
+              confirmar={`¿Aceptar las ${sugeridos.length}, incluidas ${sugeridos.length - seguros.length} de la IA con menos de 90 % de seguridad? Lo recomendable es revisar esas una por una. Puedes deshacerlo después.`}
+              className={BOTON_SEC}
+            >
+              Aceptar todas ({sugeridos.length})
+            </BotonAccion>
+          )}
         </div>
       )}
       <ul className="divide-y divide-borde rounded-xl border border-borde bg-superficie">

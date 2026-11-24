@@ -192,6 +192,15 @@ export function sugerenciaDeIa(
   return { origen: "ia", categoriaId: c.id, subcategoriaId: sub?.id ?? null, proyectoId: null, reglaId: null, motivo: `IA (${pct} % segura): ${ia.motivo}`, confianza: ia.confianza };
 }
 
+/**
+ * ¿Es una sugerencia segura para aceptar en bloque? Las de reglas y las de movimientos anteriores iguales, sí; las de
+ * la IA, solo desde `umbral` de seguridad (90 % por omisión). Lo demás se revisa uno por uno.
+ */
+export function esSegura(s: Sugerencia | null, umbral = 0.9): boolean {
+  if (!s) return false;
+  return s.origen === "ia" ? (s.confianza ?? 0) >= umbral : true;
+}
+
 /** ¿Se aplica sola? Solo si Finanzas lo activó, la seguridad alcanza el umbral y la categoría no pide proyecto. */
 export function iaAplicableSola(s: Sugerencia | null, umbral: number, categorias: CategoriaLista[]): boolean {
   if (!s || s.origen !== "ia" || (s.confianza ?? 0) < umbral) return false;

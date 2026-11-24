@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { IconBuildingBank, IconCreditCard, IconPlus } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, RUTA_VENTAS, RUTA_COMPRAS } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, RUTA_VENTAS, RUTA_COMPRAS, ultimoLoteAceptado } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES, clp, clpCorto, fechaCl, finDeMes, inicioDeMes, mesLargo, type MesFlujo } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
 import { actualizarSaldoAction, guardarPartidaAction } from "../acciones-config";
-import { actualizarCesionAction, crearMovimientoAction, crearOperacionFactoringAction } from "../acciones-tesoreria";
+import { actualizarCesionAction, crearMovimientoAction, crearOperacionFactoringAction, deshacerLoteAction } from "../acciones-tesoreria";
 import { Banda, Chip, Deshabilitado, Monto, Pestanas, Seccion, TD, TH, Vacio, tonoFactoring } from "@/components/fin/piezas";
-import { Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
+import { BotonAccion, Campo, CampoEnLinea, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import BandejaBanco, { ImportarCartola } from "@/components/fin/BandejaBanco";
 import ResumenCategorias from "@/components/fin/ResumenCategorias";
@@ -18,6 +18,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const v = await cargarVista();
   const ver = sp.ver ?? "banco";
+  const ultimoLote = ["banco", "sugeridos", "conciliados", "escalar"].includes(ver) ? await ultimoLoteAceptado(v.empresa.id) : null;
   const porAclarar = v.movimientos.filter((m) => m.estado === "Por aclarar");
   const pestanaBanco = ["banco", "sugeridos", "conciliados", "escalar"].includes(ver);
   const movs =
@@ -110,6 +111,22 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
               <Link key={k} href={k === "banco" ? `${RUTA_FIN}/tesoreria` : `${RUTA_FIN}/tesoreria?ver=${k}`} scroll={false} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${ver === k ? "border-tinta bg-tinta text-superficie" : "border-borde bg-superficie text-gris hover:text-tinta"}`}>{t}</Link>
             ))}
           </div>
+          {ultimoLote && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-superficie px-4 py-2.5 text-sm">
+              <span className="min-w-0 flex-1 text-tinta">
+                Se aceptaron {ultimoLote.movimientos} sugerencia(s) en bloque el{" "}
+                {new Date(ultimoLote.creadoEn).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Santiago" })}
+                {ultimoLote.usuario ? ` (${ultimoLote.usuario})` : ""}. Si fue un error, se puede deshacer durante 7 días.
+              </span>
+              <BotonAccion
+                accion={deshacerLoteAction.bind(null, ultimoLote.id)}
+                confirmar={`¿Deshacer? Los ${ultimoLote.movimientos} movimiento(s) vuelven a «Por aclarar», salvo los que alguien haya cambiado después a mano.`}
+                className={BOTON_SEC}
+              >
+                Deshacer
+              </BotonAccion>
+            </div>
+          )}
           {movs.length === 0 ? (
             <Vacio titulo={v.movimientos.length ? "Nada en esta bandeja ✓" : "Aún no hay movimientos"} texto={v.movimientos.length ? undefined : "Importa tu primera cartola (CSV o Excel del banco o de la tarjeta)."} />
           ) : (
