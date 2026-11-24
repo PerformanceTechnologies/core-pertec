@@ -18,7 +18,7 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
   const suma = filas.reduce((s, f) => s + (f.tipoDte === 61 ? -(f.total ?? 0) : f.tipoDte === 52 ? 0 : f.total ?? 0), 0);
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-full bg-tinta/[0.05] p-1 text-[13px] font-semibold">
           {(["emitido", "recibido"] as const).map((c) => (
             <Link key={c} href={`${ruta}?ver=archivo&clase=${c}${anio ? `&anio=${anio}` : ""}`} className={`rounded-full px-3 py-1 ${clase === c ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>
@@ -29,16 +29,16 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
         <form className="flex flex-wrap items-end gap-2">
           <input type="hidden" name="ver" value="archivo" />
           <input type="hidden" name="clase" value={clase} />
-          <select name="anio" defaultValue={anio ?? ""} className={`${CAMPO} w-28`}>
+          <div className="w-36"><select name="anio" defaultValue={anio ?? ""} className={CAMPO}>
             <option value="">Todos los años</option>
             {anios.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <select name="mes" defaultValue={mes ?? ""} className={`${CAMPO} w-24`}>
+          </select></div>
+          <div className="w-28"><select name="mes" defaultValue={mes ?? ""} className={CAMPO}>
             <option value="">Mes</option>
             {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-          </select>
-          <input name="q" defaultValue={q} placeholder={clase === "emitido" ? "Folio, cliente o RUT…" : "Folio, proveedor o RUT…"} className={`${CAMPO} w-56`} />
-          <button className="rounded-lg bg-tinta/[0.06] px-3 py-2 text-[13px] font-semibold">Filtrar</button>
+          </select></div>
+          <div className="w-60"><input name="q" defaultValue={q} placeholder={clase === "emitido" ? "Folio, cliente o RUT…" : "Folio, proveedor o RUT…"} className={CAMPO} /></div>
+          <button className="min-h-11 rounded-xl bg-tinta/[0.06] px-4 text-[13px] font-semibold hover:bg-tinta/[0.1]">Filtrar</button>
         </form>
       </div>
       {filas.length === 0 ? (
