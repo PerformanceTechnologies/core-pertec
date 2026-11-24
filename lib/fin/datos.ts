@@ -46,6 +46,7 @@ import {
 } from "./clasificacion";
 
 export type { Subcategoria, Sugerencia } from "./clasificacion";
+import { SUBCATEGORIA_POR_CATEGORIA } from "../rendidor/tipos";
 
 // -----------------------------------------------------------------------------
 //  Gestión financiera: la capa de datos (solo servidor).
@@ -821,11 +822,18 @@ export async function gastosRendidos(empresaId: string, desde: Iso, hasta: Iso):
     console.warn("[fin] gastos rendidos:", error.message);
     return [];
   }
-  type G = { fecha?: string | null; total?: number | string; subcategoriaId?: string | null; revision?: { estado?: string } | null };
+  type G = { fecha?: string | null; total?: number | string; categoria?: string | null; subcategoriaId?: string | null; revision?: { estado?: string } | null };
+  // Las boletas rendidas antes de existir el tipo de gasto toman el de su categoría rápida (Combustible, Alimentación…).
+  const { data: subs } = await supabaseAdmin.from("fin_subcategorias").select("id, nombre, categoria_id, fin_categorias!inner(nombre)").eq("empresa_id", empresaId).eq("activa", true);
+  const idDe = new Map(((subs ?? []) as unknown as { id: string; nombre: string; fin_categorias: { nombre: string } }[]).map((s) => [`${s.fin_categorias.nombre}|${s.nombre}`, s.id]));
+  const porCategoria = (c: string | null | undefined): string | null => {
+    const par = c ? (SUBCATEGORIA_POR_CATEGORIA as Record<string, readonly [string, string] | null>)[c] : null;
+    return par ? idDe.get(`${par[0]}|${par[1]}`) ?? null : null;
+  };
   return ((data ?? []) as { gastos: G[] | null }[])
     .flatMap((r) => r.gastos ?? [])
     .filter((g) => g.fecha && g.fecha >= desde && g.fecha <= hasta && g.revision?.estado !== "rechazada")
-    .map((g) => ({ fecha: g.fecha as Iso, total: Number(g.total) || 0, subcategoriaId: g.subcategoriaId ?? null }));
+    .map((g) => ({ fecha: g.fecha as Iso, total: Number(g.total) || 0, subcategoriaId: g.subcategoriaId ?? porCategoria(g.categoria) }));
 }
 
 /** Una aceptación de sugerencias en bloque que todavía se puede deshacer. */
