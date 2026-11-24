@@ -25,6 +25,17 @@ import {
   type PartidaManual,
   type ProyectoBase,
 } from "../lib/fin/reglas";
+import {
+  aplicableSola,
+  categoriaDeIngreso,
+  categoriasPara,
+  glosaComparable,
+  resumenPorCategoria,
+  sugerirClasificacion,
+  type CategoriaLista,
+  type Clasificado,
+  type Subcategoria,
+} from "../lib/fin/clasificacion";
 
 const HOY = "2026-11-04";
 const P = PARAMETROS_DEFAULT;
@@ -235,6 +246,96 @@ assert.deepEqual([cifrasProyecto(proyecto("General", null), hitos, compras).comp
   assert.equal(reglaQueCalza({ glosa: "OTRA COSA", monto: -1, cuentaId: "cc" }, reglas), null);
   assert.equal(huellaMovimiento("c", "2026-11-03", -18500, "  COM  Mantención ", null), huellaMovimiento("c", "2026-11-03", -18500, "com mantención", ""));
 }
+// ---------- Clasificación con la lista maestra de Finanzas (Categoría → Subcategoría) -----------
+{
+  const cat = (id: string, sentido: CategoriaLista["sentido"], extra: Partial<CategoriaLista> = {}): CategoriaLista => ({
+    id, nombre: id, sentido, requiereProyecto: false, afectaResultado: true, cuentaContable: null, orden: 0, activa: true, ...extra,
+  });
+  const CATS = [
+    cat("Costos Financieros", "egreso", { orden: 5 }),
+    cat("Operaciones y Proyectos", "egreso", { orden: 3, requiereProyecto: true }),
+    cat("Traspasos Internos", "ambos", { orden: 8, afectaResultado: false }),
+    cat("Servicios", "ingreso", { orden: 11 }),
+    cat("Remuneraciones", "egreso", { activa: false }),
+  ];
+  const SUBS: Subcategoria[] = [
+    { id: "comisiones", categoriaId: "Costos Financieros", nombre: "Comisiones Bancarias", cuentaContable: null, orden: 4, activa: true },
+    { id: "combustible", categoriaId: "Operaciones y Proyectos", nombre: "Vehículos (Autorenta/Combustible)", cuentaContable: null, orden: 14, activa: true },
+    { id: "tarjeta", categoriaId: "Traspasos Internos", nombre: "Pago Tarjeta de Crédito", cuentaContable: null, orden: 1, activa: true },
+  ];
+  const conSub = new Set(SUBS.map((x) => x.categoriaId));
+
+  // Un cargo solo ofrece gastos y lo que va en ambos sentidos; nunca una categoría antigua.
+  assert.deepEqual(categoriasPara(-1000, CATS).map((c) => c.id), ["Operaciones y Proyectos", "Costos Financieros", "Traspasos Internos"]);
+  assert.deepEqual(categoriasPara(1000, CATS).map((c) => c.id), ["Traspasos Internos", "Servicios"]);
+
+  // La glosa sin números ni fechas; las nóminas y las glosas casi vacías no sirven para aprender.
+  assert.equal(glosaComparable("PAGO TGR 12/10/2026 FOLIO 3344"), "pago tgr folio");
+  assert.equal(glosaComparable("Comisión  Mantención"), "comision mantencion");
+  assert.equal(glosaComparable("NOMINA12.10.2026"), "");
+  assert.equal(glosaComparable("TEF 123"), "");
+
+  const reglas = [
+    { id: "r-texto", cuentaId: null, patron: "COM MANT", montoMin: null, montoMax: null, categoriaId: "Costos Financieros", subcategoriaId: "comisiones", proyectoId: null, prioridad: 100, activa: true },
+    { id: "r-rut", cuentaId: null, patron: "", contraparteRut: "76.123.456-0", montoMin: null, montoMax: null, categoriaId: "Operaciones y Proyectos", subcategoriaId: "combustible", proyectoId: "pry-1", prioridad: 100, activa: true },
+  ];
+  // Regla por RUT: manda el RUT aunque la glosa no diga nada, y va antes que la de texto a igual prioridad.
+  assert.equal(reglaQueCalza({ glosa: "TRANSF A 761234560 COM MANT", monto: -5000, cuentaId: "cc", contraparteRut: "76123456-0" }, reglas)?.id, "r-rut");
+  assert.equal(reglaQueCalza({ glosa: "TRANSF A OTRO", monto: -5000, cuentaId: "cc", contraparteRut: "11111111-1" }, reglas), null);
+  const porTexto = sugerirClasificacion({ glosa: "COM MANT CTA CTE", monto: -18500, cuentaId: "cc" }, reglas, []);
+  assert.equal(porTexto?.origen, "regla");
+  assert.equal(porTexto?.subcategoriaId, "comisiones");
+  assert.ok(aplicableSola(porTexto, CATS, conSub), "una regla completa se aplica sola al importar");
+  assert.ok(aplicableSola(sugerirClasificacion({ glosa: "x", monto: -1, cuentaId: "cc", contraparteRut: "761234560" }, reglas, []), CATS, conSub), "pide proyecto, pero la regla lo trae");
+  assert.ok(!aplicableSola({ ...porTexto!, subcategoriaId: null }, CATS, conSub), "sin subcategoría no se aplica sola");
+
+  // Aprender de lo ya clasificado: misma glosa sin números, mismo signo, el más reciente.
+  const anteriores: Clasificado[] = [
+    { id: "a1", fecha: "2026-10-03", glosa: "PAGO TARJETA CREDITO 4455", monto: -900000, contraparteRut: null, categoriaId: "Traspasos Internos", subcategoriaId: "tarjeta", proyectoId: null },
+    { id: "a2", fecha: "2026-10-20", glosa: "TRANSF. DE 76123456-0", monto: 2000000, contraparteRut: "761234560", categoriaId: "Servicios", subcategoriaId: null, proyectoId: "pry-2" },
+  ];
+  const tarjeta = sugerirClasificacion({ glosa: "PAGO TARJETA CREDITO 7788", monto: -1200000, cuentaId: "cc" }, [], anteriores);
+  assert.equal(tarjeta?.origen, "historial");
+  assert.equal(tarjeta?.subcategoriaId, "tarjeta");
+  assert.equal(sugerirClasificacion({ glosa: "PAGO TARJETA CREDITO 7788", monto: 1200000, cuentaId: "cc" }, [], anteriores), null, "el signo tiene que calzar");
+  assert.ok(!aplicableSola(tarjeta, CATS, conSub), "lo aprendido solo se sugiere, no se aplica solo");
+  const mismoRut = sugerirClasificacion({ glosa: "TRANSF. DE 76123456-0", monto: 3500000, cuentaId: "cc", contraparteRut: "76.123.456-0" }, [], anteriores);
+  assert.equal(mismoRut?.categoriaId, "Servicios");
+  assert.equal(mismoRut?.proyectoId, "pry-2");
+  assert.equal(sugerirClasificacion({ glosa: "TRANSF. DE 99888777-6", monto: 3500000, cuentaId: "cc", contraparteRut: "998887776" }, [], anteriores), null, "otro RUT con la misma glosa no calza");
+
+  // El ingreso de un cobro sale del hito facturado.
+  assert.equal(categoriaDeIngreso("servicio", "contrato"), "Servicios");
+  assert.equal(categoriaDeIngreso("arriendo", "arriendo"), "Arriendos");
+  assert.equal(categoriaDeIngreso("venta", null), "Ventas");
+  assert.equal(categoriaDeIngreso("servicio", "spot"), "Proyecto Spot");
+  assert.equal(categoriaDeIngreso(null, null), "Servicios");
+
+  // Resumen del mes: los traspasos no suman en el resultado y lo pendiente va aparte.
+  const r = resumenPorCategoria(
+    [
+      { fecha: "2026-11-02", monto: 5000000, categoriaId: "Servicios", subcategoriaId: null },
+      { fecha: "2026-11-03", monto: -18500, categoriaId: "Costos Financieros", subcategoriaId: "comisiones" },
+      { fecha: "2026-11-04", monto: -900000, categoriaId: "Traspasos Internos", subcategoriaId: "tarjeta" },
+      { fecha: "2026-11-05", monto: -45000, categoriaId: null },
+      { fecha: "2026-10-31", monto: -1, categoriaId: "Costos Financieros", subcategoriaId: "comisiones" },
+    ],
+    CATS,
+    SUBS,
+    "2026-11-01",
+    "2026-11-30",
+  );
+  assert.equal(r.totalIngresos, 5000000);
+  assert.equal(r.totalEgresos, 18500, "el pago de la tarjeta no es gasto");
+  assert.deepEqual(r.sinResultado.map((f) => [f.nombre, f.egresos]), [["Traspasos Internos", 900000]]);
+  assert.deepEqual(r.porAclarar, { movimientos: 1, ingresos: 0, egresos: 45000 });
+  assert.equal(r.resultado.find((f) => f.categoriaId === "Costos Financieros")?.subcategorias[0].nombre, "Comisiones Bancarias");
+
+  // Una categoría con subcategorías no queda conciliada sin elegir una.
+  const mov: MovimientoBase = { id: "m", cuentaId: "cc", fecha: "2026-11-03", glosa: "x", monto: -1, categoriaId: "Costos Financieros", faltaSubcategoria: true, proyectoId: null, responsable: null, tieneRespaldo: true, documentoRef: null, conciliaciones: 0, comentario: null };
+  assert.equal(calcularMovimiento(mov, P, HOY).estado, "Por aclarar");
+  assert.equal(calcularMovimiento({ ...mov, faltaSubcategoria: false, subcategoriaId: "comisiones" }, P, HOY).estado, "Conciliado");
+}
 assert.deepEqual(generarHitos({ tipo: "partes", partes: 3 }, 1000000).map((x) => x.neto), [333333, 333333, 333334], "el último absorbe el redondeo");
 assert.deepEqual(generarHitos({ tipo: "mensual", desde: "2026-10-01", hasta: "2026-12-15", prefijo: "Arriendo", montoMensual: 4500000 }, 0).map((x) => [x.periodo, x.neto]), [
   ["Arriendo oct", 4500000], ["Arriendo nov", 4500000], ["Arriendo dic", 4500000],
@@ -242,4 +343,4 @@ assert.deepEqual(generarHitos({ tipo: "mensual", desde: "2026-10-01", hasta: "20
 assert.equal(generarHitos({ tipo: "unica" }, 5)[0].periodo, "Única");
 assert.ok(rutValido("76.123.456-0") === rutValido("761234560") && rutValido("11.111.111-1") && !rutValido("11.111.111-2"));
 
-console.log("Gestión financiera verificada: etapas, siguiente paso, factoring, banco, flujo de caja, dashboard y proyectos iguales al Excel.");
+console.log("Gestión financiera verificada: etapas, siguiente paso, factoring, banco, clasificación por categoría, flujo de caja, dashboard y proyectos iguales al Excel.");

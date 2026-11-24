@@ -7,7 +7,9 @@ import { IconChevronDown, IconUpload, IconWand } from "@tabler/icons-react";
 import { aceptarSugerenciasAction, categorizarMovimientoAction, conciliarMovimientoAction, reglaDesdeMovimientoAction } from "@/app/(protegido)/gestion-financiera/acciones-tesoreria";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { MovimientoVista } from "@/lib/fin/datos";
+import { ETIQUETA_ORIGEN } from "@/lib/fin/clasificacion";
 import { Chip } from "./piezas";
+import SelectorClasificacion, { type OpcionCategoria, type OpcionSubcategoria } from "./SelectorClasificacion";
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion, SubirAdjunto } from "./ui";
 import { avisar, pedirTexto } from "./dialogos";
 import FormCobro, { type FacturaAbierta } from "./FormCobro";
@@ -57,12 +59,13 @@ export function ImportarCartola({ cuentas }: { cuentas: Ref[] }) {
 }
 
 /**
- * La bandeja del banco diario: cada movimiento con su categoría sugerida (un clic), y al abrirlo,
- * categoría, proyecto, a quién preguntar, respaldo, «es un cobro / es un pago» y guardar regla.
+ * La bandeja del banco diario: cada movimiento con su clasificación sugerida (un clic), y al abrirlo, categoría y
+ * subcategoría de la lista maestra, proyecto, a quién preguntar, respaldo, «es un cobro / es un pago» y guardar regla.
  */
-export default function BandejaBanco({ movimientos, categorias, proyectos, facturas, pagos, cobros, cuentasBanco, hoy }: {
+export default function BandejaBanco({ movimientos, categorias, subcategorias, proyectos, facturas, pagos, cobros, cuentasBanco, hoy }: {
   movimientos: MovimientoVista[];
-  categorias: (Ref & { requiereProyecto: boolean })[];
+  categorias: OpcionCategoria[];
+  subcategorias: OpcionSubcategoria[];
   proyectos: Ref[];
   facturas: FacturaAbierta[];
   pagos: { id: string; numero: string; monto: number; proveedor: string | null; fecha: string | null; hecho: boolean }[];
@@ -71,19 +74,26 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
   hoy: string;
 }) {
   const [abierto, setAbierto] = useState<string | null>(null);
-  const sugeridos = movimientos.filter((m) => m.sugerencia && !m.categoriaId);
+  const conSub = new Set(subcategorias.map((s) => s.categoriaId));
+  const nombreCat = (id: string) => categorias.find((c) => c.id === id)?.nombre ?? "";
+  const nombreSub = (id: string | null) => (id ? subcategorias.find((s) => s.id === id)?.nombre ?? null : null);
+  // Solo las sugerencias completas se aceptan en bloque (con subcategoría si la categoría las tiene).
+  const sugeridos = movimientos.filter((m) => m.sugerencia && !m.categoriaId && (!conSub.has(m.sugerencia.categoriaId) || m.sugerencia.subcategoriaId));
   return (
     <div className="space-y-2">
       {sugeridos.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/40 bg-violet-500/[0.06] px-4 py-2.5 text-sm">
           <IconWand size={17} className="text-violet-600" />
-          <span className="flex-1 text-tinta">{sugeridos.length} movimiento(s) con categoría sugerida por tus reglas.</span>
+          <span className="flex-1 text-tinta">
+            {sugeridos.length} movimiento(s) con clasificación sugerida por tus reglas o por movimientos anteriores iguales. Revísalos y acéptalos de una.
+          </span>
           <BotonAccion accion={() => aceptarSugerenciasAction(sugeridos.map((m) => m.id))} className={BOTON}>Aceptar todas</BotonAccion>
         </div>
       )}
       <ul className="divide-y divide-borde rounded-xl border border-borde bg-superficie">
         {movimientos.map((m) => {
-          const sug = m.sugerencia ? categorias.find((c) => c.id === m.sugerencia!.categoriaId) : null;
+          const sug = m.sugerencia && !m.categoriaId ? m.sugerencia : null;
+          const textoSug = sug ? nombreSub(sug.subcategoriaId) ?? nombreCat(sug.categoriaId) : null;
           const exactas = m.monto > 0 ? facturas.filter((f) => f.saldo === m.monto) : [];
           const pagosCalzan = m.monto < 0 ? pagos.filter((p) => p.monto === -m.monto) : [];
           return (
@@ -94,12 +104,18 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
                   <span className="block truncate text-sm font-semibold text-tinta">{m.glosa}</span>
                   <span className="block truncate text-[11px] text-gris">
                     {m.cuentaNombre}
-                    {m.categoriaNombre && ` · ${m.categoriaNombre}`}
+                    {m.categoriaNombre && ` · ${m.categoriaNombre}${m.subcategoriaNombre ? ` › ${m.subcategoriaNombre}` : ""}`}
+                    {m.faltaSubcategoria && " · falta la subcategoría"}
+                    {m.clasificadoPor && m.clasificadoPor !== "manual" && ` · ${ETIQUETA_ORIGEN[m.clasificadoPor].toLowerCase()}`}
                     {m.proyectoNombre && ` · ${m.proyectoNombre}`}
                     {m.responsable && ` · preguntar a ${m.responsable}`}
                   </span>
                 </span>
-                {sug && !m.categoriaId && <Chip texto={`Sugerido: ${sug.nombre}`} tono="bg-violet-500/10 text-violet-700" />}
+                {sug && textoSug && (
+                  <span title={sug.motivo}>
+                    <Chip texto={`Sugerido: ${textoSug}`} tono="bg-violet-500/10 text-violet-700" />
+                  </span>
+                )}
                 {exactas.length > 0 && <Chip texto={`Calza con factura ${exactas[0].folio}`} tono="bg-emerald-500/10 text-ok" />}
                 {pagosCalzan.length > 0 && <Chip texto={`Calza con pago ${pagosCalzan[0].numero}`} tono="bg-emerald-500/10 text-ok" />}
                 <Chip
@@ -112,13 +128,15 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
               {abierto === m.id && (
                 <div className="grid gap-4 border-t border-borde bg-tinta/[0.015] px-4 py-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
                   <FormAccion accion={categorizarMovimientoAction.bind(null, m.id)} textoBoton="Guardar" alOk={() => setAbierto(null)}>
+                    {sug && <p className="text-xs text-violet-700">Sugerencia: {sug.motivo}. Ya viene elegida abajo: revísala y guarda.</p>}
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <Campo etiqueta="Categoría">
-                        <select name="categoriaId" defaultValue={m.categoriaId ?? m.sugerencia?.categoriaId ?? ""} className={CAMPO}>
-                          <option value="">—</option>
-                          {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.requiereProyecto ? " (pide proyecto)" : ""}</option>)}
-                        </select>
-                      </Campo>
+                      <SelectorClasificacion
+                        monto={m.monto}
+                        categorias={categorias}
+                        subcategorias={subcategorias}
+                        categoriaInicial={m.categoriaId ?? sug?.categoriaId ?? null}
+                        subcategoriaInicial={m.categoriaId ? m.subcategoriaId ?? null : sug?.subcategoriaId ?? null}
+                      />
                       <Campo etiqueta="Proyecto">
                         <select name="proyectoId" defaultValue={m.proyectoId ?? m.sugerencia?.proyectoId ?? ""} className={CAMPO}>
                           <option value="">—</option>
@@ -154,19 +172,27 @@ export default function BandejaBanco({ movimientos, categorias, proyectos, factu
                       />
                     )}
                     <SubirAdjunto entidadTipo="movimiento" entidadId={m.id} tipo="comprobante" texto="Adjuntar respaldo" />
-                    {m.categoriaId && (
-                      <BotonAccion
-                        accion={async () => {
-                          const patron = await pedirTexto({ titulo: "¿Qué texto de la glosa reconoce este tipo de movimiento?", ayuda: "Los próximos movimientos que lo contengan se categorizarán solos.", inicial: m.glosa.split(/\s+/).slice(0, 3).join(" "), boton: "Guardar regla" });
-                          if (!patron) return { ok: true };
-                          return reglaDesdeMovimientoAction(m.id, patron);
-                        }}
-                        className={`${BOTON_SEC} w-full`}
-                      >
-                        <IconWand size={14} /> Guardar como regla
-                      </BotonAccion>
+                    {m.categoriaId && !m.faltaSubcategoria && (
+                      <>
+                        <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-gris">Que se clasifique solo la próxima vez</p>
+                        <BotonAccion
+                          accion={async () => {
+                            const patron = await pedirTexto({ titulo: "¿Qué texto de la glosa reconoce este tipo de movimiento?", ayuda: "Los próximos movimientos que lo contengan se clasificarán solos, con esta misma categoría y subcategoría.", inicial: m.glosa.split(/\s+/).slice(0, 3).join(" "), boton: "Guardar regla" });
+                            if (!patron) return { ok: true };
+                            return reglaDesdeMovimientoAction(m.id, "texto", patron);
+                          }}
+                          className={`${BOTON_SEC} w-full`}
+                        >
+                          <IconWand size={14} /> Regla por texto de la glosa
+                        </BotonAccion>
+                        {m.contraparteRut && (
+                          <BotonAccion accion={() => reglaDesdeMovimientoAction(m.id, "rut", "")} className={`${BOTON_SEC} w-full`}>
+                            <IconWand size={14} /> Regla por RUT {m.contraparteRut}
+                          </BotonAccion>
+                        )}
+                      </>
                     )}
-                    {m.estado === "Por aclarar" && m.categoriaId && <BotonAccion accion={() => conciliarMovimientoAction(m.id, "otro", null)} className={`${BOTON_SEC} w-full`}>Conciliar sin documento</BotonAccion>}
+                    {m.estado === "Por aclarar" && m.categoriaId && !m.faltaSubcategoria && <BotonAccion accion={() => conciliarMovimientoAction(m.id, "otro", null)} className={`${BOTON_SEC} w-full`}>Conciliar sin documento</BotonAccion>}
                   </div>
                 </div>
               )}

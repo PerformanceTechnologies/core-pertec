@@ -7,6 +7,7 @@ import {
   RUTA_FIN,
   auditar,
   cargarVista,
+  clasificacionHeredada,
   conciliarConMovimiento,
   contextoFin,
   contextoFinApi,
@@ -20,7 +21,8 @@ import {
   revienta,
   siguienteNumero,
 } from "@/lib/fin/datos";
-import { finDeMes, huellaMovimiento } from "@/lib/fin/reglas";
+import { finDeMes, huellaMovimiento, rutComparable } from "@/lib/fin/reglas";
+import { categoriasConSubcategorias } from "@/lib/fin/clasificacion";
 import { generarAsientos } from "@/lib/fin/contabilidad";
 import { exigirRol } from "@/lib/fin/flujos";
 
@@ -61,25 +63,35 @@ export async function crearMovimientoAction(fd: FormData): Promise<Resultado> {
   }
 }
 
-/** Categorizar, ligar a proyecto, asignar a quién preguntar y marcar el respaldo. */
+/** Clasificar (categoría y subcategoría), ligar a proyecto, asignar a quién preguntar y marcar el respaldo. */
 export async function categorizarMovimientoAction(id: string, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
-    await exigirRol(ctx, "tesoreria_conciliador", { accion: "categorizar el movimiento" });
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "clasificar el movimiento" });
     const vista = await cargarVista();
-    await exigirDeEmpresa("fin_movimientos", id, ctx.empresa.id);
+    const mov = await exigirDeEmpresa("fin_movimientos", id, ctx.empresa.id);
     const categoriaId = uuid(fd.get("categoriaId"));
     const categoria = categoriaId ? vista.categorias.find((c) => c.id === categoriaId) : null;
     if (categoriaId && !categoria) return { ok: false, error: "Categoría inválida." };
+    if (categoria && !categoria.activa && categoria.id !== mov.categoria_id) return { ok: false, error: `«${categoria.nombre}» ya no se usa: elige una de la lista vigente.` };
+    const monto = Number(mov.monto);
+    if (categoria && categoria.sentido === "ingreso" && monto < 0) return { ok: false, error: `«${categoria.nombre}» es un ingreso y este movimiento es un cargo.` };
+    if (categoria && categoria.sentido === "egreso" && monto > 0) return { ok: false, error: `«${categoria.nombre}» es un gasto y este movimiento es un abono.` };
+    const subcategoriaId = categoria ? uuid(fd.get("subcategoriaId")) : null;
+    const subcategoria = subcategoriaId ? vista.subcategorias.find((s) => s.id === subcategoriaId) : null;
+    if (subcategoriaId && (!subcategoria || subcategoria.categoriaId !== categoria?.id)) return { ok: false, error: "Esa subcategoría no es de la categoría elegida." };
+    if (categoria && !subcategoria && categoriasConSubcategorias(vista.subcategorias).has(categoria.id)) return { ok: false, error: `Elige la subcategoría de «${categoria.nombre}».` };
     const proyectoId = uuid(fd.get("proyectoId"));
     if (categoria?.requiereProyecto && !proyectoId) return { ok: false, error: `«${categoria.nombre}» pide el proyecto.` };
     const fila = {
-      categoria_id: categoriaId, proyecto_id: proyectoId, responsable: texto(fd, "responsable", 120), tiene_respaldo: fd.get("tieneRespaldo") === "on",
+      categoria_id: categoriaId, subcategoria_id: subcategoria?.id ?? null, clasificado_por: categoriaId ? "manual" : null, regla_id: null,
+      proyecto_id: proyectoId, responsable: texto(fd, "responsable", 120), tiene_respaldo: fd.get("tieneRespaldo") === "on",
       documento_ref: texto(fd, "documentoRef", 120), rendicion_ref: texto(fd, "rendicionRef", 120), comentario: texto(fd, "comentario", 500), actualizado_en: ahora(),
     };
     const { error } = await supabaseAdmin.from("fin_movimientos").update(fila).eq("id", id);
     revienta("guardar el movimiento", error);
-    await auditar(ctx, "fin_movimientos", id, "categorizar", `${categoria?.nombre ?? "Sin categoría"}${fila.tiene_respaldo ? " · con respaldo" : ""}${fila.responsable ? ` · preguntar a ${fila.responsable}` : ""}`);
+    const nombre = categoria ? `${categoria.nombre}${subcategoria ? ` › ${subcategoria.nombre}` : ""}` : "Sin categoría";
+    await auditar(ctx, "fin_movimientos", id, "clasificar", `${nombre}${fila.tiene_respaldo ? " · con respaldo" : ""}${fila.responsable ? ` · preguntar a ${fila.responsable}` : ""}`);
     refrescar();
     return { ok: true };
   } catch (e) {
@@ -87,52 +99,69 @@ export async function categorizarMovimientoAction(id: string, fd: FormData): Pro
   }
 }
 
-/** Aceptar de un clic la categoría que sugieren las reglas (uno o muchos). */
+/** Aceptar de un clic la clasificación que sugiere el Core (regla, RUT o un movimiento anterior igual). */
 export async function aceptarSugerenciasAction(movimientoIds: string[]): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
     await exigirRol(ctx, "tesoreria_conciliador", { accion: "aceptar sugerencias" });
     const vista = await cargarVista();
-    const elegidos = vista.movimientos.filter((m) => movimientoIds.includes(m.id) && m.sugerencia && !m.categoriaId);
+    const conSub = categoriasConSubcategorias(vista.subcategorias);
+    // Solo sugerencias completas: con subcategoría si su categoría las tiene.
+    const elegidos = vista.movimientos.filter((m) => movimientoIds.includes(m.id) && m.sugerencia && !m.categoriaId && (!conSub.has(m.sugerencia.categoriaId) || m.sugerencia.subcategoriaId));
     for (const m of elegidos) {
-      const cat = vista.categorias.find((c) => c.id === m.sugerencia!.categoriaId);
+      const s = m.sugerencia!;
+      const cat = vista.categorias.find((c) => c.id === s.categoriaId);
       const { error } = await supabaseAdmin
         .from("fin_movimientos")
-        .update({ categoria_id: m.sugerencia!.categoriaId, proyecto_id: m.proyectoId ?? m.sugerencia!.proyectoId, regla_id: m.sugerencia!.reglaId, tiene_respaldo: m.tieneRespaldo || !cat?.requiereProyecto, actualizado_en: ahora() })
+        .update({
+          categoria_id: s.categoriaId, subcategoria_id: s.subcategoriaId, clasificado_por: s.origen, proyecto_id: m.proyectoId ?? s.proyectoId, regla_id: s.reglaId,
+          tiene_respaldo: m.tieneRespaldo || !cat?.requiereProyecto, actualizado_en: ahora(),
+        })
         .eq("id", m.id)
         .eq("empresa_id", ctx.empresa.id);
-      revienta("aplicar la regla", error);
+      revienta("aplicar la sugerencia", error);
     }
     // Cuántas veces se aplicó cada regla (para saber cuáles sirven).
     const porRegla = new Map<string, number>();
-    for (const m of elegidos) porRegla.set(m.sugerencia!.reglaId, (porRegla.get(m.sugerencia!.reglaId) ?? 0) + 1);
+    for (const m of elegidos) if (m.sugerencia!.reglaId) porRegla.set(m.sugerencia!.reglaId, (porRegla.get(m.sugerencia!.reglaId) ?? 0) + 1);
     for (const [reglaId, veces] of porRegla) {
       const { data } = await supabaseAdmin.from("fin_reglas").select("veces_aplicada").eq("id", reglaId).single();
       await supabaseAdmin.from("fin_reglas").update({ veces_aplicada: Number(data?.veces_aplicada ?? 0) + veces }).eq("id", reglaId);
     }
-    await auditar(ctx, "fin_movimientos", null, "reglas", `${elegidos.length} movimiento(s) categorizados por regla`);
+    await auditar(ctx, "fin_movimientos", null, "sugerencias", `${elegidos.length} movimiento(s) clasificados con la sugerencia`);
     refrescar();
-    return { ok: true, mensaje: `${elegidos.length} categorizado(s)` };
+    return { ok: true, mensaje: `${elegidos.length} clasificado(s)` };
   } catch (e) {
     return fallo(e);
   }
 }
 
-/** «Guardar como regla» desde un movimiento ya categorizado: el próximo mes se asigna solo. */
-export async function reglaDesdeMovimientoAction(id: string, patron: string): Promise<Resultado> {
+/**
+ * «Guardar como regla» desde un movimiento ya clasificado: los próximos que calcen se clasifican solos al llegar.
+ * Reconoce un texto de la glosa o, si el banco trae el RUT de la contraparte, ese RUT.
+ */
+export async function reglaDesdeMovimientoAction(id: string, modo: "texto" | "rut", patron: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "crear la regla" });
     const m = await exigirDeEmpresa("fin_movimientos", id, ctx.empresa.id);
-    if (!m.categoria_id) return { ok: false, error: "Primero dale una categoría al movimiento." };
-    const p = patron.replace(/\s+/g, " ").trim().slice(0, 80);
-    if (p.length < 3) return { ok: false, error: "El texto a reconocer es muy corto." };
-    if (!String(m.glosa).toLowerCase().includes(p.toLowerCase())) return { ok: false, error: "Ese texto no aparece en la glosa del movimiento." };
+    if (!m.categoria_id) return { ok: false, error: "Primero clasifica el movimiento." };
+    let p = "";
+    let rut: string | null = null;
+    if (modo === "rut") {
+      rut = rutComparable(m.contraparte_rut as string | null);
+      if (!rut) return { ok: false, error: "Este movimiento no trae el RUT de la contraparte: usa un texto de la glosa." };
+    } else {
+      p = patron.replace(/\s+/g, " ").trim().slice(0, 80);
+      if (p.length < 3) return { ok: false, error: "El texto a reconocer es muy corto." };
+      if (!String(m.glosa).toLowerCase().includes(p.toLowerCase())) return { ok: false, error: "Ese texto no aparece en la glosa del movimiento." };
+    }
     const { error } = await supabaseAdmin.from("fin_reglas").insert({
-      empresa_id: ctx.empresa.id, cuenta_id: m.cuenta_id, patron: p, categoria_id: m.categoria_id, proyecto_id: m.proyecto_id, prioridad: 100, creado_por: ctx.usuario.correo,
+      empresa_id: ctx.empresa.id, cuenta_id: rut ? null : m.cuenta_id, patron: p, contraparte_rut: rut, categoria_id: m.categoria_id, subcategoria_id: m.subcategoria_id ?? null,
+      proyecto_id: m.proyecto_id, prioridad: 100, creado_por: ctx.usuario.correo,
     });
     revienta("guardar la regla", error);
-    await supabaseAdmin.from("fin_movimientos").update({ regla_id: null }).eq("id", id);
-    await auditar(ctx, "fin_reglas", null, "crear", `Regla «${p}» desde el movimiento ${m.glosa}`);
+    await auditar(ctx, "fin_reglas", null, "crear", rut ? `Regla por RUT ${rut} desde el movimiento ${m.glosa}` : `Regla «${p}» desde el movimiento ${m.glosa}`);
     refrescar();
     return { ok: true };
   } catch (e) {
@@ -156,7 +185,7 @@ export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pag
       if (m.monto <= 0) return { ok: false, error: "Un cobro se liga a un abono, no a un cargo." };
       const { error } = await supabaseAdmin.from("fin_cobros").update({ movimiento_id: id, cuenta_id: m.cuentaId }).eq("id", c.id).eq("empresa_id", ctx.empresa.id);
       revienta("ligar el cobro", error);
-      await conciliarConMovimiento(ctx.empresa.id, id, "cobro", c.id, Math.abs(m.monto), vista.categorias.find((x) => x.nombre === "Cobro cliente")?.id ?? null);
+      await conciliarConMovimiento(ctx.empresa.id, id, "cobro", c.id, Math.abs(m.monto), clasificacionHeredada(vista, "cobro", c.id));
     } else if (tipo === "pago") {
       const p = vista.pagos.find((x) => x.id === entidadId);
       if (!p) return { ok: false, error: "Ese pago no existe." };
@@ -172,13 +201,13 @@ export async function conciliarMovimientoAction(id: string, tipo: "cobro" | "pag
         const { error } = await supabaseAdmin.from("fin_pagos").update({ movimiento_id: id, cuenta_id: m.cuentaId }).eq("id", p.id).eq("empresa_id", ctx.empresa.id);
         revienta("ligar el pago", error);
       }
-      await conciliarConMovimiento(ctx.empresa.id, id, "pago", p.id, Math.abs(m.monto), vista.categorias.find((c) => c.nombre === "Pago proveedor")?.id ?? null);
+      await conciliarConMovimiento(ctx.empresa.id, id, "pago", p.id, Math.abs(m.monto), clasificacionHeredada(vista, "pago", p.id));
     } else if (tipo === "traspaso") {
       const otro = vista.movimientos.find((x) => x.id === entidadId);
       if (!otro || otro.cuentaId === m.cuentaId || Math.sign(otro.monto) === Math.sign(m.monto)) return { ok: false, error: "Elige el movimiento de la otra cuenta (cargo ↔ abono)." };
-      const cat = vista.categorias.find((c) => c.nombre === "Traspaso entre cuentas")?.id ?? null;
-      await conciliarConMovimiento(ctx.empresa.id, id, "traspaso", otro.id, Math.abs(m.monto), cat);
-      await conciliarConMovimiento(ctx.empresa.id, otro.id, "traspaso", id, Math.abs(otro.monto), cat);
+      const traspaso = clasificacionHeredada(vista, "traspaso", null);
+      await conciliarConMovimiento(ctx.empresa.id, id, "traspaso", otro.id, Math.abs(m.monto), traspaso);
+      await conciliarConMovimiento(ctx.empresa.id, otro.id, "traspaso", id, Math.abs(otro.monto), traspaso);
     } else {
       await conciliarConMovimiento(ctx.empresa.id, id, "otro", null, Math.abs(m.monto), null);
     }
@@ -232,7 +261,7 @@ export async function crearOperacionFactoringAction(fd: FormData): Promise<Resul
     const { error: e2 } = await supabaseAdmin.from("fin_cesiones").insert(filas);
     revienta("ceder las facturas", e2);
     const movimientoId = uuid(fd.get("movimientoId"));
-    if (movimientoId) await conciliarConMovimiento(ctx.empresa.id, movimientoId, "factoring", data!.id, 0, vista.categorias.find((c) => c.nombre === "Factoring")?.id ?? null);
+    if (movimientoId) await conciliarConMovimiento(ctx.empresa.id, movimientoId, "factoring", data!.id, 0, clasificacionHeredada(vista, "factoring", data!.id));
     await auditar(ctx, "fin_operaciones_factoring", data!.id, "crear", `Operación ${numero} con ${factor.nombre}: ${docs.length} factura(s)`);
     await registrarEvento(ctx, "factoring_cedido", "operacion_factoring", data!.id, { facturas: docs.length });
     refrescar();

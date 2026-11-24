@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, conciliarConMovimiento, contextoFin, contextoLeads, prefijoCotizacion, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
+import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, clasificacionHeredada, conciliarConMovimiento, contextoFin, contextoLeads, prefijoCotizacion, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { generarHitos, peso } from "@/lib/fin/reglas";
 import { ETAPAS_OPORTUNIDAD, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
 import { exigirRol } from "@/lib/fin/flujos";
@@ -604,7 +604,7 @@ export async function registrarCobroAction(fd: FormData): Promise<Resultado> {
     revienta("registrar el cobro", error);
     const { error: e2 } = await supabaseAdmin.from("fin_cobro_aplicaciones").insert(aplicaciones.map((a) => ({ cobro_id: data!.id, documento_id: a.documentoId, monto: a.monto })));
     revienta("aplicar el cobro", e2);
-    if (movimientoId) await conciliarConMovimiento(ctx.empresa.id, movimientoId, "cobro", data!.id, monto, vista.categorias.find((c) => c.nombre === "Cobro cliente")?.id ?? null);
+    if (movimientoId) await conciliarConMovimiento(ctx.empresa.id, movimientoId, "cobro", data!.id, monto, clasificacionHeredada(vista, "cobro", data!.id, aplicaciones));
     await auditar(ctx, "fin_cobros", data!.id, "crear", `Cobro ${numero} por ${monto}`);
     await registrarEvento(ctx, "cobro_registrado", "cobro", data!.id, { monto });
     refrescar();

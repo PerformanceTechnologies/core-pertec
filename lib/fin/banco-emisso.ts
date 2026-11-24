@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { reglaQueCalza, type ReglaCategoria } from "./reglas";
+import type { ReglaCategoria } from "./reglas";
+import { aplicableSola, sugerirClasificacion, type CategoriaLista } from "./clasificacion";
 import { ErrorEmisso, estadoConexionItau, movimientosItau, nominasItau, saldosItau } from "./emisso";
 import { ligarNominas, type NominaBanco } from "./nominas-modelo";
 import {
@@ -84,20 +85,29 @@ async function cuentasVinculadas(empresaId: string, numeros: string[]): Promise<
   return porNumero;
 }
 
-async function reglasDe(empresaId: string): Promise<{ reglas: ReglaCategoria[]; sinProyecto: Set<string> }> {
-  const [rR, cR] = await Promise.all([
-    supabaseAdmin.from("fin_reglas").select("id, cuenta_id, patron, monto_min, monto_max, categoria_id, proyecto_id, prioridad, activa").eq("empresa_id", empresaId),
-    supabaseAdmin.from("fin_categorias").select("id, requiere_proyecto").eq("empresa_id", empresaId),
+/** Las reglas de clasificación de la empresa y lo necesario para saber si una se aplica sola (ver lib/fin/clasificacion.ts). */
+async function reglasDe(empresaId: string): Promise<{ reglas: ReglaCategoria[]; categorias: CategoriaLista[]; conSubcategorias: Set<string> }> {
+  const [rR, cR, sR] = await Promise.all([
+    supabaseAdmin.from("fin_reglas").select("*").eq("empresa_id", empresaId),
+    supabaseAdmin.from("fin_categorias").select("id, nombre, sentido, requiere_proyecto, afecta_resultado, cuenta_contable, orden, activa").eq("empresa_id", empresaId),
+    supabaseAdmin.from("fin_subcategorias").select("categoria_id, activa").eq("empresa_id", empresaId),
   ]);
   if (rR.error) throw new Error(`No se pudieron leer las reglas: ${rR.error.message}`);
   if (cR.error) throw new Error(`No se pudieron leer las categorías: ${cR.error.message}`);
   const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-  type FilaRegla = { id: string; cuenta_id: string | null; patron: string; monto_min: unknown; monto_max: unknown; categoria_id: string; proyecto_id: string | null; prioridad: number; activa: boolean };
-  const reglas: ReglaCategoria[] = ((rR.data ?? []) as FilaRegla[]).map((r) => ({
-    id: r.id, cuentaId: r.cuenta_id, patron: r.patron, montoMin: num(r.monto_min), montoMax: num(r.monto_max), categoriaId: r.categoria_id,
-    proyectoId: r.proyecto_id, prioridad: r.prioridad, activa: r.activa,
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const reglas: ReglaCategoria[] = ((rR.data ?? []) as any[]).map((r) => ({
+    id: r.id, cuentaId: r.cuenta_id, patron: r.patron ?? "", contraparteRut: r.contraparte_rut ?? null, montoMin: num(r.monto_min), montoMax: num(r.monto_max),
+    categoriaId: r.categoria_id, subcategoriaId: r.subcategoria_id ?? null, proyectoId: r.proyecto_id, prioridad: r.prioridad, activa: r.activa,
   }));
-  return { reglas, sinProyecto: new Set(((cR.data ?? []) as { id: string; requiere_proyecto: boolean }[]).filter((c) => !c.requiere_proyecto).map((c) => c.id)) };
+  const categorias: CategoriaLista[] = ((cR.data ?? []) as any[]).map((c) => ({
+    id: c.id, nombre: c.nombre, sentido: c.sentido, requiereProyecto: c.requiere_proyecto, afectaResultado: c.afecta_resultado ?? true, cuentaContable: c.cuenta_contable,
+    orden: c.orden, activa: c.activa,
+  }));
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  // Sin la migración 0014 no hay subcategorías: las reglas se aplican como antes.
+  const conSubcategorias = new Set(((sR.data ?? []) as { categoria_id: string; activa: boolean }[]).filter((s) => s.activa).map((s) => s.categoria_id));
+  return { reglas, categorias, conSubcategorias };
 }
 
 type Guardada = { id: string; clave_externa: string; glosa: string; numero_documento: string | null; contraparte_rut: string | null };
@@ -118,7 +128,7 @@ async function yaGuardadas(empresaId: string, claves: string[]): Promise<Map<str
 
 async function insertarNuevos(empresaId: string, filas: FilaBanco[], cuentas: Map<string, string>): Promise<number> {
   if (!filas.length) return 0;
-  const { reglas, sinProyecto } = await reglasDe(empresaId);
+  const { reglas, categorias, conSubcategorias } = await reglasDe(empresaId);
   let total = 0;
   // Una importación por cuenta, como la cartola manual: así el resumen diario y Remuneraciones ven «banco actualizado».
   for (const [numero, cuentaId] of cuentas) {
@@ -131,15 +141,17 @@ async function insertarNuevos(empresaId: string, filas: FilaBanco[], cuentas: Ma
       .single();
     if (eImp) throw new Error(`No se pudo registrar la importación: ${eImp.message}`);
     const filasDb = deCuenta.map((f) => {
-      const regla = reglaQueCalza({ glosa: f.glosa, monto: f.monto, cuentaId }, reglas);
-      // Igual que la cartola: una regla cuya categoría no pide respaldo deja el movimiento listo de una.
-      const directa = regla && sinProyecto.has(regla.categoriaId) ? regla : null;
+      // Igual que la cartola: una regla de Finanzas (por texto o por RUT) con la clasificación completa deja el
+      // movimiento listo de una; lo demás queda «Por aclarar» con su sugerencia.
+      const sugerencia = sugerirClasificacion({ glosa: f.glosa, monto: f.monto, cuentaId, contraparteRut: f.contraparteRut }, reglas, []);
+      const directa = aplicableSola(sugerencia, categorias, conSubcategorias) ? sugerencia : null;
       return {
         empresa_id: empresaId, cuenta_id: cuentaId, fecha: f.fecha, glosa: f.glosa, monto: f.monto, numero_documento: f.documento,
         // La huella sigue siendo obligatoria y única; con el prefijo no choca con la de una cartola manual.
         huella: `emisso|${f.clave}`, clave_externa: f.clave, contraparte_rut: f.contraparteRut,
         importacion_id: imp!.id, creado_por: QUIEN,
-        categoria_id: directa?.categoriaId ?? null, proyecto_id: directa?.proyectoId ?? null, regla_id: directa?.id ?? null, tiene_respaldo: Boolean(directa),
+        categoria_id: directa?.categoriaId ?? null, proyecto_id: directa?.proyectoId ?? null, regla_id: directa?.reglaId ?? null, tiene_respaldo: Boolean(directa),
+        ...(conSubcategorias.size > 0 ? { subcategoria_id: directa?.subcategoriaId ?? null, clasificado_por: directa?.origen ?? null } : {}),
       };
     });
     const { data: ins, error } = await supabaseAdmin.from("fin_movimientos").upsert(filasDb, { onConflict: "empresa_id,huella", ignoreDuplicates: true }).select("id");

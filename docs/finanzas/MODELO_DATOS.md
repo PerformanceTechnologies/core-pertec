@@ -30,7 +30,10 @@ erDiagram
   fin_factores ||--o{ fin_operaciones_factoring : factor
   fin_cuentas ||--o{ fin_movimientos : cartola
   fin_importaciones ||--o{ fin_movimientos : trae
+  fin_categorias ||--o{ fin_subcategorias : tiene
   fin_categorias ||--o{ fin_movimientos : clasifica
+  fin_subcategorias ||--o{ fin_movimientos : detalla
+  fin_subcategorias ||--o{ fin_compras : "tipo de gasto"
   fin_reglas }o--|| fin_categorias : propone
   fin_movimientos ||--o{ fin_conciliaciones : "cobro/pago/traspaso"
   fin_asientos ||--o{ fin_asiento_lineas : lineas
@@ -41,7 +44,7 @@ erDiagram
 
 | Área | Tablas | Notas |
 |---|---|---|
-| Configuración | `fin_parametros` (uno por empresa: IVA, tolerancia, plazos, mínimo de caja, mora, horizonte, `flags`), `fin_cuentas` (banco/tarjeta/caja con saldo según banco), `fin_factores`, `fin_categorias`, `fin_reglas`, `fin_perfiles`, `fin_secuencias` + función `fin_siguiente_numero` | Catálogos sembrados para las tres empresas |
+| Configuración | `fin_parametros` (uno por empresa: IVA, tolerancia, plazos, mínimo de caja, mora, horizonte, `flags`), `fin_cuentas` (banco/tarjeta/caja con saldo según banco), `fin_factores`, `fin_categorias` (nivel 1 de la lista maestra; `afecta_resultado` = false en Financiamiento y Traspasos Internos), `fin_subcategorias` (nivel 2, clave a su categoría), `fin_reglas` (por texto de glosa o `contraparte_rut`, asignan categoría y subcategoría), `fin_perfiles`, `fin_secuencias` + función `fin_siguiente_numero` | Catálogos sembrados para las tres empresas |
 | Proyectos | `fin_proyectos` | Uno «General» (`PRY-0000`, `es_general`) por empresa para gastos sin proyecto |
 | Comercial | `fin_oportunidades`, `fin_actividades` (bitácora de oportunidades, hitos y documentos), `fin_cotizaciones` (versionadas con `padre_id`), `fin_cotizacion_lineas` | |
 | Ventas | `fin_hitos` (unidad facturable: EDP, hito, mes de arriendo, spot), `fin_documentos` (emitidos y recibidos; único por empresa + dirección + tipo + folio + RUT), `fin_documento_hitos`, `fin_cobros`, `fin_cobro_aplicaciones` | NC y ND referencian su factura con `documento_referenciado_id` |

@@ -383,6 +383,10 @@ export interface MovimientoBase {
   glosa: string;
   monto: number;
   categoriaId: string | null;
+  /** La subcategoría de la lista maestra. Una categoría con subcategorías no queda conciliada sin ella. */
+  subcategoriaId?: string | null;
+  /** Su categoría tiene subcategorías y todavía no se eligió una. */
+  faltaSubcategoria?: boolean;
   proyectoId: string | null;
   responsable: string | null;
   tieneRespaldo: boolean;
@@ -400,39 +404,56 @@ export interface Movimiento extends MovimientoBase {
 }
 
 export function calcularMovimiento(m: MovimientoBase, p: Parametros, hoy: Iso): Movimiento {
-  const conciliado = Boolean(m.categoriaId) && m.tieneRespaldo;
+  const conciliado = Boolean(m.categoriaId) && !m.faltaSubcategoria && m.tieneRespaldo;
   const estado: EstadoMovimiento = conciliado ? (m.conciliaciones > 0 ? "Conciliado con documento" : "Conciliado") : "Por aclarar";
   const dias = estado === "Por aclarar" ? diasEntre(m.fecha, hoy) : null;
   return { ...m, estado, diasSinAclarar: dias, escalar: dias !== null && dias > p.plazoAclararDias };
 }
 
-/** La regla de categorización que calza con un movimiento (la de menor prioridad primero). */
+/**
+ * Una regla de clasificación: reconoce un movimiento por un texto de la glosa o por el RUT de la contraparte, y le
+ * asigna categoría, subcategoría y (opcional) proyecto.
+ */
 export interface ReglaCategoria {
   id: string;
   cuentaId: string | null;
+  /** Texto que debe aparecer en la glosa. Vacío si la regla reconoce el RUT. */
   patron: string;
+  /** RUT de la contraparte. Si está, la regla reconoce el RUT y no el texto. */
+  contraparteRut?: string | null;
   montoMin: number | null;
   montoMax: number | null;
   categoriaId: string;
+  subcategoriaId?: string | null;
   proyectoId: string | null;
   prioridad: number;
   activa: boolean;
 }
 
-export function reglaQueCalza(m: Pick<MovimientoBase, "glosa" | "monto" | "cuentaId">, reglas: ReglaCategoria[]): ReglaCategoria | null {
+/** Un RUT para comparar: solo dígitos y K, sin puntos ni guion. */
+export const rutComparable = (rut: string | null | undefined): string => (rut ?? "").replace(/[^0-9kK]/g, "").toUpperCase();
+
+/**
+ * La regla que calza con un movimiento (la de menor prioridad primero). A igual prioridad, las de RUT van antes que
+ * las de texto: el RUT identifica a la contraparte sin ambigüedad.
+ */
+export function reglaQueCalza(
+  m: Pick<MovimientoBase, "glosa" | "monto" | "cuentaId"> & { contraparteRut?: string | null },
+  reglas: ReglaCategoria[],
+): ReglaCategoria | null {
   const glosa = m.glosa.toLowerCase();
+  const rut = rutComparable(m.contraparteRut);
   return (
     [...reglas]
       .filter((r) => r.activa)
-      .sort((a, b) => a.prioridad - b.prioridad)
-      .find(
-        (r) =>
-          (!r.cuentaId || r.cuentaId === m.cuentaId) &&
-          r.patron.trim() !== "" &&
-          glosa.includes(r.patron.trim().toLowerCase()) &&
-          (r.montoMin === null || m.monto >= r.montoMin) &&
-          (r.montoMax === null || m.monto <= r.montoMax),
-      ) ?? null
+      .sort((a, b) => a.prioridad - b.prioridad || Number(Boolean(b.contraparteRut)) - Number(Boolean(a.contraparteRut)))
+      .find((r) => {
+        if (r.cuentaId && r.cuentaId !== m.cuentaId) return false;
+        if (r.montoMin !== null && m.monto < r.montoMin) return false;
+        if (r.montoMax !== null && m.monto > r.montoMax) return false;
+        if (r.contraparteRut) return rut !== "" && rutComparable(r.contraparteRut) === rut;
+        return r.patron.trim() !== "" && glosa.includes(r.patron.trim().toLowerCase());
+      }) ?? null
   );
 }
 

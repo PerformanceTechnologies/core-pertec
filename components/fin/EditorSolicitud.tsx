@@ -27,6 +27,8 @@ export interface DatosEditorSolicitud {
   atencion: string;
   proveedorCorreo: string;
   proyectoId: string | null;
+  /** Tipo de gasto (subcategoría de la lista maestra de Finanzas). */
+  subcategoriaId?: string | null;
   moneda: Moneda;
   tipoCambio: string;
   lineas: LineaOc[];
@@ -142,6 +144,7 @@ export default function EditorSolicitud({
   condicionesEmpresa,
   puedeCrearProveedor = false,
   catalogo = [],
+  tiposGasto = [],
 }: {
   inicial: DatosEditorSolicitud;
   proveedores: OpcionContacto[];
@@ -155,6 +158,8 @@ export default function EditorSolicitud({
   puedeCrearProveedor?: boolean;
   /** Productos y servicios del inventario para elegir en cada ítem. */
   catalogo?: ProductoCatalogo[];
+  /** La lista maestra de gastos de Finanzas, por categoría. */
+  tiposGasto?: { categoria: string; opciones: { id: string; nombre: string }[] }[];
 }) {
   const router = useRouter();
   const catalogoBuscable = catalogo.map((p) => ({ ...p, valor: p.costo }));
@@ -174,6 +179,7 @@ export default function EditorSolicitud({
   const [atencion, setAtencion] = useState(inicial.atencion);
   const [proveedorCorreo, setProveedorCorreo] = useState(inicial.proveedorCorreo);
   const [proyectoId, setProyectoId] = useState(inicial.proyectoId ?? "");
+  const [subcategoriaId, setSubcategoriaId] = useState(inicial.subcategoriaId ?? "");
   const [moneda, setMoneda] = useState<Moneda>(inicial.moneda);
   const [tipoCambio, setTipoCambio] = useState(inicial.tipoCambio);
   const [lineas, setLineas] = useState<LineaForm[]>(inicial.lineas.length > 0 ? inicial.lineas.map(aForm) : [{ ...LINEA_NUEVA }]);
@@ -289,7 +295,7 @@ export default function EditorSolicitud({
 
   function guardar(enviar: boolean) {
     const datos = {
-      titulo, proveedorId, atencion, proveedorCorreo, proyectoId: proyectoId || null, solicitanteTipo, solicitanteUsuarioId: solicitanteUsuarioId || null, solicitanteOtro,
+      titulo, proveedorId, atencion, proveedorCorreo, proyectoId: proyectoId || null, subcategoriaId: subcategoriaId || null, solicitanteTipo, solicitanteUsuarioId: solicitanteUsuarioId || null, solicitanteOtro,
       moneda, tipoCambio: tc, lineas: items.filter((l) => l.descripcion), fechaRequerida: fechaRequerida || null, entregaLugar, entregaPlazo, formaPago,
       condicionPagoDias: condicionPagoDias.trim() === "" ? null : leerNumero(condicionPagoDias), observaciones, condiciones: condiciones.trim() === condicionesEmpresa.trim() ? "" : condiciones,
       oportunidadId: inicial.oportunidadId ?? null, solicitudCotizacionId: inicial.solicitudCotizacionId ?? null,
@@ -399,6 +405,18 @@ export default function EditorSolicitud({
           <Et t="Atención del proveedor" className="lg:col-span-2"><input value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Nombre de su contacto" maxLength={120} className={CAMPO_C} /></Et>
           <Et t="Correo para enviarle la OC" className="lg:col-span-3"><input value={proveedorCorreo} onChange={(e) => setProveedorCorreo(e.target.value)} type="email" inputMode="email" placeholder="ventas@proveedor.cl" maxLength={160} className={CAMPO_C} /></Et>
           <Et t="Se necesita para" className="lg:col-span-2"><input type="date" value={fechaRequerida} onChange={(e) => setFechaRequerida(e.target.value)} className={CAMPO_C} /></Et>
+          {tiposGasto.length > 0 && (
+            <Et t="Tipo de gasto (lo usa Finanzas para clasificar el pago)" className="sm:col-span-2 lg:col-span-5">
+              <select value={subcategoriaId} onChange={(e) => setSubcategoriaId(e.target.value)} className={CAMPO_C}>
+                <option value="">Elige…</option>
+                {tiposGasto.map((g) => (
+                  <optgroup key={g.categoria} label={g.categoria}>
+                    {g.opciones.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </Et>
+          )}
         </div>
       </Seccion>
 

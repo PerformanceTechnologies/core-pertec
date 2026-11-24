@@ -6,7 +6,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { borrarArchivos } from "@/lib/archivos/almacen";
 import { RUTA_FIN, auditar, contextoFin, exigirDeEmpresa, fechaValida, montoDe, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES } from "@/lib/fin/reglas";
-import { candidatosDeFlujo } from "@/lib/fin/flujos";
+import { candidatosDeFlujo, exigirRol } from "@/lib/fin/flujos";
+import { rutComparable } from "@/lib/fin/reglas";
 import { ROL_REMUNERACIONES, esRolAsignable } from "@/lib/fin/flujos-modelo";
 import { SLUG_EMPRESA_REMUNERACIONES } from "@/lib/fin/remuneraciones-modelo";
 import { formatearRut, normalizarRut, rutEsValido } from "@/lib/contratos/rut";
@@ -248,16 +249,21 @@ export async function guardarFactorAction(id: string | null, fd: FormData): Prom
 export async function guardarCategoriaAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_categorias", { accion: "cambiar la lista de categorías" });
     const nombre = texto(fd, "nombre", 60);
     if (!nombre) return { ok: false, error: "La categoría necesita un nombre." };
     const sentido = String(fd.get("sentido") ?? "ambos");
     const fila = {
       empresa_id: ctx.empresa.id, nombre, sentido: ["ingreso", "egreso", "ambos"].includes(sentido) ? sentido : "ambos",
-      requiere_proyecto: fd.get("requiereProyecto") === "on", cuenta_contable: texto(fd, "cuentaContable", 20), activa: fd.get("activa") !== "off",
+      requiere_proyecto: fd.get("requiereProyecto") === "on", afecta_resultado: fd.get("afectaResultado") !== "off",
+      cuenta_contable: texto(fd, "cuentaContable", 20), activa: fd.get("activa") !== "off",
     };
+    if (id) await exigirDeEmpresa("fin_categorias", id, ctx.empresa.id);
     const q = id ? supabaseAdmin.from("fin_categorias").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id) : supabaseAdmin.from("fin_categorias").insert({ ...fila, orden: 100 });
     const { error } = await q;
+    if (error?.code === "23505") return { ok: false, error: `Ya existe una categoría «${nombre}».` };
     revienta("guardar la categoría", error);
+    await auditar(ctx, "fin_categorias", id, id ? "editar" : "crear", `Categoría «${nombre}»${fila.activa ? "" : " (inactiva)"}`);
     refrescar();
     return { ok: true };
   } catch (e) {
@@ -265,23 +271,67 @@ export async function guardarCategoriaAction(id: string | null, fd: FormData): P
   }
 }
 
+/** Una subcategoría de la lista maestra (el texto exacto que usa Finanzas), con su cuenta contable si difiere de la categoría. */
+export async function guardarSubcategoriaAction(id: string | null, categoriaId: string, fd: FormData): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_categorias", { accion: "cambiar la lista de categorías" });
+    const cat = await exigirDeEmpresa("fin_categorias", categoriaId, ctx.empresa.id);
+    const nombre = texto(fd, "nombre", 80);
+    if (!nombre) return { ok: false, error: "La subcategoría necesita un nombre." };
+    const fila = { nombre, cuenta_contable: texto(fd, "cuentaContable", 20), activa: fd.get("activa") !== "off" };
+    let error;
+    if (id) {
+      const antes = await exigirDeEmpresa("fin_subcategorias", id, ctx.empresa.id);
+      if (antes.categoria_id !== categoriaId) return { ok: false, error: "Esa subcategoría es de otra categoría." };
+      ({ error } = await supabaseAdmin.from("fin_subcategorias").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id));
+    } else {
+      const { data: ultimas } = await supabaseAdmin.from("fin_subcategorias").select("orden").eq("categoria_id", categoriaId).order("orden", { ascending: false }).limit(1);
+      ({ error } = await supabaseAdmin.from("fin_subcategorias").insert({ ...fila, empresa_id: ctx.empresa.id, categoria_id: categoriaId, orden: Number(ultimas?.[0]?.orden ?? 0) + 1 }));
+    }
+    if (error?.code === "23505") return { ok: false, error: `«${cat.nombre}» ya tiene la subcategoría «${nombre}».` };
+    revienta("guardar la subcategoría", error);
+    await auditar(ctx, "fin_subcategorias", id, id ? "editar" : "crear", `${cat.nombre} › ${nombre}${fila.activa ? "" : " (inactiva)"}`);
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/**
+ * Una regla de clasificación: reconoce un texto de la glosa o el RUT de la contraparte y asigna categoría y subcategoría
+ * (el campo «clasificacion» llega como «categoriaId|subcategoriaId»).
+ */
 export async function guardarReglaAction(id: string | null, fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
-    const patron = texto(fd, "patron", 80);
-    const categoriaId = String(fd.get("categoriaId") ?? "");
-    if (!patron) return { ok: false, error: "Escribe qué texto de la glosa reconoce la regla." };
-    if (!categoriaId) return { ok: false, error: "Elige la categoría que asigna." };
+    await exigirRol(ctx, "tesoreria_categorias", { accion: "cambiar las reglas" });
+    const porRut = fd.get("tipo") === "rut";
+    const patron = porRut ? "" : texto(fd, "patron", 80);
+    const rut = porRut ? rutComparable(String(fd.get("rut") ?? "")) : null;
+    if (!porRut && !patron) return { ok: false, error: "Escribe qué texto de la glosa reconoce la regla." };
+    if (porRut && (!rut || rut.length < 7)) return { ok: false, error: "Escribe el RUT de la contraparte (ej. 76.123.456-7)." };
+    const [categoriaId, subcategoriaId = ""] = String(fd.get("clasificacion") ?? "").split("|");
+    if (!categoriaId) return { ok: false, error: "Elige la clasificación que asigna." };
     await exigirDeEmpresa("fin_categorias", categoriaId, ctx.empresa.id);
+    if (subcategoriaId) {
+      const sub = await exigirDeEmpresa("fin_subcategorias", subcategoriaId, ctx.empresa.id);
+      if (sub.categoria_id !== categoriaId) return { ok: false, error: "Esa subcategoría no es de la categoría elegida." };
+    } else {
+      const { count } = await supabaseAdmin.from("fin_subcategorias").select("id", { count: "exact", head: true }).eq("categoria_id", categoriaId).eq("activa", true);
+      if ((count ?? 0) > 0) return { ok: false, error: "Elige también la subcategoría." };
+    }
     const fila = {
-      empresa_id: ctx.empresa.id, patron, categoria_id: categoriaId, cuenta_id: String(fd.get("cuentaId") ?? "") || null,
+      empresa_id: ctx.empresa.id, patron: patron ?? "", contraparte_rut: rut, categoria_id: categoriaId, subcategoria_id: subcategoriaId || null,
+      cuenta_id: porRut ? null : String(fd.get("cuentaId") ?? "") || null,
       proyecto_id: String(fd.get("proyectoId") ?? "") || null, monto_min: montoDe(fd.get("montoMin")), monto_max: montoDe(fd.get("montoMax")),
       prioridad: entero(fd, "prioridad") ?? 100, activa: fd.get("activa") !== "off", creado_por: ctx.usuario.correo,
     };
     const q = id ? supabaseAdmin.from("fin_reglas").update(fila).eq("id", id).eq("empresa_id", ctx.empresa.id) : supabaseAdmin.from("fin_reglas").insert(fila);
     const { error } = await q;
     revienta("guardar la regla", error);
-    await auditar(ctx, "fin_reglas", id, id ? "editar" : "crear", `Regla «${patron}»`);
+    await auditar(ctx, "fin_reglas", id, id ? "editar" : "crear", porRut ? `Regla por RUT ${rut}` : `Regla «${patron}»`);
     refrescar();
     return { ok: true };
   } catch (e) {
@@ -292,6 +342,7 @@ export async function guardarReglaAction(id: string | null, fd: FormData): Promi
 export async function eliminarReglaAction(id: string): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_categorias", { accion: "cambiar las reglas" });
     await exigirDeEmpresa("fin_reglas", id, ctx.empresa.id);
     const { error } = await supabaseAdmin.from("fin_reglas").update({ activa: false }).eq("id", id);
     revienta("desactivar la regla", error);

@@ -24,7 +24,7 @@ export default async function EditarSolicitudPage({ params }: { params: Promise<
     id, codigo: c.codigo, titulo: c.descripcion, solicitanteTipo: c.solicitanteTipo ?? "yo",
     solicitanteUsuarioId: c.solicitanteTipo === "usuario" ? apoyo.personas.find((p) => p.correo.toLowerCase() === (c.solicitante ?? "").toLowerCase())?.id ?? null : null,
     solicitanteOtro: c.solicitanteTipo === "otro" ? c.solicitanteNombre ?? "" : "", proveedorId: c.proveedorId, atencion: c.atencion ?? "", proveedorCorreo: c.proveedorCorreo ?? "",
-    proyectoId: c.proyectoId && !v.proyectos.find((p) => p.id === c.proyectoId)?.esGeneral ? c.proyectoId : null, moneda: c.moneda, tipoCambio: c.moneda === "CLP" ? "" : String(c.tipoCambio).replace(".", ","),
+    proyectoId: c.proyectoId && !v.proyectos.find((p) => p.id === c.proyectoId)?.esGeneral ? c.proyectoId : null, subcategoriaId: c.subcategoriaId, moneda: c.moneda, tipoCambio: c.moneda === "CLP" ? "" : String(c.tipoCambio).replace(".", ","),
     lineas, fechaRequerida: c.fechaRequerida ?? "", entregaLugar: c.entregaLugar ?? "", entregaPlazo: c.entregaPlazo ?? "", formaPago: c.formaPago ?? "",
     condicionPagoDias: c.condicionPagoDias === null ? "" : String(c.condicionPagoDias), observaciones: c.observacionesOc ?? "", condiciones: c.condicionesOc ?? "", devueltaMotivo: c.devueltaMotivo ?? null,
   };

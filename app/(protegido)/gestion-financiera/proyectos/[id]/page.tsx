@@ -72,7 +72,7 @@ export default async function ProyectoPage({ params }: { params: Promise<{ id: s
       </Seccion>
       {movs.length > 0 && (
         <Seccion titulo={`Movimientos del banco y tarjeta (${movs.length})`}>
-          <ul className={`${TARJETA} divide-y divide-borde text-sm`}>{movs.map((m) => <li key={m.id} className="flex gap-3 px-4 py-2"><span className="w-20 text-xs text-gris">{fechaCl(m.fecha)}</span><span className="flex-1 truncate">{m.glosa}</span><span className="text-xs text-gris">{m.categoriaNombre}</span><Monto valor={m.monto} /></li>)}</ul>
+          <ul className={`${TARJETA} divide-y divide-borde text-sm`}>{movs.map((m) => <li key={m.id} className="flex gap-3 px-4 py-2"><span className="w-20 text-xs text-gris">{fechaCl(m.fecha)}</span><span className="flex-1 truncate">{m.glosa}</span><span className="text-xs text-gris">{m.categoriaNombre}{m.subcategoriaNombre ? ` › ${m.subcategoriaNombre}` : ""}</span><Monto valor={m.monto} /></li>)}</ul>
         </Seccion>
       )}
     </div>
