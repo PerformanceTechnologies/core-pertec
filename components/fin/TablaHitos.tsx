@@ -6,7 +6,7 @@ import { IconFileInvoice } from "@tabler/icons-react";
 import { actualizarCampoHitoAction, registrarFacturaVentaAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { ACCION_ETAPA, clp, fechaCl, peso, type EtapaHito } from "@/lib/fin/reglas";
 import type { HitoVista } from "@/lib/fin/datos";
-import { Chip, Deshabilitado, Monto, TONO_ETAPA, TD, TH } from "./piezas";
+import { Chip, Monto, TONO_ETAPA, TD, TH } from "./piezas";
 import { BOTON, BOTON_SEC, CAMPO, Campo, CampoEnLinea, ConVentana, FormAccion } from "./ui";
 
 const TRABAJO = [
@@ -37,9 +37,9 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
           {elegidos.some((h) => h.factura) && <span className="text-xs text-alerta">Alguno ya está facturado.</span>}
           <span className="flex-1" />
           <button type="button" onClick={() => setMarcados([])} className="text-xs font-semibold text-gris hover:text-tinta">Quitar selección</button>
-          {facturables && <Deshabilitado motivo="Disponible al integrar facturación electrónica" clase={BOTON_SEC}>Emitir factura electrónica</Deshabilitado>}
+          {facturables && <Link href={`/finanzas/facturacion/nuevo?hitos=${elegidos.map((h) => h.id).join(",")}`} className={BOTON}><IconFileInvoice size={15} /> Emitir factura electrónica</Link>}
           {facturables && (
-            <ConVentana boton={<><IconFileInvoice size={15} /> Registrar factura</>} titulo="Registrar factura de venta" descripcion={`${elegidos[0].clienteNombre ?? "Cliente"} · ${elegidos.map((h) => h.codigo).join(", ")}`} className={BOTON}>
+            <ConVentana boton="Registrar factura ya emitida" titulo="Registrar factura de venta" descripcion={`${elegidos[0].clienteNombre ?? "Cliente"} · ${elegidos.map((h) => h.codigo).join(", ")}`} className={BOTON_SEC}>
               {(cerrar) => (
                 <FormAccion accion={registrarFacturaVentaAction} textoBoton="Registrar factura" alOk={() => (setMarcados([]), cerrar())}>
                   {elegidos.map((h) => <input key={h.id} type="hidden" name="hitoIds" value={h.id} />)}
@@ -58,7 +58,7 @@ export default function TablaHitos({ hitos, tasaIva, hoy }: { hitos: HitoVista[]
                   <Campo etiqueta="Referencias" ayuda="OC, HES, DEM u otra que exija el cliente">
                     <input name="referencias" defaultValue={[...new Set(elegidos.map((h) => [h.ocClienteNumero && `OC ${h.ocClienteNumero}`, h.hesNumero && `HES ${h.hesNumero}`].filter(Boolean).join(" · ")))].filter(Boolean).join(" · ")} className={CAMPO} />
                   </Campo>
-                  <p className="text-[11px] text-gris">Emitir la factura electrónica desde el Core estará disponible al integrar la facturación electrónica. Hoy se registra la que emitiste en el SII; el PDF/XML se adjunta en la factura.</p>
+                  <p className="text-[11px] text-gris">Solo para una factura que ya emitiste fuera del Core (portal del SII u otro sistema). Para emitirla desde aquí, usa «Emitir factura electrónica».</p>
                 </FormAccion>
               )}
             </ConVentana>

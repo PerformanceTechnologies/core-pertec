@@ -82,3 +82,26 @@ export const carpetaGastosProyecto = (p?: { nombre?: string | null } | null) =>
 /** El nombre del PDF emitido: «<número> <cliente> (<id>).pdf». */
 export const nombrePdfEmitido = (o: { id: string; numero?: string | null; cliente?: string | null }) =>
   `${legible([o.numero, o.cliente].filter(Boolean).join(" "), "Oferta")} (${corto(o.id)}).pdf`;
+
+/** Documentos tributarios electrónicos (emitidos y recibidos): «Gestion financiera/<Empresa>/Facturas». */
+export const carpetaFacturas = (empresa: string | null | undefined) => `Gestion financiera/${legible(empresa, "Empresa")}/Facturas`;
+
+const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+/** «<base>/Emitidos/2026/03 Marzo» o «<base>/Recibidos/…». Sin fecha: «<base>/Por revisar». */
+export function carpetaDte(base: string, clase: "emitido" | "recibido", fechaIso: string | null): string {
+  const m = /^(\d{4})-(\d{2})/.exec(fechaIso ?? "");
+  if (!m) return `${base}/Por revisar`;
+  const mes = Number(m[2]);
+  return `${base}/${clase === "emitido" ? "Emitidos" : "Recibidos"}/${m[1]}/${String(mes).padStart(2, "0")} ${MESES[mes - 1] ?? "Mes"}`;
+}
+
+const TIPO_CORTO: Record<number, string> = { 33: "Factura", 34: "Factura exenta", 39: "Boleta", 41: "Boleta exenta", 43: "Liquidacion factura", 46: "Factura compra", 52: "Guia despacho", 56: "Nota debito", 61: "Nota credito", 110: "Factura exportacion", 111: "ND exportacion", 112: "NC exportacion" };
+
+/** «2026-03-14_Factura 1234_Cliente SpA» (emitidos) o «…_Proveedor Ltda (76123456-7)» (recibidos), sin extensión. */
+export function nombreDte(d: { clase: "emitido" | "recibido"; tipoDte: number | null; folio: string | null; fecha: string | null; contraparte: string | null; rut: string | null }): string {
+  const tipo = (d.tipoDte && TIPO_CORTO[d.tipoDte]) || (d.tipoDte ? `DTE ${d.tipoDte}` : "Documento");
+  const quien = legible(d.contraparte, d.rut ?? "Sin nombre").slice(0, 50);
+  const sufijo = d.clase === "recibido" && d.rut ? ` (${d.rut})` : "";
+  return `${d.fecha ?? "sin-fecha"}_${tipo} ${d.folio ?? "s-n"}_${quien}${sufijo}`.replace(/\s+/g, " ").trim();
+}

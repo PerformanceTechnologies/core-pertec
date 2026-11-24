@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { IconFileSearch, IconPlus, IconReceipt2 } from "@tabler/icons-react";
-import { cargarVista, RUTA_VENTAS } from "@/lib/fin/datos";
+import { cargarVista, contextoFin, RUTA_VENTAS } from "@/lib/fin/datos";
+import { listarEmisiones } from "@/lib/fin/dte/servicio";
 import { ETAPAS_HITO, clp, clpCorto, fechaCl, type EtapaHito } from "@/lib/fin/reglas";
 import { DTE_CORTO, TIPOS_DTE } from "@/lib/fin/modelo";
 import { anularCobroAction, anularDocumentoAction, guardarHitoAction, registrarNotaAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
-import { Banda, Chip, Deshabilitado, Monto, Pestanas, TD, TH, TONO_ETAPA, Vacio } from "@/components/fin/piezas";
+import { Banda, Chip, Monto, Pestanas, TD, TH, TONO_ETAPA, Vacio } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import TablaHitos from "@/components/fin/TablaHitos";
@@ -16,8 +17,10 @@ type Params = { ver?: string; etapa?: string; sinFecha?: string; q?: string };
 
 export default async function VentasPage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
-  const v = await cargarVista();
+  const [v, ctx] = await Promise.all([cargarVista(), contextoFin()]);
   const ver = sp.ver ?? "hitos";
+  // Lo emitido por el Core: de cada documento, su emisión (PDF, estado SII, NC electrónica).
+  const emisionDe = new Map((ver === "facturas" ? await listarEmisiones(ctx.empresa.id).catch(() => []) : []).filter((e) => e.documentoId).map((e) => [e.documentoId!, e.id]));
   const activos = v.hitos.filter((h) => !h.anulado);
   const enEtapa = (e: EtapaHito) => activos.filter((h) => h.etapa === e).length;
   const emitidos = v.documentos.filter((d) => d.direccion === "emitido").sort((a, b) => b.fechaEmision.localeCompare(a.fechaEmision));
@@ -114,7 +117,8 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
       {ver === "facturas" && (
         <>
           <div className="flex flex-wrap gap-2">
-            <ConVentana boton="Nota de crédito / débito / guía" titulo="Registrar nota o guía" className={BOTON_SEC}>
+            <Link href="/finanzas/facturacion" className={BOTON}>Emitir nota o guía electrónica</Link>
+            <ConVentana boton="Registrar nota o guía ya emitida" titulo="Registrar nota o guía" className={BOTON_SEC}>
               {(
                 <FormAccion accion={registrarNotaAction} textoBoton="Registrar">
                   <input type="hidden" name="direccion" value="emitido" />
@@ -156,7 +160,8 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
                       <td className={`${TD} text-right`}>{[61, 52].includes(d.tipoDte) || (d.tipoDte === 56 && d.documentoReferenciadoId) ? "—" : <Monto valor={d.saldo} tono={d.saldo > 0 ? "font-semibold text-tinta" : "text-ok"} />}</td>
                       <td className={`${TD} text-xs text-gris`}>{v.hitos.filter((h) => d.hitoIds.includes(h.id)).map((h) => h.codigo).join(", ") || "—"}</td>
                       <td className={`${TD} whitespace-nowrap text-right`}>
-                        <SubirAdjunto entidadTipo="documento" entidadId={d.id} tipo="factura_pdf" texto="PDF/XML" />{" "}
+                        {emisionDe.has(d.id) ? <Link href={`/finanzas/facturacion/${emisionDe.get(d.id)}`} className={BOTON_SEC}>Ver DTE</Link> : <SubirAdjunto entidadTipo="documento" entidadId={d.id} tipo="factura_pdf" texto="PDF/XML" />}{" "}
+                        {d.estado === "vigente" && [33, 34].includes(d.tipoDte) && <Link href={`/finanzas/facturacion/nuevo?tipo=61&ref=${d.id}`} className={BOTON_SEC} title="Emitir nota de crédito electrónica">NC</Link>}{" "}
                         {d.estado === "vigente" && <BotonAccion accion={anularDocumentoAction.bind(null, d.id)} motivo={`¿Por qué se anula el documento ${d.folio}?`}>Anular</BotonAccion>}
                       </td>
                     </tr>
@@ -192,7 +197,7 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
         )
       )}
       <p className="text-[11px] text-gris-suave">
-        <span className="font-semibold">Emitir factura electrónica</span> y <span className="font-semibold">ceder electrónicamente</span> estarán disponibles al integrar la facturación electrónica; mientras, se registra lo emitido en el SII. <Deshabilitado motivo="Disponible al integrar facturación electrónica" clase={`${BOTON} ml-1`}>Emitir factura electrónica</Deshabilitado>
+        Para facturar: marca los hitos «Lista para facturar» y usa <span className="font-semibold">Emitir factura electrónica</span>. Notas, guías, recibidos y cesión: <Link href="/finanzas/facturacion" className="font-semibold text-naranjo">Facturación electrónica</Link>.
       </p>
     </div>
   );

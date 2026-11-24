@@ -9,7 +9,7 @@ import { agregarActividadAction } from "@/app/(protegido)/gestion-financiera/acc
 import { anularHitoAction, guardarHitoAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { Chip, Monto, Seccion, TONO_ETAPA } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ComboContacto, ConVentana, FormAccion, SubirAdjunto } from "@/components/fin/ui";
-import { CAMPO, BOTON_SEC } from "@/components/fin/estilos";
+import { BOTON, CAMPO, BOTON_SEC } from "@/components/fin/estilos";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
 
 export const dynamic = "force-dynamic";
@@ -102,6 +102,8 @@ export default async function HitoPage({ params }: { params: Promise<{ id: strin
             </ul>
           </Seccion>
           <div className="flex flex-wrap gap-2">
+            {!h.anulado && !h.factura && h.etapa === "Lista para facturar" && <Link href={`/finanzas/facturacion/nuevo?hitos=${h.id}`} className={BOTON}>Emitir factura electrónica</Link>}
+            {!h.anulado && !h.guiaDespacho && (h.tipo === "arriendo" || h.tipo === "venta") && <Link href={`/finanzas/facturacion/nuevo?tipo=52&hitos=${h.id}`} className={BOTON_SEC}>Emitir guía de despacho</Link>}
             <ConVentana boton="Editar hito" titulo={`Editar ${h.codigo}`} className={BOTON_SEC}>
               {(
                 <FormAccion accion={guardarHitoAction.bind(null, h.id)} textoBoton="Guardar">
