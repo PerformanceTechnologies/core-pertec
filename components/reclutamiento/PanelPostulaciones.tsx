@@ -95,7 +95,10 @@ function hace(segundos: number) {
 }
 
 /** Los filtros como pastillas, igual que el buscador de Contactos. */
-const PASTILLA = `${CAMPO_C} rounded-full`;
+const PASTILLA = `${CAMPO_C.replace("w-full", "")} rounded-full`;
+
+/** Los cuatro desplegables del mismo ancho: dos por fila en el celular, todos en una desde tablet. */
+const ANCHO_FILTRO = "w-[calc(50%-0.3125rem)] sm:w-44";
 
 export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   const [postulaciones, setPostulaciones] = useState<PostulacionGuardada[] | null>(null);
@@ -293,7 +296,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
             onChange={(e) => setFiltros((f) => ({ ...f, busqueda: e.target.value }))}
             placeholder="Nombre, RUT o correo…"
             aria-label="Buscar postulaciones"
-            className={`${PASTILLA} pl-9`}
+            className={`${PASTILLA} w-full pl-9`}
           />
         </div>
         <Selector valor={filtros.cargo} alCambiar={(v) => setFiltros((f) => ({ ...f, cargo: v }))} todos="Todos los cargos" opciones={opcionesCargo} />
@@ -303,7 +306,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
           value={filtros.rango}
           onChange={(e) => setFiltros((f) => ({ ...f, rango: e.target.value as Rango }))}
           aria-label="Periodo"
-          className={`${PASTILLA} w-auto ${filtros.rango !== "todos" ? "bg-tinta/[0.1] font-semibold" : ""}`}
+          className={`${PASTILLA} ${ANCHO_FILTRO} ${filtros.rango !== "todos" ? "bg-tinta/[0.1] font-semibold" : ""}`}
         >
           {RANGOS.map((r) => (
             <option key={r.valor} value={r.valor}>
@@ -316,21 +319,30 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
             <IconX size={13} /> Limpiar
           </button>
         )}
-        <button onClick={exportarSeleccionadas} disabled={seleccionados.size === 0} className={`${BOTON_SUAVE_C} ml-auto disabled:cursor-not-allowed`} title={seleccionados.size === 0 ? "Marca postulaciones en la lista para exportarlas" : undefined}>
-          <IconDownload size={16} /> Exportar a Excel{seleccionados.size > 0 && ` (${seleccionados.size})`}
-        </button>
       </div>
 
       {/* ── La lista ── */}
       <div className={`${HOJA} overflow-hidden`}>
-        <div className="flex items-center justify-between gap-3 border-b border-borde/60 px-4 py-2.5 text-xs text-gris">
+        {/* Cuántas hay, cuándo se actualizó y exportar lo marcado: todo lo de la lista en su cabecera. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-borde/60 px-4 py-2.5 text-xs text-gris">
           <span>
             <b className="font-semibold text-tinta">{filtradas.length}</b> de {postulaciones?.length ?? 0} postulaciones
+            {seleccionados.size > 0 && <span className="font-semibold text-naranjo"> · {seleccionados.size} marcadas</span>}
           </span>
           <span className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${cargando ? "animate-pulse bg-naranjo" : "bg-emerald-500"}`} />
             {actualizadoEn ? `Actualizado ${hace(segundosDesde)}` : "Cargando…"}
           </span>
+          <button
+            onClick={exportarSeleccionadas}
+            disabled={seleccionados.size === 0}
+            title={seleccionados.size === 0 ? "Marca postulaciones en la lista para exportarlas" : undefined}
+            className={`ml-auto inline-flex min-h-8 items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition disabled:cursor-not-allowed ${
+              seleccionados.size > 0 ? "bg-naranjo text-white hover:bg-naranjo-suave" : "bg-tinta/[0.05] text-gris-suave"
+            }`}
+          >
+            <IconDownload size={15} /> Exportar a Excel{seleccionados.size > 0 && ` (${seleccionados.size})`}
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -431,7 +443,7 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
 /** Un filtro desplegable en pastilla; se oscurece cuando tiene algo elegido. */
 function Selector({ valor, alCambiar, todos, opciones }: { valor: string; alCambiar: (v: string) => void; todos: string; opciones: string[] }) {
   return (
-    <select value={valor} onChange={(e) => alCambiar(e.target.value)} aria-label={todos} className={`${PASTILLA} w-auto max-w-[13rem] ${valor ? "bg-tinta/[0.1] font-semibold" : ""}`}>
+    <select value={valor} onChange={(e) => alCambiar(e.target.value)} aria-label={todos} className={`${PASTILLA} ${ANCHO_FILTRO} ${valor ? "bg-tinta/[0.1] font-semibold" : ""}`}>
       <option value="">{todos}</option>
       {opciones.map((o) => (
         <option key={o} value={o}>
