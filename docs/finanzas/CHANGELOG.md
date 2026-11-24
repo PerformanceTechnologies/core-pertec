@@ -1,5 +1,14 @@
 # Gestión financiera · Cambios
 
+## 2026-11-24 · Clasificación con IA
+
+- **La IA sugiere** categoría y subcategoría (Claude) para los movimientos que ni las reglas ni los movimientos anteriores reconocen, con su seguridad y el porqué. Corre cada mañana después de traer el banco y a pedido con «Sugerir con IA». Aprende de lo ya clasificado (se le pasan como ejemplos). Cada movimiento se revisa una sola vez; las nóminas no se envían.
+- **Acierto medido:** al clasificar un movimiento que tenía sugerencia, queda si se aceptó o se corrigió. Configuración → Categorías y reglas muestra el % de acierto de los últimos 30 días.
+- **Reglas propuestas:** lo clasificado igual 3 o más veces sin regla se ofrece como regla de un clic.
+- **Aplicar sola (apagado por omisión):** se activa en Configuración con un umbral de seguridad (mínimo 80 %, por omisión 95 %); nunca para categorías que piden proyecto.
+- Arreglo: guardar los Parámetros ya no borra los demás ajustes de la empresa.
+- Migración `supabase/fin/0015_clasificacion_ia.sql` (columnas `sugerencia_ia`, `ia_revisado_en`, `ia_resultado` en `fin_movimientos`; `clasificado_por` admite «ia»).
+
 ## 2026-11-24 · Clasificación con la lista maestra de Finanzas (Categoría → Subcategoría)
 
 - Las 10 categorías genéricas se reemplazan por las **15 categorías y 75 subcategorías** de Finanzas (hoja «Lista» del Excel de cartolas Itaú), con los textos exactos. Financiamiento y Traspasos Internos quedan marcados como «no es ingreso ni gasto» y no suman en los totales.

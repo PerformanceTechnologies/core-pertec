@@ -148,9 +148,16 @@ export async function guardarPerfilEmpresaAction(fd: FormData): Promise<Resultad
 
 // ---------- Parámetros ------------------------------------------------------------
 
+/** Los flags de la empresa tal como están (para cambiar uno sin borrar los demás). */
+async function flagsDe(empresaId: string): Promise<Record<string, unknown>> {
+  const { data } = await supabaseAdmin.from("fin_parametros").select("flags").eq("empresa_id", empresaId).maybeSingle();
+  return ((data as { flags?: Record<string, unknown> } | null)?.flags ?? {}) as Record<string, unknown>;
+}
+
 export async function guardarParametrosAction(fd: FormData): Promise<Resultado> {
   try {
     const ctx = await contextoFin();
+    const flagsAntes = await flagsDe(ctx.empresa.id);
     const fila = {
       empresa_id: ctx.empresa.id,
       tasa_iva: pct(fd, "tasaIva") ?? 0.19,
@@ -162,7 +169,8 @@ export async function guardarParametrosAction(fd: FormData): Promise<Resultado> 
       plazo_reclamo_factura_dias: entero(fd, "plazoReclamoFacturaDias") ?? 8,
       horizonte_meses: Math.min(12, Math.max(1, entero(fd, "horizonteMeses") ?? 3)),
       condicion_pago_default: entero(fd, "condicionPagoDefault") ?? 30,
-      flags: { contabilidad_activa: fd.get("contabilidadActiva") === "on" },
+      // Se conservan los demás flags (p. ej. los de la clasificación con IA).
+      flags: { ...flagsAntes, contabilidad_activa: fd.get("contabilidadActiva") === "on" },
       actualizado_por: ctx.usuario.correo,
       actualizado_en: new Date().toISOString(),
     };
@@ -332,6 +340,37 @@ export async function guardarReglaAction(id: string | null, fd: FormData): Promi
     const { error } = await q;
     revienta("guardar la regla", error);
     await auditar(ctx, "fin_reglas", id, id ? "editar" : "crear", porRut ? `Regla por RUT ${rut}` : `Regla «${patron}»`);
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Crear de un clic una regla que el Core propone (lo ya clasificado igual varias veces). */
+export async function crearReglaPropuestaAction(tipo: "texto" | "rut", valor: string, categoriaId: string, subcategoriaId: string | null): Promise<Resultado> {
+  const fd = new FormData();
+  fd.set("tipo", tipo);
+  fd.set(tipo === "rut" ? "rut" : "patron", valor);
+  fd.set("clasificacion", `${categoriaId}|${subcategoriaId ?? ""}`);
+  return guardarReglaAction(null, fd);
+}
+
+/**
+ * La clasificación con IA: si se aplica sola y desde qué seguridad. Apagada por omisión; la decide quien mantiene las
+ * categorías.
+ */
+export async function guardarIaAction(fd: FormData): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_categorias", { accion: "cambiar la clasificación con IA" });
+    const auto = fd.get("iaAuto") === "on";
+    const umbral = pct(fd, "iaUmbral") ?? 0.95;
+    if (umbral < 0.8) return { ok: false, error: "El umbral mínimo es 80 %: por debajo, la IA se equivoca demasiado para aplicarse sola." };
+    const flags = { ...(await flagsDe(ctx.empresa.id)), ia_auto: auto, ia_umbral: umbral };
+    const { error } = await supabaseAdmin.from("fin_parametros").upsert({ empresa_id: ctx.empresa.id, flags }, { onConflict: "empresa_id" });
+    revienta("guardar la configuración de la IA", error);
+    await auditar(ctx, "fin_parametros", null, "ia", auto ? `IA se aplica sola desde ${Math.round(umbral * 100)} % de seguridad` : "IA solo sugiere");
     refrescar();
     return { ok: true };
   } catch (e) {

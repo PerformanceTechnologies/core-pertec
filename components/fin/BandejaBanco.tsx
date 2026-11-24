@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconChevronDown, IconUpload, IconWand } from "@tabler/icons-react";
-import { aceptarSugerenciasAction, categorizarMovimientoAction, conciliarMovimientoAction, reglaDesdeMovimientoAction } from "@/app/(protegido)/gestion-financiera/acciones-tesoreria";
+import { IconChevronDown, IconSparkles, IconUpload, IconWand } from "@tabler/icons-react";
+import { aceptarSugerenciasAction, categorizarMovimientoAction, conciliarMovimientoAction, pedirSugerenciasIaAction, reglaDesdeMovimientoAction } from "@/app/(protegido)/gestion-financiera/acciones-tesoreria";
 import { clp, fechaCl } from "@/lib/fin/reglas";
 import type { MovimientoVista } from "@/lib/fin/datos";
 import { ETIQUETA_ORIGEN } from "@/lib/fin/clasificacion";
@@ -62,8 +62,10 @@ export function ImportarCartola({ cuentas }: { cuentas: Ref[] }) {
  * La bandeja del banco diario: cada movimiento con su clasificación sugerida (un clic), y al abrirlo, categoría y
  * subcategoría de la lista maestra, proyecto, a quién preguntar, respaldo, «es un cobro / es un pago» y guardar regla.
  */
-export default function BandejaBanco({ movimientos, categorias, subcategorias, proyectos, facturas, pagos, cobros, cuentasBanco, hoy }: {
+export default function BandejaBanco({ movimientos, categorias, subcategorias, proyectos, facturas, pagos, cobros, cuentasBanco, hoy, paraIa = 0 }: {
   movimientos: MovimientoVista[];
+  /** Pendientes que la IA todavía no revisa (sin clasificar, sin sugerencia, no nóminas). */
+  paraIa?: number;
   categorias: OpcionCategoria[];
   subcategorias: OpcionSubcategoria[];
   proyectos: Ref[];
@@ -81,11 +83,22 @@ export default function BandejaBanco({ movimientos, categorias, subcategorias, p
   const sugeridos = movimientos.filter((m) => m.sugerencia && !m.categoriaId && (!conSub.has(m.sugerencia.categoriaId) || m.sugerencia.subcategoriaId));
   return (
     <div className="space-y-2">
+      {paraIa > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-superficie px-4 py-2.5 text-sm">
+          <IconSparkles size={17} className="text-naranjo" />
+          <span className="flex-1 text-tinta">
+            {paraIa} movimiento(s) sin sugerencia. La IA los revisa cada mañana; si no quieres esperar, pídelo ahora. Solo sugiere: tú decides.
+          </span>
+          <BotonAccion accion={() => pedirSugerenciasIaAction()} className={BOTON_SEC}>
+            <IconSparkles size={14} /> Sugerir con IA
+          </BotonAccion>
+        </div>
+      )}
       {sugeridos.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/40 bg-violet-500/[0.06] px-4 py-2.5 text-sm">
           <IconWand size={17} className="text-violet-600" />
           <span className="flex-1 text-tinta">
-            {sugeridos.length} movimiento(s) con clasificación sugerida por tus reglas o por movimientos anteriores iguales. Revísalos y acéptalos de una.
+            {sugeridos.length} movimiento(s) con clasificación sugerida (por tus reglas, por movimientos anteriores iguales o por la IA). Revisa las sugerencias de la IA antes de aceptarlas todas.
           </span>
           <BotonAccion accion={() => aceptarSugerenciasAction(sugeridos.map((m) => m.id))} className={BOTON}>Aceptar todas</BotonAccion>
         </div>
@@ -113,7 +126,10 @@ export default function BandejaBanco({ movimientos, categorias, subcategorias, p
                 </span>
                 {sug && textoSug && (
                   <span title={sug.motivo}>
-                    <Chip texto={`Sugerido: ${textoSug}`} tono="bg-violet-500/10 text-violet-700" />
+                    <Chip
+                      texto={sug.origen === "ia" ? `IA: ${textoSug} · ${Math.round((sug.confianza ?? 0) * 100)} %` : `Sugerido: ${textoSug}`}
+                      tono={sug.origen === "ia" ? "bg-naranjo/10 text-naranjo" : "bg-violet-500/10 text-violet-700"}
+                    />
                   </span>
                 )}
                 {exactas.length > 0 && <Chip texto={`Calza con factura ${exactas[0].folio}`} tono="bg-emerald-500/10 text-ok" />}
@@ -128,7 +144,11 @@ export default function BandejaBanco({ movimientos, categorias, subcategorias, p
               {abierto === m.id && (
                 <div className="grid gap-4 border-t border-borde bg-tinta/[0.015] px-4 py-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
                   <FormAccion accion={categorizarMovimientoAction.bind(null, m.id)} textoBoton="Guardar" alOk={() => setAbierto(null)}>
-                    {sug && <p className="text-xs text-violet-700">Sugerencia: {sug.motivo}. Ya viene elegida abajo: revísala y guarda.</p>}
+                    {sug && (
+                      <p className={`text-xs ${sug.origen === "ia" ? "text-naranjo" : "text-violet-700"}`}>
+                        {sug.origen === "ia" ? sug.motivo : `Sugerencia: ${sug.motivo}`}. Ya viene elegida abajo: revísala y guarda. Si la cambias, la IA aprende de tu corrección.
+                      </p>
+                    )}
                     <div className="grid gap-3 sm:grid-cols-2">
                       <SelectorClasificacion
                         monto={m.monto}

@@ -1,9 +1,10 @@
 import { IconBuildingBank, IconCalculator, IconCreditCard, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
 import { RUTA_FIN, cargarVista, contextoFin, type Categoria, type Perfil, type Subcategoria } from "@/lib/fin/datos";
 import { perfilDeEmpresa } from "@/lib/fin/empresa-perfil";
-import { clp, fechaCl } from "@/lib/fin/reglas";
+import { clp, fechaCl, sumarDias } from "@/lib/fin/reglas";
+import { aciertoIa, proponerReglas, type Clasificado } from "@/lib/fin/clasificacion";
 import { TARJETA } from "@/lib/estilos";
-import { eliminarReglaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction, guardarSubcategoriaAction } from "../acciones-config";
+import { crearReglaPropuestaAction, eliminarReglaAction, guardarIaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction, guardarSubcategoriaAction } from "../acciones-config";
 import { Pestanas, Seccion, TD, TH } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -231,6 +232,16 @@ function CategoriasYReglas({ v }: { v: VistaConfig }) {
   const reglasActivas = v.reglas.filter((r) => r.activa);
   const reglasApagadas = v.reglas.filter((r) => !r.activa).length;
   const totalSubs = v.subcategorias.filter((s) => s.activa).length;
+  const activaId = new Set(activas.map((c) => c.id));
+  const clasificados: Clasificado[] = v.movimientos
+    .filter((m) => m.categoriaId && activaId.has(m.categoriaId) && !m.faltaSubcategoria)
+    .map((m) => ({ id: m.id, fecha: m.fecha, glosa: m.glosa, monto: m.monto, contraparteRut: m.contraparteRut, categoriaId: m.categoriaId!, subcategoriaId: m.subcategoriaId ?? null, proyectoId: m.proyectoId }));
+  const propuestas = proponerReglas(clasificados, v.reglas).slice(0, 12);
+  const acierto = aciertoIa(v.movimientos);
+  const acierto30 = aciertoIa(v.movimientos, sumarDias(v.hoy, -30));
+  const iaAuto = v.flags.ia_auto === true;
+  const iaUmbral = typeof v.flags.ia_umbral === "number" ? v.flags.ia_umbral : 0.95;
+  const pct = (x: number | null) => (x === null ? "—" : `${Math.round(x * 100)} %`);
 
   return (
     <div className="space-y-4">
@@ -298,6 +309,54 @@ function CategoriasYReglas({ v }: { v: VistaConfig }) {
           </div>
         </Seccion>
 
+        <div className="space-y-6">
+        <Seccion titulo="Clasificación con IA">
+          <div className={`${TARJETA} space-y-3 p-4 text-sm`}>
+            <p className="text-xs text-gris">
+              Cada mañana, la IA sugiere categoría y subcategoría para los movimientos que ni las reglas ni los movimientos anteriores reconocen. Aprende de cómo
+              clasifica Finanzas: cada sugerencia que se acepta o se corrige la mejora.
+            </p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-tinta/[0.03] p-2"><p className="text-[11px] text-gris">Acierto (30 días)</p><p className="text-lg font-bold tabular-nums text-tinta">{pct(acierto30.pct)}</p></div>
+              <div className="rounded-lg bg-tinta/[0.03] p-2"><p className="text-[11px] text-gris">Aceptadas</p><p className="text-lg font-bold tabular-nums text-ok">{acierto.aceptadas}</p></div>
+              <div className="rounded-lg bg-tinta/[0.03] p-2"><p className="text-[11px] text-gris">Corregidas</p><p className="text-lg font-bold tabular-nums text-aviso">{acierto.corregidas}</p></div>
+            </div>
+            <FormAccion accion={guardarIaAction} textoBoton="Guardar">
+              <label className="flex items-start gap-2.5 text-sm">
+                <input type="checkbox" name="iaAuto" defaultChecked={iaAuto} className="mt-0.5" />
+                <span>
+                  <span className="font-semibold text-tinta">Que se aplique sola cuando esté muy segura</span>
+                  <span className="block text-xs text-gris">
+                    Apagado = solo sugiere y Tesorería acepta. Actívalo cuando el acierto lleve varias semanas sobre el umbral
+                    {acierto30.revisados < 30 ? ` (hoy hay ${acierto30.revisados} revisadas en 30 días: conviene esperar al menos 30)` : ""}.
+                  </span>
+                </span>
+              </label>
+              <Campo etiqueta="Desde qué seguridad (%)" ayuda="Mínimo 80. Las categorías que piden proyecto nunca se aplican solas.">
+                <input name="iaUmbral" defaultValue={Math.round(iaUmbral * 100)} inputMode="numeric" className={CAMPO} />
+              </Campo>
+            </FormAccion>
+          </div>
+        </Seccion>
+
+        {propuestas.length > 0 && (
+          <Seccion titulo="Reglas propuestas">
+            <p className="mb-2 text-xs text-gris">Movimientos que ya se clasificaron igual 3 o más veces y ninguna regla reconoce. Con un clic llegan clasificados solos.</p>
+            <ul className={`${TARJETA} divide-y divide-borde`}>
+              {propuestas.map((r) => (
+                <li key={`${r.tipo}-${r.valor}`} className="flex items-start gap-3 px-4 py-2 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-mono text-xs">{r.tipo === "rut" ? `RUT ${r.valor}` : `«${r.valor}»`}</span>
+                    <span className="block text-xs font-semibold text-tinta">→ {nombreClasif(r.categoriaId, r.subcategoriaId)}</span>
+                    <span className="block truncate text-[11px] text-gris">{r.veces} veces · ej. {r.ejemplo}</span>
+                  </span>
+                  <BotonAccion accion={crearReglaPropuestaAction.bind(null, r.tipo, r.valor, r.categoriaId, r.subcategoriaId)} className="text-xs font-semibold text-naranjo">Crear regla</BotonAccion>
+                </li>
+              ))}
+            </ul>
+          </Seccion>
+        )}
+
         <Seccion titulo="Reglas automáticas" accion={<ConVentana boton={<><IconPlus size={14} /> Regla</>} titulo="Nueva regla" className={BOTON_SEC}>{<FormRegla v={v} />}</ConVentana>}>
           <p className="mb-2 text-xs text-gris">
             Cada mañana, lo que calza con una regla llega clasificado. También se crean desde un movimiento del banco con «Regla por texto» o «Regla por RUT».
@@ -316,6 +375,7 @@ function CategoriasYReglas({ v }: { v: VistaConfig }) {
           </ul>
           {reglasApagadas > 0 && <p className="mt-2 text-[11px] text-gris">{reglasApagadas} regla(s) desactivada(s): apuntaban a categorías antiguas sin equivalencia clara en la lista nueva.</p>}
         </Seccion>
+        </div>
       </div>
     </div>
   );

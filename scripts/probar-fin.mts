@@ -26,8 +26,13 @@ import {
   type ProyectoBase,
 } from "../lib/fin/reglas";
 import {
+  aciertoIa,
   aplicableSola,
   categoriaDeIngreso,
+  iaAplicableSola,
+  proponerReglas,
+  resultadoIa,
+  sugerenciaDeIa,
   categoriasPara,
   glosaComparable,
   resumenPorCategoria,
@@ -330,6 +335,41 @@ assert.deepEqual([cifrasProyecto(proyecto("General", null), hitos, compras).comp
   assert.deepEqual(r.sinResultado.map((f) => [f.nombre, f.egresos]), [["Traspasos Internos", 900000]]);
   assert.deepEqual(r.porAclarar, { movimientos: 1, ingresos: 0, egresos: 45000 });
   assert.equal(r.resultado.find((f) => f.categoriaId === "Costos Financieros")?.subcategorias[0].nombre, "Comisiones Bancarias");
+
+  // IA: su sugerencia solo vale si calza con la lista de hoy y con el sentido del monto.
+  const ia = { categoria_id: "Costos Financieros", subcategoria_id: "comisiones", confianza: 0.97, motivo: "es una comisión", modelo: "x", en: "2026-11-24" };
+  const sIa = sugerenciaDeIa(ia, -18500, CATS, SUBS);
+  assert.equal(sIa?.origen, "ia");
+  assert.equal(sIa?.subcategoriaId, "comisiones");
+  assert.equal(sugerenciaDeIa(ia, 18500, CATS, SUBS), null, "un abono no puede ser un gasto");
+  assert.equal(sugerenciaDeIa({ ...ia, subcategoria_id: null }, -1, CATS, SUBS), null, "sin subcategoría no vale si la categoría las tiene");
+  assert.equal(sugerenciaDeIa({ ...ia, categoria_id: "Remuneraciones", subcategoria_id: null }, -1, CATS, SUBS), null, "una categoría antigua no vale");
+  assert.ok(!aplicableSola(sIa, CATS, conSub), "la IA nunca se aplica como una regla");
+  assert.ok(iaAplicableSola(sIa, 0.95, CATS));
+  assert.ok(!iaAplicableSola(sIa, 0.98, CATS), "bajo el umbral, solo sugiere");
+  const combustible = sugerenciaDeIa({ ...ia, categoria_id: "Operaciones y Proyectos", subcategoria_id: "combustible", confianza: 0.99 }, -1, CATS, SUBS);
+  assert.ok(!iaAplicableSola(combustible, 0.9, CATS), "lo que pide proyecto nunca se aplica solo");
+  assert.equal(resultadoIa(ia, "Costos Financieros", "comisiones"), "aceptada");
+  assert.equal(resultadoIa(ia, "Costos Financieros", null), "corregida");
+  assert.equal(resultadoIa(null, "Costos Financieros", "comisiones"), null);
+  assert.deepEqual(
+    aciertoIa([{ fecha: "2026-11-01", iaResultado: "aceptada" }, { fecha: "2026-11-20", iaResultado: "corregida" }, { fecha: "2026-11-21", iaResultado: "aceptada" }, { fecha: "2026-11-21", iaResultado: null }], "2026-11-10"),
+    { revisados: 2, aceptadas: 1, corregidas: 1, pct: 0.5 },
+  );
+
+  // Reglas propuestas: 3 veces igual y sin regla → se propone; si el destino varía, no.
+  const vez = (id: string, glosa: string, rut: string | null, sub = "comisiones", cat = "Costos Financieros"): Clasificado => ({ id, fecha: "2026-11-01", glosa, monto: -100, contraparteRut: rut, categoriaId: cat, subcategoriaId: sub, proyectoId: null });
+  const props = proponerReglas(
+    [
+      vez("1", "COM MANTENCION CTA 01", null), vez("2", "COM MANTENCION CTA 02", null), vez("3", "COM MANTENCION CTA 03", null),
+      vez("4", "TRANSF A 76123456-0", "761234560", "combustible", "Operaciones y Proyectos"), vez("5", "TRANSF A 76123456-0", "761234560", "combustible", "Operaciones y Proyectos"),
+      vez("6", "TRANSF A 76123456-0", "761234560", "combustible", "Operaciones y Proyectos"),
+      vez("7", "PAGO VARIOS 1", "111111111"), vez("8", "PAGO VARIOS 2", "111111111", "tarjeta", "Traspasos Internos"), vez("9", "PAGO VARIOS 3", "111111111"),
+    ],
+    [],
+  );
+  assert.deepEqual(props.map((x) => [x.tipo, x.valor, x.veces]), [["texto", "com mantencion cta", 3], ["rut", "761234560", 3]]);
+  assert.equal(proponerReglas([vez("1", "COM MANTENCION CTA 01", null), vez("2", "COM MANTENCION CTA 02", null), vez("3", "COM MANTENCION CTA 03", null)], reglas).length, 0, "ya hay una regla que lo cubre");
 
   // Una categoría con subcategorías no queda conciliada sin elegir una.
   const mov: MovimientoBase = { id: "m", cuentaId: "cc", fecha: "2026-11-03", glosa: "x", monto: -1, categoriaId: "Costos Financieros", faltaSubcategoria: true, proyectoId: null, responsable: null, tieneRespaldo: true, documentoRef: null, conciliaciones: 0, comentario: null };

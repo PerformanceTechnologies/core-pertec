@@ -22,7 +22,8 @@ import {
   siguienteNumero,
 } from "@/lib/fin/datos";
 import { finDeMes, huellaMovimiento, rutComparable } from "@/lib/fin/reglas";
-import { categoriasConSubcategorias } from "@/lib/fin/clasificacion";
+import { categoriasConSubcategorias, resultadoIa, type SugerenciaIa } from "@/lib/fin/clasificacion";
+import { clasificarConIa, iaConfigurada } from "@/lib/fin/clasificacion-ia";
 import { generarAsientos } from "@/lib/fin/contabilidad";
 import { exigirRol } from "@/lib/fin/flujos";
 
@@ -83,8 +84,11 @@ export async function categorizarMovimientoAction(id: string, fd: FormData): Pro
     if (categoria && !subcategoria && categoriasConSubcategorias(vista.subcategorias).has(categoria.id)) return { ok: false, error: `Elige la subcategoría de «${categoria.nombre}».` };
     const proyectoId = uuid(fd.get("proyectoId"));
     if (categoria?.requiereProyecto && !proyectoId) return { ok: false, error: `«${categoria.nombre}» pide el proyecto.` };
+    // Si la IA había sugerido algo, queda anotado si la persona lo dejó igual o lo corrigió (así se mide su acierto).
+    const ia = resultadoIa(mov.sugerencia_ia as SugerenciaIa | null, categoriaId, subcategoria?.id ?? null);
     const fila = {
       categoria_id: categoriaId, subcategoria_id: subcategoria?.id ?? null, clasificado_por: categoriaId ? "manual" : null, regla_id: null,
+      ...(ia ? { ia_resultado: ia } : {}),
       proyecto_id: proyectoId, responsable: texto(fd, "responsable", 120), tiene_respaldo: fd.get("tieneRespaldo") === "on",
       documento_ref: texto(fd, "documentoRef", 120), rendicion_ref: texto(fd, "rendicionRef", 120), comentario: texto(fd, "comentario", 500), actualizado_en: ahora(),
     };
@@ -115,6 +119,7 @@ export async function aceptarSugerenciasAction(movimientoIds: string[]): Promise
         .from("fin_movimientos")
         .update({
           categoria_id: s.categoriaId, subcategoria_id: s.subcategoriaId, clasificado_por: s.origen, proyecto_id: m.proyectoId ?? s.proyectoId, regla_id: s.reglaId,
+          ...(s.origen === "ia" ? { ia_resultado: "aceptada" } : {}),
           tiene_respaldo: m.tieneRespaldo || !cat?.requiereProyecto, actualizado_en: ahora(),
         })
         .eq("id", m.id)
@@ -131,6 +136,25 @@ export async function aceptarSugerenciasAction(movimientoIds: string[]): Promise
     await auditar(ctx, "fin_movimientos", null, "sugerencias", `${elegidos.length} movimiento(s) clasificados con la sugerencia`);
     refrescar();
     return { ok: true, mensaje: `${elegidos.length} clasificado(s)` };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Pedirle a la IA que sugiera los movimientos pendientes que nadie más reconoce (además de la corrida de cada mañana). */
+export async function pedirSugerenciasIaAction(): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "pedir sugerencias a la IA" });
+    if (!iaConfigurada()) return { ok: false, error: "La IA no está configurada en el servidor (falta ANTHROPIC_API_KEY)." };
+    const r = await clasificarConIa(ctx.empresa.id, { limite: 100 });
+    if (r.mensaje && r.revisados === 0) return { ok: false, error: r.mensaje };
+    await auditar(ctx, "fin_movimientos", null, "ia", `IA revisó ${r.revisados}, sugirió ${r.sugeridos}, aplicó ${r.aplicados}`);
+    refrescar();
+    return {
+      ok: true,
+      mensaje: r.revisados === 0 ? "No hay movimientos nuevos para la IA." : `La IA revisó ${r.revisados} y sugirió ${r.sugeridos}${r.aplicados ? ` (aplicó ${r.aplicados})` : ""}.`,
+    };
   } catch (e) {
     return fallo(e);
   }

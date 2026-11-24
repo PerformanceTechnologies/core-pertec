@@ -11,13 +11,15 @@
 //   3. Regla por texto de la glosa (Uber, Copec, Previred, TGR…).
 //   4. Igual a un movimiento anterior ya clasificado: la misma glosa sin números ni fechas, mismo signo.
 //   5. Mismo RUT que un movimiento anterior ya clasificado.
+//   6. Lo que propone la IA (lib/fin/clasificacion-ia.ts), con su seguridad y su porqué.
 //   Si nada calza, queda «Por aclarar».
 // Las reglas (2 y 3) son decisiones de Finanzas y se aplican solas al importar; lo aprendido de movimientos anteriores
-// (4 y 5) solo se sugiere: Tesorería lo acepta con un clic.
+// (4 y 5) y lo de la IA (6) solo se sugiere: Tesorería lo acepta con un clic. La IA se aplica sola únicamente si
+// Finanzas lo activa y su seguridad supera el umbral que fijó.
 
 import { reglaQueCalza, rutComparable, type Iso, type ReglaCategoria } from "./reglas";
 
-export type OrigenClasificacion = "manual" | "regla" | "rut" | "historial" | "heredado" | "migracion";
+export type OrigenClasificacion = "manual" | "regla" | "rut" | "historial" | "heredado" | "migracion" | "ia";
 
 export const ETIQUETA_ORIGEN: Record<OrigenClasificacion, string> = {
   manual: "A mano",
@@ -26,7 +28,19 @@ export const ETIQUETA_ORIGEN: Record<OrigenClasificacion, string> = {
   historial: "Como un movimiento anterior",
   heredado: "Heredado del documento",
   migracion: "Desde la lista anterior",
+  ia: "Sugerido por IA",
 };
+
+/** Lo que la IA propuso para un movimiento (columna fin_movimientos.sugerencia_ia). */
+export interface SugerenciaIa {
+  categoria_id: string;
+  subcategoria_id: string | null;
+  /** Seguridad de 0 a 1. */
+  confianza: number;
+  motivo: string;
+  modelo: string;
+  en: string;
+}
 
 export interface CategoriaLista {
   id: string;
@@ -58,6 +72,8 @@ export interface Sugerencia {
   reglaId: string | null;
   /** Por qué, en palabras: «Regla «COPEC»», «Como TRANSF. A … del 12-11-2026». */
   motivo: string;
+  /** Solo en las de IA: su seguridad de 0 a 1. */
+  confianza?: number;
 }
 
 /** Lo que hace falta de un movimiento ya clasificado para aprender de él. */
@@ -150,6 +166,102 @@ export function aplicableSola(s: Sugerencia | null, categorias: CategoriaLista[]
   if (!c || !c.activa) return false;
   if (conSubcategorias.has(c.id) && !s.subcategoriaId) return false;
   return !c.requiereProyecto || Boolean(s.proyectoId);
+}
+
+// -----------------------------------------------------------------------------
+//  IA: sugerencia, acierto y reglas propuestas
+// -----------------------------------------------------------------------------
+
+/**
+ * La sugerencia de la IA como Sugerencia, si sigue siendo válida con la lista de hoy (categoría activa del sentido del
+ * monto y, si la categoría tiene subcategorías, una de ellas activa). Si no, null.
+ */
+export function sugerenciaDeIa(
+  ia: SugerenciaIa | null | undefined,
+  monto: number,
+  categorias: CategoriaLista[],
+  subcategorias: Subcategoria[],
+): Sugerencia | null {
+  if (!ia?.categoria_id) return null;
+  const c = categoriasPara(monto, categorias).find((x) => x.id === ia.categoria_id);
+  if (!c) return null;
+  const subs = subcategorias.filter((x) => x.activa && x.categoriaId === c.id);
+  const sub = ia.subcategoria_id ? subs.find((x) => x.id === ia.subcategoria_id) ?? null : null;
+  if (subs.length > 0 && !sub) return null;
+  const pct = Math.round(Math.max(0, Math.min(1, ia.confianza)) * 100);
+  return { origen: "ia", categoriaId: c.id, subcategoriaId: sub?.id ?? null, proyectoId: null, reglaId: null, motivo: `IA (${pct} % segura): ${ia.motivo}`, confianza: ia.confianza };
+}
+
+/** ¿Se aplica sola? Solo si Finanzas lo activó, la seguridad alcanza el umbral y la categoría no pide proyecto. */
+export function iaAplicableSola(s: Sugerencia | null, umbral: number, categorias: CategoriaLista[]): boolean {
+  if (!s || s.origen !== "ia" || (s.confianza ?? 0) < umbral) return false;
+  const c = categorias.find((x) => x.id === s.categoriaId);
+  return Boolean(c && c.activa && !c.requiereProyecto);
+}
+
+/** Al clasificar a mano un movimiento que tenía sugerencia de la IA: ¿eligió lo mismo? */
+export function resultadoIa(ia: SugerenciaIa | null | undefined, categoriaId: string | null, subcategoriaId: string | null): "aceptada" | "corregida" | null {
+  if (!ia?.categoria_id || !categoriaId) return null;
+  return ia.categoria_id === categoriaId && (ia.subcategoria_id ?? null) === (subcategoriaId ?? null) ? "aceptada" : "corregida";
+}
+
+/** Cuánto acierta la IA: de lo que una persona revisó, qué parte dejó igual. */
+export function aciertoIa(movimientos: { fecha: Iso; iaResultado: "aceptada" | "corregida" | null }[], desde: Iso | null = null) {
+  const revisados = movimientos.filter((m) => m.iaResultado && (!desde || m.fecha >= desde));
+  const aceptadas = revisados.filter((m) => m.iaResultado === "aceptada").length;
+  return { revisados: revisados.length, aceptadas, corregidas: revisados.length - aceptadas, pct: revisados.length ? aceptadas / revisados.length : null };
+}
+
+export interface ReglaPropuesta {
+  tipo: "texto" | "rut";
+  /** El texto de la glosa o el RUT que reconocería. */
+  valor: string;
+  categoriaId: string;
+  subcategoriaId: string | null;
+  veces: number;
+  ejemplo: string;
+}
+
+/** Las primeras palabras (sin números) que comparten todas las glosas: lo que una regla por texto reconocería. */
+function inicioComun(glosas: string[]): string {
+  const partes = glosas.map((g) => g.toLowerCase().split(/\s+/).filter(Boolean));
+  const comun: string[] = [];
+  for (let i = 0; i < Math.min(...partes.map((p) => p.length)); i++) {
+    const w = partes[0][i];
+    if (/\d/.test(w) || !partes.every((p) => p[i] === w)) break;
+    comun.push(w);
+  }
+  return comun.join(" ");
+}
+
+/**
+ * Reglas que conviene crear: lo que ya se clasificó igual al menos `minimo` veces (mismo RUT, o misma glosa sin números)
+ * y ninguna regla activa reconoce todavía. Así el trabajo a mano baja semana a semana.
+ */
+export function proponerReglas(clasificados: Clasificado[], reglas: ReglaCategoria[], minimo = 3): ReglaPropuesta[] {
+  const activas = reglas.filter((r) => r.activa);
+  const cubierto = (m: Clasificado) => Boolean(reglaQueCalza({ glosa: m.glosa, monto: m.monto, cuentaId: "", contraparteRut: m.contraparteRut }, activas.map((r) => ({ ...r, cuentaId: null }))));
+  const libres = clasificados.filter((m) => !cubierto(m));
+  const salida: ReglaPropuesta[] = [];
+  const grupos = new Map<string, { tipo: "texto" | "rut"; movs: Clasificado[] }>();
+  for (const m of libres) {
+    const rut = rutComparable(m.contraparteRut);
+    const clave = rut ? `rut:${rut}` : glosaComparable(m.glosa) ? `texto:${glosaComparable(m.glosa)}` : null;
+    if (!clave) continue;
+    const g = grupos.get(clave) ?? { tipo: rut ? "rut" : "texto", movs: [] };
+    g.movs.push(m);
+    grupos.set(clave, g);
+  }
+  for (const [clave, g] of grupos) {
+    // Solo si siempre se clasificó igual: si el mismo RUT a veces es una cosa y a veces otra, no hay regla segura.
+    const destinos = new Set(g.movs.map((m) => `${m.categoriaId}|${m.subcategoriaId ?? ""}`));
+    if (g.movs.length < minimo || destinos.size !== 1) continue;
+    const valor = g.tipo === "rut" ? clave.slice(4) : inicioComun(g.movs.map((m) => m.glosa));
+    if (g.tipo === "texto" && valor.replace(/\s/g, "").length < 4) continue;
+    const m = g.movs[0];
+    salida.push({ tipo: g.tipo, valor, categoriaId: m.categoriaId, subcategoriaId: m.subcategoriaId, veces: g.movs.length, ejemplo: m.glosa });
+  }
+  return salida.sort((a, b) => b.veces - a.veces);
 }
 
 /** El ingreso que corresponde a un cobro, según lo que se facturó: el tipo del hito y el del proyecto. */
