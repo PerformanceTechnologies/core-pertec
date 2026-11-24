@@ -4,7 +4,7 @@ import { perfilDeEmpresa } from "@/lib/fin/empresa-perfil";
 import { clp, fechaCl, sumarDias } from "@/lib/fin/reglas";
 import { aciertoIa, proponerReglas, type Clasificado } from "@/lib/fin/clasificacion";
 import { TARJETA } from "@/lib/estilos";
-import { crearReglaPropuestaAction, eliminarReglaAction, guardarIaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction, guardarSubcategoriaAction } from "../acciones-config";
+import { crearReglaPropuestaAction, traerHistoriaBancoAction, eliminarReglaAction, guardarIaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction, guardarSubcategoriaAction } from "../acciones-config";
 import { Pestanas, Seccion, TD, TH } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -93,6 +93,15 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
               ))}
               {v.cuentas.length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin cuentas. Crea Banco Chile CC, Itaú CC y la tarjeta de crédito (con el saldo de hoy).</li>}
             </ul>
+            <div className={`${TARJETA} mt-3 flex flex-wrap items-center gap-3 px-4 py-3 text-sm`}>
+              <span className="min-w-0 flex-1 text-xs text-gris">
+                <b className="text-tinta">Banco automático (Itaú vía Emisso).</b> Cada mañana llegan este mes y el anterior. Para completar la historia (la cartola de
+                meses anteriores que Emisso tenga guardada), tráela aquí. No duplica nada. Solo el administrador.
+              </span>
+              <BotonAccion accion={traerHistoriaBancoAction} confirmar="¿Traer toda la historia del banco que tiene Emisso? Los movimientos nuevos quedan «Por aclarar»." className={BOTON_SEC}>
+                Traer historia del banco
+              </BotonAccion>
+            </div>
           </Seccion>
           <Seccion titulo="Factores" accion={<ConVentana boton={<><IconPlus size={14} /> Factor</>} titulo="Nuevo factor" className={BOTON_SEC}>{<FormFactor />}</ConVentana>}>
             <ul className={`${TARJETA} divide-y divide-borde`}>

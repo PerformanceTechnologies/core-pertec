@@ -10,12 +10,14 @@ import {
   horasDesde,
   montoConSigno,
   nombreCuenta,
+  numeroComparable,
   numeroEnmascarado,
   origenDe,
   periodosRecientes,
   requierePersona,
   rutNormalizado,
   saldosVigentes,
+  sinSolaparCartola,
   traducirMovimiento,
   traducirMovimientos,
   traducirNominas,
@@ -184,6 +186,38 @@ prueba("un pago repetido dentro de la nómina se descarta; un RUT ilegible queda
   const { filas } = traducirNominas([nom({ lineas: [{ idLinea: "1", beneficiario: "A", beneficiarioRut: "11111111-1", monto: 1, moneda: "CLP", estado: "Pagado" }, { idLinea: "1", beneficiario: "A", beneficiarioRut: "11111111-1", monto: 1, moneda: "CLP", estado: "Pagado" }, { idLinea: "2", beneficiario: "B", beneficiarioRut: "", monto: 2, moneda: "CLP", estado: "Pagado" }] })]);
   assert.equal(filas[0].lineas.length, 2);
   assert.equal(filas[0].lineas[1].rut, "");
+});
+
+// ---------- Cartola histórica: número sin el 0 inicial y sin pisar «últimos movimientos» ----------
+prueba("el número de cuenta se compara sin ceros a la izquierda", () => {
+  assert.equal(numeroComparable("0001112223"), "1112223");
+  assert.equal(numeroComparable("1112223"), "1112223");
+});
+prueba("la misma cuenta escrita de dos formas es una sola, con el número de «últimos movimientos»", () => {
+  const { filas } = traducirMovimientos(SISTEMA_ITAU, [
+    mov({ id: "c1", numeroCuenta: "1112223", superficie: "cartola_historica", documento: null, fecha: "2026-09-10" }),
+    mov({ id: "r1", numeroCuenta: "0001112223", superficie: "ultimos_movimientos", documento: "000000900", fecha: "2026-09-28" }),
+  ]);
+  assert.deepEqual(cuentasConMovimientos(filas), ["0001112223"]);
+  assert.equal(filas.find((f) => f.clave.endsWith(":id:c1"))?.deCartola, true);
+});
+prueba("de la cartola solo entra lo anterior al primer día de «últimos movimientos»", () => {
+  const { filas } = traducirMovimientos(SISTEMA_ITAU, [
+    mov({ id: "c1", numeroCuenta: "1112223", superficie: "cartola_historica", documento: null, fecha: "2026-09-25" }),
+    mov({ id: "c2", numeroCuenta: "1112223", superficie: "cartola_historica", documento: null, fecha: "2026-09-28" }),
+    mov({ id: "r1", numeroCuenta: "0001112223", superficie: "ultimos_movimientos", documento: "000000900", fecha: "2026-09-28" }),
+  ]);
+  const r = sinSolaparCartola(filas);
+  assert.deepEqual(r.filas.map((f) => f.clave.split(":").pop()), ["c1", "000000900"]);
+  assert.equal(r.descartadas, 1);
+});
+prueba("si «últimos movimientos» ya está guardado, el corte sale del Core", () => {
+  const { filas } = traducirMovimientos(SISTEMA_ITAU, [
+    mov({ id: "c1", numeroCuenta: "1112223", superficie: "cartola_historica", documento: null, fecha: "2026-08-03" }),
+    mov({ id: "c2", numeroCuenta: "1112223", superficie: "cartola_historica", documento: null, fecha: "2026-10-01" }),
+  ]);
+  assert.deepEqual(sinSolaparCartola(filas, new Map([["1112223", "2026-09-28"]])).filas.map((f) => f.clave.split(":").pop()), ["c1"]);
+  assert.equal(sinSolaparCartola(filas, new Map([["1112223", "2026-08-03"]])).filas.length, 0, "ya cargada: no se vuelve a traer");
 });
 
 console.log(`\n${n} pruebas ok`);

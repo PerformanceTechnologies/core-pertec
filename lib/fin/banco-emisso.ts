@@ -13,8 +13,10 @@ import {
   nombreCuenta,
   numeroEnmascarado,
   origenDe,
+  numeroComparable,
   periodosRecientes,
   requierePersona,
+  sinSolaparCartola,
   rutNormalizado,
   saldosVigentes,
   traducirMovimientos,
@@ -70,11 +72,17 @@ async function cuentasVinculadas(empresaId: string, numeros: string[]): Promise<
   const porNumero = new Map<string, string>();
   const origenes = numeros.map((n) => origenDe(SISTEMA_ITAU, n));
   if (!origenes.length) return porNumero;
-  const { data, error } = await supabaseAdmin.from("fin_cuentas").select("id, origen_externo").eq("empresa_id", empresaId).in("origen_externo", origenes);
+  // Se buscan todas las cuentas de Emisso de la empresa: la misma cuenta puede venir con o sin el 0 inicial.
+  const { data, error } = await supabaseAdmin.from("fin_cuentas").select("id, origen_externo").eq("empresa_id", empresaId).like("origen_externo", `${origenDe(SISTEMA_ITAU, "")}%`);
   if (error) throw new Error(`No se pudieron leer las cuentas: ${error.message}`);
-  for (const c of data ?? []) porNumero.set(String(c.origen_externo).split(":").pop()!, c.id as string);
+  const porComparable = new Map<string, string>();
+  for (const c of data ?? []) porComparable.set(numeroComparable(String(c.origen_externo).split(":").pop()!), c.id as string);
   for (const numero of numeros) {
-    if (porNumero.has(numero)) continue;
+    const existente = porComparable.get(numeroComparable(numero));
+    if (existente) {
+      porNumero.set(numero, existente);
+      continue;
+    }
     const base = { empresa_id: empresaId, tipo: "banco", banco: BANCO, numero_enmascarado: numeroEnmascarado(numero), origen_externo: origenDe(SISTEMA_ITAU, numero) };
     let r = await supabaseAdmin.from("fin_cuentas").insert({ ...base, nombre: nombreCuenta(BANCO, numero) }).select("id").single();
     // El nombre corto ya lo usa otra cuenta (unique empresa + nombre): se usa el número completo.
@@ -108,6 +116,27 @@ async function reglasDe(empresaId: string): Promise<{ reglas: ReglaCategoria[]; 
   // Sin la migración 0014 no hay subcategorías: las reglas se aplican como antes.
   const conSubcategorias = new Set(((sR.data ?? []) as { categoria_id: string; activa: boolean }[]).filter((s) => s.activa).map((s) => s.categoria_id));
   return { reglas, categorias, conSubcategorias };
+}
+
+/**
+ * El primer día que ya hay en el Core desde «últimos movimientos», por cuenta (número comparable). La cartola histórica
+ * solo completa lo anterior a ese día.
+ */
+async function primerDiaGuardado(empresaId: string): Promise<Map<string, string>> {
+  const { data, error } = await supabaseAdmin
+    .from("fin_movimientos")
+    .select("clave_externa, fecha")
+    .eq("empresa_id", empresaId)
+    .like("clave_externa", `${SISTEMA_ITAU}:%`)
+    .order("fecha", { ascending: true })
+    .limit(5000);
+  if (error) throw new Error(`No se pudieron leer los movimientos guardados: ${error.message}`);
+  const primero = new Map<string, string>();
+  for (const m of (data ?? []) as { clave_externa: string; fecha: string }[]) {
+    const k = numeroComparable(m.clave_externa.split(":")[1] ?? "");
+    if (k && !primero.has(k)) primero.set(k, m.fecha);
+  }
+  return primero;
 }
 
 type Guardada = { id: string; clave_externa: string; glosa: string; numero_documento: string | null; contraparte_rut: string | null };
@@ -304,9 +333,14 @@ export async function sincronizarBancoItau(opciones: { todo?: boolean; ahora?: D
     }
 
     const movs = opciones.todo ? await movimientosItau() : (await Promise.all(periodosRecientes(ahora).map((p) => movimientosItau(p)))).flat();
-    const { filas, omitidos } = traducirMovimientos(SISTEMA_ITAU, movs);
-    r.omitidos = omitidos.reduce((s, o) => s + o.cantidad, 0);
+    const traducidos = traducirMovimientos(SISTEMA_ITAU, movs);
+    r.omitidos = traducidos.omitidos.reduce((s, o) => s + o.cantidad, 0);
+    // La cartola de meses anteriores solo hasta el día antes del primer «último movimiento» (del lote o ya guardado).
+    const { filas } = sinSolaparCartola(traducidos.filas, await primerDiaGuardado(r.empresaId));
     const cuentas = await cuentasVinculadas(r.empresaId, cuentasConMovimientos(filas));
+    // Las filas de la cartola usan la cuenta con el número tal como lo trae «últimos movimientos».
+    const comoCuenta = new Map(cuentasConMovimientos(filas).map((n) => [numeroComparable(n), n]));
+    for (const f of filas) f.numeroCuenta = comoCuenta.get(numeroComparable(f.numeroCuenta)) ?? f.numeroCuenta;
 
     const guardadas = await yaGuardadas(r.empresaId, filas.map((f) => f.clave));
     r.nuevos = await insertarNuevos(r.empresaId, filas.filter((f) => !guardadas.has(f.clave)), cuentas);
