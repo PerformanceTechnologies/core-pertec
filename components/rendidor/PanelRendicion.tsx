@@ -1526,7 +1526,10 @@ export default function PanelRendicion({
                           informeId={rendicion.id}
                           gasto={g}
                           puedeConciliar={puedeConciliar}
-                          alCambiar={(c) => setRendicion((prev) => ({ ...prev, gastos: prev.gastos.map((x) => (x.id === g.id ? { ...x, conciliacion: c } : x)) }))}
+                          tiposGasto={tiposGasto}
+                          alCambiar={(c, t) =>
+                            setRendicion((prev) => ({ ...prev, gastos: prev.gastos.map((x) => (x.id === g.id ? { ...x, conciliacion: c, ...(t ? { subcategoriaId: t.id, subcategoriaNombre: t.nombre } : {}) } : x)) }))
+                          }
                         />
                       )}
 

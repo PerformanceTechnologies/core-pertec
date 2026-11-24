@@ -9,7 +9,7 @@ import { CAMPO } from "@/lib/estilos";
 import { desgloseDeGasto } from "@/lib/rendidor/iva";
 import { revisarBoletaAction } from "@/app/(protegido)/rendir-gastos/acciones";
 import { ETIQUETA_BOLETA, TONO_BOLETA, pesos, type EstadoBoleta } from "@/lib/rendidor/fondos-modelo";
-import { TRATAMIENTO_DOCUMENTO, type GastoRendicion } from "@/lib/rendidor/tipos";
+import { TRATAMIENTO_DOCUMENTO, subcategoriaSugerida, type GastoRendicion, type TipoGastoGrupo } from "@/lib/rendidor/tipos";
 
 const fechaCorta = (f: string | null) =>
   f ? new Date(`${f}T12:00:00Z`).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "Sin fecha";
@@ -28,6 +28,7 @@ export default function RevisionGastos({
   puedeRevisarBoletas,
   validado = false,
   puedeConciliar = false,
+  tiposGasto = [],
 }: {
   informeId: string;
   gastos: GastoRendicion[];
@@ -37,7 +38,15 @@ export default function RevisionGastos({
   /** Informe ya aprobado o cerrado: se muestra la conciliación de cada gasto. */
   validado?: boolean;
   puedeConciliar?: boolean;
+  /** La lista de gastos de Finanzas: para mostrar el tipo de gasto y asignarlo al conciliar. */
+  tiposGasto?: TipoGastoGrupo[];
 }) {
+  // El tipo de gasto de Finanzas de cada boleta; las antiguas muestran el que les corresponde por su categoría rápida.
+  const tipoDe = (g: GastoRendicion) => {
+    if (g.subcategoriaNombre) return { texto: g.subcategoriaNombre, propio: true };
+    const s = subcategoriaSugerida(g.categoria, tiposGasto);
+    return s ? { texto: s.nombre, propio: false } : null;
+  };
   const [gastos, setGastos] = useState(iniciales);
   const [viendo, setViendo] = useState<Comprobante | null>(null);
   const [detalle, setDetalle] = useState<{ g: GastoRendicion; x: number; y: number; arriba: boolean } | null>(null);
@@ -129,7 +138,7 @@ export default function RevisionGastos({
 
       <div className="mt-3 rounded-lg border border-borde">
         <div className={`hidden ${COLS} items-center gap-2.5 border-b border-borde bg-tinta/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gris md:grid`}>
-          <span>#</span><span>Fecha</span><span>Proveedor</span><span>Categoría</span><span className="text-right">Total</span><span>Estado</span><span className="text-right">Revisión</span>
+          <span>#</span><span>Fecha</span><span>Proveedor</span><span>Tipo de gasto</span><span className="text-right">Total</span><span>Estado</span><span className="text-right">Revisión</span>
         </div>
         <ul className="divide-y divide-borde">
           {gastos.map((g, i) => {
@@ -152,7 +161,14 @@ export default function RevisionGastos({
                   </button>
                   <span className="block text-[11px] text-gris md:hidden">{fechaCorta(g.fecha)}{g.categoria ? ` · ${g.categoria}` : ""}</span>
                 </span>
-                <span className="hidden min-w-0 truncate text-xs text-gris md:block">{g.categoria ?? "—"}</span>
+                <span className="hidden min-w-0 truncate text-xs md:block" title={g.categoria ? `Categoría rápida: ${g.categoria}` : undefined}>
+                  {(() => {
+                    const t = tipoDe(g);
+                    if (t?.propio) return <span className="text-tinta">{t.texto}</span>;
+                    if (t) return <span className="italic text-gris">{t.texto}</span>;
+                    return tiposGasto.length > 0 ? <span className="font-semibold text-aviso">Sin tipo · {g.categoria ?? "—"}</span> : <span className="text-gris">{g.categoria ?? "—"}</span>;
+                  })()}
+                </span>
                 <span className="text-right font-semibold tabular-nums text-tinta">{pesos(Number(g.total) || 0)}</span>
                 <span className="hidden whitespace-nowrap md:block">
                   <span className={`inline-flex rounded px-1.5 py-px text-[10.5px] font-semibold ${TONO_BOLETA[est]}`}>{ETIQUETA_BOLETA[est]}</span>
@@ -163,7 +179,10 @@ export default function RevisionGastos({
                         informeId={informeId}
                         gasto={g}
                         puedeConciliar={puedeConciliar}
-                        alCambiar={(c) => setGastos((prev) => prev.map((x) => (x.id === g.id ? { ...x, conciliacion: c } : x)))}
+                        tiposGasto={tiposGasto}
+                        alCambiar={(c, t) =>
+                          setGastos((prev) => prev.map((x) => (x.id === g.id ? { ...x, conciliacion: c, ...(t ? { subcategoriaId: t.id, subcategoriaNombre: t.nombre } : {}) } : x)))
+                        }
                       />
                     </span>
                   )}
@@ -258,6 +277,7 @@ function DetalleGasto({ d }: { d: { g: GastoRendicion; x: number; y: number; arr
     ["Documento", `${g.tipoDocumento ? TRATAMIENTO_DOCUMENTO[g.tipoDocumento].etiqueta : "Sin tipo"}${g.numeroDocumento ? ` N° ${g.numeroDocumento}` : ""}`],
     ["Fecha", fechaCorta(g.fecha)],
     ["Categoría", g.categoria],
+    ["Tipo de gasto (Finanzas)", g.subcategoriaNombre ?? null],
     ["Proyecto", g.proyectoNombre ?? null],
     ["Detalle", g.detalle?.trim() || null],
   ];
