@@ -104,6 +104,12 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
   const TODOS: Record<string, Pestana> = { "todos-gastos": "gastos", "todos-informes": "informes", "todos-fondos": "fondos" };
   const actual: Pestana = pestanas.some((p) => p.id === ver) || (esAdmin && ver && ver in TODOS) ? (ver as Pestana) : "inicio";
   const pestanaMarcada: Pestana = TODOS[actual] ?? actual;
+  // Quien administra abre fondos, gastos e informes directo en «Todos…» (lo propio queda a un toque,
+  // con el botón «Mis…» junto al título). Quien no administra solo puede ver lo suyo.
+  const hrefPestana = (id: Pestana) => {
+    if (esAdmin && (id === "fondos" || id === "gastos" || id === "informes")) return `/rendir-gastos?ver=todos-${id}`;
+    return id === "gastos" ? "/rendir-gastos/gastos" : `/rendir-gastos?ver=${id}`;
+  };
 
   // «Nuevo informe» ofrece SOLO mis fondos activos (también a quien administra: a nombre de otra persona se crea desde
   // la página de ese fondo), y no los que ya llegaron al máximo de informes abiertos (por ejemplo uno en revisión).
@@ -139,7 +145,7 @@ export default async function RendirGastosPage({ searchParams }: { searchParams:
             return (
               <Link
                 key={p.id}
-                href={p.id === "gastos" ? "/rendir-gastos/gastos" : `/rendir-gastos?ver=${p.id}`}
+                href={hrefPestana(p.id)}
                 scroll={false}
                 aria-current={on ? "page" : undefined}
                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition ${on ? "bg-naranjo text-white shadow-sm" : "text-gris hover:text-tinta"}`}
