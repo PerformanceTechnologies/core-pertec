@@ -5,7 +5,20 @@ import type { PostulacionGuardada } from "@/lib/reclutamiento";
 import { exportarPostulacionesAExcel } from "@/lib/exportarCsv";
 import ModalPostulante from "./ModalPostulante";
 import CargaPertec from "@/components/CargaPertec";
-import { TARJETA } from "@/lib/estilos";
+import {
+  IconBriefcase,
+  IconChevronDown,
+  IconChevronRight,
+  IconClockHour4,
+  IconDownload,
+  IconFileText,
+  IconMapPin,
+  IconSearch,
+  IconUsersGroup,
+  IconX,
+  type Icon,
+} from "@tabler/icons-react";
+import { Avatar, BOTON_SUAVE_C, CAMPO_C, HOJA, IconoTile, type TonoIcono } from "@/components/contactos/Visual";
 
 const INTERVALO_ACTUALIZACION_MS = 30_000;
 
@@ -81,8 +94,8 @@ function hace(segundos: number) {
   return `hace ${Math.floor(segundos / 60)} min`;
 }
 
-const inputFiltro =
-  "w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none transition focus:border-naranjo focus:ring-2 focus:ring-naranjo/15";
+/** Los filtros como pastillas, igual que el buscador de Contactos. */
+const PASTILLA = `${CAMPO_C} rounded-full`;
 
 export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   const [postulaciones, setPostulaciones] = useState<PostulacionGuardada[] | null>(null);
@@ -212,194 +225,133 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
 
   if (error && !postulaciones) {
     return (
-      <div className={`p-8 text-center ${TARJETA}`}>
+      <div className={`${HOJA} mt-8 p-8 text-center`}>
         <p className="text-sm font-medium text-red-600">{error}</p>
-        <button
-          onClick={cargar}
-          className="mt-4 rounded-lg border border-borde px-4 py-2 text-sm font-medium text-tinta/70 hover:border-naranjo/40 hover:text-naranjo"
-        >
+        <button onClick={cargar} className={`${BOTON_SUAVE_C} mt-4`}>
           Reintentar
         </button>
       </div>
     );
   }
 
+  const cifras: { etiqueta: string; detalle: string; Icono: Icon; tono: TonoIcono; valor: string | number }[] = [
+    { etiqueta: "Postulaciones", detalle: hayFiltrosActivos ? "con estos filtros" : "en total", Icono: IconUsersGroup, tono: "azul", valor: filtradas.length },
+    { etiqueta: "Últimas 24 horas", detalle: "recién llegadas", Icono: IconClockHour4, tono: "verde", valor: ultimas24h },
+    { etiqueta: "Cargo más pedido", detalle: porCargo[0] ? `${porCargo[0].total} postulaciones` : "", Icono: IconBriefcase, tono: "ambar", valor: porCargo[0]?.etiqueta ?? "—" },
+    { etiqueta: "Región líder", detalle: porRegion[0] ? `${porRegion[0].total} postulaciones` : "", Icono: IconMapPin, tono: "marca", valor: porRegion[0]?.etiqueta ?? "—" },
+  ];
+
   return (
-    <div className="animar-entrada mt-8 flex flex-col gap-6">
-      {/* El "Actualizado hace X" sin el rótulo de sección al lado: la página ya
-          se titula Postulaciones arriba, y repetirlo acá era decirlo dos veces
-          en la misma pantalla. */}
-      <div className="flex justify-end">
-        <span className="flex items-center gap-2 text-xs text-tinta/45">
-          <span className={`h-1.5 w-1.5 rounded-full ${cargando ? "animate-pulse bg-naranjo" : "bg-teal"}`} />
-          {actualizadoEn ? `Actualizado ${hace(segundosDesde)}` : "Cargando..."}
-        </span>
-      </div>
-
-      {/* Las cuatro cifras en una cinta de segmentos, como en el resto del core:
-          eran cuatro tarjetas sueltas, cada una con su borde, y se leían como
-          cuatro cosas distintas en vez de una sola lectura del período. */}
-      <dl className="-mt-2 grid grid-cols-1 overflow-hidden rounded-2xl border border-borde sm:grid-cols-4">
-        <Cifra titulo="Postulaciones (filtro)" valor={filtradas.length} tinte="bg-naranjo/[0.06]" borde />
-        <Cifra titulo="Últimas 24 horas" valor={ultimas24h} tinte="bg-gris/[0.08]" borde />
-        <Cifra
-          titulo="Cargo más solicitado"
-          valor={porCargo[0]?.etiqueta ?? "—"}
-          tinte="bg-gris/[0.08]"
-          texto
-          borde
-        />
-        <Cifra titulo="Región líder" valor={porRegion[0]?.etiqueta ?? "—"} tinte="bg-teal/[0.06]" texto />
-      </dl>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <BarrasDesglose titulo="Por cargo" datos={porCargo} maximo={maxCargo} />
-        <BarrasDesglose titulo="Por región" datos={porRegion} maximo={maxRegion} />
-      </div>
-
-      <div className={`p-4 ${TARJETA}`}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="relative lg:col-span-1">
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tinta/35"
-            >
-              <path
-                d="M9 16a7 7 0 100-14 7 7 0 000 14zM18 18l-3.6-3.6"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-            <input
-              value={filtros.busqueda}
-              onChange={(e) => setFiltros((f) => ({ ...f, busqueda: e.target.value }))}
-              placeholder="Buscar nombre, RUT o correo"
-              className={`${inputFiltro} pl-9`}
-            />
+    <div className="animar-entrada mt-6 space-y-3">
+      {/* ── Resumen: la misma tarjeta de cifras que Contactos ── */}
+      <section className={`${HOJA} grid w-full grid-cols-2 gap-1.5 p-1.5 lg:grid-cols-4`} aria-label="Resumen de postulaciones">
+        {cifras.map((c) => (
+          <div key={c.etiqueta} className="flex min-w-0 items-center gap-3.5 rounded-[18px] px-3 py-3 sm:px-5">
+            <IconoTile Icono={c.Icono} tono={c.tono} tamano="grande" />
+            <span className="min-w-0">
+              <span
+                className={`block truncate font-condensed font-bold leading-none text-tinta ${typeof c.valor === "number" ? "text-[28px] tabular-nums sm:text-4xl" : "text-xl sm:text-2xl"}`}
+                title={String(c.valor)}
+              >
+                {typeof c.valor === "number" ? c.valor.toLocaleString("es-CL") : c.valor}
+              </span>
+              <span className="mt-1 block truncate text-xs font-semibold text-gris">
+                {c.etiqueta}
+                {c.detalle && <span className="hidden font-normal text-gris-suave xl:inline"> · {c.detalle}</span>}
+              </span>
+            </span>
           </div>
+        ))}
+      </section>
 
-          <select
-            value={filtros.cargo}
-            onChange={(e) => setFiltros((f) => ({ ...f, cargo: e.target.value }))}
-            className={inputFiltro}
-          >
-            <option value="">Todos los cargos</option>
-            {opcionesCargo.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filtros.region}
-            onChange={(e) => setFiltros((f) => ({ ...f, region: e.target.value }))}
-            className={inputFiltro}
-          >
-            <option value="">Todas las regiones</option>
-            {opcionesRegion.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filtros.turno}
-            onChange={(e) => setFiltros((f) => ({ ...f, turno: e.target.value }))}
-            className={inputFiltro}
-          >
-            <option value="">Todos los turnos</option>
-            {opcionesTurno.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filtros.rango}
-            onChange={(e) => setFiltros((f) => ({ ...f, rango: e.target.value as Rango }))}
-            className={inputFiltro}
-          >
-            {RANGOS.map((r) => (
-              <option key={r.valor} value={r.valor}>
-                {r.etiqueta}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between">
-          <p className="text-xs text-tinta/45">
-            Mostrando <span className="font-semibold text-tinta/70">{filtradas.length}</span> de{" "}
-            {postulaciones?.length ?? 0} postulaciones
-          </p>
-          {hayFiltrosActivos && (
-            <button
-              onClick={() => setFiltros(FILTROS_VACIOS)}
-              className="rounded text-xs font-medium text-naranjo hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo"
-            >
-              Limpiar filtros
-            </button>
-          )}
-        </div>
+      {/* ── Desglose: tocar una fila filtra por ese cargo o región ── */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <BarrasDesglose
+          titulo="Por cargo"
+          Icono={IconBriefcase}
+          datos={porCargo}
+          maximo={maxCargo}
+          activo={filtros.cargo}
+          alElegir={(v) => setFiltros((f) => ({ ...f, cargo: f.cargo === v ? "" : v }))}
+        />
+        <BarrasDesglose
+          titulo="Por región"
+          Icono={IconMapPin}
+          datos={porRegion}
+          maximo={maxRegion}
+          activo={filtros.region}
+          alElegir={(v) => setFiltros((f) => ({ ...f, region: f.region === v ? "" : v }))}
+        />
       </div>
 
-      <div className={`overflow-hidden ${TARJETA}`}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borde px-6 py-4">
-          <h2 className="font-condensed text-lg font-bold uppercase text-tinta">
-            Postulaciones {hayFiltrosActivos ? "filtradas" : "recientes"}
-          </h2>
-          <button
-            onClick={exportarSeleccionadas}
-            disabled={seleccionados.size === 0}
-            className="inline-flex items-center gap-2 rounded-lg border border-borde bg-superficie px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-teal/40 hover:text-teal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-naranjo disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
-              <path
-                d="M10 3v9m0 0l-3-3m3 3l3-3M4 14v1a2 2 0 002 2h8a2 2 0 002-2v-1"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Exportar a Excel {seleccionados.size > 0 && `(${seleccionados.size})`}
+      {/* ── Buscador y filtros en una fila, exportar a la derecha ── */}
+      <div className="flex flex-wrap items-center gap-2.5 pt-1">
+        <div className="relative w-full sm:w-64">
+          <IconSearch size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gris" />
+          <input
+            value={filtros.busqueda}
+            onChange={(e) => setFiltros((f) => ({ ...f, busqueda: e.target.value }))}
+            placeholder="Nombre, RUT o correo…"
+            aria-label="Buscar postulaciones"
+            className={`${PASTILLA} pl-9`}
+          />
+        </div>
+        <Selector valor={filtros.cargo} alCambiar={(v) => setFiltros((f) => ({ ...f, cargo: v }))} todos="Todos los cargos" opciones={opcionesCargo} />
+        <Selector valor={filtros.region} alCambiar={(v) => setFiltros((f) => ({ ...f, region: v }))} todos="Todas las regiones" opciones={opcionesRegion} />
+        <Selector valor={filtros.turno} alCambiar={(v) => setFiltros((f) => ({ ...f, turno: v }))} todos="Todos los turnos" opciones={opcionesTurno} />
+        <select
+          value={filtros.rango}
+          onChange={(e) => setFiltros((f) => ({ ...f, rango: e.target.value as Rango }))}
+          aria-label="Periodo"
+          className={`${PASTILLA} w-auto ${filtros.rango !== "todos" ? "bg-tinta/[0.1] font-semibold" : ""}`}
+        >
+          {RANGOS.map((r) => (
+            <option key={r.valor} value={r.valor}>
+              {r.etiqueta}
+            </option>
+          ))}
+        </select>
+        {hayFiltrosActivos && (
+          <button onClick={() => setFiltros(FILTROS_VACIOS)} className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-semibold text-naranjo hover:underline">
+            <IconX size={13} /> Limpiar
           </button>
+        )}
+        <button onClick={exportarSeleccionadas} disabled={seleccionados.size === 0} className={`${BOTON_SUAVE_C} ml-auto disabled:cursor-not-allowed`} title={seleccionados.size === 0 ? "Marca postulaciones en la lista para exportarlas" : undefined}>
+          <IconDownload size={16} /> Exportar a Excel{seleccionados.size > 0 && ` (${seleccionados.size})`}
+        </button>
+      </div>
+
+      {/* ── La lista ── */}
+      <div className={`${HOJA} overflow-hidden`}>
+        <div className="flex items-center justify-between gap-3 border-b border-borde/60 px-4 py-2.5 text-xs text-gris">
+          <span>
+            <b className="font-semibold text-tinta">{filtradas.length}</b> de {postulaciones?.length ?? 0} postulaciones
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 rounded-full ${cargando ? "animate-pulse bg-naranjo" : "bg-emerald-500"}`} />
+            {actualizadoEn ? `Actualizado ${hace(segundosDesde)}` : "Cargando…"}
+          </span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-borde text-xs uppercase tracking-wide text-tinta/45">
-                <th className="w-10 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={todasSeleccionadas}
-                    onChange={alternarSeleccionTodos}
-                    className="h-4 w-4 accent-naranjo"
-                    aria-label="Seleccionar todas"
-                  />
+              <tr className="border-b border-borde/60 bg-tinta/[0.02] text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
+                <th className="w-10 py-2.5 pl-4 pr-1">
+                  <input type="checkbox" checked={todasSeleccionadas} onChange={alternarSeleccionTodos} className="h-4 w-4 accent-naranjo" aria-label="Seleccionar todas" />
                 </th>
-                <th className="px-2 py-3 font-medium">Nombre</th>
-                <th className="px-4 py-3 font-medium">RUT</th>
-                <th className="px-4 py-3 font-medium">Cargo</th>
-                <th className="px-4 py-3 font-medium">Región</th>
-                <th className="px-4 py-3 font-medium">Teléfono</th>
-                <th className="px-4 py-3 font-medium">Fecha</th>
-                <th className="px-6 py-3 font-medium">CV</th>
+                <th className="px-3 py-2.5">Postulante</th>
+                <th className="px-4 py-2.5">Cargo</th>
+                <th className="hidden px-4 py-2.5 md:table-cell">Región</th>
+                <th className="hidden px-4 py-2.5 lg:table-cell">Teléfono</th>
+                <th className="hidden px-4 py-2.5 sm:table-cell">Llegó</th>
+                <th className="px-4 py-2.5 text-right">CV</th>
+                <th className="w-10 px-2 py-2.5"></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-borde/60">
               {filtradas.map((p) => (
-                <tr
-                  key={p.id}
-                  onClick={() => setPostulanteActivo(p)}
-                  className="cursor-pointer border-b border-borde/60 transition hover:bg-crema/60 last:border-b-0"
-                >
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                <tr key={p.id} onClick={() => setPostulanteActivo(p)} className={`group cursor-pointer transition hover:bg-tinta/[0.025] ${seleccionados.has(p.id) ? "bg-naranjo/[0.04]" : ""}`}>
+                  <td className="py-2 pl-4 pr-1" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={seleccionados.has(p.id)}
@@ -408,34 +360,47 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
                       aria-label={`Seleccionar ${p.nombreCompleto}`}
                     />
                   </td>
-                  <td className="px-2 py-3 font-medium text-tinta">{p.nombreCompleto}</td>
-                  <td className="px-4 py-3 text-tinta/70">{p.rut}</td>
-                  <td className="px-4 py-3 text-tinta/70">{p.cargo}</td>
-                  <td className="px-4 py-3 text-tinta/70">{p.region}</td>
-                  <td className="px-4 py-3 text-tinta/70">{p.telefono}</td>
-                  <td className="px-4 py-3 text-tinta/50">{formatearFecha(p.creadaEn)}</td>
-                  <td className="px-6 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-2">
+                    <span className="flex items-center gap-3">
+                      <Avatar nombre={p.nombreCompleto || "?"} tipo="persona" />
+                      <span className="min-w-0">
+                        <span className="block max-w-[18rem] truncate font-semibold text-tinta group-hover:text-naranjo">{p.nombreCompleto}</span>
+                        <span className="block font-mono text-xs tabular-nums text-gris">{p.rut || "Sin RUT"}</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className="inline-block max-w-[14rem] truncate rounded-full bg-tinta/[0.05] px-2.5 py-0.5 text-xs font-semibold text-tinta">{p.cargo || "Sin cargo"}</span>
+                  </td>
+                  <td className="hidden px-4 py-2 text-tinta md:table-cell">
+                    {p.region || <span className="text-gris-suave">—</span>}
+                    {p.turno && <span className="block text-xs text-gris">Turno {p.turno}</span>}
+                  </td>
+                  <td className="hidden whitespace-nowrap px-4 py-2 tabular-nums text-gris lg:table-cell">{p.telefono || "—"}</td>
+                  <td className="hidden whitespace-nowrap px-4 py-2 text-gris sm:table-cell">{formatearFecha(p.creadaEn)}</td>
+                  <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                     {p.cvUrl ? (
                       <a
                         href={p.cvUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-medium text-naranjo hover:underline"
+                        className="inline-flex items-center gap-1 rounded-full bg-naranjo/10 px-2.5 py-1 text-xs font-semibold text-naranjo transition hover:bg-naranjo hover:text-white"
                       >
-                        Ver
+                        <IconFileText size={14} /> Ver
                       </a>
                     ) : (
-                      <span className="text-tinta/30">—</span>
+                      <span className="text-xs text-gris-suave">Sin CV</span>
                     )}
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <IconChevronRight size={18} className="inline text-gris-suave group-hover:text-naranjo" />
                   </td>
                 </tr>
               ))}
               {filtradas.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-tinta/45">
-                    {postulaciones && postulaciones.length > 0
-                      ? "Ningún resultado coincide con los filtros."
-                      : "Aún no hay postulaciones registradas."}
+                  <td colSpan={8} className="px-6 py-10 text-center text-gris">
+                    {postulaciones && postulaciones.length > 0 ? "Ninguna postulación coincide con los filtros." : "Aún no hay postulaciones registradas."}
                   </td>
                 </tr>
               )}
@@ -463,80 +428,119 @@ export default function PanelPostulaciones({ esAdmin }: { esAdmin: boolean }) {
   );
 }
 
-/**
- * Un segmento de la cinta de cifras.
- *
- * `texto` para los dos que muestran un nombre y no un número: van más chicos y
- * sin tabular-nums, que solo sirve para dígitos.
- */
-function Cifra({
-  titulo,
-  valor,
-  tinte,
-  borde,
-  texto,
-}: {
-  titulo: string;
-  valor: string | number;
-  tinte: string;
-  borde?: boolean;
-  texto?: boolean;
-}) {
+/** Un filtro desplegable en pastilla; se oscurece cuando tiene algo elegido. */
+function Selector({ valor, alCambiar, todos, opciones }: { valor: string; alCambiar: (v: string) => void; todos: string; opciones: string[] }) {
   return (
-    <div className={`border-b border-borde px-5 py-4 sm:border-b-0 ${borde ? "sm:border-r" : ""} ${tinte}`}>
-      <dt className="text-xs font-medium text-tinta/55">{titulo}</dt>
-      <dd
-        className={`mt-1 font-condensed font-bold leading-tight tracking-tight text-tinta ${
-          texto ? "text-base" : "text-2xl tabular-nums sm:text-3xl"
-        }`}
-      >
-        {valor}
-      </dd>
-    </div>
+    <select value={valor} onChange={(e) => alCambiar(e.target.value)} aria-label={todos} className={`${PASTILLA} w-auto max-w-[13rem] ${valor ? "bg-tinta/[0.1] font-semibold" : ""}`}>
+      <option value="">{todos}</option>
+      {opciones.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
   );
 }
 
-/** Cuántas filas se ven de entrada; el resto queda detrás de «Ver N más». */
-const FILAS_VISIBLES = 5;
+/** Con mouse se abre al pasar por encima; en una pantalla táctil, al tocar (y se cierra tocando de nuevo). */
+const conMouse = () => typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
+
+/** Los tramos de la barra resumen: del más pedido al menos, y el resto en gris. */
+const TRAMOS = ["bg-teal", "bg-teal/70", "bg-teal/50", "bg-teal/35", "bg-teal/20"];
 
 /**
- * Un desglose compacto: cada fila en una sola línea (nombre, barra y cantidad), los primeros cinco
- * a la vista y el resto plegado, para que las dos tarjetas queden cortas y parejas.
+ * Un desglose compacto: en la tarjeta solo el resumen (cuántos hay, cuál lidera y una barra con la
+ * proporción de cada uno). El detalle completo aparece al pasar el mouse (o al tocar en el celular)
+ * en una ventanita flotante, y tocar una fila filtra la lista por ese valor (de nuevo lo quita).
  */
 function BarrasDesglose({
   titulo,
+  Icono,
   datos,
   maximo,
+  activo,
+  alElegir,
 }: {
   titulo: string;
+  Icono: Icon;
   datos: { etiqueta: string; total: number }[];
   maximo: number;
+  activo: string;
+  alElegir: (valor: string) => void;
 }) {
   const [abierto, setAbierto] = useState(false);
-  const visibles = abierto ? datos : datos.slice(0, FILAS_VISIBLES);
-  const ocultos = datos.length - FILAS_VISIBLES;
+  const total = datos.reduce((s, d) => s + d.total, 0);
+  const lider = datos[0];
+  const unidad = titulo.toLowerCase().includes("región") ? ["región", "regiones"] : ["cargo", "cargos"];
+  const tramos = datos.slice(0, TRAMOS.length);
+  const resto = total - tramos.reduce((s, d) => s + d.total, 0);
+
   return (
-    <div className={`px-5 py-4 ${TARJETA}`}>
-      <h3 className="mb-3 font-condensed text-sm font-bold uppercase text-tinta/70">{titulo}</h3>
-      {datos.length === 0 && <p className="text-sm text-tinta/40">Sin datos aún.</p>}
-      <ul className="space-y-2">
-        {visibles.map((d) => (
-          <li key={d.etiqueta} className="grid grid-cols-[minmax(0,10rem)_1fr_1.5rem] items-center gap-3 text-xs">
-            <span className="truncate font-medium text-tinta/75" title={d.etiqueta}>
-              {d.etiqueta}
+    <section
+      className={`${HOJA} relative px-5 py-4 ${abierto ? "z-30" : ""}`}
+      onMouseEnter={() => conMouse() && setAbierto(true)}
+      onMouseLeave={() => conMouse() && setAbierto(false)}
+    >
+      <button type="button" onClick={() => !conMouse() && setAbierto((v) => !v)} aria-expanded={abierto} className="block w-full text-left">
+        <span className="flex items-center gap-2">
+          <Icono size={18} className="text-naranjo" />
+          <span className="text-sm font-bold text-tinta">{titulo}</span>
+          <span className="text-xs text-gris">
+            · {datos.length} {datos.length === 1 ? unidad[0] : unidad[1]}
+          </span>
+          {activo && <span className="ml-1 truncate rounded-full bg-naranjo/10 px-2 py-0.5 text-[11px] font-semibold text-naranjo">{activo}</span>}
+          <IconChevronDown size={16} className={`ml-auto shrink-0 text-gris transition ${abierto ? "rotate-180" : ""}`} />
+        </span>
+        {lider ? (
+          <>
+            <span className="mt-2 block truncate text-xs text-gris">
+              Lidera <b className="font-semibold text-tinta">{lider.etiqueta}</b> con {lider.total} de {total}
             </span>
-            <span className="h-1.5 overflow-hidden rounded-full bg-crema">
-              <span className="block h-full rounded-full bg-teal" style={{ width: `${Math.max(6, (d.total / maximo) * 100)}%` }} />
+            {/* La proporción de cada uno en una sola barra, sin nombres: el detalle va en la ventanita. */}
+            <span className="mt-2 flex h-2 gap-0.5 overflow-hidden rounded-full">
+              {tramos.map((d, i) => (
+                <span key={d.etiqueta} className={`h-full ${TRAMOS[i]}`} style={{ width: `${(d.total / total) * 100}%` }} />
+              ))}
+              {resto > 0 && <span className="h-full bg-tinta/[0.08]" style={{ width: `${(resto / total) * 100}%` }} />}
             </span>
-            <span className="text-right font-semibold tabular-nums text-tinta/60">{d.total}</span>
-          </li>
-        ))}
-      </ul>
-      {ocultos > 0 && (
-        <button type="button" onClick={() => setAbierto((v) => !v)} className="mt-2.5 text-xs font-semibold text-naranjo hover:underline">
-          {abierto ? "Ver menos" : `Ver ${ocultos} más`}
-        </button>
+          </>
+        ) : (
+          <span className="mt-2 block text-sm text-gris">Sin datos aún.</span>
+        )}
+      </button>
+
+      {abierto && datos.length > 0 && (
+        // Pegada a la tarjeta (sin hueco) para que el mouse pueda bajar a ella sin que se cierre.
+        <div className="absolute inset-x-0 top-full pt-1.5">
+          <div className={`${HOJA} max-h-80 overflow-y-auto p-2`}>
+            <ul className="space-y-0.5">
+              {datos.map((d, i) => {
+                const elegido = activo === d.etiqueta;
+                return (
+                  <li key={d.etiqueta}>
+                    <button
+                      type="button"
+                      onClick={() => alElegir(d.etiqueta)}
+                      aria-pressed={elegido}
+                      className={`grid w-full grid-cols-[0.5rem_minmax(0,11rem)_1fr_1.75rem] items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-tinta/[0.04] ${elegido ? "bg-naranjo/[0.08]" : ""}`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${TRAMOS[i] ?? "bg-tinta/[0.15]"}`} />
+                      <span className={`truncate font-medium ${elegido ? "text-naranjo" : "text-tinta"}`} title={d.etiqueta}>
+                        {d.etiqueta}
+                      </span>
+                      <span className="h-1.5 overflow-hidden rounded-full bg-tinta/[0.06]">
+                        <span className={`block h-full rounded-full ${elegido ? "bg-naranjo" : "bg-teal"}`} style={{ width: `${Math.max(6, (d.total / maximo) * 100)}%` }} />
+                      </span>
+                      <span className="text-right font-semibold tabular-nums text-gris">{d.total}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="px-2 pb-1 pt-2 text-[11px] text-gris-suave">Toca uno para filtrar la lista.</p>
+          </div>
+        </div>
       )}
-    </div>
+    </section>
   );
 }
