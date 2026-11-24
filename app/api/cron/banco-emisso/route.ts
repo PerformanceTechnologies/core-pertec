@@ -5,6 +5,7 @@ import { emissoConfigurado } from "@/lib/fin/emisso";
 import { sincronizarBancoItau } from "@/lib/fin/banco-emisso";
 import { enviarCorreoSoporte } from "@/lib/notificaciones";
 import { RUTA_FIN } from "@/lib/fin/datos";
+import { clasificarConIaTodas, iaConfigurada } from "@/lib/fin/clasificacion-ia";
 
 /**
  * Banco automático: deja en Tesorería los movimientos y saldos de Itaú que Emisso Connect ya leyó.
@@ -23,7 +24,8 @@ import { RUTA_FIN } from "@/lib/fin/datos";
  *   GET /api/cron/banco-emisso            → este mes y el anterior
  *   GET /api/cron/banco-emisso?todo=true  → todo lo que Emisso tenga guardado (la carga inicial)
  */
-export const maxDuration = 120;
+// Hasta 5 minutos: después de traer el banco, la IA sugiere los movimientos nuevos que nadie más reconoce.
+export const maxDuration = 300;
 
 function autorizado(request: NextRequest): boolean {
   const secreto = process.env.CRON_SECRET;
@@ -36,7 +38,10 @@ export async function GET(request: NextRequest) {
   if (!emissoConfigurado()) return NextResponse.json({ ok: true, omitido: "Emisso sin configurar (EMISSO_API_KEY / EMISSO_ITAU_CONEXION)." });
 
   const r = await sincronizarBancoItau({ todo: request.nextUrl.searchParams.get("todo") === "true" });
-  if (r.nuevos > 0 || r.actualizados > 0 || r.saldos > 0) revalidatePath(RUTA_FIN, "layout");
+  // La IA no detiene la sincronización: si falla, queda anotado y se reintenta mañana.
+  const ia = r.ok && iaConfigurada() ? await clasificarConIaTodas().catch((e) => [`la IA falló: ${e instanceof Error ? e.message : String(e)}`]) : [];
+  if (ia.length) console.log("[cron banco-emisso]", ia.join(" · "));
+  if (r.nuevos > 0 || r.actualizados > 0 || r.saldos > 0 || ia.length) revalidatePath(RUTA_FIN, "layout");
 
   if (!r.ok || r.requierePersona || r.advertencias.length) {
     const lineas = [
@@ -53,5 +58,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json(r, { status: r.ok ? 200 : 500 });
+  return NextResponse.json({ ...r, ia }, { status: r.ok ? 200 : 500 });
 }

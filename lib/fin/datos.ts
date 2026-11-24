@@ -37,6 +37,7 @@ import {
   LISTA,
   categoriaDeIngreso,
   categoriasConSubcategorias,
+  sugerenciaDeIa,
   sugerirClasificacion,
   type Clasificado,
   type OrigenClasificacion,
@@ -356,8 +357,12 @@ export interface MovimientoVista extends Movimiento {
   proyectoNombre: string | null;
   contactoId: string | null;
   numeroDocumento: string | null;
-  /** Lo que el Core propone para un movimiento sin clasificar (regla, RUT o un movimiento anterior igual). */
+  /** Lo que el Core propone para un movimiento sin clasificar (regla, RUT, un movimiento anterior igual o la IA). */
   sugerencia: Sugerencia | null;
+  /** Si tuvo sugerencia de la IA y una persona lo clasificó: si dejó lo mismo (aceptada) o lo cambió (corregida). */
+  iaResultado: "aceptada" | "corregida" | null;
+  /** La IA ya lo revisó (aunque no se haya atrevido a sugerir). */
+  iaRevisado: boolean;
 }
 
 export interface VistaFin {
@@ -679,12 +684,13 @@ export async function cargarVistaDe(ctx: ContextoFin): Promise<VistaFin> {
         hoy,
       );
       const sugerencia = !m.categoria_id
-        ? sugerirClasificacion({ id: m.id, glosa: m.glosa, monto: n(m.monto), cuentaId: m.cuenta_id, contraparteRut: m.contraparte_rut ?? null }, reglas, anteriores)
+        ? sugerirClasificacion({ id: m.id, glosa: m.glosa, monto: n(m.monto), cuentaId: m.cuenta_id, contraparteRut: m.contraparte_rut ?? null }, reglas, anteriores) ??
+          sugerenciaDeIa(m.sugerencia_ia, n(m.monto), categorias, subcategorias)
         : null;
       return {
         ...calc, cuentaNombre: cuentaNombre.get(m.cuenta_id) ?? "Cuenta", categoriaNombre: m.categoria_id ? catNombre.get(m.categoria_id) ?? null : null,
         subcategoriaNombre: m.subcategoria_id ? subNombre.get(m.subcategoria_id) ?? null : null, clasificadoPor: m.clasificado_por ?? null,
-        contraparteRut: m.contraparte_rut ?? null,
+        contraparteRut: m.contraparte_rut ?? null, iaResultado: m.ia_resultado ?? null, iaRevisado: Boolean(m.ia_revisado_en),
         proyectoNombre: m.proyecto_id ? proyNombre.get(m.proyecto_id) ?? null : null, contactoId: m.contacto_id, numeroDocumento: m.numero_documento,
         sugerencia,
       };

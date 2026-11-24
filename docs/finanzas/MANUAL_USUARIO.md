@@ -52,7 +52,16 @@ Todo movimiento del banco se clasifica con la lista de Finanzas, en dos niveles:
 4. Igual a un movimiento anterior ya clasificado (misma glosa sin números ni fechas). Solo se sugiere.
 5. Mismo RUT que un movimiento anterior. Solo se sugiere.
 
-Las reglas (2 y 3) se aplican solas cada mañana al llegar el banco; lo aprendido (4 y 5) aparece como «Sugerido» y se acepta con un clic.
+6. **La IA** (Claude): para lo que nada de lo anterior reconoce, sugiere categoría y subcategoría con su seguridad (%) y el porqué. Aparece como «IA: … · 92 %».
+
+Las reglas (2 y 3) se aplican solas cada mañana al llegar el banco; lo aprendido (4 y 5) y lo de la IA (6) aparece como sugerencia y se acepta con un clic. Si corriges una sugerencia de la IA, aprende de tu corrección.
+
+**La IA, paso a paso:**
+- Cada mañana revisa los movimientos nuevos sin clasificar (no las nóminas: su glosa no dice si son sueldos o proveedores). Si no quieres esperar, en el Banco diario está **«Sugerir con IA»**.
+- Usa como ejemplos lo que Finanzas ya clasificó: mientras más se clasifica, mejor sugiere.
+- En Configuración → Categorías y reglas se ve **cuánto acierta** (aceptadas contra corregidas) y las **reglas propuestas**: lo que ya se clasificó igual 3 o más veces, para convertirlo en regla con un clic.
+- **Que se aplique sola** está apagado. Actívalo ahí mismo cuando el acierto lleve varias semanas sobre el umbral (por omisión, 95 %). Aun así, lo que pide proyecto nunca se aplica solo.
+- Se envía a Claude solo la fecha, la glosa, el monto y el RUT de la contraparte; nada de saldos ni datos de personas.
 
 **Ver el mes por categoría:** Tesorería → **Por categoría**. Ingresos y gastos del mes, aparte Financiamiento y Traspasos, y lo que falta clasificar. Cada categoría se abre para ver sus subcategorías.
 

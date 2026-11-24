@@ -123,6 +123,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
               cobros={cobrosSinBanco}
               cuentasBanco={cuentasActivas.filter((c) => c.tipo === "banco").map((c) => ({ id: c.id, nombre: c.nombre }))}
               hoy={v.hoy}
+              paraIa={v.movimientos.filter((m) => !m.categoriaId && !m.sugerencia && !m.iaRevisado && !/^\s*n[oó]mina/i.test(m.glosa)).length}
             />
           )}
         </>
