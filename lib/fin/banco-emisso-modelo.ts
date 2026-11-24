@@ -11,6 +11,10 @@
 //    identidad del Core es cuenta + 'documento' (el número de movimiento correlativo de Itaú en «últimos
 //    movimientos»), que no depende de la glosa. Sin documento se cae al id de Emisso.
 //  · Tesorería es en pesos (numeric(18,0)): de la cuenta dólar solo se guardan los saldos, no los movimientos.
+//  · La cartola histórica (superficie «cartola_historica», meses anteriores) trae el número de cuenta SIN el 0
+//    inicial (9 dígitos) y sin documento en más de la mitad de las filas. La cuenta se reconoce por el número sin
+//    ceros a la izquierda, y de la cartola solo entra lo anterior al primer día que ya trae «últimos movimientos»:
+//    así las dos fuentes no se pisan (sus claves no coinciden, porque la de la cartola cae al id de Emisso).
 // -----------------------------------------------------------------------------
 
 export type Iso = string;
@@ -102,6 +106,8 @@ export function rutNormalizado(rut: string | null | undefined): string | null {
 export interface FilaBanco {
   clave: string;
   numeroCuenta: string;
+  /** De qué parte del portal viene: la cartola de meses anteriores o los últimos movimientos. */
+  deCartola?: boolean;
   fecha: Iso;
   glosa: string;
   monto: number;
@@ -124,6 +130,7 @@ export function traducirMovimiento(sistema: string, m: MovimientoEmisso): Traduc
     fila: {
       clave: claveExterna(sistema, m),
       numeroCuenta: m.numeroCuenta,
+      ...(m.superficie === "cartola_historica" ? { deCartola: true } : {}),
       fecha: m.fecha,
       glosa,
       monto: Math.round(monto),
@@ -150,9 +157,35 @@ export function traducirMovimientos(sistema: string, movs: MovimientoEmisso[]): 
   return { filas: [...filas.values()], omitidos: [...omitidos].map(([motivo, cantidad]) => ({ motivo, cantidad })) };
 }
 
-/** Las cuentas en pesos con movimientos: las que pasan a ser cuentas de Tesorería. La línea de crédito no tiene. */
+/** El número de cuenta para comparar: sin ceros a la izquierda (la cartola histórica los omite). */
+export const numeroComparable = (numero: string): string => numero.trim().replace(/^0+/, "");
+
+/**
+ * Las cuentas en pesos con movimientos: las que pasan a ser cuentas de Tesorería. La línea de crédito no tiene. Si la
+ * misma cuenta viene escrita de dos formas (con y sin el 0 inicial), queda una sola: la de «últimos movimientos».
+ */
 export function cuentasConMovimientos(filas: FilaBanco[]): string[] {
-  return [...new Set(filas.map((f) => f.numeroCuenta))].sort();
+  const porComparable = new Map<string, string>();
+  for (const f of [...filas].sort((a, b) => Number(Boolean(a.deCartola)) - Number(Boolean(b.deCartola)))) {
+    const k = numeroComparable(f.numeroCuenta);
+    if (!porComparable.has(k)) porComparable.set(k, f.numeroCuenta);
+  }
+  return [...porComparable.values()].sort();
+}
+
+/**
+ * De la cartola histórica, solo lo anterior al primer día con «últimos movimientos» de esa cuenta (en este lote o ya
+ * guardado en el Core: `desdeGuardado`, por número comparable). Lo demás no se toca.
+ */
+export function sinSolaparCartola(filas: FilaBanco[], desdeGuardado: Map<string, Iso> = new Map()): { filas: FilaBanco[]; descartadas: number } {
+  const corte = new Map<string, Iso>(desdeGuardado);
+  for (const f of filas) {
+    if (f.deCartola) continue;
+    const k = numeroComparable(f.numeroCuenta);
+    if (!corte.has(k) || f.fecha < corte.get(k)!) corte.set(k, f.fecha);
+  }
+  const salida = filas.filter((f) => !f.deCartola || !corte.has(numeroComparable(f.numeroCuenta)) || f.fecha < corte.get(numeroComparable(f.numeroCuenta))!);
+  return { filas: salida, descartadas: filas.length - salida.length };
 }
 
 /** Nombre con que se crea la cuenta la primera vez (después se puede cambiar en Configuración). */

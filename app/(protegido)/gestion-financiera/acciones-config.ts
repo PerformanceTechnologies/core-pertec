@@ -11,6 +11,8 @@ import { rutComparable } from "@/lib/fin/reglas";
 import { ROL_REMUNERACIONES, esRolAsignable } from "@/lib/fin/flujos-modelo";
 import { SLUG_EMPRESA_REMUNERACIONES } from "@/lib/fin/remuneraciones-modelo";
 import { formatearRut, normalizarRut, rutEsValido } from "@/lib/contratos/rut";
+import { sincronizarBancoItau } from "@/lib/fin/banco-emisso";
+import { emissoConfigurado } from "@/lib/fin/emisso";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -214,6 +216,32 @@ export async function guardarCuentaAction(id: string | null, fd: FormData): Prom
     return { ok: true };
   } catch (e) {
     return fallo(e);
+  }
+}
+
+/**
+ * Trae TODO lo que Emisso tiene guardado de Itaú, incluida la cartola de meses anteriores (la corrida diaria solo pide
+ * este mes y el anterior). No contacta al banco ni duplica: lo ya cargado se reconoce y la cartola solo completa lo
+ * anterior al primer «último movimiento». Solo el administrador del Core.
+ */
+export async function traerHistoriaBancoAction(): Promise<{ ok: true; mensaje?: string } | { ok: false; error: string }> {
+  try {
+    const ctx = await contextoFin();
+    if (ctx.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del Core trae la historia del banco." };
+    if (!emissoConfigurado()) return { ok: false, error: "El banco automático (Emisso) no está configurado en el servidor." };
+    const r = await sincronizarBancoItau({ todo: true });
+    if (!r.ok) return { ok: false, error: r.mensaje ?? "La sincronización con Emisso falló." };
+    await auditar(ctx, "fin_movimientos", null, "historia_banco", `Historia del banco: ${r.nuevos} nuevos, ${r.actualizados} actualizados`);
+    refrescar();
+    return {
+      ok: true,
+      mensaje: r.nuevos
+        ? `Listo: ${r.nuevos} movimiento(s) nuevos del banco. Quedan «Por aclarar»: en Tesorería puedes pedir sugerencias a la IA.`
+        : "No había movimientos nuevos: todo lo que Emisso tiene ya estaba en el Core.",
+    };
+  } catch (e) {
+    const r = fallo(e);
+    return r.ok ? { ok: true } : r;
   }
 }
 
