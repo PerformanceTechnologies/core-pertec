@@ -1,7 +1,7 @@
 // Gestión financiera: lectura de cartolas (sin saber el banco) y el motor de asientos (cada
 // asiento cuadra; el balance de comprobación suma cero; el resultado sale de 4 − 5).
 import assert from "node:assert/strict";
-import { fechaCl, leerCartola, numeroCl } from "../lib/fin/cartola";
+import { fechaCl, leerCartola, numeroCl, sinLoYaGuardado } from "../lib/fin/cartola";
 import { CUENTAS, balanceComprobacion, estadoResultados, generarAsientos, type EntradaContable } from "../lib/fin/contabilidad";
 
 // ─── Números y fechas como vienen de los bancos ─────────────────────────────
@@ -44,6 +44,32 @@ assert.equal(fechaCl("Saldo inicial"), null);
 }
 // ─── Sin encabezados reconocibles: error claro ──────────────────────────────
 assert.ok(leerCartola([["a", "b"], ["1", "2"]]).error);
+
+// Una cartola que se cruza con lo que ya trajo el banco automático no duplica (datos inventados).
+{
+  const f = (fecha: string, monto: number, documento: string | null, glosa = "MOV") => ({ fecha, glosa, monto, documento });
+  const guardados = [
+    { fecha: "2026-03-10", monto: 500000, documento: "000000101" },
+    { fecha: "2026-03-10", monto: 500000, documento: "000000102" },
+    { fecha: "2026-03-11", monto: -12300, documento: null },
+  ];
+  const r = sinLoYaGuardado(
+    [
+      f("2026-03-10", 500000, "101", "TRASPASO"),
+      f("2026-03-10", 500000, "102", "TRASPASO"),
+      f("2026-03-10", 500000, "103", "TRASPASO"),
+      f("2026-03-11", -12300, null, "COM MANTENCION"),
+      f("2026-02-15", -12300, null, "COM MANTENCION"),
+    ],
+    guardados,
+  );
+  assert.equal(r.saltadas, 3, "las dos transferencias con su N° y la comisión del 29 ya estaban");
+  assert.deepEqual(r.nuevas.map((x) => `${x.fecha} ${x.documento ?? "-"}`), ["2026-03-10 103", "2026-02-15 -"], "entra la tercera transferencia y el mes que faltaba");
+  // Sin documento, se cuenta uno a uno por día y monto.
+  assert.equal(sinLoYaGuardado([f("2026-03-11", -12300, null), f("2026-03-11", -12300, null)], guardados).nuevas.length, 1);
+  // Mismo día y monto pero otro N° de documento: es otro movimiento.
+  assert.equal(sinLoYaGuardado([f("2026-03-10", 500000, "999")], guardados.slice(0, 1)).saltadas, 0);
+}
 
 // ─── Motor de asientos ──────────────────────────────────────────────────────
 const e: EntradaContable = {

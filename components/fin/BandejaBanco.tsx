@@ -47,7 +47,7 @@ export function ImportarCartola({ cuentas }: { cuentas: Ref[] }) {
             e.target.value = "";
             if (r.error) setEstado(`⚠ ${r.error}`);
             else {
-              setEstado(`✓ ${r.nuevas} movimiento(s) nuevos · ${r.duplicadas} ya estaban${r.omitidas ? ` · ${r.omitidas} fila(s) sin datos` : ""}`);
+              setEstado(`✓ ${r.nuevas} movimiento(s) nuevos · ${r.duplicadas} ya estaban en el Core (cartolas anteriores o el banco automático), no se duplicaron${r.omitidas ? ` · ${r.omitidas} fila(s) sin datos` : ""}`);
               router.refresh();
             }
           }}

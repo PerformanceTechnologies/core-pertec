@@ -88,3 +88,39 @@ export function leerCartola(filas: string[][]): { filas: FilaCartola[]; omitidas
   }
   return { filas: salida, omitidas };
 }
+
+/** Lo que ya hay en el Core de una cuenta, para no volver a cargarlo desde una cartola. */
+export interface MovimientoGuardado {
+  fecha: Iso;
+  monto: number;
+  documento: string | null;
+}
+
+const docComparable = (d: string | null | undefined) => (d ?? "").replace(/\D/g, "").replace(/^0+/, "");
+
+/**
+ * Separa de la cartola lo que ya está en el Core por otra vía (el banco automático de Emisso, que guarda con otra
+ * huella): mismo día y mismo monto, y mismo N° de documento si los dos lo traen (comparado sin ceros a la izquierda).
+ * Se cuentan uno a uno: si ese día hubo seis transferencias iguales y el Core ya tiene seis, se saltan las seis; si
+ * tiene cuatro, entran las dos que faltan.
+ */
+export function sinLoYaGuardado<T extends FilaCartola>(filas: T[], guardados: MovimientoGuardado[]): { nuevas: T[]; saltadas: number } {
+  const libres = guardados.map((g) => ({ ...g, doc: docComparable(g.documento), usado: false }));
+  const nuevas: T[] = [];
+  // Primero las que traen documento (calzan sin ambigüedad), después las demás por día y monto.
+  const orden = [...filas.keys()].sort((a, b) => Number(!docComparable(filas[a].documento)) - Number(!docComparable(filas[b].documento)));
+  const saltar = new Set<number>();
+  for (const i of orden) {
+    const f = filas[i];
+    const doc = docComparable(f.documento);
+    const igual = libres.find((g) => !g.usado && g.fecha === f.fecha && g.monto === f.monto && (!doc || !g.doc || g.doc === doc));
+    if (igual) {
+      igual.usado = true;
+      saltar.add(i);
+    }
+  }
+  filas.forEach((f, i) => {
+    if (!saltar.has(i)) nuevas.push(f);
+  });
+  return { nuevas, saltadas: saltar.size };
+}

@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import ExcelJS from "exceljs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { RUTA_FIN, auditar, cargarVistaDe, contextoFinApi } from "@/lib/fin/datos";
-import { leerCartola } from "@/lib/fin/cartola";
+import { leerCartola, sinLoYaGuardado } from "@/lib/fin/cartola";
 import { huellaMovimiento } from "@/lib/fin/reglas";
 import { aplicableSola, categoriasConSubcategorias, sugerirClasificacion } from "@/lib/fin/clasificacion";
 import { sinComentarios } from "@/lib/excel-sin-comentarios";
@@ -51,8 +51,10 @@ async function leerExcel(buf: Buffer): Promise<string[][]> {
 }
 
 /**
- * Importa la cartola de una cuenta: detecta las columnas, descarta lo ya cargado (huella de
- * cuenta + fecha + monto + glosa + N°) y aplica las reglas de categorización como sugerencia.
+ * Importa la cartola de una cuenta: detecta las columnas, descarta lo ya cargado y aplica las reglas de
+ * clasificación. «Ya cargado» es tanto una cartola anterior (huella de cuenta + fecha + monto + glosa + N°) como lo
+ * que trajo el banco automático (Emisso), que guarda con otra huella: eso se reconoce por día, monto y N° de documento
+ * (ver sinLoYaGuardado en lib/fin/cartola.ts). Así se puede subir una cartola que se cruza con meses ya cargados.
  */
 export async function POST(request: Request) {
   const ctx = await contextoFinApi();
@@ -83,8 +85,22 @@ export async function POST(request: Request) {
     .single();
   if (eImp) return NextResponse.json({ error: eImp.message }, { status: 500 });
 
+  // Lo que la cuenta ya tiene en esas fechas (de Emisso o de otra cartola) no se vuelve a cargar.
+  const fechas = leida.filas.map((f) => f.fecha).sort();
+  const { data: guardadosR, error: eG } = fechas.length
+    ? await supabaseAdmin.from("fin_movimientos").select("fecha, monto, numero_documento").eq("empresa_id", ctx.empresa.id).eq("cuenta_id", cuenta.id).gte("fecha", fechas[0]).lte("fecha", fechas[fechas.length - 1]).limit(10000)
+    : { data: [], error: null };
+  if (eG) {
+    await supabaseAdmin.from("fin_importaciones").delete().eq("id", imp!.id).eq("empresa_id", ctx.empresa.id);
+    return NextResponse.json({ error: eG.message }, { status: 500 });
+  }
+  const { nuevas: porCargar, saltadas: yaEstaban } = sinLoYaGuardado(
+    leida.filas,
+    ((guardadosR ?? []) as { fecha: string; monto: number | string; numero_documento: string | null }[]).map((g) => ({ fecha: g.fecha, monto: Number(g.monto), documento: g.numero_documento })),
+  );
+
   const conSub = categoriasConSubcategorias(vista.subcategorias);
-  const nuevas = leida.filas.map((f) => {
+  const nuevas = porCargar.map((f) => {
     // Una regla de Finanzas con la clasificación completa (comisiones, Previred…) deja el movimiento conciliado de una.
     const sugerencia = sugerirClasificacion({ glosa: f.glosa, monto: f.monto, cuentaId: cuenta.id }, vista.reglas, []);
     const directa = aplicableSola(sugerencia, vista.categorias, conSub) ? sugerencia : null;
@@ -107,7 +123,7 @@ export async function POST(request: Request) {
   }
   const n = insertadas?.length ?? 0;
   await supabaseAdmin.from("fin_importaciones").update({ filas_nuevas: n, filas_duplicadas: leida.filas.length - n }).eq("id", imp!.id);
-  await auditar(ctx, "fin_importaciones", imp!.id, "importar", `${cuenta.nombre}: ${n} nuevos de ${leida.filas.length} (${leida.omitidas} filas omitidas)`);
+  await auditar(ctx, "fin_importaciones", imp!.id, "importar", `${cuenta.nombre}: ${n} nuevos de ${leida.filas.length} (${yaEstaban} ya estaban en el Core, ${leida.omitidas} filas omitidas)`);
   revalidatePath(RUTA_FIN, "layout");
-  return NextResponse.json({ ok: true, nuevas: n, duplicadas: leida.filas.length - n, omitidas: leida.omitidas });
+  return NextResponse.json({ ok: true, nuevas: n, duplicadas: leida.filas.length - n, yaEstaban, omitidas: leida.omitidas });
 }
