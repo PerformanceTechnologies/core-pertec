@@ -245,11 +245,11 @@ export interface ResumenArchivo {
 }
 
 /** Totales del filtro: lo facturado menos notas de crédito, sin guías (no son venta ni compra). */
-export function resumirArchivo(filas: FilaArchivo[], porMes: boolean): ResumenArchivo {
+export function resumirArchivo(filas: FilaArchivo[], porMes: boolean, soloGuias = false): ResumenArchivo {
   const per = new Map<string, ResumenArchivo["periodos"][number]>();
   const con = new Map<string, ResumenArchivo["contrapartes"][number]>();
   for (const f of filas) {
-    if (f.tipoDte === 52) continue;
+    if (f.tipoDte === 52 && !soloGuias) continue;
     const signo = f.tipoDte === 61 ? -1 : 1;
     const monto = (f.total ?? 0) * signo;
     const p = (f.fecha ?? "").slice(0, porMes ? 7 : 4) || "Sin fecha";

@@ -35,10 +35,11 @@ export default async function ArchivoDocumentos({
   const filtro = `clase=${clase}&tipos=${tipos}${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
   const aqui = `${base}&vista=${vista}&${filtro}`;
   const { filas, total, anios } = await listarArchivo(empresaId, { clase, tipos, anio, mes, q });
-  const resumen = vista === "resumen" ? resumirArchivo(await todasDelArchivo(empresaId, { clase, tipos, anio, mes, q }), Boolean(anio)) : null;
+  const resumen = vista === "resumen" ? resumirArchivo(await todasDelArchivo(empresaId, { clase, tipos, anio, mes, q }), Boolean(anio), tipos === "guias") : null;
   const v = vista === "lista" && filas.some((f) => f.documentoId) ? await cargarVista() : null;
   const docDe = new Map((v?.documentos ?? []).map((d) => [d.id, d]));
-  const suma = filas.reduce((s, f) => s + (f.tipoDte === 61 ? -(f.total ?? 0) : f.tipoDte === 52 ? 0 : f.total ?? 0), 0);
+  const soloGuias = tipos === "guias";
+  const suma = filas.reduce((s, f) => s + (f.tipoDte === 61 ? -(f.total ?? 0) : f.tipoDte === 52 && !soloGuias ? 0 : f.total ?? 0), 0);
   const quien = clase === "emitido" ? "Cliente" : "Proveedor";
   return (
     <div className="space-y-3">
@@ -90,7 +91,7 @@ export default async function ArchivoDocumentos({
           <section className={`${TARJETA} overflow-x-auto p-0`}>
             <h3 className="px-4 pt-4 text-sm font-bold text-tinta">Por {anio ? "mes" : "año"}</h3>
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-borde"><th className={TH}>{anio ? "Mes" : "Año"}</th><th className={`${TH} text-right`}>Docs.</th><th className={`${TH} text-right`}>Facturado</th><th className={`${TH} text-right`}>Notas de crédito</th><th className={`${TH} text-right`}>Neto</th></tr></thead>
+              <thead><tr className="border-b border-borde"><th className={TH}>{anio ? "Mes" : "Año"}</th><th className={`${TH} text-right`}>Docs.</th><th className={`${TH} text-right`}>{soloGuias ? "Valor" : "Facturado"}</th><th className={`${TH} text-right`}>Notas de crédito</th><th className={`${TH} text-right`}>Neto</th></tr></thead>
               <tbody className="divide-y divide-borde">
                 {resumen.periodos.map((p) => (
                   <tr key={p.periodo}>
@@ -122,7 +123,7 @@ export default async function ArchivoDocumentos({
               </tbody>
             </table>
           </section>
-          <p className="text-[11px] text-gris lg:col-span-2">Montos totales (con IVA). No incluye guías de despacho. Las notas de crédito restan.</p>
+          <p className="text-[11px] text-gris lg:col-span-2">{soloGuias ? "Valor declarado en las guías (no es venta: respalda el traslado)." : "Montos totales (con IVA). No incluye guías de despacho. Las notas de crédito restan."}</p>
         </div>
       ) : filas.length === 0 ? (
         <Vacio
@@ -135,7 +136,7 @@ export default async function ArchivoDocumentos({
       ) : (
         <>
           <p className="text-[12px] text-gris">
-            {total.toLocaleString("es-CL")} documento(s){filas.length < total ? `, se muestran los ${filas.length} más recientes (el Excel trae todos)` : ""} · total neto de NC <strong className="text-tinta"><Monto valor={suma} /></strong>
+            {total.toLocaleString("es-CL")} documento(s){filas.length < total ? `, se muestran los ${filas.length} más recientes (el Excel trae todos)` : ""} · {soloGuias ? "valor trasladado" : "total neto de NC"}{filas.length < total ? " (de los mostrados)" : ""} <strong className="text-tinta"><Monto valor={suma} /></strong>
           </p>
           <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
             <table className="w-full min-w-[58rem] text-sm">
