@@ -41,7 +41,8 @@ async function leerExcel(buf: Buffer): Promise<string[][]> {
   const hoja = libro.worksheets[0];
   const filas: string[][] = [];
   hoja?.eachRow({ includeEmpty: false }, (fila) => {
-    filas.push((fila.values as ExcelJS.CellValue[]).slice(1).map((v) => {
+    // Array.from y no .map: Excel deja huecos (celdas vacías) entre columnas y .map los conserva como undefined.
+    filas.push(Array.from(fila.values as ExcelJS.CellValue[]).slice(1).map((v) => {
       if (v instanceof Date) return v.toISOString().slice(0, 10);
       if (v && typeof v === "object") return "result" in v ? String(v.result ?? "") : "text" in v ? String(v.text) : "richText" in v ? v.richText.map((t) => t.text).join("") : "";
       return v === null || v === undefined ? "" : String(v);
