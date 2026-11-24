@@ -128,12 +128,23 @@ export function revienta(que: string, error: { message: string } | null): void {
 const n = (v: any): number => (v === null || v === undefined ? 0 : Number(v));
 const nOrNull = (v: any): number | null => (v === null || v === undefined ? null : Number(v));
 
+/**
+ * Toda la tabla de la empresa. Supabase entrega como máximo 1000 filas por consulta (aunque se pida más con limit),
+ * así que se lee por páginas, con un orden estable (la columna pedida y el id) para no saltar ni repetir filas.
+ */
 async function tabla<T = any>(nombre: string, empresaId: string, orden?: string): Promise<T[]> {
-  let q = supabaseAdmin.from(nombre).select("*").eq("empresa_id", empresaId);
-  if (orden) q = q.order(orden);
-  const { data, error } = await q.limit(10000);
-  revienta(`leer ${nombre}`, error);
-  return (data ?? []) as T[];
+  const PAGINA = 1000;
+  const salida: T[] = [];
+  for (let desde = 0; desde < 200_000; desde += PAGINA) {
+    let q = supabaseAdmin.from(nombre).select("*").eq("empresa_id", empresaId);
+    if (orden) q = q.order(orden);
+    q = q.order("id");
+    const { data, error } = await q.range(desde, desde + PAGINA - 1);
+    revienta(`leer ${nombre}`, error);
+    salida.push(...((data ?? []) as T[]));
+    if ((data ?? []).length < PAGINA) break;
+  }
+  return salida;
 }
 
 async function porIds<T = any>(nombre: string, columna: string, ids: string[]): Promise<T[]> {
