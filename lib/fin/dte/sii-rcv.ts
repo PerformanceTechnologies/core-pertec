@@ -64,11 +64,21 @@ export async function integrarRcvSii(): Promise<{ recibidos: number; archivo: nu
     }
 
     // 3) Archivo: los que no estén (sin PDF/XML todavía; llegan con SimpleFactura o subiéndolos).
-    const { data: ya } = await supabaseAdmin.from("fin_dte_archivo").select("clase, tipo_dte, folio, rut_contraparte, documento_id, id").eq("empresa_id", empresa.id);
-    const enArchivo = new Map((ya ?? []).map((x: any) => [claveDocumento(x.clase, x.tipo_dte, x.folio, x.rut_contraparte), x]));
+    const ya: any[] = [];
+    for (let i = 0; ; i += 1000) {
+      const { data, error } = await supabaseAdmin.from("fin_dte_archivo").select("clase, tipo_dte, folio, rut_contraparte, documento_id, id").eq("empresa_id", empresa.id).range(i, i + 999);
+      if (error) return { error: `archivo: ${error.message}` };
+      ya.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    const enArchivo = new Map(ya.map((x: any) => [claveDocumento(x.clase, x.tipo_dte, x.folio, x.rut_contraparte), x]));
     const nuevas: any[] = [];
+    const vistas = new Set<string>();
     for (const d of docs) {
       const k = claveDocumento(d.direccion, d.tipoDte, d.folio, d.rut);
+      // El RCV puede traer el mismo documento en dos periodos: uno solo.
+      if (vistas.has(k)) continue;
+      vistas.add(k);
       const docId = ids.get(k) ?? null;
       const x = enArchivo.get(k);
       if (x) {
@@ -81,7 +91,9 @@ export async function integrarRcvSii(): Promise<{ recibidos: number; archivo: nu
       });
     }
     for (let i = 0; i < nuevas.length; i += 500) {
-      const { error } = await supabaseAdmin.from("fin_dte_archivo").insert(nuevas.slice(i, i + 500));
+      const { error } = await supabaseAdmin
+        .from("fin_dte_archivo")
+        .upsert(nuevas.slice(i, i + 500), { onConflict: "empresa_id,clase,tipo_dte,folio,rut_contraparte", ignoreDuplicates: true });
       if (error) return { error: `archivo: ${error.message}` };
     }
     return { recibidos: bandeja.length, archivo: nuevas.length, libros: ids.size };

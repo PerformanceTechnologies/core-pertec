@@ -636,8 +636,13 @@ const TOPE_ARCHIVO_RECIBIDOS = 40;
 
 /** Deja en SharePoint (Recibidos/AAAA/MM Mes) el PDF de los recibidos que aún no están archivados con archivo. */
 async function archivarRecibidos(ctx: ContextoFin, prov: ProveedorDte, emisor: EmisorDte, filas: DocumentoRecibido[]): Promise<void> {
-  const { data: ya } = await supabaseAdmin.from("fin_dte_archivo").select("tipo_dte, folio, rut_contraparte, pdf_ref").eq("empresa_id", ctx.empresa.id).eq("clase", "recibido");
-  const conPdf = new Set((ya ?? []).filter((x: any) => x.pdf_ref).map((x: any) => `${x.tipo_dte}|${x.folio}|${x.rut_contraparte}`));
+  const ya: any[] = [];
+  for (let i = 0; ; i += 1000) {
+    const { data } = await supabaseAdmin.from("fin_dte_archivo").select("tipo_dte, folio, rut_contraparte, pdf_ref").eq("empresa_id", ctx.empresa.id).eq("clase", "recibido").not("pdf_ref", "is", null).range(i, i + 999);
+    ya.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
+  }
+  const conPdf = new Set(ya.filter((x: any) => x.pdf_ref).map((x: any) => `${x.tipo_dte}|${x.folio}|${x.rut_contraparte}`));
   const faltan = filas.filter((f) => !conPdf.has(`${f.tipoDte}|${f.folio}|${f.rutEmisor.replace(/\./g, "").toUpperCase()}`)).slice(0, TOPE_ARCHIVO_RECIBIDOS);
   for (const f of faltan) {
     const pdf = await prov.pdfRecibido?.(emisor, { tipoDte: f.tipoDte, folio: f.folio, rutEmisor: f.rutEmisor }).catch(() => null) ?? null;
