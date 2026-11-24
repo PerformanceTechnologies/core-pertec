@@ -3,6 +3,7 @@ import { verificarAccesoAppApi } from "@/lib/autorizacion";
 import { usuarioPuedeVerSubpanelFinanzas } from "@/lib/finanzas-subpaneles-usuario";
 import { descargarBinarioArchivo } from "@/lib/sharepoint-facturas";
 import { parsearXmlDte } from "@/lib/xml-dte";
+import { pdfDesdeDte } from "@/lib/dte-pdf";
 
 const normalizarRut = (rut: string | null | undefined) => (rut ?? "").replace(/[^0-9kK]/g, "").toUpperCase();
 const RUT_PROPIO = process.env.SII_RUT_EMPRESA ?? "77590967-6";
@@ -41,16 +42,20 @@ export async function GET(request: NextRequest) {
     const buffer = await descargarBinarioArchivo(id);
     const esXml = buffer.subarray(0, 200).toString("latin1").trimStart().startsWith("<");
 
-    // ?formato=dte: el XML ya leído (emisor, receptor, ítems y totales) para mostrarlo armado. Los
-    // documentos que vienen de Odoo son XML, y un XML no se puede mostrar en el visor de PDF.
-    if (request.nextUrl.searchParams.get("formato") === "dte") {
-      if (!esXml) return NextResponse.json({ error: "El archivo no es un XML." }, { status: 415 });
+    const params = request.nextUrl.searchParams;
+    // Un XML (los documentos que vienen de Odoo no traen PDF) se muestra como un PDF armado con
+    // sus datos; con ?descargar=1 se entrega el XML original.
+    if (esXml && params.get("descargar") !== "1") {
       const dtes = parsearXmlDte(buffer.toString("latin1"));
-      const dte = dtes.find((d) => normalizarRut(d.rutReceptor) === normalizarRut(RUT_PROPIO)) ?? dtes[0] ?? null;
-      return NextResponse.json({ dte }, { headers: { "Cache-Control": "private, max-age=300" } });
+      const dte = dtes.find((d) => normalizarRut(d.rutReceptor) === normalizarRut(RUT_PROPIO)) ?? dtes[0];
+      if (dte) {
+        return new NextResponse(new Uint8Array(await pdfDesdeDte(dte)), {
+          headers: { "Content-Type": "application/pdf", "Content-Disposition": "inline", "Cache-Control": "private, max-age=3600" },
+        });
+      }
     }
 
-    const nombre = request.nextUrl.searchParams.get("nombre")?.replace(/[^\w.-]/g, "_") || "documento";
+    const nombre = params.get("nombre")?.replace(/[^\w.-]/g, "_") || "documento.xml";
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": esXml ? "application/xml; charset=ISO-8859-1" : "application/pdf",
