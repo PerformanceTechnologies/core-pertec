@@ -7,7 +7,7 @@ import { CAMPO } from "@/lib/estilos";
 import { conciliarGastoAction, facturasCandidatasAction } from "@/app/(protegido)/rendir-gastos/acciones-fondos";
 import { esFactura } from "@/lib/rendidor/mis-gastos-modelo";
 import type { FacturaCandidata } from "@/lib/rendidor/proveedores";
-import type { GastoRendicion } from "@/lib/rendidor/tipos";
+import { subcategoriaSugerida, type GastoRendicion, type TipoGastoGrupo } from "@/lib/rendidor/tipos";
 
 const pesos = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 
@@ -15,6 +15,7 @@ const pesos = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
  * La conciliación de un gasto validado. Una factura se liga a la factura recibida de Finanzas
  * (se sugieren las del mismo proveedor y folio); si no está registrada, se deja escrito por qué.
  * Lo demás (boletas, peajes, pasajes…) se concilia con un clic. Solo lo ve quien puede conciliar.
+ * Al conciliar se confirma también el tipo de gasto de Finanzas: así quedan clasificadas las boletas antiguas.
  */
 export default function ConciliarGasto({
   informeId,
@@ -22,17 +23,22 @@ export default function ConciliarGasto({
   puedeConciliar,
   alCambiar,
   compacto = false,
+  tiposGasto = [],
 }: {
   informeId: string;
   gasto: GastoRendicion;
   puedeConciliar: boolean;
-  alCambiar: (c: GastoRendicion["conciliacion"]) => void;
+  /** Avisa la conciliación nueva y, si se eligió, el tipo de gasto de Finanzas. */
+  alCambiar: (c: GastoRendicion["conciliacion"], tipo?: { id: string; nombre: string } | null) => void;
+  /** La lista de gastos de Finanzas de la empresa: al conciliar se confirma el tipo de gasto. */
+  tiposGasto?: TipoGastoGrupo[];
   /** En una fila de lista: solo el estado y el botón, sin el recuadro. */
   compacto?: boolean;
 }) {
   const [abierta, setAbierta] = useState(false);
   const [facturas, setFacturas] = useState<FacturaCandidata[] | null>(null);
   const [documentoId, setDocumentoId] = useState<string | null>(null);
+  const [tipoId, setTipoId] = useState(gasto.subcategoriaId ?? subcategoriaSugerida(gasto.categoria, tiposGasto)?.id ?? "");
   const [nota, setNota] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
@@ -55,10 +61,11 @@ export default function ConciliarGasto({
   const conciliar = (deshacer: boolean) =>
     iniciar(async () => {
       setError(null);
-      const r = await conciliarGastoAction(informeId, gasto.id, { documentoId, nota, deshacer });
+      const r = await conciliarGastoAction(informeId, gasto.id, { documentoId, nota, deshacer, subcategoriaId: deshacer ? null : tipoId || null });
       if (!r.ok) return setError(r.error);
       const doc = facturas?.find((f) => f.id === documentoId);
-      alCambiar(deshacer ? null : { por: "", en: new Date().toISOString(), documentoId, documentoRef: doc ? `Factura ${doc.folio}${doc.razonSocial ? ` · ${doc.razonSocial}` : ""}` : null, nota: nota.trim() || null });
+      const tipo = tiposGasto.flatMap((t) => t.opciones).find((o) => o.id === tipoId) ?? null;
+      alCambiar(deshacer ? null : { por: "", en: new Date().toISOString(), documentoId, documentoRef: doc ? `Factura ${doc.folio}${doc.razonSocial ? ` · ${doc.razonSocial}` : ""}` : null, nota: nota.trim() || null }, deshacer ? undefined : tipo);
       setAbierta(false);
     });
 
@@ -105,6 +112,20 @@ export default function ConciliarGasto({
                   </ul>
                 )}
               </div>
+            )}
+            {tiposGasto.length > 0 && (
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-gris">Tipo de gasto (Finanzas) *</span>
+                <select value={tipoId} onChange={(e) => setTipoId(e.target.value)} className={`${CAMPO} ${tipoId ? "" : "border-amber-400"}`}>
+                  <option value="">Elige…</option>
+                  {tiposGasto.map((t) => (
+                    <optgroup key={t.categoriaId} label={t.categoria}>
+                      {t.opciones.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+                {!gasto.subcategoriaId && tipoId && <span className="mt-1 block text-[11px] text-gris">Propuesto según su categoría «{gasto.categoria}». Cámbialo si no corresponde.</span>}
+              </label>
             )}
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-gris">Nota{factura && !documentoId ? " *" : " (opcional)"}</span>

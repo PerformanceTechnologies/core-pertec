@@ -480,7 +480,7 @@ export async function facturasCandidatasAction(informeId: string, gastoId: strin
  * si no está registrada en Finanzas, dejar escrito por qué); el resto, un clic. `deshacer` lo
  * devuelve a «por conciliar».
  */
-export async function conciliarGastoAction(informeId: string, gastoId: string, datos: { documentoId?: string | null; nota?: string; deshacer?: boolean }): Promise<Resultado> {
+export async function conciliarGastoAction(informeId: string, gastoId: string, datos: { documentoId?: string | null; nota?: string; deshacer?: boolean; subcategoriaId?: string | null }): Promise<Resultado> {
   try {
     const c = await ctx();
     if (!c.tiene("tesoreria") && !c.tiene("administrador")) return { ok: false, error: "Solo Tesorería o administración concilian." };
@@ -493,6 +493,18 @@ export async function conciliarGastoAction(informeId: string, gastoId: string, d
     if (r.rindeCorreo?.toLowerCase() === c.yo && !c.tiene("administrador")) return { ok: false, error: "No puedes conciliar tus propios gastos: tiene que hacerlo otra persona." };
 
     let conciliacion: NonNullable<typeof g.conciliacion> | null = null;
+    // Al conciliar se confirma el tipo de gasto de Finanzas (así se clasifican también las boletas antiguas).
+    let tipo: { subcategoriaId: string; subcategoriaNombre: string } | null = null;
+    if (!datos.deshacer && r.empresaId) {
+      if (datos.subcategoriaId) {
+        const { data: s } = await supabaseAdmin.from("fin_subcategorias").select("id, nombre").eq("id", datos.subcategoriaId).eq("empresa_id", r.empresaId).eq("activa", true).maybeSingle();
+        if (!s) return { ok: false, error: "Ese tipo de gasto no está en la lista de Finanzas de la empresa." };
+        tipo = { subcategoriaId: s.id as string, subcategoriaNombre: s.nombre as string };
+      } else if (!g.subcategoriaId) {
+        const { count } = await supabaseAdmin.from("fin_subcategorias").select("id", { count: "exact", head: true }).eq("empresa_id", r.empresaId).eq("activa", true);
+        if ((count ?? 0) > 0) return { ok: false, error: "Elige el tipo de gasto de Finanzas antes de conciliar." };
+      }
+    }
     if (!datos.deshacer) {
       const nota = (datos.nota ?? "").trim().slice(0, 500) || null;
       let documentoRef: string | null = null;
@@ -505,7 +517,7 @@ export async function conciliarGastoAction(informeId: string, gastoId: string, d
       }
       conciliacion = { por: c.yo, en: new Date().toISOString(), documentoId: datos.documentoId ?? null, documentoRef, nota };
     }
-    const gastos = r.gastos.map((x) => (x.id === gastoId ? { ...x, conciliacion } : x));
+    const gastos = r.gastos.map((x) => (x.id === gastoId ? { ...x, conciliacion, ...(tipo ?? {}) } : x));
     const { error } = await supabaseAdmin.from("rendiciones").update({ gastos, actualizado_en: new Date().toISOString() }).eq("id", informeId);
     if (error) throw new Error(error.message);
     await auditar("informe", informeId, r.estado, r.estado, c.yo, `${datos.deshacer ? "Deshizo la conciliación" : "Concilió"}: ${g.proveedor || "gasto"}`);
