@@ -27,12 +27,7 @@ export async function GET(request: NextRequest) {
   const termino = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const tiposDocumento = request.nextUrl.searchParams.getAll("tipo").filter(Boolean);
 
-  if (termino.length < 2 && tiposDocumento.length === 0) {
-    return NextResponse.json(
-      { error: "Escribe al menos 2 caracteres o elige un tipo de documento para buscar." },
-      { status: 400 }
-    );
-  }
+  // Sin término ni tipo se devuelven las más recientes (la pantalla las muestra al abrir).
   if (termino.length > 0 && termino.length < 2) {
     return NextResponse.json({ error: "Escribe al menos 2 caracteres para buscar." }, { status: 400 });
   }

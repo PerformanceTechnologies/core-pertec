@@ -176,10 +176,10 @@ function TablaCompras({
               </td>
             </tr>
           )}
-          {!buscado && !cargando && (
+          {!buscado && (
             <tr>
               <td colSpan={6} className="px-4 py-6 text-center text-tinta/50">
-                Escribe un RUT, proveedor o folio, o elige un tipo de documento, para buscar en las facturas de compra.
+                Cargando las facturas de compra más recientes…
               </td>
             </tr>
           )}
@@ -230,12 +230,11 @@ export default function PanelFacturasHistoricas({
   const [errorCompra, setErrorCompra] = useState<string | null>(null);
   const [buscadoCompra, setBuscadoCompra] = useState(false);
 
-  const terminoValidoCompra = busqueda.trim().length >= 2;
-  const debeBuscarCompra = terminoValidoCompra || grupoTipoCompra !== "todos";
+  // Sin escribir nada se muestran las más recientes; el texto (desde 2 letras) y el tipo filtran.
+  const terminoCompra = busqueda.trim().length >= 2 ? busqueda.trim() : "";
 
   useEffect(() => {
-    if (tipo !== "compra" || !debeBuscarCompra) return;
-    const termino = busqueda.trim();
+    if (tipo !== "compra") return;
     const tiposSeleccionados = GRUPOS_TIPO_COMPRA[grupoTipoCompra].tipos;
 
     const idTimeout = setTimeout(async () => {
@@ -243,7 +242,7 @@ export default function PanelFacturasHistoricas({
       setErrorCompra(null);
       try {
         const params = new URLSearchParams();
-        if (termino.length >= 2) params.set("q", termino);
+        if (terminoCompra) params.set("q", terminoCompra);
         (tiposSeleccionados ?? []).forEach((t) => params.append("tipo", t));
 
         const resp = await fetch(`/api/finanzas/facturas-compra/buscar?${params.toString()}`);
@@ -256,10 +255,10 @@ export default function PanelFacturasHistoricas({
         setCargandoCompra(false);
         setBuscadoCompra(true);
       }
-    }, 400);
+    }, terminoCompra ? 400 : 0);
 
     return () => clearTimeout(idTimeout);
-  }, [tipo, busqueda, debeBuscarCompra, grupoTipoCompra]);
+  }, [tipo, terminoCompra, grupoTipoCompra]);
 
   const resultadosCompraOrdenados = useMemo(
     () => [...resultadosCompra].sort((a, b) => compararFechas(a.fechaEmision, b.fechaEmision, ordenFecha)),
@@ -366,10 +365,10 @@ export default function PanelFacturasHistoricas({
         />
       ) : (
         <TablaCompras
-          resultados={debeBuscarCompra ? resultadosCompraOrdenados : []}
-          cargando={debeBuscarCompra && cargandoCompra}
-          error={debeBuscarCompra ? errorCompra : null}
-          buscado={debeBuscarCompra && buscadoCompra}
+          resultados={resultadosCompraOrdenados}
+          cargando={cargandoCompra}
+          error={errorCompra}
+          buscado={buscadoCompra}
           ordenFecha={ordenFecha}
           onToggleOrden={alternarOrden}
           onSeleccionar={setCompraSeleccionada}
