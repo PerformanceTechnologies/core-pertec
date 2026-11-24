@@ -100,12 +100,14 @@ export interface ArchivoCarpeta {
   nombre: string;
   webUrl: string;
   ultimaModificacion: string;
+  /** En bytes. */
+  tamano?: number;
 }
 
 export async function listarArchivosDeCarpeta(itemId: string): Promise<ArchivoCarpeta[]> {
   const graph = await clienteGraph();
   const archivos: ArchivoCarpeta[] = [];
-  let siguiente: string | undefined = `/sites/${SITE_ID()}/drive/items/${itemId}/children?$select=id,name,webUrl,lastModifiedDateTime,file&$top=200`;
+  let siguiente: string | undefined = `/sites/${SITE_ID()}/drive/items/${itemId}/children?$select=id,name,webUrl,lastModifiedDateTime,file,size&$top=200`;
 
   while (siguiente) {
     const resp = await graph.api(siguiente).get();
@@ -116,6 +118,7 @@ export async function listarArchivosDeCarpeta(itemId: string): Promise<ArchivoCa
         nombre: item.name,
         webUrl: item.webUrl,
         ultimaModificacion: item.lastModifiedDateTime,
+        tamano: item.size,
       });
     }
     siguiente = resp?.["@odata.nextLink"];

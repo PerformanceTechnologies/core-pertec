@@ -20,7 +20,7 @@ const GRAPH = "https://graph.microsoft.com/v1.0";
 
 export type TipoMigracion = "ventas" | "compras";
 
-interface MovimientoOdoo {
+export interface MovimientoOdoo {
   id: number;
   invoice_date: string | false;
   l10n_latam_document_type_id_code: string | false;
@@ -122,6 +122,15 @@ async function subirSiNoEsta(token: string, sitio: string, carpetaId: string, no
   throw Object.assign(new Error(`HTTP ${r.status} ${detalle.slice(0, 160)}`), { status: r.status });
 }
 
+/** El nombre con que se guarda en SharePoint el XML de un documento de Odoo. */
+export function nombreArchivoMigrado(tipo: TipoMigracion, m: MovimientoOdoo): string {
+  const tipoDte = m.l10n_latam_document_type_id_code || "DTE";
+  const folio = String(m.l10n_latam_document_number || m.id).replace(/[^\w-]/g, "");
+  const rut = String(m.partner_id_vat || "").replace(/[^0-9kK-]/g, "");
+  // Compras: el folio se repite entre proveedores, así que el nombre lleva el RUT del emisor.
+  return tipo === "ventas" ? `DTE_${tipoDte}_${folio}.xml` : `DTE_${tipoDte}_${folio}_${rut || "sinrut"}.xml`;
+}
+
 export async function migrarDesdeOdoo(opciones: {
   tipo: TipoMigracion;
   desde: string;
@@ -172,11 +181,7 @@ export async function migrarDesdeOdoo(opciones: {
         continue;
       }
       const [anio, mes] = m.invoice_date.split("-").map(Number);
-      const tipoDte = m.l10n_latam_document_type_id_code || "DTE";
-      const folio = String(m.l10n_latam_document_number || m.id).replace(/[^\w-]/g, "");
-      const rut = String(m.partner_id_vat || "").replace(/[^0-9kK-]/g, "");
-      // Compras: el folio se repite entre proveedores, así que el nombre lleva el RUT del emisor.
-      const nombre = tipo === "ventas" ? `DTE_${tipoDte}_${folio}.xml` : `DTE_${tipoDte}_${folio}_${rut || "sinrut"}.xml`;
+      const nombre = nombreArchivoMigrado(tipo, m);
 
       for (let intento = 0; intento < 2; intento++) {
         try {
