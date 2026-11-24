@@ -289,6 +289,7 @@ export const LISTA = {
   traspasoEntreCuentas: "Traspaso entre Cuentas",
   financiamiento: "Financiamiento",
   anticipoFactoring: "Anticipo Factoring",
+  fondoPorRendir: "Fondo por Rendir",
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -301,8 +302,10 @@ export interface FilaResumen {
   afectaResultado: boolean;
   ingresos: number;
   egresos: number;
+  /** De los egresos, cuánto viene de boletas rendidas (Rendir gastos) y no del banco. */
+  rendido: number;
   movimientos: number;
-  subcategorias: { subcategoriaId: string | null; nombre: string; ingresos: number; egresos: number; movimientos: number }[];
+  subcategorias: { subcategoriaId: string | null; nombre: string; ingresos: number; egresos: number; rendido: number; movimientos: number }[];
 }
 
 export interface ResumenCategorias {
@@ -310,24 +313,64 @@ export interface ResumenCategorias {
   hasta: Iso;
   /** Ingresos y gastos (sin Financiamiento ni Traspasos Internos). */
   resultado: FilaResumen[];
-  /** Financiamiento y Traspasos Internos: entran y salen de caja, pero no son ingreso ni gasto. */
+  /** Financiamiento, Traspasos Internos y los fondos por rendir: mueven caja, pero no son ingreso ni gasto. */
   sinResultado: FilaResumen[];
   totalIngresos: number;
   totalEgresos: number;
   porAclarar: { movimientos: number; ingresos: number; egresos: number };
+  /** Boletas rendidas del mes que todavía no tienen tipo de gasto de Finanzas. */
+  rendidoSinTipo: { boletas: number; monto: number };
 }
 
+/** Una boleta de Rendir gastos (de un informe aprobado), para sumarla al resumen como gasto. */
+export interface GastoRendido {
+  fecha: Iso;
+  total: number;
+  subcategoriaId: string | null;
+}
+
+/**
+ * El mes por categoría. Junta el banco con las boletas rendidas sin contar dos veces:
+ *   · Las boletas rendidas (`rendidos`) suman como gasto en su subcategoría.
+ *   · Por eso, los movimientos del banco con una subcategoría de `noSuman` (los fondos por rendir y sus reembolsos)
+ *     no suman como gasto: van aparte, junto a Financiamiento y Traspasos. El gasto real lo traen las boletas.
+ */
 export function resumenPorCategoria(
   movimientos: { fecha: Iso; monto: number; categoriaId: string | null; subcategoriaId?: string | null }[],
   categorias: CategoriaLista[],
   subcategorias: Subcategoria[],
   desde: Iso,
   hasta: Iso,
+  opciones: { rendidos?: GastoRendido[]; noSuman?: Set<string> } = {},
 ): ResumenCategorias {
-  const enRango = movimientos.filter((m) => m.fecha >= desde && m.fecha <= hasta);
   const filas = new Map<string, FilaResumen>();
   const porAclarar = { movimientos: 0, ingresos: 0, egresos: 0 };
-  for (const m of enRango) {
+  const rendidoSinTipo = { boletas: 0, monto: 0 };
+  const noSuman = opciones.noSuman ?? new Set<string>();
+  const sumar = (clave: string, nombre: string, afecta: boolean, categoriaId: string | null, sub: Subcategoria | null, monto: number, rendido: boolean) => {
+    const f = filas.get(clave) ?? { categoriaId, nombre, afectaResultado: afecta, ingresos: 0, egresos: 0, rendido: 0, movimientos: 0, subcategorias: [] };
+    let fs = f.subcategorias.find((x) => x.subcategoriaId === (sub?.id ?? null));
+    if (!fs) {
+      fs = { subcategoriaId: sub?.id ?? null, nombre: sub?.nombre ?? "Sin subcategoría", ingresos: 0, egresos: 0, rendido: 0, movimientos: 0 };
+      f.subcategorias.push(fs);
+    }
+    if (monto > 0) {
+      f.ingresos += monto;
+      fs.ingresos += monto;
+    } else {
+      f.egresos += -monto;
+      fs.egresos += -monto;
+      if (rendido) {
+        f.rendido += -monto;
+        fs.rendido += -monto;
+      }
+    }
+    f.movimientos++;
+    fs.movimientos++;
+    filas.set(clave, f);
+  };
+
+  for (const m of movimientos.filter((x) => x.fecha >= desde && x.fecha <= hasta)) {
     const c = m.categoriaId ? categorias.find((x) => x.id === m.categoriaId) : null;
     if (!c) {
       porAclarar.movimientos++;
@@ -335,31 +378,28 @@ export function resumenPorCategoria(
       else porAclarar.egresos += -m.monto;
       continue;
     }
-    const f = filas.get(c.id) ?? { categoriaId: c.id, nombre: c.nombre, afectaResultado: c.afectaResultado, ingresos: 0, egresos: 0, movimientos: 0, subcategorias: [] };
-    const sub = m.subcategoriaId ? subcategorias.find((s) => s.id === m.subcategoriaId) : null;
-    let fs = f.subcategorias.find((x) => x.subcategoriaId === (sub?.id ?? null));
-    if (!fs) {
-      fs = { subcategoriaId: sub?.id ?? null, nombre: sub?.nombre ?? "Sin subcategoría", ingresos: 0, egresos: 0, movimientos: 0 };
-      f.subcategorias.push(fs);
-    }
-    if (m.monto > 0) {
-      f.ingresos += m.monto;
-      fs.ingresos += m.monto;
-    } else {
-      f.egresos += -m.monto;
-      fs.egresos += -m.monto;
-    }
-    f.movimientos++;
-    fs.movimientos++;
-    filas.set(c.id, f);
+    const sub = m.subcategoriaId ? subcategorias.find((s) => s.id === m.subcategoriaId) ?? null : null;
+    if (sub && noSuman.has(sub.id)) sumar(`aparte:${sub.id}`, `${sub.nombre} (el gasto real viene de las rendiciones)`, false, c.id, sub, m.monto, false);
+    else sumar(c.id, c.nombre, c.afectaResultado, c.id, sub, m.monto, false);
   }
-  const orden = (a: FilaResumen, b: FilaResumen) => (categorias.find((c) => c.id === a.categoriaId)?.orden ?? 0) - (categorias.find((c) => c.id === b.categoriaId)?.orden ?? 0);
+  for (const g of (opciones.rendidos ?? []).filter((x) => x.fecha >= desde && x.fecha <= hasta && x.total > 0)) {
+    const sub = g.subcategoriaId ? subcategorias.find((s) => s.id === g.subcategoriaId) ?? null : null;
+    const c = sub ? categorias.find((x) => x.id === sub.categoriaId) : null;
+    if (!sub || !c) {
+      rendidoSinTipo.boletas++;
+      rendidoSinTipo.monto += g.total;
+      continue;
+    }
+    sumar(c.id, c.nombre, c.afectaResultado, c.id, sub, -g.total, true);
+  }
+
+  const ordenCat = (f: FilaResumen) => (categorias.find((c) => c.id === f.categoriaId)?.orden ?? 0);
   const ordenSub = (a: { subcategoriaId: string | null }, b: { subcategoriaId: string | null }) =>
     (subcategorias.find((s) => s.id === a.subcategoriaId)?.orden ?? 999) - (subcategorias.find((s) => s.id === b.subcategoriaId)?.orden ?? 999);
-  const todas = [...filas.values()].map((f) => ({ ...f, subcategorias: [...f.subcategorias].sort(ordenSub) })).sort(orden);
+  const todas = [...filas.values()].map((f) => ({ ...f, subcategorias: [...f.subcategorias].sort(ordenSub) })).sort((a, b) => ordenCat(a) - ordenCat(b));
   const resultado = todas.filter((f) => f.afectaResultado);
   return {
     desde, hasta, resultado, sinResultado: todas.filter((f) => !f.afectaResultado),
-    totalIngresos: resultado.reduce((s, f) => s + f.ingresos, 0), totalEgresos: resultado.reduce((s, f) => s + f.egresos, 0), porAclarar,
+    totalIngresos: resultado.reduce((s, f) => s + f.ingresos, 0), totalEgresos: resultado.reduce((s, f) => s + f.egresos, 0), porAclarar, rendidoSinTipo,
   };
 }

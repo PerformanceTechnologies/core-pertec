@@ -10,6 +10,8 @@ import {
   type GastoRendicion,
   type Rendicion,
   type TipoDocumento,
+  subcategoriaSugerida,
+  type TipoGastoGrupo,
 } from "@/lib/rendidor/tipos";
 import { desgloseDeGasto, rutValido } from "@/lib/rendidor/iva";
 import { leerRespuesta, mapaConTope } from "@/lib/rendidor/red";
@@ -166,6 +168,9 @@ interface ComprobanteLeidoUI {
   total: number | null;
   ilegibles: string[] | null;
   impuestoEspecifico?: number | null;
+  /** El tipo de gasto de Finanzas que eligió la IA (si la empresa tiene la lista). */
+  subcategoriaId?: string | null;
+  subcategoriaNombre?: string | null;
 }
 
 /** Un ícono y un color por categoría: se reconocen de un vistazo en la lista y en el selector. */
@@ -293,6 +298,7 @@ export default function PanelRendicion({
   alCambiarGastos,
   proveedores = [],
   proyectos = [],
+  tiposGasto = [],
   puedeConciliar = false,
   modoPopup = false,
   soloIds,
@@ -325,6 +331,8 @@ export default function PanelRendicion({
   sinExcel?: boolean;
   /** Los proyectos de la empresa, para cargarles cada gasto. */
   proyectos?: ProyectoOpcion[];
+  /** La lista de gastos de Finanzas (Categoría › Subcategoría) para clasificar cada boleta. */
+  tiposGasto?: TipoGastoGrupo[];
   /** Tesorería o administración: pueden conciliar los gastos de un informe aprobado. */
   puedeConciliar?: boolean;
   /** Quien revisa un informe con fondo: acepta, observa o rechaza cada boleta. */
@@ -708,6 +716,11 @@ export default function PanelRendicion({
         tipoDocumento: l.tipoDocumento,
         detalle: l.detalle ?? "",
         categoria: l.categoria,
+        // El tipo de gasto de Finanzas: el que eligió la IA o, si no, el que corresponde a la categoría rápida.
+        ...(() => {
+          const t = l.subcategoriaId ? { id: l.subcategoriaId, nombre: l.subcategoriaNombre ?? "" } : subcategoriaSugerida(l.categoria, tiposGasto);
+          return t ? { subcategoriaId: t.id, subcategoriaNombre: t.nombre } : {};
+        })(),
         neto: l.neto ?? 0,
         iva: l.iva ?? 0,
         // AQUÍ se salva la distinción que los números no pueden guardar: el
@@ -1363,7 +1376,14 @@ export default function PanelRendicion({
                                   key={c}
                                   type="button"
                                   disabled={yaCargada}
-                                  onClick={(ev) => { ev.preventDefault(); actualizarGasto(g.id, { categoria: c }); }}
+                                  onClick={(ev) => {
+                                    ev.preventDefault();
+                                    // El tipo de gasto de Finanzas acompaña a la categoría, salvo que alguien haya elegido otro a mano.
+                                    const antes = subcategoriaSugerida(g.categoria, tiposGasto);
+                                    const nueva = subcategoriaSugerida(c, tiposGasto);
+                                    const seguir = !g.subcategoriaId || g.subcategoriaId === antes?.id;
+                                    actualizarGasto(g.id, { categoria: c, ...(seguir ? { subcategoriaId: nueva?.id ?? null, subcategoriaNombre: nueva?.nombre ?? null } : {}) });
+                                  }}
                                   className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition disabled:cursor-default ${
                                     on ? "border-naranjo bg-naranjo/[0.07] text-tinta ring-2 ring-naranjo/15" : "border-borde text-gris hover:border-naranjo/40 hover:text-tinta"
                                   } ${yaCargada && !on ? "opacity-40" : ""}`}
@@ -1375,6 +1395,30 @@ export default function PanelRendicion({
                             })}
                           </span>
                         </Campo>
+
+                        {(tiposGasto.length > 0 || g.subcategoriaId) && (
+                          <Campo etiqueta="Tipo de gasto (Finanzas)" ancho="sm:col-span-2 xl:col-span-4">
+                            <select
+                              value={g.subcategoriaId ?? ""}
+                              disabled={yaCargada}
+                              onChange={(e) => {
+                                const o = tiposGasto.flatMap((t) => t.opciones).find((x) => x.id === e.target.value);
+                                actualizarGasto(g.id, { subcategoriaId: o?.id ?? null, subcategoriaNombre: o?.nombre ?? null });
+                              }}
+                              className={`h-8 w-full rounded-md border bg-superficie px-2 text-xs text-tinta disabled:opacity-70 ${g.subcategoriaId ? "border-borde" : "border-amber-400"}`}
+                            >
+                              <option value="">Elige el tipo de gasto…</option>
+                              {g.subcategoriaId && !tiposGasto.some((t) => t.opciones.some((o) => o.id === g.subcategoriaId)) && (
+                                <option value={g.subcategoriaId}>{g.subcategoriaNombre ?? "Tipo de gasto"}</option>
+                              )}
+                              {tiposGasto.map((t) => (
+                                <optgroup key={t.categoriaId} label={t.categoria}>
+                                  {t.opciones.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </Campo>
+                        )}
 
                         <Campo etiqueta="IVA" ancho="sm:col-span-1 xl:col-span-2">
                           <SelectInput

@@ -1,4 +1,5 @@
 import { SLUG_POR_OMISION } from "@/lib/empresas-modelo";
+import { tiposGastoDeEmpresa } from "@/lib/rendidor/tipos-gasto";
 import { contextoDeEmpresa } from "@/lib/empresas";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -95,9 +96,10 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
     ? await empresaActivaRG(usuario).then((e) => (e ? obtenerOCrearBolsa({ correo: usuario.correo, nombre: usuario.nombre || usuario.correo }, usuario.id, e) : null)).catch(() => null)
     : null;
 
-  const [proveedores, proyectos] = await Promise.all([
+  const [proveedores, proyectos, tiposGasto] = await Promise.all([
     editable ? listarProveedores().catch(() => []) : Promise.resolve([]),
     rendicion.empresaId ? listarProyectos(rendicion.empresaId) : Promise.resolve([]),
+    tiposGastoDeEmpresa(rendicion.empresaId).catch(() => []),
   ]);
   const puedeConciliar = rolesFondos.includes("tesoreria") || rolesFondos.includes("administrador");
 
@@ -251,7 +253,7 @@ export default async function RendicionPage({ params }: { params: Promise<{ id: 
         {vistaRevisor || validado ? (
           <RevisionGastos informeId={rendicion.id} gastos={rendicion.gastos} urlsRespaldo={urlsRespaldo} puedeRevisarBoletas={conFondo && vistaRevisor} validado={validado} puedeConciliar={puedeConciliar && rendicion.estado !== "cargada_odoo"} />
         ) : (
-          <PanelRendicion key={`${rendicion.id}-${rendicion.gastos.length}`} rendicionInicial={rendicion} borradores={(editable && esMia && misGastos ? misGastos.gastos : []).map((g) => ({ id: g.id, proveedor: g.proveedor, fecha: g.fecha, categoria: g.categoria, total: Number(g.total) || 0 }))} bolsaId={misGastos?.id ?? null} proveedores={proveedores} proyectos={proyectos} puedeConciliar={puedeConciliar} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
+          <PanelRendicion key={`${rendicion.id}-${rendicion.gastos.length}`} rendicionInicial={rendicion} borradores={(editable && esMia && misGastos ? misGastos.gastos : []).map((g) => ({ id: g.id, proveedor: g.proveedor, fecha: g.fecha, categoria: g.categoria, total: Number(g.total) || 0 }))} bolsaId={misGastos?.id ?? null} proveedores={proveedores} proyectos={proyectos} tiposGasto={tiposGasto} puedeConciliar={puedeConciliar} urlsRespaldo={urlsRespaldo} editable={editable} puedeEnviar={acciones.includes("enviar")} revisarBoletas={conFondo && revisa && rendicion.estado === "enviada"} />
         )}
 
         {/* Historial */}

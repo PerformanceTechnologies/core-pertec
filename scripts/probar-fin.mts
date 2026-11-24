@@ -42,6 +42,7 @@ import {
   type Clasificado,
   type Subcategoria,
 } from "../lib/fin/clasificacion";
+import { SUBCATEGORIA_POR_CATEGORIA, subcategoriaSugerida } from "../lib/rendidor/tipos";
 
 const HOY = "2026-11-04";
 const P = PARAMETROS_DEFAULT;
@@ -376,6 +377,43 @@ assert.deepEqual([cifrasProyecto(proyecto("General", null), hitos, compras).comp
   );
   assert.deepEqual(props.map((x) => [x.tipo, x.valor, x.veces]), [["texto", "com mantencion cta", 3], ["rut", "761234560", 3]]);
   assert.equal(proponerReglas([vez("1", "COM MANTENCION CTA 01", null), vez("2", "COM MANTENCION CTA 02", null), vez("3", "COM MANTENCION CTA 03", null)], reglas).length, 0, "ya hay una regla que lo cubre");
+
+  // Rendir gastos: las boletas suman como gasto y la transferencia del fondo por rendir no (no se cuenta dos veces).
+  const SUBS2: Subcategoria[] = [...SUBS, { id: "fondo", categoriaId: "Costos Financieros", nombre: "Fondo por Rendir", cuentaContable: null, orden: 16, activa: true }];
+  const r2 = resumenPorCategoria(
+    [{ fecha: "2026-11-02", monto: -300000, categoriaId: "Costos Financieros", subcategoriaId: "fondo" }],
+    CATS,
+    SUBS2,
+    "2026-11-01",
+    "2026-11-30",
+    {
+      noSuman: new Set(["fondo"]),
+      rendidos: [
+        { fecha: "2026-11-05", total: 42000, subcategoriaId: "combustible" },
+        { fecha: "2026-11-06", total: 8000, subcategoriaId: null },
+        { fecha: "2026-10-30", total: 1, subcategoriaId: "combustible" },
+      ],
+    },
+  );
+  assert.equal(r2.totalEgresos, 42000, "solo la boleta suma; la transferencia del fondo va aparte");
+  assert.equal(r2.resultado[0].rendido, 42000);
+  assert.deepEqual(r2.sinResultado.map((f) => f.egresos), [300000]);
+  assert.deepEqual(r2.rendidoSinTipo, { boletas: 1, monto: 8000 });
+
+  // La categoría rápida de Rendir gastos apunta a la lista de Finanzas («Insumos / Otros» se elige a mano).
+  const tipos = [
+    { categoriaId: "op", categoria: "Operaciones y Proyectos", opciones: [{ id: "veh", nombre: "Vehículos (Autorenta/Combustible)" }] },
+    { categoriaId: "pd", categoria: "Personal y Dotación", opciones: [{ id: "ali", nombre: "Alimentación" }, { id: "alo", nombre: "Alojamiento" }, { id: "tra", nombre: "Traslado / Pasajes" }] },
+  ];
+  assert.equal(subcategoriaSugerida("Combustible", tipos)?.id, "veh");
+  assert.equal(subcategoriaSugerida("Peajes", tipos)?.id, "veh");
+  assert.equal(subcategoriaSugerida("Transporte", tipos)?.id, "tra");
+  assert.equal(subcategoriaSugerida("Insumos / Otros", tipos), null);
+  assert.equal(subcategoriaSugerida(null, tipos), null);
+  assert.equal(subcategoriaSugerida("Alimentación", []), null, "sin lista de Finanzas no hay sugerencia");
+  // Los textos de la tabla de Rendir gastos existen tal cual en la lista de Finanzas (migración 0014).
+  const sql = (await import("node:fs")).readFileSync("supabase/fin/0014_clasificacion_categorias.sql", "utf8");
+  for (const par of Object.values(SUBCATEGORIA_POR_CATEGORIA)) if (par) assert.ok(sql.includes(`('${par[0]}', '${par[1]}'`), `${par.join(" › ")} está en la lista`);
 
   // Una categoría con subcategorías no queda conciliada sin elegir una.
   const mov: MovimientoBase = { id: "m", cuentaId: "cc", fecha: "2026-11-03", glosa: "x", monto: -1, categoriaId: "Costos Financieros", faltaSubcategoria: true, proyectoId: null, responsable: null, tieneRespaldo: true, documentoRef: null, conciliaciones: 0, comentario: null };

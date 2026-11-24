@@ -32,6 +32,34 @@ export const CATEGORIAS_GASTO = [
 
 export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
 
+/** La lista maestra de gastos de Finanzas, agrupada por categoría (la arma lib/rendidor/tipos-gasto.ts). */
+export interface TipoGastoGrupo {
+  categoriaId: string;
+  categoria: string;
+  opciones: { id: string; nombre: string }[];
+}
+
+/**
+ * A qué subcategoría de Finanzas va cada categoría rápida de Rendir gastos, cuando la IA o la persona no eligieron otra.
+ * Peajes va con los vehículos (la lista de Finanzas no tiene «Peajes»). «Insumos / Otros» no tiene una sola respuesta:
+ * hay que elegirla.
+ */
+export const SUBCATEGORIA_POR_CATEGORIA: Record<CategoriaGasto, readonly [string, string] | null> = {
+  Combustible: ["Operaciones y Proyectos", "Vehículos (Autorenta/Combustible)"],
+  Peajes: ["Operaciones y Proyectos", "Vehículos (Autorenta/Combustible)"],
+  Alimentación: ["Personal y Dotación", "Alimentación"],
+  Alojamiento: ["Personal y Dotación", "Alojamiento"],
+  Transporte: ["Personal y Dotación", "Traslado / Pasajes"],
+  "Insumos / Otros": null,
+};
+
+/** La subcategoría de Finanzas que corresponde a una categoría rápida, buscada en la lista de la empresa. */
+export function subcategoriaSugerida(categoria: CategoriaGasto | null, tipos: TipoGastoGrupo[]): { id: string; nombre: string } | null {
+  const par = categoria ? SUBCATEGORIA_POR_CATEGORIA[categoria] : null;
+  if (!par) return null;
+  return tipos.find((g) => g.categoria === par[0])?.opciones.find((o) => o.nombre === par[1]) ?? null;
+}
+
 // Tratamiento tributario por tipo de documento. `afecto` es el DEFAULT que se
 // aplica solo cuando el comprobante no desglosa neto e IVA — el desglose
 // impreso siempre manda sobre esta tabla (ver reglas en iva.ts).
@@ -175,6 +203,12 @@ export interface GastoRendicion {
   duplicadoDe?: { informeId: string; titulo: string } | null;
   /** Enlace futuro con el módulo de compras. */
   compraId?: string | null;
+  /**
+   * El tipo de gasto en la lista maestra de Finanzas (subcategoría). Con esto la boleta suma en Tesorería › Por
+   * categoría. El nombre se guarda aparte para listarlo sin otra consulta.
+   */
+  subcategoriaId?: string | null;
+  subcategoriaNombre?: string | null;
   /** A qué proyecto se carga el gasto (de Finanzas). El nombre se guarda aparte para listarlo sin otra consulta. */
   proyectoId?: string | null;
   proyectoNombre?: string | null;
