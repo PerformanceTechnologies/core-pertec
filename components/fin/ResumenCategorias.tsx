@@ -17,7 +17,7 @@ export default function ResumenCategorias({ r, base, mesAnterior, mesSiguiente }
         <Link href={`${base}&mes=${mesAnterior}`} scroll={false} className="grid h-8 w-8 place-items-center rounded-lg border border-borde bg-superficie text-gris hover:text-tinta" aria-label="Mes anterior">
           <IconChevronLeft size={16} />
         </Link>
-        <h2 className="min-w-[10rem] text-center text-[15px] font-bold capitalize text-tinta">{mesLargo(r.desde)}</h2>
+        <h2 className="min-w-[10rem] text-center text-[15px] font-bold text-tinta first-letter:uppercase">{mesLargo(r.desde)}</h2>
         {mesSiguiente ? (
           <Link href={`${base}&mes=${mesSiguiente}`} scroll={false} className="grid h-8 w-8 place-items-center rounded-lg border border-borde bg-superficie text-gris hover:text-tinta" aria-label="Mes siguiente">
             <IconChevronRight size={16} />
