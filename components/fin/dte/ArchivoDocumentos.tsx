@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { IconDownload, IconFileSpreadsheet, IconFileTypePdf, IconFolder } from "@tabler/icons-react";
-import { listarArchivo, resumirArchivo, todasDelArchivo, type ClaseDte } from "@/lib/fin/dte/archivo";
+import { IconDownload, IconEye, IconFileSpreadsheet, IconFileTypePdf, IconFolder } from "@tabler/icons-react";
+import { listarArchivo, resumirArchivo, todasDelArchivo, type ClaseDte, type TiposArchivo } from "@/lib/fin/dte/archivo";
 import { cargarVista } from "@/lib/fin/datos";
 import { DTE_CORTO } from "@/lib/fin/modelo";
 import { clp, fechaCl } from "@/lib/fin/reglas";
@@ -19,10 +19,23 @@ const BOTON_MINI = "rounded-md bg-tinta/[0.06] px-2 py-0.5 text-[11px] font-semi
  * Lista o resumen por periodo y contraparte, Excel con el mismo filtro, subida manual y, para lo que está en los
  * libros, su estado de pago (pagado por conciliar / pendiente).
  */
-export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, mes, q, vista }: { empresaId: string; ruta: string; clase: ClaseDte; anio: number | null; mes: number | null; q: string; vista: "lista" | "resumen" }) {
-  const filtro = `clase=${clase}${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
-  const { filas, total, anios } = await listarArchivo(empresaId, { clase, anio, mes, q });
-  const resumen = vista === "resumen" ? resumirArchivo(await todasDelArchivo(empresaId, { clase, anio, mes, q }), Boolean(anio)) : null;
+export default async function ArchivoDocumentos({
+  empresaId, ruta, clase, anio, mes, q, vista, tipos = "todos", pestana = "archivo", modo, conClase = true,
+}: {
+  empresaId: string; ruta: string; clase: ClaseDte; anio: number | null; mes: number | null; q: string; vista: "lista" | "resumen";
+  /** Qué tipos muestra (la pestaña Guías solo las guías; Emitidos, todo menos guías). */
+  tipos?: TiposArchivo;
+  /** La pestaña de Facturación donde vive (para que los filtros y enlaces no la cambien). */
+  pestana?: string;
+  modo?: string;
+  /** Muestra el cambio Emitidos / Recibidos (solo en «Archivo y consultas»). */
+  conClase?: boolean;
+}) {
+  const base = `${ruta}?ver=${pestana}${modo ? `&modo=${modo}` : ""}`;
+  const filtro = `clase=${clase}&tipos=${tipos}${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const aqui = `${base}&vista=${vista}&${filtro}`;
+  const { filas, total, anios } = await listarArchivo(empresaId, { clase, tipos, anio, mes, q });
+  const resumen = vista === "resumen" ? resumirArchivo(await todasDelArchivo(empresaId, { clase, tipos, anio, mes, q }), Boolean(anio)) : null;
   const v = vista === "lista" && filas.some((f) => f.documentoId) ? await cargarVista() : null;
   const docDe = new Map((v?.documentos ?? []).map((d) => [d.id, d]));
   const suma = filas.reduce((s, f) => s + (f.tipoDte === 61 ? -(f.total ?? 0) : f.tipoDte === 52 ? 0 : f.total ?? 0), 0);
@@ -30,17 +43,19 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex rounded-full bg-tinta/[0.05] p-1 text-[13px] font-semibold">
+        {conClase && <div className="flex rounded-full bg-tinta/[0.05] p-1 text-[13px] font-semibold">
           {(["emitido", "recibido"] as const).map((c) => (
-            <Link key={c} href={`${ruta}?ver=archivo&vista=${vista}&clase=${c}${anio ? `&anio=${anio}` : ""}`} className={`rounded-full px-3 py-1 ${clase === c ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>
+            <Link key={c} href={`${base}&vista=${vista}&clase=${c}${anio ? `&anio=${anio}` : ""}`} className={`rounded-full px-3 py-1 ${clase === c ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>
               {c === "emitido" ? "Emitidos" : "Recibidos (proveedores)"}
             </Link>
           ))}
-        </div>
+        </div>}
         <form className="flex flex-wrap items-end gap-2">
-          <input type="hidden" name="ver" value="archivo" />
+          <input type="hidden" name="ver" value={pestana} />
+          {modo && <input type="hidden" name="modo" value={modo} />}
           <input type="hidden" name="vista" value={vista} />
           <input type="hidden" name="clase" value={clase} />
+          <input type="hidden" name="tipos" value={tipos} />
           <div className="w-36">
             <select name="anio" defaultValue={anio ?? ""} className={CAMPO}>
               <option value="">Todos los años</option>
@@ -59,7 +74,7 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
         <span className="flex-1" />
         <div className="flex rounded-full bg-tinta/[0.05] p-1 text-[13px] font-semibold">
           {(["lista", "resumen"] as const).map((x) => (
-            <Link key={x} href={`${ruta}?ver=archivo&vista=${x}&${filtro}`} className={`rounded-full px-3 py-1 ${vista === x ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>
+            <Link key={x} href={`${base}&vista=${x}&${filtro}`} className={`rounded-full px-3 py-1 ${vista === x ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>
               {x === "lista" ? "Lista" : "Resumen"}
             </Link>
           ))}
@@ -97,7 +112,7 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
                 {resumen.contrapartes.map((c) => (
                   <tr key={`${c.rut}-${c.nombre}`}>
                     <td className={`${TD} max-w-[18rem]`}>
-                      <Link href={`${ruta}?ver=archivo&vista=lista&clase=${clase}${anio ? `&anio=${anio}` : ""}&q=${encodeURIComponent(c.rut ?? c.nombre)}`} className="block truncate hover:text-naranjo">{c.nombre}</Link>
+                      <Link href={`${base}&vista=lista&clase=${clase}&tipos=${tipos}${anio ? `&anio=${anio}` : ""}&q=${encodeURIComponent(c.rut ?? c.nombre)}`} className="block truncate hover:text-naranjo">{c.nombre}</Link>
                       {c.rut && <span className="font-mono text-[10px] text-gris">{c.rut}</span>}
                     </td>
                     <td className={`${TD} text-right`}>{c.documentos}</td>
@@ -115,7 +130,7 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
           texto={anio || q ? "Nada calza con el filtro." : "Aquí aparecen los documentos emitidos y recibidos con su PDF y XML: el histórico ordenado, lo que llega del SII y lo que se emita o se suba."}
           icono={<IconFolder size={24} stroke={1.6} />}
         >
-          {(anio || q) && <Link href={`${ruta}?ver=archivo&clase=${clase}`} className="text-[13px] font-semibold text-naranjo">Quitar filtro</Link>}
+          {(anio || q) && <Link href={`${base}&clase=${clase}&tipos=${tipos}`} className="text-[13px] font-semibold text-naranjo">Quitar filtro</Link>}
         </Vacio>
       ) : (
         <>
@@ -128,7 +143,7 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
                 <tr className="border-b border-borde">
                   <th className={TH}>Documento</th>
                   <th className={TH}>Fecha</th>
-                  <th className={TH}>{quien}</th>
+                  <th className={TH}>{clase === "emitido" && tipos === "guias" ? "Destinatario" : quien}</th>
                   <th className={`${TH} text-right`}>Total</th>
                   <th className={TH}>En los libros</th>
                   <th className={TH}>Archivos</th>
@@ -141,8 +156,10 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
                   return (
                     <tr key={f.id}>
                       <td className={TD}>
-                        <span className="mr-1 rounded bg-tinta/[0.06] px-1.5 py-0.5 text-[10px] font-bold">{(f.tipoDte && DTE_CORTO[f.tipoDte]) ?? f.tipoDte ?? "?"}</span>
-                        <span className="font-semibold text-tinta">N° {f.folio ?? "—"}</span>
+                        <Link href={`${ruta}/documento/${f.id}?volver=${encodeURIComponent(aqui)}`} className="group">
+                          <span className="mr-1 rounded bg-tinta/[0.06] px-1.5 py-0.5 text-[10px] font-bold">{(f.tipoDte && DTE_CORTO[f.tipoDte]) ?? f.tipoDte ?? "?"}</span>
+                          <span className="font-semibold text-tinta group-hover:text-naranjo">N° {f.folio ?? "—"}</span>
+                        </Link>
                       </td>
                       <td className={`${TD} text-xs text-gris`}>{f.fecha ? fechaCl(f.fecha) : "—"}</td>
                       <td className={`${TD} max-w-[20rem]`}>
@@ -171,6 +188,11 @@ export default async function ArchivoDocumentos({ empresaId, ruta, clase, anio, 
                       </td>
                       <td className={TD}>
                         <span className="flex gap-2 text-[12px] font-semibold">
+                          {(f.pdf || f.xml) && (
+                            <Link href={`${ruta}/documento/${f.id}?volver=${encodeURIComponent(aqui)}`} className="inline-flex items-center gap-1 rounded-md bg-naranjo/10 px-2 py-0.5 text-naranjo hover:bg-naranjo/20">
+                              <IconEye size={14} /> Ver
+                            </Link>
+                          )}
                           {f.pdf && (
                             <a href={`/api/finanzas/dte/archivo/${f.id}/pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-naranjo hover:underline">
                               <IconFileTypePdf size={14} /> PDF

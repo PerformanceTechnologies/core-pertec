@@ -53,17 +53,37 @@ const aFila = (r: any): FilaArchivo => ({
   origen: r.origen,
 });
 
+export type TiposArchivo = "todos" | "sin_guias" | "guias";
+
 export interface FiltroArchivo {
   clase: ClaseDte;
+  /** Guías aparte (pestaña propia) o todo junto. */
+  tipos?: TiposArchivo;
   anio?: number | null;
   mes?: number | null;
   q?: string | null;
   limite?: number;
 }
 
+function conTipos(q: any, tipos: TiposArchivo | undefined): any {
+  if (tipos === "guias") return q.eq("tipo_dte", 52);
+  if (tipos === "sin_guias") return q.or("tipo_dte.is.null,tipo_dte.neq.52");
+  return q;
+}
+
+/** Cuántos documentos hay en el archivo por pestaña (emitidos sin guías, guías emitidas, recibidos). */
+export async function contarArchivo(empresaId: string): Promise<{ emitidos: number; guias: number; recibidos: number }> {
+  const c = async (clase: ClaseDte, tipos: TiposArchivo) => {
+    const { count, error } = await conTipos(supabaseAdmin.from("fin_dte_archivo").select("id", { count: "exact", head: true }).eq("empresa_id", empresaId).eq("clase", clase), tipos);
+    return error ? 0 : count ?? 0;
+  };
+  const [emitidos, guias, recibidos] = await Promise.all([c("emitido", "sin_guias"), c("emitido", "guias"), c("recibido", "todos")]);
+  return { emitidos, guias, recibidos };
+}
+
 /** Documentos del archivo, más nuevos primero. Si la tabla aún no existe (falta la migración 0016), lista vacía. */
 export async function listarArchivo(empresaId: string, f: FiltroArchivo): Promise<{ filas: FilaArchivo[]; total: number; anios: number[] }> {
-  let q = supabaseAdmin.from("fin_dte_archivo").select("*", { count: "exact" }).eq("empresa_id", empresaId).eq("clase", f.clase);
+  let q = conTipos(supabaseAdmin.from("fin_dte_archivo").select("*", { count: "exact" }).eq("empresa_id", empresaId).eq("clase", f.clase), f.tipos);
   if (f.anio) {
     const desde = f.mes ? `${f.anio}-${String(f.mes).padStart(2, "0")}-01` : `${f.anio}-01-01`;
     const hasta = f.mes ? (f.mes === 12 ? `${f.anio + 1}-01-01` : `${f.anio}-${String(f.mes + 1).padStart(2, "0")}-01`) : `${f.anio + 1}-01-01`;
@@ -201,7 +221,7 @@ export async function archivarDte(empresa: { id: string; nombre: string }, d: Dt
 export async function todasDelArchivo(empresaId: string, f: Omit<FiltroArchivo, "limite">): Promise<FilaArchivo[]> {
   const out: FilaArchivo[] = [];
   for (let i = 0; i < 20000; i += 1000) {
-    let q = supabaseAdmin.from("fin_dte_archivo").select("*").eq("empresa_id", empresaId).eq("clase", f.clase);
+    let q = conTipos(supabaseAdmin.from("fin_dte_archivo").select("*").eq("empresa_id", empresaId).eq("clase", f.clase), f.tipos);
     if (f.anio) {
       const desde = f.mes ? `${f.anio}-${String(f.mes).padStart(2, "0")}-01` : `${f.anio}-01-01`;
       const hasta = f.mes ? (f.mes === 12 ? `${f.anio + 1}-01-01` : `${f.anio}-${String(f.mes + 1).padStart(2, "0")}-01`) : `${f.anio + 1}-01-01`;
@@ -249,4 +269,10 @@ export function resumirArchivo(filas: FilaArchivo[], porMes: boolean): ResumenAr
     periodos: [...per.values()].sort((a, b) => b.periodo.localeCompare(a.periodo)),
     contrapartes: [...con.values()].sort((a, b) => b.neto - a.neto).slice(0, 15),
   };
+}
+
+/** Una fila del archivo con sus referencias (solo de la empresa indicada). */
+export async function filaDelArchivo(empresaId: string, id: string): Promise<(FilaArchivo & { pdfRef: string | null; xmlRef: string | null; ruta: string | null }) | null> {
+  const { data } = await supabaseAdmin.from("fin_dte_archivo").select("*").eq("id", id).eq("empresa_id", empresaId).maybeSingle();
+  return data ? { ...aFila(data), pdfRef: data.pdf_ref ?? null, xmlRef: data.xml_ref ?? null, ruta: data.ruta ?? null } : null;
 }
