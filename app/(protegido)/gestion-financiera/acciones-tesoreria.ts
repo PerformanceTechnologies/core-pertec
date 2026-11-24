@@ -112,6 +112,7 @@ export async function aceptarSugerenciasAction(movimientoIds: string[]): Promise
     const conSub = categoriasConSubcategorias(vista.subcategorias);
     // Solo sugerencias completas: con subcategoría si su categoría las tiene.
     const elegidos = vista.movimientos.filter((m) => movimientoIds.includes(m.id) && m.sugerencia && !m.categoriaId && (!conSub.has(m.sugerencia.categoriaId) || m.sugerencia.subcategoriaId));
+    if (elegidos.length === 0) return { ok: false, error: "No hay sugerencias para aceptar (puede que alguien ya las haya clasificado)." };
     for (const m of elegidos) {
       const s = m.sugerencia!;
       const cat = vista.categorias.find((c) => c.id === s.categoriaId);
@@ -133,9 +134,74 @@ export async function aceptarSugerenciasAction(movimientoIds: string[]): Promise
       const { data } = await supabaseAdmin.from("fin_reglas").select("veces_aplicada").eq("id", reglaId).single();
       await supabaseAdmin.from("fin_reglas").update({ veces_aplicada: Number(data?.veces_aplicada ?? 0) + veces }).eq("id", reglaId);
     }
-    await auditar(ctx, "fin_movimientos", null, "sugerencias", `${elegidos.length} movimiento(s) clasificados con la sugerencia`);
+    // El lote queda en la auditoría con lo de antes y lo de después de cada movimiento: así se puede deshacer.
+    const { error: eLote } = await supabaseAdmin.from("fin_auditoria").insert({
+      empresa_id: ctx.empresa.id, tabla: "fin_movimientos", registro_id: null, accion: "aceptar_lote", usuario: ctx.usuario.correo,
+      detalle: `${elegidos.length} movimiento(s) clasificados con la sugerencia`,
+      antes: { movs: elegidos.map((m) => ({ id: m.id, tieneRespaldo: m.tieneRespaldo, proyectoId: m.proyectoId })) },
+      despues: { movs: elegidos.map((m) => ({ id: m.id, categoriaId: m.sugerencia!.categoriaId, subcategoriaId: m.sugerencia!.subcategoriaId, reglaId: m.sugerencia!.reglaId })) },
+    });
+    if (eLote) console.warn("[fin] auditoría del lote:", eLote.message);
     refrescar();
-    return { ok: true, mensaje: `${elegidos.length} clasificado(s)` };
+    return { ok: true, mensaje: `${elegidos.length} movimiento(s) clasificado(s). Si te equivocaste, puedes deshacerlo.` };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/**
+ * Deshace una aceptación en bloque: cada movimiento vuelve a como estaba (sin clasificar, con su respaldo y proyecto
+ * de antes). Lo que alguien cambió después a mano no se toca: se informa cuántos quedaron así.
+ */
+export async function deshacerLoteAction(loteId: string): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    await exigirRol(ctx, "tesoreria_conciliador", { accion: "deshacer la aceptación" });
+    if (!uuid(loteId)) return { ok: false, error: "Lote inválido." };
+    const { data: lote } = await supabaseAdmin.from("fin_auditoria").select("id, antes, despues").eq("id", loteId).eq("empresa_id", ctx.empresa.id).eq("accion", "aceptar_lote").maybeSingle();
+    if (!lote) return { ok: false, error: "Esa aceptación no existe." };
+    const { data: ya } = await supabaseAdmin.from("fin_auditoria").select("id").eq("empresa_id", ctx.empresa.id).eq("accion", "deshacer_lote").eq("registro_id", loteId).limit(1);
+    if (ya?.length) return { ok: false, error: "Esa aceptación ya se deshizo." };
+    type Antes = { id: string; tieneRespaldo: boolean; proyectoId: string | null };
+    type Despues = { id: string; categoriaId: string; subcategoriaId: string | null; reglaId: string | null };
+    const antes = new Map(((lote.antes as { movs?: Antes[] } | null)?.movs ?? []).map((x) => [x.id, x]));
+    const despues = (lote.despues as { movs?: Despues[] } | null)?.movs ?? [];
+    let revertidos = 0;
+    for (const d of despues) {
+      const a = antes.get(d.id);
+      // Solo si sigue como lo dejó el lote (misma clasificación y no la cambió nadie a mano).
+      let q = supabaseAdmin
+        .from("fin_movimientos")
+        .update({
+          categoria_id: null, subcategoria_id: null, clasificado_por: null, regla_id: null, ia_resultado: null,
+          tiene_respaldo: a?.tieneRespaldo ?? false, proyecto_id: a?.proyectoId ?? null, actualizado_en: ahora(),
+        })
+        .eq("id", d.id)
+        .eq("empresa_id", ctx.empresa.id)
+        .eq("categoria_id", d.categoriaId)
+        .neq("clasificado_por", "manual");
+      q = d.subcategoriaId ? q.eq("subcategoria_id", d.subcategoriaId) : q.is("subcategoria_id", null);
+      const { data, error } = await q.select("id");
+      revienta("deshacer la clasificación", error);
+      revertidos += data?.length ?? 0;
+    }
+    // El contador de cada regla vuelve atrás.
+    const porRegla = new Map<string, number>();
+    for (const d of despues) if (d.reglaId) porRegla.set(d.reglaId, (porRegla.get(d.reglaId) ?? 0) + 1);
+    for (const [reglaId, veces] of porRegla) {
+      const { data } = await supabaseAdmin.from("fin_reglas").select("veces_aplicada").eq("id", reglaId).eq("empresa_id", ctx.empresa.id).maybeSingle();
+      if (data) await supabaseAdmin.from("fin_reglas").update({ veces_aplicada: Math.max(0, Number(data.veces_aplicada ?? 0) - veces) }).eq("id", reglaId);
+    }
+    await supabaseAdmin.from("fin_auditoria").insert({
+      empresa_id: ctx.empresa.id, tabla: "fin_movimientos", registro_id: loteId, accion: "deshacer_lote", usuario: ctx.usuario.correo,
+      detalle: `Deshecha la aceptación de ${despues.length} sugerencia(s): ${revertidos} volvieron a «Por aclarar»`,
+    });
+    refrescar();
+    const quedaron = despues.length - revertidos;
+    return {
+      ok: true,
+      mensaje: `${revertidos} movimiento(s) volvieron a «Por aclarar».${quedaron ? ` ${quedaron} no se tocaron porque alguien los cambió después.` : ""}`,
+    };
   } catch (e) {
     return fallo(e);
   }

@@ -34,6 +34,7 @@ import {
   resultadoIa,
   sugerenciaDeIa,
   categoriasPara,
+  esSegura,
   glosaComparable,
   resumenPorCategoria,
   sugerirClasificacion,
@@ -349,6 +350,11 @@ assert.deepEqual([cifrasProyecto(proyecto("General", null), hitos, compras).comp
   assert.ok(!iaAplicableSola(sIa, 0.98, CATS), "bajo el umbral, solo sugiere");
   const combustible = sugerenciaDeIa({ ...ia, categoria_id: "Operaciones y Proyectos", subcategoria_id: "combustible", confianza: 0.99 }, -1, CATS, SUBS);
   assert.ok(!iaAplicableSola(combustible, 0.9, CATS), "lo que pide proyecto nunca se aplica solo");
+  // Aceptar en bloque: reglas y anteriores siempre; la IA solo desde 90 %.
+  assert.ok(esSegura(porTexto) && esSegura(tarjeta), "reglas y movimientos anteriores son seguros");
+  assert.ok(esSegura(sIa), "IA al 97 % es segura");
+  assert.ok(!esSegura({ ...sIa!, confianza: 0.85 }), "IA al 85 % se revisa a mano");
+  assert.ok(!esSegura(null));
   assert.equal(resultadoIa(ia, "Costos Financieros", "comisiones"), "aceptada");
   assert.equal(resultadoIa(ia, "Costos Financieros", null), "corregida");
   assert.equal(resultadoIa(null, "Costos Financieros", "comisiones"), null);

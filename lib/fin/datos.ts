@@ -805,6 +805,36 @@ export async function historialDeCompra(empresaId: string, compraId: string, doc
   }));
 }
 
+/** Una aceptación de sugerencias en bloque que todavía se puede deshacer. */
+export interface LoteAceptado {
+  id: string;
+  movimientos: number;
+  usuario: string | null;
+  creadoEn: string;
+}
+
+/**
+ * La última aceptación en bloque de la empresa, si fue en los últimos 7 días y no se deshizo. Vive en la auditoría
+ * (accion «aceptar_lote», con lo de antes y lo de después de cada movimiento), así no hace falta otra tabla.
+ */
+export async function ultimoLoteAceptado(empresaId: string): Promise<LoteAceptado | null> {
+  const desde = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data } = await supabaseAdmin
+    .from("fin_auditoria")
+    .select("id, usuario, creado_en, despues")
+    .eq("empresa_id", empresaId)
+    .eq("accion", "aceptar_lote")
+    .gte("creado_en", desde)
+    .order("creado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  const { data: deshecho } = await supabaseAdmin.from("fin_auditoria").select("id").eq("empresa_id", empresaId).eq("accion", "deshacer_lote").eq("registro_id", data.id).limit(1);
+  if (deshecho?.length) return null;
+  const movs = ((data.despues as { movs?: unknown[] } | null)?.movs ?? []).length;
+  return movs ? { id: data.id, movimientos: movs, usuario: data.usuario, creadoEn: data.creado_en } : null;
+}
+
 /** El proyecto «General» de la empresa (para gastos que no son de un proyecto). */
 export async function proyectoGeneral(empresaId: string): Promise<string | null> {
   const { data } = await supabaseAdmin.from("fin_proyectos").select("id").eq("empresa_id", empresaId).eq("es_general", true).maybeSingle();
