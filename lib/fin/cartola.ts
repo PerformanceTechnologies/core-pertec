@@ -11,14 +11,15 @@ export interface FilaCartola {
   documento: string | null;
 }
 
-const plano = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+// Una celda vacía puede llegar como undefined (Excel deja huecos entre columnas): se lee como texto vacío.
+const plano = (s: string | null | undefined) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 const ES_FECHA = ["fecha", "fecha movimiento", "fecha operacion", "fecha transaccion", "fecha contable"];
 const ES_GLOSA = ["glosa", "descripcion", "detalle", "descripcion movimiento", "concepto", "movimiento", "comercio", "descripcion operacion"];
 const ES_CARGO = ["cargo", "cargos", "debito", "debitos", "giros", "monto cargo", "cargos ($)"];
 const ES_ABONO = ["abono", "abonos", "credito", "creditos", "depositos", "monto abono", "abonos ($)"];
 const ES_MONTO = ["monto", "importe", "valor", "monto ($)"];
-const ES_DOC = ["n documento", "nro documento", "documento", "numero documento", "n° documento", "n operacion", "serie"];
+const ES_DOC = ["n documento", "nro documento", "documento", "numero documento", "n° documento", "n operacion", "serie", "numero de", "numero de operacion", "n de operacion"];
 
 /** «$1.234.567», «-1.234», «1.234,5», «(1.234)» → número. Vacío → null. */
 export function numeroCl(t: string): number | null {
@@ -53,7 +54,41 @@ export function fechaCl(t: string): Iso | null {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * El período que declara la cartola en su encabezado («Período 01/01/2026 - 30/01/2026», como la de Itaú): sirve
+ * cuando las filas traen la fecha sin año («02/01»).
+ */
+function periodoDeCartola(filas: string[][]): { desde: Iso; hasta: Iso } | null {
+  for (const f of filas.slice(0, 40)) {
+    const texto = f.map((x) => String(x ?? "")).join(" ");
+    if (!/per[ií]odo/i.test(texto)) continue;
+    const m = texto.match(/(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\s*(?:-|al|a)\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i);
+    const desde = m ? fechaCl(m[1]) : null;
+    const hasta = m ? fechaCl(m[2]) : null;
+    if (desde && hasta) return { desde, hasta };
+  }
+  return null;
+}
+
+/** «02/01» (sin año) con el año del período; si el período cruza el año, el que deja la fecha dentro. */
+function fechaSinAnio(t: string, periodo: { desde: Iso; hasta: Iso } | null): Iso | null {
+  const m = t.trim().match(/^(\d{1,2})[/.-](\d{1,2})$/);
+  if (!m || !periodo) return null;
+  for (const anio of [periodo.desde.slice(0, 4), periodo.hasta.slice(0, 4)]) {
+    const f = fechaCl(`${m[1]}/${m[2]}/${anio}`);
+    if (f && f >= periodo.desde && f <= periodo.hasta) return f;
+  }
+  return fechaCl(`${m[1]}/${m[2]}/${periodo.hasta.slice(0, 4)}`);
+}
+
+/** Un N° de documento que es solo ceros (Itaú pone «000000000» cuando no hay) no es un documento. */
+const documento = (t: unknown): string | null => {
+  const s = String(t ?? "").trim();
+  return s && !/^0+$/.test(s) ? s : null;
+};
+
 export function leerCartola(filas: string[][]): { filas: FilaCartola[]; omitidas: number; error?: string } {
+  const periodo = periodoDeCartola(filas);
   const buscar = (enc: string[], lista: string[]) => enc.findIndex((h) => lista.includes(plano(h)));
   let iEnc = -1;
   let col = { fecha: -1, glosa: -1, cargo: -1, abono: -1, monto: -1, doc: -1 };
@@ -70,7 +105,8 @@ export function leerCartola(filas: string[][]): { filas: FilaCartola[]; omitidas
   const salida: FilaCartola[] = [];
   let omitidas = 0;
   for (const f of filas.slice(iEnc + 1)) {
-    const fecha = fechaCl(String(f[col.fecha] ?? ""));
+    const textoFecha = String(f[col.fecha] ?? "");
+    const fecha = fechaCl(textoFecha) ?? fechaSinAnio(textoFecha, periodo);
     const glosa = String(f[col.glosa] ?? "").replace(/\s+/g, " ").trim();
     let monto: number | null = null;
     if (col.monto >= 0) monto = numeroCl(String(f[col.monto] ?? ""));
@@ -84,7 +120,7 @@ export function leerCartola(filas: string[][]): { filas: FilaCartola[]; omitidas
       if (f.some((x) => String(x ?? "").trim())) omitidas++;
       continue;
     }
-    salida.push({ fecha, glosa: glosa.slice(0, 200), monto, documento: col.doc >= 0 ? String(f[col.doc] ?? "").trim() || null : null });
+    salida.push({ fecha, glosa: glosa.slice(0, 200), monto, documento: col.doc >= 0 ? documento(f[col.doc]) : null });
   }
   return { filas: salida, omitidas };
 }

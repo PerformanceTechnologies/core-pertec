@@ -45,6 +45,31 @@ assert.equal(fechaCl("Saldo inicial"), null);
 // ─── Sin encabezados reconocibles: error claro ──────────────────────────────
 assert.ok(leerCartola([["a", "b"], ["1", "2"]]).error);
 
+// Cartola con el formato de Itaú (datos inventados): fecha sin año (el año sale del «Período»), encabezado en dos
+// filas, «-» en la columna vacía, documento en ceros y huecos entre columnas.
+{
+  const filas: string[][] = [];
+  filas.push(["Itaú Empresas"]);
+  filas.push(["Cartola Histórica", "Período", "01/12/2025 - 31/01/2026"]);
+  filas.push(["Fecha", "Número de", "Sucursal", "Descripción", "Depósitos", "Giros", "Saldo diario"]);
+  filas.push([undefined as unknown as string, "operación", undefined as unknown as string, undefined as unknown as string, "o abonos", "o cargos"]);
+  const conHueco: string[] = [];
+  conHueco[0] = "30/12";
+  conHueco[1] = "000000000";
+  conHueco[3] = "COMISION MANTENCION";
+  conHueco[4] = "-";
+  conHueco[5] = "12300";
+  filas.push(conHueco);
+  filas.push(["02/01", "425000001", "1980", "ABONO CLIENTE", "500000", "-", "900000"]);
+  filas.push(["Total cargos", "Total abono"]);
+  const r = leerCartola(filas);
+  assert.equal(r.error, undefined);
+  assert.deepEqual(r.filas, [
+    { fecha: "2025-12-30", glosa: "COMISION MANTENCION", monto: -12300, documento: null },
+    { fecha: "2026-01-02", glosa: "ABONO CLIENTE", monto: 500000, documento: "425000001" },
+  ], "el año sale del período aunque cruce de diciembre a enero");
+}
+
 // Una cartola que se cruza con lo que ya trajo el banco automático no duplica (datos inventados).
 {
   const f = (fecha: string, monto: number, documento: string | null, glosa = "MOV") => ({ fecha, glosa, monto, documento });
