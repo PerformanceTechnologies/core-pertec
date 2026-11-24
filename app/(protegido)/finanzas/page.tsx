@@ -24,6 +24,7 @@ export default async function FinanzasPage() {
     ...(conGestion
       ? [
           { slug: "ventas", nombre: "Ventas y cobranza", descripcion: "Lo aceptado: hitos por facturar, facturas emitidas y cobros.", href: "/finanzas/ventas", icono: "receipt" },
+          { slug: "facturacion", nombre: "Facturación electrónica", descripcion: "Emitir facturas, exentas, notas de crédito y débito, guías de despacho; cesión y documentos recibidos del SII.", href: "/finanzas/facturacion", icono: "file-invoice" },
           { slug: "compras", nombre: "Compras y pagos", descripcion: "De la solicitud de compra al pago al proveedor.", href: "/finanzas/compras", icono: "shopping-cart" },
         ]
       : []),

@@ -14,7 +14,7 @@ en **Configuración** sin tocar código (salvo donde se indica).
 | 7 | Formatos de cartola de cada banco | Detección automática de columnas (CSV/XLSX). Si un banco no se reconoce, mandar un ejemplo para ajustar `lib/fin/cartola.ts`. |
 | 8 | ¿Las empresas comparten numeración de proyectos? | No: correlativos por empresa (`PRY-0001`…). |
 | 9 | Diseño de formatos imprimibles (cotización, OC) | Botón «Imprimir» visible y deshabilitado («Formato en diseño»). |
-| 10 | Proveedor de facturación electrónica (SimpleFactura u otro) | Botones «Emitir factura electrónica» y «Ceder electrónicamente» deshabilitados; se registra a mano lo emitido en el SII. |
+| 10 | Proveedor de facturación electrónica | SimpleFactura, integrado (ver FACTURACION_ELECTRONICA.md). Se puede seguir registrando a mano lo emitido fuera del Core. |
 | 11 | Integración con Contratos | Pendiente de análisis (decisión U4). |
 | 12 | Integración con Rendición de gastos (reembolsos como cuentas por pagar) | No integrado; sin escrituras en sus tablas. |
 | 13 | Importación del RCV del SII y lector de XML DTE | Pendiente (P1). Hoy los documentos se registran a mano desde el hito o la compra. |

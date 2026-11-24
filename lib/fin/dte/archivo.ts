@@ -1,0 +1,198 @@
+import "server-only";
+import { supabaseAdmin } from "../../supabase-admin";
+import { carpetaDte, carpetaFacturas, nombreDte } from "../../archivos/carpetas";
+import { subirASharePoint } from "../../archivos/sharepoint-core";
+
+// -----------------------------------------------------------------------------
+//  Archivo de documentos tributarios (solo servidor).
+//
+//  Cada DTE emitido o recibido tiene una fila en fin_dte_archivo con sus datos (tipo, folio, fecha, contraparte,
+//  montos) y la referencia a su PDF y XML en SharePoint («Gestion financiera/<Empresa>/Facturas/Emitidos|Recibidos/
+//  AAAA/MM Mes/…»). Lo llena el ordenamiento de la carpeta histórica y, de ahí en adelante, cada emisión y cada
+//  sincronización de recibidos. Archivar nunca hace fallar la operación que lo pidió: si SharePoint no responde, se
+//  registra igual la fila y el archivo se puede volver a bajar del proveedor.
+// -----------------------------------------------------------------------------
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+export type ClaseDte = "emitido" | "recibido";
+
+export interface FilaArchivo {
+  id: string;
+  clase: ClaseDte;
+  tipoDte: number | null;
+  folio: string | null;
+  fecha: string | null;
+  rut: string | null;
+  nombre: string | null;
+  neto: number | null;
+  iva: number | null;
+  exento: number | null;
+  total: number | null;
+  pdf: boolean;
+  xml: boolean;
+  documentoId: string | null;
+  origen: string;
+}
+
+const aFila = (r: any): FilaArchivo => ({
+  id: r.id,
+  clase: r.clase,
+  tipoDte: r.tipo_dte,
+  folio: r.folio,
+  fecha: r.fecha,
+  rut: r.rut_contraparte,
+  nombre: r.nombre_contraparte,
+  neto: r.neto === null ? null : Number(r.neto),
+  iva: r.iva === null ? null : Number(r.iva),
+  exento: r.exento === null ? null : Number(r.exento),
+  total: r.total === null ? null : Number(r.total),
+  pdf: Boolean(r.pdf_ref),
+  xml: Boolean(r.xml_ref),
+  documentoId: r.documento_id,
+  origen: r.origen,
+});
+
+export interface FiltroArchivo {
+  clase: ClaseDte;
+  anio?: number | null;
+  mes?: number | null;
+  q?: string | null;
+  limite?: number;
+}
+
+/** Documentos del archivo, más nuevos primero. Si la tabla aún no existe (falta la migración 0016), lista vacía. */
+export async function listarArchivo(empresaId: string, f: FiltroArchivo): Promise<{ filas: FilaArchivo[]; total: number; anios: number[] }> {
+  let q = supabaseAdmin.from("fin_dte_archivo").select("*", { count: "exact" }).eq("empresa_id", empresaId).eq("clase", f.clase);
+  if (f.anio) {
+    const desde = f.mes ? `${f.anio}-${String(f.mes).padStart(2, "0")}-01` : `${f.anio}-01-01`;
+    const hasta = f.mes ? (f.mes === 12 ? `${f.anio + 1}-01-01` : `${f.anio}-${String(f.mes + 1).padStart(2, "0")}-01`) : `${f.anio + 1}-01-01`;
+    q = q.gte("fecha", desde).lt("fecha", hasta);
+  }
+  const texto = (f.q ?? "").replace(/[%,()]/g, " ").trim();
+  if (texto) q = q.or(`folio.ilike.%${texto}%,nombre_contraparte.ilike.%${texto}%,rut_contraparte.ilike.%${texto.replace(/\./g, "")}%`);
+  const { data, count, error } = await q.order("fecha", { ascending: false, nullsFirst: false }).order("folio", { ascending: false }).limit(f.limite ?? 300);
+  if (error) {
+    if (/fin_dte_archivo/.test(error.message)) return { filas: [], total: 0, anios: [] };
+    throw new Error(`No se pudo leer el archivo de documentos: ${error.message}`);
+  }
+  const { data: rango } = await supabaseAdmin.from("fin_dte_archivo").select("fecha").eq("empresa_id", empresaId).eq("clase", f.clase).not("fecha", "is", null).order("fecha", { ascending: true }).limit(1);
+  const primero = Number(String(rango?.[0]?.fecha ?? "").slice(0, 4)) || new Date().getFullYear();
+  const anios: number[] = [];
+  for (let a = new Date().getFullYear(); a >= primero; a--) anios.push(a);
+  const filas = (data ?? []).map(aFila);
+  await ligarConLibros(empresaId, filas);
+  return { filas, total: count ?? 0, anios };
+}
+
+const rutClave = (r: string | null) => (r ?? "").replace(/[^0-9kK]/g, "").toUpperCase();
+
+/**
+ * Liga las filas sin documento a fin_documentos (misma dirección, tipo, folio y RUT): lo registrado después en Ventas o
+ * Compras aparece «Registrado» y queda disponible para conciliar. Corrige en la base lo que encuentre.
+ */
+async function ligarConLibros(empresaId: string, filas: FilaArchivo[]): Promise<void> {
+  const sueltas = filas.filter((f) => !f.documentoId && f.tipoDte && f.folio);
+  if (!sueltas.length) return;
+  const { data } = await supabaseAdmin
+    .from("fin_documentos")
+    .select("id, direccion, tipo_dte, folio, rut_contraparte")
+    .eq("empresa_id", empresaId)
+    .in("folio", [...new Set(sueltas.map((f) => f.folio!))]);
+  const mapa = new Map((data ?? []).map((d: any) => [`${d.direccion}|${d.tipo_dte}|${d.folio}|${rutClave(d.rut_contraparte)}`, d.id as string]));
+  for (const f of sueltas) {
+    const id = mapa.get(`${f.clase}|${f.tipoDte}|${f.folio}|${rutClave(f.rut)}`);
+    if (!id) continue;
+    f.documentoId = id;
+    await supabaseAdmin.from("fin_dte_archivo").update({ documento_id: id }).eq("id", f.id).is("documento_id", null);
+  }
+}
+
+/** Referencia de SharePoint del PDF o XML de una fila (solo de la empresa indicada). */
+export async function refArchivo(empresaId: string, id: string, que: "pdf" | "xml"): Promise<{ ref: string; nombre: string } | null> {
+  const { data } = await supabaseAdmin.from("fin_dte_archivo").select("*").eq("id", id).eq("empresa_id", empresaId).maybeSingle();
+  if (!data) return null;
+  const ref = que === "pdf" ? data.pdf_ref : data.xml_ref;
+  if (!ref) return null;
+  return { ref, nombre: `${nombreDte({ clase: data.clase, tipoDte: data.tipo_dte, folio: data.folio, fecha: data.fecha, contraparte: data.nombre_contraparte, rut: data.rut_contraparte })}.${que}` };
+}
+
+export interface DteParaArchivar {
+  clase: ClaseDte;
+  tipoDte: number;
+  folio: string;
+  fecha: string | null;
+  rut: string | null;
+  nombre: string | null;
+  neto?: number | null;
+  iva?: number | null;
+  exento?: number | null;
+  total?: number | null;
+  pdf?: Buffer | null;
+  xml?: Buffer | null;
+  documentoId?: string | null;
+  origen: "emision" | "recibido_api" | "manual";
+}
+
+/** Carpeta base de la empresa (la de Integraciones o la de omisión). */
+async function carpetaBase(empresaId: string, empresaNombre: string): Promise<string> {
+  const { data } = await supabaseAdmin.from("fin_dte_cuentas").select("carpeta_sp").eq("empresa_id", empresaId).maybeSingle();
+  return (data?.carpeta_sp as string | null) || carpetaFacturas(empresaNombre);
+}
+
+/**
+ * Sube el PDF/XML a su carpeta y deja (o completa) la fila del archivo. No lanza: devuelve un aviso si algo falló.
+ * Si el documento ya estaba archivado con su archivo, no lo vuelve a subir.
+ */
+export async function archivarDte(empresa: { id: string; nombre: string }, d: DteParaArchivar): Promise<string | null> {
+  try {
+    const rut = d.rut ? d.rut.replace(/\./g, "").toUpperCase() : null;
+    const { data: ya } = await supabaseAdmin
+      .from("fin_dte_archivo")
+      .select("id, pdf_ref, xml_ref, documento_id")
+      .eq("empresa_id", empresa.id)
+      .eq("clase", d.clase)
+      .eq("tipo_dte", d.tipoDte)
+      .eq("folio", d.folio)
+      .eq("rut_contraparte", rut ?? "")
+      .maybeSingle();
+    const carpeta = carpetaDte(await carpetaBase(empresa.id, empresa.nombre), d.clase, d.fecha);
+    const nombre = nombreDte({ clase: d.clase, tipoDte: d.tipoDte, folio: d.folio, fecha: d.fecha, contraparte: d.nombre, rut });
+    let aviso: string | null = null;
+    const subir = async (b: Buffer | null | undefined, ext: "pdf" | "xml", actual: string | null | undefined) => {
+      if (!b || actual) return actual ?? null;
+      try {
+        return await subirASharePoint(carpeta, `${nombre}.${ext}`, b, ext === "pdf" ? "application/pdf" : "application/xml", true);
+      } catch (e) {
+        aviso = `No se pudo guardar el ${ext.toUpperCase()} en SharePoint: ${e instanceof Error ? e.message : String(e)}`;
+        return null;
+      }
+    };
+    const pdf_ref = await subir(d.pdf, "pdf", ya?.pdf_ref);
+    const xml_ref = await subir(d.xml, "xml", ya?.xml_ref);
+    const fila = {
+      empresa_id: empresa.id,
+      clase: d.clase,
+      tipo_dte: d.tipoDte,
+      folio: d.folio,
+      fecha: d.fecha,
+      rut_contraparte: rut ?? "",
+      nombre_contraparte: d.nombre,
+      neto: d.neto ?? null,
+      iva: d.iva ?? null,
+      exento: d.exento ?? null,
+      total: d.total ?? null,
+      pdf_ref,
+      xml_ref,
+      ruta: carpeta,
+      documento_id: d.documentoId ?? ya?.documento_id ?? null,
+      origen: d.origen,
+      actualizado_en: new Date().toISOString(),
+    };
+    const { error } = ya ? await supabaseAdmin.from("fin_dte_archivo").update(fila).eq("id", ya.id) : await supabaseAdmin.from("fin_dte_archivo").insert(fila);
+    if (error) return `No se pudo registrar el documento en el archivo: ${error.message}`;
+    return aviso;
+  } catch (e) {
+    return `No se pudo archivar el documento: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}

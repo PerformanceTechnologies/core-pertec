@@ -44,6 +44,8 @@
     "probar-nominas": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-nominas.mts",
     "probar-remuneraciones": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-remuneraciones.mts",
     "probar-banco-emisso": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-banco-emisso.mts",
+    "probar-simplefactura": "node --env-file=.env.local --import tsx scripts/e2e-simplefactura.mts",
+    "probar-dte": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-dte.mts",
     "probar-fin": "npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-fin.mts && npx tsx --tsconfig scripts/tsconfig.pruebas.json scripts/probar-fin-contable.mts"
   },
   "dependencies": {

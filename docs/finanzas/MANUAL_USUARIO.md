@@ -110,9 +110,15 @@ Las reglas (2 y 3) se aplican solas cada mañana al llegar el banco; lo aprendid
 - **Atención hoy** lista lo urgente.
 - También muestra la proyección de caja, el embudo de hitos por etapa, la antigüedad de cuentas por cobrar, los saldos por mandante, la rentabilidad por proyecto y el pipeline.
 
+## Facturación electrónica
+
+Ver **Finanzas › Facturación electrónica** y `docs/finanzas/FACTURACION_ELECTRONICA.md`: facturas, exentas, notas, guías, recibidos y cesión.
+
+- La cuenta de SimpleFactura la carga el administrador del Core en **Administración › Integraciones** (queda cifrada). Mientras no habilite la emisión ahí, se pueden preparar borradores y ver documentos, pero no emitir.
+- **Archivo (PDF/XML):** todo lo emitido y lo que te emiten tus proveedores, por año y mes, con su PDF y XML guardados en SharePoint. «Registrado» indica que el documento también está en Ventas o Compras (y por lo tanto se puede conciliar).
+
 ## Lo que todavía no está
 
-- **Facturación electrónica:** los botones «Emitir factura electrónica» y «Ceder electrónicamente» están deshabilitados. Mientras tanto, emite en el SII y registra el folio aquí.
 - **Formatos imprimibles:** el botón «Imprimir» está deshabilitado («Formato en diseño»).
 - **Integraciones:** importación del RCV, notificaciones por correo, roles, e integración con Contratos y Rendición de gastos.
 - **Lista maestra en CRM:** el cotizador sigue con sus tipos de costo; conectarlo a la lista de Finanzas (cotizado contra real por proyecto) es la siguiente etapa.

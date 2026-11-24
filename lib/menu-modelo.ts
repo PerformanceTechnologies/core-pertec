@@ -94,6 +94,7 @@ const SUBPANELES_EN_MENU = [
 const SUBMODULOS_DE_GESTION = {
   ventas: { href: "/finanzas/ventas", nombre: "Ventas y cobranza", icono: "receipt", descripcion: "Lo aceptado: facturar y cobrar." },
   compras: { href: "/finanzas/compras", nombre: "Compras y pagos", icono: "shopping-cart", descripcion: "De la solicitud de compra al pago al proveedor." },
+  facturacion: { href: "/finanzas/facturacion", nombre: "Facturación electrónica", icono: "file-invoice", descripcion: "Emitir facturas, notas, guías y ceder; recibidos del SII." },
 } as const;
 
 /**
@@ -127,7 +128,7 @@ const PLAN: Plan[] = [
     descripcion: "Contactos para facturar, gestión financiera (ventas, compras, banco y flujo), facturas del SII, rendición de gastos y facturas históricas.",
     // «Gestión financiera» va justo después de Contactos (que sigue encabezando: es la base de la
     // facturación). Es su propia aplicación, con su propio permiso.
-    items: [{ subpanel: "contactos" }, { ruta: "/gestion-financiera", nombre: "Gestión financiera" }, { gestion: "ventas" }, { gestion: "compras" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
+    items: [{ subpanel: "contactos" }, { ruta: "/gestion-financiera", nombre: "Gestión financiera" }, { gestion: "ventas" }, { gestion: "facturacion" }, { gestion: "compras" }, { subpanel: "sii" }, { ruta: "/rendir-gastos" }, { subpanel: "facturas-historicas" }],
   },
   {
     slug: "crm",
@@ -186,7 +187,7 @@ const LEGAL: Plan = {
 const ADMINISTRACION: GrupoDelMenu = {
   slug: "administracion",
   titulo: "Administración",
-  descripcion: "Usuarios, catálogo de aplicaciones y roles del Muro.",
+  descripcion: "Usuarios, catálogo de aplicaciones, roles del Muro e integraciones.",
   items: [
     {
       tipo: "enlace",
@@ -208,6 +209,13 @@ const ADMINISTRACION: GrupoDelMenu = {
       nombre: "Roles del Muro",
       icono: "messages",
       descripcion: "Quién puede borrar mensajes en el Muro de cada empresa.",
+    },
+    {
+      tipo: "enlace",
+      href: "/integraciones",
+      nombre: "Integraciones",
+      icono: "file-invoice",
+      descripcion: "Cuenta de facturación electrónica (cifrada), habilitar la emisión y carpeta de documentos.",
     },
   ],
 };
