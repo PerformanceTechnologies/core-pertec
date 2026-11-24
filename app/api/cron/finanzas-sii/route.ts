@@ -1,4 +1,5 @@
 import { bearerCoincide } from "@/lib/cron-bearer";
+import { integrarRcvSii } from "@/lib/fin/dte/sii-rcv";
 import { NextRequest, NextResponse } from "next/server";
 import {
   extraerFacturasSii,
@@ -154,8 +155,13 @@ export async function GET(request: NextRequest) {
       diagnostico: sinEstado ? { periodos, csvVenta, pantallaVenta, camposApi } : undefined,
     });
 
+    // Lo leído entra a Facturación (Recibidos, Archivo y, desde el corte, los libros). No tumba la corrida.
+    const facturacion = await integrarRcvSii();
+    if ("error" in facturacion) console.error("[finanzas-sii] integrar a Facturación:", facturacion.error);
+
     return NextResponse.json({
       ok: true,
+      facturacion,
       documentos: filas.length,
       nuevos: nuevas,
       periodos,

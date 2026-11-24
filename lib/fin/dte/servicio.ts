@@ -586,7 +586,9 @@ export interface Recibido {
 }
 
 export async function listarRecibidos(empresaId: string, ambiente: Ambiente, hoy: Iso, plazoDias: number): Promise<Recibido[]> {
-  const { data, error } = await supabaseAdmin.from("fin_dte_recibidos").select("*").eq("empresa_id", empresaId).eq("ambiente", ambiente).order("fecha_emision", { ascending: false }).limit(2000);
+  // Lo de producción (SII y proveedor) se ve siempre: son documentos reales. En pruebas se suma lo de certificación.
+  const ambientes = ambiente === "certificacion" ? ["produccion", "certificacion"] : ["produccion"];
+  const { data, error } = await supabaseAdmin.from("fin_dte_recibidos").select("*").eq("empresa_id", empresaId).in("ambiente", ambientes).order("fecha_emision", { ascending: false }).limit(2000);
   revienta("leer los recibidos", error);
   return (data ?? []).map((r: any) => {
     const rec = r.fecha_recepcion ? String(r.fecha_recepcion).slice(0, 10) : null;

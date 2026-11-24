@@ -123,7 +123,7 @@ export default async function ContabilidadPage({ searchParams }: { searchParams:
               </div>
             </Seccion>
           ))}
-          <p className="text-[11px] text-gris xl:col-span-2">Cuadratura con el Registro de Compras y Ventas del SII: compara estos libros con la pantalla <Link href="/finanzas/sii" className="font-semibold text-naranjo">Facturas compra y venta</Link> del Core.</p>
+          <p className="text-[11px] text-gris xl:col-span-2">Cuadratura con el Registro de Compras y Ventas del SII: compara estos libros con la pantalla <Link href="/finanzas/facturacion?ver=archivo" className="font-semibold text-naranjo">Facturación › Archivo</Link> del Core.</p>
         </div>
       )}
     </div>

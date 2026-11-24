@@ -196,3 +196,57 @@ export async function archivarDte(empresa: { id: string; nombre: string }, d: Dt
     return `No se pudo archivar el documento: ${e instanceof Error ? e.message : String(e)}`;
   }
 }
+
+/** Todas las filas que calzan con el filtro (para el Excel), en páginas de 1000. */
+export async function todasDelArchivo(empresaId: string, f: Omit<FiltroArchivo, "limite">): Promise<FilaArchivo[]> {
+  const out: FilaArchivo[] = [];
+  for (let i = 0; i < 20000; i += 1000) {
+    let q = supabaseAdmin.from("fin_dte_archivo").select("*").eq("empresa_id", empresaId).eq("clase", f.clase);
+    if (f.anio) {
+      const desde = f.mes ? `${f.anio}-${String(f.mes).padStart(2, "0")}-01` : `${f.anio}-01-01`;
+      const hasta = f.mes ? (f.mes === 12 ? `${f.anio + 1}-01-01` : `${f.anio}-${String(f.mes + 1).padStart(2, "0")}-01`) : `${f.anio + 1}-01-01`;
+      q = q.gte("fecha", desde).lt("fecha", hasta);
+    }
+    const texto = (f.q ?? "").replace(/[%,()]/g, " ").trim();
+    if (texto) q = q.or(`folio.ilike.%${texto}%,nombre_contraparte.ilike.%${texto}%,rut_contraparte.ilike.%${texto.replace(/\./g, "")}%`);
+    const { data, error } = await q.order("fecha", { ascending: false, nullsFirst: false }).order("id").range(i, i + 999);
+    if (error) throw new Error(`No se pudo leer el archivo de documentos: ${error.message}`);
+    out.push(...(data ?? []).map(aFila));
+    if ((data ?? []).length < 1000) break;
+  }
+  return out;
+}
+
+export interface ResumenArchivo {
+  /** Por año (o por mes, si se filtró un año): documentos, facturado (facturas + ND) y notas de crédito. */
+  periodos: { periodo: string; documentos: number; facturas: number; notasCredito: number; neto: number }[];
+  /** Las contrapartes con más monto en el filtro. */
+  contrapartes: { nombre: string; rut: string | null; documentos: number; neto: number }[];
+}
+
+/** Totales del filtro: lo facturado menos notas de crédito, sin guías (no son venta ni compra). */
+export function resumirArchivo(filas: FilaArchivo[], porMes: boolean): ResumenArchivo {
+  const per = new Map<string, ResumenArchivo["periodos"][number]>();
+  const con = new Map<string, ResumenArchivo["contrapartes"][number]>();
+  for (const f of filas) {
+    if (f.tipoDte === 52) continue;
+    const signo = f.tipoDte === 61 ? -1 : 1;
+    const monto = (f.total ?? 0) * signo;
+    const p = (f.fecha ?? "").slice(0, porMes ? 7 : 4) || "Sin fecha";
+    const x = per.get(p) ?? { periodo: p, documentos: 0, facturas: 0, notasCredito: 0, neto: 0 };
+    x.documentos++;
+    if (signo < 0) x.notasCredito += f.total ?? 0;
+    else x.facturas += f.total ?? 0;
+    x.neto += monto;
+    per.set(p, x);
+    const k = f.rut || f.nombre || "—";
+    const c = con.get(k) ?? { nombre: f.nombre ?? f.rut ?? "—", rut: f.rut, documentos: 0, neto: 0 };
+    c.documentos++;
+    c.neto += monto;
+    con.set(k, c);
+  }
+  return {
+    periodos: [...per.values()].sort((a, b) => b.periodo.localeCompare(a.periodo)),
+    contrapartes: [...con.values()].sort((a, b) => b.neto - a.neto).slice(0, 15),
+  };
+}

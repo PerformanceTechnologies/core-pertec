@@ -117,6 +117,10 @@ const nextConfig: NextConfig = {
       { source: "/gestion-financiera/ventas/:path*", destination: "/finanzas/ventas/:path*", permanent: true },
       { source: "/gestion-financiera/compras", destination: "/finanzas/compras", permanent: true },
       { source: "/gestion-financiera/compras/:path*", destination: "/finanzas/compras/:path*", permanent: true },
+      // «Facturas compra y venta» e «Históricos facturas» se ocultaron: todo se consulta en Facturación. Temporales
+      // (302), por si se vuelven a mostrar. El cron del SII sigue corriendo y alimenta Facturación.
+      { source: "/finanzas/sii", destination: "/finanzas/facturacion?ver=recibidos", permanent: false },
+      { source: "/finanzas/facturas-historicas", destination: "/finanzas/facturacion?ver=archivo", permanent: false },
     ];
   },
   // pdf-parse (pdfjs-dist) necesita resolver su propio pdf.worker.mjs vía
@@ -153,6 +157,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/cron/finanzas-sii": NAVEGADOR,
     "/api/cron/finanzas-historico": LECTOR_DE_PDF,
+    // Facturación › Archivo › «Subir documento» lee el texto del PDF del DTE.
+    "/api/finanzas/dte/archivo/subir": LECTOR_DE_PDF,
     // La lectura de un borrador en PDF extrae el texto con pdf-parse en vez de
     // mandar una imagen por pagina, asi que necesita los mismos archivos.
     "/api/ofertas/analizar": LECTOR_DE_PDF,

@@ -13,6 +13,7 @@ import SelectorClasificacion, { type OpcionCategoria, type OpcionSubcategoria } 
 import { BOTON, BOTON_SEC, BotonAccion, CAMPO, Campo, ConVentana, FormAccion, SubirAdjunto } from "./ui";
 import { avisar, pedirTexto } from "./dialogos";
 import FormCobro, { type FacturaAbierta } from "./FormCobro";
+import ConciliarDocumentos, { type DocPorConciliar } from "./ConciliarDocumentos";
 
 interface Ref { id: string; nombre: string }
 
@@ -62,7 +63,7 @@ export function ImportarCartola({ cuentas }: { cuentas: Ref[] }) {
  * La bandeja del banco diario: cada movimiento con su clasificación sugerida (un clic), y al abrirlo, categoría y
  * subcategoría de la lista maestra, proyecto, a quién preguntar, respaldo, «es un cobro / es un pago» y guardar regla.
  */
-export default function BandejaBanco({ movimientos, categorias, subcategorias, proyectos, facturas, pagos, cobros, cuentasBanco, hoy, paraIa = 0 }: {
+export default function BandejaBanco({ movimientos, categorias, subcategorias, proyectos, facturas, pagos, cobros, cuentasBanco, hoy, paraIa = 0, porConciliar = [] }: {
   movimientos: MovimientoVista[];
   /** Pendientes que la IA todavía no revisa (sin clasificar, sin sugerencia, no nóminas). */
   paraIa?: number;
@@ -74,6 +75,8 @@ export default function BandejaBanco({ movimientos, categorias, subcategorias, p
   cobros: { id: string; numero: string; monto: number; cliente: string | null; fecha: string }[];
   cuentasBanco: Ref[];
   hoy: string;
+  /** Documentos pagados o cobrados fuera del Core, aún sin ligar al banco. */
+  porConciliar?: DocPorConciliar[];
 }) {
   const [abierto, setAbierto] = useState<string | null>(null);
   const conSub = new Set(subcategorias.map((s) => s.categoriaId));
@@ -209,6 +212,11 @@ export default function BandejaBanco({ movimientos, categorias, subcategorias, p
                         opciones={[...pagos].sort((a, b) => Number(b.monto === -m.monto) - Number(a.monto === -m.monto)).map((p) => ({ id: p.id, texto: `${p.numero} · ${p.proveedor ?? "—"} · ${clp(p.monto)}${p.hecho ? " (ya pagado)" : ""}${p.monto === -m.monto ? " ✓ mismo monto" : ""}` }))}
                         ligar={(id) => conciliarMovimientoAction(m.id, "pago", id)}
                       />
+                    )}
+                    {porConciliar.some((d) => d.direccion === (m.monto > 0 ? "emitido" : "recibido")) && (
+                      <ConVentana boton={m.monto > 0 ? "Cobra facturas por conciliar…" : "Paga facturas por conciliar…"} titulo="Conciliar con documentos" ancho="max-w-3xl" className={`${BOTON_SEC} w-full`}>
+                        {(cerrar) => <ConciliarDocumentos movimiento={{ id: m.id, monto: m.monto, fecha: m.fecha }} documentos={porConciliar} alOk={cerrar} />}
+                      </ConVentana>
                     )}
                     <SubirAdjunto entidadTipo="movimiento" entidadId={m.id} tipo="comprobante" texto="Adjuntar respaldo" />
                     {m.categoriaId && !m.faltaSubcategoria && (
