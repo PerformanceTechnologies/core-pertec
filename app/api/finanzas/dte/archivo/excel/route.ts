@@ -14,7 +14,8 @@ export async function GET(req: Request) {
   const clase = u.get("clase") === "recibido" ? "recibido" : "emitido";
   const anio = Number(u.get("anio")) || null;
   const mes = Number(u.get("mes")) >= 1 && Number(u.get("mes")) <= 12 ? Number(u.get("mes")) : null;
-  const filas = await todasDelArchivo(ctx.empresa.id, { clase, anio, mes, q: (u.get("q") ?? "").slice(0, 80) });
+  const tipos = u.get("tipos") === "guias" ? "guias" : u.get("tipos") === "sin_guias" ? "sin_guias" : "todos";
+  const filas = await todasDelArchivo(ctx.empresa.id, { clase, tipos, anio, mes, q: (u.get("q") ?? "").slice(0, 80) });
 
   const libro = new ExcelJS.Workbook();
   const hoja = libro.addWorksheet(clase === "emitido" ? "Emitidos" : "Recibidos");
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
   hoja.getColumn("fecha").numFmt = "dd-mm-yyyy";
   hoja.autoFilter = { from: "A1", to: "L1" };
   const buf = Buffer.from(await libro.xlsx.writeBuffer());
-  const nombre = `${clase === "emitido" ? "Emitidos" : "Recibidos"}${anio ? `-${anio}` : ""}${mes ? `-${String(mes).padStart(2, "0")}` : ""}.xlsx`;
+  const nombre = `${tipos === "guias" ? "Guias" : clase === "emitido" ? "Emitidos" : "Recibidos"}${anio ? `-${anio}` : ""}${mes ? `-${String(mes).padStart(2, "0")}` : ""}.xlsx`;
   return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

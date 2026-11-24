@@ -15,6 +15,7 @@ import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import { TARJETA } from "@/lib/estilos";
 import ProbarConexion from "@/components/fin/dte/ProbarConexion";
 import ArchivoDocumentos from "@/components/fin/dte/ArchivoDocumentos";
+import { contarArchivo } from "@/lib/fin/dte/archivo";
 import { TONO_EMISION, TONO_SII } from "@/components/fin/dte/tonos";
 import { COMUNAS_ORDENADAS } from "@/lib/contactos-modelo";
 
@@ -22,13 +23,13 @@ export const dynamic = "force-dynamic";
 
 const RUTA = "/finanzas/facturacion";
 
-type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string; vista?: string };
+type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string; vista?: string; modo?: string };
 
 export default async function FacturacionPage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
   const ctx = await contextoFin();
   const [v, cfg, emisiones, cesiones] = await Promise.all([cargarVista(), configuracionDte(ctx.empresa.id), listarEmisiones(ctx.empresa.id), listarCesionesElectronicas(ctx.empresa.id)]);
-  const recibidos = await listarRecibidos(ctx.empresa.id, cfg.ambiente, v.hoy, v.p.plazoReclamoFacturaDias);
+  const [recibidos, enArchivo] = await Promise.all([listarRecibidos(ctx.empresa.id, cfg.ambiente, v.hoy, v.p.plazoReclamoFacturaDias), contarArchivo(ctx.empresa.id)]);
   const ver = sp.ver ?? "emitidos";
   const esAdmin = ctx.usuario.rol === "admin";
   const bloqueo = avisoBloqueo(cfg);
@@ -85,10 +86,10 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           base={RUTA}
           actual={ver}
           opciones={[
-            { clave: "emitidos", etiqueta: "Emitidos", n: emitidos.length },
+            { clave: "emitidos", etiqueta: "Emitidos", n: enArchivo.emitidos + emitidos.filter((e) => e.ambiente === "certificacion").length },
             { clave: "borradores", etiqueta: "Borradores", n: pendientes.length },
-            { clave: "guias", etiqueta: "Guías de despacho", n: guias.length },
-            { clave: "recibidos", etiqueta: "Recibidos", n: bandeja.length },
+            { clave: "guias", etiqueta: "Guías de despacho", n: enArchivo.guias + guias.filter((e) => e.ambiente === "certificacion").length },
+            { clave: "recibidos", etiqueta: "Recibidos", n: enArchivo.recibidos },
             { clave: "cesiones", etiqueta: "Cesiones", n: cesiones.length },
             { clave: "archivo", etiqueta: "Archivo y consultas" },
             { clave: "configuracion", etiqueta: "Configuración" },
@@ -100,11 +101,29 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
         <Link href={`${RUTA}/nuevo?tipo=33`} className={BOTON}><IconFileInvoice size={15} /> Nueva factura</Link>
       </div>
 
+      {(ver === "emitidos" || ver === "guias") && (
+        <ArchivoDocumentos
+          empresaId={ctx.empresa.id}
+          ruta={RUTA}
+          clase="emitido"
+          tipos={ver === "guias" ? "guias" : "sin_guias"}
+          pestana={ver}
+          conClase={false}
+          anio={Number(sp.anio) || null}
+          mes={Number(sp.mes) >= 1 && Number(sp.mes) <= 12 ? Number(sp.mes) : null}
+          q={(sp.q ?? "").slice(0, 80)}
+          vista={sp.vista === "resumen" ? "resumen" : "lista"}
+        />
+      )}
+
       {(ver === "emitidos" || ver === "guias" || ver === "borradores") && (
         <>
-          <form className="max-w-md"><input type="hidden" name="ver" value={ver} /><input name="q" defaultValue={sp.q} placeholder="Buscar por folio, cliente o RUT…" className={CAMPO} /></form>
+          {ver === "borradores" && <form className="max-w-md"><input type="hidden" name="ver" value={ver} /><input name="q" defaultValue={sp.q} placeholder="Buscar por folio, cliente o RUT…" className={CAMPO} /></form>}
           {(() => {
-            const filas = filtra(ver === "emitidos" ? emitidos : ver === "guias" ? guias : pendientes);
+            // En Emitidos y Guías, el historial completo viene del archivo (arriba); aquí solo lo emitido por el Core en
+            // pruebas, que no se archiva (lo de producción ya está en el archivo).
+            const filas = ver === "borradores" ? filtra(pendientes) : (ver === "emitidos" ? emitidos : guias).filter((e) => e.ambiente === "certificacion");
+            if (filas.length === 0 && ver !== "borradores") return null;
             if (filas.length === 0)
               return ver === "guias" ? (
                 <Vacio titulo="Sin guías de despacho" texto="La guía respalda el traslado de bienes: venta con despacho, arriendo de equipos a faena, traslado entre bodegas o envío a reparación. Se crea con «Nueva guía», o desde un hito de arriendo (primer mes)." icono={<IconTruckDelivery size={24} stroke={1.6} />}>
@@ -118,6 +137,8 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                 </Vacio>
               );
             return (
+              <div className="space-y-2">
+              {ver !== "borradores" && <p className="pt-2 text-sm font-bold text-tinta">Emitidos desde el Core en pruebas (sin valor tributario)</p>}
               <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
                 <table className="w-full min-w-[60rem] text-sm">
                   <thead><tr className="border-b border-borde"><th className={TH}>Documento</th><th className={TH}>{ver === "guias" ? "Destinatario" : "Cliente"}</th><th className={TH}>Emisión</th><th className={`${TH} text-right`}>Total</th><th className={TH}>Estado</th><th className={TH} /></tr></thead>
@@ -148,12 +169,35 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                   </tbody>
                 </table>
               </div>
+              </div>
             );
           })()}
         </>
       )}
 
       {ver === "recibidos" && (
+        <div className="flex rounded-full bg-tinta/[0.05] p-1 text-[13px] font-semibold w-fit">
+          <Link href={`${RUTA}?ver=recibidos`} className={`rounded-full px-3 py-1 ${sp.modo !== "historial" ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>Bandeja del SII ({bandeja.length})</Link>
+          <Link href={`${RUTA}?ver=recibidos&modo=historial`} className={`rounded-full px-3 py-1 ${sp.modo === "historial" ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>Historial completo ({enArchivo.recibidos.toLocaleString("es-CL")})</Link>
+        </div>
+      )}
+
+      {ver === "recibidos" && sp.modo === "historial" && (
+        <ArchivoDocumentos
+          empresaId={ctx.empresa.id}
+          ruta={RUTA}
+          clase="recibido"
+          pestana="recibidos"
+          modo="historial"
+          conClase={false}
+          anio={Number(sp.anio) || null}
+          mes={Number(sp.mes) >= 1 && Number(sp.mes) <= 12 ? Number(sp.mes) : null}
+          q={(sp.q ?? "").slice(0, 80)}
+          vista={sp.vista === "resumen" ? "resumen" : "lista"}
+        />
+      )}
+
+      {ver === "recibidos" && sp.modo !== "historial" && (
         <div className="space-y-3">
           <div className={`${TARJETA} flex flex-wrap items-end gap-3 p-4`}>
             <div className="min-w-[16rem] flex-1">
