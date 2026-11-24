@@ -1,5 +1,11 @@
 # Gestión financiera · Cambios
 
+## 2026-11-24 · Rendir gastos con la lista de Finanzas
+
+- Cada boleta tiene **«Tipo de gasto (Finanzas)»** (subcategoría de la lista maestra). La IA que lee la boleta lo propone; si no, se toma de la categoría rápida (Combustible y Peajes → Vehículos (Autorenta/Combustible); Alimentación, Alojamiento y Transporte → Personal y Dotación; «Insumos / Otros» se elige a mano). También en «Mis gastos».
+- **Tesorería › Por categoría** suma las boletas de los informes aprobados como gasto en su subcategoría, y la transferencia del fondo por rendir (subcategoría «Fondo por Rendir») queda aparte, para no contar dos veces. Las boletas sin tipo de gasto se avisan.
+- Sin migración: el tipo de gasto viaja en el JSON de cada gasto de la rendición.
+
 ## 2026-11-24 · Clasificación con IA
 
 - **La IA sugiere** categoría y subcategoría (Claude) para los movimientos que ni las reglas ni los movimientos anteriores reconocen, con su seguridad y el porqué. Corre cada mañana después de traer el banco y a pedido con «Sugerir con IA». Aprende de lo ya clasificado (se le pasan como ejemplos). Cada movimiento se revisa una sola vez; las nóminas no se envían.

@@ -4,6 +4,7 @@ import { esEditable, puedeAbrirRendicion } from "@/lib/permisos-rendidor";
 import { analizarComprobante } from "@/lib/rendidor/analizar";
 import { obtenerRendicion } from "@/lib/rendidor/datos";
 import { subirRespaldo } from "@/lib/rendidor/almacenamiento";
+import { tiposGastoDeEmpresa } from "@/lib/rendidor/tipos-gasto";
 
 
 export const runtime = "nodejs";
@@ -77,8 +78,12 @@ export async function POST(request: Request) {
     // al revés se perdería justo en el caso en que hay que reintentar.
     const archivoPath = await subirRespaldo(rendicionId, contenido, archivo.type, archivo.name);
 
-    const leido = await analizarComprobante(contenido, archivo.type, archivo.name);
-    return NextResponse.json({ leido, archivoPath });
+    // La lista de gastos de Finanzas de la empresa del informe: la IA elige también el tipo de gasto.
+    const tipos = await tiposGastoDeEmpresa(rendicion.empresaId).catch(() => []);
+    const etiqueta = new Map<string, { id: string; nombre: string }>(tipos.flatMap((g) => g.opciones.map((o) => [`${g.categoria} › ${o.nombre}`, o] as [string, { id: string; nombre: string }])));
+    const leido = await analizarComprobante(contenido, archivo.type, archivo.name, [...etiqueta.keys()]);
+    const tipo = leido.tipoGasto ? etiqueta.get(leido.tipoGasto) ?? null : null;
+    return NextResponse.json({ leido: { ...leido, subcategoriaId: tipo?.id ?? null, subcategoriaNombre: tipo?.nombre ?? null }, archivoPath });
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "Error desconocido";
     console.error("[rendidor] Error al analizar comprobante:", error);

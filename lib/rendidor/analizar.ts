@@ -44,6 +44,8 @@ export interface ComprobanteLeido {
   tramoNacional: boolean | null;
   // Campos que no se pudieron leer. La skill es explicita: no inventar datos.
   ilegibles: string[];
+  /** El tipo de gasto de la lista de Finanzas («Categoría › Subcategoría»), si se le pasó la lista. */
+  tipoGasto?: string | null;
 }
 
 const ESQUEMA = {
@@ -208,7 +210,26 @@ export async function analizarComprobante(
   contenido: Buffer,
   mimeType: string,
   nombreArchivo: string,
+  /** La lista de gastos de Finanzas («Categoría › Subcategoría»): si viene, la IA elige también el tipo de gasto. */
+  tiposGasto: string[] = [],
 ): Promise<ComprobanteLeido> {
+  // Con la lista de Finanzas, el esquema suma un campo más (a lo sumo una opción de la lista, o null).
+  const esquema = tiposGasto.length
+    ? {
+        ...ESQUEMA,
+        properties: {
+          ...ESQUEMA.properties,
+          tipoGasto: {
+            anyOf: [{ type: "string", enum: tiposGasto }, { type: "null" }],
+            description:
+              "El tipo de gasto en la lista de Finanzas que mejor describe este comprobante, copiado EXACTO de la lista. " +
+              "Combustible y peajes van en «Vehículos (Autorenta/Combustible)»; comidas en «Alimentación»; hoteles en «Alojamiento»; " +
+              "pasajes, taxis y Uber en «Traslado / Pasajes»; EPP, repuestos o materiales según lo que sean. null si no se puede saber.",
+          },
+        },
+        required: [...ESQUEMA.required, "tipoGasto"],
+      }
+    : ESQUEMA;
   const base64 = contenido.toString("base64");
 
   const bloqueArchivo: Anthropic.ContentBlockParam =
@@ -243,7 +264,7 @@ export async function analizarComprobante(
       // la recomendación es un mínimo de "high". El paralelismo del cliente ya
       // recupera el tiempo de pared sin pagarlo en precisión.
       effort: "high",
-      format: { type: "json_schema", schema: ESQUEMA },
+      format: { type: "json_schema", schema: esquema },
     },
     messages: [
       {

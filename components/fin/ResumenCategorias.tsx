@@ -25,7 +25,10 @@ export default function ResumenCategorias({ r, base, mesAnterior, mesSiguiente }
         ) : (
           <span className="h-8 w-8" />
         )}
-        <p className="flex-1 text-xs text-gris">Movimientos del banco del mes, según su clasificación. Financiamiento y Traspasos Internos no suman en el resultado.</p>
+        <p className="flex-1 text-xs text-gris">
+          El banco del mes y las boletas de los informes aprobados de Rendir gastos, según su clasificación. Financiamiento, Traspasos Internos y la transferencia de
+          los fondos por rendir no suman en el resultado (el gasto real lo traen las boletas).
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
@@ -45,6 +48,11 @@ export default function ResumenCategorias({ r, base, mesAnterior, mesSiguiente }
       {r.porAclarar.movimientos > 0 && (
         <p className="text-xs text-aviso">
           Faltan {r.porAclarar.movimientos} movimiento(s) por clasificar en este mes. Mientras estén pendientes, los totales no están completos.
+        </p>
+      )}
+      {r.rendidoSinTipo.boletas > 0 && (
+        <p className="text-xs text-aviso">
+          {r.rendidoSinTipo.boletas} boleta(s) rendida(s) por {clp(r.rendidoSinTipo.monto)} no tienen tipo de gasto de Finanzas y no suman arriba. Se completa en el informe, en Rendir gastos.
         </p>
       )}
     </div>
@@ -79,13 +87,16 @@ function Tabla({ titulo, filas, vacio }: { titulo: string; filas: FilaResumen[];
               {f.nombre}
             </span>
             <span className="text-right tabular-nums text-ok">{f.ingresos ? clp(f.ingresos) : "—"}</span>
-            <span className="text-right tabular-nums text-alerta">{f.egresos ? clp(-f.egresos) : "—"}</span>
+            <span className="text-right tabular-nums text-alerta" title={f.rendido ? `${clp(f.rendido)} vienen de boletas rendidas` : undefined}>{f.egresos ? clp(-f.egresos) : "—"}</span>
             <span className="text-right tabular-nums text-gris">{f.movimientos}</span>
           </summary>
           <ul className="bg-tinta/[0.015] pb-1">
             {f.subcategorias.map((s) => (
               <li key={s.subcategoriaId ?? "sin"} className="grid grid-cols-[minmax(0,1fr)_7rem_7rem_3.5rem] gap-2 px-4 py-1.5 pl-9 text-xs">
-                <span className={`truncate ${s.subcategoriaId ? "text-tinta" : "text-aviso"}`}>{s.nombre}</span>
+                <span className={`truncate ${s.subcategoriaId ? "text-tinta" : "text-aviso"}`}>
+                  {s.nombre}
+                  {s.rendido > 0 && <span className="text-gris"> · {s.rendido === s.egresos ? "rendido" : `incl. ${clp(s.rendido)} rendido`}</span>}
+                </span>
                 <span className="text-right tabular-nums text-gris">{s.ingresos ? clp(s.ingresos) : "—"}</span>
                 <span className="text-right tabular-nums text-gris">{s.egresos ? clp(-s.egresos) : "—"}</span>
                 <span className="text-right tabular-nums text-gris">{s.movimientos}</span>

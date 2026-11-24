@@ -115,4 +115,5 @@ Las reglas (2 y 3) se aplican solas cada mañana al llegar el banco; lo aprendid
 - **Facturación electrónica:** los botones «Emitir factura electrónica» y «Ceder electrónicamente» están deshabilitados. Mientras tanto, emite en el SII y registra el folio aquí.
 - **Formatos imprimibles:** el botón «Imprimir» está deshabilitado («Formato en diseño»).
 - **Integraciones:** importación del RCV, notificaciones por correo, roles, e integración con Contratos y Rendición de gastos.
-- **Lista maestra en Rendir gastos y CRM:** Rendir gastos sigue con sus 6 categorías propias y el cotizador con sus tipos de costo; conectarlos a la lista de Finanzas es la siguiente etapa.
+- **Lista maestra en CRM:** el cotizador sigue con sus tipos de costo; conectarlo a la lista de Finanzas (cotizado contra real por proyecto) es la siguiente etapa.
+- **Rendir gastos:** cada boleta ya tiene su «Tipo de gasto (Finanzas)», y lo rendido suma en Tesorería › Por categoría. Quien revisa un informe no puede cambiar el tipo de gasto: si está mal, observa la boleta y quien rinde lo corrige.

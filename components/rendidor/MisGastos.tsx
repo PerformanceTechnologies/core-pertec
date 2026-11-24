@@ -1,5 +1,6 @@
 "use client";
 
+import type { TipoGastoGrupo } from "@/lib/rendidor/tipos";
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -29,6 +30,7 @@ export default function MisGastos({
   proveedores = [],
   enInformes = [],
   proyectos = [],
+  tiposGasto = [],
   repetidosIniciales = {},
 }: {
   bolsa: Rendicion;
@@ -36,6 +38,8 @@ export default function MisGastos({
   informes: { id: string; titulo: string }[];
   proveedores?: ProveedorOpcion[];
   proyectos?: ProyectoOpcion[];
+  /** La lista de gastos de Finanzas, para clasificar cada boleta. */
+  tiposGasto?: TipoGastoGrupo[];
   /** Los gastos que parecen repetidos, calculados al cargar la página. */
   repetidosIniciales?: Record<string, Repetido[]>;
   /** Los gastos que ya están en un informe (en revisión o cerrados). */
@@ -237,6 +241,7 @@ export default function MisGastos({
             <PanelRendicion
               proveedores={proveedores}
               proyectos={proyectos}
+              tiposGasto={tiposGasto}
               key={bolsa.id}
               rendicionInicial={bolsa}
               urlsRespaldo={urlsRespaldo}

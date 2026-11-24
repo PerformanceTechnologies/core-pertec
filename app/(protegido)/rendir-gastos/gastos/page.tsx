@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { tiposGastoDeEmpresa } from "@/lib/rendidor/tipos-gasto";
 import { IconArrowLeft, IconReceipt } from "@tabler/icons-react";
 import { exigirAccesoRendidor } from "@/lib/rendidor/permisos";
 import { repetidosDe } from "@/lib/rendidor/duplicados";
@@ -32,6 +33,7 @@ export default async function MisGastosPage() {
   // Quien administra gastos ve el botón «Todos los gastos» junto al título.
   const esAdmin = rol === "admin" || (empresaId ? (await rolesDe(usuario, false, empresaId).catch((): RolFondos[] => [])).includes("administrador") : false);
   const proyectos = bolsa && empresaId ? await listarProyectos(empresaId) : [];
+  const tiposGasto = bolsa && empresaId ? await tiposGastoDeEmpresa(empresaId).catch(() => []) : [];
   const repetidos = bolsa && empresa ? await repetidosDe([bolsa.id, ...new Set(enInformes.map((f) => f.informeId).filter((x): x is string => Boolean(x)))], empresa) : {};
   const proveedores = bolsa ? await listarProveedores().catch(() => []) : [];
   const urlsRespaldo: Record<string, string> = {};
@@ -55,7 +57,7 @@ export default async function MisGastosPage() {
         {esAdmin && <ConmutadorTodos activa="mias" mias={{ href: "/rendir-gastos/gastos", texto: "Mis gastos" }} todas={{ href: "/rendir-gastos?ver=todos-gastos", texto: "Todos los gastos" }} />}
       </header>
       {error && <p className="rounded-xl border border-rose-300/60 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-700">{error}</p>}
-      {bolsa && <MisGastos repetidosIniciales={repetidos} proyectos={proyectos} enInformes={enInformes} proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
+      {bolsa && <MisGastos repetidosIniciales={repetidos} proyectos={proyectos} tiposGasto={tiposGasto} enInformes={enInformes} proveedores={proveedores} bolsa={bolsa} urlsRespaldo={urlsRespaldo} informes={informes.map((i) => ({ id: i.id, titulo: i.titulo }))} />}
     </div>
   );
 }

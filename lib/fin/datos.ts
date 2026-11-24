@@ -805,6 +805,29 @@ export async function historialDeCompra(empresaId: string, compraId: string, doc
   }));
 }
 
+/**
+ * Las boletas de Rendir gastos de informes ya aprobados de la empresa, con fecha en el rango: para sumarlas como gasto
+ * en Tesorería › Por categoría. No entran las rechazadas en la revisión ni los informes en borrador o en revisión.
+ */
+export async function gastosRendidos(empresaId: string, desde: Iso, hasta: Iso): Promise<import("./clasificacion").GastoRendido[]> {
+  const { data, error } = await supabaseAdmin
+    .from("rendiciones")
+    .select("gastos")
+    .eq("empresa_id", empresaId)
+    .eq("tipo", "informe")
+    .in("estado", ["aprobada", "pagada", "reembolso_pendiente", "reembolsada", "cerrada"])
+    .limit(2000);
+  if (error) {
+    console.warn("[fin] gastos rendidos:", error.message);
+    return [];
+  }
+  type G = { fecha?: string | null; total?: number | string; subcategoriaId?: string | null; revision?: { estado?: string } | null };
+  return ((data ?? []) as { gastos: G[] | null }[])
+    .flatMap((r) => r.gastos ?? [])
+    .filter((g) => g.fecha && g.fecha >= desde && g.fecha <= hasta && g.revision?.estado !== "rechazada")
+    .map((g) => ({ fecha: g.fecha as Iso, total: Number(g.total) || 0, subcategoriaId: g.subcategoriaId ?? null }));
+}
+
 /** Una aceptación de sugerencias en bloque que todavía se puede deshacer. */
 export interface LoteAceptado {
   id: string;

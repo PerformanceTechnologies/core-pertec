@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { IconBuildingBank, IconCreditCard, IconPlus } from "@tabler/icons-react";
-import { RUTA_FIN, cargarVista, RUTA_VENTAS, RUTA_COMPRAS, ultimoLoteAceptado } from "@/lib/fin/datos";
+import { RUTA_FIN, cargarVista, RUTA_VENTAS, RUTA_COMPRAS, gastosRendidos, ultimoLoteAceptado } from "@/lib/fin/datos";
 import { CONCEPTOS_MANUALES, clp, clpCorto, fechaCl, finDeMes, inicioDeMes, mesLargo, type MesFlujo } from "@/lib/fin/reglas";
 import { TARJETA } from "@/lib/estilos";
 import { actualizarSaldoAction, guardarPartidaAction } from "../acciones-config";
@@ -10,7 +10,7 @@ import { BotonAccion, Campo, CampoEnLinea, ConVentana, FormAccion } from "@/comp
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import BandejaBanco, { ImportarCartola } from "@/components/fin/BandejaBanco";
 import ResumenCategorias from "@/components/fin/ResumenCategorias";
-import { resumenPorCategoria } from "@/lib/fin/clasificacion";
+import { LISTA, resumenPorCategoria } from "@/lib/fin/clasificacion";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +147,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       )}
 
       {ver === "categorias" && <PorCategoria v={v} mes={sp.mes} />}
+
       {ver === "factoring" && <Factoring v={v} />}
       {ver === "flujo" && <FlujoCaja v={v} />}
     </div>
@@ -156,10 +157,13 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
 type V = Awaited<ReturnType<typeof cargarVista>>;
 
 /** El mes elegido (?mes=AAAA-MM) por categoría; por omisión, el mes en curso. */
-function PorCategoria({ v, mes }: { v: V; mes?: string }) {
+async function PorCategoria({ v, mes }: { v: V; mes?: string }) {
   const actual = inicioDeMes(v.hoy);
   const desde = mes && /^\d{4}-\d{2}$/.test(mes) && `${mes}-01` <= actual ? `${mes}-01` : actual;
-  const r = resumenPorCategoria(v.movimientos, v.categorias, v.subcategorias, desde, finDeMes(desde));
+  // Las boletas rendidas suman como gasto; por eso la transferencia del fondo por rendir no suma (si no, se contaría dos veces).
+  const rendidos = await gastosRendidos(v.empresa.id, desde, finDeMes(desde));
+  const noSuman = new Set(v.subcategorias.filter((s) => s.nombre === LISTA.fondoPorRendir).map((s) => s.id));
+  const r = resumenPorCategoria(v.movimientos, v.categorias, v.subcategorias, desde, finDeMes(desde), { rendidos, noSuman });
   const siguiente = inicioDeMes(desde, 1);
   return (
     <ResumenCategorias
