@@ -109,7 +109,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
 
       {editable ? (
         <EditorCotizacion
-          inicial={{ id, titulo: c.titulo, clienteId: c.clienteId, oportunidadId: c.oportunidadId, proyectoId: c.proyectoId, tipo: c.tipo, fecha: c.fecha, validezDias: c.validezDias, condicionPagoDias: c.condicionPagoDias, requiereOc: c.requiereOc, requiereEdp: c.requiereEdp, requiereHes: c.requiereHes, notas: c.notas, atencion: c.atencion, correoAtencion: c.correoAtencion, plazoEntrega: c.plazoEntrega, formaPago: c.formaPago, descuentoGeneralTipo: c.descuentoGeneralTipo, descuentoGeneralValor: c.descuentoGeneralValor, incluirDatosPago: c.incluirDatosPago, arriendoUnidad: c.arriendoUnidad, lineas }}
+          inicial={{ id, titulo: c.titulo, clienteId: c.clienteId, oportunidadId: c.oportunidadId, proyectoId: c.proyectoId, tipo: c.tipo, fecha: c.fecha, validezDias: c.validezDias, condicionPagoDias: c.condicionPagoDias, requiereOc: c.requiereOc, requiereEdp: c.requiereEdp, requiereHes: c.requiereHes, notas: c.notas, condicionesGenerales: c.condicionesGenerales, atencion: c.atencion, correoAtencion: c.correoAtencion, plazoEntrega: c.plazoEntrega, formaPago: c.formaPago, descuentoGeneralTipo: c.descuentoGeneralTipo, descuentoGeneralValor: c.descuentoGeneralValor, incluirDatosPago: c.incluirDatosPago, arriendoUnidad: c.arriendoUnidad, lineas }}
           clientes={v.contrapartes.map((x) => ({ id: x.id, nombre: x.nombre, rut: x.rut }))}
           perfiles={Object.fromEntries([...v.perfiles.values()].map((p) => [p.contactoId, { condicion: p.condicionVentaDias, oc: p.requiereOc, edp: p.requiereEdp, hes: p.requiereHes }]))}
           productos={productos}

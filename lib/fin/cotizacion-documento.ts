@@ -61,6 +61,8 @@ export interface DatosDocumento {
   requiereEdp: boolean;
   requiereHes: boolean;
   notas: string | null;
+  /** Texto libre de la persona (una condición por línea). Sale en letra chica, arriba de las observaciones y de las condiciones comerciales. */
+  condicionesGenerales: string | null;
   emisor: { nombre: string; correo: string };
 }
 
@@ -98,6 +100,21 @@ export function condicionesDelDocumento(d: DatosDocumento): { etiqueta: string; 
   const r = requisitos(d);
   if (r) c.push({ etiqueta: "Facturación", texto: r });
   return c;
+}
+
+/** Cuántas líneas de condiciones generales caben en el PDF: más que eso ya no es una condición, es otro documento. */
+export const MAX_LINEAS_GENERALES = 40;
+
+/**
+ * Las condiciones generales, una por línea. Se quitan las viñetas que la persona haya escrito («-», «•», «*») porque
+ * el PDF pone la suya, y se descartan las líneas vacías.
+ */
+export function lineasGenerales(texto: string | null | undefined): string[] {
+  return String(texto ?? "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*[-•*–]\s+/, "").trim())
+    .filter(Boolean)
+    .slice(0, MAX_LINEAS_GENERALES);
 }
 
 const CSS = `
@@ -161,6 +178,12 @@ const CSS = `
   .bloque li { margin: 0 0 1mm; font-size: 9pt; display: flex; gap: 3mm; }
   .bloque li b { flex: 0 0 34mm; color: #3d362f; }
   .bloque p { margin: 0; font-size: 9pt; }
+  /* Las generales: texto de la persona, en letra chica. Si no cabe en la hoja, la impresión la baja a «gen-compacto» (ver cotizacion-impresion.ts). */
+  .bloque.generales { margin-bottom: 3mm; }
+  .bloque.generales ul { display: block; }
+  .bloque.generales li { display: block; position: relative; margin: 0 0 0.6mm; padding-left: 2.6mm; font-size: 7pt; line-height: 1.3; color: #5a5249; overflow-wrap: anywhere; }
+  .bloque.generales li::before { content: "•"; position: absolute; left: 0.2mm; color: #c85217; }
+  body.gen-compacto .bloque.generales li { font-size: 6pt; line-height: 1.25; margin-bottom: 0.3mm; }
   .banco { white-space: pre-line; background: #fbf9f5; border: 1px dashed #d8cfc2; border-radius: 2mm; padding: 3mm 4mm; font-size: 9pt; }
   /* Abajo de todo. Izquierda: observaciones (si hay), condiciones comerciales y el mensaje de cierre. Derecha: datos de pago (si se piden) y la firma. */
   .cierre { break-inside: avoid; page-break-inside: avoid; padding-bottom: 2mm; }
@@ -197,6 +220,7 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
   const filasEmisora = [e.giro, e.direccion, [e.telefono, e.correo, e.web].filter(Boolean).join(" · ")].filter((x): x is string => Boolean(x && x.trim()));
   const hayDescuento = d.lineas.some((l) => Number(l.descuentoPct) > 0);
   const condiciones = condicionesDelDocumento(d);
+  const generales = lineasGenerales(d.condicionesGenerales);
   const pago = d.incluirDatosPago && e.datosBancarios?.trim() ? e.datosBancarios.trim() : null;
   const etiquetaDescuento = d.descuentoGeneral?.tipo === "pct" ? `Descuento (${Math.round(Number(d.descuentoGeneral.valor) * 100) / 100}%)` : "Descuento";
 
@@ -275,6 +299,7 @@ export function htmlDeCotizacion(d: DatosDocumento): string {
     <div class="g cierre">
       <div class="fila">
         <div class="izq">
+          ${generales.length > 0 ? `<section class="bloque generales"><h2>Condiciones generales</h2><ul>${generales.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></section>` : ""}
           ${d.notas?.trim() ? `<section class="bloque"><h2>Observaciones</h2><p>${conSaltos(d.notas.trim())}</p></section>` : ""}
           <section class="bloque">
             <h2>Condiciones comerciales</h2>

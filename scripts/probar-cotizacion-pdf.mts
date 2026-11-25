@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
-import { condicionesDelDocumento, esc, htmlDeCotizacion, pieDeCotizacion, vigenteHasta, type DatosDocumento } from "../lib/fin/cotizacion-documento";
+import { condicionesDelDocumento, esc, htmlDeCotizacion, lineasGenerales, MAX_LINEAS_GENERALES, pieDeCotizacion, vigenteHasta, type DatosDocumento } from "../lib/fin/cotizacion-documento";
 import { asuntoDeCotizacion, mensajeDeCotizacion } from "../lib/fin/cotizacion-correo";
 import { totalesCotizacion } from "../lib/fin/modelo";
 import { cuerpoHtml } from "../lib/ofertas/correo-html";
@@ -25,7 +25,7 @@ function datos(e: (typeof EMPRESAS)[number], extra: Partial<DatosDocumento> = {}
     logo: null,
     numero: `${e.prefijo}-000123`, version: 1, titulo: "Mantención mensual de chancadores <planta Norte>", fecha: "2026-11-10", validezDias: 30, tipo: "servicio", estado: "borrador",
     cliente: { nombre: "Minera Los Andes S.A.", rut: "96.555.444-3", giro: "Minería", direccion: "Camino Real 55, Calama", telefono: "+56 55 2111222", correo: "compras@mla.cl" },
-    atencion: "María Pérez", correoAtencion: "maria.perez@mla.cl", tasaIva: 0.19, descuentoGeneral: null, incluirDatosPago: true, arriendoUnidad: "mes", condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.",
+    atencion: "María Pérez", correoAtencion: "maria.perez@mla.cl", tasaIva: 0.19, descuentoGeneral: null, incluirDatosPago: true, arriendoUnidad: "mes", condicionPagoDias: 30, formaPago: null, plazoEntrega: "10 días hábiles", requiereOc: true, requiereEdp: false, requiereHes: true, notas: "Incluye repuestos menores.\nNo incluye andamios.", condicionesGenerales: null,
     lineas: [
       { productoId: null, descripcion: "Mantención preventiva mensual <b>chancador</b>", cantidad: 2, unidad: "un", precioUnitario: 1_500_000, descuentoPct: 0.1, exento: false, meses: null },
       { productoId: null, descripcion: "Informe técnico", cantidad: 1, unidad: "un", precioUnitario: 250_000, descuentoPct: 0, exento: true, meses: null },
@@ -97,6 +97,28 @@ assert.ok(!htmlDeCotizacion(datos(EMPRESAS[0])).includes("Preparada por"));
   // Sin observaciones ni datos de pago, las condiciones quedan solas abajo a la izquierda, frente a la firma.
   const sola = htmlDeCotizacion({ ...base, notas: null, incluirDatosPago: false }).slice(htmlDeCotizacion({ ...base, notas: null, incluirDatosPago: false }).indexOf('class="g cierre"'));
   assert.ok(!sola.includes("Observaciones") && !sola.includes("Datos para el pago") && sola.indexOf("Condiciones comerciales") < sola.indexOf('class="firma"'));
+}
+
+// Condiciones generales: texto libre de la persona, arriba de las observaciones y de las condiciones comerciales.
+{
+  const sin = htmlDeCotizacion(datos(EMPRESAS[0]));
+  assert.ok(!sin.includes("Condiciones generales") && !sin.includes('class="bloque generales"'), "sin texto no sale el bloque");
+  assert.ok(!htmlDeCotizacion(datos(EMPRESAS[0], { condicionesGenerales: "  \n \r\n  " })).includes("Condiciones generales"), "solo espacios y saltos tampoco");
+
+  const h = htmlDeCotizacion(datos(EMPRESAS[0], { condicionesGenerales: "- Valores no incluyen traslados.\n\n• Equipos se entregan <b>limpios</b>\r\n* Garantía 12 meses\nPago contra factura." }));
+  const abajo = h.slice(h.indexOf('class="g cierre"'));
+  assert.ok(abajo.indexOf("Condiciones generales") > 0 && abajo.indexOf("Condiciones generales") < abajo.indexOf("Observaciones") && abajo.indexOf("Observaciones") < abajo.indexOf("Condiciones comerciales"), "generales, observaciones, comerciales: ese orden");
+  assert.ok(abajo.indexOf("Condiciones generales") < abajo.indexOf('class="firma"') && abajo.indexOf("Condiciones generales") < abajo.indexOf("Datos para el pago"), "a la izquierda, antes de los datos de pago y la firma");
+  assert.deepEqual(lineasGenerales("- Valores no incluyen traslados.\n\n• Equipos se entregan limpios\r\n* Garantía\n  – Pago contra factura.\n   "), ["Valores no incluyen traslados.", "Equipos se entregan limpios", "Garantía", "Pago contra factura."], "una condición por línea, sin viñetas escritas ni líneas vacías");
+  assert.equal((h.match(/<li>(Valores|Equipos|Garantía|Pago)/g) ?? []).length, 4, "cuatro líneas, cuatro viñetas");
+  assert.ok(h.includes("Equipos se entregan &lt;b&gt;limpios&lt;/b&gt;") && !h.includes("<b>limpios</b>"), "el HTML que escribe la persona se escapa");
+  // Sin observaciones, igual queda arriba de las condiciones comerciales.
+  const sinObs = htmlDeCotizacion(datos(EMPRESAS[0], { notas: null, condicionesGenerales: "Una condición." }));
+  assert.ok(sinObs.indexOf("Condiciones generales") < sinObs.indexOf("Condiciones comerciales") && !sinObs.includes("Observaciones"));
+  // Un texto desmedido no hace crecer el documento sin límite.
+  assert.equal(lineasGenerales(Array.from({ length: 200 }, (_, i) => `Condición ${i}`).join("\n")).length, MAX_LINEAS_GENERALES);
+  // Es letra chica y baja a «gen-compacto» solo cuando hace falta (ver cotizacion-impresion.ts).
+  assert.ok(/\.bloque\.generales li \{[^}]*font-size: 7pt/.test(h) && /body\.gen-compacto \.bloque\.generales li \{[^}]*font-size: 6pt/.test(h), "7 pt, y 6 pt en modo compacto");
 }
 
 // Sin descuentos ni exentos ni datos bancarios, esas partes no salen.
@@ -226,6 +248,25 @@ if (process.env.PDF_SALIDA) {
       // Con pocas líneas NADA se achica: el texto queda como siempre.
       if (n <= 5 && !largas) assert.equal(r.zoom, 1, `${e.slug} con ${n} líneas no debe achicar nada`);
       assert.equal(zoomDeLaPagina, "", "solo la tabla se achica");
+    }
+  }
+  // Con condiciones generales: pocas líneas y texto corto no achica nada; con el texto más largo permitido, la letra chica
+  // baja a 6 pt ANTES de achicar los productos, y siempre cabe en una hoja.
+  {
+    const corto = "Los valores no incluyen traslados fuera de la región.\nLos equipos se entregan limpios y se devuelven en el mismo estado.\nPago contra factura a 30 días.";
+    const largo = Array.from({ length: 14 }, (_, i) => `Condición general número ${i + 1}: los equipos arrendados deben devolverse limpios, completos y en el mismo estado en que se entregaron; los daños se cobran aparte.`).join("\n").slice(0, 1500);
+    const e = EMPRESAS[0];
+    const logo = readFileSync(new URL(`../public/empresas/${e.slug}-completo.png`, import.meta.url)).toString("base64");
+    for (const [n, texto, etiqueta] of [[2, corto, "corto"], [5, corto, "corto"], [5, largo, "largo"], [8, largo, "largo"]] as const) {
+      const d = { ...datos(e, { lineas: lineas(n), notas: null, condicionesGenerales: texto, incluirDatosPago: false }), logo: `data:image/png;base64,${logo}` };
+      const page = await nav.newPage();
+      const r = await imprimirCotizacion(page, d);
+      await page.close();
+      writeFileSync(`${process.env.PDF_SALIDA}/${e.slug}-${n}-lineas-generales-${etiqueta}.pdf`, r.pdf);
+      console.log(`${e.slug} · ${n} líneas + generales ${etiqueta} → ${r.paginas} hoja(s), zoom ${r.zoom.toFixed(2)}${r.espacioJusto ? ", márgenes justos" : ""}${r.generalesCompactas ? ", generales a 6 pt" : ""}, ocupa ${Math.round(r.ocupacion * 100)} % de la hoja`);
+      assert.equal(r.paginas, 1, `${n} líneas con condiciones generales ${etiqueta} caben en una hoja`);
+      if (etiqueta === "corto" && n <= 5) assert.ok(r.zoom === 1 && !r.generalesCompactas && !r.espacioJusto, "con poco texto nada se achica");
+      if (r.zoom < 1) assert.ok(r.generalesCompactas, "los productos se achican solo después de bajar las condiciones generales a 6 pt");
     }
   }
   await nav.close();
