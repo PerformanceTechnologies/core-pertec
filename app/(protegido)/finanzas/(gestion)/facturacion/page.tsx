@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconArrowsExchange, IconFileInvoice, IconFlask, IconPlus, IconRefresh, IconSettings, IconTruckDelivery } from "@tabler/icons-react";
+import { IconArrowsExchange, IconFileInvoice, IconRefresh, IconSettings, IconTruckDelivery } from "@tabler/icons-react";
 import { cargarVista, contextoFin } from "@/lib/fin/datos";
 import { cedibles, configuracionDte, listarCesionesElectronicas, listarEmisiones, listarRecibidos } from "@/lib/fin/dte/servicio";
 import { ETIQUETA_ESTADO_SII, NOMBRE_DTE } from "@/lib/fin/dte/modelo";
@@ -9,13 +9,15 @@ import { avisoBloqueo } from "@/components/fin/dte/aviso";
 import {
   cederFacturaAction, guardarConfigDteAction,
 } from "@/app/(protegido)/gestion-financiera/acciones-dte";
-import { Banda, Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
+import { Chip, Monto, Pestanas, TD, TH, Vacio } from "@/components/fin/piezas";
 import { Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import { TARJETA } from "@/lib/estilos";
 import ProbarConexion from "@/components/fin/dte/ProbarConexion";
 import ArchivoDocumentos from "@/components/fin/dte/ArchivoDocumentos";
 import RecibidosDocumentos from "@/components/fin/dte/RecibidosDocumentos";
+import EncabezadoFacturacion from "@/components/fin/dte/EncabezadoFacturacion";
+import MenuNuevo from "@/components/fin/dte/MenuNuevo";
 import { Paginador, ThOrden, conParametros, leerEstado, ordenarYPaginar } from "@/components/fin/TablaOrdenable";
 import { contarArchivo } from "@/lib/fin/dte/archivo";
 import { TONO_EMISION, TONO_SII } from "@/components/fin/dte/tonos";
@@ -54,11 +56,14 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-3">
-      <Banda
-        compacta
-        etiqueta="Facturación electrónica"
+      <EncabezadoFacturacion
         valor={clp(facturadoMes)}
-        bajada={<>Emitido este mes {prueba ? "(pruebas)" : ""}, neto de notas de crédito. Facturas, notas, guías y cesión se emiten aquí y van al SII vía {cfg.proveedorNombre}; lo recibido llega a la bandeja.</>}
+        detalle={`Emitido este mes${prueba ? " (pruebas)" : ""}, neto de notas de crédito`}
+        info={`Facturas, notas, guías y cesión se emiten aquí y van al SII vía ${cfg.proveedorNombre}. Lo que te facturan llega a Recibidos.`}
+        prueba={prueba}
+        bloqueo={bloqueo}
+        urgentes={urgentes.length}
+        sinRegistrar={sinRegistrar.length}
         pasos={[
           { titulo: "Lista para facturar", ayuda: "Hitos de Ventas", n: listaParaFacturar.length, href: `/finanzas/ventas?etapa=Lista para facturar`, alerta: listaParaFacturar.length > 0 },
           { titulo: "Borradores", ayuda: "Por emitir o corregir", n: pendientes.length, href: `${RUTA}?ver=borradores`, alerta: pendientes.some((e) => e.estado !== "borrador") },
@@ -66,21 +71,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           { titulo: "Recibidos por responder", ayuda: "8 días para aceptar o reclamar", n: porResponder.length, href: `${RUTA}?ver=recibidos&estado=responder`, alerta: urgentes.length > 0 },
           { titulo: "Cesiones", ayuda: "Factoring electrónico", n: cesiones.filter((c) => c.estado === "cedida").length, href: `${RUTA}?ver=cesiones` },
         ]}
-        cifras={[
-          { etiqueta: "Ambiente", valor: prueba ? "Pruebas" : "Producción", alerta: prueba },
-          { etiqueta: "Estado", valor: bloqueo ? "Por configurar" : "Listo", alerta: Boolean(bloqueo) },
-          { etiqueta: "Recibidos urgentes", valor: String(urgentes.length), alerta: urgentes.length > 0 },
-          { etiqueta: "Sin registrar en Compras", valor: String(sinRegistrar.length) },
-        ]}
       />
-
-      {prueba && (
-        <p className="flex items-start gap-2 rounded-xl border border-violet-500/30 bg-violet-500/[0.06] px-3.5 py-2.5 text-[13px] text-violet-800 dark:text-violet-200">
-          <IconFlask size={17} className="mt-px shrink-0" />
-          <span><strong>Ambiente de pruebas (certificación / demo).</strong> Lo emitido no tiene valor tributario y queda solo en esta pantalla: no toca hitos, saldos, flujo ni contabilidad. Para pasar a producción, el administrador cambia el ambiente en Administración › Integraciones.</span>
-        </p>
-      )}
-      {bloqueo && <p className="rounded-xl bg-amber-500/[0.08] px-3.5 py-2.5 text-[13px] text-aviso">{bloqueo}</p>}
 
       <div className="flex flex-wrap items-center gap-2">
         <Pestanas
@@ -97,9 +88,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           ]}
         />
         <span className="flex-1" />
-        <Link href={`${RUTA}/nuevo?tipo=52`} className={BOTON_SEC}><IconTruckDelivery size={15} /> Nueva guía</Link>
-        <Link href={`${RUTA}/nuevo?tipo=34`} className={BOTON_SEC}><IconPlus size={15} /> Factura exenta</Link>
-        <Link href={`${RUTA}/nuevo?tipo=33`} className={BOTON}><IconFileInvoice size={15} /> Nueva factura</Link>
+        <MenuNuevo ruta={RUTA} />
       </div>
 
       {(ver === "emitidos" || ver === "guias") && (
@@ -140,7 +129,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
             }, eE);
             if (filas.length === 0)
               return ver === "guias" ? (
-                <Vacio titulo="Sin guías de despacho" texto="La guía respalda el traslado de bienes: venta con despacho, arriendo de equipos a faena, traslado entre bodegas o envío a reparación. Se crea con «Nueva guía», o desde un hito de arriendo (primer mes)." icono={<IconTruckDelivery size={24} stroke={1.6} />}>
+                <Vacio titulo="Sin guías de despacho" texto="La guía respalda el traslado de bienes: venta con despacho, arriendo de equipos a faena, traslado entre bodegas o envío a reparación. Se crea desde «Nueva factura ▾ › Guía de despacho», o desde un hito de arriendo (primer mes)." icono={<IconTruckDelivery size={24} stroke={1.6} />}>
                   <Link href={`${RUTA}/nuevo?tipo=52`} className={BOTON}>Nueva guía</Link>
                 </Vacio>
               ) : ver === "borradores" ? (
