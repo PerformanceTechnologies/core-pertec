@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { IconDownload, IconEye, IconFileSpreadsheet, IconFileTypePdf, IconFolder } from "@tabler/icons-react";
-import { listarArchivo, resumirArchivo, todasDelArchivo, type ClaseDte, type TiposArchivo } from "@/lib/fin/dte/archivo";
+import { ligarConLibros, listarArchivo, resumirArchivo, todasDelArchivo, type ClaseDte, type FilaArchivo, type TiposArchivo } from "@/lib/fin/dte/archivo";
+import { Paginador, ThOrden, conParametros, leerEstado, ordenarYPaginar } from "@/components/fin/TablaOrdenable";
 import { cargarVista } from "@/lib/fin/datos";
 import { DTE_CORTO } from "@/lib/fin/modelo";
 import { clp, fechaCl } from "@/lib/fin/reglas";
@@ -11,6 +12,7 @@ import { CAMPO } from "@/components/fin/estilos";
 import { TARJETA } from "@/lib/estilos";
 import SubirDocumento from "./SubirDocumento";
 
+const COLUMNAS = ["fecha", "folio", "documento", "nombre", "total", "libros", "archivos"] as const;
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const BOTON_MINI = "rounded-md bg-tinta/[0.06] px-2 py-0.5 text-[11px] font-semibold text-tinta/75 hover:bg-tinta/[0.1]";
 
@@ -20,8 +22,10 @@ const BOTON_MINI = "rounded-md bg-tinta/[0.06] px-2 py-0.5 text-[11px] font-semi
  * libros, su estado de pago (pagado por conciliar / pendiente).
  */
 export default async function ArchivoDocumentos({
-  empresaId, ruta, clase, anio, mes, q, vista, tipos = "todos", pestana = "archivo", modo, conClase = true,
+  empresaId, ruta, clase, anio, mes, q, vista, tipos = "todos", pestana = "archivo", modo, conClase = true, orden = {},
 }: {
+  /** Orden y página de la URL (?orden=&dir=&pag=). */
+  orden?: { orden?: string; dir?: string; pag?: string };
   empresaId: string; ruta: string; clase: ClaseDte; anio: number | null; mes: number | null; q: string; vista: "lista" | "resumen";
   /** Qué tipos muestra (la pestaña Guías solo las guías; Emitidos, todo menos guías). */
   tipos?: TiposArchivo;
@@ -33,13 +37,36 @@ export default async function ArchivoDocumentos({
 }) {
   const base = `${ruta}?ver=${pestana}${modo ? `&modo=${modo}` : ""}`;
   const filtro = `clase=${clase}&tipos=${tipos}${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
-  const aqui = `${base}&vista=${vista}&${filtro}`;
-  const { filas, total, anios } = await listarArchivo(empresaId, { clase, tipos, anio, mes, q });
-  const resumen = vista === "resumen" ? resumirArchivo(await todasDelArchivo(empresaId, { clase, tipos, anio, mes, q }), Boolean(anio), tipos === "guias") : null;
-  const v = vista === "lista" && filas.some((f) => f.documentoId) ? await cargarVista() : null;
+  const estado = leerEstado(orden, COLUMNAS, { orden: "fecha", dir: "desc" });
+  const aqui = `${base}&vista=${vista}&${filtro}${estado.orden !== "fecha" || estado.dir !== "desc" ? `&orden=${estado.orden}&dir=${estado.dir}` : ""}${estado.pag > 1 ? `&pag=${estado.pag}` : ""}`;
+  // Los años del selector salen de todo el archivo (no del filtro); la lista, de todo lo filtrado (para ordenar y sumar).
+  const [{ anios }, todas] = await Promise.all([listarArchivo(empresaId, { clase, tipos, anio: null, mes: null, q: "", limite: 1 }), todasDelArchivo(empresaId, { clase, tipos, anio, mes, q })]);
+  const resumen = vista === "resumen" ? resumirArchivo(todas, Boolean(anio), tipos === "guias") : null;
+  const v = vista === "lista" && todas.some((f) => f.documentoId) ? await cargarVista() : null;
   const docDe = new Map((v?.documentos ?? []).map((d) => [d.id, d]));
   const soloGuias = tipos === "guias";
-  const suma = filas.reduce((s, f) => s + (f.tipoDte === 61 ? -(f.total ?? 0) : f.tipoDte === 52 && !soloGuias ? 0 : f.total ?? 0), 0);
+  const suma = todas.reduce((s, f) => s + (f.tipoDte === 61 ? -(f.total ?? 0) : f.tipoDte === 52 && !soloGuias ? 0 : f.total ?? 0), 0);
+  // Estado en los libros, para ordenar: solo archivo < pendiente < por conciliar < pagado y conciliado.
+  const rangoLibros = (f: FilaArchivo) => {
+    const d = f.documentoId ? docDe.get(f.documentoId) : undefined;
+    if (!f.documentoId) return 0;
+    if (!d || [61, 52].includes(d.tipoDte)) return 1;
+    return d.porConciliar ? 3 : d.saldo > 0 ? 2 : 4;
+  };
+  const clave = (f: FilaArchivo): number | string | null => {
+    switch (estado.orden) {
+      case "documento": return `${String(f.tipoDte ?? 0).padStart(3, "0")}-${(f.folio ?? "").padStart(12, "0")}`;
+      case "folio": return Number(f.folio) || null;
+      case "nombre": return (f.nombre ?? f.rut ?? "").trim().toLowerCase() || null;
+      case "total": return f.total === null ? null : f.tipoDte === 61 ? -f.total : f.total;
+      case "libros": return rangoLibros(f);
+      case "archivos": return (f.pdf ? 2 : 0) + (f.xml ? 1 : 0);
+      default: return f.fecha;
+    }
+  };
+  const { pagina: filas, total, paginas, pag } = ordenarYPaginar(todas, clave, estado);
+  await ligarConLibros(empresaId, filas);
+  const baseTabla = conParametros(aqui, { pag: null });
   const quien = clase === "emitido" ? "Cliente" : "Proveedor";
   return (
     <div className="space-y-3">
@@ -57,6 +84,7 @@ export default async function ArchivoDocumentos({
           <input type="hidden" name="vista" value={vista} />
           <input type="hidden" name="clase" value={clase} />
           <input type="hidden" name="tipos" value={tipos} />
+          {(estado.orden !== "fecha" || estado.dir !== "desc") && <><input type="hidden" name="orden" value={estado.orden} /><input type="hidden" name="dir" value={estado.dir} /></>}
           <div className="w-36">
             <select name="anio" defaultValue={anio ?? ""} className={CAMPO}>
               <option value="">Todos los años</option>
@@ -136,18 +164,19 @@ export default async function ArchivoDocumentos({
       ) : (
         <>
           <p className="text-[12px] text-gris">
-            {total.toLocaleString("es-CL")} documento(s){filas.length < total ? `, se muestran los ${filas.length} más recientes (el Excel trae todos)` : ""} · {soloGuias ? "valor trasladado" : "total neto de NC"}{filas.length < total ? " (de los mostrados)" : ""} <strong className="text-tinta"><Monto valor={suma} /></strong>
+            {total.toLocaleString("es-CL")} documento(s) · {soloGuias ? "valor trasladado" : "total neto de NC"} <strong className="text-tinta"><Monto valor={suma} /></strong>
           </p>
+          <Paginador base={baseTabla} pag={pag} paginas={paginas} total={total} />
           <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
             <table className="w-full min-w-[58rem] text-sm">
               <thead>
                 <tr className="border-b border-borde">
-                  <th className={TH}>Documento</th>
-                  <th className={TH}>Fecha</th>
-                  <th className={TH}>{clase === "emitido" && tipos === "guias" ? "Destinatario" : quien}</th>
-                  <th className={`${TH} text-right`}>Total</th>
-                  <th className={TH}>En los libros</th>
-                  <th className={TH}>Archivos</th>
+                  <ThOrden base={aqui} columna="folio" e={estado}>Documento</ThOrden>
+                  <ThOrden base={aqui} columna="fecha" e={estado}>Fecha</ThOrden>
+                  <ThOrden base={aqui} columna="nombre" e={estado}>{clase === "emitido" && tipos === "guias" ? "Destinatario" : quien}</ThOrden>
+                  <ThOrden base={aqui} columna="total" e={estado} alinear="right">Total</ThOrden>
+                  <ThOrden base={aqui} columna="libros" e={estado}>En los libros</ThOrden>
+                  <ThOrden base={aqui} columna="archivos" e={estado}>Archivos</ThOrden>
                 </tr>
               </thead>
               <tbody className="divide-y divide-borde">
@@ -213,6 +242,7 @@ export default async function ArchivoDocumentos({
               </tbody>
             </table>
           </div>
+          <Paginador base={baseTabla} pag={pag} paginas={paginas} total={total} />
         </>
       )}
     </div>
