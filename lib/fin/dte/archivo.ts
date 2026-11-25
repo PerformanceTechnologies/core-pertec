@@ -111,7 +111,7 @@ const rutClave = (r: string | null) => (r ?? "").replace(/[^0-9kK]/g, "").toUppe
  * Liga las filas sin documento a fin_documentos (misma dirección, tipo, folio y RUT): lo registrado después en Ventas o
  * Compras aparece «Registrado» y queda disponible para conciliar. Corrige en la base lo que encuentre.
  */
-async function ligarConLibros(empresaId: string, filas: FilaArchivo[]): Promise<void> {
+export async function ligarConLibros(empresaId: string, filas: FilaArchivo[]): Promise<void> {
   const sueltas = filas.filter((f) => !f.documentoId && f.tipoDte && f.folio);
   if (!sueltas.length) return;
   const { data } = await supabaseAdmin

@@ -15,6 +15,7 @@ import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import { TARJETA } from "@/lib/estilos";
 import ProbarConexion from "@/components/fin/dte/ProbarConexion";
 import ArchivoDocumentos from "@/components/fin/dte/ArchivoDocumentos";
+import { Paginador, ThOrden, conParametros, leerEstado, ordenarYPaginar } from "@/components/fin/TablaOrdenable";
 import { contarArchivo } from "@/lib/fin/dte/archivo";
 import { TONO_EMISION, TONO_SII } from "@/components/fin/dte/tonos";
 import { COMUNAS_ORDENADAS } from "@/lib/contactos-modelo";
@@ -23,7 +24,7 @@ export const dynamic = "force-dynamic";
 
 const RUTA = "/finanzas/facturacion";
 
-type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string; vista?: string; modo?: string };
+type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string; vista?: string; modo?: string; orden?: string; dir?: string; pag?: string };
 
 export default async function FacturacionPage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
@@ -113,6 +114,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           mes={Number(sp.mes) >= 1 && Number(sp.mes) <= 12 ? Number(sp.mes) : null}
           q={(sp.q ?? "").slice(0, 80)}
           vista={sp.vista === "resumen" ? "resumen" : "lista"}
+          orden={{ orden: sp.orden, dir: sp.dir, pag: sp.pag }}
         />
       )}
 
@@ -124,6 +126,18 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
             // pruebas, que no se archiva (lo de producción ya está en el archivo).
             const filas = ver === "borradores" ? filtra(pendientes) : (ver === "emitidos" ? emitidos : guias).filter((e) => e.ambiente === "certificacion");
             if (filas.length === 0 && ver !== "borradores") return null;
+            // Orden y páginas solo en Borradores (aquí la URL es de esta tabla; en Emitidos/Guías la usa el historial).
+            const eE = ver === "borradores" ? leerEstado(sp, ["folio", "nombre", "fecha", "total", "estado"], { orden: "fecha", dir: "desc" }) : { orden: "fecha", dir: "desc" as const, pag: 1 };
+            const aquiE = conParametros(`${RUTA}?ver=${ver}`, { q: sp.q, orden: eE.orden !== "fecha" || eE.dir !== "desc" ? eE.orden : null, dir: eE.orden !== "fecha" || eE.dir !== "desc" ? eE.dir : null });
+            const { pagina: paginaE, total: totalE, paginas: paginasE, pag: pagE } = ordenarYPaginar(filas, (e) => {
+              switch (eE.orden) {
+                case "folio": return Number(e.folio) || null;
+                case "nombre": return (e.receptorNombre ?? e.receptorRut).toLowerCase();
+                case "total": return e.tipoDte === 61 ? -e.total : e.total;
+                case "estado": return e.estado;
+                default: return e.fechaEmision;
+              }
+            }, eE);
             if (filas.length === 0)
               return ver === "guias" ? (
                 <Vacio titulo="Sin guías de despacho" texto="La guía respalda el traslado de bienes: venta con despacho, arriendo de equipos a faena, traslado entre bodegas o envío a reparación. Se crea con «Nueva guía», o desde un hito de arriendo (primer mes)." icono={<IconTruckDelivery size={24} stroke={1.6} />}>
@@ -141,9 +155,16 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
               {ver !== "borradores" && <p className="pt-2 text-sm font-bold text-tinta">Emitidos desde el Core en pruebas (sin valor tributario)</p>}
               <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
                 <table className="w-full min-w-[60rem] text-sm">
-                  <thead><tr className="border-b border-borde"><th className={TH}>Documento</th><th className={TH}>{ver === "guias" ? "Destinatario" : "Cliente"}</th><th className={TH}>Emisión</th><th className={`${TH} text-right`}>Total</th><th className={TH}>Estado</th><th className={TH} /></tr></thead>
+                  <thead><tr className="border-b border-borde">
+                    <ThOrden base={aquiE} columna="folio" e={eE}>Documento</ThOrden>
+                    <ThOrden base={aquiE} columna="nombre" e={eE}>{ver === "guias" ? "Destinatario" : "Cliente"}</ThOrden>
+                    <ThOrden base={aquiE} columna="fecha" e={eE}>Emisión</ThOrden>
+                    <ThOrden base={aquiE} columna="total" e={eE} alinear="right">Total</ThOrden>
+                    <ThOrden base={aquiE} columna="estado" e={eE}>Estado</ThOrden>
+                    <th className={TH} />
+                  </tr></thead>
                   <tbody className="divide-y divide-borde">
-                    {filas.map((e) => (
+                    {paginaE.map((e) => (
                       <tr key={e.id} className="hover:bg-tinta/[0.02]">
                         <td className={TD}>
                           <Link href={`${RUTA}/${e.id}`} className="font-semibold text-tinta hover:text-naranjo">
@@ -169,6 +190,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                   </tbody>
                 </table>
               </div>
+              {ver === "borradores" && <Paginador base={aquiE} pag={pagE} paginas={paginasE} total={totalE} />}
               </div>
             );
           })()}
@@ -194,6 +216,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           mes={Number(sp.mes) >= 1 && Number(sp.mes) <= 12 ? Number(sp.mes) : null}
           q={(sp.q ?? "").slice(0, 80)}
           vista={sp.vista === "resumen" ? "resumen" : "lista"}
+          orden={{ orden: sp.orden, dir: sp.dir, pag: sp.pag }}
         />
       )}
 
@@ -211,12 +234,38 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           </div>
           {bandeja.length === 0 ? (
             <Vacio titulo="La bandeja está vacía" texto="Lo recibido llega solo desde el Registro de Compras del SII (cuatro veces al día)." icono={<IconInbox size={24} stroke={1.6} />} />
-          ) : (
+          ) : (() => {
+            const baseB = `${RUTA}?ver=recibidos`;
+            const eB = leerEstado(sp, ["folio", "nombre", "fecha", "total", "plazo", "respuesta", "compras"], { orden: "fecha", dir: "desc" });
+            const aquiB = conParametros(baseB, { orden: eB.orden !== "fecha" || eB.dir !== "desc" ? eB.orden : null, dir: eB.orden !== "fecha" || eB.dir !== "desc" ? eB.dir : null });
+            const { pagina, total: totalB, paginas, pag } = ordenarYPaginar(bandeja, (r) => {
+              switch (eB.orden) {
+                case "folio": return Number(r.folio) || null;
+                case "nombre": return (r.razonSocial ?? r.rutEmisor).toLowerCase();
+                case "total": return r.total;
+                case "plazo": return r.accion ? null : r.diasParaResponder;
+                case "respuesta": return r.accion ?? "";
+                case "compras": return r.documentoId ? 1 : 0;
+                default: return r.fechaEmision;
+              }
+            }, eB);
+            return (
+            <div className="space-y-2">
+            <Paginador base={aquiB} pag={pag} paginas={paginas} total={totalB} />
             <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
               <table className="w-full min-w-[72rem] text-sm">
-                <thead><tr className="border-b border-borde"><th className={TH}>Documento</th><th className={TH}>Proveedor</th><th className={TH}>Emisión</th><th className={`${TH} text-right`}>Total</th><th className={TH}>Plazo SII</th><th className={TH}>Respuesta</th><th className={TH}>Compras</th><th className={TH} /></tr></thead>
+                <thead><tr className="border-b border-borde">
+                  <ThOrden base={aquiB} columna="folio" e={eB}>Documento</ThOrden>
+                  <ThOrden base={aquiB} columna="nombre" e={eB}>Proveedor</ThOrden>
+                  <ThOrden base={aquiB} columna="fecha" e={eB}>Emisión</ThOrden>
+                  <ThOrden base={aquiB} columna="total" e={eB} alinear="right">Total</ThOrden>
+                  <ThOrden base={aquiB} columna="plazo" e={eB}>Plazo SII</ThOrden>
+                  <ThOrden base={aquiB} columna="respuesta" e={eB}>Respuesta</ThOrden>
+                  <ThOrden base={aquiB} columna="compras" e={eB}>Compras</ThOrden>
+                  <th className={TH} />
+                </tr></thead>
                 <tbody className="divide-y divide-borde">
-                  {bandeja.map((r) => {
+                  {pagina.map((r) => {
                     const compras = comprasEsperando.filter((c) => c.proveedorId === r.contraparteId);
                     return (
                       <tr key={r.id}>
@@ -267,7 +316,10 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                 </tbody>
               </table>
             </div>
-          )}
+            <Paginador base={aquiB} pag={pag} paginas={paginas} total={totalB} />
+            </div>
+            );
+          })()}
         </div>
       )}
 
@@ -314,12 +366,31 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           </div>
           {cesiones.length === 0 ? (
             <Vacio titulo="Sin cesiones electrónicas" icono={<IconArrowsExchange size={24} stroke={1.6} />} />
-          ) : (
+          ) : (() => {
+            const eC = leerEstado(sp, ["folio", "nombre", "total", "estado", "fecha"], { orden: "fecha", dir: "desc" });
+            const aquiC = conParametros(`${RUTA}?ver=cesiones`, { orden: eC.orden !== "fecha" || eC.dir !== "desc" ? eC.orden : null, dir: eC.orden !== "fecha" || eC.dir !== "desc" ? eC.dir : null });
+            const { pagina: paginaC, total: totalC, paginas: paginasC, pag: pagC } = ordenarYPaginar(cesiones, (c) => {
+              switch (eC.orden) {
+                case "folio": return Number(c.folio) || null;
+                case "nombre": return c.cesionarioNombre.toLowerCase();
+                case "total": return c.monto;
+                case "estado": return c.estado;
+                default: return c.creadoEn;
+              }
+            }, eC);
+            return (
+            <div className="space-y-2">
             <div className="overflow-x-auto rounded-xl border border-borde bg-superficie">
               <table className="w-full min-w-[56rem] text-sm">
-                <thead><tr className="border-b border-borde"><th className={TH}>Factura</th><th className={TH}>Cesionario</th><th className={`${TH} text-right`}>Monto</th><th className={TH}>Estado</th><th className={TH}>Cuándo</th></tr></thead>
+                <thead><tr className="border-b border-borde">
+                  <ThOrden base={aquiC} columna="folio" e={eC}>Factura</ThOrden>
+                  <ThOrden base={aquiC} columna="nombre" e={eC}>Cesionario</ThOrden>
+                  <ThOrden base={aquiC} columna="total" e={eC} alinear="right">Monto</ThOrden>
+                  <ThOrden base={aquiC} columna="estado" e={eC}>Estado</ThOrden>
+                  <ThOrden base={aquiC} columna="fecha" e={eC}>Cuándo</ThOrden>
+                </tr></thead>
                 <tbody className="divide-y divide-borde">
-                  {cesiones.map((c) => (
+                  {paginaC.map((c) => (
                     <tr key={c.id}>
                       <td className={TD}><span className="font-semibold text-tinta">{DTE_CORTO[c.tipoDte]} N° {c.folio}</span>{c.ambiente === "certificacion" && <Chip texto="Prueba" tono="ml-1 bg-violet-500/10 text-violet-700" />}</td>
                       <td className={TD}>{c.cesionarioNombre}<span className="block font-mono text-[10px] text-gris">{c.cesionarioRut}</span></td>
@@ -331,7 +402,10 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                 </tbody>
               </table>
             </div>
-          )}
+            <Paginador base={aquiC} pag={pagC} paginas={paginasC} total={totalC} />
+            </div>
+            );
+          })()}
         </div>
       )}
 
@@ -344,6 +418,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           mes={Number(sp.mes) >= 1 && Number(sp.mes) <= 12 ? Number(sp.mes) : null}
           q={(sp.q ?? "").slice(0, 80)}
           vista={sp.vista === "resumen" ? "resumen" : "lista"}
+          orden={{ orden: sp.orden, dir: sp.dir, pag: sp.pag }}
         />
       )}
 
