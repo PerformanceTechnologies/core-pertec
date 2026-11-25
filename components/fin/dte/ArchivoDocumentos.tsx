@@ -13,6 +13,8 @@ import { TARJETA } from "@/lib/estilos";
 import SubirDocumento from "./SubirDocumento";
 
 const COLUMNAS = ["fecha", "folio", "documento", "nombre", "total", "libros", "archivos"] as const;
+const CAMPO_MINI = `${CAMPO} min-h-9! py-1! text-[13px]`;
+const BOTON_MINI_TXT = "inline-flex h-9 items-center gap-1.5 rounded-lg bg-tinta/[0.06] px-3 text-[13px] font-semibold hover:bg-tinta/[0.1]";
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const BOTON_MINI = "rounded-md bg-tinta/[0.06] px-2 py-0.5 text-[11px] font-semibold text-tinta/75 hover:bg-tinta/[0.1]";
 
@@ -69,8 +71,8 @@ export default async function ArchivoDocumentos({
   const baseTabla = conParametros(aqui, { pag: null });
   const quien = clase === "emitido" ? "Cliente" : "Proveedor";
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
         {conClase && <div className="flex rounded-full bg-tinta/[0.05] p-1 text-[13px] font-semibold">
           {(["emitido", "recibido"] as const).map((c) => (
             <Link key={c} href={`${base}&vista=${vista}&clase=${c}${anio ? `&anio=${anio}` : ""}`} className={`rounded-full px-3 py-1 ${clase === c ? "bg-superficie text-tinta shadow-sm" : "text-tinta/60"}`}>
@@ -78,27 +80,27 @@ export default async function ArchivoDocumentos({
             </Link>
           ))}
         </div>}
-        <form className="flex flex-wrap items-end gap-2">
+        <form className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="ver" value={pestana} />
           {modo && <input type="hidden" name="modo" value={modo} />}
           <input type="hidden" name="vista" value={vista} />
           <input type="hidden" name="clase" value={clase} />
           <input type="hidden" name="tipos" value={tipos} />
           {(estado.orden !== "fecha" || estado.dir !== "desc") && <><input type="hidden" name="orden" value={estado.orden} /><input type="hidden" name="dir" value={estado.dir} /></>}
-          <div className="w-36">
-            <select name="anio" defaultValue={anio ?? ""} className={CAMPO}>
+          <div className="w-32">
+            <select name="anio" defaultValue={anio ?? ""} className={CAMPO_MINI}>
               <option value="">Todos los años</option>
               {anios.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
-          <div className="w-28">
-            <select name="mes" defaultValue={mes ?? ""} className={CAMPO}>
+          <div className="w-24">
+            <select name="mes" defaultValue={mes ?? ""} className={CAMPO_MINI}>
               <option value="">Mes</option>
               {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
           </div>
-          <div className="w-60"><input name="q" defaultValue={q} placeholder={clase === "emitido" ? "Folio, cliente o RUT…" : "Folio, proveedor o RUT…"} className={CAMPO} /></div>
-          <button className="min-h-11 rounded-xl bg-tinta/[0.06] px-4 text-[13px] font-semibold hover:bg-tinta/[0.1]">Filtrar</button>
+          <div className="w-52"><input name="q" defaultValue={q} placeholder={clase === "emitido" ? "Folio, cliente o RUT…" : "Folio, proveedor o RUT…"} className={CAMPO_MINI} /></div>
+          <button className={BOTON_MINI_TXT}>Filtrar</button>
         </form>
         <span className="flex-1" />
         <div className="flex rounded-full bg-tinta/[0.05] p-1 text-[13px] font-semibold">
@@ -108,7 +110,7 @@ export default async function ArchivoDocumentos({
             </Link>
           ))}
         </div>
-        <a href={`/api/finanzas/dte/archivo/excel?${filtro}`} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-tinta/[0.06] px-3 text-[13px] font-semibold hover:bg-tinta/[0.1]">
+        <a href={`/api/finanzas/dte/archivo/excel?${filtro}`} className={BOTON_MINI_TXT}>
           <IconFileSpreadsheet size={15} /> Excel
         </a>
         <SubirDocumento />

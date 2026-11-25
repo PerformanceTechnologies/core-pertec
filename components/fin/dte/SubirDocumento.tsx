@@ -9,7 +9,7 @@ import { avisar } from "@/components/fin/dialogos";
 /** «Subir documento»: el XML y/o el PDF de un DTE. Lo que no se pueda leer se completa a mano. */
 export default function SubirDocumento() {
   return (
-    <ConVentana boton={<><IconUpload size={15} /> Subir documento</>} titulo="Subir un documento tributario" ancho="max-w-2xl" className={BOTON_SEC}>
+    <ConVentana boton={<><IconUpload size={15} /> Subir documento</>} titulo="Subir un documento tributario" ancho="max-w-2xl" className={`${BOTON_SEC} h-9`}>
       {(cerrar) => <Formulario alOk={cerrar} />}
     </ConVentana>
   );

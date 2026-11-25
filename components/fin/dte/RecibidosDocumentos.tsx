@@ -13,6 +13,8 @@ import { Paginador, ThOrden, conParametros, leerEstado, ordenarYPaginar } from "
 import RespuestaSii from "./RespuestaSii";
 import SubirDocumento from "./SubirDocumento";
 
+const CAMPO_MINI = `${CAMPO} min-h-9! py-1! text-[13px]`;
+const BOTON_MINI = "inline-flex h-9 items-center gap-1.5 rounded-lg bg-tinta/[0.06] px-3 text-[13px] font-semibold hover:bg-tinta/[0.1]";
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const COLUMNAS = ["fecha", "folio", "nombre", "total", "plazo", "respuesta", "conciliacion", "archivos"] as const;
 const ESTADOS = [
@@ -122,47 +124,48 @@ export default async function RecibidosDocumentos({ empresaId, ruta, sp, recibid
   const cuantos = (clave: string) => (clave === "responder" ? filas.filter(porResponder).length : null);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <form className="flex flex-wrap items-end gap-2">
+        <form className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="ver" value="recibidos" />
           {estadoFiltro && <input type="hidden" name="estado" value={estadoFiltro} />}
-          <div className="w-36">
-            <select name="anio" defaultValue={anio ?? ""} className={CAMPO}>
+          <div className="w-32">
+            <select name="anio" defaultValue={anio ?? ""} className={CAMPO_MINI}>
               <option value="">Todos los años</option>
               {anios.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
-          <div className="w-28">
-            <select name="mes" defaultValue={mes ?? ""} className={CAMPO}>
+          <div className="w-24">
+            <select name="mes" defaultValue={mes ?? ""} className={CAMPO_MINI}>
               <option value="">Mes</option>
               {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
           </div>
-          <div className="w-60"><input name="q" defaultValue={q} placeholder="Folio, proveedor o RUT…" className={CAMPO} /></div>
-          <button className="min-h-11 rounded-xl bg-tinta/[0.06] px-4 text-[13px] font-semibold hover:bg-tinta/[0.1]">Filtrar</button>
+          <div className="w-52"><input name="q" defaultValue={q} placeholder="Folio, proveedor o RUT…" className={CAMPO_MINI} /></div>
+          <button className={BOTON_MINI}>Filtrar</button>
         </form>
         <span className="flex-1" />
-        <a href={`/api/finanzas/dte/archivo/excel?clase=recibido${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-tinta/[0.06] px-3 text-[13px] font-semibold hover:bg-tinta/[0.1]">
+        <a href={`/api/finanzas/dte/archivo/excel?clase=recibido${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={BOTON_MINI}>
           <IconFileSpreadsheet size={15} /> Excel
         </a>
         <SubirDocumento />
       </div>
 
-      <div className="flex flex-wrap gap-1.5 text-[12px] font-semibold">
-        {ESTADOS.map((x) => {
-          const n = cuantos(x.clave);
-          return (
-            <Link key={x.clave} href={conParametros(base, { estado: x.clave || null, pag: null })} className={`rounded-full px-3 py-1 ${estadoFiltro === x.clave ? "bg-tinta text-white" : "bg-tinta/[0.05] text-tinta/70 hover:bg-tinta/[0.1]"}`}>
-              {x.texto}{n ? ` (${n})` : ""}
-            </Link>
-          );
-        })}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <div className="flex flex-wrap gap-1.5 text-[12px] font-semibold">
+          {ESTADOS.map((x) => {
+            const n = cuantos(x.clave);
+            return (
+              <Link key={x.clave} href={conParametros(base, { estado: x.clave || null, pag: null })} className={`rounded-full px-2.5 py-0.5 ${estadoFiltro === x.clave ? "bg-tinta text-white" : "bg-tinta/[0.05] text-tinta/70 hover:bg-tinta/[0.1]"}`}>
+                {x.texto}{n ? ` (${n})` : ""}
+              </Link>
+            );
+          })}
+        </div>
+        <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-gris sm:text-right" title="Con SimpleFactura conectado, las facturas nuevas llegan solas cada día.">
+          <strong className="text-tinta">{total.toLocaleString("es-CL")}</strong> documento(s) · plazo de <strong className="text-tinta">{plazoDias} días corridos</strong> desde la recepción en el SII para aceptar o reclamar; después queda aceptada por ley. Las nuevas llegan solas con SimpleFactura conectado.
+        </p>
       </div>
-
-      <p className="text-[12px] text-gris">
-        {total.toLocaleString("es-CL")} documento(s). Tienes <strong>{plazoDias} días corridos</strong> desde la recepción en el SII para aceptar o reclamar; después, la factura queda aceptada por ley. Con SimpleFactura conectado, las facturas nuevas llegan solas cada día.
-      </p>
 
       {pagina.length === 0 ? (
         <Vacio titulo="Sin documentos" texto={estadoFiltro || anio || q ? "Nada calza con el filtro." : "Aquí aparece todo lo que te facturan tus proveedores."} icono={<IconInbox size={24} stroke={1.6} />} />
