@@ -37,6 +37,9 @@ export const TIPOS_DTE: Record<number, string> = {
 };
 export const DTE_CORTO: Record<number, string> = { 33: "FAC", 34: "FEX", 46: "FCO", 52: "GD", 56: "ND", 61: "NC", 39: "BOL", 41: "BEX", 110: "FEXP" };
 
+/** Largo máximo de las «Condiciones generales» de una cotización: el formulario lo muestra y el servidor lo exige. Va en letra chica, no es un contrato. */
+export const MAX_CARACTERES_GENERALES = 1500;
+
 export interface LineaCotizacion {
   productoId: string | null;
   descripcion: string;

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { RUTA_FIN, RUTA_LEADS, auditar, cargarVista, cargarVistaDe, clasificacionHeredada, conciliarConMovimiento, contextoFin, contextoLeads, prefijoCotizacion, exigirDeEmpresa, fechaValida, montoDe, periodoCerrado, registrarEvento, revienta, siguienteNumero } from "@/lib/fin/datos";
 import { generarHitos, peso } from "@/lib/fin/reglas";
-import { ETAPAS_OPORTUNIDAD, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
+import { ETAPAS_OPORTUNIDAD, MAX_CARACTERES_GENERALES, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
 import { exigirRol } from "@/lib/fin/flujos";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
@@ -106,6 +106,7 @@ interface DatosCotizacion {
   requiereEdp: boolean;
   requiereHes: boolean;
   notas: string | null;
+  condicionesGenerales?: string | null;
   atencion?: string | null;
   correoAtencion?: string | null;
   plazoEntrega?: string | null;
@@ -170,9 +171,13 @@ export async function guardarCotizacionAction(id: string | null, json: string): 
     // se guardan igual aunque la columna aún no exista en la base.
     const porDia = d.tipo === "arriendo" && d.arriendoUnidad === "dia";
     if (porDia) Object.assign(cabecera, { arriendo_unidad: "dia" });
+    // Igual con las condiciones generales: van solo si hay (o si había y se vaciaron), así lo demás se guarda aunque la columna aún no exista.
+    const generales = String(d.condicionesGenerales ?? "").replace(/\r/g, "").trim().slice(0, MAX_CARACTERES_GENERALES);
+    if (generales) Object.assign(cabecera, { condiciones_generales: generales });
     if (id) {
       const antes = await exigirDeEmpresa("fin_cotizaciones", id, ctx.empresa.id);
       if (!porDia && antes.arriendo_unidad === "dia") Object.assign(cabecera, { arriendo_unidad: "mes" });
+      if (!generales && antes.condiciones_generales) Object.assign(cabecera, { condiciones_generales: null });
       if (!["borrador", "enviada"].includes(String(antes.estado))) return { ok: false, error: "Solo se edita una cotización en borrador o enviada. Crea una nueva versión." };
       const { error } = await supabaseAdmin.from("fin_cotizaciones").update(cabecera).eq("id", id);
       revienta("guardar la cotización", error);

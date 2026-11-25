@@ -55,6 +55,7 @@ export async function cotizacionParaDocumento(ctx: ContextoFin, id: string): Pro
       condicionPagoDias: c.condicion_pago_dias === null || c.condicion_pago_dias === undefined ? null : Number(c.condicion_pago_dias),
       formaPago: c.forma_pago ?? null, plazoEntrega: c.plazo_entrega ?? null,
       requiereOc: Boolean(c.requiere_oc), requiereEdp: Boolean(c.requiere_edp), requiereHes: Boolean(c.requiere_hes), notas: c.notas ?? null,
+      condicionesGenerales: c.condiciones_generales ?? null,
       emisor: { nombre: nombreEmisor, correo: ctx.usuario.correo },
     },
     perfil, correosSugeridos, estado: c.estado, clienteId: c.cliente_id ?? null, oportunidadId: c.oportunidad_id ?? null, enviadaA: c.enviada_a ?? null, enviadaEn: c.enviada_en ?? null,

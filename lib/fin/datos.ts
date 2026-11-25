@@ -1074,6 +1074,8 @@ export interface Cotizacion {
   iva: number;
   total: number;
   notas: string | null;
+  /** Texto libre de la cotización que sale en el PDF, en letra chica, arriba de las observaciones y de las condiciones comerciales. */
+  condicionesGenerales: string | null;
   atencion: string | null;
   correoAtencion: string | null;
   plazoEntrega: string | null;
@@ -1109,7 +1111,7 @@ export const cargarComercial = cache(async () => {
       id: r.id, numero: r.numero, version: r.version, oportunidadId: r.oportunidad_id, clienteId: r.cliente_id, proyectoId: r.proyecto_id, titulo: r.titulo, fecha: r.fecha,
       validezDias: r.validez_dias, tipo: r.tipo, condicionPagoDias: nOrNull(r.condicion_pago_dias), requiereOc: r.requiere_oc, requiereEdp: r.requiere_edp, requiereHes: r.requiere_hes,
       estado: r.estado, fechaEnvio: r.fecha_envio, fechaAceptacion: r.fecha_aceptacion, ocClienteNumero: r.oc_cliente_numero, motivo: r.motivo, neto: n(r.neto), iva: n(r.iva),
-      total: n(r.total), notas: r.notas, atencion: r.atencion ?? null, correoAtencion: r.correo_atencion ?? null, plazoEntrega: r.plazo_entrega ?? null,
+      total: n(r.total), notas: r.notas, condicionesGenerales: r.condiciones_generales ?? null, atencion: r.atencion ?? null, correoAtencion: r.correo_atencion ?? null, plazoEntrega: r.plazo_entrega ?? null,
       formaPago: r.forma_pago ?? null, enviadaA: r.enviada_a ?? null, enviadaEn: r.enviada_en ?? null,
       descuentoGeneralTipo: r.descuento_general_tipo ?? null, descuentoGeneralValor: n(r.descuento_general_valor), incluirDatosPago: Boolean(r.incluir_datos_pago), arriendoUnidad: r.arriendo_unidad === "dia" ? ("dia" as const) : ("mes" as const),
     }))

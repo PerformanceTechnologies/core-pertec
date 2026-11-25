@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { IconCheck, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash } from "@tabler/icons-react";
 import { guardarCotizacionAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { clp } from "@/lib/fin/reglas";
-import { lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
+import { MAX_CARACTERES_GENERALES, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
 import { BOTON, BOTON_SEC, ComboContacto, type OpcionContacto } from "@/components/fin/ui";
 import EnviarCotizacion from "./EnviarCotizacion";
 import { generarObservacionesArriendoAction } from "@/app/(protegido)/leads/acciones";
@@ -28,6 +28,8 @@ export interface DatosEditor {
   requiereEdp: boolean;
   requiereHes: boolean;
   notas: string | null;
+  /** Texto libre que sale en el PDF, en letra chica, arriba de las observaciones y de las condiciones comerciales. */
+  condicionesGenerales: string | null;
   atencion: string | null;
   correoAtencion: string | null;
   plazoEntrega: string | null;
@@ -324,6 +326,14 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
               <span className="block text-[11px] text-gris">Banco y cuenta de la empresa. Viene desmarcado.</span>
             </span>
           </label>
+          <div className="sm:col-span-2 lg:col-span-12">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-tinta/70">Condiciones generales</span>
+              <span className={`text-[11px] tabular-nums ${(d.condicionesGenerales?.length ?? 0) >= MAX_CARACTERES_GENERALES ? "font-semibold text-alerta" : "text-gris"}`}>{d.condicionesGenerales?.length ?? 0} / {MAX_CARACTERES_GENERALES}</span>
+            </div>
+            <textarea value={d.condicionesGenerales ?? ""} onChange={(e) => setD({ ...d, condicionesGenerales: e.target.value })} maxLength={MAX_CARACTERES_GENERALES} rows={3} className={`${CAMPO_C} resize-y`} placeholder={"Una condición por línea. Ej.:\nLos valores no incluyen traslados fuera de la región.\nLos equipos se entregan limpios y se devuelven en el mismo estado."} />
+            <p className="mt-1 text-[11px] text-gris">Salen en el PDF en letra chica, arriba de las observaciones y de las condiciones comerciales; se ajustan solas para que todo quepa en la hoja.</p>
+          </div>
           <div className="sm:col-span-2 lg:col-span-12">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-[11px] font-semibold text-tinta/70">Observaciones</span>

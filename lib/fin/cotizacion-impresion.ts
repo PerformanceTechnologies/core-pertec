@@ -31,6 +31,8 @@ export interface Impresion {
   zoom: number;
   /** Si se apretaron los márgenes entre bloques para que cupiera. */
   espacioJusto: boolean;
+  /** Si las condiciones generales bajaron de 7 a 6 pt para que cupiera (solo la cotización las lleva). */
+  generalesCompactas: boolean;
   /** Qué parte de la hoja ocupa el contenido antes de repartir el sobrante (0–1; en varias hojas, el alto total en hojas). */
   ocupacion: number;
 }
@@ -56,31 +58,40 @@ export async function imprimirAjustado(page: Page, html: string, pie: string): P
   await page.emulateMedia({ media: "print" });
 
   /** Alto del contenido con las filas a ese tamaño (se mide en .hoja, que no lleva zoom). */
-  const alto = (zoom: number, justo: boolean) =>
-    page.evaluate(({ z, j }) => {
-      document.body.className = j ? "espacio-justo" : "";
+  const alto = (zoom: number, justo: boolean, compactas = false) =>
+    page.evaluate(({ z, j, c }) => {
+      document.body.className = [j && "espacio-justo", c && "gen-compacto"].filter(Boolean).join(" ");
       const p = document.querySelector<HTMLElement>(".pagina")!;
       p.className = "pagina";
       p.style.minHeight = "";
       document.querySelector<HTMLElement>("table.lineas")!.style.zoom = String(z);
       return document.querySelector(".hoja")!.getBoundingClientRect().height;
-    }, { z: zoom, j: justo });
+    }, { z: zoom, j: justo, c: compactas });
+
+  // Solo la cotización lleva «Condiciones generales» (texto libre de largo variable): antes de achicar los productos,
+  // esa letra chica baja un punto más. En la orden de compra no existe el bloque y este paso se salta.
+  const hayGenerales = await page.evaluate(() => document.querySelector(".generales") !== null);
 
   let zoom = 1;
   let justo = false;
+  let compactas = false;
   let modo: ModoDeImpresion = "una-hoja";
   if ((await alto(1, false)) <= LIMITE_PX) {
     // Todo a tamaño normal.
   } else if ((await alto(1, true)) <= LIMITE_PX) {
     justo = true;
-  } else if ((await alto(ZOOM_MIN, true)) <= LIMITE_PX) {
+  } else if (hayGenerales && (await alto(1, true, true)) <= LIMITE_PX) {
     justo = true;
+    compactas = true;
+  } else if ((await alto(ZOOM_MIN, true, hayGenerales)) <= LIMITE_PX) {
+    justo = true;
+    compactas = hayGenerales;
     // El mayor tamaño que cabe, por bisección (el alto crece con el zoom, con pequeños saltos cuando una línea se parte).
     let bajo = ZOOM_MIN;
     let arriba = 1;
     for (let i = 0; i < 9; i++) {
       const medio = (bajo + arriba) / 2;
-      if ((await alto(medio, true)) <= LIMITE_PX) bajo = medio;
+      if ((await alto(medio, true, compactas)) <= LIMITE_PX) bajo = medio;
       else arriba = medio;
     }
     zoom = Math.floor(bajo * 1000) / 1000;
@@ -89,7 +100,7 @@ export async function imprimirAjustado(page: Page, html: string, pie: string): P
     modo = "varias-hojas";
   }
 
-  const usado = await alto(zoom, justo);
+  const usado = await alto(zoom, justo, compactas);
   const ocupacion = usado / LIMITE_PX;
   if (modo === "una-hoja") {
     // Una sola hoja: la hoja se estira hasta el pie y las condiciones con la firma quedan abajo (margen automático);
@@ -112,5 +123,5 @@ export async function imprimirAjustado(page: Page, html: string, pie: string): P
       preferCSSPageSize: true,
     }),
   );
-  return { pdf, paginas: paginasDelPdf(pdf), modo, zoom, espacioJusto: justo, ocupacion };
+  return { pdf, paginas: paginasDelPdf(pdf), modo, zoom, espacioJusto: justo, generalesCompactas: compactas, ocupacion };
 }
