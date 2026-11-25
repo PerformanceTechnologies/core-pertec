@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "../../supabase-admin";
 import { carpetaDte, carpetaFacturas, nombreDte } from "../../archivos/carpetas";
 import { subirASharePoint } from "../../archivos/sharepoint-core";
+import { pdfDesdeXmlDte } from "../../dte-pdf";
 
 // -----------------------------------------------------------------------------
 //  Archivo de documentos tributarios (solo servidor).
@@ -188,7 +189,17 @@ export async function archivarDte(empresa: { id: string; nombre: string }, d: Dt
         return null;
       }
     };
-    const pdf_ref = await subir(d.pdf, "pdf", ya?.pdf_ref);
+    // Si llega solo el XML (recibidos del SII, documentos subidos sin PDF), el PDF se arma desde él.
+    let pdf = d.pdf;
+    if (!pdf && d.xml && !ya?.pdf_ref) {
+      try {
+        const armado = await pdfDesdeXmlDte(d.xml, { folio: d.folio, tipoDte: d.tipoDte });
+        pdf = armado ? Buffer.from(armado) : null;
+      } catch {
+        pdf = null; // sin PDF igual queda archivado el XML
+      }
+    }
+    const pdf_ref = await subir(pdf, "pdf", ya?.pdf_ref);
     const xml_ref = await subir(d.xml, "xml", ya?.xml_ref);
     const fila = {
       empresa_id: empresa.id,

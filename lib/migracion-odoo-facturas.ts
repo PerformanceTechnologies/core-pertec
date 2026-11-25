@@ -2,8 +2,7 @@ import "server-only";
 import { odooSearchRead } from "./odoo/cliente";
 import { rutaBaseFacturas, tokenAppFacturas } from "./sharepoint-facturas";
 import { obtenerAccessToken } from "./contratos/graph-credenciales";
-import { parsearXmlDte } from "./xml-dte";
-import { pdfDesdeDte } from "./dte-pdf";
+import { pdfDesdeXmlDte } from "./dte-pdf";
 
 /**
  * Traer de Odoo a Facturas Históricas los documentos que faltan.
@@ -144,14 +143,7 @@ export function nombreArchivoMigrado(tipo: TipoMigracion, m: MovimientoOdoo): st
 /** El nombre del PDF que acompaña al XML migrado: el mismo, con .pdf. */
 export const nombrePdfMigrado = (nombreXml: string) => nombreXml.replace(/\.xml$/i, ".pdf");
 
-const RUT_PROPIO = (process.env.SII_RUT_EMPRESA ?? "77590967-6").replace(/[^0-9kK]/g, "").toUpperCase();
-
-/** Un PDF armado desde el XML del DTE (el documento de la empresa si el XML trae varios). */
-async function pdfDesdeXml(xml: Buffer): Promise<Uint8Array | null> {
-  const dtes = parsearXmlDte(xml.toString("latin1"));
-  const dte = dtes.find((d) => (d.rutReceptor ?? "").replace(/[^0-9kK]/g, "").toUpperCase() === RUT_PROPIO) ?? dtes[0];
-  return dte ? pdfDesdeDte(dte) : null;
-}
+const RUT_PROPIO = process.env.SII_RUT_EMPRESA ?? "77590967-6";
 
 export async function migrarDesdeOdoo(opciones: {
   tipo: TipoMigracion;
@@ -218,7 +210,7 @@ export async function migrarDesdeOdoo(opciones: {
           let detallePdf: string;
           try {
             const pdfOdoo = m.invoice_pdf_report_id ? datosDe.get(m.invoice_pdf_report_id[0]) : false;
-            const pdf = pdfOdoo ? Buffer.from(pdfOdoo, "base64") : await pdfDesdeXml(xml);
+            const pdf = pdfOdoo ? Buffer.from(pdfOdoo, "base64") : await pdfDesdeXmlDte(xml, { folio: m.l10n_latam_document_number || null, rutPropio: RUT_PROPIO });
             if (!pdf) throw new Error("el XML no trae un documento legible");
             if (await subirSiNoEsta(token, sitio, carpeta, nombrePdfMigrado(nombre), pdf, "application/pdf")) {
               if (pdfOdoo) resultado.pdfs.deOdoo++;

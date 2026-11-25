@@ -1,6 +1,6 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import type { DteParseado } from "./xml-dte";
+import { parsearXmlDte, type DteParseado } from "./xml-dte";
 
 /**
  * Un PDF de una factura armado desde su XML (DTE). Los documentos que vienen de Odoo traen solo el
@@ -202,4 +202,25 @@ export async function pdfDesdeDte(dte: DteParseado): Promise<Uint8Array> {
   });
 
   return doc.save();
+}
+
+const soloRut = (r: string | null | undefined) => (r ?? "").replace(/[^0-9kK]/g, "").toUpperCase();
+
+/**
+ * El PDF de un XML de DTE tal como está guardado (bytes o texto). Si el XML trae varios documentos
+ * (un EnvioDTE), elige el del folio y tipo pedidos, o el que tiene a `rutPropio` como receptor o
+ * emisor; si no, el primero. null si el XML no trae ningún documento legible.
+ */
+export async function pdfDesdeXmlDte(
+  xml: Buffer | string,
+  elegir: { folio?: string | number | null; tipoDte?: number | null; rutPropio?: string | null } = {},
+): Promise<Uint8Array | null> {
+  const dtes = parsearXmlDte(typeof xml === "string" ? xml : xml.toString("latin1"));
+  const folio = elegir.folio != null && elegir.folio !== "" ? Number(String(elegir.folio).replace(/\D/g, "")) : null;
+  const propio = soloRut(elegir.rutPropio);
+  const dte =
+    (folio !== null && dtes.find((d) => d.folio === folio && (!elegir.tipoDte || d.tipoDte === elegir.tipoDte))) ||
+    (propio && dtes.find((d) => soloRut(d.rutReceptor) === propio || soloRut(d.datos.emisor.rut) === propio)) ||
+    dtes[0];
+  return dte ? pdfDesdeDte(dte) : null;
 }
