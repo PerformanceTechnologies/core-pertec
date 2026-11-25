@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Las clases `dark:` de Tailwind siguen el tema del Core (data-theme="dark" en <html>, ver alternarTema), no el modo
+   oscuro del sistema: con el sistema en oscuro y el Core en claro, el texto claro de los chips y avisos quedaba casi
+   invisible sobre fondo claro. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   /* Misma paleta que postular.pertec.cl, extraída de pertec.cl */
   --color-crema: #faf8f5;
