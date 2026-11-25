@@ -55,7 +55,7 @@ export async function pendientesDesde(empresaId: string): Promise<string | null>
 export async function registrarEnLibros(
   empresaId: string,
   docs: DocExterno[],
-  o: { origen: "historico" | "sii_rcv" | "manual"; quien: string; seco?: boolean },
+  o: { origen: "historico" | "sii_rcv" | "manual" | "importado_rcv"; quien: string; seco?: boolean },
 ): Promise<{ creados: number; existentes: number; fuera: number; porConciliar: number; ids: Map<string, string> }> {
   const enLibros = docs.filter((d) => d.fecha >= CORTE_LIBROS && TIPOS_CON_DINERO.has(d.tipoDte) && d.folio);
   const ids = new Map<string, string>();
