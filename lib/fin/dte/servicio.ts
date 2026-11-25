@@ -12,6 +12,7 @@ import { ErrorDte, type Ambiente, type DocumentoRecibido, type EmisorDte, type P
 import { buscarEmitido, crearProveedorSimpleFactura } from "./simplefactura";
 import { after } from "next/server";
 import { archivarDte } from "./archivo";
+import { claveDocumento, registrarEnLibros as registrarExternosEnLibros, rutLimpio as f_rut } from "./libros";
 import { cuentaSimpleFactura, estadoCuentaDte, registrarPruebaDte, type CuentaSimpleFactura } from "./cuenta";
 
 // -----------------------------------------------------------------------------
@@ -627,7 +628,19 @@ export async function sincronizarRecibidos(ctx: ContextoFin, desde: Iso, hasta: 
     revienta("guardar los recibidos", error);
   }
   await auditar(ctx, "fin_dte_recibidos", null, "sincronizar", `${nuevos} nuevos, ${actualizados} actualizados (${desde} a ${hasta})`);
-  if (cfg.ambiente === "produccion" && filas.length) enSegundoPlano(() => archivarRecibidos(ctx, prov, cfg.emisor, filas));
+  if (cfg.ambiente === "produccion" && filas.length) {
+    // Lo recibido entra también a los libros (desde el corte; lo nuevo, como pendiente de pago) y se liga a la bandeja.
+    const docs = filas.map((f) => ({
+      direccion: "recibido" as const, tipoDte: f.tipoDte, folio: f.folio, fecha: f.fechaEmision ?? ctx.hoy, rut: f.rutEmisor, nombre: f.razonSocial,
+      neto: f.neto, exento: f.exento, iva: f.iva, total: f.total, fechaRecepcion: f.fechaRecepcion,
+    }));
+    const { ids } = await registrarExternosEnLibros(ctx.empresa.id, docs, { origen: "importado_rcv", quien: ctx.usuario.correo });
+    for (const d of docs) {
+      const id = ids.get(claveDocumento("recibido", d.tipoDte, d.folio, d.rut));
+      if (id) await supabaseAdmin.from("fin_dte_recibidos").update({ documento_id: id }).eq("empresa_id", ctx.empresa.id).eq("tipo_dte", d.tipoDte).eq("folio", d.folio).eq("rut_emisor", f_rut(d.rut)).is("documento_id", null);
+    }
+    enSegundoPlano(() => archivarRecibidos(ctx, prov, cfg.emisor, filas, ids));
+  }
   return { nuevos, actualizados };
 }
 
@@ -635,7 +648,7 @@ export async function sincronizarRecibidos(ctx: ContextoFin, desde: Iso, hasta: 
 const TOPE_ARCHIVO_RECIBIDOS = 40;
 
 /** Deja en SharePoint (Recibidos/AAAA/MM Mes) el PDF de los recibidos que aún no están archivados con archivo. */
-async function archivarRecibidos(ctx: ContextoFin, prov: ProveedorDte, emisor: EmisorDte, filas: DocumentoRecibido[]): Promise<void> {
+async function archivarRecibidos(ctx: ContextoFin, prov: ProveedorDte, emisor: EmisorDte, filas: DocumentoRecibido[], ids?: Map<string, string>): Promise<void> {
   const ya: any[] = [];
   for (let i = 0; ; i += 1000) {
     const { data } = await supabaseAdmin.from("fin_dte_archivo").select("tipo_dte, folio, rut_contraparte, pdf_ref").eq("empresa_id", ctx.empresa.id).eq("clase", "recibido").not("pdf_ref", "is", null).range(i, i + 999);
@@ -649,6 +662,7 @@ async function archivarRecibidos(ctx: ContextoFin, prov: ProveedorDte, emisor: E
     const aviso = await archivarDte(ctx.empresa, {
       clase: "recibido", tipoDte: f.tipoDte, folio: f.folio, fecha: f.fechaEmision, rut: f.rutEmisor, nombre: f.razonSocial,
       neto: f.neto, iva: f.iva, exento: f.exento, total: f.total, pdf, origen: "recibido_api",
+      documentoId: ids?.get(claveDocumento("recibido", f.tipoDte, f.folio, f.rutEmisor)) ?? null,
     });
     if (aviso) console.error("[dte] archivo recibido:", aviso);
   }
@@ -657,7 +671,8 @@ async function archivarRecibidos(ctx: ContextoFin, prov: ProveedorDte, emisor: E
 /** Acepta o reclama un recibido en el SII (vía proveedor). */
 export async function responderRecibido(ctx: ContextoFin, recibidoId: string, accion: AccionRecibido, motivo: string | null): Promise<void> {
   if (!esAccionRecibido(accion)) throw new ErrorDte("Acción inválida.", "accion", 400);
-  const { cfg, prov } = await proveedorDe(ctx.empresa.id);
+  // Aceptar o reclamar no es emitir: basta la cuenta conectada (la emisión puede seguir bloqueada).
+  const { cfg, prov } = await proveedorDe(ctx.empresa.id, "consulta");
   const { data: r } = await supabaseAdmin.from("fin_dte_recibidos").select("*").eq("id", recibidoId).eq("empresa_id", ctx.empresa.id).maybeSingle();
   if (!r) throw new ErrorDte("Ese documento no existe o es de otra empresa.", "no_existe", 404);
   if ((r as any).accion) throw new ErrorDte(`Ya se respondió (${(r as any).accion}). El SII no admite cambiar la respuesta.`, "ya_respondido", 409);
@@ -812,3 +827,28 @@ function recortar(x: unknown): unknown {
   }
 }
 
+
+/**
+ * Trae lo recibido de los últimos días para cada empresa con su cuenta del proveedor cargada (cron diario): así las
+ * facturas de compra nuevas «van cayendo» solas en Facturación › Recibidos, en el archivo y en los libros.
+ */
+export async function sincronizarRecibidosAutomatico(dias = 30): Promise<{ empresa: string; nuevos?: number; actualizados?: number; error?: string }[]> {
+  const { data: cuentas } = await supabaseAdmin.from("fin_dte_cuentas").select("empresa_id, usuario_cifrado, token_cifrado");
+  const conCuenta = (cuentas ?? []).filter((c: any) => c.usuario_cifrado || c.token_cifrado);
+  const salida: { empresa: string; nuevos?: number; actualizados?: number; error?: string }[] = [];
+  const hoy = new Date(Date.now() - 4 * 3600_000).toISOString().slice(0, 10);
+  const desde = new Date(Date.parse(`${hoy}T12:00:00Z`) - dias * 86_400_000).toISOString().slice(0, 10);
+  for (const c of conCuenta) {
+    const { data: empresa } = await supabaseAdmin.from("empresas").select("*").eq("id", c.empresa_id).maybeSingle();
+    if (!empresa) continue;
+    // Contexto de sistema: lo que quede en la auditoría dice que lo hizo la sincronización automática.
+    const ctx = { usuario: { id: "sistema", correo: "sincronizacion-automatica", rol: "admin", aplicacionIds: [], rolesExtra: {} }, empresa, hoy } as unknown as ContextoFin;
+    try {
+      const r = await sincronizarRecibidos(ctx, desde, hoy);
+      salida.push({ empresa: (empresa as any).nombre, ...r });
+    } catch (e) {
+      salida.push({ empresa: (empresa as any).nombre, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return salida;
+}
