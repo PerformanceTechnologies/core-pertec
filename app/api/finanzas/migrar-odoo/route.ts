@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
             ? `⚠️ Terminó con ${r.errores.length} errores.`
             : "✅ Listo, todo copiado e indexado.";
         escribir(
-          `<div class="fin"><b>${esc(titulo)}</b><p>Encontrados ${r.encontrados} · subidos ${r.subidos} · ya estaban ${r.yaEstaban} · sin XML ${r.sinXml} · errores ${r.errores.length}</p><pre>${esc(JSON.stringify(r, null, 2))}</pre></div>`,
+          `<div class="fin"><b>${esc(titulo)}</b><p>Encontrados ${r.encontrados} · subidos ${r.subidos} · ya estaban ${r.yaEstaban} · sin XML ${r.sinXml} · PDFs: ${r.pdfs.deOdoo} de Odoo, ${r.pdfs.armados} armados desde el XML, ${r.pdfs.yaEstaban} ya estaban · errores ${r.errores.length}</p><pre>${esc(JSON.stringify(r, null, 2))}</pre></div>`,
         );
       } catch (e) {
         escribir(`<div class="fin error"><b>Falló:</b> ${esc(e instanceof Error ? e.message : String(e))}</div>`);

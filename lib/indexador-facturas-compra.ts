@@ -65,7 +65,12 @@ export async function indexarFacturasCompra(
 
   for (const carpeta of carpetas) {
     const archivos = await listarArchivosDeCarpeta(carpeta.itemId);
-    const nuevosDeEstaCarpeta = archivos.filter((a) => /\.(pdf|xml)$/i.test(a.nombre) && !yaIndexados.has(a.id));
+    // Un PDF con un XML del mismo nombre al lado es la copia en PDF de un documento migrado desde
+    // Odoo (lib/migracion-odoo-facturas.ts): el documento ya se indexa por su XML, no se duplica.
+    const xmls = new Set(archivos.filter((a) => /\.xml$/i.test(a.nombre)).map((a) => a.nombre.toLowerCase().replace(/\.xml$/, "")));
+    const nuevosDeEstaCarpeta = archivos.filter(
+      (a) => /\.(pdf|xml)$/i.test(a.nombre) && !yaIndexados.has(a.id) && !(/\.pdf$/i.test(a.nombre) && xmls.has(a.nombre.toLowerCase().replace(/\.pdf$/, ""))),
+    );
 
     for (const archivo of nuevosDeEstaCarpeta) {
       procesados++;

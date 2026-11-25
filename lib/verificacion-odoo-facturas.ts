@@ -2,12 +2,13 @@ import "server-only";
 import { odooSearchRead } from "./odoo/cliente";
 import { supabaseAdmin } from "./supabase-admin";
 import { listarArchivosDeCarpeta, listarCarpetasAnioMes, type ArchivoCarpeta } from "./sharepoint-facturas";
-import { nombreArchivoMigrado, type MovimientoOdoo, type TipoMigracion } from "./migracion-odoo-facturas";
+import { nombreArchivoMigrado, nombrePdfMigrado, type MovimientoOdoo, type TipoMigracion } from "./migracion-odoo-facturas";
 
 /**
  * Revisa que la migración desde Odoo (lib/migracion-odoo-facturas.ts) haya quedado bien: por cada
  * documento de Odoo desde una fecha, que su XML esté en SharePoint (y no vacío) y que esté en el
- * índice del Core con los mismos datos que en Odoo (folio, tipo, fecha, RUT y monto). Solo lee.
+ * índice del Core con los mismos datos que en Odoo (folio, tipo, fecha, RUT y monto), y que su PDF
+ * esté al lado (no vacío). Solo lee.
  */
 
 const ETIQUETA_TIPO_COMPRA: Record<string, string> = { "33": "Factura", "34": "Factura", "46": "Factura", "56": "Nota de Débito", "61": "Nota de Crédito", "52": "Guía de Despacho", "39": "Boleta", "41": "Boleta" };
@@ -32,7 +33,7 @@ export interface FilaVerificacion {
   fecha: string;
   monto: number;
   archivo: string;
-  estado: "ok" | "falta en SharePoint" | "archivo vacío" | "falta en el Core" | "datos distintos";
+  estado: "ok" | "falta en SharePoint" | "archivo vacío" | "falta el PDF" | "falta en el Core" | "datos distintos";
   diferencias: Diferencia[];
 }
 
@@ -120,6 +121,13 @@ export async function verificarMigracionOdoo(tipo: TipoMigracion, desde: string)
     mes.sharepoint++;
     if (!archivo.tamano) {
       fila.estado = "archivo vacío";
+      resultado.problemas.push(fila);
+      continue;
+    }
+    const pdf = archivos.get(nombrePdfMigrado(nombre));
+    if (pdf) usados.add(pdf.nombre);
+    if (!pdf || !pdf.tamano) {
+      fila.estado = "falta el PDF";
       resultado.problemas.push(fila);
       continue;
     }

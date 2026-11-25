@@ -2,6 +2,8 @@ import "server-only";
 import { odooSearchRead } from "./odoo/cliente";
 import { rutaBaseFacturas, tokenAppFacturas } from "./sharepoint-facturas";
 import { obtenerAccessToken } from "./contratos/graph-credenciales";
+import { parsearXmlDte } from "./xml-dte";
+import { pdfDesdeDte } from "./dte-pdf";
 
 /**
  * Traer de Odoo a Facturas Históricas los documentos que faltan.
@@ -10,6 +12,10 @@ import { obtenerAccessToken } from "./contratos/graph-credenciales";
  * llega hasta junio de 2026; desde julio la facturación vive en Odoo. Esto COPIA el XML del DTE
  * de cada documento (el que Odoo guarda en `l10n_cl_dte_file`) a la carpeta de su año y mes, y
  * después el indexador de siempre lo carga en el Core. En Odoo no se toca nada.
+ *
+ * Junto a cada XML se guarda también su PDF, con el mismo nombre y extensión .pdf: el PDF oficial
+ * que generó Odoo si lo tiene (`invoice_pdf_report_id`, casi todas las ventas), y si no (las
+ * compras, que llegan solo como XML del proveedor) uno armado desde el XML (lib/dte-pdf.ts).
  *
  * Idempotente: un archivo que ya está en la carpeta (mismo nombre) no se vuelve a subir, así que
  * se puede correr de nuevo sin duplicar.
@@ -27,6 +33,8 @@ export interface MovimientoOdoo {
   l10n_latam_document_number: string | false;
   partner_id_vat: string | false;
   l10n_cl_dte_file: [number, string] | false;
+  /** El PDF que generó Odoo (ventas emitidas o impresas). */
+  invoice_pdf_report_id?: [number, string] | false;
 }
 
 export interface ResultadoMigracion {
@@ -35,6 +43,8 @@ export interface ResultadoMigracion {
   subidos: number;
   yaEstaban: number;
   sinXml: number;
+  /** PDFs guardados junto al XML: de Odoo, armados desde el XML, o que ya estaban. */
+  pdfs: { deOdoo: number; armados: number; yaEstaban: number };
   errores: string[];
   /** Los meses que recibieron archivos (para indexarlos después). */
   meses: { anio: number; mes: number }[];
@@ -110,10 +120,10 @@ async function carpetaDelMes(token: string, tipo: TipoMigracion, anio: number, m
 }
 
 /** Sube un archivo si no existe uno con el mismo nombre. true = subido, false = ya estaba. */
-async function subirSiNoEsta(token: string, sitio: string, carpetaId: string, nombre: string, contenido: Buffer): Promise<boolean> {
+async function subirSiNoEsta(token: string, sitio: string, carpetaId: string, nombre: string, contenido: Buffer | Uint8Array, tipoContenido = "application/xml"): Promise<boolean> {
   const r = await graph(token, `/sites/${sitio}/drive/items/${carpetaId}:/${encodeURIComponent(nombre)}:/content?@microsoft.graph.conflictBehavior=fail`, {
     method: "PUT",
-    headers: { "Content-Type": "application/xml" },
+    headers: { "Content-Type": tipoContenido },
     body: new Uint8Array(contenido),
   });
   if (r.ok) return true;
@@ -129,6 +139,18 @@ export function nombreArchivoMigrado(tipo: TipoMigracion, m: MovimientoOdoo): st
   const rut = String(m.partner_id_vat || "").replace(/[^0-9kK-]/g, "");
   // Compras: el folio se repite entre proveedores, así que el nombre lleva el RUT del emisor.
   return tipo === "ventas" ? `DTE_${tipoDte}_${folio}.xml` : `DTE_${tipoDte}_${folio}_${rut || "sinrut"}.xml`;
+}
+
+/** El nombre del PDF que acompaña al XML migrado: el mismo, con .pdf. */
+export const nombrePdfMigrado = (nombreXml: string) => nombreXml.replace(/\.xml$/i, ".pdf");
+
+const RUT_PROPIO = (process.env.SII_RUT_EMPRESA ?? "77590967-6").replace(/[^0-9kK]/g, "").toUpperCase();
+
+/** Un PDF armado desde el XML del DTE (el documento de la empresa si el XML trae varios). */
+async function pdfDesdeXml(xml: Buffer): Promise<Uint8Array | null> {
+  const dtes = parsearXmlDte(xml.toString("latin1"));
+  const dte = dtes.find((d) => (d.rutReceptor ?? "").replace(/[^0-9kK]/g, "").toUpperCase() === RUT_PROPIO) ?? dtes[0];
+  return dte ? pdfDesdeDte(dte) : null;
 }
 
 export async function migrarDesdeOdoo(opciones: {
@@ -149,11 +171,11 @@ export async function migrarDesdeOdoo(opciones: {
   const total = await odooSearchRead<MovimientoOdoo>(
     "account.move",
     dominio,
-    ["invoice_date", "l10n_latam_document_type_id_code", "l10n_latam_document_number", "partner_id_vat", "l10n_cl_dte_file"],
+    ["invoice_date", "l10n_latam_document_type_id_code", "l10n_latam_document_number", "partner_id_vat", "l10n_cl_dte_file", "invoice_pdf_report_id"],
     { order: "invoice_date asc, id asc", limit: opciones.limite },
   );
 
-  const resultado: ResultadoMigracion = { tipo, encontrados: total.length, subidos: 0, yaEstaban: 0, sinXml: 0, errores: [], meses: [], pendientes: 0 };
+  const resultado: ResultadoMigracion = { tipo, encontrados: total.length, subidos: 0, yaEstaban: 0, sinXml: 0, pdfs: { deOdoo: 0, armados: 0, yaEstaban: 0 }, errores: [], meses: [], pendientes: 0 };
   const avisar = (nombre: string, estado: AvanceMigracion["estado"], detalle?: string) =>
     opciones.alAvanzar?.({ n: resultado.subidos + resultado.yaEstaban + resultado.sinXml + resultado.errores.length, total: total.length, nombre, estado, detalle });
   const { sitio } = rutaBaseFacturas(tipo);
@@ -169,7 +191,7 @@ export async function migrarDesdeOdoo(opciones: {
       break;
     }
     const lote = total.slice(i, i + 20);
-    const ids = lote.map((m) => (m.l10n_cl_dte_file ? m.l10n_cl_dte_file[0] : 0)).filter(Boolean);
+    const ids = lote.flatMap((m) => [m.l10n_cl_dte_file ? m.l10n_cl_dte_file[0] : 0, m.invoice_pdf_report_id ? m.invoice_pdf_report_id[0] : 0]).filter(Boolean);
     const adjuntos = await odooSearchRead<{ id: number; datas: string | false }>("ir.attachment", [["id", "in", ids]], ["datas"]);
     const datosDe = new Map(adjuntos.map((a) => [a.id, a.datas]));
 
@@ -186,11 +208,32 @@ export async function migrarDesdeOdoo(opciones: {
       for (let intento = 0; intento < 2; intento++) {
         try {
           const carpeta = await carpetaDelMes(token, tipo, anio, mes, memo);
-          const subido = await subirSiNoEsta(token, sitio, carpeta, nombre, Buffer.from(datas, "base64"));
+          const xml = Buffer.from(datas, "base64");
+          const subido = await subirSiNoEsta(token, sitio, carpeta, nombre, xml);
           if (subido) resultado.subidos++;
           else resultado.yaEstaban++;
-          avisar(nombre, subido ? "subido" : "ya estaba");
           meses.add(`${anio}-${mes}`);
+
+          // El PDF, al lado del XML. Si falla, el XML igual queda: se anota y se sigue.
+          let detallePdf: string;
+          try {
+            const pdfOdoo = m.invoice_pdf_report_id ? datosDe.get(m.invoice_pdf_report_id[0]) : false;
+            const pdf = pdfOdoo ? Buffer.from(pdfOdoo, "base64") : await pdfDesdeXml(xml);
+            if (!pdf) throw new Error("el XML no trae un documento legible");
+            if (await subirSiNoEsta(token, sitio, carpeta, nombrePdfMigrado(nombre), pdf, "application/pdf")) {
+              if (pdfOdoo) resultado.pdfs.deOdoo++;
+              else resultado.pdfs.armados++;
+              detallePdf = pdfOdoo ? "PDF de Odoo guardado" : "PDF armado desde el XML guardado";
+            } else {
+              resultado.pdfs.yaEstaban++;
+              detallePdf = "PDF ya estaba";
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            resultado.errores.push(`${nombrePdfMigrado(nombre)}: ${msg}`);
+            detallePdf = `PDF con error: ${msg}`;
+          }
+          avisar(nombre, subido ? "subido" : "ya estaba", detallePdf);
           break;
         } catch (e) {
           const status = (e as { status?: number }).status;
