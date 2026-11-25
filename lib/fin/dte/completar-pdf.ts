@@ -47,7 +47,8 @@ export async function contarSinPdf(empresaId: string): Promise<PendientesPdf> {
 async function pdfsDeOdoo(): Promise<Map<string, { adjunto: number; rut: string }>> {
   const movs = await odooSearchRead<{ l10n_latam_document_type_id_code: string | false; l10n_latam_document_number: string | false; partner_id_vat: string | false; invoice_pdf_report_id: [number, string] | false }>(
     "account.move",
-    [["move_type", "in", ["out_invoice", "out_refund"]], ["state", "=", "posted"], ["invoice_pdf_report_id", "!=", false]],
+    // invoice_pdf_report_id es calculado (no se puede filtrar en Odoo): se lee y se filtra acá.
+    [["move_type", "in", ["out_invoice", "out_refund"]], ["state", "=", "posted"]],
     ["l10n_latam_document_type_id_code", "l10n_latam_document_number", "partner_id_vat", "invoice_pdf_report_id"],
   );
   const mapa = new Map<string, { adjunto: number; rut: string }>();
