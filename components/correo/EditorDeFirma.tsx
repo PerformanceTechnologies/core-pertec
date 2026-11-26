@@ -15,6 +15,7 @@ const LARGO_MAX_TEXTO = 600;
 export default function EditorDeFirma({
   actual,
   textoActual = "",
+  propuesta = null,
   guardar,
   guardarTexto,
   enviarPrueba,
@@ -23,6 +24,8 @@ export default function EditorDeFirma({
   actual: string | null;
   /** El texto guardado («» = sin texto). */
   textoActual?: string;
+  /** Sin texto guardado: la firma de la empresa ya armada, para revisar y guardar (no está guardada). */
+  propuesta?: string | null;
   guardar: (previo: EstadoFirma, form: FormData) => Promise<EstadoFirma>;
   guardarTexto: (previo: EstadoFirma, form: FormData) => Promise<EstadoFirma>;
   /** Manda un correo de prueba a la propia dirección, con la firma guardada. */
@@ -32,7 +35,7 @@ export default function EditorDeFirma({
   const [estado, accion, guardando] = useActionState(guardar, null);
   const [estadoTexto, accionTexto, guardandoTexto] = useActionState(guardarTexto, null);
   const [previa, setPrevia] = useState<string | null>(null);
-  const [texto, setTexto] = useState(textoActual);
+  const [texto, setTexto] = useState(textoActual || propuesta || "");
   const formulario = useRef<HTMLFormElement>(null);
   const mostrada = previa ?? actual;
   const textoCambiado = texto.trim() !== textoActual.trim();
@@ -61,6 +64,11 @@ export default function EditorDeFirma({
           {estadoTexto?.ok && !guardandoTexto && !textoCambiado && <span className="inline-flex items-center gap-1 text-sm font-semibold text-ok"><IconCheck size={16} /> Guardado</span>}
         </div>
         <p className="text-xs leading-snug text-gris">Va al final del correo, sobre la imagen si también tienes. Cada línea queda como la escribas. Déjalo vacío y guarda para quitarlo.</p>
+        {propuesta && !textoActual && !estadoTexto?.ok && (
+          <p className="rounded-xl bg-amber-500/[0.08] px-3 py-2 text-xs leading-snug text-aviso">
+            Te dejamos la firma de la empresa ya escrita, con tus datos de Microsoft 365. Revisa tu cargo y teléfono{propuesta.includes("[") ? " (completa lo que está entre corchetes)" : ""} y aprieta «Guardar texto»: hasta entonces no va en tus correos.
+          </p>
+        )}
         {estadoTexto?.error && <p role="alert" className="text-sm font-medium text-alerta">{estadoTexto.error}</p>}
       </form>
 
