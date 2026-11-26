@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { IconArrowLeft } from "@tabler/icons-react";
-import { cargarVista, contextoFin } from "@/lib/fin/datos";
+import { cargarVista, contextoFin, productosInventario } from "@/lib/fin/datos";
 import { clientesParaDte, configuracionDte, cotizacionesDe, emisionDeDocumento, guiasDeHitos, obtenerEmision } from "@/lib/fin/dte/servicio";
 import { documentoVacio, esTipoEmitible, NOMBRE_DTE, referenciasDeHitos, vencimientoDesde, type DocumentoDte, type LineaDte, type TipoEmitible } from "@/lib/fin/dte/modelo";
 import { guardarBorradorDteAction, emitirDteAction } from "@/app/(protegido)/gestion-financiera/acciones-dte";
@@ -22,7 +22,7 @@ const UUID = /^[0-9a-f-]{36}$/;
 export default async function NuevoDtePage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
   const ctx = await contextoFin();
-  const [v, cfg, clientes] = await Promise.all([cargarVista(), configuracionDte(ctx.empresa.id), clientesParaDte(ctx.empresa.id)]);
+  const [v, cfg, clientes, productos] = await Promise.all([cargarVista(), configuracionDte(ctx.empresa.id), clientesParaDte(ctx.empresa.id), productosInventario(ctx.empresa.id)]);
   let tipo: TipoEmitible = esTipoEmitible(Number(sp.tipo)) ? (Number(sp.tipo) as TipoEmitible) : 33;
   let doc: DocumentoDte = documentoVacio(tipo, v.hoy);
   let clienteId: string | null = null;
@@ -119,6 +119,7 @@ export default async function NuevoDtePage({ searchParams }: { searchParams: Pro
       <EditorDte
         inicial={doc}
         clientes={clientes}
+        catalogo={productos.map((p) => ({ id: p.id, nombre: p.nombre, sku: p.sku, tipo: p.tipo, unidad: p.unidad, valor: p.precio }))}
         clienteInicial={clienteId}
         tasaIva={cfg.tasaIva}
         hoy={v.hoy}

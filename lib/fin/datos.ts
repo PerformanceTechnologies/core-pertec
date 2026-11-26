@@ -1153,9 +1153,12 @@ export async function adjuntosDe(entidadTipo: string, entidadId: string): Promis
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-/** Productos del Inventario (catálogo compartido entre empresas), solo lectura, para líneas de cotización. */
-export async function productosInventario(): Promise<{ id: string; nombre: string; sku: string | null; tipo: string; precio: number; unidad: string | null }[]> {
-  const { empresa } = await contextoLeads();
+/**
+ * Productos del Inventario (catálogo compartido entre empresas), solo lectura, para líneas de cotización y de
+ * facturas. Sin `empresaId` usa la empresa activa de Leads (cotizaciones).
+ */
+export async function productosInventario(empresaId?: string): Promise<{ id: string; nombre: string; sku: string | null; tipo: string; precio: number; unidad: string | null }[]> {
+  const empresa = empresaId ? { id: empresaId } : (await contextoLeads()).empresa;
   const [{ data: ps }, { data: us }] = await Promise.all([
     supabaseAdmin.from("inv_productos").select("id, nombre, sku, tipo, precio, unidad_id").eq("activo", true).eq("empresa_id", empresa.id).order("nombre").limit(3000),
     supabaseAdmin.from("inv_unidades").select("id, abreviacion"),

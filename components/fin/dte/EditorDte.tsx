@@ -14,6 +14,7 @@ import {
 } from "@/lib/fin/dte/modelo";
 import { clp } from "@/lib/fin/reglas";
 import { BOTON, BOTON_SEC } from "../estilos";
+import BuscadorProducto, { type ProductoBuscable } from "../BuscadorProducto";
 import { avisar, confirmar } from "../dialogos";
 
 /** Lo que el editor necesita de cada cliente para llenar el receptor sin escribirlo. */
@@ -44,6 +45,7 @@ const refVacia = (hoy: string): ReferenciaDte => ({ tipo: "801", folio: "", fech
 export default function EditorDte({
   inicial,
   clientes,
+  catalogo = [],
   clienteInicial,
   tasaIva,
   hoy,
@@ -57,6 +59,8 @@ export default function EditorDte({
 }: {
   inicial: DocumentoDte;
   clientes: ClienteDte[];
+  /** Productos y servicios del Inventario, para buscarlos al escribir una línea (con su precio de venta). */
+  catalogo?: ProductoBuscable[];
   clienteInicial: string | null;
   tasaIva: number;
   hoy: string;
@@ -310,7 +314,13 @@ export default function EditorDte({
                 <span className="hidden pt-2 text-center text-[11px] font-bold text-gris-suave lg:block">{i + 1}</span>
                 <div className="col-span-2 flex items-start gap-1.5 lg:col-span-1">
                   <span className="mt-2 w-4 shrink-0 text-center text-[11px] font-bold text-gris-suave lg:hidden">{i + 1}</span>
-                  <input value={l.nombre} onChange={(e) => setLinea(i, { nombre: e.target.value })} placeholder="Producto o servicio (máx. 80)" maxLength={80} aria-label={`Producto o servicio, línea ${i + 1}`} className={`${CAMPO_C} ${conProblema(`lineas.${i}.nombre`) ? ROJO : ""}`} />
+                  <BuscadorProducto
+                    catalogo={catalogo}
+                    valor={l.nombre}
+                    alElegir={(p) => setLinea(i, { nombre: p.nombre.slice(0, 80), codigo: p.sku ?? l.codigo, unidad: p.unidad ? p.unidad.toUpperCase().slice(0, 4) : l.unidad, precio: p.valor > 0 ? p.valor : l.precio })}
+                  >
+                    <input value={l.nombre} onChange={(e) => setLinea(i, { nombre: e.target.value })} placeholder={catalogo.length ? "Busca en el inventario o escribe (máx. 80)" : "Producto o servicio (máx. 80)"} maxLength={80} aria-label={`Producto o servicio, línea ${i + 1}`} autoComplete="off" className={`${CAMPO_C} ${conProblema(`lineas.${i}.nombre`) ? ROJO : ""}`} />
+                  </BuscadorProducto>
                   <button type="button" onClick={() => alternarDesc(i)} aria-pressed={conDesc} title={l.descripcion ? "Editar la descripción adicional" : "Agregar una descripción adicional (período, faena, N° de serie)"}
                     className={`mt-0.5 shrink-0 rounded-lg p-1.5 transition ${l.descripcion ? "bg-naranjo/10 text-naranjo" : conDesc ? "bg-tinta/[0.07] text-tinta" : "text-gris hover:bg-tinta/[0.06] hover:text-tinta"}`} aria-label={`Descripción adicional de la línea ${i + 1}`}><IconNotes size={16} /></button>
                 </div>

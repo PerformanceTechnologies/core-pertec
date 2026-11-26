@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconAlertTriangle, IconArrowLeft, IconArrowsExchange, IconCopy, IconFileMinus, IconFilePlus, IconFlask, IconHistory } from "@tabler/icons-react";
-import { cargarVista, contextoFin, historialDe } from "@/lib/fin/datos";
+import { cargarVista, contextoFin, historialDe, productosInventario } from "@/lib/fin/datos";
 import { clientesParaDte, configuracionDte, obtenerEmision } from "@/lib/fin/dte/servicio";
 import { COD_REF, ETIQUETA_ESTADO_SII, IND_TRASLADO, NOMBRE_DTE, TIPOS_REFERENCIA, TIPO_DESPACHO, calcularTotales, montoLinea } from "@/lib/fin/dte/modelo";
 import { clp, fechaCl } from "@/lib/fin/reglas";
@@ -39,7 +39,7 @@ export default async function EmisionPage({ params }: { params: Promise<{ id: st
     : [];
 
   if (editable) {
-    const clientes = await clientesParaDte(ctx.empresa.id);
+    const [clientes, productos] = await Promise.all([clientesParaDte(ctx.empresa.id), productosInventario(ctx.empresa.id)]);
     return (
       <div className="space-y-4">
         <Link href={`${RUTA}?ver=borradores`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris hover:text-naranjo"><IconArrowLeft size={14} /> Borradores</Link>
@@ -51,6 +51,7 @@ export default async function EmisionPage({ params }: { params: Promise<{ id: st
         <EditorDte
           inicial={d}
           clientes={clientes}
+          catalogo={productos.map((p) => ({ id: p.id, nombre: p.nombre, sku: p.sku, tipo: p.tipo, unidad: p.unidad, valor: p.precio }))}
           clienteInicial={em.contraparteId}
           tasaIva={cfg.tasaIva}
           hoy={v.hoy}
