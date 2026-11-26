@@ -99,7 +99,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           empresaId={ctx.empresa.id}
           ruta={RUTA}
           clase="emitido"
-          tipos={ver === "guias" ? "guias" : "sin_guias"}
+          tipos={ver === "guias" || tipoDeFiltro(sp.tipo) === 52 ? "guias" : "sin_guias"}
           tipoDte={ver === "guias" ? null : tipoDeFiltro(sp.tipo)}
           pestana={ver}
           conClase={false}

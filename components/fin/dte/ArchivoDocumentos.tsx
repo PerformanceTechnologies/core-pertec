@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconDownload, IconEye, IconFileSpreadsheet, IconFileTypePdf, IconFolder } from "@tabler/icons-react";
+import { IconDownload, IconEye, IconFileInvoice, IconFileSpreadsheet, IconFileTypePdf, IconFolder, IconReceipt2, IconReceiptOff, IconReceiptRefund, IconTruckDelivery } from "@tabler/icons-react";
 import { ligarConLibros, listarArchivo, resumirArchivo, todasDelArchivo, type ClaseDte, type FilaArchivo, type TiposArchivo } from "@/lib/fin/dte/archivo";
 import { Paginador, ThOrden, conParametros, leerEstado, ordenarYPaginar } from "@/components/fin/TablaOrdenable";
 import { cargarVista } from "@/lib/fin/datos";
@@ -15,13 +15,14 @@ import SubirDocumento from "./SubirDocumento";
 const COLUMNAS = ["fecha", "folio", "documento", "nombre", "total", "libros", "archivos"] as const;
 /** Los tipos de documento por los que se puede filtrar la lista (las guías tienen su propia pestaña). */
 export const TIPOS_FILTRO_DTE = [
-  { codigo: 33, texto: "Facturas" },
-  { codigo: 34, texto: "Facturas exentas" },
-  { codigo: 61, texto: "Notas de crédito" },
-  { codigo: 56, texto: "Notas de débito" },
-  { codigo: 46, texto: "Facturas de compra" },
-  { codigo: 110, texto: "Facturas de exportación" },
+  { codigo: 33, texto: "Factura" },
+  { codigo: 34, texto: "Factura exenta" },
+  { codigo: 52, texto: "Guía de despacho" },
+  { codigo: 61, texto: "Nota de crédito" },
+  { codigo: 56, texto: "Nota de débito" },
 ] as const;
+/** Los mismos íconos del selector de tipo del formulario de factura (EditorDte). */
+const ICONO_TIPO: Record<number, typeof IconFileInvoice> = { 33: IconFileInvoice, 34: IconReceiptOff, 52: IconTruckDelivery, 61: IconReceiptRefund, 56: IconReceipt2 };
 const CAMPO_MINI = `${CAMPO} min-h-9! py-1! text-[13px]`;
 const BOTON_MINI_TXT = "inline-flex h-9 items-center gap-1.5 rounded-lg bg-tinta/[0.06] px-3 text-[13px] font-semibold hover:bg-tinta/[0.1]";
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -98,14 +99,7 @@ export default async function ArchivoDocumentos({
           <input type="hidden" name="clase" value={clase} />
           <input type="hidden" name="tipos" value={tipos} />
           {(estado.orden !== "fecha" || estado.dir !== "desc") && <><input type="hidden" name="orden" value={estado.orden} /><input type="hidden" name="dir" value={estado.dir} /></>}
-          {tipos !== "guias" && (
-            <div className="w-44">
-              <select name="tipo" defaultValue={tipoDte ?? ""} className={CAMPO_MINI} aria-label="Tipo de documento">
-                <option value="">Todos los tipos</option>
-                {TIPOS_FILTRO_DTE.map((t) => <option key={t.codigo} value={t.codigo}>{t.texto}</option>)}
-              </select>
-            </div>
-          )}
+          {tipoDte && <input type="hidden" name="tipo" value={tipoDte} />}
           <div className="w-32">
             <select name="anio" defaultValue={anio ?? ""} className={CAMPO_MINI}>
               <option value="">Todos los años</option>
@@ -134,6 +128,28 @@ export default async function ArchivoDocumentos({
         </a>
         <SubirDocumento />
       </div>
+
+      {/* Tipo de documento: los mismos cinco del formulario de factura, como pastillas. (La pestaña Guías ya es solo guías.) */}
+      {pestana !== "guias" && (
+        <nav className="flex gap-1 overflow-x-auto rounded-xl bg-tinta/[0.05] p-1" aria-label="Tipo de documento">
+          {[{ codigo: null, texto: "Todos" }, ...TIPOS_FILTRO_DTE].map((t) => {
+            const Icono = t.codigo ? ICONO_TIPO[t.codigo] : null;
+            const activo = (tipoDte ?? null) === t.codigo;
+            const href = `${base}&vista=${vista}&clase=${clase}${t.codigo ? `&tipo=${t.codigo}` : ""}${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+            return (
+              <Link
+                key={t.texto}
+                href={href}
+                aria-current={activo ? "page" : undefined}
+                className={`inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px] font-semibold transition ${activo ? "bg-superficie text-tinta shadow-sm" : "text-gris hover:text-tinta"}`}
+              >
+                {Icono && <Icono size={16} stroke={1.75} className={activo ? "text-naranjo" : ""} />}
+                {t.texto}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
 
       {resumen ? (
         <div className="grid gap-4 lg:grid-cols-2">
