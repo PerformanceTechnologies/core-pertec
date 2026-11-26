@@ -14,7 +14,7 @@ import { Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import { TARJETA } from "@/lib/estilos";
 import ProbarConexion from "@/components/fin/dte/ProbarConexion";
-import ArchivoDocumentos from "@/components/fin/dte/ArchivoDocumentos";
+import ArchivoDocumentos, { TIPOS_FILTRO_DTE } from "@/components/fin/dte/ArchivoDocumentos";
 import RecibidosDocumentos from "@/components/fin/dte/RecibidosDocumentos";
 import EncabezadoFacturacion from "@/components/fin/dte/EncabezadoFacturacion";
 import MenuNuevo from "@/components/fin/dte/MenuNuevo";
@@ -27,7 +27,10 @@ export const dynamic = "force-dynamic";
 
 const RUTA = "/finanzas/facturacion";
 
-type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string; vista?: string; modo?: string; orden?: string; dir?: string; pag?: string; estado?: string };
+/** El tipo de documento del filtro (?tipo=61), solo si es uno de los que ofrece la lista. */
+const tipoDeFiltro = (x: string | undefined) => (TIPOS_FILTRO_DTE.some((t) => t.codigo === Number(x)) ? Number(x) : null);
+
+type Params = { ver?: string; q?: string; clase?: string; anio?: string; mes?: string; vista?: string; modo?: string; orden?: string; dir?: string; pag?: string; estado?: string; tipo?: string };
 
 export default async function FacturacionPage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
@@ -97,6 +100,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           ruta={RUTA}
           clase="emitido"
           tipos={ver === "guias" ? "guias" : "sin_guias"}
+          tipoDte={ver === "guias" ? null : tipoDeFiltro(sp.tipo)}
           pestana={ver}
           conClase={false}
           anio={Number(sp.anio) || null}
@@ -171,7 +175,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                           {e.error && <span className="mt-0.5 block max-w-[18rem] truncate text-[10px] text-alerta" title={e.error}>{e.error}</span>}
                         </td>
                         <td className={`${TD} whitespace-nowrap text-right`}>
-                          {e.folio && <a href={`/api/finanzas/dte/${e.id}/pdf`} target="_blank" className={BOTON_SEC}>PDF</a>}{" "}
+                          {e.folio ? <a href={`/api/finanzas/dte/${e.id}/pdf`} target="_blank" className={BOTON_SEC}>PDF</a> : <a href={`/api/finanzas/dte/${e.id}/vista-previa`} target="_blank" rel="noopener" className={BOTON_SEC} title="Vista previa del borrador (sin folio ni valor tributario)">PDF</a>}{" "}
                           <Link href={`${RUTA}/${e.id}`} className={BOTON_SEC}>{e.estado === "emitido" ? "Ver" : "Abrir"}</Link>
                         </td>
                       </tr>
@@ -281,6 +285,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           empresaId={ctx.empresa.id}
           ruta={RUTA}
           clase={sp.clase === "recibido" ? "recibido" : "emitido"}
+          tipoDte={tipoDeFiltro(sp.tipo)}
           anio={Number(sp.anio) || null}
           mes={Number(sp.mes) >= 1 && Number(sp.mes) <= 12 ? Number(sp.mes) : null}
           q={(sp.q ?? "").slice(0, 80)}

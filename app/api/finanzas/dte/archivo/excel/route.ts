@@ -15,7 +15,8 @@ export async function GET(req: Request) {
   const anio = Number(u.get("anio")) || null;
   const mes = Number(u.get("mes")) >= 1 && Number(u.get("mes")) <= 12 ? Number(u.get("mes")) : null;
   const tipos = u.get("tipos") === "guias" ? "guias" : u.get("tipos") === "sin_guias" ? "sin_guias" : "todos";
-  const filas = await todasDelArchivo(ctx.empresa.id, { clase, tipos, anio, mes, q: (u.get("q") ?? "").slice(0, 80) });
+  const tipoDte = [33, 34, 46, 56, 61, 110].includes(Number(u.get("tipo"))) ? Number(u.get("tipo")) : null;
+  const filas = await todasDelArchivo(ctx.empresa.id, { clase, tipos, tipoDte, anio, mes, q: (u.get("q") ?? "").slice(0, 80) });
 
   const libro = new ExcelJS.Workbook();
   const hoja = libro.addWorksheet(clase === "emitido" ? "Emitidos" : "Recibidos");

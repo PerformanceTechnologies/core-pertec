@@ -13,6 +13,15 @@ import { TARJETA } from "@/lib/estilos";
 import SubirDocumento from "./SubirDocumento";
 
 const COLUMNAS = ["fecha", "folio", "documento", "nombre", "total", "libros", "archivos"] as const;
+/** Los tipos de documento por los que se puede filtrar la lista (las guías tienen su propia pestaña). */
+export const TIPOS_FILTRO_DTE = [
+  { codigo: 33, texto: "Facturas" },
+  { codigo: 34, texto: "Facturas exentas" },
+  { codigo: 61, texto: "Notas de crédito" },
+  { codigo: 56, texto: "Notas de débito" },
+  { codigo: 46, texto: "Facturas de compra" },
+  { codigo: 110, texto: "Facturas de exportación" },
+] as const;
 const CAMPO_MINI = `${CAMPO} min-h-9! py-1! text-[13px]`;
 const BOTON_MINI_TXT = "inline-flex h-9 items-center gap-1.5 rounded-lg bg-tinta/[0.06] px-3 text-[13px] font-semibold hover:bg-tinta/[0.1]";
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -24,13 +33,15 @@ const BOTON_MINI = "rounded-md bg-tinta/[0.06] px-2 py-0.5 text-[11px] font-semi
  * libros, su estado de pago (pagado por conciliar / pendiente).
  */
 export default async function ArchivoDocumentos({
-  empresaId, ruta, clase, anio, mes, q, vista, tipos = "todos", pestana = "archivo", modo, conClase = true, orden = {},
+  empresaId, ruta, clase, anio, mes, q, vista, tipos = "todos", tipoDte = null, pestana = "archivo", modo, conClase = true, orden = {},
 }: {
   /** Orden y página de la URL (?orden=&dir=&pag=). */
   orden?: { orden?: string; dir?: string; pag?: string };
   empresaId: string; ruta: string; clase: ClaseDte; anio: number | null; mes: number | null; q: string; vista: "lista" | "resumen";
   /** Qué tipos muestra (la pestaña Guías solo las guías; Emitidos, todo menos guías). */
   tipos?: TiposArchivo;
+  /** Un tipo de documento en particular (?tipo=61); null = todos los de `tipos`. */
+  tipoDte?: number | null;
   /** La pestaña de Facturación donde vive (para que los filtros y enlaces no la cambien). */
   pestana?: string;
   modo?: string;
@@ -38,11 +49,11 @@ export default async function ArchivoDocumentos({
   conClase?: boolean;
 }) {
   const base = `${ruta}?ver=${pestana}${modo ? `&modo=${modo}` : ""}`;
-  const filtro = `clase=${clase}&tipos=${tipos}${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const filtro = `clase=${clase}&tipos=${tipos}${tipoDte ? `&tipo=${tipoDte}` : ""}${anio ? `&anio=${anio}` : ""}${mes ? `&mes=${mes}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
   const estado = leerEstado(orden, COLUMNAS, { orden: "fecha", dir: "desc" });
   const aqui = `${base}&vista=${vista}&${filtro}${estado.orden !== "fecha" || estado.dir !== "desc" ? `&orden=${estado.orden}&dir=${estado.dir}` : ""}${estado.pag > 1 ? `&pag=${estado.pag}` : ""}`;
   // Los años del selector salen de todo el archivo (no del filtro); la lista, de todo lo filtrado (para ordenar y sumar).
-  const [{ anios }, todas] = await Promise.all([listarArchivo(empresaId, { clase, tipos, anio: null, mes: null, q: "", limite: 1 }), todasDelArchivo(empresaId, { clase, tipos, anio, mes, q })]);
+  const [{ anios }, todas] = await Promise.all([listarArchivo(empresaId, { clase, tipos, anio: null, mes: null, q: "", limite: 1 }), todasDelArchivo(empresaId, { clase, tipos, tipoDte, anio, mes, q })]);
   const resumen = vista === "resumen" ? resumirArchivo(todas, Boolean(anio), tipos === "guias") : null;
   const v = vista === "lista" && todas.some((f) => f.documentoId) ? await cargarVista() : null;
   const docDe = new Map((v?.documentos ?? []).map((d) => [d.id, d]));
@@ -87,6 +98,14 @@ export default async function ArchivoDocumentos({
           <input type="hidden" name="clase" value={clase} />
           <input type="hidden" name="tipos" value={tipos} />
           {(estado.orden !== "fecha" || estado.dir !== "desc") && <><input type="hidden" name="orden" value={estado.orden} /><input type="hidden" name="dir" value={estado.dir} /></>}
+          {tipos !== "guias" && (
+            <div className="w-44">
+              <select name="tipo" defaultValue={tipoDte ?? ""} className={CAMPO_MINI} aria-label="Tipo de documento">
+                <option value="">Todos los tipos</option>
+                {TIPOS_FILTRO_DTE.map((t) => <option key={t.codigo} value={t.codigo}>{t.texto}</option>)}
+              </select>
+            </div>
+          )}
           <div className="w-32">
             <select name="anio" defaultValue={anio ?? ""} className={CAMPO_MINI}>
               <option value="">Todos los años</option>
@@ -158,10 +177,10 @@ export default async function ArchivoDocumentos({
       ) : filas.length === 0 ? (
         <Vacio
           titulo="Sin documentos en el archivo"
-          texto={anio || q ? "Nada calza con el filtro." : "Aquí aparecen los documentos emitidos y recibidos con su PDF y XML: el histórico ordenado, lo que llega del SII y lo que se emita o se suba."}
+          texto={anio || q || tipoDte ? "Nada calza con el filtro." : "Aquí aparecen los documentos emitidos y recibidos con su PDF y XML: el histórico ordenado, lo que llega del SII y lo que se emita o se suba."}
           icono={<IconFolder size={24} stroke={1.6} />}
         >
-          {(anio || q) && <Link href={`${base}&clase=${clase}&tipos=${tipos}`} className="text-[13px] font-semibold text-naranjo">Quitar filtro</Link>}
+          {(anio || q || tipoDte) && <Link href={`${base}&clase=${clase}&tipos=${tipos}`} className="text-[13px] font-semibold text-naranjo">Quitar filtro</Link>}
         </Vacio>
       ) : (
         <>

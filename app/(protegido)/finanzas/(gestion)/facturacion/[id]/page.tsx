@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconAlertTriangle, IconArrowLeft, IconArrowsExchange, IconCopy, IconFileMinus, IconFilePlus, IconFlask, IconHistory } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArrowLeft, IconArrowsExchange, IconCopy, IconFileMinus, IconFilePlus, IconFlask, IconHistory, IconFileTypePdf } from "@tabler/icons-react";
 import { cargarVista, contextoFin, historialDe, productosInventario } from "@/lib/fin/datos";
 import { clientesParaDte, configuracionDte, obtenerEmision } from "@/lib/fin/dte/servicio";
 import { COD_REF, ETIQUETA_ESTADO_SII, IND_TRASLADO, NOMBRE_DTE, TIPOS_REFERENCIA, TIPO_DESPACHO, calcularTotales, montoLinea } from "@/lib/fin/dte/modelo";
@@ -45,8 +45,12 @@ export default async function EmisionPage({ params }: { params: Promise<{ id: st
         <Link href={`${RUTA}?ver=borradores`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gris hover:text-naranjo"><IconArrowLeft size={14} /> Borradores</Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="flex-1 text-xl font-extrabold text-tinta">{NOMBRE_DTE[em.tipoDte]} · {em.estado === "error" ? "con error" : "borrador"}</h1>
+          <a href={`/api/finanzas/dte/${em.id}/vista-previa`} target="_blank" rel="noopener" className={BOTON_SEC} title="Cómo queda el documento con lo guardado. Sin folio ni valor tributario: eso lo asigna el SII al emitir.">
+            <IconFileTypePdf size={15} /> Vista previa PDF
+          </a>
           <BotonAccion accion={descartarBorradorAction.bind(null, em.id)} motivo="¿Por qué se descarta este borrador?" volverA={`${RUTA}?ver=borradores`}>Descartar</BotonAccion>
         </div>
+        <p className="-mt-2 text-[12px] text-gris">La vista previa muestra lo último guardado: si cambiaste algo, guarda el borrador antes de abrirla.</p>
         {em.error && <p role="alert" className="flex items-start gap-2 rounded-xl bg-rose-500/[0.08] px-3.5 py-2.5 text-[13px] text-alerta"><IconAlertTriangle size={16} className="mt-px shrink-0" /> <span><strong>SimpleFactura lo rechazó:</strong> {em.error} Corrige y vuelve a emitir: no salió nada al SII.</span></p>}
         <EditorDte
           inicial={d}

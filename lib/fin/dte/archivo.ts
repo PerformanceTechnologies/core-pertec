@@ -60,6 +60,8 @@ export interface FiltroArchivo {
   clase: ClaseDte;
   /** Guías aparte (pestaña propia) o todo junto. */
   tipos?: TiposArchivo;
+  /** Un tipo de documento en particular (33, 61…), dentro de los de `tipos`. */
+  tipoDte?: number | null;
   anio?: number | null;
   mes?: number | null;
   q?: string | null;
@@ -233,6 +235,7 @@ export async function todasDelArchivo(empresaId: string, f: Omit<FiltroArchivo, 
   const out: FilaArchivo[] = [];
   for (let i = 0; i < 20000; i += 1000) {
     let q = conTipos(supabaseAdmin.from("fin_dte_archivo").select("*").eq("empresa_id", empresaId).eq("clase", f.clase), f.tipos);
+    if (f.tipoDte) q = q.eq("tipo_dte", f.tipoDte);
     if (f.anio) {
       const desde = f.mes ? `${f.anio}-${String(f.mes).padStart(2, "0")}-01` : `${f.anio}-01-01`;
       const hasta = f.mes ? (f.mes === 12 ? `${f.anio + 1}-01-01` : `${f.anio}-${String(f.mes + 1).padStart(2, "0")}-01`) : `${f.anio + 1}-01-01`;

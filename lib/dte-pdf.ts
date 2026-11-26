@@ -1,5 +1,5 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { parsearXmlDte, type DteParseado } from "./xml-dte";
 
 /**
@@ -74,7 +74,14 @@ function lineas(fuente: PDFFont, texto: string, tam: number, ancho: number): str
   return out.length ? out : [""];
 }
 
-export async function pdfDesdeDte(dte: DteParseado): Promise<Uint8Array> {
+export interface OpcionesPdfDte {
+  /** Vista previa de un borrador: folio «BORRADOR», marca de agua y pie que avisa que no tiene valor tributario. */
+  borrador?: boolean;
+  /** Líneas extra bajo los totales (referencias, observaciones, traslado…), como «Etiqueta: texto». */
+  notas?: string[];
+}
+
+export async function pdfDesdeDte(dte: DteParseado, opciones: OpcionesPdfDte = {}): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const normal = await doc.embedFont(StandardFonts.Helvetica);
   const negrita = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -105,7 +112,7 @@ export async function pdfDesdeDte(dte: DteParseado): Promise<Uint8Array> {
   };
   centrado(`R.U.T.: ${emisor.rut ?? "-"}`, 10, negrita);
   for (const l of lineasDoc) centrado(l, 10, negrita);
-  centrado(`N° ${dte.folio ?? "-"}`, 11, negrita);
+  centrado(opciones.borrador ? "BORRADOR" : `N° ${dte.folio ?? "-"}`, 11, negrita);
 
   let ye = y - 4;
   for (const l of lineas(negrita, emisor.razonSocial ?? "-", 13, xRecuadro - MARGEN - 16)) {
@@ -194,10 +201,35 @@ export async function pdfDesdeDte(dte: DteParseado): Promise<Uint8Array> {
     y -= fuerte ? 22 : 15;
   }
 
-  // ── Pie en cada página ──
+  // ── Notas (referencias, observaciones…) ──
+  if (opciones.notas?.length) {
+    y -= 6;
+    for (const nota of opciones.notas) {
+      const [etiqueta, ...resto] = nota.split(": ");
+      const cuerpo = resto.length ? resto.join(": ") : etiqueta;
+      const ls = lineas(normal, cuerpo, 8.5, derecha - MARGEN - 110);
+      if (y - ls.length * 11 < MARGEN + 20) {
+        pagina = doc.addPage([A4.ancho, A4.alto]);
+        y = A4.alto - MARGEN;
+      }
+      if (resto.length) texto(etiqueta, MARGEN, y, 8.5, negrita, GRIS);
+      ls.forEach((l, i) => texto(l, resto.length ? MARGEN + 110 : MARGEN, y - i * 11, 8.5));
+      y -= ls.length * 11 + 4;
+    }
+  }
+
+  // ── Pie en cada página (y la marca de agua si es un borrador) ──
   const paginas = doc.getPages();
   paginas.forEach((p, i) => {
-    const pie = limpio(normal, `Representación generada desde el XML del documento tributario electrónico · Página ${i + 1} de ${paginas.length}`);
+    if (opciones.borrador) {
+      p.drawText("BORRADOR", { x: 120, y: 260, size: 96, font: negrita, color: rgb(0.85, 0.85, 0.85), opacity: 0.45, rotate: degrees(35) });
+    }
+    const pie = limpio(
+      normal,
+      opciones.borrador
+        ? `Borrador: vista previa sin valor tributario. Al emitir se asignan el folio y el timbre del SII · Página ${i + 1} de ${paginas.length}`
+        : `Representación generada desde el XML del documento tributario electrónico · Página ${i + 1} de ${paginas.length}`,
+    );
     p.drawText(pie, { x: MARGEN, y: 22, size: 7, font: normal, color: GRIS });
   });
 
