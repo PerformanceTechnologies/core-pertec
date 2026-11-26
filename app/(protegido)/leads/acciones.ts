@@ -11,6 +11,9 @@ import { totalesCotizacion } from "@/lib/fin/modelo";
 import { clp } from "@/lib/fin/reglas";
 import { limpiarDatosParaObservaciones } from "@/lib/fin/cotizacion-ia-datos";
 import { generarObservacionesDeArriendo } from "@/lib/fin/cotizacion-ia";
+import { redactarCondiciones } from "@/lib/fin/condiciones-ia";
+import { autorDePlantilla, borrarPlantillaCondiciones, crearPlantillaCondiciones, type PlantillaCondiciones } from "@/lib/fin/plantillas-condiciones";
+import { MAX_CARACTERES_GENERALES } from "@/lib/fin/modelo";
 
 type Fallo = { ok: false; error: string };
 const fallo = (e: unknown): Fallo => ({ ok: false, error: e instanceof Error ? e.message.replace(/^\[fin\]\s*/, "") : "Ocurrió un error inesperado." });
@@ -99,6 +102,68 @@ export async function generarObservacionesArriendoAction(json: string): Promise<
     const datos = limpiarDatosParaObservaciones(crudo);
     if (typeof datos === "string") return { ok: false, error: datos };
     return { ok: true, texto: await generarObservacionesDeArriendo(datos) };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Condiciones generales: IA y plantillas ---------------------------------------
+
+/**
+ * Redacta con IA las condiciones generales de una cotización: lo que pide quien cotiza, con el tipo, el título y las
+ * descripciones de las líneas (sin cliente ni montos). Devuelve el texto; el editor lo pone en el cuadro.
+ */
+export async function generarCondicionesIaAction(json: string): Promise<{ ok: true; texto: string } | Fallo> {
+  try {
+    await contextoLeads();
+    if (json.length > 60_000) return { ok: false, error: "La cotización es demasiado larga para redactar las condiciones." };
+    let d: { pedido?: unknown; tipo?: unknown; titulo?: unknown; lineas?: unknown; actuales?: unknown };
+    try {
+      d = JSON.parse(json);
+    } catch {
+      return { ok: false, error: "No se pudo leer la cotización." };
+    }
+    const pedido = String(d.pedido ?? "").replace(/\r/g, "").trim().slice(0, 1500);
+    if (!pedido) return { ok: false, error: "Escribe qué condiciones necesitas." };
+    const lineas = Array.isArray(d.lineas) ? d.lineas.map((l) => String(l ?? "").trim().slice(0, 300)).filter(Boolean).slice(0, 40) : [];
+    const texto = await redactarCondiciones({
+      pedido,
+      tipo: ["servicio", "arriendo", "venta"].includes(String(d.tipo)) ? String(d.tipo) : "servicio",
+      titulo: String(d.titulo ?? "").trim().slice(0, 200),
+      lineas,
+      actuales: String(d.actuales ?? "").trim().slice(0, MAX_CARACTERES_GENERALES) || null,
+    });
+    return { ok: true, texto };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Guarda el texto de condiciones generales como plantilla de la empresa, con un nombre. */
+export async function guardarPlantillaCondicionesAction(nombre: string, texto: string): Promise<{ ok: true; plantilla: PlantillaCondiciones } | Fallo> {
+  try {
+    const ctx = await contextoLeads();
+    const n = nombre.replace(/\s+/g, " ").trim().slice(0, 80);
+    const t = texto.replace(/\r/g, "").trim().slice(0, MAX_CARACTERES_GENERALES);
+    if (!n) return { ok: false, error: "Ponle un nombre a la plantilla." };
+    if (!t) return { ok: false, error: "Escribe las condiciones antes de guardarlas como plantilla." };
+    const plantilla = await crearPlantillaCondiciones(ctx.empresa.id, n, t, ctx.usuario.correo);
+    return { ok: true, plantilla };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Borra una plantilla: solo quien la creó o un administrador del Core. */
+export async function borrarPlantillaCondicionesAction(id: string): Promise<{ ok: true } | Fallo> {
+  try {
+    if (!uuid(id)) return { ok: false, error: "Plantilla inválida." };
+    const ctx = await contextoLeads();
+    const autor = await autorDePlantilla(ctx.empresa.id, id);
+    if (!autor) return { ok: false, error: "Esa plantilla ya no existe." };
+    if (ctx.usuario.rol !== "admin" && autor.toLowerCase() !== ctx.usuario.correo.toLowerCase()) return { ok: false, error: "Solo quien creó la plantilla (o un administrador) puede borrarla." };
+    await borrarPlantillaCondiciones(ctx.empresa.id, id);
+    return { ok: true };
   } catch (e) {
     return fallo(e);
   }

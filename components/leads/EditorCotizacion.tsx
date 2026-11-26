@@ -5,14 +5,15 @@ import type { InfoProyecto } from "@/lib/fin/info-proyecto";
 import BuscadorProducto from "@/components/fin/BuscadorProducto";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconCheck, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash } from "@tabler/icons-react";
+import { IconArrowBackUp, IconCheck, IconDeviceFloppy, IconLoader2, IconNotes, IconPlus, IconSend, IconSparkles, IconTrash } from "@tabler/icons-react";
 import { guardarCotizacionAction } from "@/app/(protegido)/gestion-financiera/acciones-ventas";
 import { clp } from "@/lib/fin/reglas";
 import { MAX_CARACTERES_GENERALES, lineaNeta, totalesCotizacion, type LineaCotizacion } from "@/lib/fin/modelo";
 import { BOTON, BOTON_SEC, ComboContacto, type OpcionContacto } from "@/components/fin/ui";
 import EnviarCotizacion from "./EnviarCotizacion";
-import { generarObservacionesArriendoAction } from "@/app/(protegido)/leads/acciones";
-import { avisar, confirmar } from "@/components/fin/dialogos";
+import { borrarPlantillaCondicionesAction, generarCondicionesIaAction, generarObservacionesArriendoAction, guardarPlantillaCondicionesAction } from "@/app/(protegido)/leads/acciones";
+import type { PlantillaCondiciones } from "@/lib/fin/plantillas-condiciones";
+import { avisar, confirmar, pedirTexto } from "@/components/fin/dialogos";
 
 export interface DatosEditor {
   id: string | null;
@@ -114,12 +115,18 @@ function Et({ t, children, className = "" }: { t: string; children: React.ReactN
  * línea, totales en vivo) y 3) condiciones. Abajo, una barra fija con el total y las dos salidas: guardar
  * borrador o guardar y enviar por correo (PDF + mensaje armado con la cotización).
  */
-export default function EditorCotizacion({ inicial, clientes, perfiles, productos, proyectos, oportunidades, tasaIva }: {
+export default function EditorCotizacion({ inicial, clientes, perfiles, productos, proyectos, oportunidades, tasaIva, proyectoGeneralId = null, plantillas: plantillasIniciales = [], yo = null }: {
   inicial: DatosEditor;
   clientes: OpcionContacto[];
   perfiles: Record<string, { condicion: number | null; oc: boolean; edp: boolean; hes: boolean }>;
   productos: { id: string; nombre: string; sku?: string | null; tipo?: string; precio: number; unidad: string | null }[];
   proyectos: { id: string; nombre: string; info: InfoProyecto }[];
+  /** El proyecto «General» de la empresa: elegirlo es «no crear proyecto» (los hitos quedan ahí al aceptar). */
+  proyectoGeneralId?: string | null;
+  /** Plantillas de condiciones generales de la empresa. */
+  plantillas?: PlantillaCondiciones[];
+  /** Quien edita (correo) y si es administrador: para saber qué plantillas puede borrar. */
+  yo?: { correo: string; admin: boolean } | null;
   oportunidades: { id: string; nombre: string }[];
   tasaIva: number;
 }) {
@@ -137,6 +144,51 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
   const arriendo = d.tipo === "arriendo";
   const porDia = d.arriendoUnidad === "dia";
   const [generando, setGenerando] = useState(false);
+  // Condiciones generales: plantillas de la empresa, IA y la versión anterior para deshacer.
+  const [plantillas, setPlantillas] = useState(plantillasIniciales);
+  const [redactando, setRedactando] = useState(false);
+  const [condicionesAntes, setCondicionesAntes] = useState<string | null>(null);
+  const reemplazarCondiciones = (texto: string) => {
+    setCondicionesAntes(d.condicionesGenerales ?? "");
+    setD((x) => ({ ...x, condicionesGenerales: texto.slice(0, MAX_CARACTERES_GENERALES) }));
+  };
+  const usarPlantilla = async (id: string) => {
+    const p = plantillas.find((x) => x.id === id);
+    if (!p) return;
+    if (d.condicionesGenerales?.trim() && !(await confirmar({ titulo: `¿Usar la plantilla «${p.nombre}»?`, ayuda: "Reemplaza las condiciones generales que hay escritas (puedes deshacerlo).", boton: "Usar plantilla" }))) return;
+    reemplazarCondiciones(p.texto);
+  };
+  const guardarComoPlantilla = async () => {
+    const texto = d.condicionesGenerales?.trim();
+    if (!texto) return avisar("Escribe las condiciones antes de guardarlas como plantilla.");
+    const nombre = await pedirTexto({ titulo: "Guardar como plantilla", ayuda: "Queda disponible para todas las cotizaciones de la empresa.", placeholder: "Ej.: Arriendo de equipos en faena", boton: "Guardar" });
+    if (!nombre?.trim()) return;
+    const r = await guardarPlantillaCondicionesAction(nombre, texto);
+    if (!r.ok) return avisar(r.error);
+    setPlantillas((xs) => [...xs, r.plantilla].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+    avisar(`Plantilla «${r.plantilla.nombre}» guardada.`, "ok");
+  };
+  const borrarPlantilla = async (p: PlantillaCondiciones) => {
+    if (!(await confirmar({ titulo: `¿Borrar la plantilla «${p.nombre}»?`, ayuda: "Deja de estar disponible para todos. Las cotizaciones que ya la usaron no cambian.", boton: "Borrar", peligro: true }))) return;
+    const r = await borrarPlantillaCondicionesAction(p.id);
+    if (!r.ok) return avisar(r.error);
+    setPlantillas((xs) => xs.filter((x) => x.id !== p.id));
+  };
+  const redactarConIa = async () => {
+    const pedido = await pedirTexto({
+      titulo: "Redactar condiciones con IA",
+      ayuda: d.condicionesGenerales?.trim() ? "Cuéntale qué necesitas. Toma en cuenta las condiciones que ya escribiste y lo que se cotiza; no inventa montos ni plazos." : "Cuéntale qué necesitas. Toma en cuenta lo que se cotiza; no inventa montos ni plazos.",
+      placeholder: "Ej.: arriendo de plataforma con operador en faena; el cliente da los permisos de acceso y responde por daños",
+      boton: "Redactar",
+    });
+    if (!pedido?.trim()) return;
+    setRedactando(true);
+    const r = await generarCondicionesIaAction(JSON.stringify({ pedido, tipo: d.tipo, titulo: d.titulo, lineas: d.lineas.map((l) => l.descripcion), actuales: d.condicionesGenerales ?? "" }));
+    setRedactando(false);
+    if (!r.ok) return avisar(r.error);
+    reemplazarCondiciones(r.texto);
+    avisar("Condiciones listas. Revísalas y ajusta lo que necesites antes de enviar.", "ok");
+  };
   const generarObservaciones = async () => {
     if (d.notas?.trim() && !(await confirmar({ titulo: "Ya hay observaciones", ayuda: "La IA las reemplazará por un texto nuevo, armado con los productos y las condiciones de esta cotización.", boton: "Reemplazar" }))) return;
     setGenerando(true);
@@ -210,8 +262,8 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
           <Et t="Lead de origen" className="lg:col-span-5">
             <select value={d.oportunidadId ?? ""} onChange={(e) => setD({ ...d, oportunidadId: e.target.value || null })} className={CAMPO_C}><option value="">Sin lead</option>{oportunidades.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}</select>
           </Et>
-          <Et t="Proyecto (vacío = se crea al aceptar)" className="sm:col-span-2 lg:col-span-5">
-            <select value={d.proyectoId ?? ""} onChange={(e) => setD({ ...d, proyectoId: e.target.value || null })} className={CAMPO_C}><option value="">Crear al aceptar</option>{proyectos.map((p) => <option key={p.id} value={p.id} title={p.info.datos.map((x) => `${x.etiqueta}: ${x.valor}`).join("\n")}>{p.info.codigo} · {p.nombre}</option>)}</select>
+          <Et t="Proyecto" className="sm:col-span-2 lg:col-span-5">
+            <select value={d.proyectoId ?? ""} onChange={(e) => setD({ ...d, proyectoId: e.target.value || null })} className={CAMPO_C}><option value="">Crear al aceptar</option>{proyectoGeneralId && <option value={proyectoGeneralId}>No crear proyecto (queda en General)</option>}{proyectos.map((p) => <option key={p.id} value={p.id} title={p.info.datos.map((x) => `${x.etiqueta}: ${x.valor}`).join("\n")}>{p.info.codigo} · {p.nombre}</option>)}</select>
             {(() => { const sel = proyectos.find((p) => p.id === d.proyectoId); return sel ? <span className="mt-1.5 block"><CodigoProyecto info={sel.info} /></span> : null; })()}
           </Et>
         </div>
@@ -327,12 +379,46 @@ export default function EditorCotizacion({ inicial, clientes, perfiles, producto
             </span>
           </label>
           <div className="sm:col-span-2 lg:col-span-12">
-            <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-semibold text-tinta/70">Condiciones generales</span>
+              <span className="flex-1" />
+              {plantillas.length > 0 && (
+                <select value="" onChange={(e) => void usarPlantilla(e.target.value)} className={`${CAMPO_C} !min-h-7 w-auto !py-0.5 text-xs`} aria-label="Usar una plantilla">
+                  <option value="">Usar plantilla…</option>
+                  {plantillas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              )}
+              <button type="button" onClick={guardarComoPlantilla} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-gris transition hover:bg-tinta/[0.06] hover:text-tinta" title="Guarda este texto para usarlo en otras cotizaciones">
+                <IconDeviceFloppy size={14} /> Guardar como plantilla
+              </button>
+              <button type="button" onClick={redactarConIa} disabled={redactando} title="Escribe lo que necesitas y la IA redacta las condiciones con lo que tiene la cotización"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-naranjo/40 bg-naranjo/[0.07] px-2.5 py-1 text-xs font-semibold text-naranjo transition hover:bg-naranjo/[0.12] disabled:opacity-60">
+                {redactando ? <IconLoader2 size={14} className="animate-spin" /> : <IconSparkles size={14} />} {redactando ? "Redactando…" : "Redactar con IA"}
+              </button>
               <span className={`text-[11px] tabular-nums ${(d.condicionesGenerales?.length ?? 0) >= MAX_CARACTERES_GENERALES ? "font-semibold text-alerta" : "text-gris"}`}>{d.condicionesGenerales?.length ?? 0} / {MAX_CARACTERES_GENERALES}</span>
             </div>
             <textarea value={d.condicionesGenerales ?? ""} onChange={(e) => setD({ ...d, condicionesGenerales: e.target.value })} maxLength={MAX_CARACTERES_GENERALES} rows={3} className={`${CAMPO_C} resize-y`} placeholder={"Una condición por línea. Ej.:\nLos valores no incluyen traslados fuera de la región.\nLos equipos se entregan limpios y se devuelven en el mismo estado."} />
-            <p className="mt-1 text-[11px] text-gris">Salen en el PDF en letra chica, arriba de las observaciones y de las condiciones comerciales; se ajustan solas para que todo quepa en la hoja.</p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className="flex-1 text-[11px] text-gris">Salen en el PDF en letra chica, arriba de las observaciones y de las condiciones comerciales; se ajustan solas para que todo quepa en la hoja.</p>
+              {condicionesAntes !== null && (
+                <button type="button" onClick={() => { setD((x) => ({ ...x, condicionesGenerales: condicionesAntes })); setCondicionesAntes(null); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-naranjo hover:underline">
+                  <IconArrowBackUp size={13} /> Deshacer
+                </button>
+              )}
+            </div>
+            {plantillas.some((p) => yo && (yo.admin || p.creadoPor.toLowerCase() === yo.correo.toLowerCase())) && (
+              <details className="mt-1">
+                <summary className="cursor-pointer text-[11px] font-semibold text-gris hover:text-tinta">Administrar mis plantillas</summary>
+                <ul className="mt-1 space-y-1">
+                  {plantillas.filter((p) => yo && (yo.admin || p.creadoPor.toLowerCase() === yo.correo.toLowerCase())).map((p) => (
+                    <li key={p.id} className="flex items-center gap-2 text-xs">
+                      <span className="min-w-0 flex-1 truncate text-tinta">{p.nombre}</span>
+                      <button type="button" onClick={() => void borrarPlantilla(p)} className="rounded-md p-1 text-gris hover:bg-rose-500/10 hover:text-alerta" aria-label={`Borrar la plantilla ${p.nombre}`}><IconTrash size={13} /></button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
           <div className="sm:col-span-2 lg:col-span-12">
             <div className="mb-1 flex items-center justify-between gap-2">

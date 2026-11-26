@@ -11,6 +11,7 @@ import { Chip, Seccion } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
+import { plantillasDeCondiciones } from "@/lib/fin/plantillas-condiciones";
 import { BotonEnviarCotizacion } from "@/components/leads/EnviarCotizacion";
 import { eliminarCotizacionAction, eliminarCotizacionConHitosAction } from "../../acciones";
 import { ListaDocumentacion } from "@/components/leads/Documentacion";
@@ -23,7 +24,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
   const [v, com, ctx] = await Promise.all([cargarVistaLeads(), cargarComercial(), contextoLeads()]);
   const c = com.cotizaciones.find((x) => x.id === id);
   if (!c) notFound();
-  const [lineas, adjuntos, historial, productos] = await Promise.all([lineasDeCotizacion(id), adjuntosDe("cotizacion", id), historialDe(ctx.empresa.id, id), productosInventario()]);
+  const [lineas, adjuntos, historial, productos, plantillas] = await Promise.all([lineasDeCotizacion(id), adjuntosDe("cotizacion", id), historialDe(ctx.empresa.id, id), productosInventario(), plantillasDeCondiciones(ctx.empresa.id)]);
   const editable = ["borrador", "enviada"].includes(c.estado);
   const hitos = v.hitos.filter((h) => h.cotizacionId === id);
   const cliente = c.clienteId ? v.nombreDe.get(c.clienteId) : null;
@@ -116,6 +117,9 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
           proyectos={v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => ({ id: p.id, nombre: p.nombre, info: infoProyecto(p, v.contrapartes) }))}
           oportunidades={com.oportunidades.map((o) => ({ id: o.id, nombre: o.nombre }))}
           tasaIva={v.p.tasaIva}
+          proyectoGeneralId={v.proyectos.find((p) => p.esGeneral)?.id ?? null}
+          plantillas={plantillas}
+          yo={{ correo: ctx.usuario.correo, admin: ctx.usuario.rol === "admin" }}
         />
       ) : (
         <div className={`${TARJETA} overflow-x-auto`}>

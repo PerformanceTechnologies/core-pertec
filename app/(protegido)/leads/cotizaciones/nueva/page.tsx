@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { IconArrowLeft } from "@tabler/icons-react";
-import { RUTA_LEADS, cargarComercial, cargarVistaLeads, infoProyecto, productosInventario } from "@/lib/fin/datos";
+import { RUTA_LEADS, cargarComercial, cargarVistaLeads, contextoLeads, infoProyecto, productosInventario } from "@/lib/fin/datos";
+import { plantillasDeCondiciones } from "@/lib/fin/plantillas-condiciones";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
 
 export const dynamic = "force-dynamic";
 
 export default async function NuevaCotizacionPage({ searchParams }: { searchParams: Promise<{ oportunidad?: string }> }) {
   const sp = await searchParams;
-  const [v, com, productos] = await Promise.all([cargarVistaLeads(), cargarComercial(), productosInventario()]);
+  const [v, com, productos, ctx] = await Promise.all([cargarVistaLeads(), cargarComercial(), productosInventario(), contextoLeads()]);
+  const plantillas = await plantillasDeCondiciones(ctx.empresa.id);
   const op = com.oportunidades.find((o) => o.id === sp.oportunidad);
   const perfil = op?.clienteId ? v.perfiles.get(op.clienteId) : undefined;
   return (
@@ -27,6 +29,9 @@ export default async function NuevaCotizacionPage({ searchParams }: { searchPara
         proyectos={v.proyectos.filter((p) => p.estado === "activo" && !p.esGeneral).map((p) => ({ id: p.id, nombre: p.nombre, info: infoProyecto(p, v.contrapartes) }))}
         oportunidades={com.oportunidades.filter((o) => !["ganada", "perdida"].includes(o.etapa)).map((o) => ({ id: o.id, nombre: o.nombre }))}
         tasaIva={v.p.tasaIva}
+        proyectoGeneralId={v.proyectos.find((p) => p.esGeneral)?.id ?? null}
+        plantillas={plantillas}
+        yo={{ correo: ctx.usuario.correo, admin: ctx.usuario.rol === "admin" }}
       />
     </div>
   );
