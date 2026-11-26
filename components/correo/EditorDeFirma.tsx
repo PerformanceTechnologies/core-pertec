@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { IconCheck, IconDeviceFloppy, IconLoader2, IconPhotoUp, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconDeviceFloppy, IconLoader2, IconMailForward, IconPhotoUp, IconTrash } from "@tabler/icons-react";
 import { BOTON_C, BOTON_SUAVE_C } from "@/components/contactos/Visual";
 import type { EstadoFirma } from "@/app/(protegido)/firma-correo/acciones";
 
@@ -17,6 +17,7 @@ export default function EditorDeFirma({
   textoActual = "",
   guardar,
   guardarTexto,
+  enviarPrueba,
 }: {
   /** La imagen guardada, como data URL para mostrarla, o null. */
   actual: string | null;
@@ -24,7 +25,10 @@ export default function EditorDeFirma({
   textoActual?: string;
   guardar: (previo: EstadoFirma, form: FormData) => Promise<EstadoFirma>;
   guardarTexto: (previo: EstadoFirma, form: FormData) => Promise<EstadoFirma>;
+  /** Manda un correo de prueba a la propia dirección, con la firma guardada. */
+  enviarPrueba?: (previo: EstadoFirma, form: FormData) => Promise<EstadoFirma>;
 }) {
+  const [estadoPrueba, accionPrueba, enviandoPrueba] = useActionState(enviarPrueba ?? (async () => null), null);
   const [estado, accion, guardando] = useActionState(guardar, null);
   const [estadoTexto, accionTexto, guardandoTexto] = useActionState(guardarTexto, null);
   const [previa, setPrevia] = useState<string | null>(null);
@@ -99,6 +103,15 @@ export default function EditorDeFirma({
           )}
           {!mostrada && !texto.trim() && <p className="mt-2 text-[13px] italic text-[#8c8578]">Sin firma</p>}
         </div>
+        {enviarPrueba && (
+          <form action={accionPrueba} className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={enviandoPrueba || textoCambiado} className={BOTON_SUAVE_C} title={textoCambiado ? "Guarda el texto antes de probar" : "Te llega a tu propio correo, con la firma guardada"}>
+              {enviandoPrueba ? <IconLoader2 size={16} className="animate-spin" /> : <IconMailForward size={16} />} Enviarme un correo de prueba
+            </button>
+            {estadoPrueba?.ok && !enviandoPrueba && <span className="inline-flex items-center gap-1 text-sm font-semibold text-ok"><IconCheck size={16} /> Enviado: revisa tu bandeja de entrada</span>}
+            {estadoPrueba?.error && <span role="alert" className="text-sm font-medium text-alerta">{estadoPrueba.error}</span>}
+          </form>
+        )}
         {actual && (
           <form action={accion} className="mt-3">
             <input type="hidden" name="quitar" value="1" />

@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { guardarFirma, guardarTextoFirma, LARGO_MAX_TEXTO, normalizarFirma, PESO_MAX_SUBIDA } from "@/lib/firma-correo";
+import { Client } from "@microsoft/microsoft-graph-client";
+import { adjuntoDeFirma, firmaDe, guardarFirma, guardarTextoFirma, LARGO_MAX_TEXTO, normalizarFirma, PESO_MAX_SUBIDA } from "@/lib/firma-correo";
+import { remitenteParaEnviar } from "@/lib/correo-empresa";
+import { contextoDeEmpresa } from "@/lib/empresas";
+import { cuerpoHtml, firmaHtml } from "@/lib/ofertas/correo-html";
 
 export type EstadoFirma = { ok: boolean; error?: string } | null;
 
@@ -49,5 +53,44 @@ export async function guardarTextoFirmaAction(_previo: EstadoFirma, form: FormDa
     return { ok: false, error: e instanceof Error ? e.message : "No se pudo guardar el texto de la firma." };
   }
   revalidatePath("/mi-perfil");
+  return { ok: true };
+}
+
+/**
+ * Un correo de prueba a uno mismo, con la firma guardada, para ver cómo la reciben los demás. Sale por el mismo
+ * camino que las cotizaciones y OC (desde la cuenta propia, o la de la empresa activa si tiene correo propio) y
+ * SOLO a la propia dirección: el destinatario no viene del formulario.
+ */
+export async function enviarPruebaFirmaAction(_previo: EstadoFirma, _form: FormData): Promise<EstadoFirma> {
+  void _previo; // la firma de useActionState: (estado previo, formulario); aquí no se usan
+  void _form;
+  const usuario = await obtenerUsuarioActivo((await sesionDeLaPeticion())?.user?.email);
+  if (!usuario) redirect("/ingresar");
+  if (usuario.tipo === "invitado") return { ok: false, error: "Los invitados no tienen firma de correo." };
+  const firma = await firmaDe(usuario);
+  if (!firma) return { ok: false, error: "Todavía no tienes firma: escribe el texto o sube una imagen y guárdala." };
+  const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
+  const token = await remitenteParaEnviar(usuario, activa?.id);
+  if (token.estado !== "ok") return { ok: false, error: token.error };
+  try {
+    const graph = Client.init({ authProvider: (done) => done(null, token.accessToken) });
+    await graph.api("/me/sendMail").post({
+      message: {
+        subject: "Prueba de tu firma de correo (Core PERTEC)",
+        body: {
+          contentType: "HTML",
+          content:
+            cuerpoHtml("Hola:\n\nEste es un correo de prueba que te mandaste desde el Core para ver cómo se ve tu firma. Así la van a ver tus clientes y proveedores al final de las cotizaciones, órdenes de compra y ofertas que envíes.\n\nSaludos.") +
+            firmaHtml(firma),
+        },
+        ...(firma.imagen ? { attachments: [adjuntoDeFirma(firma.imagen)] } : {}),
+        toRecipients: [{ emailAddress: { address: usuario.correo } }],
+      },
+      saveToSentItems: false,
+    });
+  } catch (e) {
+    console.error("[firma] no salió el correo de prueba:", e instanceof Error ? e.message : e);
+    return { ok: false, error: "No se pudo enviar el correo de prueba. Vuelve a intentarlo en un rato." };
+  }
   return { ok: true };
 }

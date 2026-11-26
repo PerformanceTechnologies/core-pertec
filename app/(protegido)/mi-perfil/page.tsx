@@ -6,7 +6,7 @@ import { firmaDe } from "@/lib/firma-correo";
 import { HOJA } from "@/components/contactos/Visual";
 import { AvatarUsuario } from "@/components/admin/VisualUsuarios";
 import EditorDeFirma from "@/components/correo/EditorDeFirma";
-import { guardarFirmaAction, guardarTextoFirmaAction } from "../firma-correo/acciones";
+import { enviarPruebaFirmaAction, guardarFirmaAction, guardarTextoFirmaAction } from "../firma-correo/acciones";
 
 /**
  * Mi perfil: lo que cada persona puede cambiar de sí misma. Por ahora, solo su firma de correo
@@ -40,7 +40,7 @@ export default async function MiPerfilPage() {
           {invitado ? (
             <p className="text-sm text-gris">Los invitados no tienen firma de correo: no envían correos a clientes ni proveedores desde el Core.</p>
           ) : (
-            <EditorDeFirma actual={firma?.imagen ? `data:image/png;base64,${firma.imagen}` : null} textoActual={firma?.texto ?? ""} guardar={guardarFirmaAction} guardarTexto={guardarTextoFirmaAction} />
+            <EditorDeFirma actual={firma?.imagen ? `data:image/png;base64,${firma.imagen}` : null} textoActual={firma?.texto ?? ""} guardar={guardarFirmaAction} guardarTexto={guardarTextoFirmaAction} enviarPrueba={enviarPruebaFirmaAction} />
           )}
         </div>
       </section>
