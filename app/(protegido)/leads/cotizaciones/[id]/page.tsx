@@ -12,6 +12,8 @@ import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui"
 import { BOTON, BOTON_SEC, CAMPO } from "@/components/fin/estilos";
 import EditorCotizacion from "@/components/leads/EditorCotizacion";
 import { plantillasDeCondiciones } from "@/lib/fin/plantillas-condiciones";
+import { estadoEnlaceCotizacion, ultimoEnlaceDeCotizacion } from "@/lib/fin/cotizacion-enlace";
+import EnlaceOc from "@/components/fin/EnlaceOc";
 import { BotonEnviarCotizacion } from "@/components/leads/EnviarCotizacion";
 import { eliminarCotizacionAction, eliminarCotizacionConHitosAction } from "../../acciones";
 import { ListaDocumentacion } from "@/components/leads/Documentacion";
@@ -24,7 +26,7 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
   const [v, com, ctx] = await Promise.all([cargarVistaLeads(), cargarComercial(), contextoLeads()]);
   const c = com.cotizaciones.find((x) => x.id === id);
   if (!c) notFound();
-  const [lineas, adjuntos, historial, productos, plantillas] = await Promise.all([lineasDeCotizacion(id), adjuntosDe("cotizacion", id), historialDe(ctx.empresa.id, id), productosInventario(), plantillasDeCondiciones(ctx.empresa.id)]);
+  const [lineas, adjuntos, historial, productos, plantillas, enlace] = await Promise.all([lineasDeCotizacion(id), adjuntosDe("cotizacion", id), historialDe(ctx.empresa.id, id), productosInventario(), plantillasDeCondiciones(ctx.empresa.id), ultimoEnlaceDeCotizacion(id)]);
   const editable = ["borrador", "enviada"].includes(c.estado);
   const hitos = v.hitos.filter((h) => h.cotizacionId === id);
   const cliente = c.clienteId ? v.nombreDe.get(c.clienteId) : null;
@@ -105,6 +107,33 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
           {c.oportunidadId && <Link href={RUTA_LEADS} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">Lead: {com.oportunidades.find((o) => o.id === c.oportunidadId)?.nombre}</Link>}
           {c.proyectoId && (() => { const pr = v.proyectos.find((p) => p.id === c.proyectoId); return pr ? <Link href={`${RUTA_FIN}/proyectos/${c.proyectoId}`} className="inline-flex items-center gap-1.5">Proyecto: <CodigoProyecto info={infoProyecto(pr, v.contrapartes)} /></Link> : null; })()}
           {hitos.length > 0 && <Link href={`${RUTA_VENTAS}`} className="rounded-full border border-borde px-3 py-1 hover:border-naranjo/50">{hitos.length} hito(s): {hitos.map((h) => h.codigo).join(", ")}</Link>}
+        </div>
+      )}
+
+      {/* El enlace con que el cliente acepta o pide modificar (va como botón en el correo; aquí, para copiarlo) y su estado. */}
+      {(editable || enlace) && (
+        <div className="space-y-2">
+          {editable && (
+            <div className="flex flex-wrap items-center gap-2">
+              <EnlaceOc id={id} ruta={`/api/leads/cotizaciones/${id}/enlace`} texto="Enlace de aceptación" ayuda="El enlace con que el cliente acepta la cotización o pide modificarla, para mandarlo por otro medio (por correo ya va como botón)" />
+            </div>
+          )}
+          {enlace && (() => {
+            const cuando = (iso: string) => new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "short", timeStyle: "short" });
+            if (enlace.respuesta === "modificacion")
+              return (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-4 py-3 text-sm">
+                  <p className="font-semibold text-tinta">{enlace.respuestaNombre} pidió modificar la cotización <span className="font-normal text-gris">· {cuando(enlace.respondidoEn!)}</span></p>
+                  {enlace.respuestaComentario && <p className="mt-1 whitespace-pre-line text-tinta/80">«{enlace.respuestaComentario}»</p>}
+                  <p className="mt-1 text-xs text-gris">Corrígela o crea una nueva versión y vuelve a enviarla: el cliente recibe un enlace nuevo.</p>
+                </div>
+              );
+            if (enlace.respuesta === "aceptada")
+              return <p className="rounded-xl bg-emerald-500/[0.08] px-4 py-2.5 text-sm text-tinta"><strong>{enlace.respuestaNombre}</strong> aceptó la cotización desde el enlace · {cuando(enlace.respondidoEn!)}{enlace.respuestaOc ? ` · OC ${enlace.respuestaOc}` : ""}{enlace.respuestaComentario ? ` · «${enlace.respuestaComentario}»` : ""}</p>;
+            if (estadoEnlaceCotizacion(enlace) === "vigente")
+              return <p className="rounded-xl bg-tinta/[0.04] px-4 py-2.5 text-xs text-gris">Enlace de aceptación creado {cuando(enlace.creadoEn)} · {enlace.vistoEn ? `el cliente lo abrió ${cuando(enlace.vistoEn)}, aún sin responder` : "el cliente aún no lo abre"}.</p>;
+            return null;
+          })()}
         </div>
       )}
 

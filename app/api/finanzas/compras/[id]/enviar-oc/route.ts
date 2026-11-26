@@ -19,10 +19,10 @@ import { crearEnlaceOc, urlEnlaceOc } from "@/lib/fin/oc-enlace";
 export const runtime = "nodejs";
 
 /**
- * El botón «Ver y confirmar la orden de compra» en el correo. Apagado mientras se prueba el enlace con OC de prueba
- * (botón «Enlace de confirmación» en la OC); al encenderlo, cada envío lleva su enlace.
+ * El botón «Ver y confirmar la orden de compra» en el correo: cada envío lleva su enlace. En false, la OC sale sin
+ * botón (el enlace se sigue pudiendo sacar con «Enlace de confirmación» en la OC).
  */
-const BOTON_CONFIRMAR_EN_CORREO = false;
+const BOTON_CONFIRMAR_EN_CORREO = true;
 // Levanta Chromium, imprime y manda: el paso más largo del módulo.
 export const maxDuration = 120;
 

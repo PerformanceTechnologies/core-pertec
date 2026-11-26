@@ -9,14 +9,14 @@ import { avisar } from "./dialogos";
  * «Enlace de confirmación»: genera el enlace con que el proveedor confirma la OC (o pide modificarla) y lo copia,
  * para mandarlo por otro medio. Al enviar la OC por correo el enlace ya va como botón; esto es para lo demás.
  */
-export default function EnlaceOc({ id }: { id: string }) {
+export default function EnlaceOc({ id, ruta, texto = "Enlace de confirmación", ayuda = "El enlace con que el proveedor confirma la OC o pide modificarla, para mandarlo por otro medio" }: { id: string; ruta?: string; texto?: string; ayuda?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
   const generar = async () => {
     setCargando(true);
-    const r = await fetch(`/api/finanzas/compras/${id}/enlace-oc`, { method: "POST" }).then((x) => x.json()).catch(() => ({ error: "No se pudo crear el enlace." }));
+    const r = await fetch(ruta ?? `/api/finanzas/compras/${id}/enlace-oc`, { method: "POST" }).then((x) => x.json()).catch(() => ({ error: "No se pudo crear el enlace." }));
     setCargando(false);
     if (r.error) return avisar(r.error);
     setUrl(r.url);
@@ -30,8 +30,8 @@ export default function EnlaceOc({ id }: { id: string }) {
 
   if (!url) {
     return (
-      <button type="button" onClick={generar} disabled={cargando} className={BOTON_SEC} title="El enlace con que el proveedor confirma la OC o pide modificarla, para mandarlo por otro medio">
-        {cargando ? <IconLoader2 size={14} className="animate-spin" /> : <IconLink size={14} />} Enlace de confirmación
+      <button type="button" onClick={generar} disabled={cargando} className={BOTON_SEC} title={ayuda}>
+        {cargando ? <IconLoader2 size={14} className="animate-spin" /> : <IconLink size={14} />} {texto}
       </button>
     );
   }

@@ -12,6 +12,7 @@ import { correosValidos } from "@/lib/ofertas/emision";
 import { guardarArchivo } from "@/lib/archivos/almacen";
 import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import { carpetaVentaCliente } from "@/lib/archivos/carpetas";
+import { crearEnlaceCotizacion, urlEnlaceCotizacion } from "@/lib/fin/cotizacion-enlace";
 
 export const runtime = "nodejs";
 // Levanta Chromium, imprime y manda: el paso más largo del módulo.
@@ -63,8 +64,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const d = datos.documento;
   const nombreArchivo = nombreArchivoCotizacion(d.numero, d.version, d.cliente?.nombre ?? null);
 
+  // El botón «Ver y aceptar la cotización» (como en Odoo): un enlace nuevo por envío. Si no se puede crear (p. ej.
+  // falta el SQL de la tabla), la cotización sale igual, sin botón.
+  let boton: { texto: string; url: string; ayuda: string } | null = null;
   try {
-    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, firma: await firmaDe(ctx.usuario), nombreArchivo, pdf });
+    const codigo = await crearEnlaceCotizacion(ctx.empresa.id, id, ctx.usuario.correo);
+    boton = { texto: "Ver y aceptar la cotización", url: urlEnlaceCotizacion(new URL(request.url).origin, codigo), ayuda: "Desde ahí puedes aceptarla o pedir una modificación." };
+  } catch (e) {
+    console.error("[leads] no se pudo crear el enlace de aceptación; la cotización sale sin botón:", e instanceof Error ? e.message : e);
+  }
+
+  try {
+    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, firma: await firmaDe(ctx.usuario), nombreArchivo, pdf, boton });
   } catch (e) {
     console.error("[leads] no se pudo enviar la cotización:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "No se pudo enviar el correo. Revisa los destinatarios y vuelve a intentarlo." }, { status: 502 });
