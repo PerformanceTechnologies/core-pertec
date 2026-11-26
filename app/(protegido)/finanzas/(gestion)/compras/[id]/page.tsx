@@ -10,6 +10,8 @@ import { permisosDeUsuario } from "@/lib/fin/flujos";
 import { lineasDeCompra, resumenDeCompra, tasaIvaDe } from "@/lib/fin/oc-datos";
 import ResumenOc from "@/components/fin/ResumenOc";
 import { BotonEnviarOc } from "@/components/fin/EnviarOc";
+import EnlaceOc from "@/components/fin/EnlaceOc";
+import { estadoEnlace, ultimoEnlaceDeCompra } from "@/lib/fin/oc-enlace";
 import { Chip, Monto, Seccion, TD, TH, tonoPaso } from "@/components/fin/piezas";
 import { BotonAccion, SubirAdjunto } from "@/components/fin/ui";
 import EnlaceAdjunto from "@/components/fin/EnlaceAdjunto";
@@ -20,7 +22,7 @@ export const dynamic = "force-dynamic";
 const ETIQUETA_ACCION: Record<string, string> = {
   crear: "Creada", editar: "Editada", enviar_aprobacion: "A aprobación", aprobar: "Aprobada", visar: "Visada", devolver: "Devuelta", rechazar: "Rechazada", anular: "Anulada",
   reactivar: "Reactivada", oc_enviada: "OC enviada", respuesta_proveedor: "Respuesta del proveedor", recepcion: "Recepción", diferencia: "Diferencia aceptada",
-  reabrir_respuesta: "Respuesta reabierta", programar: "Pago programado", pagar: "Pago hecho",
+  reabrir_respuesta: "Respuesta reabierta", programar: "Pago programado", pagar: "Pago hecho", modificacion_proveedor: "Pide modificar",
 };
 
 const cuando = (iso: string) => new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "short", timeStyle: "short" });
@@ -33,7 +35,7 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
   const facturas = v.documentos.filter((d) => d.compraIds.includes(id));
   const idsFacturas = new Set(facturas.map((d) => d.id));
   const pagos = v.pagos.filter((p) => p.aplicaciones.some((a) => idsFacturas.has(a.documentoId)));
-  const [historial, adjuntos] = await Promise.all([historialDeCompra(ctx.empresa.id, id, [...idsFacturas], pagos.map((p) => p.id)), adjuntosDe("compra", id)]);
+  const [historial, adjuntos, enlace] = await Promise.all([historialDeCompra(ctx.empresa.id, id, [...idsFacturas], pagos.map((p) => p.id)), adjuntosDe("compra", id), c.ocNumero ? ultimoEnlaceDeCompra(id) : Promise.resolve(null)]);
   const puede = await permisosDeUsuario(ctx);
   const yoCorreo = ctx.usuario.correo.toLowerCase();
   const esSuya = ctx.usuario.rol === "admin" || (c.solicitante ?? "").toLowerCase() === yoCorreo || (c.creadoPor ?? "").toLowerCase() === yoCorreo;
@@ -102,12 +104,30 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
               </>
             )}
             {(aprobando || visando) && <BotonAccion accion={devolverCompraAction.bind(null, id)} motivo={`¿Por qué se devuelve ${c.codigo}? Le llega a quien la creó, para que la corrija.`}>Devolver</BotonAccion>}
+            {c.ocNumero && !c.estadoOverride && !c.ocRespuesta && puede.compras_visador && <EnlaceOc id={id} />}
             <a href={`/api/finanzas/compras/${id}/oc-pdf`} target="_blank" rel="noopener" className={BOTON_SEC}><IconFileTypePdf size={14} /> {c.ocNumero ? "Ver OC" : "Ver borrador"}</a>
             <a href={`/api/finanzas/compras/${id}/oc-pdf?descargar=1`} className={BOTON_SEC}><IconDownload size={14} /> Descargar</a>
             <span className="flex-1" />
             {!c.estadoOverride && (esSuya || puede.compras_aprobador || puede.compras_visador) && <BotonAccion accion={anularCompraAction.bind(null, id)} motivo={`¿Por qué se anula ${c.codigo}? Queda en el registro y un administrador puede reactivarla.`}>Anular</BotonAccion>}
             {ctx.usuario.rol === "admin" && c.estadoOverride && <BotonAccion accion={reactivarCompraAction.bind(null, id)} confirmar={`¿Reactivar ${c.codigo}? Vuelve al flujo donde estaba.`}>Reactivar</BotonAccion>}
           </div>
+          {/* Lo que pasó con el enlace de confirmación que recibió el proveedor (el último). */}
+          {enlace && (() => {
+            const est = estadoEnlace(enlace);
+            if (enlace.respuesta === "modificacion")
+              return (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-4 py-3 text-sm">
+                  <p className="font-semibold text-tinta">{enlace.respuestaNombre} pidió modificar la OC <span className="font-normal text-gris">· {cuando(enlace.respondidoEn!)}</span></p>
+                  {enlace.respuestaComentario && <p className="mt-1 whitespace-pre-line text-tinta/80">«{enlace.respuestaComentario}»</p>}
+                  <p className="mt-1 text-xs text-gris">Corrige lo que corresponda y vuelve a enviarla: el proveedor recibe un enlace nuevo.</p>
+                </div>
+              );
+            if (enlace.respuesta === "aceptada")
+              return <p className="rounded-xl bg-emerald-500/[0.08] px-4 py-2.5 text-sm text-tinta"><strong>{enlace.respuestaNombre}</strong> confirmó la OC desde el enlace · {cuando(enlace.respondidoEn!)}{enlace.respuestaComentario ? ` · «${enlace.respuestaComentario}»` : ""}</p>;
+            if (est === "vigente")
+              return <p className="rounded-xl bg-tinta/[0.04] px-4 py-2.5 text-xs text-gris">Enlace de confirmación enviado {cuando(enlace.creadoEn)} · {enlace.vistoEn ? `el proveedor lo abrió ${cuando(enlace.vistoEn)}, aún sin responder` : "el proveedor aún no lo abre"}.</p>;
+            return null;
+          })()}
           {resumen && <section className={`${TARJETA} p-4 sm:p-5`}><ResumenOc r={resumen} /></section>}
         </>
       )}

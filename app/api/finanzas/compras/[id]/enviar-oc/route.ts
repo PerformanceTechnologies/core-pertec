@@ -14,8 +14,15 @@ import { correosValidos } from "@/lib/ofertas/emision";
 import { guardarArchivo } from "@/lib/archivos/almacen";
 import { nombreUnico } from "@/lib/archivos/sharepoint-core";
 import { carpetaOcProveedor } from "@/lib/archivos/carpetas";
+import { crearEnlaceOc, urlEnlaceOc } from "@/lib/fin/oc-enlace";
 
 export const runtime = "nodejs";
+
+/**
+ * El botón «Ver y confirmar la orden de compra» en el correo. Apagado mientras se prueba el enlace con OC de prueba
+ * (botón «Enlace de confirmación» en la OC); al encenderlo, cada envío lleva su enlace.
+ */
+const BOTON_CONFIRMAR_EN_CORREO = false;
 // Levanta Chromium, imprime y manda: el paso más largo del módulo.
 export const maxDuration = 120;
 
@@ -72,8 +79,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const nombreArchivo = nombreArchivoOc(datos.documento);
 
+  // El botón «Confirmar orden de compra» (como en Odoo): un enlace nuevo por envío. Si no se puede crear (p. ej. falta
+  // el SQL de la tabla), la OC sale igual, sin botón: la respuesta se sigue marcando a mano.
+  let boton: { texto: string; url: string; ayuda: string } | null = null;
+  if (BOTON_CONFIRMAR_EN_CORREO) try {
+    const codigo = await crearEnlaceOc(ctx.empresa.id, id, ctx.usuario.correo);
+    boton = { texto: "Ver y confirmar la orden de compra", url: urlEnlaceOc(new URL(request.url).origin, codigo), ayuda: "Desde ahí puedes confirmarla o pedir una modificación." };
+  } catch (e) {
+    console.error("[compras] no se pudo crear el enlace de confirmación; la OC sale sin botón:", e instanceof Error ? e.message : e);
+  }
+
   try {
-    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, firma: await firmaDe(ctx.usuario), nombreArchivo, pdf });
+    await enviarOfertaPorCorreo(token.accessToken, { destinatarios, copias, asunto, cuerpo: mensaje, firma: await firmaDe(ctx.usuario), nombreArchivo, pdf, boton });
   } catch (e) {
     console.error("[compras] no se pudo enviar la OC:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "No se pudo enviar el correo. Revisa los destinatarios y vuelve a intentarlo." }, { status: 502 });

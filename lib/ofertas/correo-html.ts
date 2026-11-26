@@ -47,3 +47,15 @@ export function firmaHtml(firma: { texto: string | null; imagen: string | null }
   if (firma.imagen) html += '<div style="margin-top:16px"><img src="cid:firma-core" alt="Firma" style="display:block;max-width:600px;height:auto;border:0"></div>';
   return html;
 }
+
+/**
+ * Un botón para el correo (p. ej. «Confirmar orden de compra»), hecho con una tabla para que se vea como botón también
+ * en Outlook, que no respeta el padding de un enlace. Debajo, la dirección en texto por si el botón no se ve.
+ */
+export function botonHtml(boton: { texto: string; url: string; ayuda?: string | null }): string {
+  const url = escapar(boton.url);
+  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0 6px 0"><tr><td bgcolor="#c85217" style="border-radius:8px">` +
+    `<a href="${url}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:Segoe UI,Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">${escapar(boton.texto)}</a>` +
+    `</td></tr></table>` +
+    (boton.ayuda ? `<p style="margin:0 0 14px 0;font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#8c8578">${escapar(boton.ayuda)}</p>` : "");
+}

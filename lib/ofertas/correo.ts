@@ -1,6 +1,6 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { cuerpoHtml, firmaHtml } from "./correo-html";
+import { botonHtml, cuerpoHtml, firmaHtml } from "./correo-html";
 import { adjuntoDeFirma, type FirmaCorreo } from "@/lib/firma-correo";
 
 /**
@@ -37,6 +37,8 @@ export interface EnvioDeOferta {
   cuerpo: string;
   /** La firma de quien envía: texto y/o PNG en base64, al final del mensaje. Ver lib/firma-correo.ts. */
   firma?: FirmaCorreo | null;
+  /** Un botón bajo el mensaje y antes de la firma (p. ej. «Confirmar orden de compra», con su enlace). */
+  boton?: { texto: string; url: string; ayuda?: string | null } | null;
   nombreArchivo: string;
   pdf: Buffer;
 }
@@ -47,7 +49,7 @@ export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeO
 
   const mensaje = {
     subject: envio.asunto,
-    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) + firmaHtml(envio.firma) },
+    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) + (envio.boton ? botonHtml(envio.boton) : "") + firmaHtml(envio.firma) },
     // La imagen de la firma va como adjunto incrustado (cid): tanto en el envío directo como en el borrador.
     ...(envio.firma?.imagen ? { attachments: [adjuntoDeFirma(envio.firma.imagen)] } : {}),
     toRecipients: envio.destinatarios.map((address) => ({ emailAddress: { address } })),
