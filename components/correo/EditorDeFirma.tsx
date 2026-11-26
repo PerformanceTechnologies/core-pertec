@@ -92,7 +92,7 @@ export default function EditorDeFirma({
         <div className="overflow-hidden rounded-2xl border border-borde bg-white p-4 text-[14px] leading-relaxed text-[#171411]">
           <p className="mb-3">Estimado/a, adjunto la cotización solicitada.</p>
           <p className="mb-1 text-[#8c8578]">…</p>
-          {texto.trim() && <p className="mt-2 whitespace-pre-line leading-snug">{texto.trim()}</p>}
+          {texto.trim() && <TextoDeFirma texto={texto} />}
           {mostrada && (
             // eslint-disable-next-line @next/next/no-img-element -- vista previa de un data URL o un blob local
             <img src={mostrada} alt="Tu firma" className="mt-2 block h-auto w-full max-w-[600px] object-contain object-left" />
@@ -108,6 +108,16 @@ export default function EditorDeFirma({
           </form>
         )}
       </div>
+    </div>
+  );
+}
+
+/** El texto de la firma como sale en el correo (ver firmaHtml en lib/ofertas/correo-html.ts): el nombre en negrita, con sangría. */
+export function TextoDeFirma({ texto }: { texto: string }) {
+  const lineas = texto.replace(/\r\n?/g, "\n").trim().split("\n");
+  return (
+    <div className="mt-4 pl-4 font-[Arial,Helvetica,sans-serif] text-[14px] leading-[1.6] text-[#171411]">
+      {lineas.map((l, i) => (i === 0 ? <b key={i} className="block text-[15px]">{l}</b> : <span key={i} className="block min-h-[1.6em]">{l}</span>))}
     </div>
   );
 }

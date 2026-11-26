@@ -1,5 +1,6 @@
 "use client";
 
+import { TextoDeFirma } from "./EditorDeFirma";
 import { useEffect, useState } from "react";
 import { IconAlertTriangle, IconBuilding, IconLoader2, IconPlugConnected, IconSignature } from "@tabler/icons-react";
 import type { EstadoRemitente } from "@/lib/correo-empresa";
@@ -69,7 +70,7 @@ function LineaDeFirma() {
           {firma.conFirma ? "Cambiar" : "Agregar firma"}
         </a>
       </div>
-      {firma.texto && <p className="mt-3 whitespace-pre-line rounded-lg border border-borde/60 bg-white px-3 py-2 text-[13px] leading-snug text-[#171411]">{firma.texto}</p>}
+      {firma.texto && <div className="mt-3 rounded-lg border border-borde/60 bg-white pb-3 pr-3"><TextoDeFirma texto={firma.texto} /></div>}
       {firma.conImagen && (
         // La imagen a su tamaño (hasta el ancho de la tarjeta): es como la va a ver el destinatario.
         // eslint-disable-next-line @next/next/no-img-element -- la firma propia, servida por el Core
