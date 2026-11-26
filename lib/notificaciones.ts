@@ -187,8 +187,8 @@ async function enviar(
       body: { contentType: formato, content: cuerpo },
       toRecipients: [{ emailAddress: { address: destinatario } }],
     },
-    // Los avisos desde la casilla genérica no se guardan en «Enviados».
-    saveToSentItems: !CASILLAS_GENERALES.includes(remitente),
+    // Los avisos desde la casilla genérica, o desde el buzón de quien los recibe, no se guardan en «Enviados».
+    saveToSentItems: !CASILLAS_GENERALES.includes(remitente) && remitente.toLowerCase() !== destinatario.toLowerCase(),
   });
 }
 
@@ -218,8 +218,9 @@ export async function enviarCorreoAUsuario(destinatario: string, asunto: string,
   if (!(data ?? []).some((u) => String(u.correo).toLowerCase() === correo)) {
     throw new Error(`«${correo}» no es un usuario activo del Core: no se le manda correo.`);
   }
-  // Sale de la casilla genérica de avisos. Si Microsoft no la deja (no existe o sin permiso),
-  // sale del buzón de siempre, para que el aviso no se pierda.
+  // Sale de la casilla genérica de avisos. Si Microsoft no la deja (no existe o sin permiso), se prueban las otras
+  // casillas generales y, como último recurso, el buzón de la MISMA persona que lo recibe (se lo manda a sí misma):
+  // un aviso no debe salir con el nombre de otra persona (antes caía al buzón de Hugo).
   for (const casilla of CASILLAS_GENERALES) {
     try {
       return await enviar(correo, asunto, cuerpoHtml, "HTML", casilla);
@@ -227,5 +228,5 @@ export async function enviarCorreoAUsuario(destinatario: string, asunto: string,
       console.error(`[correo] No se pudo enviar desde ${casilla}; se prueba la siguiente:`, e instanceof Error ? e.message : e);
     }
   }
-  return enviar(correo, asunto, cuerpoHtml, "HTML");
+  return enviar(correo, asunto, cuerpoHtml, "HTML", correo);
 }
