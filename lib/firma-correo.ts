@@ -13,29 +13,59 @@ export const PESO_MAX_SUBIDA = 950 * 1024;
 /** El id con que la imagen va incrustada en el correo (`<img src="cid:…">`). */
 export const CID_FIRMA = "firma-core";
 
+/** Largo máximo del texto de la firma (nombre, cargo, teléfono, dirección…). */
+export const LARGO_MAX_TEXTO = 600;
+
+/** La firma de una persona: un texto, una imagen (PNG en base64), o ambos. */
+export interface FirmaCorreo {
+  texto: string | null;
+  imagen: string | null;
+}
+
 /**
- * La firma de correo de una persona (PNG en base64), o null.
+ * La firma de correo de una persona, o null si no tiene ni texto ni imagen.
  *
  * La imagen vive en SharePoint («ARCHIVOS CORE/Firmas de correo/<id>.png») y en la base queda solo
  * su referencia («sp:<id>»). Una firma antigua guardada en la base (base64) se sigue leyendo
- * hasta que el traspaso la mueva (lib/archivos/traspaso.ts).
+ * hasta que el traspaso la mueva (lib/archivos/traspaso.ts). El texto va en la base (firma_texto).
  *
  * Los invitados no tienen: entran con un código, no con una cuenta de la empresa, y no mandan
- * correos a clientes desde el Core. Sin la columna (SQL sin correr) tampoco: se lee como «sin
- * firma» y el correo sale igual que antes.
+ * correos a clientes desde el Core. Sin las columnas (SQL sin correr) tampoco: se lee como «sin
+ * firma» (o solo la imagen) y el correo sale igual que antes.
  */
-export async function firmaDe(usuario: { id: string; tipo?: string | null }): Promise<string | null> {
+export async function firmaDe(usuario: { id: string; tipo?: string | null }): Promise<FirmaCorreo | null> {
   if (usuario.tipo === "invitado") return null;
-  const { data, error } = await supabaseAdmin.from("usuarios").select("firma_imagen").eq("id", usuario.id).maybeSingle();
-  if (error || !data) return null;
-  const valor = typeof data.firma_imagen === "string" && data.firma_imagen ? data.firma_imagen : null;
-  if (!valor || !esReferenciaSharePoint(valor)) return valor;
-  try {
-    return (await bajarDeSharePoint(valor)).contenido.toString("base64");
-  } catch (e) {
-    // Sin la imagen el correo sale igual, sin firma: no se frena un envío por esto.
-    console.error("[firma] No se pudo leer la firma de SharePoint:", e instanceof Error ? e.message : e);
-    return null;
+  let fila: { firma_imagen?: unknown; firma_texto?: unknown } | null = null;
+  const conTexto = await supabaseAdmin.from("usuarios").select("firma_imagen, firma_texto").eq("id", usuario.id).maybeSingle();
+  if (!conTexto.error) fila = conTexto.data;
+  else if (/firma_texto/.test(conTexto.error.message)) {
+    // Falta correr supabase/usuarios/0004_firma_texto.sql: se sigue con la imagen sola.
+    const soloImagen = await supabaseAdmin.from("usuarios").select("firma_imagen").eq("id", usuario.id).maybeSingle();
+    if (!soloImagen.error) fila = soloImagen.data;
+  }
+  if (!fila) return null;
+  const texto = typeof fila.firma_texto === "string" && fila.firma_texto.trim() ? fila.firma_texto.trim() : null;
+  const valor = typeof fila.firma_imagen === "string" && fila.firma_imagen ? fila.firma_imagen : null;
+  let imagen: string | null = valor;
+  if (valor && esReferenciaSharePoint(valor)) {
+    try {
+      imagen = (await bajarDeSharePoint(valor)).contenido.toString("base64");
+    } catch (e) {
+      // Sin la imagen el correo sale igual (con el texto, si hay): no se frena un envío por esto.
+      console.error("[firma] No se pudo leer la firma de SharePoint:", e instanceof Error ? e.message : e);
+      imagen = null;
+    }
+  }
+  return texto || imagen ? { texto, imagen } : null;
+}
+
+/** Guarda (o quita, con null o vacío) el texto de la firma de una persona. */
+export async function guardarTextoFirma(usuarioId: string, texto: string | null): Promise<void> {
+  const limpio = (texto ?? "").replace(/\r\n?/g, "\n").trim().slice(0, LARGO_MAX_TEXTO) || null;
+  const { error } = await supabaseAdmin.from("usuarios").update({ firma_texto: limpio }).eq("id", usuarioId);
+  if (error) {
+    if (/firma_texto/.test(error.message)) throw new Error("Falta correr el SQL supabase/usuarios/0004_firma_texto.sql.");
+    throw new Error(error.message);
   }
 }
 

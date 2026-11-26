@@ -6,7 +6,7 @@ import { firmaDe } from "@/lib/firma-correo";
 import { HOJA } from "@/components/contactos/Visual";
 import { AvatarUsuario } from "@/components/admin/VisualUsuarios";
 import EditorDeFirma from "@/components/correo/EditorDeFirma";
-import { guardarFirmaAction } from "../firma-correo/acciones";
+import { guardarFirmaAction, guardarTextoFirmaAction } from "../firma-correo/acciones";
 
 /**
  * Mi perfil: lo que cada persona puede cambiar de sí misma. Por ahora, solo su firma de correo
@@ -16,7 +16,7 @@ export default async function MiPerfilPage() {
   const usuario = await obtenerUsuarioActivo((await sesionDeLaPeticion())?.user?.email);
   if (!usuario) redirect("/ingresar");
   const invitado = usuario.tipo === "invitado";
-  const png = invitado ? null : await firmaDe(usuario);
+  const firma = invitado ? null : await firmaDe(usuario);
 
   return (
     <div className="animar-entrada mx-auto max-w-4xl space-y-5">
@@ -40,7 +40,7 @@ export default async function MiPerfilPage() {
           {invitado ? (
             <p className="text-sm text-gris">Los invitados no tienen firma de correo: no envían correos a clientes ni proveedores desde el Core.</p>
           ) : (
-            <EditorDeFirma actual={png ? `data:image/png;base64,${png}` : null} guardar={guardarFirmaAction} />
+            <EditorDeFirma actual={firma?.imagen ? `data:image/png;base64,${firma.imagen}` : null} textoActual={firma?.texto ?? ""} guardar={guardarFirmaAction} guardarTexto={guardarTextoFirmaAction} />
           )}
         </div>
       </section>

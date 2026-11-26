@@ -23,11 +23,17 @@ export function cuerpoHtml(texto: string): string {
 }
 
 /**
- * La firma de quien envía (una imagen), debajo del mensaje. La imagen viaja como adjunto incrustado
- * con este mismo cid (ver adjuntoDeFirma en lib/firma-correo.ts): Outlook y Gmail la muestran
- * dentro del correo, no como archivo aparte. Sin firma, nada.
+ * La firma de quien envía, debajo del mensaje: primero el texto (nombre, cargo, teléfono…) y después la
+ * imagen, si tiene. La imagen viaja como adjunto incrustado con este mismo cid (ver adjuntoDeFirma en
+ * lib/firma-correo.ts): Outlook y Gmail la muestran dentro del correo, no como archivo aparte. Sin firma, nada.
  */
-export function firmaHtml(hayFirma: boolean): string {
-  if (!hayFirma) return "";
-  return '<div style="margin-top:10px"><img src="cid:firma-core" alt="Firma" style="display:block;max-width:600px;height:auto;border:0"></div>';
+export function firmaHtml(firma: { texto: string | null; imagen: string | null } | null | undefined): string {
+  if (!firma) return "";
+  let html = "";
+  if (firma.texto) {
+    const lineas = escapar(firma.texto.replace(/\r\n?/g, "\n").trim()).split("\n").join("<br>");
+    html += `<div style="margin-top:10px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.45;color:#171411">${lineas}</div>`;
+  }
+  if (firma.imagen) html += '<div style="margin-top:10px"><img src="cid:firma-core" alt="Firma" style="display:block;max-width:600px;height:auto;border:0"></div>';
+  return html;
 }

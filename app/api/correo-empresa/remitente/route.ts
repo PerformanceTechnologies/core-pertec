@@ -15,5 +15,5 @@ export async function GET() {
   const { activa } = await contextoDeEmpresa(usuario.id, usuario.rol);
   const [estado, firma] = await Promise.all([estadoRemitente(usuario, activa), firmaDe(usuario)]);
   // La firma va aparte del estado: la ventana de envío dice si sale con firma y deja editarla.
-  return NextResponse.json({ ...estado, conFirma: Boolean(firma), invitado: usuario.tipo === "invitado" }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ ...estado, conFirma: Boolean(firma), firmaTexto: firma?.texto ?? null, firmaConImagen: Boolean(firma?.imagen), invitado: usuario.tipo === "invitado" }, { headers: { "Cache-Control": "no-store" } });
 }

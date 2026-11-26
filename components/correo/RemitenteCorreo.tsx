@@ -29,7 +29,7 @@ export default function RemitenteCorreo(props: { quien?: string; alCambiar?: (li
  * de nuevo. Los invitados no tienen firma, así que a ellos no se les muestra.
  */
 function LineaDeFirma() {
-  const [firma, setFirma] = useState<{ conFirma: boolean; invitado: boolean; version: number } | null>(null);
+  const [firma, setFirma] = useState<{ conFirma: boolean; texto: string | null; conImagen: boolean; invitado: boolean; version: number } | null>(null);
   useEffect(() => {
     let vigente = true;
     const consultar = () => {
@@ -37,7 +37,7 @@ function LineaDeFirma() {
         .then((x) => (x.ok ? x.json() : null))
         .catch(() => null)
         .then((r) => {
-          if (vigente && r) setFirma({ conFirma: Boolean(r.conFirma), invitado: Boolean(r.invitado), version: Date.now() });
+          if (vigente && r) setFirma({ conFirma: Boolean(r.conFirma), texto: typeof r.firmaTexto === "string" ? r.firmaTexto : null, conImagen: r.firmaConImagen === undefined ? Boolean(r.conFirma) : Boolean(r.firmaConImagen), invitado: Boolean(r.invitado), version: Date.now() });
         });
     };
     consultar();
@@ -58,7 +58,7 @@ function LineaDeFirma() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-tinta">{firma.conFirma ? "Va con tu firma de correo" : "Sin firma de correo"}</p>
-          {!firma.conFirma && <p className="text-xs text-gris">Agrega una imagen con tu nombre, cargo y datos: se pone sola al final de cada correo.</p>}
+          {!firma.conFirma && <p className="text-xs text-gris">Agrega un texto o una imagen con tu nombre, cargo y datos: se pone sola al final de cada correo.</p>}
         </div>
         <a
           href="/mi-perfil"
@@ -69,7 +69,8 @@ function LineaDeFirma() {
           {firma.conFirma ? "Cambiar" : "Agregar firma"}
         </a>
       </div>
-      {firma.conFirma && (
+      {firma.texto && <p className="mt-3 whitespace-pre-line rounded-lg border border-borde/60 bg-white px-3 py-2 text-[13px] leading-snug text-[#171411]">{firma.texto}</p>}
+      {firma.conImagen && (
         // La imagen a su tamaño (hasta el ancho de la tarjeta): es como la va a ver el destinatario.
         // eslint-disable-next-line @next/next/no-img-element -- la firma propia, servida por el Core
         <img src={`/api/firma-correo?v=${firma.version}`} alt="Tu firma" className="mt-3 block h-auto w-full max-w-[600px] rounded-lg border border-borde/60 bg-white" />

@@ -1,7 +1,7 @@
 import "server-only";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { cuerpoHtml, firmaHtml } from "./correo-html";
-import { adjuntoDeFirma } from "@/lib/firma-correo";
+import { adjuntoDeFirma, type FirmaCorreo } from "@/lib/firma-correo";
 
 /**
  * Mandar la oferta por correo, desde la cuenta de quien la emite.
@@ -35,8 +35,8 @@ export interface EnvioDeOferta {
   asunto: string;
   /** Texto plano; se convierte a HTML respetando los saltos de línea. */
   cuerpo: string;
-  /** La firma de quien envía: PNG en base64, incrustado al final del mensaje. Ver lib/firma-correo.ts. */
-  firma?: string | null;
+  /** La firma de quien envía: texto y/o PNG en base64, al final del mensaje. Ver lib/firma-correo.ts. */
+  firma?: FirmaCorreo | null;
   nombreArchivo: string;
   pdf: Buffer;
 }
@@ -47,9 +47,9 @@ export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeO
 
   const mensaje = {
     subject: envio.asunto,
-    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) + firmaHtml(Boolean(envio.firma)) },
-    // La firma va como adjunto incrustado (cid): tanto en el envío directo como en el borrador.
-    ...(envio.firma ? { attachments: [adjuntoDeFirma(envio.firma)] } : {}),
+    body: { contentType: "HTML", content: cuerpoHtml(envio.cuerpo) + firmaHtml(envio.firma) },
+    // La imagen de la firma va como adjunto incrustado (cid): tanto en el envío directo como en el borrador.
+    ...(envio.firma?.imagen ? { attachments: [adjuntoDeFirma(envio.firma.imagen)] } : {}),
     toRecipients: envio.destinatarios.map((address) => ({ emailAddress: { address } })),
     ccRecipients: (envio.copias ?? []).map((address) => ({ emailAddress: { address } })),
   };
@@ -60,7 +60,7 @@ export async function enviarOfertaPorCorreo(accessToken: string, envio: EnvioDeO
         ...mensaje,
         attachments: [
           // La firma (si hay) va primero; el PDF, después.
-          ...(envio.firma ? [adjuntoDeFirma(envio.firma)] : []),
+          ...(envio.firma?.imagen ? [adjuntoDeFirma(envio.firma.imagen)] : []),
           {
             "@odata.type": "#microsoft.graph.fileAttachment",
             name: envio.nombreArchivo,

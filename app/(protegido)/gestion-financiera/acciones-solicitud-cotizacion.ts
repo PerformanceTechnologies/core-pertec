@@ -62,9 +62,9 @@ export async function enviarSolicitudCotizacionAction(json: string): Promise<Res
       await graph.api("/me/sendMail").post({
         message: {
           subject: asunto,
-          body: { contentType: "HTML", content: cuerpoHtml(mensaje, items, responderAntes) + firmaHtml(Boolean(firma)) },
-          // La firma como imagen incrustada (cid), ver lib/firma-correo.ts.
-          ...(firma ? { attachments: [adjuntoDeFirma(firma)] } : {}),
+          body: { contentType: "HTML", content: cuerpoHtml(mensaje, items, responderAntes) + firmaHtml(firma) },
+          // La imagen de la firma, incrustada (cid), ver lib/firma-correo.ts.
+          ...(firma?.imagen ? { attachments: [adjuntoDeFirma(firma.imagen)] } : {}),
           toRecipients: destinatarios.map((address) => ({ emailAddress: { address } })),
           ccRecipients: copias.map((address) => ({ emailAddress: { address } })),
         },
