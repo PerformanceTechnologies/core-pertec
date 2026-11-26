@@ -4,7 +4,6 @@ import { supabaseAdmin } from "./supabase-admin";
 import { guardarArchivo } from "./archivos/almacen";
 import { bajarDeSharePoint, borrarDeSharePoint, esReferenciaSharePoint } from "./archivos/sharepoint-core";
 import { CARPETA_FIRMAS } from "./archivos/carpetas";
-import { accessTokenDeUsuario } from "./graph-credenciales";
 
 /** Hasta cuánto se achica la firma: el ancho cómodo de un correo y un alto de firma, no de afiche. */
 const ANCHO_MAX = 600;
@@ -115,47 +114,4 @@ export function adjuntoDeFirma(pngBase64: string) {
     isInline: true,
     contentId: CID_FIRMA,
   };
-}
-
-/** La dirección y la web que van en la firma de la empresa (como en las firmas de Outlook de PERTEC). */
-const DIRECCION_EMPRESA = "Martínez de Rosas 4467, Quinta Normal, Santiago de Chile";
-const WEB_EMPRESA = "www.pertec.cl";
-
-/**
- * El texto de firma que se propone a quien todavía no tiene uno, con el formato de la firma de la empresa:
- *
- *   Nombre Apellido
- *   Cargo
- *
- *   +56 9 …
- *   Martínez de Rosas 4467, Quinta Normal, Santiago de Chile
- *   www.pertec.cl
- *
- * El nombre, el cargo y el teléfono salen del perfil de Microsoft 365 de la persona (si el Core puede leerlo);
- * lo que falte queda marcado entre corchetes para completarlo. Solo se propone: no se guarda hasta que la persona
- * lo revise y apriete «Guardar texto».
- */
-export async function firmaPropuesta(usuario: { id: string; nombre: string | null; correo: string }): Promise<string> {
-  let nombre = usuario.nombre?.trim() || "";
-  let cargo = "";
-  let telefono = "";
-  try {
-    const t = await accessTokenDeUsuario(usuario.id);
-    if (t.estado === "ok") {
-      const r = await fetch("https://graph.microsoft.com/v1.0/me?$select=displayName,jobTitle,mobilePhone,businessPhones", {
-        headers: { Authorization: `Bearer ${t.accessToken}` },
-        cache: "no-store",
-        signal: AbortSignal.timeout(5000),
-      });
-      if (r.ok) {
-        const yo = (await r.json()) as { displayName?: string | null; jobTitle?: string | null; mobilePhone?: string | null; businessPhones?: string[] };
-        nombre = nombre || yo.displayName?.trim() || "";
-        cargo = yo.jobTitle?.trim() || "";
-        telefono = yo.mobilePhone?.trim() || yo.businessPhones?.[0]?.trim() || "";
-      }
-    }
-  } catch {
-    // Sin el perfil de Microsoft se propone igual, con lo que falte entre corchetes.
-  }
-  return [nombre || "[Tu nombre]", cargo || "[Tu cargo]", "", telefono || "[Tu teléfono]", DIRECCION_EMPRESA, WEB_EMPRESA].join("\n");
 }

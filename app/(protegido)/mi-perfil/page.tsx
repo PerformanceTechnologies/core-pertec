@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { IconSignature } from "@tabler/icons-react";
 import { sesionDeLaPeticion } from "@/lib/sesion-de-la-peticion";
 import { obtenerUsuarioActivo } from "@/lib/usuarios";
-import { firmaDe, firmaPropuesta } from "@/lib/firma-correo";
+import { firmaDe } from "@/lib/firma-correo";
 import { HOJA } from "@/components/contactos/Visual";
 import { AvatarUsuario } from "@/components/admin/VisualUsuarios";
 import EditorDeFirma from "@/components/correo/EditorDeFirma";
@@ -17,8 +17,6 @@ export default async function MiPerfilPage() {
   if (!usuario) redirect("/ingresar");
   const invitado = usuario.tipo === "invitado";
   const firma = invitado ? null : await firmaDe(usuario);
-  // Sin texto guardado, el cuadro parte con la firma de la empresa ya armada (nombre, cargo y teléfono de Microsoft 365).
-  const propuesta = invitado || firma?.texto ? null : await firmaPropuesta(usuario);
 
   return (
     <div className="animar-entrada mx-auto max-w-4xl space-y-5">
@@ -42,7 +40,7 @@ export default async function MiPerfilPage() {
           {invitado ? (
             <p className="text-sm text-gris">Los invitados no tienen firma de correo: no envían correos a clientes ni proveedores desde el Core.</p>
           ) : (
-            <EditorDeFirma actual={firma?.imagen ? `data:image/png;base64,${firma.imagen}` : null} textoActual={firma?.texto ?? ""} propuesta={propuesta} guardar={guardarFirmaAction} guardarTexto={guardarTextoFirmaAction} enviarPrueba={enviarPruebaFirmaAction} />
+            <EditorDeFirma actual={firma?.imagen ? `data:image/png;base64,${firma.imagen}` : null} textoActual={firma?.texto ?? ""} guardar={guardarFirmaAction} guardarTexto={guardarTextoFirmaAction} enviarPrueba={enviarPruebaFirmaAction} />
           )}
         </div>
       </section>
