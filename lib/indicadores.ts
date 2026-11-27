@@ -8,8 +8,10 @@ import { supabaseAdmin } from "./supabase-admin";
 //  como respaldo a propósito: si dos fuentes difieren, la cartilla mostraría un valor u otro
 //  según cuál alcanzó a responder, y nadie sabría cuál es el bueno.
 //
-//  Los valores cambian una vez al día, así que el servidor los pide a lo más cada 30 minutos
-//  (caché de fetch de Next) sin importar cuánta gente tenga la cartilla abierta.
+//  Se piden a la fuente en cada consulta (sin caché de fetch de Next): findic.cl contesta en
+//  menos de 0,3 s y la cartilla consulta una vez al entrar y cada 10 min. El caché de Next es
+//  «sirve el dato vencido y refresca en segundo plano», así que la primera persona del día veía
+//  los valores de ayer (el 26 de noviembre de 2026, por ejemplo) aunque findic ya traía los de hoy.
 // -----------------------------------------------------------------------------
 
 export type CodigoIndicador = "dolar" | "euro" | "uf" | "utm" | "ivp" | "ipc" | "tpm" | "imacec" | "desempleo" | "cobre" | "ipsa";
@@ -36,7 +38,6 @@ export interface Indicador {
 // Fuentes, en orden: findic.cl y, si falla, mindicador.cl (mismo formato). Si ambas fallan, el
 // último valor guardado en la base (indicadores_respaldo).
 const FUENTES = ["https://findic.cl/api", "https://mindicador.cl/api"];
-const REVALIDAR_S = 30 * 60;
 
 /** Qué se muestra, en qué unidad y con qué nombre; la clave es la de findic.cl. */
 const CATALOGO: { clave: string; codigo: CodigoIndicador; nombre: string; unidad: Indicador["unidad"] }[] = [
@@ -58,7 +59,7 @@ type Punto = { fecha: string; valor: number };
 
 async function leer<T>(ruta: string, base = FUENTES[0]): Promise<T> {
   const r = await fetch(`${base}${ruta}`, {
-    next: { revalidate: REVALIDAR_S },
+    cache: "no-store",
     signal: AbortSignal.timeout(8000),
   });
   if (!r.ok) throw new Error(`${new URL(base).host} respondió ${r.status} para ${ruta || "/"}`);
@@ -159,7 +160,7 @@ async function serieBcch(serie: string, dias: number): Promise<Punto[]> {
     timeseries: serie,
     function: "GetSeries",
   });
-  const r = await fetch(`${BCCH}?${q}`, { next: { revalidate: REVALIDAR_S }, signal: AbortSignal.timeout(10000) });
+  const r = await fetch(`${BCCH}?${q}`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error(`Banco Central respondió ${r.status}`);
   const j = (await r.json()) as { Codigo?: number; Descripcion?: string; Series?: { Obs?: { indexDateString?: string; value?: string; statusCode?: string }[] } };
   if (j.Codigo !== 0) throw new Error(`Banco Central: ${j.Descripcion ?? "error"}`);
@@ -225,10 +226,13 @@ export async function obtenerIndicadores(): Promise<{ indicadores: Indicador[]; 
       return r;
     } catch (e) {
       ultimoError = e;
+      // Antes esto era mudo: si una fuente fallaba y otra respondía, nadie lo veía en los registros.
+      console.warn("[indicadores] una fuente falló:", e instanceof Error ? e.message : e);
     }
   }
   const { data } = await supabaseAdmin.from("indicadores_respaldo").select("datos, fuente, actualizado_en").eq("id", "ultimo").maybeSingle();
   if (data && Array.isArray(data.datos) && data.datos.length) {
+    console.error("[indicadores] ninguna fuente respondió; se muestra el último valor guardado en la base");
     const cuando = new Date(data.actualizado_en as string).toLocaleString("es-CL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Santiago" });
     return { indicadores: data.datos as Indicador[], fuente: `${data.fuente} (guardado el ${cuando})` };
   }
