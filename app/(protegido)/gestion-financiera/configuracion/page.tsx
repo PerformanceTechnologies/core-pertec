@@ -528,7 +528,6 @@ function AvisosArriendo({ config, candidatos, hoyTocan, esAdmin }: { config: Con
   return (
     <div className="grid max-w-5xl gap-5 lg:grid-cols-[1fr_20rem]">
       <div className={`${TARJETA} p-5`}>
-        <p className="mb-5 text-sm text-gris">Como las alarmas de Odoo: cada mañana (cerca de las 8:00) les llega un correo a las personas elegidas por cada hito de arriendo que está por vencer, vence hoy o ya venció, según la fecha de término del arriendo. Si el hito ya se facturó, no se avisa.</p>
         {!esAdmin && <p className="mb-4 rounded-lg bg-tinta/[0.04] px-3 py-2 text-xs text-gris">Solo el administrador del sistema puede cambiar esta configuración.</p>}
         <FormAccion accion={guardarAvisosArriendoAction} className="space-y-6">
           <GrupoParametros titulo="Cuándo avisar" icono={<IconBell size={15} />}>
