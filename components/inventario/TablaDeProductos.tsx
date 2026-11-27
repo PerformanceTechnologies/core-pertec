@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { IconArchive, IconChevronRight, IconSearch, IconX } from "@tabler/icons-react";
+import { IconArchive, IconArrowDown, IconArrowUp, IconArrowsSort, IconChevronLeft, IconChevronRight, IconSearch, IconX } from "@tabler/icons-react";
 import { ChipEstadoOperativo, FichaProducto, tonoDeTexto } from "@/components/inventario/Visual";
 import {
   ETIQUETA_CERTIFICADO,
@@ -15,6 +15,25 @@ import {
 } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
 import type { ProductoConStock } from "@/lib/inventario";
+
+/** Productos por página. */
+const POR_PAGINA = 100;
+
+type Columna = "nombre" | "categoria" | "tipo" | "estado" | "aMano" | "disponible" | "pronosticado" | "valor";
+const COLUMNAS_NUMERICAS: Columna[] = ["aMano", "disponible", "pronosticado", "valor"];
+type Orden = { col: Columna; asc: boolean };
+
+/** Un encabezado que ordena la tabla: clic ordena por esa columna; otro clic invierte el sentido. */
+function Encabezado({ col, children, derecha = false, title, orden, ordenarPor }: { col: Columna; children: React.ReactNode; derecha?: boolean; title?: string; orden: Orden; ordenarPor: (c: Columna) => void }) {
+  return (
+    <th className={`px-3 py-2 ${derecha ? "text-right" : ""}`} title={title} aria-sort={orden.col === col ? (orden.asc ? "ascending" : "descending") : undefined}>
+      <button type="button" onClick={() => ordenarPor(col)} className={`inline-flex items-center gap-1 uppercase tracking-wide transition hover:text-tinta ${orden.col === col ? "text-tinta" : ""}`}>
+        {children}
+        {orden.col === col ? (orden.asc ? <IconArrowUp size={12} /> : <IconArrowDown size={12} />) : <IconArrowsSort size={12} className="opacity-40" />}
+      </button>
+    </th>
+  );
+}
 
 const SELECT = "min-h-8 rounded-lg border border-borde bg-superficie px-2.5 text-xs text-tinta focus:border-naranjo/50 focus:outline-none";
 
@@ -52,6 +71,7 @@ export default function TablaDeProductos({
   const [estado, setEstado] = useState("");
   const [stock, setStock] = useState("");
   const [masFiltros, setMasFiltros] = useState(false);
+  const [orden, setOrden] = useState<Orden>({ col: "nombre", asc: true });
   const nombreCat = useMemo(() => new Map(categorias.map((c) => [c.id, c.nombre])), [categorias]);
 
   const visibles = useMemo(() => {
@@ -68,6 +88,28 @@ export default function TablaDeProductos({
       return true;
     });
   }, [productos, q, categoria, bodega, tipo, estado, stock, bodegasPorProducto]);
+
+  // Ordenar: clic en el encabezado; otro clic invierte el sentido.
+  const ordenados = useMemo(() => {
+    const texto = (p: ProductoConStock): string =>
+      orden.col === "categoria" ? (p.categoriaId ? nombreCat.get(p.categoriaId) ?? "" : "") : orden.col === "tipo" ? ETIQUETA_TIPO_PRODUCTO[p.tipo] : orden.col === "estado" ? p.estadoOperativo ?? "" : p.nombre;
+    const numero = (p: ProductoConStock): number => Number(p[orden.col as "aMano" | "disponible" | "pronosticado" | "valor"]) || 0;
+    const esNumero = COLUMNAS_NUMERICAS.includes(orden.col);
+    const lista = [...visibles].sort((a, b) => {
+      const r = esNumero ? numero(a) - numero(b) : texto(a).localeCompare(texto(b), "es", { sensitivity: "base" }) || a.nombre.localeCompare(b.nombre, "es");
+      return orden.asc ? r : -r;
+    });
+    return lista;
+  }, [visibles, orden, nombreCat]);
+  // La página vale para estos filtros y este orden: si cambian, se vuelve a la primera.
+  const firma = JSON.stringify([q, categoria, bodega, tipo, estado, stock, orden]);
+  const [pagina, setPaginaCon] = useState({ firma, n: 0 });
+  const setPagina = (n: number) => setPaginaCon({ firma, n });
+  const paginas = Math.max(1, Math.ceil(ordenados.length / POR_PAGINA));
+  const pag = Math.min(pagina.firma === firma ? pagina.n : 0, paginas - 1);
+  const enPagina = ordenados.slice(pag * POR_PAGINA, (pag + 1) * POR_PAGINA);
+  const ordenarPor = (col: Columna) => setOrden((o) => (o.col === col ? { col, asc: !o.asc } : { col, asc: !COLUMNAS_NUMERICAS.includes(col) }));
+  const enc = { orden, ordenarPor };
 
   const hayFiltros = Boolean(q || categoria || bodega || tipo || estado || stock);
   const limpiar = () => {
@@ -146,19 +188,19 @@ export default function TablaDeProductos({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-borde text-left text-[11px] font-semibold uppercase tracking-wide text-gris">
-                  <th className="px-3 py-2">Producto</th>
-                  <th className="px-3 py-2">Categoría</th>
-                  <th className="px-3 py-2">Tipo</th>
-                  <th className="px-3 py-2">Estado</th>
-                  <th className="px-3 py-2 text-right">A mano</th>
-                  <th className="px-3 py-2 text-right">Disponible</th>
-                  <th className="px-3 py-2 text-right" title="A mano + lo que llega - lo que sale en operaciones pendientes">Pronosticado</th>
-                  <th className="px-3 py-2 text-right">Valor</th>
+                  <Encabezado {...enc} col="nombre">Producto</Encabezado>
+                  <Encabezado {...enc} col="categoria">Categoría</Encabezado>
+                  <Encabezado {...enc} col="tipo">Tipo</Encabezado>
+                  <Encabezado {...enc} col="estado">Estado</Encabezado>
+                  <Encabezado {...enc} col="aMano" derecha>A mano</Encabezado>
+                  <Encabezado {...enc} col="disponible" derecha>Disponible</Encabezado>
+                  <Encabezado {...enc} col="pronosticado" derecha title="A mano + lo que llega - lo que sale en operaciones pendientes">Pronosticado</Encabezado>
+                  <Encabezado {...enc} col="valor" derecha>Valor</Encabezado>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-borde">
-                {visibles.map((p) => (
+                {enPagina.map((p) => (
                   <tr key={p.id} className="group transition hover:bg-tinta/[0.02]">
                     <td className="px-3 py-1.5">
                       <Link href={`/inventario/productos/${p.id}`} className="flex items-center gap-2.5">
@@ -207,6 +249,22 @@ export default function TablaDeProductos({
               </tbody>
             </table>
           </div>
+          {paginas > 1 && (
+            <div className="flex items-center justify-between gap-3 border-t border-borde px-3.5 py-2 text-xs text-gris">
+              <span>
+                {pag * POR_PAGINA + 1}–{Math.min((pag + 1) * POR_PAGINA, ordenados.length)} de {ordenados.length}
+              </span>
+              <span className="flex items-center gap-1">
+                <button type="button" onClick={() => setPagina(pag - 1)} disabled={pag === 0} className="inline-grid h-8 w-8 place-items-center rounded-lg transition hover:bg-tinta/[0.05] disabled:opacity-30" aria-label="Página anterior">
+                  <IconChevronLeft size={16} />
+                </button>
+                <span className="px-1 font-semibold text-tinta">Página {pag + 1} de {paginas}</span>
+                <button type="button" onClick={() => setPagina(pag + 1)} disabled={pag >= paginas - 1} className="inline-grid h-8 w-8 place-items-center rounded-lg transition hover:bg-tinta/[0.05] disabled:opacity-30" aria-label="Página siguiente">
+                  <IconChevronRight size={16} />
+                </button>
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

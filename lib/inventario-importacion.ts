@@ -268,7 +268,7 @@ export async function importar(
       if (f.categoria) {
         categoriaId = categorias.get(normalizar(f.categoria));
         if (!categoriaId) {
-          const { data, error } = await supabaseAdmin.from("inv_categorias").insert({ nombre: f.categoria }).select("id").single();
+          const { data, error } = await supabaseAdmin.from("inv_categorias").insert({ nombre: f.categoria.trim().toUpperCase() }).select("id").single();
           if (error) throw new Error(`no se pudo crear la categoría: ${error.message}`);
           categoriaId = data.id as string;
           categorias.set(normalizar(f.categoria), categoriaId);

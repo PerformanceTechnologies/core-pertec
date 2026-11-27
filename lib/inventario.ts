@@ -1,6 +1,7 @@
 import "server-only";
 import { conEmpresa, empresaActivaId, soloDe } from "./empresa-activa";
 import { supabaseAdmin } from "./supabase-admin";
+import { idsMerma, veoMerma } from "./inventario-merma";
 import { borrarArchivos, enlaceTemporal, guardarArchivo } from "./archivos/almacen";
 import { nombreUnico } from "./archivos/sharepoint-core";
 import { carpetaCertificado, carpetaFotosProducto } from "./archivos/carpetas";
@@ -133,26 +134,28 @@ export async function listarCategorias(): Promise<Categoria[]> {
 }
 
 export async function listarAlmacenes(): Promise<Almacen[]> {
-  const { data, error } = await soloDe(supabaseAdmin.from(T.almacenes).select("*"), await empresaActivaId()).order("nombre");
+  const [{ data, error }, veo, merma] = await Promise.all([soloDe(supabaseAdmin.from(T.almacenes).select("*"), await empresaActivaId()).order("nombre"), veoMerma(), idsMerma()]);
   revienta("listar almacenes", error);
-  return (data ?? []).map(aAlmacen);
+  // La Bodega MERMA solo la ven los administradores de inventario (lib/inventario-merma.ts).
+  return (data ?? []).map(aAlmacen).filter((a) => veo || !merma.almacenes.has(a.id));
 }
 
 export async function listarUbicaciones(incluirInactivas = false): Promise<Ubicacion[]> {
   // Las internas son de cada empresa; las virtuales (proveedor, cliente, ajuste…) se comparten.
   const emp = await empresaActivaId();
   let q = supabaseAdmin.from(T.ubicaciones).select("*").order("tipo").order("nombre");
-  if (emp) q = q.or(`empresa_id.eq.${emp},tipo.neq.interna`);
+  // La de merma es de una empresa, como las internas; y solo la ven los administradores de inventario.
+  if (emp) q = q.or(`empresa_id.eq.${emp},tipo.not.in.(interna,merma)`);
   if (!incluirInactivas) q = q.eq("activo", true);
-  const { data, error } = await q;
+  const [{ data, error }, veo] = await Promise.all([q, veoMerma()]);
   revienta("listar ubicaciones", error);
-  return (data ?? []).map(aUbicacion);
+  return (data ?? []).map(aUbicacion).filter((u) => veo || u.tipo !== "merma");
 }
 
 export async function listarTiposOperacion(): Promise<TipoOperacion[]> {
-  const { data, error } = await supabaseAdmin.from(T.tiposOperacion).select("*").eq("activo", true).order("clase");
+  const [{ data, error }, veo, merma] = await Promise.all([supabaseAdmin.from(T.tiposOperacion).select("*").eq("activo", true).order("clase"), veoMerma(), idsMerma()]);
   revienta("listar tipos de operación", error);
-  return (data ?? []).map(aTipoOperacion);
+  return (data ?? []).map(aTipoOperacion).filter((t) => veo || !merma.tipos.has(t.id));
 }
 
 // =============================================================================
@@ -314,8 +317,10 @@ export async function obtenerFichaProducto(id: string): Promise<FichaProducto | 
 
   const aMano = redondear(stock.reduce((t, s) => t + s.cantidad, 0));
 
+  // Sin acceso a la merma, sus movimientos no se muestran.
+  const [veo, merma] = await Promise.all([veoMerma(), idsMerma()]);
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  const movimientos = (movs.data ?? []).map((r: any) => ({
+  const movimientos = (movs.data ?? []).filter((r: any) => veo || !(merma.ubicaciones.has(r.ubicacion_origen_id) || merma.ubicaciones.has(r.ubicacion_destino_id))).map((r: any) => ({
     ...aMovimiento(r),
     referencia: r.inv_transferencias?.referencia ?? "",
     fecha: r.inv_transferencias?.creado_en ?? r.creado_en,
@@ -345,9 +350,9 @@ export async function listarTransferencias(filtro: FiltroTransferencias = {}): P
   let q = soloDe(supabaseAdmin.from(T.transferencias).select("*"), await empresaActivaId()).order("creado_en", { ascending: false }).limit(200);
   if (filtro.clase) q = q.eq("clase", filtro.clase);
   if (filtro.estado) q = q.eq("estado", filtro.estado);
-  const { data, error } = await q;
+  const [{ data, error }, veo, merma] = await Promise.all([q, veoMerma(), idsMerma()]);
   revienta("listar transferencias", error);
-  return (data ?? []).map(aTransferencia);
+  return (data ?? []).map(aTransferencia).filter((t) => veo || !esDeMerma(t, merma));
 }
 
 export interface DetalleTransferencia {
@@ -358,6 +363,7 @@ export interface DetalleTransferencia {
 export async function obtenerTransferencia(id: string): Promise<DetalleTransferencia | null> {
   const { data: t, error } = await supabaseAdmin.from(T.transferencias).select("*").eq("id", id).maybeSingle();
   revienta("obtener transferencia", error);
+  if (t && !(await veoMerma()) && esDeMerma(aTransferencia(t), await idsMerma())) return null;
   if (!t) return null;
   const { data: m } = await supabaseAdmin.from(T.movimientos).select("*").eq("transferencia_id", id).order("creado_en");
   return { transferencia: aTransferencia(t), movimientos: (m ?? []).map(aMovimiento) };
@@ -396,6 +402,11 @@ export async function crearTransferencia(datos: {
   const origen = datos.ubicacionOrigenId ?? tipo.ubicacionOrigenId;
   const destino = datos.ubicacionDestinoId ?? tipo.ubicacionDestinoId;
   if (!origen || !destino) throw new Error("[inventario] falta ubicación de origen o destino");
+  // La merma solo la operan los administradores de inventario: ocultar la operación no alcanza.
+  const merma = await idsMerma();
+  if ((merma.tipos.has(tipo.id) || merma.ubicaciones.has(origen) || merma.ubicaciones.has(destino)) && !(await veoMerma())) {
+    throw new Error("[inventario] Solo un administrador de inventario puede mover productos a la Bodega MERMA o sacarlos de ella.");
+  }
   if (datos.lineas.length === 0) throw new Error("[inventario] la transferencia necesita al menos una línea");
   // Antes de numerar: una operación rechazada no debe gastar un número de documento.
   await exigirProductosActivos(datos.lineas.map((l) => l.productoId));
@@ -545,10 +556,13 @@ export interface Tablero {
 }
 
 export async function tablero(): Promise<Tablero> {
+  const [veo, merma] = await Promise.all([veoMerma(), idsMerma()]);
+  // Las operaciones de la merma no cuentan para quien no la ve.
+  const sinMerma = <Q extends { not: (c: string, o: string, v: string) => Q }>(q: Q): Q => (veo || merma.tipos.size === 0 ? q : q.not("tipo_operacion_id", "in", `(${[...merma.tipos].join(",")})`));
   const [productos, pendientes, recientes, reab] = await Promise.all([
     listarProductosConStock(),
-    supabaseAdmin.from(T.transferencias).select("id", { count: "exact", head: true }).in("estado", ["borrador", "listo"]),
-    supabaseAdmin.from(T.transferencias).select("*").order("creado_en", { ascending: false }).limit(8),
+    sinMerma(supabaseAdmin.from(T.transferencias).select("id", { count: "exact", head: true }).in("estado", ["borrador", "listo"])),
+    sinMerma(supabaseAdmin.from(T.transferencias).select("*").order("creado_en", { ascending: false }).limit(8)),
     reporteReabastecimiento(),
   ]);
 
@@ -867,7 +881,8 @@ export async function desarchivarProducto(id: string): Promise<void> {
 }
 
 export async function crearCategoria(nombre: string): Promise<void> {
-  const { error } = await supabaseAdmin.from(T.categorias).insert({ nombre });
+  // Siempre en MAYÚSCULA (la base también lo hace, con un trigger: migración 0012).
+  const { error } = await supabaseAdmin.from(T.categorias).insert({ nombre: nombre.trim().toUpperCase() });
   revienta("crear categoría", error);
 }
 
@@ -1049,4 +1064,9 @@ export async function quitarFotoProducto(productoId: string, indice: number): Pr
     .eq("id", productoId);
   revienta("quitar la foto", error);
   await borrarArchivos(BUCKET_INV, [foto.ruta, foto.miniatura]);
+}
+
+/** Si una transferencia es de la Bodega MERMA: por su tipo de operación o por sus ubicaciones. */
+function esDeMerma(t: Transferencia, merma: Awaited<ReturnType<typeof idsMerma>>): boolean {
+  return merma.tipos.has(t.tipoOperacionId ?? "") || merma.ubicaciones.has(t.ubicacionOrigenId ?? "") || merma.ubicaciones.has(t.ubicacionDestinoId ?? "");
 }

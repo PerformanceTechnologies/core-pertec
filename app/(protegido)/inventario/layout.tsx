@@ -1,5 +1,5 @@
 import { IconBuildingWarehouse } from "@tabler/icons-react";
-import NavInventario from "@/components/inventario/NavInventario";
+import NavInventario, { BotonTablero } from "@/components/inventario/NavInventario";
 import { exigirAccesoApp } from "@/lib/autorizacion";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ export default async function LayoutInventario({ children }: { children: React.R
           <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Inventario</h1>
           <p className="text-sm text-gris">Stock, bodegas y movimientos de doble entrada</p>
         </div>
+        <BotonTablero />
       </header>
       <>
         <NavInventario />

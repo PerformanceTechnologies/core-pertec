@@ -1,18 +1,21 @@
-import { IconMapPin } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconMapPin, IconTrashX } from "@tabler/icons-react";
 import IntroSeccion from "@/components/inventario/IntroSeccion";
 import CreadorEntidad from "@/components/inventario/CreadorEntidad";
 import { crearAlmacenAction, crearUbicacionAction } from "@/app/(protegido)/inventario/acciones";
 import { listarAlmacenes, listarUbicaciones } from "@/lib/inventario";
-import { ETIQUETA_TIPO_UBICACION, type TipoUbicacion } from "@/lib/inventario-modelo";
+import { contenidoDeMerma, idsMerma, veoMerma } from "@/lib/inventario-merma";
+import { ETIQUETA_TIPO_UBICACION, formatearCantidad, formatearMonto, type TipoUbicacion } from "@/lib/inventario-modelo";
 import { TARJETA } from "@/lib/estilos";
 
 export const dynamic = "force-dynamic";
 
 export default async function UbicacionesPage() {
-  const [almacenes, ubicaciones] = await Promise.all([listarAlmacenes(), listarUbicaciones(true)]);
+  const [almacenes, ubicaciones, veo] = await Promise.all([listarAlmacenes(), listarUbicaciones(true), veoMerma()]);
+  const [merma, hayMerma] = veo ? await Promise.all([contenidoDeMerma(), idsMerma().then((m) => m.ubicaciones.size > 0)]) : [[], false];
   const nombreAlmacen = new Map(almacenes.map((a) => [a.id, a.nombre]));
 
-  const tipos = (Object.keys(ETIQUETA_TIPO_UBICACION) as TipoUbicacion[]).map((t) => ({ valor: t, etiqueta: ETIQUETA_TIPO_UBICACION[t] }));
+  const tipos = (Object.keys(ETIQUETA_TIPO_UBICACION) as TipoUbicacion[]).filter((t) => t !== "merma").map((t) => ({ valor: t, etiqueta: ETIQUETA_TIPO_UBICACION[t] }));
   const opcionesAlmacen = [{ valor: "", etiqueta: "— Sin almacén —" }, ...almacenes.map((a) => ({ valor: a.id, etiqueta: a.nombre }))];
 
   return (
@@ -23,6 +26,43 @@ export default async function UbicacionesPage() {
         titulo="Bodegas y ubicaciones"
         bajada="Una bodega (almacén) agrupa ubicaciones. Las ubicaciones internas guardan stock; las virtuales son el otro lado de cada movimiento (proveedor, cliente, ajuste)."
       />
+      {/* Bodega MERMA: solo para administradores de inventario. Lo que está aquí no cuenta en ninguna métrica. */}
+      {hayMerma && (
+        <section className={`${TARJETA} p-5`}>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h2 className="inline-flex items-center gap-1.5 text-sm font-bold text-tinta"><IconTrashX size={16} className="text-rose-600" /> Bodega MERMA</h2>
+            <span className="text-xs text-gris">Solo la ven los administradores de inventario. Lo que está aquí no cuenta en el stock, la valorización ni los reportes.</span>
+            <span className="ml-auto flex gap-3 text-xs font-semibold">
+              <Link href="/inventario/operaciones/nueva" className="text-naranjo hover:underline">Enviar a merma o devolver</Link>
+            </span>
+          </div>
+          {merma.length === 0 ? (
+            <p className="rounded-lg border border-borde px-4 py-3 text-sm text-gris">No hay productos en merma.</p>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-borde">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-borde bg-borde/30 text-left text-xs font-semibold uppercase tracking-wide text-gris">
+                    <th className="px-4 py-2.5">Producto</th>
+                    <th className="px-4 py-2.5 text-right">Cantidad</th>
+                    <th className="px-4 py-2.5 text-right">Valor al costo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-borde">
+                  {merma.map((m) => (
+                    <tr key={m.productoId}>
+                      <td className="px-4 py-2.5"><Link href={`/inventario/productos/${m.productoId}`} className="text-tinta hover:text-naranjo">{m.nombre}</Link>{m.sku && <span className="ml-1.5 font-mono text-xs text-gris">{m.sku}</span>}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{formatearCantidad(m.cantidad)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gris">{formatearMonto(m.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Almacenes */}
       <section className={`${TARJETA} p-5`}>
         <h2 className="mb-3 text-sm font-bold text-tinta">Almacenes (bodegas)</h2>

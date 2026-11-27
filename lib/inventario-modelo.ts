@@ -14,7 +14,7 @@ export type MetodoCosto = "estandar" | "promedio";
 export type Seguimiento = "ninguno" | "lote" | "serie";
 /** Si el producto está en condiciones de usarse (una herramienta en reparación está «no operativo»). */
 export type EstadoOperativo = "operativo" | "no_operativo";
-export type TipoUbicacion = "interna" | "proveedor" | "cliente" | "ajuste" | "transito" | "vista";
+export type TipoUbicacion = "interna" | "proveedor" | "cliente" | "ajuste" | "transito" | "vista" | "merma";
 export type ClaseOperacion = "recepcion" | "entrega" | "interna" | "ajuste";
 export type EstadoTransferencia = "borrador" | "listo" | "hecho" | "cancelado";
 export type EstadoMovimiento = "borrador" | "hecho" | "cancelado";
@@ -188,6 +188,7 @@ export const ETIQUETA_TIPO_UBICACION: Record<TipoUbicacion, string> = {
   ajuste: "Ajuste de inventario",
   transito: "Tránsito",
   vista: "Vista",
+  merma: "Merma",
 };
 
 export const ETIQUETA_CLASE: Record<ClaseOperacion, string> = {

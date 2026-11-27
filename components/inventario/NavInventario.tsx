@@ -16,8 +16,8 @@ import {
   type Icon,
 } from "@tabler/icons-react";
 
+// El Tablero no va acá: es el botón junto al título «Inventario» (BotonTablero, abajo).
 const PESTANAS: { href: string; etiqueta: string; Icono: Icon; exacto?: boolean }[] = [
-  { href: "/inventario", etiqueta: "Tablero", Icono: IconLayoutDashboard, exacto: true },
   { href: "/inventario/productos", etiqueta: "Productos", Icono: IconPackage },
   { href: "/inventario/operaciones", etiqueta: "Operaciones", Icono: IconArrowsExchange },
   { href: "/inventario/ajustes", etiqueta: "Ajustes", Icono: IconAdjustmentsHorizontal },
@@ -60,5 +60,24 @@ export default function NavInventario() {
         })}
       </div>
     </nav>
+  );
+}
+
+/** «Tablero», arriba junto al título del módulo (fuera de la fila de pestañas). */
+export function BotonTablero() {
+  const ruta = usePathname();
+  if (ruta.startsWith("/inventario/fabricacion")) return null;
+  const on = ruta === "/inventario";
+  return (
+    <Link
+      href="/inventario"
+      aria-current={on ? "page" : undefined}
+      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition ${
+        on ? "bg-naranjo text-white shadow-sm" : "border border-borde bg-superficie text-gris hover:text-tinta"
+      }`}
+    >
+      <IconLayoutDashboard size={16} stroke={1.75} />
+      Tablero
+    </Link>
   );
 }
