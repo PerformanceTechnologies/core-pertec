@@ -14,10 +14,12 @@ export default async function LayoutInventario({ children }: { children: React.R
           <IconBuildingWarehouse size={23} stroke={1.75} />
         </span>
         <div>
-          <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Inventario</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Inventario</h1>
+            <BotonTablero />
+          </div>
           <p className="text-sm text-gris">Stock, bodegas y movimientos de doble entrada</p>
         </div>
-        <BotonTablero />
       </header>
       <>
         <NavInventario />
