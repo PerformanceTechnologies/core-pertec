@@ -14,7 +14,7 @@ export default async function LayoutInventario({ children }: { children: React.R
           <IconBuildingWarehouse size={23} stroke={1.75} />
         </span>
         <div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <h1 className="font-condensed text-2xl font-bold uppercase tracking-tight text-tinta">Inventario</h1>
             <BotonTablero />
           </div>

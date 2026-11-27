@@ -72,11 +72,11 @@ export function BotonTablero() {
     <Link
       href="/inventario"
       aria-current={on ? "page" : undefined}
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-        on ? "bg-naranjo/10 text-naranjo ring-1 ring-naranjo/30" : "bg-tinta/[0.05] text-gris hover:bg-naranjo/10 hover:text-naranjo"
+      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition ${
+        on ? "bg-naranjo text-white shadow-sm" : "border border-naranjo/40 bg-naranjo/10 text-naranjo hover:bg-naranjo hover:text-white"
       }`}
     >
-      <IconLayoutDashboard size={14} stroke={1.9} />
+      <IconLayoutDashboard size={16} stroke={2} />
       Tablero
     </Link>
   );
