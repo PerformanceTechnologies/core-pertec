@@ -9,6 +9,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/cotizador-parametros?ultimo=1",
+      "schedule": "30 12 * * *"
+    },
+    {
       "path": "/api/cron/repositorio-legal",
       "schedule": "45 10 * * *"
     },
