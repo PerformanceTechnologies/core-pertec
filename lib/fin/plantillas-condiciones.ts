@@ -43,3 +43,9 @@ export async function autorDePlantilla(empresaId: string, id: string): Promise<s
   const { data } = await supabaseAdmin.from("fin_plantillas_condiciones").select("creado_por").eq("id", id).eq("empresa_id", empresaId).maybeSingle();
   return (data?.creado_por as string | undefined) ?? null;
 }
+
+/** Cambia el nombre y el texto de una plantilla de la empresa (quién puede, lo decide quien llama). */
+export async function actualizarPlantillaCondiciones(empresaId: string, id: string, nombre: string, texto: string): Promise<void> {
+  const { error } = await supabaseAdmin.from("fin_plantillas_condiciones").update({ nombre, texto }).eq("id", id).eq("empresa_id", empresaId);
+  if (error) throw new Error(/fin_plantillas_condiciones/.test(error.message) ? FALTA_SQL : error.message);
+}

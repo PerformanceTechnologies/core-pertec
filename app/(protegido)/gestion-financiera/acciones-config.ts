@@ -13,6 +13,10 @@ import { SLUG_EMPRESA_REMUNERACIONES } from "@/lib/fin/remuneraciones-modelo";
 import { formatearRut, normalizarRut, rutEsValido } from "@/lib/contratos/rut";
 import { sincronizarBancoItau } from "@/lib/fin/banco-emisso";
 import { emissoConfigurado } from "@/lib/fin/emisso";
+import { MAX_CARACTERES_GENERALES } from "@/lib/fin/modelo";
+import { actualizarPlantillaCondiciones, autorDePlantilla, borrarPlantillaCondiciones, crearPlantillaCondiciones } from "@/lib/fin/plantillas-condiciones";
+import { CONFIG_POR_OMISION, avisosDeHoy, configAvisosArriendo, correoAviso, guardarConfigAvisosArriendo } from "@/lib/fin/avisos-arriendo";
+import { enviarCorreoAUsuario } from "@/lib/notificaciones";
 
 export type Resultado = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -556,6 +560,85 @@ export async function agregarActividadAction(entidadTipo: string, entidadId: str
     }
     refrescar();
     return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Plantillas de condiciones generales (cotizaciones) --------------------------
+
+/** Crea o edita una plantilla. Editar: solo quien la creó o un administrador del Core. */
+export async function guardarPlantillaAction(id: string | null, fd: FormData): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    const nombre = String(fd.get("nombre") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const contenido = String(fd.get("texto") ?? "").replace(/\r/g, "").trim().slice(0, MAX_CARACTERES_GENERALES);
+    if (!nombre) return { ok: false, error: "Ponle un nombre a la plantilla." };
+    if (!contenido) return { ok: false, error: "Escribe las condiciones de la plantilla." };
+    if (id) {
+      if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, error: "Plantilla inválida." };
+      const autor = await autorDePlantilla(ctx.empresa.id, id);
+      if (!autor) return { ok: false, error: "Esa plantilla ya no existe." };
+      if (ctx.usuario.rol !== "admin" && autor.toLowerCase() !== ctx.usuario.correo.toLowerCase()) return { ok: false, error: "Solo quien creó la plantilla (o un administrador) puede cambiarla." };
+      await actualizarPlantillaCondiciones(ctx.empresa.id, id, nombre, contenido);
+    } else {
+      await crearPlantillaCondiciones(ctx.empresa.id, nombre, contenido, ctx.usuario.correo);
+    }
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Borra una plantilla: solo quien la creó o un administrador del Core. Las cotizaciones que la usaron no cambian. */
+export async function borrarPlantillaAction(id: string): Promise<Resultado> {
+  try {
+    if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, error: "Plantilla inválida." };
+    const ctx = await contextoFin();
+    const autor = await autorDePlantilla(ctx.empresa.id, id);
+    if (!autor) return { ok: false, error: "Esa plantilla ya no existe." };
+    if (ctx.usuario.rol !== "admin" && autor.toLowerCase() !== ctx.usuario.correo.toLowerCase()) return { ok: false, error: "Solo quien creó la plantilla (o un administrador) puede borrarla." };
+    await borrarPlantillaCondiciones(ctx.empresa.id, id);
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+// ---------- Avisos de vencimiento de arriendos ------------------------------------------
+
+/** Guarda la configuración de los avisos de arriendo de la empresa. Solo el administrador del sistema. */
+export async function guardarAvisosArriendoAction(fd: FormData): Promise<Resultado> {
+  try {
+    const ctx = await contextoFin();
+    if (ctx.usuario.rol !== "admin") return { ok: false, error: "Solo el administrador del sistema configura los avisos." };
+    const elegidos = [...new Set(fd.getAll("destinatarios").map(String))];
+    const validos = new Set((await candidatosDeFlujo()).map((c) => c.id));
+    if (elegidos.some((x) => !validos.has(x))) return { ok: false, error: "Alguna de las personas elegidas ya no está disponible." };
+    const diasAntes = entero(fd, "diasAntes") ?? 3;
+    if (diasAntes < 0 || diasAntes > 60) return { ok: false, error: "Los días de anticipación van de 0 a 60." };
+    const config = { activo: fd.get("activo") === "on", diasAntes, avisoHoy: fd.get("avisoHoy") === "on", avisoVencido: fd.get("avisoVencido") === "on", destinatarios: elegidos };
+    await guardarConfigAvisosArriendo(ctx.empresa.id, config, ctx.usuario.correo);
+    await auditar(ctx, "fin_avisos_arriendo", null, "editar", `Avisos de arriendo: ${elegidos.length} destinatario(s)`, { despues: config });
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    return fallo(e);
+  }
+}
+
+/** Le manda a quien aprieta el botón (solo a esa persona) un ejemplo del aviso, con un hito real si hay alguno. */
+export async function enviarEjemploAvisoAction(): Promise<Resultado & { mensaje?: string }> {
+  try {
+    const ctx = await contextoFin();
+    const config = (await configAvisosArriendo(ctx.empresa.id)) ?? CONFIG_POR_OMISION;
+    const pendientes = await avisosDeHoy(ctx.empresa.id, config, ctx.hoy).catch(() => []);
+    const a = pendientes[0];
+    const { asunto, html } = a ? correoAviso(a.tipo, a) : correoAviso("antes", { hitoId: "00000000-0000-0000-0000-000000000000", codigo: "H-EJEMPLO", empresa: "Cliente de ejemplo", dias: config.diasAntes || 3 });
+    await enviarCorreoAUsuario(ctx.usuario.correo, `[Ejemplo] ${asunto}`, html);
+    return { ok: true, mensaje: `Te enviamos un ejemplo a ${ctx.usuario.correo}.` };
   } catch (e) {
     return fallo(e);
   }

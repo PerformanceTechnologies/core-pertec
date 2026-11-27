@@ -1,10 +1,14 @@
-import { IconBuildingBank, IconCalculator, IconCreditCard, IconPlus, IconReceipt2, IconShoppingCart } from "@tabler/icons-react";
+import { IconBell, IconBuildingBank, IconCalculator, IconCreditCard, IconPlus, IconReceipt2, IconSend, IconShoppingCart, IconUsers } from "@tabler/icons-react";
+import { plantillasDeCondiciones, type PlantillaCondiciones } from "@/lib/fin/plantillas-condiciones";
+import { FALTA_SQL_AVISOS, avisosDeHoy, configAvisosArriendo, type AvisoPendiente, type ConfigAvisosArriendo } from "@/lib/fin/avisos-arriendo";
+import { candidatosDeFlujo, type PersonaFlujo } from "@/lib/fin/flujos";
+import { MAX_CARACTERES_GENERALES } from "@/lib/fin/modelo";
 import { RUTA_FIN, cargarVista, contextoFin, type Categoria, type Perfil, type Subcategoria } from "@/lib/fin/datos";
 import { perfilDeEmpresa } from "@/lib/fin/empresa-perfil";
 import { clp, fechaCl, sumarDias } from "@/lib/fin/reglas";
 import { aciertoIa, proponerReglas, type Clasificado } from "@/lib/fin/clasificacion";
 import { TARJETA } from "@/lib/estilos";
-import { crearReglaPropuestaAction, traerHistoriaBancoAction, eliminarReglaAction, guardarIaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction, guardarSubcategoriaAction } from "../acciones-config";
+import { borrarPlantillaAction, enviarEjemploAvisoAction, guardarAvisosArriendoAction, guardarPlantillaAction, crearReglaPropuestaAction, traerHistoriaBancoAction, eliminarReglaAction, guardarIaAction, guardarCategoriaAction, guardarCuentaAction, guardarFactorAction, guardarParametrosAction, guardarPerfilAction, guardarPerfilEmpresaAction, guardarReglaAction, guardarSubcategoriaAction } from "../acciones-config";
 import { Pestanas, Seccion, TD, TH } from "@/components/fin/piezas";
 import { BotonAccion, Campo, ConVentana, FormAccion } from "@/components/fin/ui";
 import { BOTON_SEC, CAMPO } from "@/components/fin/estilos";
@@ -15,14 +19,18 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
   const sp = await searchParams;
   const v = await cargarVista();
   const ver = sp.ver ?? "parametros";
-  const perfilEmpresa = ver === "empresa" ? await perfilDeEmpresa((await contextoFin()).empresa.id) : null;
+  const ctx = await contextoFin();
+  const perfilEmpresa = ver === "empresa" ? await perfilDeEmpresa(ctx.empresa.id) : null;
+  const plantillas = ver === "plantillas" ? await plantillasDeCondiciones(ctx.empresa.id) : [];
+  const avisos = ver === "avisos" ? await datosAvisos(ctx.empresa.id, ctx.hoy) : null;
+  const esAdmin = ctx.usuario.rol === "admin";
   const p = v.p;
   return (
     <div className="space-y-5">
       <Pestanas
         base={`${RUTA_FIN}/configuracion`}
         actual={ver}
-        opciones={[{ clave: "parametros", etiqueta: "Parámetros" }, { clave: "empresa", etiqueta: "Datos de la empresa" }, { clave: "cuentas", etiqueta: "Cuentas y factores" }, { clave: "categorias", etiqueta: "Categorías y reglas" }, { clave: "perfiles", etiqueta: "Clientes y proveedores" }]}
+        opciones={[{ clave: "parametros", etiqueta: "Parámetros" }, { clave: "empresa", etiqueta: "Datos de la empresa" }, { clave: "cuentas", etiqueta: "Cuentas y factores" }, { clave: "categorias", etiqueta: "Categorías y reglas" }, { clave: "perfiles", etiqueta: "Clientes y proveedores" }, { clave: "plantillas", etiqueta: "Plantillas de condiciones" }, { clave: "avisos", etiqueta: "Avisos de arriendo" }]}
       />
 
       {ver === "parametros" && (
@@ -119,6 +127,10 @@ export default async function ConfiguracionFinPage({ searchParams }: { searchPar
       )}
 
       {ver === "categorias" && <CategoriasYReglas v={v} />}
+
+      {ver === "plantillas" && <Plantillas plantillas={plantillas} correo={ctx.usuario.correo} esAdmin={esAdmin} />}
+
+      {ver === "avisos" && avisos && <AvisosArriendo {...avisos} esAdmin={esAdmin} />}
 
       {ver === "perfiles" && (
         <div className="space-y-3">
@@ -453,5 +465,122 @@ function GrupoParametros({ titulo, icono, children }: { titulo: string; icono: R
       </legend>
       <div className="grid gap-3 sm:grid-cols-3">{children}</div>
     </fieldset>
+  );
+}
+
+// ---------- Plantillas de condiciones generales ------------------------------------------
+
+function Plantillas({ plantillas, correo, esAdmin }: { plantillas: PlantillaCondiciones[]; correo: string; esAdmin: boolean }) {
+  return (
+    <Seccion
+      titulo="Plantillas de condiciones generales"
+      accion={<ConVentana boton={<><IconPlus size={14} /> Plantilla</>} titulo="Nueva plantilla" ancho="max-w-3xl" className={BOTON_SEC}>{<FormPlantilla />}</ConVentana>}
+    >
+      <p className="mb-3 max-w-3xl text-sm text-gris">Textos de condiciones que se cargan con un clic al hacer una cotización (en «Condiciones generales», «Usar plantilla…»). Cambiar o borrar una plantilla no toca las cotizaciones que ya la usaron.</p>
+      <ul className={`${TARJETA} max-w-3xl divide-y divide-borde`}>
+        {plantillas.map((pl) => {
+          const puede = esAdmin || pl.creadoPor.toLowerCase() === correo.toLowerCase();
+          return (
+            <li key={pl.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold text-tinta">{pl.nombre}</span>
+                <span className="mt-0.5 line-clamp-2 block whitespace-pre-line text-xs text-gris">{pl.texto}</span>
+              </span>
+              {puede && (
+                <span className="flex shrink-0 items-center gap-3">
+                  <ConVentana boton="Editar" titulo={pl.nombre} ancho="max-w-3xl" className="text-xs font-semibold text-naranjo">{<FormPlantilla pl={pl} />}</ConVentana>
+                  <BotonAccion accion={borrarPlantillaAction.bind(null, pl.id)} confirmar={`¿Borrar la plantilla «${pl.nombre}»?`} className="text-xs font-semibold text-gris hover:text-alerta">Borrar</BotonAccion>
+                </span>
+              )}
+            </li>
+          );
+        })}
+        {plantillas.length === 0 && <li className="px-4 py-4 text-xs text-gris">Sin plantillas. Crea una con «+ Plantilla» (por ejemplo: arriendo de equipos, servicio en faena, venta).</li>}
+      </ul>
+    </Seccion>
+  );
+}
+
+function FormPlantilla({ pl }: { pl?: PlantillaCondiciones }) {
+  return (
+    <FormAccion accion={guardarPlantillaAction.bind(null, pl?.id ?? null)}>
+      <Campo etiqueta="Nombre *"><input name="nombre" required maxLength={80} defaultValue={pl?.nombre} className={CAMPO} placeholder="Arriendo de equipos" /></Campo>
+      <Campo etiqueta="Condiciones *" ayuda={`Hasta ${MAX_CARACTERES_GENERALES.toLocaleString("es-CL")} caracteres. Una condición por línea se lee mejor.`}>
+        <textarea name="texto" required rows={10} maxLength={MAX_CARACTERES_GENERALES} defaultValue={pl?.texto} className={CAMPO} />
+      </Campo>
+    </FormAccion>
+  );
+}
+
+// ---------- Avisos de vencimiento de arriendos ------------------------------------------
+
+async function datosAvisos(empresaId: string, hoy: string): Promise<{ config: ConfigAvisosArriendo | null; candidatos: PersonaFlujo[]; hoyTocan: AvisoPendiente[] }> {
+  const [config, candidatos] = await Promise.all([configAvisosArriendo(empresaId), candidatosDeFlujo()]);
+  const hoyTocan = config ? await avisosDeHoy(empresaId, config, hoy).catch(() => []) : [];
+  return { config, candidatos, hoyTocan };
+}
+
+const ETIQUETA_AVISO = { antes: "Por vencer", hoy: "Vence hoy", vencido: "Vencido" } as const;
+
+function AvisosArriendo({ config, candidatos, hoyTocan, esAdmin }: { config: ConfigAvisosArriendo | null; candidatos: PersonaFlujo[]; hoyTocan: AvisoPendiente[]; esAdmin: boolean }) {
+  if (!config) return <div className={`${TARJETA} max-w-3xl p-5 text-sm text-gris`}>{FALTA_SQL_AVISOS}</div>;
+  const elegidos = new Set(config.destinatarios);
+  return (
+    <div className="grid max-w-5xl gap-5 lg:grid-cols-[1fr_20rem]">
+      <div className={`${TARJETA} p-5`}>
+        <p className="mb-5 text-sm text-gris">Como las alarmas de Odoo: cada mañana (cerca de las 8:00) les llega un correo a las personas elegidas por cada hito de arriendo que está por vencer, vence hoy o ya venció, según la fecha de término del arriendo. Si el hito ya se facturó, no se avisa.</p>
+        {!esAdmin && <p className="mb-4 rounded-lg bg-tinta/[0.04] px-3 py-2 text-xs text-gris">Solo el administrador del sistema puede cambiar esta configuración.</p>}
+        <FormAccion accion={guardarAvisosArriendoAction} className="space-y-6">
+          <GrupoParametros titulo="Cuándo avisar" icono={<IconBell size={15} />}>
+            <label className="flex items-center gap-2.5 rounded-xl border border-borde p-3 text-sm sm:col-span-3">
+              <input type="checkbox" name="activo" defaultChecked={config.activo} />
+              <span className="font-semibold text-tinta">Avisos activos</span>
+            </label>
+            <Campo etiqueta="Días antes del vencimiento" ayuda="0 = sin aviso previo"><input name="diasAntes" defaultValue={config.diasAntes} inputMode="numeric" className={CAMPO} /></Campo>
+            <label className="flex items-center gap-2.5 self-start rounded-xl border border-borde p-3 text-sm sm:mt-6">
+              <input type="checkbox" name="avisoHoy" defaultChecked={config.avisoHoy} />
+              <span className="text-tinta">El día que vence</span>
+            </label>
+            <label className="flex items-start gap-2.5 self-start rounded-xl border border-borde p-3 text-sm sm:mt-6">
+              <input type="checkbox" name="avisoVencido" defaultChecked={config.avisoVencido} className="mt-0.5" />
+              <span className="text-tinta">Cada día, ya vencido<span className="block text-[11px] text-gris">Hasta que se facture o se marque terminado</span></span>
+            </label>
+          </GrupoParametros>
+          <GrupoParametros titulo="A quién le llegan" icono={<IconUsers size={15} />}>
+            <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-borde p-2 sm:col-span-3">
+              {candidatos.length === 0 && <p className="p-2 text-xs text-gris">No hay usuarios con Gestión financiera.</p>}
+              {candidatos.map((c) => (
+                <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-tinta/[0.04]">
+                  <input type="checkbox" name="destinatarios" value={c.id} defaultChecked={elegidos.has(c.id)} />
+                  <span className="text-tinta">{c.nombre}</span>
+                  <span className="truncate text-[11px] text-gris">{c.correo}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-gris sm:col-span-3">{elegidos.size > 0 ? `${elegidos.size} persona(s) reciben los avisos.` : "Sin nadie elegido no se envía ningún aviso."} Solo aparecen usuarios del Core con Gestión financiera: el enlace del correo pide sesión.</p>
+          </GrupoParametros>
+        </FormAccion>
+      </div>
+
+      <div className="space-y-3">
+        <div className={`${TARJETA} p-4`}>
+          <h3 className="text-sm font-bold text-tinta">Hoy tocan {hoyTocan.length} aviso(s)</h3>
+          <ul className="mt-2 space-y-1.5">
+            {hoyTocan.slice(0, 8).map((a) => (
+              <li key={`${a.hitoId}-${a.tipo}`} className="text-xs">
+                <a href={`/finanzas/ventas/hito/${a.hitoId}`} className="font-semibold text-tinta hover:text-naranjo">{a.codigo}</a>
+                <span className="text-gris"> · {a.empresa} · {ETIQUETA_AVISO[a.tipo]} ({fechaCl(a.vence)})</span>
+              </li>
+            ))}
+            {hoyTocan.length > 8 && <li className="text-xs text-gris">y {hoyTocan.length - 8} más.</li>}
+            {hoyTocan.length === 0 && <li className="text-xs text-gris">Ningún arriendo por vencer o vencido sin facturar.</li>}
+          </ul>
+        </div>
+        <div className={`${TARJETA} p-4`}>
+          <p className="mb-2 text-xs text-gris">Para ver cómo llega, te mandamos un ejemplo solo a ti.</p>
+          <BotonAccion accion={enviarEjemploAvisoAction} className={BOTON_SEC}><IconSend size={14} /> Enviarme un ejemplo</BotonAccion>
+        </div>
+      </div>
+    </div>
   );
 }

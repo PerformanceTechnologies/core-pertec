@@ -17,6 +17,8 @@ const CORREO_AVISOS = "notificaciones@pertec.cl";
  * recurso. (soporte@ no va: es una lista de distribución y no puede enviar.)
  */
 const CASILLAS_GENERALES = [CORREO_AVISOS, "comercial@pertec.cl", "finanzas@pertec.cl"];
+/** Casilla → hasta cuándo no se reintenta (en memoria de esta instancia). */
+const casillasQueFallaron = new Map<string, number>();
 /**
  * Exportada solo para poder DECIR a quien se le mando, no para elegirlo: sigue siendo una
  * constante de este archivo. Ver el comentario de enviar().
@@ -222,9 +224,13 @@ export async function enviarCorreoAUsuario(destinatario: string, asunto: string,
   // casillas generales y, como último recurso, el buzón de la MISMA persona que lo recibe (se lo manda a sí misma):
   // un aviso no debe salir con el nombre de otra persona (antes caía al buzón de Hugo).
   for (const casilla of CASILLAS_GENERALES) {
+    // Una casilla que acaba de fallar no se reintenta por un rato: en una corrida con muchos avisos, cada uno
+    // probaría de nuevo las que no existen.
+    if ((casillasQueFallaron.get(casilla) ?? 0) > Date.now()) continue;
     try {
       return await enviar(correo, asunto, cuerpoHtml, "HTML", casilla);
     } catch (e) {
+      casillasQueFallaron.set(casilla, Date.now() + 10 * 60_000);
       console.error(`[correo] No se pudo enviar desde ${casilla}; se prueba la siguiente:`, e instanceof Error ? e.message : e);
     }
   }
